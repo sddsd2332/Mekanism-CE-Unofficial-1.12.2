@@ -17,11 +17,13 @@ import mekanism.common.recipe.RecipeHandler.Recipe;
 import mekanism.common.util.StackUtils;
 import mekanism.common.world.DummyWorld;
 import net.minecraft.block.BlockPlanks;
+import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Blocks;
 import net.minecraft.init.Items;
 import net.minecraft.inventory.Container;
 import net.minecraft.inventory.InventoryCrafting;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.crafting.CraftingManager;
 import net.minecraft.item.crafting.FurnaceRecipes;
@@ -39,7 +41,9 @@ import net.minecraftforge.oredict.OreDictionary;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.IntStream;
 
 @EventBusSubscriber(modid = Mekanism.MODID)
@@ -412,38 +416,64 @@ public final class OreDictManager {
     /**
      * Handy method for retrieving all log items, finding their corresponding planks, and making recipes with them. Credit to CofhCore.
      */
-    private static void addLogRecipes() {
-        Container tempContainer = new Container() {
+    public static void addLogRecipes() {
+
+        DummyWorld world = new DummyWorld();
+        Container fakeContainer = new Container() {
             @Override
             public boolean canInteractWith(@Nonnull EntityPlayer player) {
                 return false;
             }
         };
-        DummyWorld dummyWorld = null;
-        try {
-            dummyWorld = new DummyWorld();
-        } catch (Exception ignored) {
-        }
+        InventoryCrafting crafting = new InventoryCrafting(fakeContainer, 3, 3);
 
-        InventoryCrafting tempCrafting = new InventoryCrafting(tempContainer, 3, 3);
+        FluidStack water100    = new FluidStack(FluidRegistry.WATER,    100);
+        GasStack   oxygen100   = new GasStack(MekanismFluids.Oxygen,   100);
+        GasStack   hydrogen100 = new GasStack(MekanismFluids.Hydrogen, 100);
 
-        for (int i = 1; i < 9; i++) {
-            tempCrafting.setInventorySlotContents(i, ItemStack.EMPTY);
-        }
+        Set<Item> processed = new HashSet<>();
 
-        final DummyWorld finalDummyWorld = dummyWorld;
-        OreDictionary.getOres("logWood", false).parallelStream().forEach(logEntry -> {
-            if (logEntry.getItemDamage() == OreDictionary.WILDCARD_VALUE) {
-                IntStream.range(0, 16).parallel()
-                        .forEach(j -> addSawmillLog(tempCrafting, new ItemStack(logEntry.getItem(), 1, j), finalDummyWorld));
+        List<ItemStack> logs = OreDictionary.getOres("logWood", false);
+        for (ItemStack entry : logs) {
+            Item item = entry.getItem();
+            if (!processed.add(item)) {
+                continue;
+            }
+
+            int meta = entry.getMetadata();
+            if (meta == OreDictionary.WILDCARD_VALUE) {
+                NonNullList<ItemStack> subTypes = NonNullList.create();
+                item.getSubItems(CreativeTabs.SEARCH, subTypes);
+                for (ItemStack sub : subTypes) {
+                    registerLog(sub, crafting, world, water100, oxygen100, hydrogen100);
+                }
             } else {
-                addSawmillLog(tempCrafting, StackUtils.size(logEntry, 1), finalDummyWorld);
+                registerLog(StackUtils.size(entry, 1), crafting, world, water100, oxygen100, hydrogen100);
             }
-            synchronized (Recipe.PRESSURIZED_REACTION_CHAMBER) {
-                RecipeHandler.addPRCRecipe(StackUtils.size(logEntry, 1), new FluidStack(FluidRegistry.WATER, 100), new GasStack(MekanismFluids.Oxygen, 100), ItemStack.EMPTY,
-                        new GasStack(MekanismFluids.Hydrogen, 100), 0, 150);
-            }
-        });
+        }
+    }
+
+    private static void registerLog(ItemStack log,
+                                    InventoryCrafting crafting,
+                                    DummyWorld world,
+                                    FluidStack water100,
+                                    GasStack oxygen100,
+                                    GasStack hydrogen100) {
+
+        for (int i = 0; i < crafting.getSizeInventory(); i++) {
+            crafting.setInventorySlotContents(i, ItemStack.EMPTY);
+        }
+
+        addSawmillLog(crafting, log, world);
+
+        RecipeHandler.addPRCRecipe(
+                log.copy(),
+                water100.copy(),
+                oxygen100.copy(),
+                ItemStack.EMPTY,
+                hydrogen100.copy(),
+                0, 150
+        );
     }
 
     private static synchronized void addSawmillLog(InventoryCrafting tempCrafting, ItemStack log, DummyWorld world) {
