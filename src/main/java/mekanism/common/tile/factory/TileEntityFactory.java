@@ -475,7 +475,8 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
                     TypeUpdate(process, Exenery);
                 } else if ((progress[process] + 1) >= ticksRequired && ((recipeType == RecipeType.PRC || recipeType == RecipeType.NUCLEOSYNTHESIZER) ? getEnergy() >= MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK + Exenery) : getEnergy() >= energyPerTick)) {
                     if (MekanismConfig.current().mekce.EnableUpgradeConfigure.val() && ticksRequired <= 0) {
-                        for (int i = ticksRequired; i < 0; i++) {
+                        int operations = 1 - ticksRequired;
+                        for (int i = 0; i < operations; i++) {
                             if (!canOperate(getInputSlot(process), getOutputSlot(process), getSecondaryOutputSlot(process))) {
                                 break;
                             }

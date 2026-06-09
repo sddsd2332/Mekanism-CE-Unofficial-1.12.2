@@ -54,9 +54,17 @@ public class GuiFactory extends GuiMekanismTile<TileEntityFactory> implements IJ
 
     private GuiButton infuserDumpButton = null;
     private GuiButton FactoryOldSortingButton;
+    private final InventoryPlayer inventory;
+    private RecipeType displayedRecipeType;
 
     public GuiFactory(InventoryPlayer inventory, TileEntityFactory tile) {
         super(tile, new ContainerFactory(inventory, tile));
+        this.inventory = inventory;
+        displayedRecipeType = tileEntity.getRecipeType();
+        addFactoryGuiElements();
+    }
+
+    private void addFactoryGuiElements() {
         ResourceLocation resource = getGuiLocation();
         int ymove = 0;
         if (tileEntity.OuputItemSecondaryMachine()) {
@@ -121,7 +129,7 @@ public class GuiFactory extends GuiMekanismTile<TileEntityFactory> implements IJ
         addGuiElement(new GuiEnergySlot(this, resource, 6, 12, tileEntity));
 
         //能量条
-        if (tile.OuputItemSecondaryMachine() || tileEntity.getRecipeType() == RecipeType.PRC) {
+        if (tileEntity.OuputItemSecondaryMachine() || tileEntity.getRecipeType() == RecipeType.PRC) {
             addGuiElement(new GuiPowerBarLong(this, tileEntity, resource, 164 + xmove, 15));
         } else {
             addGuiElement(new GuiPowerBar(this, tileEntity, resource, 164 + xmove, 15));
@@ -218,9 +226,30 @@ public class GuiFactory extends GuiMekanismTile<TileEntityFactory> implements IJ
             }
 
         }
-        int xPlayerOffset = tile.tier == FactoryTier.CREATIVE ? 36 : tile.tier == FactoryTier.ULTIMATE ? 19 : 0;
+        int xPlayerOffset = tileEntity.tier == FactoryTier.CREATIVE ? 36 : tileEntity.tier == FactoryTier.ULTIMATE ? 19 : 0;
         //玩家插槽
         addGuiElement(new GuiPlayerSlot(this, resource, 7 + xPlayerOffset, 83 + ymove));
+    }
+
+    private void rebuildFactoryGui() {
+        int windowId = inventorySlots.windowId;
+        xSize = 176;
+        ySize = 166;
+        getGuiElements().clear();
+        buttonList.clear();
+        inventorySlots = new ContainerFactory(inventory, tileEntity);
+        inventorySlots.windowId = windowId;
+        addFactoryGuiElements();
+        initGui();
+    }
+
+    @Override
+    public void updateScreen() {
+        super.updateScreen();
+        if (displayedRecipeType != tileEntity.getRecipeType()) {
+            displayedRecipeType = tileEntity.getRecipeType();
+            rebuildFactoryGui();
+        }
     }
 
     @Override

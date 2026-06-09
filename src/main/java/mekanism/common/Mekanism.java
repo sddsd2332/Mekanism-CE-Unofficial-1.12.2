@@ -734,7 +734,9 @@ public class Mekanism {
         });
         ModuleHelper.get().processSupportedContainers();
         hooks.hookPostInit();
-        MekanismRecipe.SuperFumoReciperRegister();
+        if (MekanismConfig.current().mekce.EnableSuperFumoRecipe.val()) {
+            MekanismRecipe.SuperFumoReciperRegister();
+        }
         MinecraftForge.EVENT_BUS.post(new BoxBlacklistEvent());
         Mekanism.proxy.postInit();
         logger.info("Hooking complete.");

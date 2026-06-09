@@ -15,6 +15,7 @@ import mekanism.common.tile.factory.TileEntityFactory;
 import mekanism.common.util.ChargeUtils;
 import mekanism.common.util.InventoryUtils;
 import mekanism.common.util.NonNullListSynchronized;
+import mekanism.common.util.OperationUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumFacing;
 
@@ -123,6 +124,18 @@ public abstract class TileEntityElectricMachine<RECIPE extends BasicMachineRecip
     public void operate(RECIPE recipe) {
         recipe.operate(inventory, 0, 2);
         markNoUpdateSync();
+    }
+
+    @Override
+    public int operate(RECIPE recipe, int operations) {
+        int actualOperations = Math.min(operations, inventory.get(0).getCount() / recipe.getInput().ingredient.getCount());
+        actualOperations = Math.min(actualOperations, OperationUtils.getMaxOutputOperations(inventory, 2, recipe.getOutput().output));
+        if (actualOperations > 0) {
+            OperationUtils.shrinkStack(inventory, 0, recipe.getInput().ingredient, actualOperations);
+            OperationUtils.growOutput(inventory, 2, recipe.getOutput().output, actualOperations);
+            markNoUpdateSync();
+        }
+        return actualOperations;
     }
 
     @Override

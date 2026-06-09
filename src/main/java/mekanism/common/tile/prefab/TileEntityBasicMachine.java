@@ -8,6 +8,7 @@ import mekanism.common.base.IMachineSlotTip;
 import mekanism.common.base.ISideConfiguration;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.capabilities.Capabilities;
+import mekanism.common.config.MekanismConfig;
 import mekanism.common.integration.computer.IComputerIntegration;
 import mekanism.common.recipe.inputs.MachineInput;
 import mekanism.common.recipe.machines.MachineRecipe;
@@ -318,7 +319,16 @@ public abstract class TileEntityBasicMachine<INPUT extends MachineInput<INPUT>, 
                 electricityStored.addAndGet(-energyTick);
             }
             if (operatingTicks >= ticksRequired) {
-                MultipleActions(recipe);
+                int actionTicksRequired = ticksRequired;
+                if (defaultEnergy && MekanismConfig.current().mekce.EnableUpgradeConfigure.val() && ticksRequired <= 0 && energyTick > 0) {
+                    int requestedOperations = 1 - ticksRequired;
+                    int availableOperations = 1 + (int) (getEnergy() / energyTick);
+                    actionTicksRequired = 1 - Math.min(requestedOperations, availableOperations);
+                }
+                int operations = MultipleActions(recipe, actionTicksRequired);
+                if (defaultEnergy && operations > 1) {
+                    electricityStored.addAndGet(-energyTick * (operations - 1));
+                }
                 operatingTicks = 0;
                 setFinish();
             }
@@ -339,8 +349,8 @@ public abstract class TileEntityBasicMachine<INPUT extends MachineInput<INPUT>, 
     }
 
 
-    public void MultipleActions(RECIPE recipe) {
-        MultipleActions(recipe, ticksRequired);
+    public int MultipleActions(RECIPE recipe) {
+        return MultipleActions(recipe, ticksRequired);
     }
 
     @Override

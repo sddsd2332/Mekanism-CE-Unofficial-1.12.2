@@ -88,6 +88,8 @@ public class MEKCEConfig extends BaseConfig {
 
     public final BooleanOption BinRecipeClosed = new BooleanOption(this,  "BinRecipeClosed", false, "Turn off the BIN synthesis recipe").setRequiresGameRestart();
 
+    public final BooleanOption EnableSuperFumoRecipe = new BooleanOption(this, "EnableSuperFumoRecipe", true, "Enable the Super FuMo crafting recipe.").setRequiresGameRestart();
+
     public final BooleanOption BinRecipeRemovesItem = new BooleanOption(this,  "BinRecipeRemovesItem", false, "Close Bin to remove items").setRequiresGameRestart();
 
     public final IntOption MaximumEjectionDelay = new IntOption(this,  "MaximumEjectionDelay", 40, "Maximum ejection delay for gases and fluids");

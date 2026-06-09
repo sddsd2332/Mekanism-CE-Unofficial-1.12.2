@@ -37,19 +37,27 @@ public interface IElectricMachine<INPUT extends MachineInput<INPUT>, OUTPUT exte
      */
     Map<INPUT, RECIPE> getRecipes();
 
-    default void MultipleActions(RECIPE recipe,int ticksRequired) {
+    default int MultipleActions(RECIPE recipe, int ticksRequired) {
         if (recipe != null) {
             if (MekanismConfig.current().mekce.EnableUpgradeConfigure.val() && ticksRequired <= 0) {
-                for (int i = ticksRequired; i < 0; i++) {
-                    if (!canOperate(recipe)) {
-                        break;
-                    }
-                    operate(recipe);
-                }
-            } else {
-                operate(recipe);
+                return operate(recipe, 1 - ticksRequired);
             }
+            operate(recipe);
+            return 1;
         }
+        return 0;
+    }
+
+    default int operate(RECIPE recipe, int operations) {
+        int performed = 0;
+        for (int i = 0; i < operations; i++) {
+            if (!canOperate(recipe)) {
+                break;
+            }
+            operate(recipe);
+            performed++;
+        }
+        return performed;
     }
 
 

@@ -238,6 +238,20 @@ public abstract class TileEntityAdvancedElectricMachine<RECIPE extends AdvancedM
     }
 
     @Override
+    public int operate(RECIPE recipe, int operations) {
+        int actualOperations = Math.min(operations, inventory.get(0).getCount() / recipe.getInput().itemStack.getCount());
+        actualOperations = Math.min(actualOperations, gasTank.getStored() / secondaryEnergyThisTick);
+        actualOperations = Math.min(actualOperations, OperationUtils.getMaxOutputOperations(inventory, 2, recipe.getOutput().output));
+        if (actualOperations > 0) {
+            OperationUtils.shrinkStack(inventory, 0, recipe.getInput().itemStack, actualOperations);
+            gasTank.draw(secondaryEnergyThisTick * actualOperations, true);
+            OperationUtils.growOutput(inventory, 2, recipe.getOutput().output, actualOperations);
+            markNoUpdateSync();
+        }
+        return actualOperations;
+    }
+
+    @Override
     public boolean canOperate(RECIPE recipe) {
         return recipe != null && recipe.canOperate(inventory, 0, 2, gasTank, secondaryEnergyThisTick);
     }
