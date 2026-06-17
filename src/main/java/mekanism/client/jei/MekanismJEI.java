@@ -25,6 +25,7 @@ import mekanism.common.inventory.container.robit.ContainerRobitInventory;
 import mekanism.common.item.ItemBlockEnergyCube;
 import mekanism.common.item.ItemBlockGasTank;
 import mekanism.common.recipe.RecipeHandler.Recipe;
+import mekanism.common.recipe.machines.RecyclerRecipe;
 import mekanism.common.util.LangUtils;
 import mezz.jei.api.*;
 import mezz.jei.api.ISubtypeRegistry.ISubtypeInterpreter;
@@ -164,7 +165,7 @@ public class MekanismJEI implements IModPlugin {
         addRecipeCategory(registry, MachineType.CELL_SEPARATOR, new ChanceMachineRecipeCategory(guiHelper, Recipe.CELL_SEPARATOR.getJEICategory(),
                 "tile.MachineBlock4.CellSeparator.name", ProgressBar.BAR));
         if (MekanismConfig.current().mekce.EnableRecyclerRecipeInJei.val()) {
-            addRecipeCategory(registry, MachineType.RECYCLER, new Chance2MachineRecipeCategory(guiHelper, Recipe.RECYCLER.getJEICategory(), "tile.MachineBlock4.Recycler.name", ProgressBar.BAR));
+            addRecipeCategory(registry, MachineType.RECYCLER, new RecyclerRecipeCategory(guiHelper));
         }
         addRecipeCategory(registry, MachineType.AMBIENT_ACCUMULATOR, new AmbientGasCategory(guiHelper));
         addRecipeCategory(registry, MachineType.SPS, new SPSRecipeCategory(guiHelper));

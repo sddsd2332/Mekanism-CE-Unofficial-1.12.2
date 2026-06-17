@@ -363,7 +363,27 @@ public class RecipeRegistryHelper {
         if (!MachineType.RECYCLER.isEnabled()) {
             return;
         }
-        addRecipes(registry, Recipe.RECYCLER, Chance2MachineRecipeWrapper::new);
+
+        Map<String, List<ItemStack>> groupedInputs = new java.util.HashMap<>();
+        Map<String, mekanism.common.recipe.machines.RecyclerRecipe> sampleRecipes = new java.util.HashMap<>();
+
+        for (mekanism.common.recipe.machines.RecyclerRecipe recipe : Recipe.RECYCLER.get().values()) {
+            mekanism.common.recipe.outputs.ChanceOutput2 out = recipe.getOutput();
+            if (!out.hasPrimary()) continue;
+
+            String key = out.primaryOutput.getItem().getRegistryName() + "_" + out.primaryOutput.getMetadata() + "_" + out.primaryChance;
+
+            groupedInputs.computeIfAbsent(key, k -> new ArrayList<>()).add(recipe.getInput().ingredient);
+            sampleRecipes.putIfAbsent(key, recipe);
+        }
+
+        List<RecyclerRecipeWrapper> wrappers = new ArrayList<>();
+        for (Map.Entry<String, List<ItemStack>> entry : groupedInputs.entrySet()) {
+            wrappers.add(new RecyclerRecipeWrapper(sampleRecipes.get(entry.getKey()), entry.getValue()));
+        }
+
+        registry.addRecipes(wrappers, Recipe.RECYCLER.getJEICategory());
+
         registry.addRecipeClickArea(GuiRecycler.class, 79, 40, 24, 7, Recipe.RECYCLER.getJEICategory());
         registerRecipeItem(registry, MachineType.RECYCLER, Recipe.RECYCLER);
     }
