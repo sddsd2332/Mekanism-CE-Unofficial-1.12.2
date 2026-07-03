@@ -863,7 +863,7 @@ public final class RecipeHandler {
             return values;
         }
 
-        private final RecipeMap recipes = new RecipeMap();
+        private final HashMap<INPUT, RECIPE> recipes = new RecipeMap();
         private final String recipeName;
         @Nonnull
         private final String jeiCategory;
