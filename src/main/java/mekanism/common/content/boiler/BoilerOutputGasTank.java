@@ -1,6 +1,8 @@
 package mekanism.common.content.boiler;
 
+import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasStack;
+import mekanism.common.MekanismFluids;
 import mekanism.common.tile.multiblock.TileEntityBoilerCasing;
 
 import javax.annotation.Nullable;
@@ -9,6 +11,11 @@ public class BoilerOutputGasTank extends BoilerGasTank {
 
     public BoilerOutputGasTank(TileEntityBoilerCasing tileEntity) {
         super(tileEntity);
+    }
+
+    @Override
+    public boolean isValid(@Nullable Gas gas) {
+        return gas == MekanismFluids.Sodium;
     }
 
     @Override
@@ -26,6 +33,9 @@ public class BoilerOutputGasTank extends BoilerGasTank {
 
     @Override
     public int getMaxGas() {
-        return multiblock.structure != null ? multiblock.structure.steamVolume * BoilerUpdateProtocol.STEAM_PER_TANK : 0;
+        if (multiblock.structure == null) {
+            return 0;
+        }
+        return multiblock.isRemote() ? multiblock.clientSteamCapacity : multiblock.structure.getOutputGasCapacity();
     }
 }

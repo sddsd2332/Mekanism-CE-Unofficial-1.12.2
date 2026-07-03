@@ -1,9 +1,9 @@
 package mekanism.common.recipe.machines;
 
+import mekanism.api.inventory.IInventorySlot;
 import mekanism.common.recipe.inputs.DoubleMachineInput;
 import mekanism.common.recipe.outputs.ItemStackOutput;
 import net.minecraft.item.ItemStack;
-import net.minecraft.util.NonNullList;
 
 public abstract class DoubleMachineRecipe<RECIPE extends DoubleMachineRecipe<RECIPE>> extends MachineRecipe<DoubleMachineInput, ItemStackOutput, RECIPE> {
 
@@ -15,21 +15,12 @@ public abstract class DoubleMachineRecipe<RECIPE extends DoubleMachineRecipe<REC
         this(new DoubleMachineInput(input, extra), new ItemStackOutput(output));
     }
 
-    public boolean inputMatches(NonNullList<ItemStack> inventory, int inputIndex, int extraIndex) {
-        return getInput().useItem(inventory, inputIndex, false) && getInput().useExtra(inventory, extraIndex, false);
+    public boolean inputMatches(IInventorySlot inputSlot, IInventorySlot extraSlot) {
+        return getInput().useItem(inputSlot, false) && getInput().useExtra(extraSlot, false);
     }
 
-    public boolean canOperate(NonNullList<ItemStack> inventory, int inputIndex, int extraIndex, int outputIndex) {
-        return inputMatches(inventory, inputIndex, extraIndex) && getOutput().applyOutputs(inventory, outputIndex, false);
+    public boolean canOperate(IInventorySlot inputSlot, IInventorySlot extraSlot, IInventorySlot outputSlot) {
+        return inputMatches(inputSlot, extraSlot) && getOutput().applyOutputs(outputSlot, false);
     }
 
-    public void operate(NonNullList<ItemStack> inventory, int inputIndex, int extraIndex, int outputIndex) {
-        operate(inventory,inputIndex,extraIndex,outputIndex,true);
-    }
-
-    public void operate(NonNullList<ItemStack> inventory, int inputIndex, int extraIndex, int outputIndex,boolean deplete) {
-        if (getInput().useItem(inventory, inputIndex, deplete) && getInput().useExtra(inventory, extraIndex, deplete)) {
-            getOutput().applyOutputs(inventory, outputIndex, true);
-        }
-    }
 }

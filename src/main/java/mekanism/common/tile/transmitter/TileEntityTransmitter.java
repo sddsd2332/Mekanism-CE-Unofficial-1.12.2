@@ -6,11 +6,13 @@ import mekanism.api.transmitters.DynamicNetwork;
 import mekanism.api.transmitters.DynamicNetwork.NetworkClientRequest;
 import mekanism.api.transmitters.IGridTransmitter;
 import mekanism.api.transmitters.TransmitterNetworkRegistry;
+import mekanism.common.advancements.MekanismCriteriaTriggers;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.tier.AlloyTier;
 import mekanism.common.transmitters.TransmitterImpl;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
@@ -252,6 +254,9 @@ public abstract class TileEntityTransmitter<A, N extends DynamicNetwork<A, N, BU
                 if (!player.capabilities.isCreativeMode) {
                     stack.shrink(1);
                 }
+                if (player instanceof EntityPlayerMP playerMP) {
+                    MekanismCriteriaTriggers.ALLOY_UPGRADE.trigger(playerMP);
+                }
             }
         }
     }
@@ -264,6 +269,9 @@ public abstract class TileEntityTransmitter<A, N extends DynamicNetwork<A, N, BU
 
     @Nullable
     public abstract BUFFER getBuffer();
+
+    public void clearBuffer() {
+    }
 
     @Nullable
     public BUFFER getBufferWithFallback() {

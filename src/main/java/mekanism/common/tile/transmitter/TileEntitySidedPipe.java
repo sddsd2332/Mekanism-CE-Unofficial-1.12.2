@@ -15,6 +15,8 @@ import mekanism.common.block.property.PropertyConnection;
 import mekanism.common.block.states.BlockStateTransmitter.TransmitterType;
 import mekanism.common.block.states.BlockStateTransmitter.TransmitterType.Size;
 import mekanism.common.capabilities.Capabilities;
+import mekanism.common.capabilities.CapabilityCache;
+import mekanism.common.capabilities.resolver.ICapabilityResolver;
 import mekanism.common.integration.multipart.MultipartMekanism;
 import mekanism.common.integration.multipart.MultipartTileNetworkJoiner;
 import mekanism.common.tier.BaseTier;
@@ -45,6 +47,7 @@ import net.minecraftforge.fml.common.FMLCommonHandler;
 import org.apache.commons.lang3.tuple.Pair;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -62,6 +65,8 @@ public abstract class TileEntitySidedPipe extends TileEntityRestrictedTick imple
     private boolean redstoneReactive = false;
 
     public boolean forceUpdate = true;
+
+    private final CapabilityCache capabilityCache = new CapabilityCache();
 
     private boolean redstoneSet = false;
 
@@ -117,6 +122,29 @@ public abstract class TileEntitySidedPipe extends TileEntityRestrictedTick imple
 
     public boolean handlesRedstone() {
         return true;
+    }
+
+    protected void addCapabilityResolver(@Nonnull ICapabilityResolver resolver) {
+        capabilityCache.addCapabilityResolver(resolver);
+    }
+
+    protected void invalidateCapability(@Nonnull Capability<?> capability, @Nullable EnumFacing side) {
+        capabilityCache.invalidate(capability, side);
+    }
+
+    protected void invalidateCapabilities() {
+        capabilityCache.invalidateAll();
+    }
+
+    public final boolean isRedstoneActivated() {
+        if (handlesRedstone() && redstoneReactive) {
+            if (!redstoneSet) {
+                redstonePowered = MekanismUtils.isGettingPowered(getWorld(), new Coord4D(getPos(), getWorld()));
+                redstoneSet = true;
+            }
+            return redstonePowered;
+        }
+        return false;
     }
 
     public boolean renderCenter() {
@@ -618,12 +646,16 @@ public abstract class TileEntitySidedPipe extends TileEntityRestrictedTick imple
 
     @Override
     public boolean hasCapability(@Nonnull Capability<?> capability, EnumFacing facing) {
-        return capability == Capabilities.CONFIGURABLE_CAPABILITY || capability == Capabilities.TILE_NETWORK_CAPABILITY
+        return capabilityCache.hasCapability(capability, facing) || capability == Capabilities.CONFIGURABLE_CAPABILITY || capability == Capabilities.TILE_NETWORK_CAPABILITY
                 || capability == Capabilities.BLOCKABLE_CONNECTION_CAPABILITY || super.hasCapability(capability, facing);
     }
 
     @Override
     public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing facing) {
+        T resolved = capabilityCache.getCapability(capability, facing);
+        if (resolved != null) {
+            return resolved;
+        }
         if (capability == Capabilities.CONFIGURABLE_CAPABILITY || capability == Capabilities.TILE_NETWORK_CAPABILITY
                 || capability == Capabilities.BLOCKABLE_CONNECTION_CAPABILITY) {
             return (T) this;
@@ -651,6 +683,14 @@ public abstract class TileEntitySidedPipe extends TileEntityRestrictedTick imple
 
         public String translationKey() {
             return "mekanism.pipe.connectiontype." + getName();
+        }
+
+        public boolean canAccept() {
+            return this == NORMAL || this == PULL;
+        }
+
+        public boolean canSendTo() {
+            return this == NORMAL || this == PUSH;
         }
     }
 }

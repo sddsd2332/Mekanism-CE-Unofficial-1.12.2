@@ -1,23 +1,19 @@
 package mekanism.generators.common.content.fission;
 
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
-import mekanism.api.Coord4D;
-import mekanism.api.IHeatTransfer;
-import mekanism.api.MekanismAPI;
+import mekanism.api.*;
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTank;
 import mekanism.common.MekanismFluids;
+import mekanism.common.capabilities.fluid.VariableCapacityFluidTank;
+import mekanism.common.capabilities.tank.ValidatingGasTank;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.multiblock.SynchronizedData;
-import mekanism.common.util.NonNullListSynchronized;
 import net.minecraft.entity.EntityLivingBase;
-import net.minecraft.item.ItemStack;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraftforge.fluids.FluidRegistry;
 import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.FluidTank;
 
 import java.util.Random;
 import java.util.Set;
@@ -55,15 +51,18 @@ public class SynchronizedFissionData extends SynchronizedData<SynchronizedFissio
 
     public final Set<FormedAssembly> assemblies = new ObjectOpenHashSet<>();
 
-    public final GasTank fuelTank = new GasTank(1);
-    public final GasTank wasteTank = new GasTank(1);
-    public final GasTank gasCoolantTank = new GasTank(1);
-    public final GasTank heatedCoolantTank = new GasTank(1);
-    public final FluidTank coolantTank = new FluidTank(1);
-    public final FluidTank steamTank = new FluidTank(1);
+    public final VariableCapacityFluidTank coolantTank = VariableCapacityFluidTank.input(this, this::getCoolantCapacity,
+          this::isValidFluidCoolant, this);
+    public final VariableCapacityFluidTank steamTank = VariableCapacityFluidTank.output(this, this::getSteamCapacity,
+          stack -> stack.getFluid() == FluidRegistry.getFluid("steam"), this);
+    public final ValidatingGasTank fuelTank = new ValidatingGasTank(1, gas -> gas == MekanismFluids.FissileFuel);
+    public final ValidatingGasTank wasteTank = new ValidatingGasTank(1, gas -> gas == MekanismFluids.NuclearWaste);
+    public final ValidatingGasTank gasCoolantTank = new ValidatingGasTank(1, this::isValidGasCoolant);
+    public final ValidatingGasTank heatedCoolantTank = new ValidatingGasTank(1, gas -> gas == MekanismFluids.SuperheatedSodium);
 
     public int fuelAssemblies;
     public int surfaceArea;
+    public double casingHeatCapacity = getDefaultCasingHeatCapacity();
 
     public double rateLimit = getDefaultRateLimit();
     public boolean active;
@@ -88,13 +87,33 @@ public class SynchronizedFissionData extends SynchronizedData<SynchronizedFissio
     private double prevDamage;
     private boolean prevActive;
 
-    @Override
-    public NonNullListSynchronized<ItemStack> getInventory() {
-        return null;
+    public SynchronizedFissionData() {
+        fluidTanks.add(coolantTank);
+        fluidTanks.add(steamTank);
+        gasTanks.add(fuelTank);
+        gasTanks.add(heatedCoolantTank);
+        gasTanks.add(wasteTank);
+        gasTanks.add(gasCoolantTank);
     }
 
     public static double getDefaultRateLimit() {
         return MekanismConfig.current().generators != null ? MekanismConfig.current().generators.fissionDefaultBurnRate.val() : DEFAULT_RATE_LIMIT;
+    }
+
+    private int getCoolantCapacity() {
+        return Math.max(1, volume * COOLANT_PER_VOLUME);
+    }
+
+    private int getSteamCapacity() {
+        return Math.max(1, volume * STEAM_PER_VOLUME);
+    }
+
+    private boolean isValidFluidCoolant(FluidStack stack) {
+        return stack.getFluid() == FluidRegistry.WATER && gasCoolantTank.getStored() == 0;
+    }
+
+    private boolean isValidGasCoolant(mekanism.api.gas.Gas gas) {
+        return gas == MekanismFluids.Sodium && coolantTank.getFluidAmount() == 0;
     }
 
     private static double getBurnPerAssembly() {
@@ -103,6 +122,10 @@ public class SynchronizedFissionData extends SynchronizedData<SynchronizedFissio
 
     private static double getHeatPerBurn() {
         return MekanismConfig.current().generators != null ? MekanismConfig.current().generators.fissionHeatPerBurn.val() : HEAT_PER_BURN;
+    }
+
+    private static double getDefaultCasingHeatCapacity() {
+        return MekanismConfig.current().generators != null ? MekanismConfig.current().generators.fissionCasingHeatCapacity.val() : 1000D;
     }
 
     private static double getBoilEfficiencyTarget() {
@@ -179,55 +202,99 @@ public class SynchronizedFissionData extends SynchronizedData<SynchronizedFissio
     }
 
     public void updateCapacities() {
+        if (!locations.isEmpty()) {
+            casingHeatCapacity = getDefaultCasingHeatCapacity() * locations.size();
+        }
         int fuelCapacity = Math.max(1, fuelAssemblies * FUEL_PER_ASSEMBLY);
-        int coolantCapacity = Math.max(1, volume * COOLANT_PER_VOLUME);
-        int steamCapacity = Math.max(1, volume * STEAM_PER_VOLUME);
         int heatedCoolantCapacity = Math.max(1, volume * HEATED_COOLANT_PER_VOLUME);
         fuelTank.setMaxGas(fuelCapacity);
         wasteTank.setMaxGas(fuelCapacity);
-        gasCoolantTank.setMaxGas(coolantCapacity);
+        gasCoolantTank.setMaxGas(getCoolantCapacity());
         heatedCoolantTank.setMaxGas(heatedCoolantCapacity);
-        coolantTank.setCapacity(coolantCapacity);
-        steamTank.setCapacity(steamCapacity);
-
-        if (fuelTank.getGas() != null) {
-            fuelTank.getGas().amount = Math.min(fuelTank.getGas().amount, fuelCapacity);
-            if (fuelTank.getGas().amount <= 0) {
-                fuelTank.setGas(null);
-            }
-        }
-        if (wasteTank.getGas() != null) {
-            wasteTank.getGas().amount = Math.min(wasteTank.getGas().amount, fuelCapacity);
-            if (wasteTank.getGas().amount <= 0) {
-                wasteTank.setGas(null);
-            }
-        }
-        if (gasCoolantTank.getGas() != null) {
-            gasCoolantTank.getGas().amount = Math.min(gasCoolantTank.getGas().amount, coolantCapacity);
-            if (gasCoolantTank.getGas().amount <= 0) {
-                gasCoolantTank.setGas(null);
-            }
-        }
-        if (heatedCoolantTank.getGas() != null) {
-            heatedCoolantTank.getGas().amount = Math.min(heatedCoolantTank.getGas().amount, heatedCoolantCapacity);
-            if (heatedCoolantTank.getGas().amount <= 0) {
-                heatedCoolantTank.setGas(null);
-            }
-        }
-        if (coolantTank.getFluid() != null) {
-            coolantTank.getFluid().amount = Math.min(coolantTank.getFluid().amount, coolantCapacity);
-            if (coolantTank.getFluid().amount <= 0) {
-                coolantTank.setFluid(null);
-            }
-        }
-        if (steamTank.getFluid() != null) {
-            steamTank.getFluid().amount = Math.min(steamTank.getFluid().amount, steamCapacity);
-            if (steamTank.getFluid().amount <= 0) {
-                steamTank.setFluid(null);
-            }
-        }
+        clampTank(fuelTank);
+        clampTank(wasteTank);
+        clampTank(heatedCoolantTank);
+        clampTank(steamTank);
+        clampCoolantTanks();
 
         rateLimit = Math.max(0, Math.min(getMaxBurnRate(), rateLimit));
+    }
+
+    public boolean sanitizeStoredContents() {
+        boolean changed = false;
+        changed |= sanitizeTank(fuelTank);
+        changed |= sanitizeTank(wasteTank);
+        changed |= sanitizeTank(heatedCoolantTank);
+        changed |= sanitizeTank(steamTank);
+        changed |= sanitizeCoolantTanks();
+        return changed;
+    }
+
+    private static void clampTank(ValidatingGasTank tank) {
+        GasStack gas = tank.getGas();
+        if (gas != null) {
+            tank.setStackSize(gas.amount, Action.EXECUTE);
+        }
+        sanitizeTank(tank);
+    }
+
+    private static void clampTank(VariableCapacityFluidTank tank) {
+        FluidStack fluid = tank.getFluid();
+        if (fluid != null) {
+            tank.setStackSize(fluid.amount, Action.EXECUTE);
+        }
+        sanitizeTank(tank);
+    }
+
+    private static boolean sanitizeTank(ValidatingGasTank tank) {
+        GasStack gas = tank.getGas();
+        if (gas != null && (gas.amount <= 0 || !tank.isValid(gas))) {
+            tank.setEmpty();
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean sanitizeTank(VariableCapacityFluidTank tank) {
+        FluidStack fluid = tank.getFluid();
+        if (fluid != null && (fluid.amount <= 0 || !tank.isFluidValid(fluid))) {
+            tank.setEmpty();
+            return true;
+        }
+        return false;
+    }
+
+    private void clampCoolantTanks() {
+        FluidStack fluid = coolantTank.getFluid();
+        GasStack gas = gasCoolantTank.getGas();
+        if (fluid != null) {
+            coolantTank.setStackSize(fluid.amount, Action.EXECUTE);
+        }
+        if (gas != null) {
+            gasCoolantTank.setStackSize(gas.amount, Action.EXECUTE);
+        }
+        sanitizeCoolantTanks();
+    }
+
+    private boolean sanitizeCoolantTanks() {
+        FluidStack fluid = coolantTank.getFluid();
+        GasStack gas = gasCoolantTank.getGas();
+        boolean fluidInvalidType = fluid != null && (fluid.amount <= 0 || fluid.getFluid() != FluidRegistry.WATER);
+        boolean gasInvalidType = gas != null && (gas.amount <= 0 || gas.getGas() != MekanismFluids.Sodium);
+        boolean changed = false;
+        if (fluidInvalidType) {
+            coolantTank.setEmpty();
+            changed = true;
+        }
+        if (gasInvalidType) {
+            gasCoolantTank.setEmpty();
+            changed = true;
+        }
+        if (!fluidInvalidType && !gasInvalidType && fluid != null && gas != null) {
+            gasCoolantTank.setEmpty();
+            changed = true;
+        }
+        return changed;
     }
 
     private void burnFuel(World world) {
@@ -246,11 +313,7 @@ public class SynchronizedFissionData extends SynchronizedData<SynchronizedFissio
         availableFuel -= toBurn;
         int remainingFuel = Math.max(0, (int) Math.floor(availableFuel));
         burnRemaining = Math.max(0, availableFuel - remainingFuel);
-        if (remainingFuel == 0) {
-            fuelTank.setGas(null);
-        } else {
-            fuelTank.setGas(new GasStack(MekanismFluids.FissileFuel, remainingFuel));
-        }
+        fuelTank.setStackSize(remainingFuel, Action.EXECUTE);
 
         temperature += toBurn * getHeatPerBurn();
 
@@ -259,7 +322,8 @@ public class SynchronizedFissionData extends SynchronizedData<SynchronizedFissio
         if (wasteToAdd > 0) {
             partialWaste -= wasteToAdd;
             GasStack waste = new GasStack(MekanismFluids.NuclearWaste, wasteToAdd);
-            int accepted = wasteTank.receive(waste, true);
+            GasStack remainder = wasteTank.insert(waste, Action.EXECUTE, AutomationType.INTERNAL);
+            int accepted = waste.amount - (remainder == null ? 0 : remainder.amount);
             int leftoverWaste = Math.max(0, wasteToAdd - accepted);
             if (leftoverWaste > 0 && waste.getGas() != null && waste.getGas().isRadiation()) {
                 radiateFromCore(world, leftoverWaste * waste.getGas().getRadioactivity());
@@ -296,10 +360,10 @@ public class SynchronizedFissionData extends SynchronizedData<SynchronizedFissio
                 return;
             }
 
-            coolantTank.drain(toBoil, true);
+            coolantTank.extract(toBoil, Action.EXECUTE, AutomationType.INTERNAL);
             if (FluidRegistry.getFluid("steam") != null) {
                 // Align 1.16 behavior: excess output is treated as loss and does not block cooling.
-                steamTank.fill(new FluidStack(FluidRegistry.getFluid("steam"), toBoil), true);
+                steamTank.insert(new FluidStack(FluidRegistry.getFluid("steam"), toBoil), Action.EXECUTE, AutomationType.INTERNAL);
             }
             double consumedHeat = toBoil * waterThermalEnthalpy / steamEnergyEfficiency;
             temperature = Math.max(BASE_TEMPERATURE, temperature - consumedHeat * WATER_HEAT_TO_TEMP_SCALE);
@@ -321,9 +385,9 @@ public class SynchronizedFissionData extends SynchronizedData<SynchronizedFissio
                 return;
             }
 
-            gasCoolantTank.draw(toHeat, true);
+            gasCoolantTank.extract(toHeat, Action.EXECUTE, AutomationType.INTERNAL);
             // Align 1.16 behavior: excess heated coolant is treated as loss and does not block cooling.
-            heatedCoolantTank.receive(new GasStack(MekanismFluids.SuperheatedSodium, toHeat), true);
+            heatedCoolantTank.insert(new GasStack(MekanismFluids.SuperheatedSodium, toHeat), Action.EXECUTE, AutomationType.INTERNAL);
             double consumedHeat = toHeat * sodiumThermalEnthalpy;
             temperature = Math.max(BASE_TEMPERATURE, temperature - consumedHeat * SODIUM_HEAT_TO_TEMP_SCALE);
             lastBoilRate = toHeat;
@@ -412,19 +476,23 @@ public class SynchronizedFissionData extends SynchronizedData<SynchronizedFissio
         lastBurnRate = 0;
         lastBoilRate = 0;
         lastEnvironmentLoss = 0;
-        fuelTank.setGas(null);
-        wasteTank.setGas(null);
-        gasCoolantTank.setGas(null);
-        heatedCoolantTank.setGas(null);
-        coolantTank.setFluid(null);
-        steamTank.setFluid(null);
+        clearStoredTanks();
     }
 
-    private double getTankRadioactivityAndDump(GasTank tank) {
+    public void clearStoredTanks() {
+        fuelTank.setEmpty();
+        wasteTank.setEmpty();
+        gasCoolantTank.setEmpty();
+        heatedCoolantTank.setEmpty();
+        coolantTank.setEmpty();
+        steamTank.setEmpty();
+    }
+
+    private double getTankRadioactivityAndDump(ValidatingGasTank tank) {
         GasStack gas = tank.getGas();
         if (gas != null && gas.getGas() != null && gas.getGas().isRadiation()) {
             double radiation = gas.amount * gas.getGas().getRadioactivity();
-            tank.setGas(null);
+            tank.setEmpty();
             return radiation;
         }
         return 0;
@@ -436,7 +504,7 @@ public class SynchronizedFissionData extends SynchronizedData<SynchronizedFissio
         if (waste != null && waste.getGas() != null && waste.getGas().isRadiation()) {
             radiation += waste.amount * waste.getGas().getRadioactivity();
             if (dump) {
-                wasteTank.setGas(null);
+                wasteTank.setEmpty();
             }
         }
         if (partialWaste > 0 && MekanismFluids.NuclearWaste != null && MekanismFluids.NuclearWaste.isRadiation()) {

@@ -1,68 +1,117 @@
 package mekanism.common.tile.machine;
 
 import io.netty.buffer.ByteBuf;
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
+import mekanism.api.IContentsListener;
 import mekanism.api.TileNetworkList;
-import mekanism.api.gas.*;
+import mekanism.api.gas.GasStack;
 import mekanism.api.transmitters.TransmissionType;
 import mekanism.common.Mekanism;
-import mekanism.common.SideData;
 import mekanism.common.base.ISpecialSelectionWireframeTile;
 import mekanism.common.base.ISustainedData;
 import mekanism.common.base.ITankManager;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
-import mekanism.common.capabilities.Capabilities;
+import mekanism.common.capabilities.energy.MachineEnergyContainer;
+import mekanism.common.capabilities.gas.BasicGasTank;
+import mekanism.common.capabilities.holder.gas.GasTankHelper;
+import mekanism.common.capabilities.holder.gas.IGasTankHolder;
+import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
+import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
 import mekanism.common.config.MekanismConfig;
+import mekanism.common.inventory.container.MekanismContainer;
+import mekanism.common.inventory.container.slot.SlotOverlay;
+import mekanism.common.inventory.slot.EnergyInventorySlot;
+import mekanism.common.inventory.slot.OutputInventorySlot;
+import mekanism.common.inventory.slot.gas.GasInventorySlot;
+import mekanism.common.inventory.warning.WarningTracker.WarningType;
 import mekanism.common.recipe.RecipeHandler;
 import mekanism.common.recipe.RecipeHandler.Recipe;
+import mekanism.common.recipe.cache.CachedRecipe;
+import mekanism.common.recipe.cache.CachedRecipe.OperationTracker.RecipeError;
+import mekanism.common.recipe.cache.OneInputCachedRecipe;
+import mekanism.common.recipe.cache.inputs.InputHelper;
+import mekanism.common.recipe.cache.outputs.OutputHelper;
 import mekanism.common.recipe.inputs.GasInput;
 import mekanism.common.recipe.machines.CrystallizerRecipe;
 import mekanism.common.recipe.outputs.ItemStackOutput;
 import mekanism.common.tile.component.TileComponentConfig;
 import mekanism.common.tile.component.TileComponentEjector;
 import mekanism.common.tile.component.config.DataType;
-import mekanism.common.tile.factory.TileEntityFactory;
-import mekanism.common.tile.prefab.TileEntityUpgradeableMachine;
-import mekanism.common.util.*;
+import mekanism.common.tile.prefab.TileEntityBasicMachine;
+import mekanism.common.util.ItemDataUtils;
+import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.TileUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.EnumFacing;
-import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraftforge.items.ItemHandlerHelper;
 
-import javax.annotation.Nonnull;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.BooleanSupplier;
 
-public class TileEntityChemicalCrystallizer extends TileEntityUpgradeableMachine<GasInput, ItemStackOutput, CrystallizerRecipe> implements IGasHandler, ISustainedData, ITankManager, ISpecialSelectionWireframeTile {
+public class TileEntityChemicalCrystallizer extends TileEntityBasicMachine<GasInput, ItemStackOutput, CrystallizerRecipe> implements ISustainedData, ITankManager, ISpecialSelectionWireframeTile {
 
+    private static final List<RecipeError> TRACKED_ERROR_TYPES = Arrays.asList(
+          RecipeError.NOT_ENOUGH_ENERGY,
+          RecipeError.NOT_ENOUGH_INPUT,
+          RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
+          RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
+    );
     public static final int MAX_GAS = 10000;
-    public GasTank inputTank = new GasTank(MAX_GAS);
+    public BasicGasTank inputTank;
     public CrystallizerRecipe cachedRecipe;
     public float prevScale;
     public int updateDelay;
     public boolean needsPacket;
+    private GasInventorySlot inputSlot;
+    private OutputInventorySlot outputSlot;
+    private EnergyInventorySlot energySlot;
+    private final boolean[] trackedErrors = new boolean[TRACKED_ERROR_TYPES.size()];
 
     public TileEntityChemicalCrystallizer() {
         super("crystallizer", MachineType.CHEMICAL_CRYSTALLIZER, 3, 200);
         configComponent = new TileComponentConfig(this, TransmissionType.ITEM, TransmissionType.ENERGY, TransmissionType.GAS);
+        initializeInventorySlots();
+        configComponent.setupItemIOConfig(inputSlot, outputSlot, energySlot);
+        configComponent.setConfig(TransmissionType.ITEM, DataType.INPUT, DataType.INPUT, DataType.INPUT, DataType.ENERGY, DataType.INPUT, DataType.OUTPUT);
 
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.NONE, InventoryUtils.EMPTY));
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.INPUT, new int[]{0}));
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.OUTPUT, new int[]{1}));
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.ENERGY, new int[]{2}));
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(new int[]{0, 1}, new boolean[]{false, true}));
-        configComponent.setConfig(TransmissionType.ITEM, new byte[]{1, 1, 1, 3, 1, 2});
-
-        configComponent.setInputConfig(TransmissionType.GAS);
+        configComponent.setupInputConfig(TransmissionType.GAS, inputTank);
 
         configComponent.setInputConfig(TransmissionType.ENERGY);
-
-        inventory = NonNullListSynchronized.withSize(4, ItemStack.EMPTY);
-
         ejectorComponent = new TileComponentEjector(this);
-        ejectorComponent.setOutputData(TransmissionType.ITEM, configComponent.getOutputs(TransmissionType.ITEM).get(2));
-        ejectorComponent.setInputOutputData(TransmissionType.ITEM, configComponent.getOutputs(TransmissionType.ITEM).get(4));
+        ejectorComponent.setOutputData(configComponent, TransmissionType.ITEM);
+    }
+
+    @Override
+    protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
+        InventorySlotHelper builder = createInventorySlotHelper();
+        inputSlot = builder.addSlot(GasInventorySlot.fill(inputTank, listener, 8, 65));
+        outputSlot = builder.addSlot(OutputInventorySlot.at(getRecipeCacheChangeListener(listener), 129, 57));
+        outputSlot.tracksWarnings(slot -> slot.warning(WarningType.NO_SPACE_IN_OUTPUT, getWarningCheck(RecipeError.NOT_ENOUGH_OUTPUT_SPACE)));
+        energySlot = builder.addSlot(EnergyInventorySlot.fillOrConvert(getMainEnergyContainer(), this::getWorld, listener, 152, 5));
+        inputSlot.setSlotOverlay(SlotOverlay.PLUS);
+        return builder.build();
+    }
+
+    @Override
+    protected IGasTankHolder getInitialGasTanks(IContentsListener listener) {
+        GasTankHelper builder = createGasTankHelper();
+        builder.addTank(getOrCreateInputTank());
+        return builder.build();
+    }
+
+    private BasicGasTank getOrCreateInputTank() {
+        if (inputTank == null) {
+            inputTank = BasicGasTank.input(MAX_GAS, gas -> Recipe.CHEMICAL_CRYSTALLIZER.containsRecipe(gas), getRecipeCacheListener());
+        }
+        return inputTank;
     }
 
     @Override
@@ -74,17 +123,9 @@ public class TileEntityChemicalCrystallizer extends TileEntityUpgradeableMachine
                 needsPacket = true;
             }
         }
-        ChargeUtils.discharge(2, this);
-        ItemStack stack = inventory.get(0);
-        if (!stack.isEmpty() && stack.getItem() instanceof IGasItem item && item.getGas(stack) != null &&
-                Recipe.CHEMICAL_CRYSTALLIZER.containsRecipe(item.getGas(stack).getGas())) {
-            TileUtils.receiveGasItem(inventory.get(0), inputTank);
-        }
-        CrystallizerRecipe recipe = getRecipe();
-        getProcess(recipe);
-        if (!canOperate(recipe)) {
-            operatingTicks = 0;
-        }
+        energySlot.fillContainerOrConvert();
+        inputSlot.fillTank();
+        processRecipe();
         prevEnergy = getEnergy();
         if (needsPacket) {
             Mekanism.packetHandler.sendUpdatePacket(this);
@@ -106,20 +147,12 @@ public class TileEntityChemicalCrystallizer extends TileEntityUpgradeableMachine
         }
     }
 
-    @Override
-    protected void upgradeInventory(TileEntityFactory factory) {
-        setInputGasTank(factory, inputTank);
-        setEnergySlotItem(factory, inventory.get(2));
-        setOutputSlotItem(factory, inventory.get(1));
-        setUpgradeSlot(factory, inventory.get(3));
-        setExtraSlotItem(factory, inventory.get(0));
-    }
-
     public GasInput getInput() {
         return new GasInput(inputTank.getGas());
     }
 
     public CrystallizerRecipe getRecipe() {
+        refreshRecipeLookupCache();
         GasInput input = getInput();
         if (cachedRecipe == null || !input.testEquality(cachedRecipe.getInput())) {
             cachedRecipe = RecipeHandler.getChemicalCrystallizerRecipe(getInput());
@@ -127,13 +160,111 @@ public class TileEntityChemicalCrystallizer extends TileEntityUpgradeableMachine
         return cachedRecipe;
     }
 
-    public boolean canOperate(CrystallizerRecipe recipe) {
-        return recipe != null && recipe.canOperate(inputTank, inventory, 1);
+    @Override
+    protected void clearRecipeLookupCache() {
+        super.clearRecipeLookupCache();
+        cachedRecipe = null;
     }
 
-    public void operate(CrystallizerRecipe recipe) {
-        recipe.operate(inputTank, inventory, 1);
-        markNoUpdateSync();
+    @Override
+    public CrystallizerRecipe getRecipe(int cacheIndex) {
+        return getRecipe();
+    }
+
+    public MachineEnergyContainer getEnergyContainer() {
+        return getMainEnergyContainer();
+    }
+
+    public int getEnergySlotX() {
+        return energySlot.getGuiX();
+    }
+
+    public boolean hasWarningNoMatchingRecipe() {
+        return hasWarning(RecipeError.NOT_ENOUGH_INPUT) || inputTank.getGas() != null && getRecipe() == null;
+    }
+
+    public boolean hasWarningNoSpaceInOutput() {
+        if (hasWarning(RecipeError.NOT_ENOUGH_OUTPUT_SPACE)) {
+            return true;
+        }
+        ItemStack output = getCurrentOutput();
+        if (output.isEmpty()) {
+            return false;
+        }
+        ItemStack current = outputSlot.getStack();
+        if (!current.isEmpty() && !ItemHandlerHelper.canItemStacksStack(current, output)) {
+            return false;
+        }
+        return !outputSlot.insertItem(output.copy(), Action.SIMULATE, AutomationType.INTERNAL).isEmpty();
+    }
+
+    public boolean hasWarningInputDoesntProduceOutput() {
+        if (hasWarning(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT)) {
+            return true;
+        }
+        ItemStack output = getCurrentOutput();
+        ItemStack current = outputSlot.getStack();
+        return !output.isEmpty() && !current.isEmpty() && !ItemHandlerHelper.canItemStacksStack(current, output);
+    }
+
+    public boolean canOperate(CrystallizerRecipe recipe) {
+        return recipe != null && recipe.canOperate(inputTank, outputSlot);
+    }
+
+    @Override
+    public CachedRecipe<CrystallizerRecipe> createNewCachedRecipe(CrystallizerRecipe recipe, int cacheIndex) {
+        return new OneInputCachedRecipe<>(recipe, this::shouldRecheckAllRecipeErrors,
+              InputHelper.getGasInputHandler(inputTank, RecipeError.NOT_ENOUGH_INPUT),
+              OutputHelper.getOutputHandler(outputSlot, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
+              () -> recipe.getInput().ingredient, input -> input != null && input.isGasEqual(recipe.getInput().ingredient),
+              input -> recipe.getOutput().output.copy(), input -> input == null || input.amount <= 0, ItemStack::isEmpty)
+              .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
+              .setActive(active -> {
+                  if (active || prevEnergy >= getEnergy()) {
+                      setActive(active);
+                  }
+              })
+              .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
+              .setRequiredTicks(() -> ticksRequired)
+              .setBaselineMaxOperations(() -> getBaselineMaxOperations(energyPerTick, true))
+              .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
+              .setErrorsChanged(this::onRecipeErrorsChanged)
+              .setOnFinish(this::onCachedRecipeFinish);
+    }
+
+    @Override
+    public void clearRecipeErrors(int cacheIndex) {
+        Arrays.fill(trackedErrors, false);
+    }
+
+    @Override
+    public void addContainerTrackers(MekanismContainer container) {
+        super.addContainerTrackers(container);
+        container.trackArray(trackedErrors);
+    }
+
+    protected void onRecipeErrorsChanged(Set<RecipeError> errors) {
+        for (int i = 0; i < trackedErrors.length; i++) {
+            trackedErrors[i] = errors.contains(TRACKED_ERROR_TYPES.get(i));
+        }
+    }
+
+    public boolean hasWarning(RecipeError error) {
+        int errorIndex = TRACKED_ERROR_TYPES.indexOf(error);
+        return errorIndex != -1 && trackedErrors[errorIndex];
+    }
+
+    public BooleanSupplier getWarningCheck(RecipeError error) {
+        int errorIndex = TRACKED_ERROR_TYPES.indexOf(error);
+        return errorIndex == -1 ? () -> false : () -> trackedErrors[errorIndex];
+    }
+
+    private ItemStack getCurrentOutput() {
+        CrystallizerRecipe recipe = getRecipe();
+        if (recipe == null || recipe.getOutput().output.isEmpty()) {
+            return ItemStack.EMPTY;
+        }
+        return recipe.getOutput().output;
     }
 
     @Override
@@ -163,94 +294,16 @@ public class TileEntityChemicalCrystallizer extends TileEntityUpgradeableMachine
     @Override
     public void readCustomNBT(NBTTagCompound nbtTags) {
         super.readCustomNBT(nbtTags);
-        inputTank.read(nbtTags.getCompoundTag("rightTank"));
+        if (!hasStoredGasTanks(nbtTags) && nbtTags.hasKey("rightTank")) {
+            inputTank.read(nbtTags.getCompoundTag("rightTank"));
+        }
+        sanitizeAndClampTank();
     }
 
     @Override
     public void writeCustomNBT(NBTTagCompound nbtTags) {
         super.writeCustomNBT(nbtTags);
-        nbtTags.setTag("rightTank", inputTank.write(new NBTTagCompound()));
         nbtTags.setBoolean("sideDataStored", true);
-    }
-
-    @Override
-    public boolean canReceiveGas(EnumFacing side, Gas type) {
-        return configComponent.getOutput(TransmissionType.GAS, side, facing).ioState == SideData.IOState.INPUT && inputTank.canReceive(type) && Recipe.CHEMICAL_CRYSTALLIZER.containsRecipe(type);
-    }
-
-    @Override
-    public int receiveGas(EnumFacing side, GasStack stack, boolean doTransfer) {
-        if (stack == null || stack.getGas() == null) {
-            return 0;
-        }
-        if (canReceiveGas(side, stack.getGas())) {
-            int recipeAmount = Recipe.CHEMICAL_CRYSTALLIZER.get().get(new GasInput(stack)).recipeInput.ingredient.amount;
-            int receivable = inputTank.receive(stack, false);
-            int stored = inputTank.stored != null ? inputTank.stored.amount : 0;
-            int newStored = stored + receivable;
-            int amount = newStored - stored - newStored % recipeAmount;
-            return inputTank.receive(stack.copy().withAmount(amount), doTransfer);
-        }
-        return 0;
-    }
-
-    @Override
-    public GasStack drawGas(EnumFacing side, int amount, boolean doTransfer) {
-        return null;
-    }
-
-    @Override
-    public boolean canDrawGas(EnumFacing side, Gas type) {
-        return false;
-    }
-
-    @Override
-    @Nonnull
-    public GasTankInfo[] getTankInfo() {
-        return new GasTankInfo[]{inputTank};
-    }
-
-    @Override
-    public boolean hasCapability(@Nonnull Capability<?> capability, EnumFacing side) {
-        if (isCapabilityDisabled(capability, side)) {
-            return false;
-        }
-        return capability == Capabilities.GAS_HANDLER_CAPABILITY || super.hasCapability(capability, side);
-    }
-
-    @Override
-    public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing side) {
-        if (isCapabilityDisabled(capability, side)) {
-            return null;
-        }
-        if (capability == Capabilities.GAS_HANDLER_CAPABILITY) {
-            return (T) this;
-        }
-        return super.getCapability(capability, side);
-    }
-
-
-    @Override
-    public boolean isItemValidForSlot(int slotID, @Nonnull ItemStack itemstack) {
-        if (slotID == 0) {
-            return !itemstack.isEmpty() && itemstack.getItem() instanceof IGasItem gasItem && gasItem.getGas(itemstack) != null &&
-                    Recipe.CHEMICAL_CRYSTALLIZER.containsRecipe(gasItem.getGas(itemstack).getGas());
-        } else if (slotID == 2) {
-            return ChargeUtils.canBeDischarged(itemstack);
-        }
-        return false;
-    }
-
-    @Override
-    public boolean canExtractItem(int slotID, @Nonnull ItemStack itemstack, @Nonnull EnumFacing side) {
-        if (slotID == 0) {
-            return !itemstack.isEmpty() && itemstack.getItem() instanceof IGasItem gasItem && gasItem.getGas(itemstack) == null;
-        } else if (slotID == 1) {
-            return true;
-        } else if (slotID == 2) {
-            return ChargeUtils.canBeOutputted(itemstack, false);
-        }
-        return false;
     }
 
     @Override
@@ -270,19 +323,30 @@ public class TileEntityChemicalCrystallizer extends TileEntityUpgradeableMachine
 
     @Override
     public void writeSustainedData(ItemStack itemStack) {
-        if (inputTank.getGas() != null) {
-            ItemDataUtils.setCompound(itemStack, "inputTank", inputTank.getGas().write(new NBTTagCompound()));
-        }
+        writeSustainedGasTanks(itemStack);
+        ItemDataUtils.setLegacyGas(itemStack, "inputTank", inputTank.getGas());
     }
 
     @Override
     public void readSustainedData(ItemStack itemStack) {
-        inputTank.setGas(GasStack.readFromNBT(ItemDataUtils.getCompound(itemStack, "inputTank")));
+        if (!readSustainedGasTanks(itemStack)) {
+            inputTank.setStackUnchecked(ItemDataUtils.getLegacyGas(itemStack, "inputTank"));
+        }
+        sanitizeAndClampTank();
+    }
+
+    private void sanitizeAndClampTank() {
+        GasStack stored = inputTank.getGas();
+        if (stored != null && (stored.amount <= 0 || stored.getGas() == null)) {
+            inputTank.setEmpty();
+        } else if (stored != null) {
+            inputTank.setStackSize(stored.amount, Action.EXECUTE);
+        }
     }
 
 
     @Override
-    public Object[] getTanks() {
+    public Object[] getManagedTanks() {
         return new Object[]{inputTank};
     }
 
@@ -308,23 +372,7 @@ public class TileEntityChemicalCrystallizer extends TileEntityUpgradeableMachine
             updateDelay = 10;
         }
     }
-
-    @Override
-    public boolean getEnergySlot() {
-        return inventory.get(2).isEmpty();
-    }
-
-    @Override
-    public boolean getInputSlot() {
-        return false;
-    }
-
-    @Override
-    public boolean getOuputSlot() {
-        return inventory.get(1).isEmpty();
-    }
-
-    @Override
+@Override
     @SideOnly(Side.CLIENT)
     public Class<?> getSelectionWireframeModelClass() {
         return mekanism.client.model.ModelChemicalCrystallizer.class;

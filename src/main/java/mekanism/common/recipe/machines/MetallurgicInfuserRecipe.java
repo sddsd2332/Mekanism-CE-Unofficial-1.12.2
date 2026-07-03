@@ -1,10 +1,10 @@
 package mekanism.common.recipe.machines;
 
+import mekanism.api.inventory.IInventorySlot;
 import mekanism.common.InfuseStorage;
 import mekanism.common.recipe.inputs.InfusionInput;
 import mekanism.common.recipe.outputs.ItemStackOutput;
 import net.minecraft.item.ItemStack;
-import net.minecraft.util.NonNullList;
 
 public class MetallurgicInfuserRecipe extends MachineRecipe<InfusionInput, ItemStackOutput, MetallurgicInfuserRecipe> {
 
@@ -16,12 +16,12 @@ public class MetallurgicInfuserRecipe extends MachineRecipe<InfusionInput, ItemS
         this(input, new ItemStackOutput(output));
     }
 
-    public boolean inputMatches(NonNullList<ItemStack> inventory, int inputIndex, InfuseStorage infuse) {
-        return getInput().use(inventory, inputIndex, infuse, false);
+    public boolean inputMatches(IInventorySlot inputSlot, InfuseStorage infuse) {
+        return getInput().use(inputSlot, infuse, false);
     }
 
-    public boolean canOperate(NonNullList<ItemStack> inventory, int inputIndex, int outputIndex, InfuseStorage infuse) {
-        return inputMatches(inventory, inputIndex, infuse) && getOutput().applyOutputs(inventory, outputIndex, false);
+    public boolean canOperate(IInventorySlot inputSlot, IInventorySlot outputSlot, InfuseStorage infuse) {
+        return inputMatches(inputSlot, infuse) && getOutput().applyOutputs(outputSlot, false);
     }
 
     @Override
@@ -29,13 +29,4 @@ public class MetallurgicInfuserRecipe extends MachineRecipe<InfusionInput, ItemS
         return new MetallurgicInfuserRecipe(getInput(), getOutput());
     }
 
-    public void operate(NonNullList<ItemStack> inventory, int inputIndex, int outputIndex, InfuseStorage infuseStored) {
-        operate(inventory,inputIndex,outputIndex,infuseStored,true);
-    }
-
-    public void operate(NonNullList<ItemStack> inventory, int inputIndex, int outputIndex, InfuseStorage infuseStored,boolean deplete) {
-        if (getInput().use(inventory, inputIndex, infuseStored, deplete)) {
-            getOutput().applyOutputs(inventory, outputIndex, true);
-        }
-    }
 }

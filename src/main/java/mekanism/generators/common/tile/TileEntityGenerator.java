@@ -5,6 +5,7 @@ import mekanism.api.Coord4D;
 import mekanism.api.TileNetworkList;
 import mekanism.common.Mekanism;
 import mekanism.common.base.IRedstoneControl;
+import mekanism.common.capabilities.energy.MachineEnergyContainer;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.integration.computer.IComputerIntegration;
 import mekanism.common.security.ISecurityTile;
@@ -65,6 +66,10 @@ public abstract class TileEntityGenerator extends TileEntityEffectsBlock impleme
     @Override
     public double getMaxOutput() {
         return output;
+    }
+
+    public MachineEnergyContainer getEnergyContainer() {
+        return getMainEnergyContainer();
     }
 
     @Override

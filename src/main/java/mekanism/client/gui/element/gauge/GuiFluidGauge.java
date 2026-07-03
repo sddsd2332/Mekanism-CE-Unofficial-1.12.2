@@ -1,29 +1,74 @@
 package mekanism.client.gui.element.gauge;
 
-import mekanism.api.math.MathUtils;
+import mekanism.api.fluid.IExtendedFluidTank;
 import mekanism.api.transmitters.TransmissionType;
 import mekanism.client.gui.IGuiWrapper;
+import mekanism.client.gui.warning.WarningTracker.WarningType;
 import mekanism.client.render.MekanismRenderer;
-import mekanism.client.render.MekanismRenderer.FluidType;
 import mekanism.common.util.LangUtils;
+import mekanism.common.util.MekanismUtils;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
-import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.text.ITextComponent;
 import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.FluidTank;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
 
-@SideOnly(Side.CLIENT)
-public class GuiFluidGauge extends GuiTankGauge<FluidStack, FluidTank> {
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.Collections;
+import java.util.List;
+import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
-    public GuiFluidGauge(IFluidInfoHandler handler, Type type, IGuiWrapper gui, ResourceLocation def, int x, int y) {
-        super(type, gui, def, x, y, handler);
+public class GuiFluidGauge extends GuiTankGauge<FluidStack, IExtendedFluidTank> {
+
+    @Nullable
+    private ITextComponent label;
+
+    public GuiFluidGauge(IGuiWrapper gui, IExtendedFluidTank fluidTank, int x, int y) {
+        this(gui, fluidTank, Type.WIDE, x, y);
     }
 
-    public static GuiFluidGauge getDummy(Type type, IGuiWrapper gui, ResourceLocation def, int x, int y) {
-        GuiFluidGauge gauge = new GuiFluidGauge(null, type, gui, def, x, y);
-        gauge.dummy = true;
-        return gauge;
+    public GuiFluidGauge(IGuiWrapper gui, IExtendedFluidTank fluidTank, Type type, int x, int y) {
+        this(gui, fluidTank, type.asGaugeType(), x, y);
+    }
+
+    public GuiFluidGauge(IGuiWrapper gui, IExtendedFluidTank fluidTank, GaugeType type, int x, int y) {
+        this(() -> fluidTank, () -> Collections.singletonList(fluidTank), type, gui, x, y);
+    }
+
+    public GuiFluidGauge(Supplier<IExtendedFluidTank> tankSupplier, Supplier<List<IExtendedFluidTank>> tanksSupplier, GaugeType type, IGuiWrapper gui, int x, int y) {
+        this(tankSupplier, tanksSupplier, type, gui, x, y, type.getGaugeOverlay().getWidth() + 2, type.getGaugeOverlay().getHeight() + 2);
+    }
+
+    public GuiFluidGauge(Supplier<IExtendedFluidTank> tankSupplier, Supplier<List<IExtendedFluidTank>> tanksSupplier, GaugeType type, IGuiWrapper gui, int x, int y,
+          int sizeX, int sizeY) {
+        super(type, gui, x, y, sizeX, sizeY, new ITankInfoHandler<IExtendedFluidTank>() {
+            @Nullable
+            @Override
+            public IExtendedFluidTank getTank() {
+                return tankSupplier.get();
+            }
+
+            @Override
+            public int getTankIndex() {
+                IExtendedFluidTank tank = getTank();
+                return tank == null ? -1 : tanksSupplier.get().indexOf(tank);
+            }
+        });
+    }
+
+    public GuiFluidGauge withColor(@Nonnull GaugeColor gaugeColor) {
+        setGaugeColor(gaugeColor.info);
+        return this;
+    }
+
+    public GuiFluidGauge warning(@Nonnull WarningType type, @Nonnull BooleanSupplier warningSupplier) {
+        super.warning(type, warningSupplier);
+        return this;
+    }
+
+    public GuiFluidGauge setLabel(ITextComponent label) {
+        this.label = label;
+        return this;
     }
 
     @Override
@@ -33,48 +78,93 @@ public class GuiFluidGauge extends GuiTankGauge<FluidStack, FluidTank> {
 
     @Override
     public int getScaledLevel() {
+        int fillDimension = getFillDimension();
         if (dummy) {
-            return height - 2;
+            return fillDimension;
         }
-        if (infoHandler.getTank().getFluid() == null || infoHandler.getTank().getCapacity() == 0) {
+        IExtendedFluidTank fluidTank = getTank();
+        if (fluidTank == null || fluidTank.isEmpty() || fluidTank.getCapacity() == 0) {
             return 0;
         }
-        if (infoHandler.getTank().getFluidAmount() == Integer.MAX_VALUE) {
-            return height - 2;
+        if (fluidTank.getFluidAmount() == Integer.MAX_VALUE) {
+            return fillDimension;
         }
-        double scale = Math.max(Math.min((double) infoHandler.getTank().getFluidAmount() / infoHandler.getTank().getCapacity(), 1.0D), 0.0D);
-        if (vertical) {
-            return MathUtils.clampToInt(Math.round(scale * (height - 2)));
-        } else {
-            return MathUtils.clampToInt(Math.round(scale * (width - 2)));
-        }
+        double scale = Math.max(Math.min((double) fluidTank.getFluidAmount() / fluidTank.getCapacity(), 1D), 0D);
+        return Math.max(1, MekanismUtils.clampToInt(Math.round(scale * fillDimension)));
     }
 
+    @Nullable
     @Override
     public TextureAtlasSprite getIcon() {
-        if (dummy) {
-            return MekanismRenderer.getFluidTexture(dummyType, FluidType.STILL);
+        IExtendedFluidTank fluidTank = getTank();
+        if (dummy || fluidTank == null || fluidTank.isEmpty()) {
+            return null;
         }
-        FluidStack fluid = infoHandler.getTank().getFluid();
-        return MekanismRenderer.getFluidTexture(fluid == null ? dummyType : fluid, FluidType.STILL);
+        FluidStack fluid = fluidTank.getFluid();
+        return fluid == null ? null : MekanismRenderer.getFluidTexture(fluid, MekanismRenderer.FluidType.STILL);
+    }
+
+    @Nullable
+    @Override
+    public ITextComponent getLabel() {
+        return label;
     }
 
     @Override
-    public String getTooltipText() {
-        if (dummy) {
-            return dummyType.getLocalizedName();
+    public List<String> getTooltipText() {
+        IExtendedFluidTank fluidTank = getTank();
+        if (fluidTank == null || fluidTank.isEmpty()) {
+            return Collections.singletonList(LangUtils.localize("gui.empty"));
         }
-        FluidTank tank = infoHandler.getTank();
-        String amountStr = tank.getFluidAmount() == Integer.MAX_VALUE ? LangUtils.localize("gui.infinite") : tank.getFluidAmount() + " mB";
-        return tank.getFluid() != null ? LangUtils.localizeFluidStack(tank.getFluid()) + ": " + amountStr : LangUtils.localize("gui.empty");
+        FluidStack fluid = fluidTank.getFluid();
+        if (fluid == null) {
+            return Collections.singletonList(LangUtils.localize("gui.empty"));
+        }
+        int amount = fluidTank.getFluidAmount();
+        String amountText = amount == Integer.MAX_VALUE ? LangUtils.localize("gui.infinite") : amount + " mB";
+        return Collections.singletonList(LangUtils.localizeFluidStack(fluid) + ": " + amountText);
     }
 
     @Override
     protected void applyRenderColor() {
-        MekanismRenderer.color(dummy ? dummyType : infoHandler.getTank().getFluid());
+        IExtendedFluidTank fluidTank = getTank();
+        if (fluidTank != null && !fluidTank.isEmpty()) {
+            MekanismRenderer.color(fluidTank.getFluid());
+        }
     }
 
-    public interface IFluidInfoHandler extends ITankInfoHandler<FluidTank> {
+    public enum GaugeColor {
+        NORMAL(GaugeInfo.STANDARD),
+        RED(GaugeInfo.RED),
+        BLUE(GaugeInfo.BLUE),
+        AQUA(GaugeInfo.AQUA),
+        ORANGE(GaugeInfo.ORANGE),
+        YELLOW(GaugeInfo.YELLOW);
 
+        private final GaugeInfo info;
+
+        GaugeColor(GaugeInfo info) {
+            this.info = info;
+        }
+    }
+
+    public enum Type {
+        STANDARD(GaugeOverlay.STANDARD),
+        SMALL(GaugeOverlay.SMALL),
+        WIDE(GaugeOverlay.WIDE);
+
+        private final int width;
+        private final int height;
+        private final GaugeOverlay overlay;
+
+        Type(GaugeOverlay overlay) {
+            this.width = overlay.getWidth() + 2;
+            this.height = overlay.getHeight() + 2;
+            this.overlay = overlay;
+        }
+
+        public GaugeType asGaugeType() {
+            return GaugeType.get(GaugeInfo.STANDARD, overlay);
+        }
     }
 }

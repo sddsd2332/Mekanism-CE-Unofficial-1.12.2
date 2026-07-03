@@ -2,15 +2,21 @@ package mekanism.multiblockmachine.common.tile.generator;
 
 import com.google.common.base.Predicate;
 import io.netty.buffer.ByteBuf;
-import mekanism.api.Coord4D;
-import mekanism.api.TileNetworkList;
+import mekanism.api.*;
 import mekanism.common.Mekanism;
 import mekanism.common.Upgrade;
 import mekanism.common.base.*;
+import mekanism.common.capabilities.Capabilities;
+import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
+import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
 import mekanism.common.config.MekanismConfig;
+import mekanism.common.inventory.slot.EnergyInventorySlot;
 import mekanism.common.tile.TileEntityBoundingBlock;
 import mekanism.common.tile.component.TileComponentUpgrade;
-import mekanism.common.util.*;
+import mekanism.common.util.CableUtils;
+import mekanism.common.util.InventoryUtils;
+import mekanism.common.util.LangUtils;
+import mekanism.common.util.MekanismUtils;
 import mekanism.generators.common.tile.TileEntityGenerator;
 import mekanism.multiblockmachine.client.render.block.generator.bloom.BloomRenderLargeWindGenerator;
 import mekanism.multiblockmachine.common.MekanismMultiblockMachine;
@@ -19,7 +25,6 @@ import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.DamageSource;
@@ -42,7 +47,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class TileEntityLargeWindGenerator extends TileEntityGenerator implements IAdvancedBoundingBlock, IMachineSlotTip, IUpgradeTile, ISpecialSelectionWireframeTile {
+public class TileEntityLargeWindGenerator extends TileEntityGenerator implements IAdvancedBoundingBlock, IUpgradeTile, ISpecialSelectionWireframeTile {
 
     public static final float SPEED = 32F;
     public static final float SPEED_SCALED = 256F / SPEED;
@@ -57,12 +62,20 @@ public class TileEntityLargeWindGenerator extends TileEntityGenerator implements
     private boolean machineStop;
     private boolean machineStop2;
     private boolean bladeDamage;
+    private EnergyInventorySlot energySlot;
 
     public TileEntityLargeWindGenerator() {
         super("wind", "LargeWindGenerator", 0, 0);
-        upgradeComponent = new TileComponentUpgrade(this, 1, Upgrade.ENERGY);
+        upgradeComponent = new TileComponentUpgrade(this, Upgrade.ENERGY);
         upgradeComponent.setSupported(Upgrade.THREAD);
-        inventory = NonNullListSynchronized.withSize(2, ItemStack.EMPTY);
+        initializeInventorySlots();
+    }
+
+    @Override
+    protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
+        InventorySlotHelper builder = InventorySlotHelper.readOnly();
+        energySlot = builder.addSlot(EnergyInventorySlot.drain(this, listener, 143, 35));
+        return builder.build();
     }
 
 
@@ -86,7 +99,7 @@ public class TileEntityLargeWindGenerator extends TileEntityGenerator implements
     @Override
     public void onAsyncUpdateServer() {
         super.onAsyncUpdateServer();
-        ChargeUtils.charge(0, this);
+        energySlot.drainContainer();
         // If we're in a blacklisted dimension, there's nothing more to do
         if (isBlacklistDimension) {
             return;
@@ -96,7 +109,7 @@ public class TileEntityLargeWindGenerator extends TileEntityGenerator implements
             setActive(MekanismUtils.canFunction(this) && currentMultiplier > 0);
         }
         if (getActive()) {
-            setEnergy(electricityStored.get() + getEnergyAdd());
+            getEnergyContainer().insert(getEnergyAdd(), Action.EXECUTE, AutomationType.INTERNAL);
         }
     }
 
@@ -338,7 +351,7 @@ public class TileEntityLargeWindGenerator extends TileEntityGenerator implements
 
     @Override
     public boolean canOperate() {
-        return electricityStored.get() < getMaxEnergy() && getMultiplier() > 0 && MekanismUtils.canFunction(this);
+        return getEnergyContainer().getNeeded() > 0 && getMultiplier() > 0 && MekanismUtils.canFunction(this);
     }
 
     @Override
@@ -604,29 +617,7 @@ public class TileEntityLargeWindGenerator extends TileEntityGenerator implements
     public int[] getSlotsForFace(@Nonnull EnumFacing side) {
         return InventoryUtils.EMPTY;
     }
-
-    @Override
-    public boolean isItemValidForSlot(int slotID, @Nonnull ItemStack stack) {
-        return slotID == 0 && ChargeUtils.canBeCharged(stack);
-    }
-
-    @Override
-    public boolean getEnergySlot() {
-        return inventory.get(0).isEmpty();
-    }
-
-    @Override
-    public boolean getInputSlot() {
-        return false;
-    }
-
-    @Override
-    public boolean getOuputSlot() {
-        return false;
-    }
-
-
-    @Override
+@Override
     public int getBlockGuiID(Block block, int metadata) {
         return 3;
     }
@@ -701,7 +692,9 @@ public class TileEntityLargeWindGenerator extends TileEntityGenerator implements
         if (isOffsetCapabilityDisabled(capability, side, offset)) {
             return false;
         }
-        if (isStrictEnergy(capability) || capability == CapabilityEnergy.ENERGY || isTesla(capability, side)) {
+        if (isManagedStrictEnergy(capability)) {
+            return getEnergyHandler(capability, side) != null;
+        } else if (capability == CapabilityEnergy.ENERGY || isTesla(capability, side)) {
             return true;
         }
         return hasCapability(capability, side);
@@ -711,8 +704,8 @@ public class TileEntityLargeWindGenerator extends TileEntityGenerator implements
     public @Nullable <T> T getOffsetCapability(@NotNull Capability<T> capability, @Nullable EnumFacing side, @NotNull Vec3i offset) {
         if (isOffsetCapabilityDisabled(capability, side, offset)) {
             return null;
-        } else if (isStrictEnergy(capability)) {
-            return (T) this;
+        } else if (isManagedStrictEnergy(capability)) {
+            return getEnergyHandler(capability, side);
         } else if (isTesla(capability, side)) {
             return (T) getTeslaEnergyWrapper(side);
         } else if (capability == CapabilityEnergy.ENERGY) {
@@ -723,7 +716,7 @@ public class TileEntityLargeWindGenerator extends TileEntityGenerator implements
 
     @Override
     public boolean isOffsetCapabilityDisabled(@NotNull Capability<?> capability, @Nullable EnumFacing side, @NotNull Vec3i offset) {
-        if (isStrictEnergy(capability) || capability == CapabilityEnergy.ENERGY || isTesla(capability, side)) {
+        if (isManagedStrictEnergy(capability) || capability == CapabilityEnergy.ENERGY || isTesla(capability, side)) {
             EnumFacing left = MekanismUtils.getLeft(facing);
             EnumFacing right = MekanismUtils.getRight(facing);
             if (offset.equals(new Vec3i(left.getXOffset() * 3, 0, left.getZOffset() * 3))) {
@@ -742,10 +735,14 @@ public class TileEntityLargeWindGenerator extends TileEntityGenerator implements
 
     @Override
     public boolean isCapabilityDisabled(@Nonnull Capability<?> capability, EnumFacing side) {
-        if (isStrictEnergy(capability) || capability == CapabilityEnergy.ENERGY || isTesla(capability, side)) {
+        if (isManagedStrictEnergy(capability) || capability == CapabilityEnergy.ENERGY || isTesla(capability, side)) {
             return true;
         }
         return super.isCapabilityDisabled(capability, side);
+    }
+
+    private boolean isManagedStrictEnergy(@Nonnull Capability<?> capability) {
+        return capability == Capabilities.STRICT_ENERGY_CAPABILITY || isStrictEnergy(capability);
     }
 
     @Override

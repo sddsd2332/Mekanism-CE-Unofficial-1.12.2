@@ -2,17 +2,15 @@ package mekanism.client.jei.machine.other;
 
 import mekanism.api.infuse.InfuseRegistry;
 import mekanism.api.infuse.InfuseType;
-import mekanism.client.gui.element.GuiPowerBar;
-import mekanism.client.gui.element.GuiPowerBar.IPowerInfoHandler;
-import mekanism.client.gui.element.GuiProgress;
-import mekanism.client.gui.element.GuiProgress.IProgressInfoHandler;
-import mekanism.client.gui.element.GuiProgress.ProgressBar;
-import mekanism.client.gui.element.bar.GuiBar;
-import mekanism.client.gui.element.slot.GuiEnergySlot;
-import mekanism.client.gui.element.slot.GuiExtraSlot;
-import mekanism.client.gui.element.slot.GuiInputSlot;
-import mekanism.client.gui.element.slot.GuiOutputSlot;
+import mekanism.client.gui.element.bar.GuiBar.IBarInfoHandler;
+import mekanism.client.gui.element.bar.GuiEmptyBar;
+import mekanism.client.gui.element.bar.GuiVerticalPowerBar;
+import mekanism.client.gui.element.progress.GuiProgress;
+import mekanism.client.gui.element.progress.ProgressType;
+import mekanism.client.gui.element.slot.GuiSlot;
+import mekanism.client.gui.element.slot.SlotType;
 import mekanism.client.jei.BaseRecipeCategory;
+import mekanism.common.inventory.container.slot.SlotOverlay;
 import mekanism.common.recipe.RecipeHandler.Recipe;
 import mekanism.common.recipe.machines.MetallurgicInfuserRecipe;
 import mezz.jei.api.IGuiHelper;
@@ -27,9 +25,13 @@ import java.util.stream.Collectors;
 
 public class MetallurgicInfuserRecipeCategory<WRAPPER extends MetallurgicInfuserRecipeWrapper<MetallurgicInfuserRecipe>> extends BaseRecipeCategory<WRAPPER> {
 
+    private GuiSlot infusionInput;
+    private GuiSlot itemInput;
+    private GuiSlot output;
+
     public MetallurgicInfuserRecipeCategory(IGuiHelper helper) {
         super(helper, "mekanism:gui/Null.png", Recipe.METALLURGIC_INFUSER.getJEICategory(),
-                "tile.MachineBlock.MetallurgicInfuser.name", ProgressBar.MEDIUM, 5, 16, 166, 54);
+                "tile.MachineBlock.MetallurgicInfuser.name", 5, 16, 166, 54, ProgressType.RIGHT);
     }
 
     public static List<ItemStack> getInfuseStacks(InfuseType type) {
@@ -38,34 +40,36 @@ public class MetallurgicInfuserRecipeCategory<WRAPPER extends MetallurgicInfuser
 
     @Override
     protected void addGuiElements() {
-        guiElements.add(new GuiExtraSlot(this, guiLocation, 16, 34));
-        guiElements.add(new GuiInputSlot(this, guiLocation, 50, 42));
-        guiElements.add(new GuiEnergySlot(this, guiLocation, 142, 34));
-        guiElements.add(new GuiOutputSlot( this, guiLocation, 108, 42));
-        guiElements.add(new GuiPowerBar(this, new IPowerInfoHandler() {
+        infusionInput = addElement(new GuiSlot(SlotType.EXTRA, this, 16, 34).setRenderAboveSlots());
+        itemInput = addElement(new GuiSlot(SlotType.INPUT, this, 50, 42).setRenderAboveSlots());
+        guiElements.add(new GuiSlot(SlotType.POWER, this, 142, 34).with(SlotOverlay.POWER).setRenderAboveSlots());
+        output = addElement(new GuiSlot(SlotType.OUTPUT, this, 108, 42).setRenderAboveSlots());
+        guiElements.add(new GuiVerticalPowerBar(this, new IBarInfoHandler() {
             @Override
             public double getLevel() {
                 return 1F;
             }
-        }, guiLocation, 164, 15));
-        guiElements.add(new GuiProgress(new IProgressInfoHandler() {
+        }, 164, 15));
+        guiElements.add(new GuiProgress(new mekanism.client.gui.element.progress.IProgressInfoHandler() {
             @Override
             public double getProgress() {
                 return (double) timer.getValue() / 20F;
             }
-        }, ProgressBar.MEDIUM, this, guiLocation, 70, 46,false));
-        guiElements.add(new GuiBar(this, guiLocation, 6, 17, 6, 54));
+
+            @Override
+            public boolean isGuiInJei() {
+                return true;
+            }
+        }, progressType, this, 72, 47));
+        guiElements.add(new GuiEmptyBar(this, 7, 15, 4, 52));
     }
 
     @Override
     public void setRecipe(IRecipeLayout recipeLayout, WRAPPER recipeWrapper, IIngredients ingredients) {
         MetallurgicInfuserRecipe tempRecipe = recipeWrapper.getRecipe();
         IGuiItemStackGroup itemStacks = recipeLayout.getItemStacks();
-        itemStacks.init(0, true, 45, 26);
-        itemStacks.init(1, false, 103, 26);
-        itemStacks.init(2, true, 11, 18);
-        itemStacks.set(0, tempRecipe.getInput().inputStack);
-        itemStacks.set(1, tempRecipe.getOutput().output);
-        itemStacks.set(2, getInfuseStacks(tempRecipe.getInput().infuse.getType()));
+        initItem(itemStacks, 0, true, itemInput, tempRecipe.getInput().inputStack);
+        initItem(itemStacks, 1, false, output, tempRecipe.getOutput().output);
+        initItem(itemStacks, 2, true, infusionInput, getInfuseStacks(tempRecipe.getInput().infuse.getType()));
     }
 }

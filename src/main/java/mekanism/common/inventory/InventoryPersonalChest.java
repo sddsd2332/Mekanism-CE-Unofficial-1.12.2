@@ -1,78 +1,42 @@
 package mekanism.common.inventory;
 
-import mekanism.common.base.ISustainedInventory;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.inventory.InventoryBasic;
+import mekanism.api.inventory.IInventorySlot;
+import mekanism.common.inventory.slot.BasicInventorySlot;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.nbt.NBTTagList;
 import net.minecraft.util.EnumHand;
 
-public class InventoryPersonalChest extends InventoryBasic {
+import javax.annotation.Nonnull;
+import java.util.ArrayList;
+import java.util.List;
 
-    private final ItemStack itemStack;
-    private boolean reading;
+public class InventoryPersonalChest extends ItemStackMekanismInventory implements ISlotBackedInventory {
+
+    private static final int SLOT_COUNT = 54;
     public EnumHand currentHand;
 
     public InventoryPersonalChest(ItemStack stack, EnumHand hand) {
-        super("PersonalChest", false, 55);
-        itemStack = stack;
+        super(stack);
         currentHand = hand;
-        read();
     }
 
     @Override
-    public void markDirty() {
-        super.markDirty();
-        if (!reading) {
-            write();
-        }
-    }
-
-    @Override
-    public void openInventory(EntityPlayer player) {
-        read();
-    }
-
-    @Override
-    public void closeInventory(EntityPlayer player) {
-        write();
-    }
-
-    public void write() {
-        NBTTagList tagList = new NBTTagList();
-        for (int slotCount = 0; slotCount < getSizeInventory(); slotCount++) {
-            if (!getStackInSlot(slotCount).isEmpty()) {
-                NBTTagCompound tagCompound = new NBTTagCompound();
-                tagCompound.setByte("Slot", (byte) slotCount);
-                getStackInSlot(slotCount).writeToNBT(tagCompound);
-                tagList.appendTag(tagCompound);
+    protected List<IInventorySlot> getInitialInventory() {
+        List<IInventorySlot> inventorySlots = new ArrayList<>(SLOT_COUNT);
+        for (int slotY = 0; slotY < 6; slotY++) {
+            for (int slotX = 0; slotX < 9; slotX++) {
+                inventorySlots.add(BasicInventorySlot.at(this, 8 + slotX * 18, 18 + slotY * 18));
             }
         }
-        if (!getStack().isEmpty()) {
-            ((ISustainedInventory) getStack().getItem()).setInventory(tagList, getStack());
-        }
-    }
-
-    public void read() {
-        if (reading) {
-            return;
-        }
-        reading = true;
-        NBTTagList tagList = ((ISustainedInventory) getStack().getItem()).getInventory(getStack());
-        if (tagList != null) {
-            for (int tagCount = 0; tagCount < tagList.tagCount(); tagCount++) {
-                NBTTagCompound tagCompound = tagList.getCompoundTagAt(tagCount);
-                byte slotID = tagCompound.getByte("Slot");
-                if (slotID >= 0 && slotID < getSizeInventory()) {
-                    setInventorySlotContents(slotID, new ItemStack(tagCompound));
-                }
-            }
-        }
-        reading = false;
+        return inventorySlots;
     }
 
     public ItemStack getStack() {
-        return itemStack;
+        return stack;
+    }
+
+    @Nonnull
+    @Override
+    public String getName() {
+        return "PersonalChest";
     }
 }

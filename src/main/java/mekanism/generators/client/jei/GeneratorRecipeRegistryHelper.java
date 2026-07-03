@@ -5,8 +5,8 @@ import mekanism.common.recipe.inputs.MachineInput;
 import mekanism.common.recipe.machines.MachineRecipe;
 import mekanism.common.recipe.outputs.MachineOutput;
 import mekanism.generators.client.gui.GuiFissionReactor;
+import mekanism.generators.client.gui.GuiFusionReactorHeat;
 import mekanism.generators.client.gui.GuiGasGenerator;
-import mekanism.generators.client.gui.GuiReactorHeat;
 import mekanism.generators.client.jei.machine.other.FissionReactorRecipeCategory;
 import mekanism.generators.client.jei.machine.other.FissionReactorRecipeWrapper;
 import mekanism.generators.client.jei.machine.other.FusionCoolingRecipeWrapper;
@@ -27,7 +27,6 @@ public class GeneratorRecipeRegistryHelper {
                 FissionReactorRecipeWrapper.waterCooled(),
                 FissionReactorRecipeWrapper.sodiumCooled()
         ), FissionReactorRecipeCategory.UID);
-        registry.addRecipeClickArea(GuiFissionReactor.class, 45, 17, 105, 56, FissionReactorRecipeCategory.UID);
         registry.addRecipeCatalyst(BlockStateGenerator.GeneratorType.FISSION_REACTOR_CASING.getStack(), FissionReactorRecipeCategory.UID);
         registry.addRecipeCatalyst(BlockStateGenerator.GeneratorType.FISSION_REACTOR_PORT.getStack(), FissionReactorRecipeCategory.UID);
         registry.addRecipeCatalyst(BlockStateGenerator.GeneratorType.FISSION_REACTOR_LOGIC_ADAPTER.getStack(), FissionReactorRecipeCategory.UID);
@@ -38,14 +37,12 @@ public class GeneratorRecipeRegistryHelper {
 
     public static void registerFusionCooling(IModRegistry registry) {
         addRecipes(registry, RecipeHandler.Recipe.FUSION_COOLING, FusionCoolingRecipeWrapper::new);
-        registry.addRecipeClickArea(GuiReactorHeat.class, 133, 84, 18, 30, RecipeHandler.Recipe.FUSION_COOLING.getJEICategory());
         registry.addRecipeCatalyst(BlockStateReactor.ReactorBlockType.REACTOR_CONTROLLER.getStack(1), RecipeHandler.Recipe.FUSION_COOLING.getJEICategory());
         registry.addRecipeCatalyst(BlockStateReactor.ReactorBlockType.REACTOR_PORT.getStack(1), RecipeHandler.Recipe.FUSION_COOLING.getJEICategory());
     }
 
     public static void registerGasStackFlueToEnergyRecipe(IModRegistry registry) {
         addRecipes(registry, RecipeHandler.Recipe.GAS_FUEL_TO_ENERGY_RECIPE, GasStackFlueToEnergyRecipeWrapper::new);
-        registry.addRecipeClickArea(GuiGasGenerator.class, 55, 18, 66, 50, RecipeHandler.Recipe.GAS_FUEL_TO_ENERGY_RECIPE.getJEICategory());
         registry.addRecipeCatalyst(BlockStateGenerator.GeneratorType.GAS_GENERATOR.getStack(), RecipeHandler.Recipe.GAS_FUEL_TO_ENERGY_RECIPE.getJEICategory());
     }
 

@@ -1,24 +1,41 @@
 package mekanism.common.inventory;
 
 import mekanism.common.lib.inventory.HashedItem;
+import mekanism.common.lib.inventory.HashedItem.UUIDAwareHashedItem;
+import mekanism.common.util.MekanismUtils;
 import net.minecraft.item.ItemStack;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.UUID;
+import java.util.function.Supplier;
 
 public interface ISlotClickHandler {
 
-    void onClick(IScrollableSlot slot, int button, boolean hasShiftDown, ItemStack heldItem);
+    void onClick(Supplier<@Nullable IScrollableSlot> slotProvider, int button, boolean hasShiftDown, ItemStack heldItem);
 
     interface IScrollableSlot {
 
-        HashedItem getItem();
+        default HashedItem asRawHashedItem() {
+            HashedItem item = item();
+            return item instanceof UUIDAwareHashedItem ? ((UUIDAwareHashedItem) item).asRawHashedItem() : item;
+        }
 
-        UUID getItemUUID();
+        HashedItem item();
 
-        long getCount();
+        UUID itemUUID();
 
-        String getDisplayName();
+        long count();
 
-        String getModID();
+        default String getDisplayName() {
+            return getInternalStack().getDisplayName();
+        }
+
+        default String getModID() {
+            return MekanismUtils.getModId(getInternalStack());
+        }
+
+        default ItemStack getInternalStack() {
+            return item().getInternalStack();
+        }
     }
 }

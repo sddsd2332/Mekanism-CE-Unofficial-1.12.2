@@ -745,10 +745,6 @@ gui.rotaryCondensentrator.toggleOperation=Schalte Betrieb
 
 gui.factory.secondaryEnergy=Sekundärenergie
 gui.factory.autoSort=Auto-Sortieren
-gui.factory.autoSort.isold=Alter Auto-Sortierstatus wird verwendet
-gui.factory.autoSort.old=Altes Auto-Sortieren
-gui.factory.autoSort.old.info=Wenn automatische Klassifizierung in Ordnung ist, aktivieren Sie dies nicht
-gui.factory.autoSort.old.info2=Dies kann Probleme mit der alten automatischen Klassifizierung verursachen
 
 
 # Recipe types
@@ -770,12 +766,8 @@ gui.factory.Alloy= Legier
 gui.factory.Extractor= Extraktions
 gui.factory.Separator= Separations
 gui.factory.Recycler= Recycle
-gui.factory.Dissolution= Auflösungs
-gui.factory.Crystallizer= Kristallisations
 gui.factory.PRC= Druckreaktors
-gui.factory.Oxidizer= Oxidierer
 gui.factory.Nucleosynthesizer= Nukleosynthesizierer
-gui.factory.Washer= Waschmaschine
 
 gui.seismicReader.short=S. Lesegerät
 gui.seismicReader.solids=Feststoffe
@@ -1692,3 +1684,19 @@ holiday.mekanism.may_4.1=May the 4th be with you
 holiday.mekanism.new_year.1=Frohes neues Jahr
 holiday.mekanism.new_year.2=Beste Wünsche für dich, während wir in dieses
 holiday.mekanism.new_year.3=neue und aufregende Jahr %s eintreten
+
+# Migration GUI keys
+gui.trusted=Vertraut
+gui.inputRate=Input Rate
+gui.progress=Progress
+gui.processRate=Process Rate
+gui.back=Back
+gui.Blades_damaged=Blades damaged
+gui.Blades_damaged_number=Damaged blades
+gui.forced_run=Force run
+gui.forced_run_off=Disable force run
+gui.updateRun=Update run state
+gui.protection=Protection active
+gui.protection2=Secondary protection active
+gui.protection.off=Protection disabled
+mekanism.configgui.ctgy.multiblock.multiblock=Multiblock Machine Settings

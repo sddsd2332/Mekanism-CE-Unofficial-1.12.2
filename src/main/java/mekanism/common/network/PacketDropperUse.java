@@ -28,7 +28,7 @@ public class PacketDropperUse implements IMessageHandler<DropperUseMessage, IMes
             }
             if (tileEntity instanceof ITankManager tankManager) {
                 try {
-                    Object[] tanks = tankManager.getTanks();
+                    Object[] tanks = tankManager.getManagedTanks();
                     if (message.tankId < 0 || message.tankId >= tanks.length) {
                         return;
                     }

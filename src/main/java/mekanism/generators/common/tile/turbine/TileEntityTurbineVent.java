@@ -1,93 +1,63 @@
 package mekanism.generators.common.tile.turbine;
 
-import mekanism.common.base.FluidHandlerWrapper;
-import mekanism.common.base.IFluidHandlerWrapper;
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
+import mekanism.api.IContentsListener;
+import mekanism.common.capabilities.holder.fluid.IFluidTankHolder;
+import mekanism.common.capabilities.holder.fluid.ProxiedFluidTankHolder;
 import mekanism.common.util.CapabilityUtils;
 import mekanism.common.util.EmitUtils;
 import mekanism.common.util.PipeUtils;
+import mekanism.generators.common.content.turbine.TurbineVentFluidTank;
 import net.minecraft.util.EnumFacing;
-import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.fluids.FluidRegistry;
 import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.FluidTankInfo;
 import net.minecraftforge.fluids.capability.CapabilityFluidHandler;
 import net.minecraftforge.fluids.capability.IFluidHandler;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+import java.util.Collections;
 import java.util.EnumSet;
 
-public class TileEntityTurbineVent extends TileEntityTurbineCasing implements IFluidHandlerWrapper {
+public class TileEntityTurbineVent extends TileEntityTurbineCasing {
 
-    public FluidTankInfo fakeInfo = new FluidTankInfo(null, 1000);
+    public TurbineVentFluidTank ventTank;
 
     public TileEntityTurbineVent() {
         super("TurbineVent");
+        ventTank = new TurbineVentFluidTank(this);
+        initializeInventorySlots();
+    }
+
+    @Override
+    protected IFluidTankHolder getInitialFluidTanks(IContentsListener listener) {
+        return ProxiedFluidTankHolder.create(
+              side -> false,
+              side -> isFormed(),
+              side -> isFormed() ? Collections.singletonList(ventTank) : Collections.emptyList()
+        );
+    }
+
+    private boolean isFormed() {
+        return (!isRemote() && structure != null) || (isRemote() && clientHasStructure);
     }
 
 
     @Override
     public void onUpdateServer() {
         super.onUpdateServer();
-        if (structure != null && structure.flowRemaining > 0) {
-            FluidStack fluidStack = new FluidStack(FluidRegistry.WATER, structure.flowRemaining);
+        if (structure != null && structure.getVentWaterAmount() > 0) {
             EmitUtils.forEachSide(getWorld(), getPos(), EnumSet.allOf(EnumFacing.class), (tile, side) -> {
+                FluidStack fluidStack = ventTank.getFluid();
+                if (fluidStack == null) {
+                    return;
+                }
                 IFluidHandler handler = CapabilityUtils.getCapability(tile, CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, side.getOpposite());
                 if (handler != null && PipeUtils.canFill(handler, fluidStack)) {
-                    structure.flowRemaining -= handler.fill(fluidStack, true);
+                    int filled = handler.fill(fluidStack, true);
+                    if (filled > 0) {
+                        ventTank.extract(filled, Action.EXECUTE, AutomationType.INTERNAL);
+                    }
                 }
             });
         }
-    }
-
-
-
-    @Override
-    public FluidTankInfo[] getTankInfo(EnumFacing from) {
-        return ((!isRemote() && structure != null) || (isRemote() && clientHasStructure)) ? new FluidTankInfo[]{fakeInfo} : PipeUtils.EMPTY;
-    }
-
-    @Override
-    public FluidTankInfo[] getAllTanks() {
-        return getTankInfo(null);
-    }
-
-    @Override
-    @Nullable
-    public FluidStack drain(EnumFacing from, int maxDrain, boolean doDrain) {
-        int amount = Math.min(maxDrain, structure.flowRemaining);
-        if (amount <= 0) {
-            return null;
-        }
-        FluidStack fluidStack = new FluidStack(FluidRegistry.WATER, amount);
-        if (doDrain) {
-            structure.flowRemaining -= amount;
-        }
-        return fluidStack;
-    }
-
-    @Override
-    public boolean canDrain(EnumFacing from, @Nullable FluidStack fluid) {
-        return structure != null && (fluid == null || fluid.getFluid() == FluidRegistry.WATER);
-    }
-
-    @Override
-    public boolean hasCapability(@Nonnull Capability<?> capability, EnumFacing side) {
-        if ((!isRemote() && structure != null) || (isRemote() && clientHasStructure)) {
-            if (capability == CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY) {
-                return true;
-            }
-        }
-        return super.hasCapability(capability, side);
-    }
-
-    @Override
-    public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing side) {
-        if ((!isRemote() && structure != null) || (isRemote() && clientHasStructure)) {
-            if (capability == CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY) {
-                return CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY.cast(new FluidHandlerWrapper(this, side));
-            }
-        }
-        return super.getCapability(capability, side);
     }
 }

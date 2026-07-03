@@ -1,14 +1,22 @@
 package mekanism.common.tile;
 
 import io.netty.buffer.ByteBuf;
+import mekanism.api.Action;
 import mekanism.api.IConfigCardAccess;
+import mekanism.api.IContentsListener;
 import mekanism.api.TileNetworkList;
 import mekanism.api.transmitters.TransmissionType;
 import mekanism.common.Mekanism;
-import mekanism.common.SideData;
 import mekanism.common.base.*;
 import mekanism.common.capabilities.Capabilities;
+import mekanism.common.capabilities.energy.EnergyCubeEnergyContainer;
+import mekanism.common.capabilities.holder.energy.EnergyContainerHelper;
+import mekanism.common.capabilities.holder.energy.IEnergyContainerHolder;
+import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
+import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
 import mekanism.common.integration.computer.IComputerIntegration;
+import mekanism.common.inventory.container.slot.SlotOverlay;
+import mekanism.common.inventory.slot.EnergyInventorySlot;
 import mekanism.common.security.ISecurityTile;
 import mekanism.common.tier.BaseTier;
 import mekanism.common.tier.EnergyCubeTier;
@@ -17,10 +25,12 @@ import mekanism.common.tile.component.TileComponentEjector;
 import mekanism.common.tile.component.TileComponentSecurity;
 import mekanism.common.tile.component.config.DataType;
 import mekanism.common.tile.prefab.TileEntityElectricBlock;
-import mekanism.common.util.*;
+import mekanism.common.upgrade.EnergyCubeUpgradeData;
+import mekanism.common.upgrade.IUpgradeData;
+import mekanism.common.util.LangUtils;
+import mekanism.common.util.MekanismUtils;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
-import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
@@ -31,8 +41,9 @@ import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
-public class TileEntityEnergyCube extends TileEntityElectricBlock implements IComputerIntegration, IRedstoneControl, ISideConfiguration, ISecurityTile, ITierUpgradeable,
+public class TileEntityEnergyCube extends TileEntityElectricBlock implements IComputerIntegration, IRedstoneControl, ISideConfiguration, ISecurityTile, IUpgradeableTile,
         IConfigCardAccess, IComparatorSupport, ISpecialSelectionWireframeTile {
 
     private static final ISpecialSelectionWireframeTile.SelectionTransform[] SELECTION_ROTATE_SOUTH = {
@@ -70,6 +81,9 @@ public class TileEntityEnergyCube extends TileEntityElectricBlock implements ICo
     public TileComponentEjector ejectorComponent;
     public TileComponentConfig configComponent;
     public TileComponentSecurity securityComponent;
+    private EnergyCubeEnergyContainer energyContainer;
+    private EnergyInventorySlot chargeSlot;
+    private EnergyInventorySlot dischargeSlot;
 
     /**
      * A block used to store and transfer electricity.
@@ -77,32 +91,46 @@ public class TileEntityEnergyCube extends TileEntityElectricBlock implements ICo
     public TileEntityEnergyCube() {
         super("EnergyCube", 0);
         configComponent = new TileComponentConfig(this, TransmissionType.ENERGY, TransmissionType.ITEM);
+        initializeInventorySlots();
+        configComponent.setupItemIOConfig(chargeSlot, dischargeSlot);
 
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.NONE, InventoryUtils.EMPTY));
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.INPUT, new int[]{0}));
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.OUTPUT, new int[]{1}));
-
-        configComponent.setConfig(TransmissionType.ITEM, new byte[]{0, 0, 0, 0, 2, 1});
+        configComponent.setConfig(TransmissionType.ITEM, DataType.NONE, DataType.NONE, DataType.NONE, DataType.NONE, DataType.OUTPUT, DataType.INPUT);
         configComponent.setCanEject(TransmissionType.ITEM, false);
         configComponent.setIOConfig(TransmissionType.ENERGY);
         configComponent.setEjecting(TransmissionType.ENERGY, true);
 
-        inventory = NonNullListSynchronized.withSize(2, ItemStack.EMPTY);
         controlType = RedstoneControl.DISABLED;
 
-        ejectorComponent = new TileComponentEjector(this);
+        ejectorComponent = new TileComponentEjector(this, () -> tier.getOutput(), false);
+        ejectorComponent.setOutputData(configComponent, TransmissionType.ENERGY)
+              .setCanEject(type -> MekanismUtils.canFunction(this));
 
         securityComponent = new TileComponentSecurity(this);
     }
 
     @Override
+    protected IEnergyContainerHolder getInitialEnergyContainers(IContentsListener listener) {
+        EnergyContainerHelper builder = createEnergyContainerHelper();
+        builder.addContainer(getEnergyContainer(listener));
+        return builder.build();
+    }
+
+    @Override
+    protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
+        InventorySlotHelper builder = createInventorySlotHelper();
+        EnergyCubeEnergyContainer container = getEnergyContainer(listener);
+        dischargeSlot = builder.addSlot(EnergyInventorySlot.fillOrConvert(container, this::getWorld, listener, 17, 35));
+        dischargeSlot.setSlotOverlay(SlotOverlay.MINUS);
+        chargeSlot = builder.addSlot(EnergyInventorySlot.drain(container, listener, 143, 35));
+        chargeSlot.setSlotOverlay(SlotOverlay.PLUS);
+        return builder.build();
+    }
+
+    @Override
     public void onUpdateServer() {
         super.onUpdateServer();
-        ChargeUtils.charge(0, this);
-        ChargeUtils.discharge(1, this);
-        if (MekanismUtils.canFunction(this) && configComponent.isEjecting(TransmissionType.ENERGY) && getEnergy() > 0) {
-            CableUtils.emit(this);
-        }
+        chargeSlot.drainContainer();
+        dischargeSlot.fillContainerOrConvert();
         int newScale = getScaledEnergyLevel(20);
         if (newScale != prevScale) {
             Mekanism.packetHandler.sendUpdatePacket(this);
@@ -116,14 +144,57 @@ public class TileEntityEnergyCube extends TileEntityElectricBlock implements ICo
     }
 
     @Override
-    public boolean upgrade(BaseTier upgradeTier) {
+    public boolean canInstallUpgrade(BaseTier upgradeTier) {
         if (upgradeTier.ordinal() != tier.ordinal() + 1) {
             return false;
         }
-        tier = EnergyCubeTier.values()[upgradeTier.ordinal()];
-        Mekanism.packetHandler.sendUpdatePacket(this);
-        markNoUpdateSync();
-        return true;
+        return upgradeTier.ordinal() < EnergyCubeTier.values().length;
+    }
+
+    @Nullable
+    @Override
+    public IUpgradeData getUpgradeData(BaseTier upgradeTier) {
+        if (!canInstallUpgrade(upgradeTier)) {
+            return null;
+        }
+        return new EnergyCubeUpgradeData(upgradeTier, facing, clientFacing, ticker, redstone, redstoneLastTick, doAutoSync, getEnergy(),
+              currentRedstoneLevel, getControlType(), writeUpgradeComponentData(), chargeSlot.serializeNBT(), dischargeSlot.serializeNBT());
+    }
+
+    @Nonnull
+    private NBTTagCompound writeUpgradeComponentData() {
+        NBTTagCompound componentData = new NBTTagCompound();
+        configComponent.write(componentData);
+        ejectorComponent.write(componentData);
+        securityComponent.write(componentData);
+        return componentData;
+    }
+
+    @Override
+    public boolean parseUpgradeData(IUpgradeData upgradeData) {
+        if (upgradeData instanceof EnergyCubeUpgradeData data && data.getUpgradeTier().ordinal() == tier.ordinal() + 1) {
+            facing = data.facing;
+            clientFacing = data.clientFacing;
+            ticker = data.ticker;
+            redstone = data.redstone;
+            redstoneLastTick = data.redstoneLastTick;
+            doAutoSync = data.doAutoSync;
+            tier = EnergyCubeTier.values()[data.getUpgradeTier().ordinal()];
+            electricityStored.set(Math.max(Math.min(data.energy, getMaxEnergy()), 0));
+            currentRedstoneLevel = data.currentRedstoneLevel;
+            setControlType(data.controlType);
+            configComponent.read(data.componentData);
+            ejectorComponent.read(data.componentData);
+            securityComponent.read(data.componentData);
+            ejectorComponent.setOutputData(configComponent, TransmissionType.ENERGY);
+            chargeSlot.deserializeNBT(data.chargeSlot);
+            dischargeSlot.deserializeNBT(data.dischargeSlot);
+            MekanismUtils.updateBlock(world, getPos());
+            Mekanism.packetHandler.sendUpdatePacket(this);
+            markNoUpdateSync();
+            return true;
+        }
+        return false;
     }
 
     @Nonnull
@@ -137,46 +208,31 @@ public class TileEntityEnergyCube extends TileEntityElectricBlock implements ICo
         return tier.getOutput();
     }
 
-    @Override
-    public boolean isItemValidForSlot(int slotID, @Nonnull ItemStack itemstack) {
-        if (slotID == 0) {
-            return ChargeUtils.canBeCharged(itemstack);
-        } else if (slotID == 1) {
-            return ChargeUtils.canBeDischarged(itemstack);
+    public EnergyCubeEnergyContainer getEnergyContainer() {
+        return getEnergyContainer(this);
+    }
+
+    private EnergyCubeEnergyContainer getEnergyContainer(@Nullable IContentsListener listener) {
+        if (energyContainer == null) {
+            energyContainer = EnergyCubeEnergyContainer.create(() -> tier, this::getEnergy, this::setEnergyUnchecked, listener);
         }
-        return true;
+        return energyContainer;
     }
 
     @Override
     public boolean sideIsConsumer(EnumFacing side) {
-        return configComponent.hasSideForData(TransmissionType.ENERGY, facing, 1, side);
+        return configComponent.hasSideForData(TransmissionType.ENERGY, facing, DataType.INPUT, side);
     }
 
     @Override
     public boolean sideIsOutput(EnumFacing side) {
-        return configComponent.hasSideForData(TransmissionType.ENERGY, facing, 2, side);
+        return configComponent.hasSideForData(TransmissionType.ENERGY, facing, DataType.OUTPUT, side);
     }
 
 
     @Override
     public double getMaxEnergy() {
         return tier.getMaxEnergy();
-    }
-
-    @Nonnull
-    @Override
-    public int[] getSlotsForFace(@Nonnull EnumFacing side) {
-        return configComponent.getOutput(TransmissionType.ITEM, side, facing).availableSlots;
-    }
-
-    @Override
-    public boolean canExtractItem(int slotID, @Nonnull ItemStack itemstack, @Nonnull EnumFacing side) {
-        if (slotID == 1) {
-            return ChargeUtils.canBeOutputted(itemstack, false);
-        } else if (slotID == 0) {
-            return ChargeUtils.canBeOutputted(itemstack, true);
-        }
-        return false;
     }
 
     @Override
@@ -232,9 +288,14 @@ public class TileEntityEnergyCube extends TileEntityElectricBlock implements ICo
 
     @Override
     public void setEnergy(double energy) {
-        if (tier == EnergyCubeTier.CREATIVE && energy != Double.MAX_VALUE) {
-            return;
+        if (tier == EnergyCubeTier.CREATIVE) {
+            double max = getMaxEnergy();
+            energy = getEnergy() > 0 || energy >= max ? max : 0;
         }
+        setEnergyUnchecked(energy);
+    }
+
+    private void setEnergyUnchecked(double energy) {
         super.setEnergy(energy);
         int newRedstoneLevel = getRedstoneLevel();
         if (newRedstoneLevel != currentRedstoneLevel) {
@@ -261,6 +322,25 @@ public class TileEntityEnergyCube extends TileEntityElectricBlock implements ICo
     @Override
     public boolean canPulse() {
         return false;
+    }
+
+    @Override
+    public double acceptEnergy(EnumFacing side, double amount, boolean simulate) {
+        if (side != null && !canInsertExternalEnergy(side)) {
+            return 0;
+        }
+        Action action = Action.get(!simulate);
+        double remainder = getEnergyContainer().insert(amount, side, action, mekanism.api.AutomationType.handler(side));
+        trackEnergyInput(amount, action, remainder);
+        return amount - remainder;
+    }
+
+    @Override
+    public double pullEnergy(EnumFacing side, double amount, boolean simulate) {
+        if (side != null && !canExtractExternalEnergy(side)) {
+            return 0;
+        }
+        return getEnergyContainer().extract(amount, side, Action.get(!simulate), mekanism.api.AutomationType.handler(side));
     }
 
     @Override
@@ -336,7 +416,6 @@ public class TileEntityEnergyCube extends TileEntityElectricBlock implements ICo
         if (configComponent == null) {
             return false;
         }
-        SideData sideData = configComponent.getOutput(TransmissionType.ENERGY, side);
-        return sideData != null && sideData.ioState != SideData.IOState.OFF;
+        return configComponent.getDataType(TransmissionType.ENERGY, side) != DataType.NONE;
     }
 }

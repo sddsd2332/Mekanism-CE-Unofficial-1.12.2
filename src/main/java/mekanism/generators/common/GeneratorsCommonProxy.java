@@ -3,7 +3,6 @@ package mekanism.generators.common;
 import mekanism.common.Mekanism;
 import mekanism.common.base.IGuiProvider;
 import mekanism.common.config.MekanismConfig;
-import mekanism.common.inventory.container.ContainerFilter;
 import mekanism.common.inventory.container.ContainerNull;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
 import mekanism.generators.common.block.states.BlockStateGenerator.GeneratorType;
@@ -111,11 +110,12 @@ public class GeneratorsCommonProxy implements IGuiProvider {
             case 3 -> new ContainerGasGenerator(player.inventory, (TileEntityGasGenerator) tileEntity);
             case 4 -> new ContainerBioGenerator(player.inventory, (TileEntityBioGenerator) tileEntity);
             case 5 -> new ContainerWindGenerator(player.inventory, (TileEntityWindGenerator) tileEntity);
-            case 6 -> new ContainerFilter(player.inventory, (TileEntityTurbineCasing) tileEntity);
+            case 6 -> new ContainerIndustrialTurbine(player.inventory, (TileEntityTurbineCasing) tileEntity);
             case 7 -> new ContainerNull(player, (TileEntityTurbineCasing) tileEntity);
             case 10 -> new ContainerReactorController(player.inventory, (TileEntityReactorController) tileEntity);
             case 11, 12, 13, 15 -> new ContainerNull(player, (TileEntityContainerBlock) tileEntity);
-            case 16, 17, 18 -> new ContainerNull(player, (TileEntityContainerBlock) tileEntity);
+            case 16 -> new ContainerFissionReactor(player.inventory, (TileEntityFissionReactorCasing) tileEntity);
+            case 17, 18 -> new ContainerNull(player, (TileEntityContainerBlock) tileEntity);
             default -> null;
         };
 

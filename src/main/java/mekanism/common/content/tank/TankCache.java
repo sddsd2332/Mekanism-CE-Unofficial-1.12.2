@@ -1,19 +1,12 @@
 package mekanism.common.content.tank;
 
 import mekanism.api.gas.GasStack;
+import mekanism.common.base.IFluidContainerManager.ContainerEditMode;
 import mekanism.common.multiblock.MultiblockCache;
-import mekanism.common.util.FluidContainerUtils.ContainerEditMode;
-import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.NonNullListSynchronized;
-import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.nbt.NBTTagList;
-import net.minecraftforge.common.util.Constants.NBT;
 import net.minecraftforge.fluids.FluidStack;
 
 public class TankCache extends MultiblockCache<SynchronizedTankData> {
-
-    public NonNullListSynchronized<ItemStack> inventory = NonNullListSynchronized.withSize(2, ItemStack.EMPTY);
 
     public FluidStack fluid;
 
@@ -40,34 +33,25 @@ public class TankCache extends MultiblockCache<SynchronizedTankData> {
     @Override
     public void apply(SynchronizedTankData data) {
         sanitizeStoredSubstances();
-        data.inventory = inventory;
-        data.fluidStored = fluid;
-        data.gasstored = gas;
+        applyInventory(data);
+        data.fluidStored = fluid == null ? null : fluid.copy();
+        data.gasstored = gas == null ? null : gas.copy();
         data.editMode = editMode;
     }
 
     @Override
     public void sync(SynchronizedTankData data) {
-        inventory = data.inventory;
-        fluid = data.fluidStored;
-        gas = data.gasstored;
+        syncInventory(data);
+        fluid = data.fluidStored == null ? null : data.fluidStored.copy();
+        gas = data.gasstored == null ? null : data.gasstored.copy();
         sanitizeStoredSubstances();
         editMode = data.editMode;
     }
 
     @Override
     public void load(NBTTagCompound nbtTags) {
-        editMode = MekanismUtils.getByIndex(ContainerEditMode.values(), nbtTags.getInteger("editMode"), editMode);
-        NBTTagList tagList = nbtTags.getTagList("Items", NBT.TAG_COMPOUND);
-        inventory = NonNullListSynchronized.withSize(2, ItemStack.EMPTY);
-
-        for (int tagCount = 0; tagCount < tagList.tagCount(); tagCount++) {
-            NBTTagCompound tagCompound = tagList.getCompoundTagAt(tagCount);
-            byte slotID = tagCompound.getByte("Slot");
-            if (slotID >= 0 && slotID < 2) {
-                inventory.set(slotID, new ItemStack(tagCompound));
-            }
-        }
+        editMode = ContainerEditMode.byIndexStatic(nbtTags.getInteger("editMode"));
+        loadInventory(nbtTags);
         if (nbtTags.hasKey("cachedFluid")) {
             fluid = FluidStack.loadFluidStackFromNBT(nbtTags.getCompoundTag("cachedFluid"));
         }
@@ -81,16 +65,7 @@ public class TankCache extends MultiblockCache<SynchronizedTankData> {
     public void save(NBTTagCompound nbtTags) {
         sanitizeStoredSubstances();
         nbtTags.setInteger("editMode", editMode.ordinal());
-        NBTTagList tagList = new NBTTagList();
-        for (int slotCount = 0; slotCount < 2; slotCount++) {
-            if (!inventory.get(slotCount).isEmpty()) {
-                NBTTagCompound tagCompound = new NBTTagCompound();
-                tagCompound.setByte("Slot", (byte) slotCount);
-                inventory.get(slotCount).writeToNBT(tagCompound);
-                tagList.appendTag(tagCompound);
-            }
-        }
-        nbtTags.setTag("Items", tagList);
+        saveInventory(nbtTags);
         if (fluid != null) {
             nbtTags.setTag("cachedFluid", fluid.writeToNBT(new NBTTagCompound()));
         }

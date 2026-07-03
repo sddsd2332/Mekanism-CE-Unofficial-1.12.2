@@ -2,6 +2,7 @@ package mekanism.common.base;
 
 import io.netty.buffer.ByteBuf;
 import mekanism.api.TileNetworkList;
+import mekanism.common.inventory.container.MekanismContainer;
 import net.minecraft.nbt.NBTTagCompound;
 
 public interface ITileComponent {
@@ -17,4 +18,7 @@ public interface ITileComponent {
     void write(TileNetworkList data);
 
     void invalidate();
+
+    default void trackForMainContainer(MekanismContainer container) {
+    }
 }

@@ -1,15 +1,14 @@
 package mekanism.common.transmitters.grid;
 
-import it.unimi.dsi.fastutil.objects.ReferenceOpenHashSet;
-import it.unimi.dsi.fastutil.objects.ReferenceSet;
 import mekanism.api.Coord4D;
 import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasStack;
 import mekanism.api.gas.IGasHandler;
 import mekanism.api.transmitters.DynamicNetwork;
 import mekanism.api.transmitters.IGridTransmitter;
-import mekanism.common.base.target.GasHandlerTarget;
 import mekanism.common.capabilities.Capabilities;
+import mekanism.common.content.network.distribution.GasHandlerTarget;
+import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.util.CapabilityUtils;
 import mekanism.common.util.EmitUtils;
 import net.minecraft.tileentity.TileEntity;
@@ -44,8 +43,7 @@ public class GasNetwork extends DynamicNetwork<IGasHandler, GasNetwork, GasStack
 
     public int prevTransferAmount = 0;
 
-    private final ReferenceSet<GasHandlerTarget> targets = new ReferenceOpenHashSet<>();
-    private volatile int totalHandlers = 0;
+    private GasHandlerTarget target;
 
     public GasNetwork() {
     }
@@ -67,22 +65,22 @@ public class GasNetwork extends DynamicNetwork<IGasHandler, GasNetwork, GasStack
             if (net.refGas != null && net.gasScale > gasScale) {
                 gasScale = net.gasScale;
                 refGas = net.refGas;
-                buffer = net.buffer;
+                setBuffer(net.buffer);
 
                 net.gasScale = 0;
                 net.refGas = null;
-                net.buffer = null;
+                net.setBuffer(null);
             }
         } else {
             if (net.buffer != null) {
                 if (buffer == null) {
-                    buffer = net.buffer.copy();
+                    setBuffer(net.buffer);
                 } else if (buffer.isGasEqual(net.buffer)) {
-                    buffer.amount += net.buffer.amount;
+                    growBuffer(net.buffer.amount);
                 } else if (net.buffer.amount > buffer.amount) {
-                    buffer = net.buffer.copy();
+                    setBuffer(net.buffer);
                 }
-                net.buffer = null;
+                net.setBuffer(null);
             }
         }
         super.adoptTransmittersAndAcceptorsFrom(net);
@@ -101,27 +99,31 @@ public class GasNetwork extends DynamicNetwork<IGasHandler, GasNetwork, GasStack
             return;
         }
         if (buffer == null || buffer.getGas() == null || buffer.amount == 0) {
-            buffer = gas.copy();
-            gas.amount = 0;
+            setBuffer(gas);
+            transmitter.clearBuffer();
             return;
         }
 
         //TODO better multiple buffer impl
         if (buffer.isGasEqual(gas)) {
-            buffer.amount += gas.amount;
+            growBuffer(gas.amount);
         }
-        gas.amount = 0;
+        transmitter.clearBuffer();
     }
 
     @Override
     public void clampBuffer() {
         if (buffer != null && buffer.amount > getCapacity()) {
-            buffer.amount = getCapacity();
+            setBuffer(buffer);
         }
     }
 
     public int getGasNeeded() {
-        return getCapacity() - (buffer != null ? buffer.amount : 0);
+        return getCapacity() - getBufferAmount();
+    }
+
+    public int getBufferAmount() {
+        return buffer == null ? 0 : buffer.amount;
     }
 
     public int emit(GasStack stack, boolean doTransfer) {
@@ -131,13 +133,42 @@ public class GasNetwork extends DynamicNetwork<IGasHandler, GasNetwork, GasStack
         int toUse = Math.min(getGasNeeded(), stack.amount);
         if (doTransfer) {
             if (buffer == null) {
-                buffer = stack.copy();
-                buffer.amount = toUse;
+                setBuffer(stack.copy().withAmount(toUse));
             } else {
-                buffer.amount += toUse;
+                growBuffer(toUse);
             }
         }
         return toUse;
+    }
+
+    public void setBuffer(@Nullable GasStack stack) {
+        if (stack == null || stack.getGas() == null || stack.amount <= 0) {
+            buffer = null;
+        } else {
+            int capacity = getCapacity();
+            buffer = stack.copy().withAmount(capacity <= 0 ? stack.amount : Math.min(stack.amount, capacity));
+        }
+    }
+
+    public int growBuffer(int amount) {
+        if (buffer == null || amount <= 0) {
+            return 0;
+        }
+        int current = buffer.amount;
+        int capacity = getCapacity();
+        int newAmount = capacity <= 0 ? current + amount : Math.min(capacity, current + amount);
+        setBuffer(buffer.copy().withAmount(newAmount));
+        return newAmount - current;
+    }
+
+    public int shrinkBuffer(int amount) {
+        if (buffer == null || amount <= 0) {
+            return 0;
+        }
+        int removed = Math.min(buffer.amount, amount);
+        int remaining = buffer.amount - removed;
+        setBuffer(remaining <= 0 ? null : buffer.copy().withAmount(remaining));
+        return removed;
     }
 
     @Override
@@ -184,19 +215,13 @@ public class GasNetwork extends DynamicNetwork<IGasHandler, GasNetwork, GasStack
                 didTransfer = true;
                 transferDelay = 2;
             }
-            buffer.amount -= prevTransferAmount;
-            if (buffer.amount <= 0) {
-                buffer = null;
-            }
+            shrinkBuffer(prevTransferAmount);
         }
 
     }
 
     private void collectTargets(GasStack stack) {
-        ReferenceSet<GasHandlerTarget> targets = this.targets;
-        targets.clear();
-        int totalHandlers = 0;
-        Gas type = stack.getGas();
+        GasHandlerTarget target = new GasHandlerTarget(stack, possibleAcceptors.size() * 2);
         for (Coord4D coord : possibleAcceptors) {
             EnumSet<EnumFacing> sides = acceptorDirections.get(coord);
             if (sides == null || sides.isEmpty()) {
@@ -206,26 +231,21 @@ public class GasNetwork extends DynamicNetwork<IGasHandler, GasNetwork, GasStack
             if (tile == null) {
                 continue;
             }
-            GasHandlerTarget target = new GasHandlerTarget(stack);
             for (EnumFacing side : sides) {
                 if (CapabilityUtils.hasCapability(tile, Capabilities.GAS_HANDLER_CAPABILITY, side)) {
                     IGasHandler acceptor = CapabilityUtils.getCapability(tile, Capabilities.GAS_HANDLER_CAPABILITY, side);
-                    if (acceptor != null && acceptor.canReceiveGas(side, type)) {
+                    if (GasInventorySlot.canReceiveGas(acceptor, side, stack)) {
                         target.addHandler(side, acceptor);
                     }
                 }
             }
-            int curHandlers = target.getHandlers().size();
-            if (curHandlers > 0) {
-                targets.add(target);
-                totalHandlers += curHandlers;
-            }
         }
-        this.totalHandlers = totalHandlers;
+        this.target = target;
     }
 
     private int tickEmit(GasStack stack) {
-        return EmitUtils.sendToAcceptors(targets, totalHandlers, stack.amount, stack);
+        GasHandlerTarget target = this.target;
+        return target == null || target.getHandlerCount() == 0 ? 0 : EmitUtils.sendToAcceptors(target, stack.amount, stack);
     }
 
     @Override
@@ -237,7 +257,7 @@ public class GasNetwork extends DynamicNetwork<IGasHandler, GasNetwork, GasStack
         } else if (!didTransfer && gasScale > 0) {
             gasScale = Math.max(getScale(), Math.max(0, gasScale - 0.02F));
             if (gasScale == 0) {
-                buffer = null;
+                setBuffer(null);
             }
         }
     }

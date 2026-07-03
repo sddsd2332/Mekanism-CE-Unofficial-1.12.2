@@ -3,10 +3,12 @@ package mekanism.common.item;
 import mekanism.api.EnumColor;
 import mekanism.api.radiation.capability.IRadiationEntity;
 import mekanism.common.MekanismLang;
+import mekanism.common.advancements.MekanismCriteriaTriggers;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.lib.radiation.RadiationManager;
 import mekanism.common.util.UnitDisplayUtils;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.item.EnumRarity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ActionResult;
@@ -36,6 +38,9 @@ public class ItemDosimeter extends ItemMekanism {
                     IRadiationEntity c = player.getCapability(Capabilities.RADIATION_ENTITY_CAPABILITY, null);
                     if (c != null) {
                         player.sendMessage(new TextComponentString(EnumColor.GREY + MekanismLang.RADIATION_DOSE.getTranslationKey() + RadiationManager.RadiationScale.getSeverityColor(c.getRadiation()) + UnitDisplayUtils.getDisplayShort(c.getRadiation(), UnitDisplayUtils.RadiationUnit.SV, 3)));
+                        if (player instanceof EntityPlayerMP playerMP) {
+                            MekanismCriteriaTriggers.USE_DOSIMETER.trigger(playerMP);
+                        }
                     }
                 }
             }

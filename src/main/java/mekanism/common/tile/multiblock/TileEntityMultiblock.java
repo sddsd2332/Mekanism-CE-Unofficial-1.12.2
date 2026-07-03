@@ -1,16 +1,16 @@
 package mekanism.common.tile.multiblock;
 
 import io.netty.buffer.ByteBuf;
-import mekanism.api.Coord4D;
-import mekanism.api.TileNetworkList;
+import mekanism.api.*;
+import mekanism.api.inventory.IInventorySlot;
 import mekanism.common.Mekanism;
 import mekanism.common.PacketHandler;
 import mekanism.common.block.states.BlockStateBasic.BasicBlockType;
+import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.multiblock.*;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
 import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.NonNullListSynchronized;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
@@ -86,6 +86,11 @@ public abstract class TileEntityMultiblock<T extends SynchronizedData<T>> extend
 
     public TileEntityMultiblock(String name) {
         super(name);
+    }
+
+    @Override
+    protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
+        return side -> structure == null ? Collections.emptyList() : structure.getInventorySlots(side);
     }
 
     @Override
@@ -189,6 +194,11 @@ public abstract class TileEntityMultiblock<T extends SynchronizedData<T>> extend
 
     public abstract MultiblockManager<T> getManager();
 
+    @Nullable
+    public T getMultiblock() {
+        return structure;
+    }
+
     @Override
     public TileNetworkList getNetworkedData(TileNetworkList data) {
         super.getNetworkedData(data);
@@ -227,6 +237,7 @@ public abstract class TileEntityMultiblock<T extends SynchronizedData<T>> extend
 
             isRendering = dataStream.readBoolean();
             clientHasStructure = dataStream.readBoolean();
+            structure.setFormed(clientHasStructure);
             if (clientHasStructure && isRendering) {
                 if (dataStream.readBoolean()) {
                     structure.volHeight = dataStream.readInt();
@@ -273,9 +284,62 @@ public abstract class TileEntityMultiblock<T extends SynchronizedData<T>> extend
         }
     }
 
+    @Nullable
     @Override
-    protected NonNullListSynchronized<ItemStack> getInventory() {
-        return structure != null ? structure.getInventory() : null;
+    public IInventorySlot getInventorySlot(int slot) {
+        if (structure != null) {
+            return structure.getInventorySlot(slot, null);
+        }
+        return super.getInventorySlot(slot);
+    }
+
+    @Nonnull
+    @Override
+    public List<IInventorySlot> getInventorySlots(@Nullable EnumFacing side) {
+        if (structure != null) {
+            return structure.getInventorySlots(side);
+        }
+        return super.getInventorySlots(side);
+    }
+
+    @Nullable
+    protected IInventorySlot getStructureInventorySlot(int slot) {
+        return structure == null ? null : structure.getInventorySlot(slot, null);
+    }
+
+    @Nullable
+    protected <SLOT extends IInventorySlot> SLOT getStructureInventorySlotAs(int slot, Class<SLOT> slotType) {
+        IInventorySlot inventorySlot = getStructureInventorySlot(slot);
+        return slotType.isInstance(inventorySlot) ? slotType.cast(inventorySlot) : null;
+    }
+
+    @Override
+    public void setInventorySlotContents(int slotID, @Nonnull ItemStack itemstack) {
+        if (structure == null || slotID < 0 || slotID >= structure.getInternalInventorySlots().size()) {
+            return;
+        }
+        if (!itemstack.isEmpty() && itemstack.getCount() > getInventoryStackLimit()) {
+            itemstack = itemstack.copy();
+            itemstack.setCount(getInventoryStackLimit());
+        }
+        IInventorySlot slot = structure.getInventorySlot(slotID, null);
+        if (slot != null) {
+            slot.setStack(itemstack);
+        }
+    }
+
+    @Override
+    public boolean canInsertItem(int slotID, @Nonnull ItemStack itemstack, @Nonnull EnumFacing side) {
+        IInventorySlot slot = getInventorySlot(slotID);
+        return slot != null && canInsertItem(slot, itemstack, side) &&
+              slot.insertItem(itemstack, Action.SIMULATE, AutomationType.EXTERNAL).getCount() < itemstack.getCount();
+    }
+
+    @Override
+    public boolean canExtractItem(int slotID, @Nonnull ItemStack itemstack, @Nonnull EnumFacing side) {
+        IInventorySlot slot = getInventorySlot(slotID);
+        return slot != null && canExtractItem(slot, itemstack, side) &&
+              !slot.extractItem(itemstack.getCount(), Action.SIMULATE, AutomationType.EXTERNAL).isEmpty();
     }
 
     @Override
@@ -291,8 +355,23 @@ public abstract class TileEntityMultiblock<T extends SynchronizedData<T>> extend
     }
 
     @Override
-    public boolean handleInventory() {
+    public boolean persistInventory() {
         return false;
+    }
+
+    @Override
+    protected boolean persistFluidTanks() {
+        return false;
+    }
+
+    @Override
+    protected boolean persistGasTanks() {
+        return false;
+    }
+
+    @Override
+    public boolean hasInventory() {
+        return structure != null && structure.hasInventory();
     }
 
     @Override

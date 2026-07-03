@@ -2,65 +2,76 @@ package mekanism.common.tile;
 
 import io.netty.buffer.ByteBuf;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
-import mekanism.api.Chunk3D;
-import mekanism.api.Coord4D;
-import mekanism.api.IHeatTransfer;
-import mekanism.api.TileNetworkList;
-import mekanism.api.gas.Gas;
-import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTankInfo;
-import mekanism.api.gas.IGasHandler;
+import mekanism.api.*;
+import mekanism.api.fluid.IExtendedFluidTank;
+import mekanism.api.gas.IExtendedGasTank;
+import mekanism.api.heat.IHeatCapacitor;
+import mekanism.api.inventory.IInventorySlot;
 import mekanism.api.transmitters.TransmissionType;
-import mekanism.common.Mekanism;
-import mekanism.common.PacketHandler;
-import mekanism.common.SideData;
-import mekanism.common.SideData.IOState;
 import mekanism.common.Upgrade;
-import mekanism.common.base.*;
+import mekanism.common.base.ISideConfiguration;
+import mekanism.common.base.ISpecialSelectionWireframeTile;
+import mekanism.common.base.ITankManager;
+import mekanism.common.base.IUpgradeTile;
 import mekanism.common.block.states.BlockStateMachine;
 import mekanism.common.capabilities.Capabilities;
+import mekanism.common.capabilities.holder.energy.IEnergyContainerHolder;
+import mekanism.common.capabilities.holder.energy.QuantumEntangloporterEnergyContainerHolder;
+import mekanism.common.capabilities.holder.fluid.IFluidTankHolder;
+import mekanism.common.capabilities.holder.fluid.QuantumEntangloporterFluidTankHolder;
+import mekanism.common.capabilities.holder.gas.IGasTankHolder;
+import mekanism.common.capabilities.holder.gas.QuantumEntangloporterGasTankHolder;
+import mekanism.common.capabilities.holder.heat.IHeatCapacitorHolder;
+import mekanism.common.capabilities.holder.heat.QuantumEntangloporterHeatCapacitorHolder;
+import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
+import mekanism.common.capabilities.holder.slot.QuantumEntangloporterInventorySlotHolder;
 import mekanism.common.chunkloading.IChunkLoader;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.content.entangloporter.InventoryFrequency;
 import mekanism.common.frequency.Frequency;
-import mekanism.common.frequency.FrequencyManager;
+import mekanism.common.frequency.Frequency.FrequencyIdentity;
+import mekanism.common.frequency.FrequencyType;
 import mekanism.common.frequency.IFrequencyHandler;
 import mekanism.common.integration.computer.IComputerIntegration;
+import mekanism.common.inventory.container.MekanismContainer;
+import mekanism.common.inventory.container.sync.SyncableDouble;
 import mekanism.common.security.ISecurityTile;
+import mekanism.common.security.ISecurityTile.SecurityMode;
 import mekanism.common.tile.component.*;
+import mekanism.common.tile.component.config.ConfigInfo;
 import mekanism.common.tile.component.config.DataType;
+import mekanism.common.tile.component.config.slot.IProxiedSlotInfo.*;
+import mekanism.common.tile.component.config.slot.ISlotInfo;
+import mekanism.common.tile.component.config.slot.InventorySlotInfo;
 import mekanism.common.tile.prefab.TileEntityElectricBlock;
-import mekanism.common.util.*;
+import mekanism.common.util.CapabilityUtils;
+import mekanism.common.util.HeatUtils;
+import mekanism.common.util.InventoryUtils;
+import mekanism.common.util.MekanismUtils;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.nbt.NBTTagList;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.world.IBlockAccess;
 import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.util.Constants;
-import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.FluidTankInfo;
-import net.minecraftforge.fluids.capability.CapabilityFluidHandler;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
+import java.util.UUID;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 
-public class TileEntityQuantumEntangloporter extends TileEntityElectricBlock implements ISideConfiguration, ITankManager, IFluidHandlerWrapper, IFrequencyHandler,
-        IGasHandler, IHeatTransfer, IComputerIntegration, ISecurityTile, IChunkLoader, IUpgradeTile, ISpecialSelectionWireframeTile {
+public class TileEntityQuantumEntangloporter extends TileEntityElectricBlock implements ISideConfiguration, ITankManager, IFrequencyHandler,
+        IHeatTransfer, IComputerIntegration, ISecurityTile, IChunkLoader, IUpgradeTile, ISpecialSelectionWireframeTile, IConfigCardAccess {
 
-    private static final int INV_SIZE = 1;//this.inventory size, used for upgrades. Manually handled
-    private static final String[] methods = {"setFrequency"};
+    private static final String[] methods = {"setFrequency", "createFrequency"};
     private static final ISpecialSelectionWireframeTile.SelectionTransform[] SELECTION_ROTATE_SOUTH = {
             ISpecialSelectionWireframeTile.SelectionTransform.rotateY(180.0D, 0.5D, 0.5D, 0.5D)
     };
@@ -70,12 +81,8 @@ public class TileEntityQuantumEntangloporter extends TileEntityElectricBlock imp
     private static final ISpecialSelectionWireframeTile.SelectionTransform[] SELECTION_ROTATE_EAST = {
             ISpecialSelectionWireframeTile.SelectionTransform.rotateY(270.0D, 0.5D, 0.5D, 0.5D)
     };
-    public InventoryFrequency frequency;
-    public double heatToAbsorb = 0;
     public double lastTransferLoss;
     public double lastEnvironmentLoss;
-    public List<Frequency> publicCache = new ArrayList<>();
-    public List<Frequency> privateCache = new ArrayList<>();
     public TileComponentEjector ejectorComponent;
     public TileComponentConfig configComponent;
     public TileComponentSecurity securityComponent;
@@ -85,69 +92,57 @@ public class TileEntityQuantumEntangloporter extends TileEntityElectricBlock imp
     public TileEntityQuantumEntangloporter() {
         super("QuantumEntangloporter", 0);
         configComponent = new TileComponentConfig(this, TransmissionType.ITEM, TransmissionType.FLUID, TransmissionType.GAS, TransmissionType.ENERGY, TransmissionType.HEAT);
-
-        for (TransmissionType type : TransmissionType.values()) {
-            if (type != TransmissionType.HEAT) {
-                configComponent.setIOConfig(type);
-            } else {
-                configComponent.addOutput(TransmissionType.HEAT, new SideData(DataType.NONE, IOState.OFF));
-                configComponent.addOutput(TransmissionType.HEAT, new SideData(DataType.INPUT_OUTPUT, IOState.INPUT));
-                configComponent.fillConfig(TransmissionType.HEAT, 1);
-                configComponent.setCanEject(TransmissionType.HEAT, false);
-            }
+        setupConfig(TransmissionType.ITEM, InventoryProxy::new, () -> hasFrequency() ? getFreq().getInventorySlots(null) : Collections.emptyList());
+        setupConfig(TransmissionType.FLUID, FluidProxy::new, () -> hasFrequency() ? getFreq().getFluidTanks(null) : Collections.emptyList());
+        setupConfig(TransmissionType.GAS, GasProxy::new, () -> hasFrequency() ? getFreq().getGasTanks(null) : Collections.emptyList());
+        setupConfig(TransmissionType.ENERGY, EnergyProxy::new, () -> hasFrequency() ? getFreq().getEnergyContainers(null) : Collections.emptyList());
+        ConfigInfo heatConfig = configComponent.getConfigInfo(TransmissionType.HEAT);
+        if (heatConfig != null) {
+            Supplier<List<IHeatCapacitor>> heatSupplier = () -> hasFrequency() ? getFreq().getHeatCapacitors(null) : Collections.emptyList();
+            heatConfig.addSlotInfo(DataType.INPUT_OUTPUT, new HeatProxy(true, false, heatSupplier));
+            heatConfig.fill(DataType.INPUT_OUTPUT);
+            heatConfig.setCanEject(false);
         }
 
-        inventory = NonNullListSynchronized.withSize(INV_SIZE, ItemStack.EMPTY);
-
-        configComponent.getOutputs(TransmissionType.ITEM).get(2).availableSlots = new int[]{0};
-        configComponent.getOutputs(TransmissionType.FLUID).get(2).availableSlots = new int[]{0};
-        configComponent.getOutputs(TransmissionType.GAS).get(2).availableSlots = new int[]{1};
+        initializeInventorySlots();
 
         ejectorComponent = new TileComponentEjector(this);
-        ejectorComponent.setOutputData(TransmissionType.ITEM, configComponent.getOutputs(TransmissionType.ITEM).get(2));
-        ejectorComponent.setOutputData(TransmissionType.FLUID, configComponent.getOutputs(TransmissionType.FLUID).get(2));
-        ejectorComponent.setOutputData(TransmissionType.GAS, configComponent.getOutputs(TransmissionType.GAS).get(2));
+        ejectorComponent.setOutputData(configComponent, TransmissionType.ITEM)
+              .setCanEject(type -> hasFrequency() && MekanismUtils.canFunction(this));
 
         securityComponent = new TileComponentSecurity(this);
         chunkLoaderComponent = new TileComponentChunkLoader(this);
 
-        upgradeComponent = new TileComponentUpgrade(this, 0);
+        upgradeComponent = new TileComponentUpgrade(this);
         upgradeComponent.clearSupportedTypes();
         upgradeComponent.setSupported(Upgrade.ANCHOR);
+        frequencyComponent.track(FrequencyType.INVENTORY, true, true, true);
+    }
+
+    private <T> void setupConfig(TransmissionType type, ProxySlotInfoCreator<T> proxyCreator, Supplier<List<T>> supplier) {
+        ConfigInfo config = configComponent.getConfigInfo(type);
+        if (config != null) {
+            config.addSlotInfo(DataType.INPUT, proxyCreator.create(true, false, supplier));
+            config.addSlotInfo(DataType.OUTPUT, proxyCreator.create(false, true, supplier));
+            config.addSlotInfo(DataType.INPUT_OUTPUT, proxyCreator.create(true, true, supplier));
+            config.fill(DataType.INPUT);
+            config.setDataType(DataType.OUTPUT, mekanism.api.RelativeSide.FRONT);
+        }
     }
 
     @Override
     public void onUpdateServer() {
         super.onUpdateServer();
-        if (configComponent.isEjecting(TransmissionType.ENERGY) && getEnergy() > 0) {
-            CableUtils.emit(this);
-        }
-        double[] loss = simulateHeat();
-        applyTemperatureChange();
-
-        lastTransferLoss = loss[0];
-        lastEnvironmentLoss = loss[1];
-
-        FrequencyManager manager = getManager(frequency);
-        Frequency lastFreq = frequency;
-
-        if (manager != null) {
-            if (frequency != null && !frequency.valid) {
-                frequency = (InventoryFrequency) manager.validateFrequency(securityComponent.getOwnerUUID(), Coord4D.get(this), frequency);
-                markNoUpdateSync();
-            }
-
-            if (frequency != null) {
-                frequency = (InventoryFrequency) manager.update(Coord4D.get(this), frequency);
-                if (frequency == null) {
-                    markNoUpdateSync();
-                }
-            }
+        InventoryFrequency frequency = getFreq();
+        if (frequency != null && frequency.isValid() && !frequency.isRemoved()) {
+            frequency.handleEject(world.getTotalWorldTime());
+            double[] loss = simulateHeat();
+            applyTemperatureChange();
+            lastTransferLoss = loss[0];
+            lastEnvironmentLoss = loss[1];
         } else {
-            frequency = null;
-            if (lastFreq != null) {
-                markNoUpdateSync();
-            }
+            lastTransferLoss = 0;
+            lastEnvironmentLoss = 0;
         }
 
     }
@@ -157,125 +152,44 @@ public class TileEntityQuantumEntangloporter extends TileEntityElectricBlock imp
         return false;
     }
 
-    private boolean hasFrequency() {
-        return frequency != null && frequency.valid;
+    public boolean hasFrequency() {
+        InventoryFrequency frequency = getFreq();
+        return frequency != null && frequency.isValid() && !frequency.isRemoved();
     }
 
-    @Override
-    public void invalidate() {
-        super.invalidate();
-        if (!isRemote()) {
-            if (frequency != null) {
-                FrequencyManager manager = getManager(frequency);
-                if (manager != null) {
-                    manager.deactivate(Coord4D.get(this));
-                }
-            }
+    public List<IInventorySlot> getFrequencyInventorySlots(@Nullable EnumFacing side) {
+        InventoryFrequency frequency = getFreq();
+        if (!hasFrequency()) {
+            return Collections.emptyList();
+        }
+        if (side == null) {
+            return frequency.getInventorySlots(null);
+        }
+        ISlotInfo slotInfo = configComponent.getSlotInfo(TransmissionType.ITEM, side, facing);
+        return slotInfo instanceof InventorySlotInfo inventorySlotInfo ? inventorySlotInfo.getSlots() : Collections.emptyList();
+    }
+
+    public InventoryFrequency getFreq() {
+        return getFrequency(FrequencyType.INVENTORY);
+    }
+
+    public void setFrequency(FrequencyIdentity identity) {
+        UUID owner = securityComponent.getOwnerUUID();
+        if (identity != null && owner != null) {
+            setFrequency(FrequencyType.INVENTORY, identity, owner);
         }
     }
 
-    @Override
-    public Frequency getFrequency(FrequencyManager manager) {
-        if (manager == Mekanism.securityFrequencies) {
-            return securityComponent.getFrequency();
+    public void createFrequency(String name) {
+        UUID owner = securityComponent.getOwnerUUID();
+        if (name != null && !name.isEmpty() && owner != null) {
+            setFrequency(FrequencyType.INVENTORY, new FrequencyIdentity(name, SecurityMode.PUBLIC, owner), owner);
         }
-        return frequency;
-    }
-
-    public FrequencyManager getManager(Frequency freq) {
-        if (securityComponent.getOwnerUUID() == null || freq == null) {
-            return null;
-        }
-        if (freq.isPublic()) {
-            return Mekanism.publicEntangloporters;
-        } else if (!Mekanism.privateEntangloporters.containsKey(securityComponent.getOwnerUUID())) {
-            FrequencyManager manager = new FrequencyManager(InventoryFrequency.class, InventoryFrequency.ENTANGLOPORTER, securityComponent.getOwnerUUID());
-            Mekanism.privateEntangloporters.put(securityComponent.getOwnerUUID(), manager);
-            manager.createOrLoad(world);
-        }
-        return Mekanism.privateEntangloporters.get(securityComponent.getOwnerUUID());
-    }
-
-    public void setFrequency(String name, boolean publicFreq) {
-        FrequencyManager manager = getManager(new InventoryFrequency(name, null).setPublic(publicFreq));
-        manager.deactivate(Coord4D.get(this));
-        for (Frequency freq : manager.getFrequencies()) {
-            if (freq.name.equals(name)) {
-                frequency = (InventoryFrequency) freq;
-                frequency.activeCoords.add(Coord4D.get(this));
-                markNoUpdateSync();
-                return;
-            }
-        }
-
-        Frequency freq = new InventoryFrequency(name, securityComponent.getOwnerUUID()).setPublic(publicFreq);
-        freq.activeCoords.add(Coord4D.get(this));
-        manager.addFrequency(freq);
-        frequency = (InventoryFrequency) freq;
-//        MekanismUtils.saveChunk(this);
-        markNoUpdateSync();
-    }
-
-    @Override
-    public void readCustomNBT(NBTTagCompound nbtTags) {
-        super.readCustomNBT(nbtTags);
-        if (nbtTags.hasKey("frequency")) {
-            frequency = new InventoryFrequency(nbtTags.getCompoundTag("frequency"));
-            frequency.valid = false;
-        }
-
-        NBTTagList tagList = nbtTags.getTagList("upgradesInv", Constants.NBT.TAG_COMPOUND);
-        inventory = NonNullListSynchronized.withSize(INV_SIZE, ItemStack.EMPTY);
-        for (int tagCount = 0; tagCount < tagList.tagCount(); tagCount++) {
-            NBTTagCompound tagCompound = tagList.getCompoundTagAt(tagCount);
-            byte slotID = tagCompound.getByte("Slot");
-            if (slotID >= 0 && slotID < inventory.size()) {
-                inventory.set(slotID, new ItemStack(tagCompound));
-            }
-        }
-
-    }
-
-
-    @Override
-    public void writeCustomNBT(NBTTagCompound nbtTags) {
-        super.writeCustomNBT(nbtTags);
-        if (frequency != null) {
-            NBTTagCompound frequencyTag = new NBTTagCompound();
-            frequency.write(frequencyTag);
-            nbtTags.setTag("frequency", frequencyTag);
-        }
-
-        //Upgrades inventory
-        NBTTagList tagList = new NBTTagList();
-        for (int slotCount = 0; slotCount < inventory.size(); slotCount++) {
-            ItemStack stackInSlot = inventory.get(slotCount);
-            if (!stackInSlot.isEmpty()) {
-                NBTTagCompound tagCompound = new NBTTagCompound();
-                tagCompound.setByte("Slot", (byte) slotCount);
-                stackInSlot.writeToNBT(tagCompound);
-                tagList.appendTag(tagCompound);
-            }
-        }
-        nbtTags.setTag("upgradesInv", tagList);
     }
 
     @Override
     public void handlePacketData(ByteBuf dataStream) {
         if (FMLCommonHandler.instance().getEffectiveSide().isServer()) {
-            int type = dataStream.readInt();
-            if (type == 0) {
-                String name = PacketHandler.readString(dataStream);
-                boolean isPublic = dataStream.readBoolean();
-                setFrequency(name, isPublic);
-            } else if (type == 1) {
-                String freq = PacketHandler.readString(dataStream);
-                boolean isPublic = dataStream.readBoolean();
-                FrequencyManager manager = getManager(new InventoryFrequency(freq, null).setPublic(isPublic));
-                if (manager != null) {
-                    manager.remove(freq, securityComponent.getOwnerUUID());
-                }
-            }
             return;
         }
 
@@ -284,23 +198,6 @@ public class TileEntityQuantumEntangloporter extends TileEntityElectricBlock imp
         if (FMLCommonHandler.instance().getEffectiveSide().isClient()) {
             lastTransferLoss = dataStream.readDouble();
             lastEnvironmentLoss = dataStream.readDouble();
-            if (dataStream.readBoolean()) {
-                frequency = new InventoryFrequency(dataStream);
-            } else {
-                frequency = null;
-            }
-
-            publicCache.clear();
-            privateCache.clear();
-
-            int amount = dataStream.readInt();
-            for (int i = 0; i < amount; i++) {
-                publicCache.add(new InventoryFrequency(dataStream));
-            }
-            amount = dataStream.readInt();
-            for (int i = 0; i < amount; i++) {
-                privateCache.add(new InventoryFrequency(dataStream));
-            }
         }
     }
 
@@ -309,40 +206,17 @@ public class TileEntityQuantumEntangloporter extends TileEntityElectricBlock imp
         super.getNetworkedData(data);
         data.add(lastTransferLoss);
         data.add(lastEnvironmentLoss);
-
-        if (frequency != null) {
-            data.add(true);
-            frequency.write(data);
-        } else {
-            data.add(false);
-        }
-
-        data.add(Mekanism.publicEntangloporters.getFrequencies().size());
-        Mekanism.publicEntangloporters.getFrequencies().forEach(freq -> freq.write(data));
-        FrequencyManager manager = getManager(new InventoryFrequency(null, null).setPublic(false));
-        if (manager != null) {
-            data.add(manager.getFrequencies().size());
-            manager.getFrequencies().forEach(freq -> freq.write(data));
-        } else {
-            data.add(0);
-        }
         return data;
     }
 
     @Override
     public boolean sideIsOutput(EnumFacing side) {
-        if (!hasFrequency()) {
-            return false;
-        }
-        return configComponent.hasSideForData(TransmissionType.ENERGY, facing, 2, side);
+        return hasFrequency() && canExtractEnergy(side);
     }
 
     @Override
     public boolean sideIsConsumer(EnumFacing side) {
-        if (!hasFrequency()) {
-            return false;
-        }
-        return configComponent.hasSideForData(TransmissionType.ENERGY, facing, 1, side);
+        return hasFrequency() && canInsertEnergy(side);
     }
 
     @Override
@@ -352,108 +226,102 @@ public class TileEntityQuantumEntangloporter extends TileEntityElectricBlock imp
 
     @Override
     public double getEnergy() {
-        return !hasFrequency() ? 0 : frequency.storedEnergy;
+        InventoryFrequency frequency = getFreq();
+        return frequency == null || !frequency.isValid() || frequency.isRemoved() ? 0 : frequency.storedEnergy.getEnergy();
     }
 
     @Override
     public void setEnergy(double energy) {
-        if (hasFrequency()) {
-            frequency.storedEnergy = Math.min(MekanismConfig.current().general.quantumEntangloporterEnergyTransfer.val(), energy);
+        InventoryFrequency frequency = getFreq();
+        if (frequency != null && frequency.isValid() && !frequency.isRemoved()) {
+            frequency.storedEnergy.setEnergy(energy);
         }
     }
 
     @Override
     public double getMaxEnergy() {
-        return !hasFrequency() ? 0 : MekanismConfig.current().general.quantumEntangloporterEnergyTransfer.val();
+        InventoryFrequency frequency = getFreq();
+        return frequency == null || !frequency.isValid() || frequency.isRemoved() ? 0 : frequency.storedEnergy.getMaxEnergy();
     }
 
     @Override
-    public int fill(EnumFacing from, @Nonnull FluidStack resource, boolean doFill) {
-        return !hasFrequency() ? 0 : frequency.storedFluid.fill(resource, doFill);
+    protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
+        return new QuantumEntangloporterInventorySlotHolder(this);
     }
 
     @Override
-    @Nullable
-    public FluidStack drain(EnumFacing from, int maxDrain, boolean doDrain) {
-        return !hasFrequency() ? null : frequency.storedFluid.drain(maxDrain, doDrain);
+    protected IFluidTankHolder getInitialFluidTanks(IContentsListener listener) {
+        return new QuantumEntangloporterFluidTankHolder(this);
     }
 
     @Override
-    public boolean canFill(EnumFacing from, @Nonnull FluidStack fluid) {
-        if (hasFrequency() && configComponent.getOutput(TransmissionType.FLUID, from, facing).ioState == IOState.INPUT) {
-            return FluidContainerUtils.canFill(frequency.storedFluid.getFluid(), fluid);
-        }
+    protected IGasTankHolder getInitialGasTanks(IContentsListener listener) {
+        return new QuantumEntangloporterGasTankHolder(this);
+    }
+
+    @Override
+    protected IEnergyContainerHolder getInitialEnergyContainers(IContentsListener listener) {
+        return new QuantumEntangloporterEnergyContainerHolder(this);
+    }
+
+    @Override
+    protected IHeatCapacitorHolder getInitialHeatCapacitors(IContentsListener listener) {
+        return new QuantumEntangloporterHeatCapacitorHolder(this);
+    }
+
+    @Override
+    public boolean persistInventory() {
         return false;
     }
 
     @Override
-    public boolean canDrain(EnumFacing from, @Nullable FluidStack fluid) {
-        if (hasFrequency() && configComponent.getOutput(TransmissionType.FLUID, from, facing).ioState == IOState.OUTPUT) {
-            return FluidContainerUtils.canDrain(frequency.storedFluid.getFluid(), fluid);
-        }
+    protected boolean persistFluidTanks() {
         return false;
     }
 
     @Override
-    public FluidTankInfo[] getTankInfo(EnumFacing from) {
-        if (hasFrequency()) {
-            if (configComponent.getOutput(TransmissionType.FLUID, from, facing).ioState != IOState.OFF) {
-                return new FluidTankInfo[]{frequency.storedFluid.getInfo()};
-            }
-        }
-        return PipeUtils.EMPTY;
-    }
-
-    @Override
-    public FluidTankInfo[] getAllTanks() {
-        return hasFrequency() ? new FluidTankInfo[]{frequency.storedFluid.getInfo()} : PipeUtils.EMPTY;
-    }
-
-    @Override
-    public int receiveGas(EnumFacing side, GasStack stack, boolean doTransfer) {
-        return !hasFrequency() ? 0 : frequency.storedGas.receive(stack, doTransfer);
-    }
-
-    @Override
-    public GasStack drawGas(EnumFacing side, int amount, boolean doTransfer) {
-        return !hasFrequency() ? null : frequency.storedGas.draw(amount, doTransfer);
-    }
-
-    @Override
-    public boolean canReceiveGas(EnumFacing side, Gas type) {
-        if (hasFrequency() && configComponent.getOutput(TransmissionType.GAS, side, facing).ioState == IOState.INPUT) {
-            return frequency.storedGas.getGasType() == null || type == frequency.storedGas.getGasType();
-        }
+    protected boolean persistGasTanks() {
         return false;
     }
 
     @Override
-    public boolean canDrawGas(EnumFacing side, Gas type) {
-        if (hasFrequency() && configComponent.getOutput(TransmissionType.GAS, side, facing).ioState == IOState.OUTPUT) {
-            return frequency.storedGas.getGasType() == null || type == frequency.storedGas.getGasType();
-        }
-        return false;
+    public boolean hasInventory() {
+        return true;
     }
 
     @Nonnull
     @Override
-    public GasTankInfo[] getTankInfo() {
-        return hasFrequency() ? new GasTankInfo[]{frequency.storedGas} : IGasHandler.NONE;
+    public List<IInventorySlot> getInventorySlots(@Nullable EnumFacing side) {
+        return getFrequencyInventorySlots(side);
     }
 
+    @Nonnull
     @Override
-    public boolean handleInventory() {
-        return false;
+    protected int[] getInventorySlotIdsForSide(@Nullable EnumFacing side) {
+        if (!hasFrequency()) {
+            return InventoryUtils.EMPTY;
+        }
+        List<IInventorySlot> slots = getFrequencyInventorySlots(side);
+        InventoryFrequency frequency = getFreq();
+        List<IInventorySlot> internalSlots = frequency.getInventorySlots(null);
+        int[] slotIds = new int[slots.size()];
+        for (int i = 0; i < slots.size(); i++) {
+            slotIds[i] = internalSlots.indexOf(slots.get(i));
+        }
+        return slotIds;
     }
 
+    @Nullable
     @Override
-    public NonNullListSynchronized<ItemStack> getInventory() {
-        return hasFrequency() ? frequency.inventory : null;
+    public IInventorySlot getInventorySlot(int slot) {
+        List<IInventorySlot> slots = getFrequencyInventorySlots(null);
+        return slot >= 0 && slot < slots.size() ? slots.get(slot) : null;
     }
 
     @Override
     public double getTemp() {
-        return hasFrequency() ? frequency.temperature : 0;
+        InventoryFrequency frequency = getFreq();
+        return frequency == null || !frequency.isValid() || frequency.isRemoved() ? 0 : frequency.getTemperature();
     }
 
     @Override
@@ -468,7 +336,10 @@ public class TileEntityQuantumEntangloporter extends TileEntityElectricBlock imp
 
     @Override
     public void transferHeatTo(double heat) {
-        heatToAbsorb += heat;
+        InventoryFrequency frequency = getFreq();
+        if (frequency != null && frequency.isValid() && !frequency.isRemoved()) {
+            frequency.storedHeat.handleHeat(heat * frequency.storedHeat.getHeatCapacity());
+        }
     }
 
     @Override
@@ -478,22 +349,23 @@ public class TileEntityQuantumEntangloporter extends TileEntityElectricBlock imp
 
     @Override
     public double applyTemperatureChange() {
-        if (hasFrequency()) {
-            frequency.temperature += heatToAbsorb;
+        InventoryFrequency frequency = getFreq();
+        if (frequency != null && frequency.isValid() && !frequency.isRemoved()) {
+            frequency.storedHeat.update();
+            frequency.temperature = frequency.getTemperature();
         }
-        heatToAbsorb = 0;
-        return hasFrequency() ? frequency.temperature : 0;
+        return frequency == null || !frequency.isValid() || frequency.isRemoved() ? 0 : frequency.getTemperature();
     }
 
     @Override
     public boolean canConnectHeat(EnumFacing side) {
-        return hasFrequency() && configComponent.getOutput(TransmissionType.HEAT, side, facing).ioState != IOState.OFF;
+        return hasFrequency() && canInsertHeat(side);
     }
 
     @Override
     public IHeatTransfer getAdjacent(EnumFacing side) {
         TileEntity adj = Coord4D.get(this).offset(side).getTileEntity(world);
-        if (hasFrequency() && configComponent.getOutput(TransmissionType.HEAT, side, facing).ioState == IOState.INPUT) {
+        if (hasFrequency() && canInsertHeat(side)) {
             if (CapabilityUtils.hasCapability(adj, Capabilities.HEAT_TRANSFER_CAPABILITY, side.getOpposite())) {
                 return CapabilityUtils.getCapability(adj, Capabilities.HEAT_TRANSFER_CAPABILITY, side.getOpposite());
             }
@@ -502,30 +374,76 @@ public class TileEntityQuantumEntangloporter extends TileEntityElectricBlock imp
     }
 
     @Override
-    public boolean canInsertItem(int slotID, @Nonnull ItemStack itemstack, @Nonnull EnumFacing side) {
-        return hasFrequency() && configComponent.getOutput(TransmissionType.ITEM, side, facing).ioState == IOState.INPUT;
+    public boolean hasCapability(@Nonnull Capability<?> capability, EnumFacing side) {
+        if (capability == Capabilities.CONFIG_CARD_CAPABILITY) {
+            return true;
+        }
+        if (capability == Capabilities.HEAT_TRANSFER_CAPABILITY) {
+            return hasFrequency() && (side == null || canInsertHeat(side));
+        }
+        return super.hasCapability(capability, side);
+    }
+
+    @Override
+    public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing side) {
+        if (capability == Capabilities.CONFIG_CARD_CAPABILITY) {
+            return Capabilities.CONFIG_CARD_CAPABILITY.cast(this);
+        }
+        if (capability == Capabilities.HEAT_TRANSFER_CAPABILITY) {
+            return hasFrequency() && (side == null || canInsertHeat(side)) ? Capabilities.HEAT_TRANSFER_CAPABILITY.cast(this) : null;
+        }
+        return super.getCapability(capability, side);
+    }
+
+    @Override
+    public Object[] getManagedTanks() {
+        if (!hasFrequency()) {
+            return null;
+        }
+        InventoryFrequency frequency = getFreq();
+        return new Object[]{frequency.storedFluid, frequency.storedGas};
+    }
+
+    @Override
+    public boolean hasFluidTanks() {
+        return super.hasFluidTanks();
     }
 
     @Nonnull
     @Override
-    public int[] getSlotsForFace(@Nonnull EnumFacing side) {
-        if (hasFrequency() && configComponent.getOutput(TransmissionType.ITEM, side, facing).ioState != IOState.OFF) {
-            return new int[]{0};
-        }
-        return InventoryUtils.EMPTY;
+    public List<IExtendedFluidTank> getFluidTanks(@Nullable EnumFacing side) {
+        return super.getFluidTanks(side);
     }
 
     @Override
-    public boolean canExtractItem(int slotID, @Nonnull ItemStack itemstack, @Nonnull EnumFacing side) {
-        return hasFrequency() && configComponent.getOutput(TransmissionType.ITEM, side, facing).ioState == IOState.OUTPUT;
+    public boolean canInsertFluid(@Nullable EnumFacing side) {
+        return super.canInsertFluid(side);
     }
 
     @Override
-    public Object[] getTanks() {
-        if (!hasFrequency()) {
-            return null;
-        }
-        return new Object[]{frequency.storedFluid, frequency.storedGas};
+    public boolean canExtractFluid(@Nullable EnumFacing side) {
+        return super.canExtractFluid(side);
+    }
+
+    @Override
+    public boolean hasGasTanks() {
+        return super.hasGasTanks();
+    }
+
+    @Nonnull
+    @Override
+    public List<IExtendedGasTank> getGasTanks(@Nullable EnumFacing side) {
+        return super.getGasTanks(side);
+    }
+
+    @Override
+    public boolean canInsertGas(@Nullable EnumFacing side) {
+        return super.canInsertGas(side);
+    }
+
+    @Override
+    public boolean canExtractGas(@Nullable EnumFacing side) {
+        return super.canExtractGas(side);
     }
 
     @Override
@@ -549,37 +467,10 @@ public class TileEntityQuantumEntangloporter extends TileEntityElectricBlock imp
     }
 
     @Override
-    public boolean hasCapability(@Nonnull Capability<?> capability, EnumFacing side) {
-        if (isCapabilityDisabled(capability, side)) {
-            return false;
-        }
-        return capability == Capabilities.GAS_HANDLER_CAPABILITY || capability == Capabilities.HEAT_TRANSFER_CAPABILITY
-                || capability == CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY || super.hasCapability(capability, side);
-    }
-
-    @Override
-    public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing side) {
-        if (isCapabilityDisabled(capability, side)) {
-            return null;
-        }
-        if (capability == Capabilities.GAS_HANDLER_CAPABILITY || capability == Capabilities.HEAT_TRANSFER_CAPABILITY) {
-            return (T) this;
-        }
-        if (capability == CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY) {
-            return CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY.cast(new FluidHandlerWrapper(this, side));
-        }
-        return super.getCapability(capability, side);
-    }
-
-    @Override
-    public boolean isCapabilityDisabled(@Nonnull Capability<?> capability, EnumFacing side) {
-        if (configComponent.isCapabilityDisabled(capability, side, facing)) {
-            return true;
-        } else if (capability == Capabilities.GAS_HANDLER_CAPABILITY || capability == Capabilities.HEAT_TRANSFER_CAPABILITY ||
-                capability == CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY) {
-            return side != null && (!hasFrequency() || configComponent.isCapabilityDisabled(capability, side, facing));
-        }
-        return super.isCapabilityDisabled(capability, side);
+    public void addContainerTrackers(MekanismContainer container) {
+        super.addContainerTrackers(container);
+        container.track(SyncableDouble.create(() -> lastTransferLoss, value -> lastTransferLoss = value));
+        container.track(SyncableDouble.create(() -> lastEnvironmentLoss, value -> lastEnvironmentLoss = value));
     }
 
     @Override
@@ -590,13 +481,27 @@ public class TileEntityQuantumEntangloporter extends TileEntityElectricBlock imp
     @Override
     public Object[] invoke(int method, Object[] arguments) throws NoSuchMethodException {
         if (method == 0) {
-            if (!(arguments[0] instanceof String) || !(arguments[1] instanceof Boolean)) {
+            if (!(arguments[0] instanceof String)) {
                 return new Object[]{"Invalid parameters."};
             }
             String freq = ((String) arguments[0]).trim();
-            boolean isPublic = (Boolean) arguments[1];
-            setFrequency(freq, isPublic);
+            Frequency frequency = FrequencyType.INVENTORY.getManager(null, SecurityMode.PUBLIC).getFrequency(freq);
+            if (frequency == null) {
+                return new Object[]{"No public inventory frequency with that name exists."};
+            }
+            setFrequency(frequency.getIdentity());
             return new Object[]{"Frequency set."};
+        }
+        if (method == 1) {
+            if (!(arguments[0] instanceof String)) {
+                return new Object[]{"Invalid parameters."};
+            }
+            String freq = ((String) arguments[0]).trim();
+            if (FrequencyType.INVENTORY.getManager(null, SecurityMode.PUBLIC).getFrequency(freq) != null) {
+                return new Object[]{"Public inventory frequency already exists."};
+            }
+            createFrequency(freq);
+            return new Object[]{"Frequency created."};
         }
         throw new NoSuchMethodException();
     }

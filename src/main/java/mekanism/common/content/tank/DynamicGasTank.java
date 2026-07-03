@@ -1,6 +1,9 @@
 package mekanism.common.content.tank;
 
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
 import mekanism.api.Coord4D;
+import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasStack;
 import mekanism.common.base.MultiblockGasTank;
 import mekanism.common.content.tank.SynchronizedTankData.ValveData;
@@ -14,6 +17,10 @@ public class DynamicGasTank extends MultiblockGasTank<TileEntityDynamicTank> {
         super(tileEntity);
     }
 
+    boolean canMutate(SynchronizedTankData data) {
+        return multiblock.structure == data && multiblock.getWorld() != null && !multiblock.getWorld().isRemote;
+    }
+
     @Override
     @Nullable
     public GasStack getGas() {
@@ -21,15 +28,26 @@ public class DynamicGasTank extends MultiblockGasTank<TileEntityDynamicTank> {
     }
 
     @Override
-    public int input(@Nullable GasStack resource, boolean doFill) {
+    @Nullable
+    public GasStack insert(@Nullable GasStack stack, Action action, AutomationType automationType) {
         if (multiblock.structure != null && multiblock.structure.hasFluid()) {
-            return 0;
+            return stack;
         }
-        return super.input(resource, doFill);
+        return super.insert(stack, action, automationType);
     }
 
     @Override
-    public void setGas(GasStack stack) {
+    public boolean canReceive(@Nullable Gas gas) {
+        return (multiblock.structure == null || !multiblock.structure.hasFluid()) && super.canReceive(gas);
+    }
+
+    @Override
+    public boolean canReceiveType(@Nullable Gas gas) {
+        return (multiblock.structure == null || !multiblock.structure.hasFluid()) && super.canReceiveType(gas);
+    }
+
+    @Override
+    public void setGas(@Nullable GasStack stack) {
         if (multiblock.structure != null) {
             multiblock.structure.gasstored = stack;
         }

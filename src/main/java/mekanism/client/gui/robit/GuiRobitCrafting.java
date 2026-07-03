@@ -1,44 +1,38 @@
 package mekanism.client.gui.robit;
 
-import mekanism.client.gui.element.GuiProgress;
-import mekanism.client.gui.element.GuiSlot;
-import mekanism.client.gui.element.slot.GuiNormalSlot;
-import mekanism.client.gui.element.slot.GuiOutputSlot;
+import mekanism.client.gui.element.GuiRightArrow;
 import mekanism.common.entity.EntityRobit;
 import mekanism.common.inventory.container.robit.ContainerRobitCrafting;
 import mekanism.common.util.LangUtils;
 import net.minecraft.entity.player.InventoryPlayer;
+import net.minecraft.util.text.TextComponentString;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
 @SideOnly(Side.CLIENT)
-public class GuiRobitCrafting extends GuiRobit {
+public class GuiRobitCrafting extends GuiRobit<ContainerRobitCrafting> {
 
     public GuiRobitCrafting(InventoryPlayer inventory, EntityRobit entity) {
-        super(entity, new ContainerRobitCrafting(inventory, entity));
-        for (int x = 0; x < 3; x++) {
-            for (int y = 0; y < 3; y++) {
-                addGuiElement(new GuiNormalSlot(this, getGuiLocation(), 29 + x * 18, 16 + y * 18));
-            }
-        }
-        addGuiElement(new GuiOutputSlot(GuiSlot.SlotType.NORMAL_LARGE, this, getGuiLocation(), 119, 30));
-        addGuiElement(new GuiProgress(new GuiProgress.IProgressInfoHandler() {
-            @Override
-            public double getProgress() {
-                return 0F;
-            }
-        }, GuiProgress.ProgressBar.TALL_RIGHT, this, getGuiLocation(), 90, 35,false,false));
+        super(new ContainerRobitCrafting(inventory, entity), entity);
+        inventoryLabelY += 1;
+        dynamicSlots = true;
     }
 
     @Override
-    protected void drawGuiContainerForegroundLayer(int mouseX, int mouseY) {
-        fontRenderer.drawString(LangUtils.localize("gui.robit.crafting"), 8, 6, 0x404040);
-        fontRenderer.drawString(LangUtils.localize("container.inventory"), 8, ySize - 93, 0x404040);
-        super.drawGuiContainerForegroundLayer(mouseX, mouseY);
+    protected void addGuiElements() {
+        super.addGuiElements();
+        addButton(new GuiRightArrow(this, 90, 35).recipeViewerCrafting());
     }
 
     @Override
-    protected boolean shouldOpenGui(int id) {
-        return id != 1;
+    protected void drawForegroundText(int mouseX, int mouseY) {
+        drawTitleText(new TextComponentString(LangUtils.localize("gui.robit.crafting")), 6);
+        renderInventoryText();
+        super.drawForegroundText(mouseX, mouseY);
+    }
+
+    @Override
+    protected boolean shouldOpenGui(int guiId) {
+        return guiId != GUI_CRAFTING;
     }
 }

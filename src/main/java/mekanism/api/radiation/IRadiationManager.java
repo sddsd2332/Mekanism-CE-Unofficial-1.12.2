@@ -4,8 +4,7 @@ import com.google.common.collect.Table;
 import mcp.MethodsReturnNonnullByDefault;
 import mekanism.api.Chunk3D;
 import mekanism.api.Coord4D;
-import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTankInfo;
+import mekanism.api.gas.*;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.util.DamageSource;
@@ -110,13 +109,52 @@ public interface IRadiationManager {
     void radiate(EntityLivingBase entity, double magnitude);
 
     /**
-     * Helper to "dump" any radioactive gases stored in the given gas tanks.
+     * Legacy compat helper to "dump" any radioactive gases stored in the given gas tanks.
+     * Prefer {@link #dumpRadiation(Coord4D, IGasHandler, boolean)} so callers stay on handler/tank APIs.
      *
      * @param coord            Location to dump radiation at.
      * @param gasTanks         Tanks to process.
      * @param clearRadioactive {@code true} to clear any gas tanks that have radioactive substances.
      */
+    @Deprecated
     void dumpRadiation(Coord4D coord, GasTankInfo[] gasTanks, boolean clearRadioactive);
+
+    /**
+     * Helper to "dump" any radioactive gases stored in the given gas handler.
+     *
+     * @param coord            Location to dump radiation at.
+     * @param gasHandler       Gas handler to process.
+     * @param clearRadioactive {@code true} to clear any gas tanks that have radioactive substances.
+     */
+    default void dumpRadiation(Coord4D coord, IGasHandler gasHandler, boolean clearRadioactive) {
+        if (gasHandler instanceof IMekanismGasHandler mekanismGasHandler) {
+            for (int tank = 0, tanks = mekanismGasHandler.getCountGasTanks(null); tank < tanks; tank++) {
+                GasStack gasStack = mekanismGasHandler.getGasInTank(tank, null);
+                if (gasStack != null && dumpRadiation(coord, gasStack) && clearRadioactive) {
+                    mekanismGasHandler.setGasInTank(tank, null, null);
+                }
+            }
+        } else if (gasHandler instanceof IExtendedGasHandler extendedGasHandler) {
+            for (int tank = 0, tanks = extendedGasHandler.getCountGasTanks(); tank < tanks; tank++) {
+                GasStack gasStack = extendedGasHandler.getGasInTank(tank);
+                if (gasStack != null && dumpRadiation(coord, gasStack) && clearRadioactive) {
+                    extendedGasHandler.setGasInTank(tank, null);
+                }
+            }
+        } else if (gasHandler != null) {
+            if (clearRadioactive) {
+                // Plain IGasHandler still needs the legacy tank info bridge for mutable clear semantics.
+                dumpRadiation(coord, gasHandler.getTankInfo(), true);
+            } else {
+                for (int tank = 0, tanks = gasHandler.getLegacyTankCount(); tank < tanks; tank++) {
+                    GasStack gasStack = gasHandler.getLegacyGasInTank(tank);
+                    if (gasStack != null) {
+                        dumpRadiation(coord, gasStack);
+                    }
+                }
+            }
+        }
+    }
 
     /**
      * Checks if the given {@link GasStack} is radioactive and if it is dumps a proportionate amount of radiation at the given location.
@@ -126,7 +164,7 @@ public interface IRadiationManager {
      *
      * @return {@code true} if the stack was radioactive and radiation got dumped.
      *
-     * @apiNote If radiation is disabled this may still return {@code true}.
+     * @apiNote If radiation is disabled this should return {@code false} so callers that clear radioactive contents do not silently void them.
      */
     boolean dumpRadiation(Coord4D coord, GasStack stack);
 

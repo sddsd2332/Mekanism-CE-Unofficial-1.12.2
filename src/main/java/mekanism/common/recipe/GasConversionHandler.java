@@ -3,9 +3,9 @@ package mekanism.common.recipe;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTank;
-import mekanism.api.gas.IGasItem;
+import mekanism.api.gas.IExtendedGasTank;
 import mekanism.common.MekanismFluids;
+import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.recipe.ingredients.IMekanismIngredient;
 import mekanism.common.recipe.ingredients.ItemStackMekIngredient;
 import mekanism.common.recipe.ingredients.OredictMekIngredient;
@@ -90,7 +90,7 @@ public class GasConversionHandler {
      * Gets an item gas checking if it will be valid for a specific tank and if the type is also valid.
      */
     @Nullable
-    public static GasStack getItemGas(ItemStack itemStack, GasTank gasTank, Predicate<Gas> isValidGas) {
+    public static GasStack getItemGas(ItemStack itemStack, IExtendedGasTank gasTank, Predicate<Gas> isValidGas) {
         return getItemGas(itemStack, gasTank.getNeeded(), (gas, quantity) -> {
             if (gas != null && gasTank.canReceive(gas) && isValidGas.test(gas)) {
                 return new GasStack(gas, quantity);
@@ -105,21 +105,12 @@ public class GasConversionHandler {
      * @param itemStack - itemstack to check with.
      * @param needed    The max amount we need for use with IGasItem's so that we do not return a value that is too large, thus making it so it thinks there is no room.
      * @return fuel ticks
-     */
+    */
     @Nullable
     public static GasStack getItemGas(ItemStack itemStack, int needed, BiFunction<Gas, Integer, GasStack> getIfValid) {
-        if (itemStack.getItem() instanceof IGasItem item) {
-            GasStack gas = item.getGas(itemStack);
-            //Check to make sure it can provide the gas it contains
-            if (gas != null && item.canProvideGas(itemStack, gas.getGas())) {
-                int amount = Math.min(needed, Math.min(gas.amount, item.getRate(itemStack)));
-                if (amount > 0) {
-                    GasStack gasStack = getIfValid.apply(gas.getGas(), amount);
-                    if (gasStack != null) {
-                        return gasStack;
-                    }
-                }
-            }
+        GasStack extractableGas = GasInventorySlot.getExtractableGas(itemStack, needed, getIfValid);
+        if (extractableGas != null) {
+            return extractableGas;
         }
         for (Entry<IMekanismIngredient<ItemStack>, GasStack> entry : ingredientToGas.entrySet()) {
             if (entry.getKey().contains(itemStack)) {

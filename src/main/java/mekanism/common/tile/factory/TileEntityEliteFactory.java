@@ -6,6 +6,6 @@ import mekanism.common.tier.FactoryTier;
 public class TileEntityEliteFactory extends TileEntityFactory {
 
     public TileEntityEliteFactory() {
-        super(FactoryTier.ELITE, MachineType.ELITE_FACTORY, 0);
+        super(FactoryTier.ELITE, MachineType.ELITE_FACTORY);
     }
 }

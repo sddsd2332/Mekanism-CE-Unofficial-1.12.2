@@ -1,5 +1,10 @@
 {
       "parent": "mekanism:steel_casing",
+      "requirements": [
+            ["mekanism_seismic_vibrations"],
+            ["mekanism_seismic_Reader"],
+            ["view_vibrations"]
+      ],
       "criteria": {
             "mekanism_seismic_Reader": {
                   "trigger": "minecraft:inventory_changed",
@@ -11,7 +16,8 @@
                         "item": "mekanism:machineblock2",
                         "data": 9
                   }]}
-            }
+            },
+            "view_vibrations": {"trigger": "mekanism:view_vibrations"}
       },
       "display": {
             "icon": {

@@ -43,7 +43,8 @@ public class RenderThermoelectricBoiler extends TileEntitySpecialRenderer<TileEn
                     bindTexture(TextureMap.LOCATION_BLOCKS_TEXTURE);
                     FluidRenderer.translateToOrigin(data.location);
                     GlowInfo glowInfo = MekanismRenderer.enableGlow(waterStored);
-                    MekanismRenderer.color(waterStored, (float) waterStored.amount / (float) tileEntity.clientWaterCapacity);
+                    float waterScale = tileEntity.clientWaterCapacity <= 0 ? 0 : Math.min(1, waterStored.amount / (float) tileEntity.clientWaterCapacity);
+                    MekanismRenderer.color(waterStored, waterScale);
                     if (waterStored.getFluid().isGaseous(waterStored)) {
                         FluidRenderer.getTankDisplay(data).render();
                     } else {
@@ -82,7 +83,8 @@ public class RenderThermoelectricBoiler extends TileEntitySpecialRenderer<TileEn
                     bindTexture(TextureMap.LOCATION_BLOCKS_TEXTURE);
                     FluidRenderer.translateToOrigin(data.location);
                     GlowInfo glowInfo = MekanismRenderer.enableGlow(tileEntity.structure.steamStored);
-                    MekanismRenderer.color(tileEntity.structure.steamStored, (float) tileEntity.structure.steamStored.amount / (float) tileEntity.clientSteamCapacity);
+                    float steamScale = tileEntity.clientSteamCapacity <= 0 ? 0 : Math.min(1, tileEntity.structure.steamStored.amount / (float) tileEntity.clientSteamCapacity);
+                    MekanismRenderer.color(tileEntity.structure.steamStored, steamScale);
                     FluidRenderer.getTankDisplay(data).render();
                     MekanismRenderer.resetColor();
                     MekanismRenderer.disableGlow(glowInfo);

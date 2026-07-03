@@ -7,9 +7,10 @@ import mekanism.api.TileNetworkList;
 import mekanism.common.PacketHandler;
 import mekanism.common.base.ILogisticalTransporter;
 import mekanism.common.capabilities.Capabilities;
-import mekanism.common.content.transporter.TransitRequest.TransitResponse;
 import mekanism.common.content.transporter.TransporterPathfinder.Destination;
-import mekanism.common.tile.TileEntityLogisticalSorter;
+import mekanism.common.lib.inventory.IAdvancedTransportEjector;
+import mekanism.common.lib.inventory.TransitRequest;
+import mekanism.common.lib.inventory.TransitRequest.TransitResponse;
 import mekanism.common.util.CapabilityUtils;
 import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.TransporterUtils;
@@ -19,8 +20,7 @@ import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import org.apache.commons.lang3.tuple.Pair;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 public class TransporterStack {
 
@@ -130,13 +130,17 @@ public class TransporterStack {
     }
 
     public void setPath(List<Coord4D> path, Path type) {
+        setPath(path, type, true);
+    }
+
+    public void setPath(List<Coord4D> path, Path type, boolean updateFlowing) {
         //Make sure old path isn't null
-        if (pathType != Path.NONE) {
+        if (updateFlowing && pathType != Path.NONE) {
             TransporterManager.remove(this);
         }
         pathToTarget = path;
         pathType = type;
-        if (pathType != Path.NONE) {
+        if (updateFlowing && pathType != Path.NONE) {
             TransporterManager.add(this);
         }
     }
@@ -154,23 +158,41 @@ public class TransporterStack {
     }
 
     public TransitResponse recalculatePath(TransitRequest request, ILogisticalTransporter transporter, int min) {
-        Destination newPath = TransporterPathfinder.getNewBasePath(transporter, this, request, min);
+        return recalculatePath(request, transporter, min, true);
+    }
+
+    public TransitResponse recalculatePath(TransitRequest request, ILogisticalTransporter transporter, int min, boolean updateFlowing) {
+        return recalculatePath(request, transporter, min, updateFlowing, Collections.emptyMap());
+    }
+
+    public TransitResponse recalculatePath(TransitRequest request, ILogisticalTransporter transporter, int min, Map<Coord4D, Set<TransporterStack>> additionalFlowingStacks) {
+        return recalculatePath(request, transporter, min, false, additionalFlowingStacks);
+    }
+
+    private TransitResponse recalculatePath(TransitRequest request, ILogisticalTransporter transporter, int min, boolean updateFlowing,
+          Map<Coord4D, Set<TransporterStack>> additionalFlowingStacks) {
+        Destination newPath = TransporterPathfinder.getNewBasePath(transporter, this, request, min, additionalFlowingStacks);
         if (newPath == null) {
-            return TransitResponse.EMPTY;
+            return request.getEmptyResponse();
         }
         idleDir = null;
-        setPath(newPath.getPath(), Path.DEST);
+        setPath(newPath.getPath(), Path.DEST, updateFlowing);
         initiatedPath = true;
         return newPath.getResponse();
     }
 
-    public TransitResponse recalculateRRPath(TransitRequest request, TileEntityLogisticalSorter outputter, ILogisticalTransporter transporter, int min) {
+    public TransitResponse recalculateRRPath(TransitRequest request, IAdvancedTransportEjector outputter, ILogisticalTransporter transporter, int min) {
+        return recalculateRRPath(request, outputter, transporter, min, true);
+    }
+
+    public TransitResponse recalculateRRPath(TransitRequest request, IAdvancedTransportEjector outputter, ILogisticalTransporter transporter, int min,
+          boolean updateFlowing) {
         Destination newPath = TransporterPathfinder.getNewRRPath(transporter, this, request, outputter, min);
         if (newPath == null) {
-            return TransitResponse.EMPTY;
+            return request.getEmptyResponse();
         }
         idleDir = null;
-        setPath(newPath.getPath(), Path.DEST);
+        setPath(newPath.getPath(), Path.DEST, updateFlowing);
         initiatedPath = true;
         return newPath.getResponse();
     }
@@ -245,16 +267,36 @@ public class TransporterStack {
     }
 
     public boolean canInsertToTransporter(ILogisticalTransporter transporter, EnumFacing side) {
-        return transporter.canConnectMutual(side) && (transporter.getColor() == color || transporter.getColor() == null);
+        return transporter.canConnectMutual(side.getOpposite()) && (transporter.getColor() == color || transporter.getColor() == null);
     }
 
     public Coord4D getDest() {
         return pathToTarget.get(0);
     }
 
+    public EnumFacing getSideOfDest() {
+        if (hasPath()) {
+            Coord4D lastTransporter = pathToTarget.get(1);
+            return lastTransporter.sideDifference(getDest());
+        }
+        return null;
+    }
+
     public enum Path {
         DEST,
         HOME,
-        NONE
+        NONE;
+
+        public boolean hasTarget() {
+            return this != NONE;
+        }
+
+        public boolean noTarget() {
+            return this == NONE;
+        }
+
+        public boolean isHome() {
+            return this == HOME;
+        }
     }
 }

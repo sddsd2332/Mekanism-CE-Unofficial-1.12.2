@@ -1,0 +1,42 @@
+{
+      "parent": "mekanism:materials",
+      "requirements": [[
+            "bronze_shield",
+            "glowstone_shield",
+            "lapis_shield",
+            "obsidian_shield",
+            "osmium_shield",
+            "steel_shield"
+      ]],
+      "criteria": {
+            "bronze_shield": {
+                  "trigger": "minecraft:inventory_changed",
+                  "conditions": {"items": [{"item": "mekanismtools:bronzeshield"}]}
+            },
+            "glowstone_shield": {
+                  "trigger": "minecraft:inventory_changed",
+                  "conditions": {"items": [{"item": "mekanismtools:glowstoneshield"}]}
+            },
+            "lapis_shield": {
+                  "trigger": "minecraft:inventory_changed",
+                  "conditions": {"items": [{"item": "mekanismtools:lapisshield"}]}
+            },
+            "obsidian_shield": {
+                  "trigger": "minecraft:inventory_changed",
+                  "conditions": {"items": [{"item": "mekanismtools:obsidianshield"}]}
+            },
+            "osmium_shield": {
+                  "trigger": "minecraft:inventory_changed",
+                  "conditions": {"items": [{"item": "mekanismtools:osmiumshield"}]}
+            },
+            "steel_shield": {
+                  "trigger": "minecraft:inventory_changed",
+                  "conditions": {"items": [{"item": "mekanismtools:steelshield"}]}
+            }
+      },
+      "display": {
+            "icon": {"item": "mekanismtools:osmiumshield"},
+            "description": {"translate": "advancements.mekanismtools.not_enough_shielding.description"},
+            "title": {"translate": "advancements.mekanismtools.not_enough_shielding.title"}
+      }
+}

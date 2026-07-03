@@ -1,21 +1,26 @@
 package mekanism.common.tile.component;
 
 import io.netty.buffer.ByteBuf;
-import mekanism.api.TileNetworkList;
+import mekanism.api.*;
+import mekanism.api.inventory.IInventorySlot;
 import mekanism.common.Mekanism;
 import mekanism.common.Upgrade;
 import mekanism.common.base.ITileComponent;
 import mekanism.common.base.IUpgradeItem;
+import mekanism.common.inventory.container.MekanismContainer.ISpecificContainerTracker;
+import mekanism.common.inventory.container.sync.ISyncableData;
+import mekanism.common.inventory.container.sync.SyncableInt;
+import mekanism.common.inventory.slot.UpgradeInventorySlot;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
 import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.UpgradeUtils;
+import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraftforge.common.util.Constants.NBT;
 
-import java.util.EnumMap;
-import java.util.EnumSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
-public class TileComponentUpgrade implements ITileComponent {
+public class TileComponentUpgrade implements ITileComponent, ISpecificContainerTracker {
 
     /**
      * How long it takes this machine to install an upgrade.
@@ -31,70 +36,80 @@ public class TileComponentUpgrade implements ITileComponent {
     public TileEntityContainerBlock tileEntity;
     private Map<Upgrade, Integer> upgrades = new EnumMap<>(Upgrade.class);
     private Set<Upgrade> supported = EnumSet.noneOf(Upgrade.class);
-    /**
-     * The inventory slot the upgrade slot of this component occupies.
-     */
-    private int upgradeSlot;
+    private final UpgradeInventorySlot upgradeSlot;
+    private final UpgradeInventorySlot upgradeOutputSlot;
+    private boolean canCheckUpgrades = true;
 
-    public TileComponentUpgrade(TileEntityContainerBlock tile, int slot) {
+    public TileComponentUpgrade(TileEntityContainerBlock tile) {
         tileEntity = tile;
-        upgradeSlot = slot;
         setSupported(Upgrade.SPEED);
         setSupported(Upgrade.ENERGY);
+        upgradeSlot = UpgradeInventorySlot.input(supported, this::onUpgradeSlotContentsChanged);
+        upgradeOutputSlot = UpgradeInventorySlot.output(tile);
         tile.components.add(this);
     }
 
-
-    public TileComponentUpgrade(TileEntityContainerBlock tile, int slot, Upgrade upgrade) {
+    public TileComponentUpgrade(TileEntityContainerBlock tile, Upgrade upgrade) {
         tileEntity = tile;
-        upgradeSlot = slot;
         setSupported(upgrade);
+        upgradeSlot = UpgradeInventorySlot.input(supported, this::onUpgradeSlotContentsChanged);
+        upgradeOutputSlot = UpgradeInventorySlot.output(tile);
         tile.components.add(this);
     }
 
+    private void onUpgradeSlotContentsChanged() {
+        tileEntity.onContentsChanged();
+        canCheckUpgrades = true;
+    }
 
     public void readFrom(TileComponentUpgrade upgrade) {
         upgrades = upgrade.upgrades;
         supported = upgrade.supported;
-        upgradeSlot = upgrade.upgradeSlot;
+        upgradeSlot.setStackUnchecked(upgrade.upgradeSlot.getStack());
+        upgradeOutputSlot.setStackUnchecked(upgrade.upgradeOutputSlot.getStack());
         upgradeTicks = upgrade.upgradeTicks;
+        canCheckUpgrades = true;
     }
 
-    // This SHOULD continue to directly use te.inventory, as it is needed for Entangleporter upgrades, since it messes with IInventory.
     @Override
     public void tick() {
-        if (!tileEntity.getWorld().isRemote) {
-            if (!tileEntity.inventory.get(upgradeSlot).isEmpty() && tileEntity.inventory.get(upgradeSlot).getItem() instanceof IUpgradeItem upgradeItem) {
-                Upgrade type = upgradeItem.getUpgradeType(tileEntity.inventory.get(upgradeSlot));
+        if (!tileEntity.getWorld().isRemote && canCheckUpgrades) {
+            ItemStack stack = upgradeSlot.getStack();
+            if (!stack.isEmpty() && stack.getItem() instanceof IUpgradeItem upgradeItem) {
+                Upgrade type = upgradeItem.getUpgradeType(stack);
 
-                if (supports(type) && getUpgrades(type) < type.getMaxInstalled()) {
+                int installed = getUpgrades(type);
+                if (supports(type) && installed < type.getMaxInstalled()) {
                     if (upgradeTicks < UPGRADE_TICKS_REQUIRED) {
                         upgradeTicks++;
+                        return;
                     } else if (upgradeTicks == UPGRADE_TICKS_REQUIRED) {
                         upgradeTicks = 0;
-                        int added = addUpgrades(type, tileEntity.inventory.get(upgradeSlot).getCount());
+                        int added = addUpgrades(type, installed, upgradeSlot.getCount());
                         if (added > 0) {
-                            tileEntity.inventory.get(upgradeSlot).shrink(added);
+                            upgradeSlot.shrinkStack(added, Action.EXECUTE);
                         }
                         Mekanism.packetHandler.sendUpdatePacket(tileEntity);
                         tileEntity.markNoUpdateSync();
+                        return;
                     }
-                } else {
-                    upgradeTicks = 0;
                 }
-            } else {
-                upgradeTicks = 0;
             }
+            upgradeTicks = 0;
+            canCheckUpgrades = false;
         }
     }
 
-    public int getUpgradeSlot() {
+    public UpgradeInventorySlot getUpgradeSlot() {
         return upgradeSlot;
     }
 
+    public UpgradeInventorySlot getUpgradeOutputSlot() {
+        return upgradeOutputSlot;
+    }
 
-    public void setUpgradeSlot(int i) {
-        upgradeSlot = i;
+    public double getScaledUpgradeProgress() {
+        return upgradeTicks / (double) UPGRADE_TICKS_REQUIRED;
     }
 
     public boolean isUpgradeInstalled(Upgrade upgrade) {
@@ -106,7 +121,10 @@ public class TileComponentUpgrade implements ITileComponent {
     }
 
     public int addUpgrades(Upgrade upgrade, int maxAvailable) {
-        int installed = getUpgrades(upgrade);
+        return addUpgrades(upgrade, getUpgrades(upgrade), maxAvailable);
+    }
+
+    private int addUpgrades(Upgrade upgrade, int installed, int maxAvailable) {
         if (installed < upgrade.getMaxInstalled()) {
             int toAdd = Math.min(upgrade.getMaxInstalled() - installed, maxAvailable);
             if (toAdd > 0) {
@@ -127,12 +145,20 @@ public class TileComponentUpgrade implements ITileComponent {
         int installed = getUpgrades(upgrade);
         if (installed > 0) {
             int toRemove = removeAll ? installed : 1;
-            upgrades.put(upgrade, Math.max(0, getUpgrades(upgrade) - toRemove));
+            ItemStack simulatedRemainder = upgradeOutputSlot.insertItem(UpgradeUtils.getStack(upgrade, toRemove), Action.SIMULATE, AutomationType.INTERNAL);
+            if (simulatedRemainder.getCount() < toRemove) {
+                toRemove -= simulatedRemainder.getCount();
+                if (installed == toRemove) {
+                    upgrades.remove(upgrade);
+                } else {
+                    upgrades.put(upgrade, installed - toRemove);
+                }
+                tileEntity.recalculateUpgradables(upgrade);
+                upgradeOutputSlot.insertItem(UpgradeUtils.getStack(upgrade, toRemove), Action.EXECUTE, AutomationType.INTERNAL);
+                canCheckUpgrades = !upgradeSlot.isEmpty();
+                tileEntity.markNoUpdateSync();
+            }
         }
-        if (upgrades.get(upgrade) == 0) {
-            upgrades.remove(upgrade);
-        }
-        tileEntity.recalculateUpgradables(upgrade);
     }
 
     public void setSupported(Upgrade upgrade) {
@@ -150,6 +176,7 @@ public class TileComponentUpgrade implements ITileComponent {
         } else {
             supported.remove(upgrade);
         }
+        canCheckUpgrades = true;
     }
 
     public boolean supports(Upgrade upgrade) {
@@ -166,6 +193,10 @@ public class TileComponentUpgrade implements ITileComponent {
 
     public void clearSupportedTypes() {
         supported.clear();
+    }
+
+    private List<IInventorySlot> getSlots() {
+        return Arrays.asList(upgradeSlot, upgradeOutputSlot);
     }
 
     @Override
@@ -196,18 +227,49 @@ public class TileComponentUpgrade implements ITileComponent {
 
     @Override
     public void read(NBTTagCompound nbtTags) {
-        upgrades = Upgrade.buildMap(nbtTags);
+        if (nbtTags.hasKey(NBTConstants.COMPONENT_UPGRADE, NBT.TAG_COMPOUND)) {
+            NBTTagCompound upgradeNBT = nbtTags.getCompoundTag(NBTConstants.COMPONENT_UPGRADE);
+            upgrades = Upgrade.buildMap(upgradeNBT);
+            if (upgradeNBT.hasKey(NBTConstants.ITEMS, NBT.TAG_LIST)) {
+                DataHandlerUtils.readContainers(getSlots(), upgradeNBT.getTagList(NBTConstants.ITEMS, NBT.TAG_COMPOUND));
+            }
+        } else {
+            upgrades.clear();
+            upgradeSlot.setEmpty();
+            upgradeOutputSlot.setEmpty();
+        }
+        canCheckUpgrades = true;
         getSupportedTypes().forEach(upgrade -> tileEntity.recalculateUpgradables(upgrade));
     }
 
     @Override
     public void write(NBTTagCompound nbtTags) {
-        Upgrade.saveMap(upgrades, nbtTags);
+        NBTTagCompound upgradeNBT = new NBTTagCompound();
+        Upgrade.saveMap(upgrades, upgradeNBT);
+        upgradeNBT.setTag(NBTConstants.ITEMS, DataHandlerUtils.writeContainers(getSlots()));
+        nbtTags.setTag(NBTConstants.COMPONENT_UPGRADE, upgradeNBT);
     }
 
     @Override
     public void invalidate() {
     }
 
+    @Override
+    public List<ISyncableData> getSpecificSyncableData() {
+        List<ISyncableData> list = new ArrayList<>();
+        list.add(SyncableInt.create(() -> upgradeTicks, value -> upgradeTicks = value));
+        for (Upgrade upgrade : Upgrade.values()) {
+            if (supports(upgrade)) {
+                list.add(SyncableInt.create(() -> upgrades.getOrDefault(upgrade, 0), value -> {
+                    if (value == 0) {
+                        upgrades.remove(upgrade);
+                    } else if (value > 0) {
+                        upgrades.put(upgrade, value);
+                    }
+                }));
+            }
+        }
+        return list;
+    }
 
 }

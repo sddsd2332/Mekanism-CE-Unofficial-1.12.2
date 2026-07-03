@@ -1,5 +1,7 @@
 package mekanism.common.tile.laser;
 
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
 import mekanism.api.Coord4D;
 import mekanism.common.LaserManager;
 import mekanism.common.LaserManager.LaserInfo;
@@ -7,9 +9,7 @@ import mekanism.common.Mekanism;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.tile.prefab.TileEntityEffectsBlock;
 import mekanism.common.util.InventoryUtils;
-import mekanism.common.util.NonNullListSynchronized;
 import net.minecraft.block.state.IBlockState;
-import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.RayTraceResult;
@@ -25,7 +25,7 @@ public class TileEntityLaser extends TileEntityEffectsBlock {
 
     public TileEntityLaser() {
         super("machine.laser", "Laser", MekanismConfig.current().storage.laser.val());
-        inventory = NonNullListSynchronized.withSize(0, ItemStack.EMPTY);
+        initializeInventorySlots();
     }
 
     @Override
@@ -55,9 +55,10 @@ public class TileEntityLaser extends TileEntityEffectsBlock {
     @Override
     public void onUpdateServer() {
         super.onUpdateServer();
-        if (getEnergy() >= MekanismConfig.current().usage.laser.val()) {
+        double firing = MekanismConfig.current().usage.laser.val();
+        if (getMainEnergyContainer().extract(firing, Action.SIMULATE, AutomationType.INTERNAL) >= firing) {
             setActive(true);
-            LaserInfo info = LaserManager.fireLaser(this, facing, MekanismConfig.current().usage.laser.val(), world);
+            LaserInfo info = LaserManager.fireLaser(this, facing, firing, world);
             Coord4D hitCoord = info.movingPos == null ? null : new Coord4D(info.movingPos, world);
 
             if (hitCoord == null || !hitCoord.equals(digging)) {
@@ -69,14 +70,14 @@ public class TileEntityLaser extends TileEntityEffectsBlock {
                 TileEntity tileHit = hitCoord.getTileEntity(world);
                 float hardness = blockHit.getBlockHardness(world, hitCoord.getPos());
                 if (!(hardness < 0 || (LaserManager.isReceptor(tileHit, info.movingPos.sideHit) && !LaserManager.getReceptor(tileHit, info.movingPos.sideHit).canLasersDig()))) {
-                    diggingProgress += MekanismConfig.current().usage.laser.val();
+                    diggingProgress += firing;
                     if (diggingProgress >= hardness * MekanismConfig.current().general.laserEnergyNeededPerHardness.val()) {
                         LaserManager.breakBlock(hitCoord, true, world, pos);
                         diggingProgress = 0;
                     }
                 }
             }
-            setEnergy(getEnergy() - MekanismConfig.current().usage.laser.val());
+            getMainEnergyContainer().extract(firing, Action.EXECUTE, AutomationType.INTERNAL);
         } else {
             setActive(false);
             diggingProgress = 0;

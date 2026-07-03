@@ -2,138 +2,157 @@ package mekanism.generators.client.gui;
 
 import mekanism.api.TileNetworkList;
 import mekanism.client.gui.GuiMekanismTile;
-import mekanism.client.gui.button.GuiDisableableButton;
-import mekanism.client.gui.element.*;
-import mekanism.client.gui.element.GuiRateBar.IRateInfoHandler;
-import mekanism.client.gui.element.gauge.GuiGauge;
-import mekanism.client.gui.element.gauge.GuiNumberGauge;
-import mekanism.client.render.MekanismRenderer;
+import mekanism.client.gui.element.GuiInnerScreen;
+import mekanism.client.gui.element.bar.GuiBar.IBarInfoHandler;
+import mekanism.client.gui.element.bar.GuiVerticalPowerBar;
+import mekanism.client.gui.element.bar.GuiVerticalRateBar;
+import mekanism.client.gui.element.button.GuiGasMode;
+import mekanism.client.gui.element.gauge.GaugeType;
+import mekanism.client.gui.element.gauge.GuiFluidGauge;
+import mekanism.client.gui.element.tab.GuiEnergyTab;
 import mekanism.client.sound.SoundHandler;
 import mekanism.common.Mekanism;
 import mekanism.common.config.MekanismConfig;
-import mekanism.common.inventory.container.ContainerFilter;
 import mekanism.common.network.PacketTileEntity.TileEntityMessage;
+import mekanism.common.tile.TileEntityGasTank.GasMode;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
 import mekanism.generators.client.gui.element.GuiTurbineTab;
 import mekanism.generators.client.gui.element.GuiTurbineTab.TurbineTab;
+import mekanism.generators.common.content.turbine.SynchronizedTurbineData;
+import mekanism.generators.common.content.turbine.TurbineFluidTank;
 import mekanism.generators.common.content.turbine.TurbineUpdateProtocol;
+import mekanism.generators.common.inventory.container.ContainerIndustrialTurbine;
 import mekanism.generators.common.tile.turbine.TileEntityTurbineCasing;
-import net.minecraft.client.gui.GuiButton;
-import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.init.SoundEvents;
-import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraft.util.text.ITextComponent;
+import net.minecraft.util.text.TextComponentString;
 
-import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
-@SideOnly(Side.CLIENT)
-public class GuiIndustrialTurbine extends GuiMekanismTile<TileEntityTurbineCasing> {
+public class GuiIndustrialTurbine extends GuiMekanismTile<TileEntityTurbineCasing, ContainerIndustrialTurbine> {
 
-    public GuiDisableableButton mode;
+    private final TurbineFluidTank steamTank;
 
     public GuiIndustrialTurbine(InventoryPlayer inventory, TileEntityTurbineCasing tile) {
-        super(tile, new ContainerFilter(inventory, tile));
-        ResourceLocation resource = getGuiLocation();
-        addGuiElement(new GuiTurbineTab(this, tileEntity, TurbineTab.STAT, resource));
-        addGuiElement(new GuiPowerBar(this, tileEntity, resource, 164, 16));
-        addGuiElement(new GuiRateBar(this, new IRateInfoHandler() {
+        super(tile, new ContainerIndustrialTurbine(inventory, tile));
+        steamTank = new TurbineFluidTank(tile);
+        xSize += 14;
+        inventoryLabelX += 7;
+        inventoryLabelY += 2;
+        titleLabelY = 5;
+        dynamicSlots = true;
+    }
+
+    @Override
+    protected void addGuiElements() {
+        super.addGuiElements();
+        addButton(new GuiInnerScreen(this, 50, 18, 126, 50, this::getScreenText));
+        addButton(new GuiTurbineTab(this, tileEntity, TurbineTab.STAT));
+        addButton(new GuiVerticalPowerBar(this, new IBarInfoHandler() {
             @Override
-            public String getTooltip() {
-                return LangUtils.localize("gui.steamInput") + ": " + (tileEntity.structure == null ? 0 : tileEntity.structure.lastSteamInput) + " mB/t";
+            public ITextComponent getTooltip() {
+                SynchronizedTurbineData data = tileEntity.structure;
+                if (data != null && data.isFormed()) {
+                    return new TextComponentString(MekanismUtils.getEnergyDisplay(tileEntity.getEnergy(), tileEntity.getMaxEnergy()));
+                }
+                return new TextComponentString(MekanismUtils.getEnergyDisplay(0));
             }
 
             @Override
             public double getLevel() {
-                if (tileEntity.structure == null) {
-                    return 0;
+                SynchronizedTurbineData data = tileEntity.structure;
+                if (data == null || !data.isFormed()) {
+                    return 1;
                 }
-                double rate = Math.min(tileEntity.structure.lowerVolume * tileEntity.structure.clientDispersers * MekanismConfig.current().generators.turbineDisperserGasFlow.val(),
-                        tileEntity.structure.vents * MekanismConfig.current().generators.turbineVentGasFlow.val());
-                if (rate == 0) {
-                    return 0;
-                }
-                return (double) tileEntity.structure.lastSteamInput / rate;
+                double maxEnergy = tileEntity.getMaxEnergy();
+                return maxEnergy == 0 ? 1 : Math.min(1, tileEntity.getEnergy() / maxEnergy);
             }
-        }, resource, 40, 13));
-        addGuiElement(new GuiEnergyInfo(() -> {
-            double producing = tileEntity.structure == null ? 0 : tileEntity.structure.clientFlow * (MekanismConfig.current().general.maxEnergyPerSteam.val() / TurbineUpdateProtocol.MAX_BLADES) *
-                    Math.min(tileEntity.structure.blades, tileEntity.structure.coils * MekanismConfig.current().generators.turbineBladesPerCoil.val());
-            return Arrays.asList(LangUtils.localize("gui.storing") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getEnergy(), tileEntity.getMaxEnergy()),
-                    LangUtils.localize("gui.producing") + ": " + MekanismUtils.getEnergyDisplay(producing) + "/t");
-        }, this, resource));
-        addGuiElement(new GuiInnerScreen(this, resource, 50, 18, 112, 50));
-        addGuiElement(new GuiPlayerSlot(this, resource));
-        addGuiElement(new GuiNumberGauge(new GuiNumberGauge.INumberInfoHandler() {
-
+        }, 178, 16));
+        addButton(new GuiVerticalRateBar(this, new IBarInfoHandler() {
             @Override
-            public TextureAtlasSprite getIcon() {
-                return MekanismRenderer.getFluidTexture(tileEntity.structure != null ? tileEntity.structure.fluidStored : null, MekanismRenderer.FluidType.STILL);
+            public ITextComponent getTooltip() {
+                return new TextComponentString(LangUtils.localize("gui.steamInput") + ": " + (tileEntity.structure == null ? 0 : tileEntity.structure.lastSteamInput) + " mB/t");
             }
 
             @Override
             public double getLevel() {
-                if (tileEntity.structure != null && tileEntity.structure.fluidStored != null) {
-                    return tileEntity.structure.fluidStored.amount;
-                } else {
+                SynchronizedTurbineData data = tileEntity.structure;
+                if (data == null || !data.isFormed()) {
                     return 0;
                 }
+                double rate = getMaxFlowRate(data);
+                return rate == 0 ? 0 : Math.min(1, data.lastSteamInput / rate);
             }
-
-            @Override
-            public double getMaxLevel() {
-                if (tileEntity.structure != null && tileEntity.structure.fluidStored != null) {
-                    return tileEntity.structure.getFluidCapacity();
-                } else {
-                    return 0;
-                }
-            }
-
-            @Override
-            public String getText(double level) {
-                return tileEntity.structure != null ? (tileEntity.structure.fluidStored != null ? LangUtils.localizeFluidStack(tileEntity.structure.fluidStored) + ": " + tileEntity.structure.fluidStored.amount + "mB" : LangUtils.localize("gui.empty")) : "";
-            }
-        }, GuiGauge.Type.MEDIUM, this, resource, 6, 13));
+        }, 40, 13));
+        addButton(new GuiFluidGauge(() -> steamTank, () -> Collections.singletonList(steamTank), GaugeType.MEDIUM, this, 6, 13));
+        addButton(new GuiEnergyTab(this, this::getEnergyTabText));
+        addButton(new GuiGasMode(this, 173, 72, true, this::getDumpMode, this::sendDumpModePacket, this::getDumpModeTooltip));
     }
 
     @Override
-    protected void drawGuiContainerForegroundLayer(int mouseX, int mouseY) {
-        fontRenderer.drawString(LangUtils.localize("container.inventory"), 8, (ySize - 96) + 4, 0x404040);
-        fontRenderer.drawString(tileEntity.getName(), (xSize / 2) - (fontRenderer.getStringWidth(tileEntity.getName()) / 2), 5, 0x404040);
-        if (tileEntity.structure != null) {
-            double energyMultiplier = (MekanismConfig.current().general.maxEnergyPerSteam.val() / TurbineUpdateProtocol.MAX_BLADES) *
-                    Math.min(tileEntity.structure.blades, tileEntity.structure.coils * MekanismConfig.current().generators.turbineBladesPerCoil.val());
-            double rate = tileEntity.structure.lowerVolume * (tileEntity.structure.clientDispersers * MekanismConfig.current().generators.turbineDisperserGasFlow.val());
-            rate = Math.min(rate, tileEntity.structure.vents * MekanismConfig.current().generators.turbineVentGasFlow.val());
-            renderScaledText(LangUtils.localize("gui.production") + ": " +
-                    MekanismUtils.getEnergyDisplay(tileEntity.structure.clientFlow * energyMultiplier), 53, 26, 0xFF3CFE9A, 106);
-            renderScaledText(LangUtils.localize("gui.flowRate") + ": " + tileEntity.structure.clientFlow + " mB/t", 53, 35, 0xFF3CFE9A, 106);
-            renderScaledText(LangUtils.localize("gui.capacity") + ": " + tileEntity.structure.getFluidCapacity() + " mB", 53, 44, 0xFF3CFE9A, 106);
-            renderScaledText(LangUtils.localize("gui.maxFlow") + ": " + rate + " mB/t", 53, 53, 0xFF3CFE9A, 106);
-            String name = LangUtils.localize(tileEntity.structure.dumpMode.getLangKey());
-            renderScaledText(name, 156 - (int) (fontRenderer.getStringWidth(name) * getNeededScale(name, 66)), 73, 0x404040, 66);
+    protected void drawForegroundText(int mouseX, int mouseY) {
+        drawTitleText(new TextComponentString(tileEntity.getName()), titleLabelY);
+        renderInventoryText(99);
+        super.drawForegroundText(mouseX, mouseY);
+    }
+
+    private List<ITextComponent> getScreenText() {
+        List<ITextComponent> list = new ArrayList<>();
+        SynchronizedTurbineData data = tileEntity.structure;
+        if (data != null && data.isFormed()) {
+            list.add(new TextComponentString(LangUtils.localize("gui.production") + ": " + MekanismUtils.getEnergyDisplay(getProductionRate(data))));
+            list.add(new TextComponentString(LangUtils.localize("gui.flowRate") + ": " + data.clientFlow + " mB/t"));
+            list.add(new TextComponentString(LangUtils.localize("gui.capacity") + ": " + data.getFluidCapacity() + " mB"));
+            list.add(new TextComponentString(LangUtils.localize("gui.maxFlow") + ": " + getMaxFlowRate(data) + " mB/t"));
         }
-        super.drawGuiContainerForegroundLayer(mouseX, mouseY);
+        return list;
     }
 
-    @Override
-    public void initGui() {
-        super.initGui();
-        buttonList.clear();
-        buttonList.add(mode = new GuiDisableableButton(0, guiLeft + 159, guiTop + 72, 10, 10, () -> tileEntity.structure != null ? tileEntity.structure.dumpMode.ordinal() : 0).with(GuiDisableableButton.ImageOverlay.GAS_MOD));
+    private List<ITextComponent> getEnergyTabText() {
+        SynchronizedTurbineData data = tileEntity.structure;
+        double storing = data != null && data.isFormed() ? tileEntity.getEnergy() : 0;
+        double maxEnergy = data != null && data.isFormed() ? tileEntity.getMaxEnergy() : 0;
+        double producing = data != null && data.isFormed() ? getProductionRate(data) : 0;
+        return Arrays.asList(
+              new TextComponentString(LangUtils.localize("gui.storing") + ": " + MekanismUtils.getEnergyDisplay(storing, maxEnergy)),
+              new TextComponentString(LangUtils.localize("gui.producing") + ": " + MekanismUtils.getEnergyDisplay(producing) + "/t")
+        );
     }
 
-
-    @Override
-    protected void actionPerformed(GuiButton guibutton) throws IOException {
-        super.actionPerformed(guibutton);
-        if (guibutton.id == mode.id) {
-            Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(0)));
-            SoundHandler.playSound(SoundEvents.UI_BUTTON_CLICK);
+    private List<ITextComponent> getDumpModeTooltip() {
+        GasMode dumpMode = getDumpMode();
+        if (dumpMode == GasMode.IDLE) {
+            return Collections.emptyList();
         }
+        String warning = " " + LangUtils.localize("fluid.steam");
+        return Collections.singletonList(new TextComponentString(LangUtils.localize(dumpMode.getLangKey()) + warning));
     }
 
+    private GasMode getDumpMode() {
+        return tileEntity.structure == null ? GasMode.IDLE : tileEntity.structure.dumpMode;
+    }
+
+    private void sendDumpModePacket() {
+        Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(0)));
+        SoundHandler.playSound(SoundEvents.UI_BUTTON_CLICK);
+    }
+
+    private double getProductionRate(SynchronizedTurbineData data) {
+        return data.clientFlow * getEnergyMultiplier(data);
+    }
+
+    private double getEnergyMultiplier(SynchronizedTurbineData data) {
+        return (MekanismConfig.current().general.maxEnergyPerSteam.val() / TurbineUpdateProtocol.MAX_BLADES) *
+              Math.min(data.blades, data.coils * MekanismConfig.current().generators.turbineBladesPerCoil.val());
+    }
+
+    private double getMaxFlowRate(SynchronizedTurbineData data) {
+        return Math.min(data.lowerVolume * data.clientDispersers * MekanismConfig.current().generators.turbineDisperserGasFlow.val(),
+              data.vents * MekanismConfig.current().generators.turbineVentGasFlow.val());
+    }
 }

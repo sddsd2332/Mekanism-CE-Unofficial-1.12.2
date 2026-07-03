@@ -3,7 +3,7 @@ package mekanism.common.content.miner;
 import io.netty.buffer.ByteBuf;
 import mekanism.api.TileNetworkList;
 import mekanism.common.content.filter.IMaterialFilter;
-import mekanism.common.content.transporter.Finder.MaterialFinder;
+import mekanism.common.lib.inventory.Finder;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
@@ -27,7 +27,13 @@ public class MMaterialFilter extends MinerFilter implements IMaterialFilter {
         if (itemStack.isEmpty() || !(itemStack.getItem() instanceof ItemBlock)) {
             return false;
         }
-        return new MaterialFinder(getMaterial()).modifies(itemStack);
+        return Finder.material(getMaterial()).modifies(itemStack);
+    }
+
+    @Override
+    public boolean hasBlacklistedElement() {
+        return !materialItem.isEmpty() && materialItem.getItem() instanceof ItemBlock &&
+              MinerBlacklistHelper.hasBlacklistedMaterial(getMaterial());
     }
 
     @Override
@@ -61,7 +67,7 @@ public class MMaterialFilter extends MinerFilter implements IMaterialFilter {
 
     @Override
     public int hashCode() {
-        int code = 1;
+        int code = super.hashCode();
         code = 31 * code + MekanismUtils.getID(materialItem);
         code = 31 * code + materialItem.getCount();
         code = 31 * code + materialItem.getItemDamage();
@@ -76,9 +82,8 @@ public class MMaterialFilter extends MinerFilter implements IMaterialFilter {
     @Override
     public MMaterialFilter clone() {
         MMaterialFilter filter = new MMaterialFilter();
-        filter.replaceStack = replaceStack;
-        filter.requireStack = requireStack;
-        filter.materialItem = materialItem;
+        copyBaseData(filter);
+        filter.materialItem = materialItem.copy();
         return filter;
     }
 

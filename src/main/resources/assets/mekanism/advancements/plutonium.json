@@ -1,0 +1,12 @@
+{
+      "parent": "mekanism:waste_removal",
+      "criteria": {"plutonium": {
+            "trigger": "minecraft:inventory_changed",
+            "conditions": {"items": [{"item": "mekanism:plutoniumpellet"}]}
+      }},
+      "display": {
+            "icon": {"item": "mekanism:plutoniumpellet"},
+            "description": {"translate": "advancements.mekanism.plutonium.description"},
+            "title": {"translate": "advancements.mekanism.plutonium.title"}
+      }
+}

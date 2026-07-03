@@ -3,10 +3,12 @@ package mekanism.client.render.tileentity;
 import mekanism.api.transmitters.TransmissionType;
 import mekanism.client.MekanismClient;
 import mekanism.client.model.ModelEnergyCube;
+import mekanism.client.model.ModelEnergyCube.EnergyCubeSideState;
 import mekanism.client.model.ModelEnergyCube.ModelEnergyCore;
 import mekanism.client.render.MekanismRenderer;
 import mekanism.client.render.MekanismRenderer.GlowInfo;
 import mekanism.common.tile.TileEntityEnergyCube;
+import mekanism.common.tile.component.config.DataType;
 import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.MekanismUtils.ResourceType;
 import net.minecraft.client.renderer.GlStateManager;
@@ -58,7 +60,7 @@ public class RenderEnergyCube extends TileEntitySpecialRenderer<TileEntityEnergy
         setLightmapDisabled(true);
         for (EnumFacing side : EnumFacing.VALUES) {
             bindTexture(baseTexture);
-            model.renderSide(0.0625F, side, tileEntity.configComponent.getOutput(TransmissionType.ENERGY, side).ioState, tileEntity.tier, rendererDispatcher.renderEngine);
+            model.renderSide(0.0625F, side, getSideState(tileEntity.configComponent.getDataType(TransmissionType.ENERGY, side)), tileEntity.tier, rendererDispatcher.renderEngine);
         }
         setLightmapDisabled(false);
         GlStateManager.popMatrix();
@@ -84,5 +86,12 @@ public class RenderEnergyCube extends TileEntitySpecialRenderer<TileEntityEnergy
         MekanismRenderer.resetBlockRenderState();
         GlStateManager.popMatrix();
         MekanismRenderer.machineRenderer().render(tileEntity, x, y, z, partialTick, destroyStage, alpha);
+    }
+
+    private EnergyCubeSideState getSideState(DataType dataType) {
+        if (dataType.canOutput()) {
+            return EnergyCubeSideState.OUTPUT;
+        }
+        return dataType.canInput() ? EnergyCubeSideState.INPUT : EnergyCubeSideState.OFF;
     }
 }

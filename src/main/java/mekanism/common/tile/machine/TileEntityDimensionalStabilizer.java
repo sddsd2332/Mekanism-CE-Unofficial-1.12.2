@@ -2,28 +2,30 @@ package mekanism.common.tile.machine;
 
 import io.netty.buffer.ByteBuf;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
-import mekanism.api.TileNetworkList;
+import mekanism.api.*;
 import mekanism.common.Mekanism;
 import mekanism.common.Upgrade;
 import mekanism.common.base.IComparatorSupport;
 import mekanism.common.base.IHasVisualization;
 import mekanism.common.base.ISustainedData;
-import mekanism.common.base.IUpgradeItem;
 import mekanism.common.block.states.BlockStateMachine;
+import mekanism.common.capabilities.energy.MachineEnergyContainer;
+import mekanism.common.capabilities.holder.energy.EnergyContainerHelper;
+import mekanism.common.capabilities.holder.energy.IEnergyContainerHolder;
+import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
+import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
 import mekanism.common.chunkloading.IChunkLoader;
 import mekanism.common.config.MekanismConfig;
+import mekanism.common.inventory.slot.EnergyInventorySlot;
 import mekanism.common.network.PacketTileEntity.TileEntityMessage;
 import mekanism.common.tile.component.TileComponentChunkLoader;
 import mekanism.common.tile.prefab.TileEntityMachine;
-import mekanism.common.util.ChargeUtils;
 import mekanism.common.util.ItemDataUtils;
 import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.NonNullListSynchronized;
 import net.minecraft.block.Block;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraftforge.fml.common.FMLCommonHandler;
@@ -50,12 +52,14 @@ public class TileEntityDimensionalStabilizer extends TileEntityMachine implement
     private boolean clientRendering;
 
     public final TileComponentChunkLoader chunkLoaderComponent;
+    private MachineEnergyContainer energyContainer;
+    private EnergyInventorySlot energySlot;
 
     public TileEntityDimensionalStabilizer() {
         super("null", BlockStateMachine.MachineType.DIMENSIONAL_STABILIZER, 1);
         upgradeComponent.removeSupported(Upgrade.SPEED);
         upgradeComponent.removeSupported(Upgrade.MUFFLING);
-        inventory = NonNullListSynchronized.withSize(2, ItemStack.EMPTY);
+        initializeInventorySlots();
         loadingChunks[MAX_LOAD_RADIUS][MAX_LOAD_RADIUS] = true;
         chunkLoaderComponent = new TileComponentChunkLoader(this) {
             @Override
@@ -66,13 +70,32 @@ public class TileEntityDimensionalStabilizer extends TileEntityMachine implement
     }
 
     @Override
+    protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
+        InventorySlotHelper builder = createInventorySlotHelper();
+        energySlot = builder.addSlot(EnergyInventorySlot.fillOrConvert(energyContainer, this::getWorld, listener, 143, 35), RelativeSide.BACK);
+        return builder.build();
+    }
+
+    @Override
+    protected IEnergyContainerHolder getInitialEnergyContainers(IContentsListener listener) {
+        EnergyContainerHelper builder = createEnergyContainerHelper();
+        builder.addContainer(energyContainer = MachineEnergyContainer.input(this::getEnergy, this::setEnergy, this::getMaxEnergy, this::getEnergyUsage, listener),
+              RelativeSide.BACK);
+        return builder.build();
+    }
+
+    @Override
     public void onUpdateServer() {
         super.onUpdateServer();
-        ChargeUtils.discharge(0, this);
+        energySlot.fillContainerOrConvert();
         double needed = getEnergyUsage();
-        if (MekanismConfig.current().general.allowChunkloading.val() && MekanismUtils.canFunction(this) && getEnergy() >= needed) {
-            setEnergy(getEnergy() - needed);
-            setActive(true);
+        if (MekanismConfig.current().general.allowChunkloading.val() && MekanismUtils.canFunction(this)) {
+            if (energyContainer.extract(needed, Action.SIMULATE, AutomationType.INTERNAL) == needed) {
+                energyContainer.extract(needed, Action.EXECUTE, AutomationType.INTERNAL);
+                setActive(true);
+            } else {
+                setActive(false);
+            }
         } else {
             setActive(false);
         }
@@ -80,6 +103,10 @@ public class TileEntityDimensionalStabilizer extends TileEntityMachine implement
 
     public double getEnergyUsage() {
         return energyPerTick * chunksLoaded;
+    }
+
+    public MachineEnergyContainer getEnergyContainer() {
+        return energyContainer;
     }
 
     public int getChunksLoaded() {
@@ -226,30 +253,8 @@ public class TileEntityDimensionalStabilizer extends TileEntityMachine implement
     }
 
     @Override
-    public boolean isItemValidForSlot(int slotID, @Nonnull ItemStack stack) {
-        if (slotID == 0) {
-            return ChargeUtils.canBeDischarged(stack);
-        }
-        if (slotID == 1 && stack.getItem() instanceof IUpgradeItem upgradeItem) {
-            return upgradeComponent.supports(upgradeItem.getUpgradeType(stack));
-        }
-        return false;
-    }
-
-    @Override
-    public boolean canInsertItem(int slotID, @Nonnull ItemStack itemStack, @Nonnull EnumFacing side) {
-        return isItemValidForSlot(slotID, itemStack);
-    }
-
-    @Override
-    public boolean canExtractItem(int slotID, @Nonnull ItemStack itemStack, @Nonnull EnumFacing side) {
-        return slotID == 0 && !ChargeUtils.canBeDischarged(itemStack);
-    }
-
-    @Nonnull
-    @Override
-    public int[] getSlotsForFace(@Nonnull EnumFacing side) {
-        return new int[]{0};
+    protected mekanism.common.capabilities.holder.slot.InventorySlotHelper createInventorySlotHelper() {
+        return mekanism.common.capabilities.holder.slot.InventorySlotHelper.forSide(() -> facing, side -> side == RelativeSide.BACK, side -> side == RelativeSide.BACK);
     }
 
     @Override

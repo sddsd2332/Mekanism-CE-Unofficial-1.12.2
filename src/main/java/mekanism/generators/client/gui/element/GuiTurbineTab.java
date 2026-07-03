@@ -1,80 +1,71 @@
 package mekanism.generators.client.gui.element;
 
 import mekanism.api.Coord4D;
+import mekanism.client.SpecialColors;
 import mekanism.client.gui.IGuiWrapper;
 import mekanism.client.gui.element.tab.GuiTabElementType;
 import mekanism.client.gui.element.tab.TabType;
+import mekanism.client.render.lib.ColorAtlas.ColorRegistryObject;
 import mekanism.common.Mekanism;
 import mekanism.common.base.IGuiProvider;
 import mekanism.common.network.PacketSimpleGui;
 import mekanism.common.network.PacketSimpleGui.SimpleGuiMessage;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.MekanismUtils.ResourceType;
 import mekanism.generators.client.gui.element.GuiTurbineTab.TurbineTab;
 import mekanism.generators.common.MekanismGenerators;
 import mekanism.generators.common.tile.turbine.TileEntityTurbineCasing;
-import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraft.util.text.ITextComponent;
+import net.minecraft.util.text.TextComponentString;
 
 import java.util.List;
 
-@SideOnly(Side.CLIENT)
 public class GuiTurbineTab extends GuiTabElementType<TileEntityTurbineCasing, TurbineTab> {
 
-    private TurbineTab tab;
+    private static final ResourceLocation CHEMICALS = MekanismUtils.getResource(MekanismUtils.ResourceType.GUI, "chemicals.png");
+    private static final ResourceLocation STATS = MekanismUtils.getResource(MekanismUtils.ResourceType.GUI, "stats.png");
 
-    public GuiTurbineTab(IGuiWrapper gui, TileEntityTurbineCasing tile, TurbineTab type, ResourceLocation def) {
-        super(gui, tile, type, def);
-        tab = type;
+    public GuiTurbineTab(IGuiWrapper gui, TileEntityTurbineCasing tile, TurbineTab type) {
+        super(gui, tile, type);
     }
 
-    @Override
-    public void renderBackground(int xAxis, int yAxis, int guiWidth, int guiHeight) {
-        super.renderBackground(xAxis, yAxis, guiWidth, guiHeight);
-        mc.renderEngine.bindTexture(MekanismUtils.getResource(MekanismUtils.ResourceType.BUTTON_TAB, "button_tab_icon.png"));
-        guiObj.drawTexturedRect(guiWidth - 21, guiHeight + tab.getYPos() + 4, tab.xlocation, tab.ylocation, 18, 18);
-    }
+    public enum TurbineTab implements TabType<TileEntityTurbineCasing> {
+        MAIN(CHEMICALS, 6, "gui.main", SpecialColors.TAB_MULTIBLOCK_MAIN),
+        STAT(STATS, 7, "gui.turbineStats", SpecialColors.TAB_MULTIBLOCK_STATS);
 
-    public enum TurbineTab implements TabType {
-        MAIN(162, 0, 6, "gui.main"),
-        STAT(198, 18, 7, "gui.turbineStats");
-
-        private final String description;
-        public final int xlocation;
-
-        public final int ylocation;
+        private final ResourceLocation resource;
         private final int guiId;
+        private final String description;
+        private final ColorRegistryObject color;
 
-        TurbineTab(int x, int y, int id, String desc) {
-            xlocation = x;
-            ylocation = y;
-            guiId = id;
-            description = desc;
+        TurbineTab(ResourceLocation resource, int guiId, String description, ColorRegistryObject color) {
+            this.resource = resource;
+            this.guiId = guiId;
+            this.description = description;
+            this.color = color;
         }
 
         @Override
         public ResourceLocation getResource() {
-            return MekanismUtils.getResource(ResourceType.GUI, "Null.png");
+            return resource;
         }
 
         @Override
-        public void openGui(TileEntity tile) {
+        public void onClick(TileEntityTurbineCasing tile) {
             List<IGuiProvider> handlers = PacketSimpleGui.handlers;
-            int hand = handlers.indexOf(MekanismGenerators.proxy);
-            Mekanism.packetHandler.sendToServer(new SimpleGuiMessage(Coord4D.get(tile), hand, guiId));
+            int handler = handlers.indexOf(MekanismGenerators.proxy);
+            Mekanism.packetHandler.sendToServer(new SimpleGuiMessage(Coord4D.get(tile), handler, guiId));
         }
 
         @Override
-        public String getDesc() {
-            return LangUtils.localize(description);
+        public ITextComponent getDescription() {
+            return new TextComponentString(LangUtils.localize(description));
         }
 
         @Override
-        public int getYPos() {
-            return 6;
+        public ColorRegistryObject getTabColor() {
+            return color;
         }
     }
 }

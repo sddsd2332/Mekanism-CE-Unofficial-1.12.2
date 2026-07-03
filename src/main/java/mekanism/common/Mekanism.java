@@ -1,7 +1,6 @@
 package mekanism.common;
 
 import com.mojang.authlib.GameProfile;
-import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import mekanism.api.Coord4D;
 import mekanism.api.MekanismAPI;
@@ -16,6 +15,7 @@ import mekanism.client.ClientTickHandler;
 import mekanism.client.render.hud.MekaSuitEnergyLevel;
 import mekanism.client.render.hud.MekanismHUD;
 import mekanism.client.render.hud.MekanismStatusOverlay;
+import mekanism.common.advancements.MekanismCriteriaTriggers;
 import mekanism.common.base.IModule;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.chunkloading.ChunkManager;
@@ -24,6 +24,7 @@ import mekanism.common.concurrent.TaskExecutor;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.content.boiler.SynchronizedBoilerData;
 import mekanism.common.content.entangloporter.InventoryFrequency;
+import mekanism.common.content.teleporter.TeleporterFrequency;
 import mekanism.common.content.gear.MekaSuitDispenseBehavior;
 import mekanism.common.content.gear.ModuleDispenseBehavior;
 import mekanism.common.content.gear.ModuleHelper;
@@ -40,6 +41,7 @@ import mekanism.common.entity.baby.*;
 import mekanism.common.fixers.MekanismDataFixers;
 import mekanism.common.frequency.Frequency;
 import mekanism.common.frequency.FrequencyManager;
+import mekanism.common.frequency.FrequencyType;
 import mekanism.common.integration.IMCHandler;
 import mekanism.common.integration.MekanismHooks;
 import mekanism.common.integration.multipart.MultipartMekanism;
@@ -56,6 +58,7 @@ import mekanism.common.recipe.inputs.ItemStackInput;
 import mekanism.common.recipe.machines.SmeltingRecipe;
 import mekanism.common.recipe.outputs.ItemStackOutput;
 import mekanism.common.security.SecurityFrequency;
+import mekanism.common.security.ISecurityTile.SecurityMode;
 import mekanism.common.tile.*;
 import mekanism.common.tile.factory.*;
 import mekanism.common.tile.laser.TileEntityLaser;
@@ -100,7 +103,6 @@ import net.minecraftforge.event.RegistryEvent;
 import net.minecraftforge.event.world.ChunkDataEvent;
 import net.minecraftforge.event.world.WorldEvent;
 import net.minecraftforge.fml.client.event.ConfigChangedEvent;
-import net.minecraftforge.fml.common.Loader;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.Mod.EventHandler;
 import net.minecraftforge.fml.common.Mod.Instance;
@@ -185,11 +187,9 @@ public class Mekanism {
     /**
      * FrequencyManagers for various networks
      */
-    public static FrequencyManager publicTeleporters = new FrequencyManager(Frequency.class, Frequency.TELEPORTER);
-    public static Map<UUID, FrequencyManager> privateTeleporters = new Object2ObjectOpenHashMap<>();
-    public static FrequencyManager publicEntangloporters = new FrequencyManager(InventoryFrequency.class, InventoryFrequency.ENTANGLOPORTER);
-    public static Map<UUID, FrequencyManager> privateEntangloporters = new Object2ObjectOpenHashMap<>();
-    public static FrequencyManager securityFrequencies = new FrequencyManager(SecurityFrequency.class, SecurityFrequency.SECURITY);
+    public static FrequencyManager<TeleporterFrequency> publicTeleporters = FrequencyType.TELEPORTER.getManager(null, SecurityMode.PUBLIC);
+    public static FrequencyManager<InventoryFrequency> publicEntangloporters = FrequencyType.INVENTORY.getManager(null, SecurityMode.PUBLIC);
+    public static FrequencyManager<SecurityFrequency> securityFrequencies = FrequencyType.SECURITY.getManager(null, SecurityMode.PUBLIC);
     /**
      * Mekanism creative tab
      */
@@ -404,7 +404,7 @@ public class Mekanism {
         registerTileEntity(TileEntityEnergizedSmelter.class, "energized_smelter");
         registerTileEntity(TileEntityEnergyCube.class, "energy_cube");
         registerTileEntity(TileEntityEnrichmentChamber.class, "enrichment_chamber");
-        registerTileEntity(TileEntityFactory.class, "smelting_factory");
+        registerTileEntity(TileEntityBasicFactory.class, "smelting_factory");
         registerTileEntity(TileEntityFluidTank.class, "fluid_tank");
         registerTileEntity(TileEntityFluidicPlenisher.class, "fluidic_plenisher");
         registerTileEntity(TileEntityFormulaicAssemblicator.class, "formulaic_assemblicator");
@@ -455,7 +455,6 @@ public class Mekanism {
         registerTileEntity(TileEntityUltimateFactory.class, "elite_smelting_factory");
         //Because it was registered as a ultimate_smelting_factory by the original elite factory
         //So the ultimate factory here is registered as elite_smelting_factory
-        registerTileEntity(TileEntityCreativeFactory.class, "creative_smelting_factory");
         registerTileEntity(TileEntityIsotopicCentrifuge.class, "isotopic_centrifuge");
         registerTileEntity(TileEntityNutritionalLiquifier.class, "nutritional_liquifier");
         registerTileEntity(TileEntitySuperchargedCoil.class, "supercharged_coil");
@@ -506,9 +505,6 @@ public class Mekanism {
         playerState.clear(false);
         activeVibrators.clear();
         worldTickHandler.resetRegenChunks();
-        privateTeleporters.clear();
-        privateEntangloporters.clear();
-
         //Reset consistent managers
         MultiblockManager.reset();
         FrequencyManager.reset();
@@ -543,6 +539,8 @@ public class Mekanism {
 
     @EventHandler
     public void preInit(FMLPreInitializationEvent event) {
+        MekanismCriteriaTriggers.init();
+
         //sanity check the api location if not deobf
         if (!((Boolean) Launch.blackboard.get("fml.deobfuscatedEnvironment"))) {
             String apiLocation = MekanismAPI.class.getProtectionDomain().getCodeSource().getLocation().toString();

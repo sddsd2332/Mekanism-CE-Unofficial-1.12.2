@@ -1,41 +1,38 @@
 package mekanism.client.gui.element;
 
+import mekanism.client.gui.GuiUtils;
 import mekanism.client.gui.IGuiWrapper;
 import mekanism.client.render.MekanismRenderer;
 import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.MekanismUtils.ResourceType;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.GlStateManager.DestFactor;
 import net.minecraft.client.renderer.GlStateManager.SourceFactor;
 import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
 import org.lwjgl.opengl.GL11;
 
 import java.util.ArrayList;
 import java.util.List;
 
-@SideOnly(Side.CLIENT)
 public class GuiGraph extends GuiElement {
+
+    private static final ResourceLocation GRAPH = MekanismUtils.getResource(MekanismUtils.ResourceType.GUI, "graph.png");
+    private static final int TEXTURE_WIDTH = 3;
+    private static final int TEXTURE_HEIGHT = 2;
 
     private final List<Integer> graphData = new ArrayList<>();
     private final GraphDataHandler dataHandler;
-    private final int xPosition;
-    private final int yPosition;
-    private final int xSize;
-    private final int ySize;
-
+    private final int graphWidth;
+    private final int graphHeight;
     private int currentScale = 10;
     private int minScale = 10;
-    private boolean fixedScale = false;
+    private boolean fixedScale;
 
-    public GuiGraph(IGuiWrapper gui, ResourceLocation def, int x, int y, int sizeX, int sizeY, GraphDataHandler handler) {
-        super(MekanismUtils.getResource(ResourceType.GUI_ELEMENT, "GuiGraph.png"), gui, def);
-        xPosition = x;
-        yPosition = y;
-        xSize = sizeX;
-        ySize = sizeY;
-        dataHandler = handler;
+    public GuiGraph(IGuiWrapper gui, int x, int y, int width, int height, GraphDataHandler dataHandler) {
+        super(gui, x, y, width, height);
+        this.graphWidth = width - 2;
+        this.graphHeight = height - 2;
+        this.dataHandler = dataHandler;
+        active = true;
     }
 
     public void enableFixedScale(int scale) {
@@ -51,89 +48,81 @@ public class GuiGraph extends GuiElement {
     }
 
     public void addData(int data) {
-        if (graphData.size() == xSize) {
+        if (graphData.size() == graphWidth) {
             graphData.remove(0);
         }
-
         graphData.add(data);
         if (!fixedScale) {
             currentScale = minScale;
-            for (int i : graphData) {
-                if (i > currentScale) {
-                    currentScale = i;
+            for (int value : graphData) {
+                if (value > currentScale) {
+                    currentScale = value;
                 }
             }
         }
     }
 
     @Override
-    public Rectangle4i getBounds(int guiWidth, int guiHeight) {
-        return new Rectangle4i(guiWidth + xPosition, guiHeight + yPosition, xSize, ySize);
+    public void drawBackground(int mouseX, int mouseY, float partialTicks) {
+        super.drawBackground(mouseX, mouseY, partialTicks);
+        drawBlack();
+        drawGraph(mouseX, mouseY);
     }
 
     @Override
-    protected boolean inBounds(int xAxis, int yAxis) {
-        return xAxis >= xPosition && xAxis <= xPosition + xSize && yAxis >= yPosition && yAxis <= yPosition + ySize;
-    }
-
-    @Override
-    public void renderBackground(int xAxis, int yAxis, int guiWidth, int guiHeight) {
-        drawBlack(guiWidth, guiHeight);
-        drawGraph(guiWidth, guiHeight);
-        mc.renderEngine.bindTexture(defaultLocation);
-    }
-
-    @Override
-    public void renderForeground(int xAxis, int yAxis) {
-        if (inBounds(xAxis, yAxis)) {
-            int height = ySize - (yAxis - yPosition);
-            int scaled = (int) (((double) height / (double) ySize) * currentScale);
-            displayTooltip(dataHandler.getDataDisplay(scaled), xAxis, yAxis);
+    public void renderToolTip(int mouseX, int mouseY) {
+        super.renderToolTip(mouseX, mouseY);
+        int hoverIndex = mouseX - getX() - 1;
+        if (hoverIndex >= 0 && hoverIndex < graphData.size()) {
+            gui().displayTooltip(dataHandler.getDataDisplay(graphData.get(hoverIndex)), mouseX, mouseY);
         }
     }
 
-    @Override
-    public void preMouseClicked(int xAxis, int yAxis, int button) {
-    }
-
-    @Override
-    public void mouseClicked(int xAxis, int yAxis, int button) {
-    }
-
-    public void drawBlack(int guiWidth, int guiHeight) {
-        mc.renderEngine.bindTexture(MekanismUtils.getResource(ResourceType.GUI, "Inner_Screen.png"));
-        int halfWidthLeft = xSize / 2;
-        int halfWidthRight = xSize % 2 == 0 ? halfWidthLeft : halfWidthLeft + 1;
-        int halfHeightTop = (ySize + 1) / 2;
-        int halfHeight = (ySize + 1) % 2 == 0 ? halfHeightTop : halfHeightTop + 1;
+    private void drawBlack() {
+        GuiUtils.renderBackgroundTexture(GuiInnerScreen.SCREEN, 4, 4, relativeX, relativeY, width, height, 256, 256);
         MekanismRenderer.resetColor();
-        guiObj.drawTexturedRect(guiWidth + xPosition, guiHeight + yPosition, 0, 0, halfWidthLeft, halfHeightTop);
-        guiObj.drawTexturedRect(guiWidth + xPosition, guiHeight + yPosition + halfHeightTop, 0, 256 - halfHeight, halfWidthLeft, halfHeight);
-        guiObj.drawTexturedRect(guiWidth + xPosition + halfWidthLeft, guiHeight + yPosition, 256 - halfWidthRight, 0, halfWidthRight, halfHeightTop);
-        guiObj.drawTexturedRect(guiWidth + xPosition + halfWidthLeft, guiHeight + yPosition + halfHeightTop, 256 - halfWidthRight, 256 - halfHeight, halfWidthRight, halfHeight);
     }
 
-    public void drawGraph(int guiWidth, int guiHeight) {
-        mc.renderEngine.bindTexture(RESOURCE);
-        for (int i = 0; i < graphData.size(); i++) {
+    private void drawGraph(int mouseX, int mouseY) {
+        minecraft.renderEngine.bindTexture(GRAPH);
+        int size = graphData.size();
+        for (int i = 0; i < size; i++) {
             int data = Math.min(currentScale, graphData.get(i));
-            int relativeHeight = (int) (((double) data / (double) currentScale) * ySize);
-            guiObj.drawTexturedRect(guiWidth + xPosition + i, guiHeight + yPosition + (ySize - relativeHeight), 10, 0, 1, 1);
-
-            int displays = (relativeHeight - 1) / 10 + ((relativeHeight - 1) % 10 > 0 ? 1 : 0);
-
+            int relativeHeight = (int) (((double) data / currentScale) * graphHeight);
+            int x = relativeX + 1 + i;
+            int y = relativeY + 1 + graphHeight - relativeHeight;
+            GuiUtils.blit(x, y, 0, 0, 1, 1, TEXTURE_WIDTH, TEXTURE_HEIGHT);
             GlStateManager.shadeModel(GL11.GL_SMOOTH);
             GlStateManager.disableAlpha();
             GlStateManager.enableBlend();
             GlStateManager.blendFunc(SourceFactor.SRC_ALPHA, DestFactor.ONE_MINUS_SRC_ALPHA);
-            for (int iter = 0; iter < displays; iter++) {
-                GlStateManager.color(1, 1, 1, 0.2F + (0.8F * ((float) i / (float) graphData.size())));
-                int height = (relativeHeight - 1) % 10 > 0 && iter == displays - 1 ? (relativeHeight - 1) % 10 : 10;
-                guiObj.drawTexturedRect(guiWidth + xPosition + i, guiHeight + yPosition + (ySize - (iter * 10)) - 10 + (10 - height), 11, 0, 1, height);
+            GlStateManager.color(1, 1, 1, 0.2F + 0.8F * ((float) i / Math.max(1, size)));
+            if (relativeHeight > 1) {
+                GuiUtils.blit(x, y, 1, 0, 1, relativeHeight, TEXTURE_WIDTH, TEXTURE_HEIGHT);
+            }
+            if (mouseX - getX() - 1 == i && mouseY >= getY() + 1 && mouseY < getY() + 1 + graphHeight) {
+                GlStateManager.color(1, 1, 1, 0.5F);
+                GuiUtils.blit(x, relativeY + 1, 2, 0, 1, graphHeight, TEXTURE_WIDTH, TEXTURE_HEIGHT);
+                MekanismRenderer.resetColor();
+                GuiUtils.blit(x, y, 0, 1, 1, 1, TEXTURE_WIDTH, TEXTURE_HEIGHT);
             }
             MekanismRenderer.resetColor();
             GlStateManager.disableBlend();
             GlStateManager.enableAlpha();
+        }
+    }
+
+    @Override
+    public boolean hasPersistentData() {
+        return true;
+    }
+
+    @Override
+    public void syncFrom(GuiElement element) {
+        super.syncFrom(element);
+        graphData.clear();
+        for (int data : ((GuiGraph) element).graphData) {
+            addData(data);
         }
     }
 

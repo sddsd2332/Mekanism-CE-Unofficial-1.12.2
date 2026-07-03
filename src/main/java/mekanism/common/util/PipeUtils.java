@@ -1,7 +1,7 @@
 package mekanism.common.util;
 
-import mekanism.common.base.target.FluidHandlerTarget;
 import mekanism.common.capabilities.Capabilities;
+import mekanism.common.content.network.distribution.FluidHandlerTarget;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
@@ -10,10 +10,8 @@ import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.FluidTankInfo;
 import net.minecraftforge.fluids.capability.CapabilityFluidHandler;
 import net.minecraftforge.fluids.capability.IFluidHandler;
-import net.minecraftforge.fluids.capability.IFluidTankProperties;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Set;
 
@@ -32,12 +30,9 @@ public final class PipeUtils {
             return false;
         }
 
-        IFluidTankProperties[] infoArray = container.getTankProperties();
-        if (infoArray != null && infoArray.length > 0) {
-            for (IFluidTankProperties info : infoArray) {
-                if (info != null) {
-                    return true;
-                }
+        for (int tank = 0, tanks = FluidContainerUtils.getTankCount(container); tank < tanks; tank++) {
+            if (FluidContainerUtils.getTankCapacity(container, tank) > 0 || FluidContainerUtils.getFluidInTank(container, tank) != null) {
+                return true;
             }
         }
         return false;
@@ -76,46 +71,37 @@ public final class PipeUtils {
         }
         //Fake that we have one target given we know that no sides will overlap
         // This allows us to have slightly better performance
-        FluidHandlerTarget target = new FluidHandlerTarget(stack);
+        FluidHandlerTarget target = new FluidHandlerTarget(stack, 6);
         EmitUtils.forEachSide(from.getWorld(), from.getPos(), sides, (acceptor, side) -> {
             //Insert to access side
             EnumFacing accessSide = side.getOpposite();
             //Collect cap
             CapabilityUtils.runIfCap(acceptor, CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, accessSide, (handler) -> {
                 if (canFill(handler, stack)) {
-                    target.addHandler(accessSide, handler);
+                    target.addHandler(handler);
                 }
             });
         });
 
-        int curHandlers = target.getHandlers().size();
-        if (curHandlers == 0) {
+        if (target.getHandlerCount() == 0) {
             return 0;
         }
-        return EmitUtils.sendToAcceptors(Collections.singleton(target), curHandlers, stack.amount, stack);
+        return EmitUtils.sendToAcceptors(target, stack.amount, stack);
     }
 
     public static FluidStack copy(FluidStack fluid, int amount) {
-        FluidStack ret = fluid.copy();
-        ret.amount = amount;
-        return ret;
+        return FluidContainerUtils.copyWithAmount(fluid, amount);
     }
 
     public static boolean canFill(IFluidHandler handler, FluidStack stack) {
-        for (IFluidTankProperties props : handler.getTankProperties()) {
-            if (props.canFillFluidType(stack)) {
-                return true;
-            }
-        }
-        return false;
+        return handler != null && stack != null && stack.amount > 0 && handler.fill(stack.copy(), false) > 0;
     }
 
     public static boolean canDrain(IFluidHandler handler, FluidStack stack) {
-        for (IFluidTankProperties props : handler.getTankProperties()) {
-            if (props.canDrainFluidType(stack)) {
-                return true;
-            }
+        if (handler == null || stack == null || stack.amount <= 0) {
+            return false;
         }
-        return false;
+        FluidStack drained = handler.drain(stack.copy(), false);
+        return drained != null && drained.amount > 0;
     }
 }

@@ -1,0 +1,9 @@
+{
+      "parent": "mekanism:waste_removal",
+      "criteria": {"use_geiger_counter": {"trigger": "mekanism:use_geiger_counter"}},
+      "display": {
+            "icon": {"item": "mekanism:geiger_counter"},
+            "description": {"translate": "advancements.mekanism.environmental_radiation.description"},
+            "title": {"translate": "advancements.mekanism.environmental_radiation.title"}
+      }
+}

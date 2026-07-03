@@ -1,0 +1,18 @@
+{
+      "parent": "mekanism:steel_casing",
+      "criteria": {"liquifier": {
+            "trigger": "minecraft:inventory_changed",
+            "conditions": {"items": [{
+                  "item": "mekanism:machineblock3",
+                  "data": 10
+            }]}
+      }},
+      "display": {
+            "icon": {
+                  "item": "mekanism:machineblock3",
+                  "data": 10
+            },
+            "description": {"translate": "advancements.mekanism.liquifier.description"},
+            "title": {"translate": "advancements.mekanism.liquifier.title"}
+      }
+}

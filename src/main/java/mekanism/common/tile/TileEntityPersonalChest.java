@@ -1,24 +1,24 @@
 package mekanism.common.tile;
 
+import mekanism.api.AutomationType;
+import mekanism.api.IContentsListener;
+import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
+import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
+import mekanism.common.inventory.slot.BasicInventorySlot;
 import mekanism.common.security.ISecurityTile;
 import mekanism.common.tile.component.TileComponentSecurity;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
-import mekanism.common.util.InventoryUtils;
-import mekanism.common.util.NonNullListSynchronized;
 import mekanism.common.util.SecurityUtils;
 import net.minecraft.init.SoundEvents;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.SoundCategory;
-import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.items.CapabilityItemHandler;
 
 import javax.annotation.Nonnull;
+import java.util.function.BiPredicate;
 
 public class TileEntityPersonalChest extends TileEntityContainerBlock implements ISecurityTile {
-
-    public static int[] INV;
 
     public float lidAngle;
 
@@ -28,8 +28,21 @@ public class TileEntityPersonalChest extends TileEntityContainerBlock implements
 
     public TileEntityPersonalChest() {
         super("PersonalChest");
-        inventory = NonNullListSynchronized.withSize(54, ItemStack.EMPTY);
+        initializeInventorySlots();
         securityComponent = new TileComponentSecurity(this);
+    }
+
+    @Override
+    protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
+        InventorySlotHelper builder = createInventorySlotHelper();
+        BiPredicate<ItemStack, AutomationType> canInteract = (stack, automationType) ->
+              automationType == AutomationType.MANUAL || SecurityUtils.getSecurity(this, Side.SERVER) == SecurityMode.PUBLIC;
+        for (int slotY = 0; slotY < 6; slotY++) {
+            for (int slotX = 0; slotX < 9; slotX++) {
+                builder.addSlot(BasicInventorySlot.at(canInteract, canInteract, listener, 8 + slotX * 18, 18 + slotY * 18));
+            }
+        }
+        return builder.build();
     }
 
     @Override
@@ -59,43 +72,6 @@ public class TileEntityPersonalChest extends TileEntityContainerBlock implements
                 lidAngle = 0.0F;
             }
         }
-    }
-
-    @Override
-    public boolean isItemValidForSlot(int slotID, @Nonnull ItemStack itemstack) {
-        return true;
-    }
-
-    @Nonnull
-    @Override
-    public int[] getSlotsForFace(@Nonnull EnumFacing side) {
-        if (side == EnumFacing.DOWN || SecurityUtils.getSecurity(this, Side.SERVER) != SecurityMode.PUBLIC) {
-            return InventoryUtils.EMPTY;
-        } else if (INV == null) {
-            INV = new int[54];
-            for (int i = 0; i < INV.length; i++) {
-                INV[i] = i;
-            }
-        }
-        return INV;
-    }
-
-    @Override
-    public boolean isCapabilityDisabled(@Nonnull Capability<?> capability, EnumFacing side) {
-        if (capability == CapabilityItemHandler.ITEM_HANDLER_CAPABILITY) {
-            //Still allow for the capability if it is not public. It just won't
-            // return any slots for the face. It doesn't properly sync when the state
-            // changes so the pipes stay connected/disconnected and have to be replaced.
-            // Leaving the slotsForFace to determine the ability to insert/extract in
-            // those cases fixes that issue.
-            return side == EnumFacing.DOWN;
-        }
-        return super.isCapabilityDisabled(capability, side);
-    }
-
-    @Override
-    public boolean canExtractItem(int slotID, @Nonnull ItemStack itemstack, @Nonnull EnumFacing side) {
-        return true;
     }
 
     @Override

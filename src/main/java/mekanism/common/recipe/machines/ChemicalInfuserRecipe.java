@@ -1,7 +1,7 @@
 package mekanism.common.recipe.machines;
 
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTank;
+import mekanism.api.gas.IExtendedGasTank;
 import mekanism.common.recipe.inputs.ChemicalPairInput;
 import mekanism.common.recipe.outputs.GasOutput;
 
@@ -20,13 +20,8 @@ public class ChemicalInfuserRecipe extends MachineRecipe<ChemicalPairInput, GasO
         return new ChemicalInfuserRecipe(getInput().copy(), getOutput().copy());
     }
 
-    public boolean canOperate(GasTank leftTank, GasTank rightTank, GasTank outputTank) {
+    public boolean canOperate(IExtendedGasTank leftTank, IExtendedGasTank rightTank, IExtendedGasTank outputTank) {
         return getInput().useGas(leftTank, rightTank, false, 1) && getOutput().applyOutputs(outputTank, false, 1);
     }
 
-    public void operate(GasTank leftInput, GasTank rightInput, GasTank outputTank, int scale) {
-        if (getInput().useGas(leftInput, rightInput, true, scale)) {
-            getOutput().applyOutputs(outputTank, true, scale);
-        }
-    }
 }

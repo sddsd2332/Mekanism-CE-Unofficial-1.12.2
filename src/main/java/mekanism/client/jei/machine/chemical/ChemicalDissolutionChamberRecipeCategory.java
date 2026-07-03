@@ -1,17 +1,16 @@
 package mekanism.client.jei.machine.chemical;
 
 import mekanism.api.gas.GasStack;
-import mekanism.client.gui.element.GuiProgress;
-import mekanism.client.gui.element.GuiSlot;
 import mekanism.client.gui.element.gauge.GuiGasGauge;
 import mekanism.client.gui.element.gauge.GuiGauge;
-import mekanism.client.gui.element.slot.GuiEnergySlot;
-import mekanism.client.gui.element.slot.GuiExtraSlot;
-import mekanism.client.gui.element.slot.GuiInputSlot;
-import mekanism.client.gui.element.slot.GuiOutputSlot;
+import mekanism.client.gui.element.progress.GuiProgress;
+import mekanism.client.gui.element.progress.ProgressType;
+import mekanism.client.gui.element.slot.GuiSlot;
+import mekanism.client.gui.element.slot.SlotType;
 import mekanism.client.jei.BaseRecipeCategory;
 import mekanism.client.jei.MekanismJEI;
 import mekanism.common.MekanismFluids;
+import mekanism.common.inventory.container.slot.SlotOverlay;
 import mekanism.common.recipe.RecipeHandler.Recipe;
 import mekanism.common.recipe.machines.DissolutionRecipe;
 import mekanism.common.tile.machine.TileEntityChemicalDissolutionChamber;
@@ -23,37 +22,45 @@ import mezz.jei.api.ingredients.IIngredients;
 
 public class ChemicalDissolutionChamberRecipeCategory<WRAPPER extends ChemicalDissolutionChamberRecipeWrapper<DissolutionRecipe>> extends BaseRecipeCategory<WRAPPER> {
 
+    private GuiGauge<?> sulfuricAcid;
+    private GuiGauge<?> output;
+    private GuiSlot input;
+
     public ChemicalDissolutionChamberRecipeCategory(IGuiHelper helper) {
         super(helper, "mekanism:gui/Null.png",
-                Recipe.CHEMICAL_DISSOLUTION_CHAMBER.getJEICategory(), "gui.chemicalDissolutionChamber.short", GuiProgress.ProgressBar.LARGE_RIGHT, 4, 4, 169, 78);
+              Recipe.CHEMICAL_DISSOLUTION_CHAMBER.getJEICategory(), "gui.chemicalDissolutionChamber.short", 4, 4, 169, 78, ProgressType.LARGE_RIGHT);
     }
 
     @Override
     protected void addGuiElements() {
-        guiElements.add(GuiGasGauge.getDummy(GuiGauge.Type.STANDARD, this, guiLocation, 7, 4).withColor(GuiGauge.TypeColor.RED));
-        guiElements.add(GuiGasGauge.getDummy(GuiGauge.Type.STANDARD, this, guiLocation, 131, 13).withColor(GuiGauge.TypeColor.BLUE));
-        guiElements.add(new GuiEnergySlot(this, guiLocation, 151, 13));
-        guiElements.add(new GuiInputSlot( this, guiLocation, 27, 35));
-        guiElements.add(new GuiOutputSlot( this, guiLocation, 151, 54).with(GuiSlot.SlotOverlay.PLUS));
-        guiElements.add(new GuiExtraSlot(this, guiLocation, 7, 64).with(GuiSlot.SlotOverlay.MINUS));
-        guiElements.add(new GuiProgress(new GuiProgress.IProgressInfoHandler() {
+        sulfuricAcid = addElement(dummyGasGauge(GuiGasGauge.Type.STANDARD, GuiGasGauge.GaugeColor.RED, 7, 4));
+        output = addElement(dummyGasGauge(GuiGasGauge.Type.STANDARD, GuiGasGauge.GaugeColor.BLUE, 131, 13));
+        guiElements.add(new GuiSlot(SlotType.POWER, this, 151, 13).with(SlotOverlay.POWER).setRenderAboveSlots());
+        input = addElement(new GuiSlot(SlotType.INPUT, this, 27, 35).setRenderAboveSlots());
+        guiElements.add(new GuiSlot(SlotType.OUTPUT, this, 151, 54).with(SlotOverlay.PLUS).setRenderAboveSlots());
+        guiElements.add(new GuiSlot(SlotType.EXTRA, this, 7, 64).with(SlotOverlay.MINUS).setRenderAboveSlots());
+        guiElements.add(new GuiProgress(new mekanism.client.gui.element.progress.IProgressInfoHandler() {
             @Override
             public double getProgress() {
-                return (float) timer.getValue() / 20F;
+                return (double) timer.getValue() / 20F;
             }
-        }, progressBar, this, guiLocation, 62, 39,false));
+
+            @Override
+            public boolean isGuiInJei() {
+                return true;
+            }
+        }, progressType, this, 64, 40));
     }
 
     @Override
     public void setRecipe(IRecipeLayout recipeLayout, WRAPPER recipeWrapper, IIngredients ingredients) {
         DissolutionRecipe tempRecipe = recipeWrapper.getRecipe();
         IGuiItemStackGroup itemStacks = recipeLayout.getItemStacks();
-        itemStacks.init(0, true, 27 - xOffset, 35 - yOffset);
-        itemStacks.set(0, tempRecipe.getInput().ingredient);
+        initItem(itemStacks, 0, true, input, tempRecipe.getInput().ingredient);
         IGuiIngredientGroup<GasStack> gasStacks = recipeLayout.getIngredientsGroup(MekanismJEI.TYPE_GAS);
-        initGas(gasStacks, 0, true, 8 - xOffset, 5 - yOffset, 16, 58,
+        initGas(gasStacks, 0, true, sulfuricAcid,
                 new GasStack(MekanismFluids.SulfuricAcid, TileEntityChemicalDissolutionChamber.BASE_INJECT_USAGE * 100),
                 true);
-        initGas(gasStacks, 1, false, 132 - xOffset, 14 - yOffset, 16, 58, tempRecipe.getOutput().output, true);
+        initGas(gasStacks, 1, false, output, tempRecipe.getOutput().output);
     }
 }

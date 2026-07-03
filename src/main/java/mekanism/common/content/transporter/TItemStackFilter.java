@@ -3,11 +3,14 @@ package mekanism.common.content.transporter;
 import io.netty.buffer.ByteBuf;
 import mekanism.api.TileNetworkList;
 import mekanism.common.content.filter.IItemStackFilter;
-import mekanism.common.content.transporter.Finder.ItemStackFinder;
+import mekanism.common.lib.inventory.Finder;
+import mekanism.common.lib.inventory.TransitRequest;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.EnumFacing;
 import net.minecraftforge.items.ItemHandlerHelper;
 
 import javax.annotation.Nonnull;
@@ -29,16 +32,16 @@ public class TItemStackFilter extends TransporterFilter implements IItemStackFil
     }
 
     @Override
-    public InvStack getStackFromInventory(StackSearcher searcher, boolean singleItem) {
+    public TransitRequest mapInventory(TileEntity tile, EnumFacing side, boolean singleItem) {
         if (sizeMode && !singleItem) {
-            return searcher.takeDefinedItem(itemType, min, max);
+            return TransitRequest.definedItem(tile, side, min, max, getFinder());
         }
-        return super.getStackFromInventory(searcher, singleItem);
+        return super.mapInventory(tile, side, singleItem);
     }
 
     @Override
     public Finder getFinder() {
-        return new ItemStackFinder(itemType);
+        return Finder.wildcard(itemType);
     }
 
     @Override
@@ -106,8 +109,7 @@ public class TItemStackFilter extends TransporterFilter implements IItemStackFil
     @Override
     public TItemStackFilter clone() {
         TItemStackFilter filter = new TItemStackFilter();
-        filter.allowDefault = allowDefault;
-        filter.color = color;
+        copyBaseData(filter);
         filter.itemType = itemType.copy();
         filter.sizeMode = sizeMode;
         filter.min = min;

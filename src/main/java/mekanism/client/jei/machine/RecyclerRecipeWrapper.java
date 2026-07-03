@@ -17,13 +17,15 @@ public class RecyclerRecipeWrapper extends Chance2MachineRecipeWrapper<RecyclerR
         this.inputs = inputs;
     }
 
+    public List<ItemStack> getInputs() {
+        return inputs;
+    }
+
     @Override
     public void getIngredients(IIngredients ingredients) {
         ingredients.setInputLists(VanillaTypes.ITEM, Collections.singletonList(inputs));
-
         if (recipe.getOutput().hasPrimary()) {
             ingredients.setOutputs(VanillaTypes.ITEM, Collections.singletonList(recipe.getOutput().primaryOutput));
         }
     }
-
 }

@@ -1,18 +1,21 @@
 package mekanism.client.gui.element.tab;
 
+import mekanism.client.render.lib.ColorAtlas.ColorRegistryObject;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraft.util.text.ITextComponent;
 
-@SideOnly(Side.CLIENT)
-public interface TabType {
+public interface TabType<TILE extends TileEntity> {
 
     ResourceLocation getResource();
 
-    void openGui(TileEntity tile);
+    void onClick(TILE tile);
 
-    String getDesc();
+    ITextComponent getDescription();
 
-    int getYPos();
+    ColorRegistryObject getTabColor();
+
+    default int getYPos() {
+        return 6;
+    }
 }

@@ -18,6 +18,13 @@ public interface IFancyFontRenderer {
 
     FontRenderer getFont();
 
+    /**
+     * Time the gui was opened in ms, or zero if the time is unknown.
+     */
+    default long getTimeOpened() {
+        return 0;
+    }
+
     default int titleTextColor() {
         return SpecialColors.TEXT_TITLE.argb();
     }
@@ -32,6 +39,14 @@ public interface IFancyFontRenderer {
 
     default int screenTextColor() {
         return SpecialColors.TEXT_SCREEN.argb();
+    }
+
+    default int activeButtonTextColor() {
+        return SpecialColors.TEXT_ACTIVE_BUTTON.argb();
+    }
+
+    default int inactiveButtonTextColor() {
+        return SpecialColors.TEXT_INACTIVE_BUTTON.argb();
     }
 
     default int drawString(ITextComponent component, int x, int y, int color) {
@@ -54,6 +69,26 @@ public interface IFancyFontRenderer {
 
     default void drawTitleText(ITextComponent text, float y) {
         drawCenteredTextScaledBound(text, getXSize() - 8, y, titleTextColor());
+    }
+
+    default void drawTitleTextWithOffset(ITextComponent text, float x, float y, float end) {
+        drawTitleTextWithOffset(text, x, y, end, 4);
+    }
+
+    default void drawTitleTextWithOffset(ITextComponent text, float x, float y, float end, float maxLengthPad) {
+        drawTitleTextWithOffset(text, x, y, end, maxLengthPad, TextAlignment.CENTER);
+    }
+
+    default void drawTitleTextWithOffset(ITextComponent text, float x, float y, float end, float maxLengthPad, TextAlignment alignment) {
+        float maxLength = end - x - 2 * maxLengthPad;
+        float textWidth = getStringWidth(text);
+        float scale = Math.min(1, maxLength / textWidth);
+        float scaledWidth = textWidth * scale;
+        drawTextWithScale(text, alignment.getTarget(x + maxLengthPad, end - maxLengthPad, scaledWidth), y, titleTextColor(), scale);
+    }
+
+    default void drawTitleTextTextWithOffset(ITextComponent text, float x, float y, float end) {
+        drawTitleTextWithOffset(text, x, y, end);
     }
 
     default void drawScaledCenteredTextScaledBound(ITextComponent text, float left, float y, int color, float maxX, float textScale) {
@@ -112,7 +147,75 @@ public interface IFancyFontRenderer {
     }
 
     default void drawTextWithScale(ITextComponent text, float x, float y, int color, float scale) {
-        prepTextScale(m -> drawString(text, 0, 0, color), x, y, scale);
+        drawTextWithScale(text, x, y, color, scale, false);
+    }
+
+    default void drawTextWithScale(ITextComponent text, float x, float y, int color, float scale, boolean shadow) {
+        prepTextScale(m -> m.drawString(text.getFormattedText(), 0, 0, color, shadow), x, y, scale);
+    }
+
+    default void drawScrollingString(ITextComponent text, float x, float y, TextAlignment alignment, int color, float maxLengthPad, boolean shadow) {
+        drawScrollingString(text, x, y, alignment, color, maxLengthPad, shadow, getTimeOpened());
+    }
+
+    default void drawScrollingString(ITextComponent text, float x, float y, TextAlignment alignment, int color, float maxLengthPad, boolean shadow, long msVisible) {
+        drawScrollingString(text, x, y, alignment, color, getXSize(), maxLengthPad, shadow, msVisible);
+    }
+
+    default void drawScrollingString(ITextComponent text, float x, float y, TextAlignment alignment, int color, float width, float maxLengthPad, boolean shadow) {
+        drawScrollingString(text, x, y, alignment, color, width, maxLengthPad, shadow, getTimeOpened());
+    }
+
+    default void drawScrollingString(ITextComponent text, float x, float y, TextAlignment alignment, int color, float width, float maxLengthPad, boolean shadow,
+          long msVisible) {
+        drawScrollingString(text, x, y, alignment, color, width, getFont().FONT_HEIGHT, maxLengthPad, shadow, msVisible);
+    }
+
+    default void drawScrollingString(ITextComponent text, float x, float y, TextAlignment alignment, int color, float width, float height, float maxLengthPad,
+          boolean shadow, long msVisible) {
+        drawScrollingString(text, x + maxLengthPad, y, x + width - maxLengthPad, y + height, alignment, color, shadow, msVisible);
+    }
+
+    default void drawScrollingString(ITextComponent text, float minX, float minY, float maxX, float maxY, TextAlignment alignment, int color, boolean shadow,
+          long msVisible) {
+        int textWidth = getStringWidth(text);
+        float availableWidth = maxX - minX;
+        if (textWidth <= 0 || availableWidth <= 0) {
+            return;
+        }
+        float y = (minY + maxY - getFont().FONT_HEIGHT) / 2F;
+        drawTextWithScale(text, alignment.getTarget(minX, maxX, Math.min(textWidth, availableWidth)), y, color, Math.min(1, availableWidth / textWidth), shadow);
+    }
+
+    default void drawScaledScrollingString(ITextComponent text, float x, float y, TextAlignment alignment, int color, float width, float maxLengthPad,
+          boolean shadow, float textScale, long msVisible) {
+        drawScaledScrollingString(text, x, y, alignment, color, width, getFont().FONT_HEIGHT, maxLengthPad, shadow, textScale, msVisible);
+    }
+
+    default void drawScaledScrollingString(ITextComponent text, float x, float y, TextAlignment alignment, int color, float width, float height, float maxLengthPad,
+          boolean shadow, float textScale, long msVisible) {
+        float minX = x + maxLengthPad;
+        float maxX = x + width - maxLengthPad;
+        float minY = y;
+        float maxY = y + height;
+        drawScaledScrollingString(text, minX, minY, maxX, maxY, alignment, color, shadow, textScale, msVisible);
+    }
+
+    default void drawScaledScrollingString(ITextComponent text, float minX, float minY, float maxX, float maxY, TextAlignment alignment, int color,
+          boolean shadow, float textScale, long msVisible) {
+        float availableWidth = maxX - minX;
+        int textWidth = getStringWidth(text);
+        if (textWidth <= 0 || availableWidth <= 0) {
+            return;
+        }
+        float scale = textScale;
+        float scaledWidth = textWidth * scale;
+        if (scaledWidth > availableWidth) {
+            scale = availableWidth / textWidth;
+            scaledWidth = availableWidth;
+        }
+        float y = (minY + maxY - getFont().FONT_HEIGHT) / 2F;
+        drawTextWithScale(text, alignment.getTarget(minX, maxX, scaledWidth), y, color, scale, shadow);
     }
 
     default void prepTextScale(Consumer<FontRenderer> runnable, float x, float y, float scale) {
@@ -188,6 +291,7 @@ public interface IFancyFontRenderer {
                 lastFont = font;
                 lastMaxLength = maxLength;
                 linesToDraw.clear();
+                lineLength = 0;
                 StringBuilder lineBuilder = new StringBuilder();
                 StringBuilder wordBuilder = new StringBuilder();
                 int spaceLength = lastFont.getStringWidth(" ");
@@ -214,7 +318,7 @@ public interface IFancyFontRenderer {
         StringBuilder addWord(StringBuilder lineBuilder, StringBuilder wordBuilder, float maxLength, int spaceLength, int wordLength) {
             // ignore spacing if this is the first word of the line
             float spacingLength = lineBuilder.length() == 0 ? 0 : spaceLength;
-            if (lineLength + spacingLength + wordLength > maxLength) {
+            if (lineBuilder.length() > 0 && lineLength + spacingLength + wordLength > maxLength) {
                 linesToDraw.add(Pair.of(new TextComponentGroup().getString(lineBuilder.toString()), lineLength));
                 lineBuilder = new StringBuilder(wordBuilder);
                 lineLength = wordLength;
@@ -247,6 +351,24 @@ public interface IFancyFontRenderer {
             }, text);
             wrappedTextRenderer.calculateLines(maxLength);
             return 9 * wrappedTextRenderer.linesToDraw.size();
+        }
+    }
+
+    enum TextAlignment {
+        LEFT,
+        CENTER,
+        RIGHT;
+
+        public float getTarget(float minX, float maxX, float textWidth) {
+            switch (this) {
+                case LEFT:
+                    return minX;
+                case RIGHT:
+                    return maxX - textWidth;
+                case CENTER:
+                default:
+                    return minX + ((maxX - minX) - textWidth) / 2F;
+            }
         }
     }
 }

@@ -3,15 +3,18 @@ package mekanism.common.util;
 import cofh.redstoneflux.api.IEnergyConnection;
 import cofh.redstoneflux.api.IEnergyProvider;
 import cofh.redstoneflux.api.IEnergyReceiver;
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
 import mekanism.api.Coord4D;
+import mekanism.api.energy.IEnergyContainer;
 import mekanism.api.energy.IStrictEnergyAcceptor;
 import mekanism.api.energy.IStrictEnergyOutputter;
 import mekanism.api.transmitters.IGridTransmitter;
 import mekanism.api.transmitters.TransmissionType;
 import mekanism.common.base.EnergyAcceptorWrapper;
 import mekanism.common.base.IEnergyWrapper;
-import mekanism.common.base.target.EnergyAcceptorTarget;
 import mekanism.common.capabilities.Capabilities;
+import mekanism.common.content.network.distribution.EnergyAcceptorTarget;
 import mekanism.common.integration.ic2.IC2Integration;
 import mekanism.common.tile.multiblock.TileEntityInductionPort;
 import net.minecraft.tileentity.TileEntity;
@@ -21,9 +24,12 @@ import net.minecraft.world.World;
 import net.minecraftforge.energy.CapabilityEnergy;
 import net.minecraftforge.energy.IEnergyStorage;
 
+import java.util.Collection;
 import java.util.List;
 
 public final class CableUtils {
+
+    private static final double MAX_DOUBLE_SAFE_TRANSFER = 1L << 40;
 
     public static boolean isCable(TileEntity tileEntity) {
         IGridTransmitter gridTransmitter = CapabilityUtils.getCapability(tileEntity, Capabilities.GRID_TRANSMITTER_CAPABILITY, null);
@@ -141,6 +147,81 @@ public final class CableUtils {
     public static void emit(IEnergyWrapper emitter) {
         emit(emitter, 1);
     }
+
+    public static void emit(Collection<EnumFacing> sides, IEnergyWrapper emitter) {
+        TileEntity tileEntity = (TileEntity) emitter;
+        if (tileEntity.getWorld().isRemote || !MekanismUtils.canFunction(tileEntity)) {
+            return;
+        }
+
+        double energyToSend = Math.min(emitter.getEnergy(), emitter.getMaxOutput());
+        if (!(energyToSend > 0)) {
+            return;
+        }
+
+        Coord4D coord = Coord4D.get(tileEntity);
+        EnergyAcceptorTarget target = new EnergyAcceptorTarget();
+        for (EnumFacing side : sides) {
+            TileEntity tile = coord.offset(side).getTileEntity(tileEntity.getWorld());
+            if (tile != null && (isValidAcceptorOnSide(tileEntity, tile, side) || isCable(tile))) {
+                EnumFacing opposite = side.getOpposite();
+                EnergyAcceptorWrapper acceptor = EnergyAcceptorWrapper.get(tile, opposite);
+                if (acceptor != null && acceptor.canReceiveEnergy(opposite) && acceptor.needsEnergy(opposite)) {
+                    target.addHandler(opposite, acceptor);
+                }
+            }
+        }
+
+        if (target.getHandlerCount() > 0) {
+            double sent = EmitUtils.sendToAcceptors(target, energyToSend);
+            if (emitter instanceof TileEntityInductionPort port) {
+                port.removeEnergy(sent, false);
+            } else {
+                emitter.setEnergy(emitter.getEnergy() - sent);
+            }
+        }
+    }
+
+    public static void emit(Collection<EnumFacing> sides, IEnergyContainer container, TileEntity tileEntity) {
+        emit(sides, container, tileEntity, container.getMaxEnergy());
+    }
+
+    public static void emit(Collection<EnumFacing> sides, IEnergyContainer container, TileEntity tileEntity, double maxOutput) {
+        if (tileEntity.getWorld().isRemote || !MekanismUtils.canFunction(tileEntity) || container.isEmpty()) {
+            return;
+        }
+
+        double energyToSend = container.extract(clampEnergyTransfer(maxOutput), null, Action.SIMULATE, AutomationType.INTERNAL);
+        if (!(energyToSend > 0)) {
+            return;
+        }
+
+        Coord4D coord = Coord4D.get(tileEntity);
+        EnergyAcceptorTarget target = new EnergyAcceptorTarget();
+        for (EnumFacing side : sides) {
+            TileEntity tile = coord.offset(side).getTileEntity(tileEntity.getWorld());
+            if (tile != null && (isValidAcceptorOnSide(tileEntity, tile, side) || isCable(tile))) {
+                EnumFacing opposite = side.getOpposite();
+                EnergyAcceptorWrapper acceptor = EnergyAcceptorWrapper.get(tile, opposite);
+                if (acceptor != null && acceptor.canReceiveEnergy(opposite) && acceptor.needsEnergy(opposite)) {
+                    target.addHandler(opposite, acceptor);
+                }
+            }
+        }
+
+        if (target.getHandlerCount() > 0) {
+            double sent = EmitUtils.sendToAcceptors(target, energyToSend);
+            container.extract(sent, null, Action.EXECUTE, AutomationType.INTERNAL);
+        }
+    }
+
+    private static double clampEnergyTransfer(double amount) {
+        if (!(amount > 0)) {
+            return 0;
+        }
+        return Math.min(amount, MAX_DOUBLE_SAFE_TRANSFER);
+    }
+
     public static void emit(IEnergyWrapper emitter, int i) {
         TileEntity tileEntity = (TileEntity) emitter;
         if (tileEntity.getWorld().isRemote || !MekanismUtils.canFunction(tileEntity)) {
@@ -172,15 +253,8 @@ public final class CableUtils {
             }
         }
 
-        int curHandlers = target.getHandlers().size();
-        if (curHandlers > 0) {
-            // Firestarter start :: optimize emit
-            /*
-            Set<EnergyAcceptorTarget> targets = new HashSet<>();
-            targets.add(target);
-             */
-            double sent = EmitUtils.sendToAcceptors(java.util.Collections.singleton(target), curHandlers, energyToSend);
-            // Firestarter end
+        if (target.getHandlerCount() > 0) {
+            double sent = EmitUtils.sendToAcceptors(target, energyToSend);
             if (emitter instanceof TileEntityInductionPort port) {
                 //Streamline sideless removal method for induction port.
                 port.removeEnergy(sent, false);

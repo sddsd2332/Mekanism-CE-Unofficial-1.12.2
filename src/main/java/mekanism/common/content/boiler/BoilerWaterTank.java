@@ -1,6 +1,7 @@
 package mekanism.common.content.boiler;
 
 import mekanism.common.tile.multiblock.TileEntityBoilerCasing;
+import net.minecraftforge.fluids.FluidRegistry;
 import net.minecraftforge.fluids.FluidStack;
 
 import javax.annotation.Nullable;
@@ -9,6 +10,11 @@ public class BoilerWaterTank extends BoilerTank {
 
     public BoilerWaterTank(TileEntityBoilerCasing tileEntity) {
         super(tileEntity);
+    }
+
+    @Override
+    public boolean isFluidValid(@Nullable FluidStack stack) {
+        return stack != null && stack.getFluid() == FluidRegistry.WATER;
     }
 
     @Override
@@ -26,6 +32,9 @@ public class BoilerWaterTank extends BoilerTank {
 
     @Override
     public int getCapacity() {
-        return multiblock.structure != null ? multiblock.structure.waterVolume * BoilerUpdateProtocol.WATER_PER_TANK : 0;
+        if (multiblock.structure == null) {
+            return 0;
+        }
+        return multiblock.isRemote() ? multiblock.clientWaterCapacity : multiblock.structure.getWaterCapacity();
     }
 }

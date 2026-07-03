@@ -1,5 +1,6 @@
 package mekanism.common.lib.inventory;
 
+import mekanism.api.inventory.IHashedItem;
 import mekanism.common.util.StackUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.items.ItemHandlerHelper;
@@ -8,7 +9,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.UUID;
 
-public class HashedItem {
+public class HashedItem implements IHashedItem {
 
     public static HashedItem create(@Nonnull ItemStack stack) {
         return new HashedItem(StackUtils.size(stack, 1));
@@ -39,13 +40,23 @@ public class HashedItem {
     }
 
     @Nonnull
-    public ItemStack getStack() {
+    public ItemStack getInternalStack() {
         return itemStack;
     }
 
     @Nonnull
+    public ItemStack getStack() {
+        return getInternalStack();
+    }
+
+    @Nonnull
+    @Override
     public ItemStack createStack(int size) {
         return StackUtils.size(itemStack, size);
+    }
+
+    public int getMaxStackSize() {
+        return itemStack.getMaxStackSize();
     }
 
     @Override
@@ -53,9 +64,9 @@ public class HashedItem {
         if (obj == this) {
             return true;
         }
-        if (obj instanceof HashedItem) {
-            HashedItem other = (HashedItem) obj;
-            return ItemHandlerHelper.canItemStacksStack(itemStack, other.itemStack);
+        if (obj instanceof IHashedItem) {
+            IHashedItem other = (IHashedItem) obj;
+            return ItemHandlerHelper.canItemStacksStack(itemStack, other.getInternalStack());
         }
         return false;
     }

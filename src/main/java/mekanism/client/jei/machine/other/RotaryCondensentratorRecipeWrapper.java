@@ -3,6 +3,7 @@ package mekanism.client.jei.machine.other;
 import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasStack;
 import mekanism.client.jei.MekanismJEI;
+import mekanism.common.recipe.machines.RotaryRecipe;
 import mekanism.common.util.LangUtils;
 import mezz.jei.api.ingredients.IIngredients;
 import mezz.jei.api.ingredients.VanillaTypes;
@@ -27,6 +28,14 @@ public class RotaryCondensentratorRecipeWrapper implements IRecipeWrapper {
         condensentrating = b;
     }
 
+    public RotaryCondensentratorRecipeWrapper(RotaryRecipe recipe, boolean condensentrating) {
+        FluidStack fluid = condensentrating ? recipe.getFluidOutput(recipe.getInput().gasInput) : recipe.getFluidInput();
+        GasStack gas = condensentrating ? recipe.getGasInput() : recipe.getGasOutput(recipe.getInput().fluidInput);
+        fluidType = fluid == null ? null : fluid.getFluid();
+        gasType = gas == null ? null : gas.getGas();
+        this.condensentrating = condensentrating;
+    }
+
     @Override
     public void getIngredients(IIngredients ingredients) {
         if (condensentrating) {
@@ -41,7 +50,7 @@ public class RotaryCondensentratorRecipeWrapper implements IRecipeWrapper {
     @Override
     public void drawInfo(@Nonnull Minecraft minecraft, int recipeWidth, int recipeHeight, int mouseX, int mouseY) {
         minecraft.fontRenderer.drawString(condensentrating ? LangUtils.localize("gui.condensentrating") : LangUtils.localize("gui.decondensentrating"),
-                6 - 3, 74 - 12, 0x404040, false);
+                42, 53, 0x404040, false);
     }
 
     public Gas getGasType() {

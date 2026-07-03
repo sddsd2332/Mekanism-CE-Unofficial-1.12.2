@@ -28,4 +28,12 @@ public class CapabilityWrapperManager<IMPL, WRAPPER> {
 
         return wrappers.get(facing);
     }
+
+    public void invalidate(EnumFacing facing) {
+        wrappers.remove(facing);
+    }
+
+    public void invalidateAll() {
+        wrappers.clear();
+    }
 }

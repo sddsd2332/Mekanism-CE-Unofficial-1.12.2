@@ -1,117 +1,182 @@
 package mekanism.common.tile.machine;
 
 import io.netty.buffer.ByteBuf;
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
+import mekanism.api.IContentsListener;
 import mekanism.api.TileNetworkList;
-import mekanism.api.gas.*;
+import mekanism.api.gas.Gas;
+import mekanism.api.gas.GasStack;
 import mekanism.api.transmitters.TransmissionType;
-import mekanism.common.SideData;
 import mekanism.common.Upgrade;
 import mekanism.common.base.ISpecialSelectionWireframeTile;
 import mekanism.common.base.ISustainedData;
+import mekanism.common.base.ITankManager;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
-import mekanism.common.capabilities.Capabilities;
-import mekanism.common.item.ItemUpgrade;
+import mekanism.common.capabilities.energy.MachineEnergyContainer;
+import mekanism.common.capabilities.gas.BasicGasTank;
+import mekanism.common.capabilities.holder.gas.GasTankHelper;
+import mekanism.common.capabilities.holder.gas.IGasTankHolder;
+import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
+import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
+import mekanism.common.inventory.container.slot.SlotOverlay;
+import mekanism.common.inventory.slot.EnergyInventorySlot;
+import mekanism.common.inventory.slot.InputInventorySlot;
+import mekanism.common.inventory.slot.OutputInventorySlot;
+import mekanism.common.inventory.slot.gas.GasInventorySlot;
+import mekanism.common.inventory.warning.WarningTracker.WarningType;
 import mekanism.common.recipe.RecipeHandler;
+import mekanism.common.recipe.cache.CachedRecipe;
+import mekanism.common.recipe.cache.CachedRecipe.OperationTracker.RecipeError;
+import mekanism.common.recipe.cache.NucleosynthesizerRecipeCacheLookupMonitor;
+import mekanism.common.recipe.cache.TwoInputCachedRecipe;
+import mekanism.common.recipe.cache.inputs.InputHelper;
+import mekanism.common.recipe.cache.outputs.OutputHelper;
+import mekanism.common.recipe.inputs.MachineInput;
 import mekanism.common.recipe.inputs.NucleosynthesizerInput;
 import mekanism.common.recipe.machines.NucleosynthesizerRecipe;
 import mekanism.common.recipe.outputs.ItemStackOutput;
 import mekanism.common.tile.component.TileComponentConfig;
 import mekanism.common.tile.component.TileComponentEjector;
 import mekanism.common.tile.component.config.DataType;
-import mekanism.common.tile.factory.TileEntityFactory;
 import mekanism.common.tile.prefab.TileEntityUpgradeableMachine;
-import mekanism.common.util.*;
+import mekanism.common.util.ItemDataUtils;
+import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.TileUtils;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.IBlockAccess;
-import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraftforge.items.ItemHandlerHelper;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
-public class TileEntityAntiprotonicNucleosynthesizer extends TileEntityUpgradeableMachine<NucleosynthesizerInput, ItemStackOutput, NucleosynthesizerRecipe> implements IGasHandler, ISustainedData, ISpecialSelectionWireframeTile {
+public class TileEntityAntiprotonicNucleosynthesizer extends TileEntityUpgradeableMachine<NucleosynthesizerInput, ItemStackOutput, NucleosynthesizerRecipe> implements ISustainedData, ISpecialSelectionWireframeTile, ITankManager {
 
+    private static final List<RecipeError> TRACKED_ERROR_TYPES = Arrays.asList(
+          RecipeError.NOT_ENOUGH_ENERGY,
+          RecipeError.NOT_ENOUGH_INPUT,
+          RecipeError.NOT_ENOUGH_SECONDARY_INPUT,
+          RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
+          RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
+    );
     private static final String[] methods = new String[]{"getEnergy", "getProgress", "isActive", "facing", "canOperate", "getMaxEnergy", "getEnergyNeeded",
             "getGasStored"};
-    public GasTank inputGasTank = new GasTank(10000);
+    public BasicGasTank inputGasTank;
+    private GasInventorySlot gasInputSlot;
+    private InputInventorySlot inputSlot;
+    private EnergyInventorySlot energySlot;
+    private OutputInventorySlot outputSlot;
+    private double clientEnergyUsed;
 
 
     public TileEntityAntiprotonicNucleosynthesizer() {
-        super("prc", MachineType.ANTIPROTONIC_NUCLEOSYNTHESIZER, 3, 100);
+        super("prc", MachineType.ANTIPROTONIC_NUCLEOSYNTHESIZER, 3, 100, TRACKED_ERROR_TYPES);
+        recipeCacheLookupMonitor = new NucleosynthesizerRecipeCacheLookupMonitor(this);
+        upgradeComponent.clearSupportedTypes();
+        upgradeComponent.setSupported(Upgrade.MUFFLING);
         configComponent = new TileComponentConfig(this, TransmissionType.ITEM, TransmissionType.ENERGY, TransmissionType.GAS);
+        initializeInventorySlots();
+        configComponent.setupItemIOExtraConfig(inputSlot, outputSlot, gasInputSlot, energySlot);
+        configComponent.setConfig(TransmissionType.ITEM, DataType.EXTRA, DataType.INPUT, DataType.INPUT, DataType.ENERGY, DataType.INPUT, DataType.OUTPUT);
 
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.NONE, InventoryUtils.EMPTY));
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.INPUT, new int[]{0}));
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.ENERGY, new int[]{1}));
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.OUTPUT, new int[]{2}));
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(new int[]{0, 2}, new boolean[]{false, true}));
-        configComponent.setConfig(TransmissionType.ITEM, new byte[]{2, 1, 0, 0, 0, 3});
-
-        configComponent.setInputConfig(TransmissionType.GAS);
+        configComponent.setupInputConfig(TransmissionType.GAS, inputGasTank);
         configComponent.setInputConfig(TransmissionType.ENERGY);
-        inventory = NonNullListSynchronized.withSize(4, ItemStack.EMPTY);
-
         ejectorComponent = new TileComponentEjector(this);
-        ejectorComponent.setOutputData(TransmissionType.ITEM, configComponent.getOutputs(TransmissionType.ITEM).get(3));
-        ejectorComponent.setInputOutputData(TransmissionType.ITEM, configComponent.getOutputs(TransmissionType.ITEM).get(4));
+        ejectorComponent.setOutputData(configComponent, TransmissionType.ITEM);
+    }
+
+    @Override
+    protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
+        InventorySlotHelper builder = createInventorySlotHelper();
+        gasInputSlot = builder.addSlot(GasInventorySlot.fillOrConvert(inputGasTank, this::getWorld, listener, 6, 69));
+        gasInputSlot.setSlotOverlay(SlotOverlay.MINUS);
+        inputSlot = builder.addSlot(InputInventorySlot.at(RecipeHandler::isInNucleosynthesizerRecipe, getRecipeCacheListener(), 26, 40));
+        inputSlot.tracksWarnings(slot -> slot.warning(WarningType.NO_MATCHING_RECIPE, getWarningCheck(RecipeError.NOT_ENOUGH_INPUT)));
+        outputSlot = builder.addSlot(OutputInventorySlot.at(getRecipeCacheChangeListener(listener), 152, 40));
+        outputSlot.tracksWarnings(slot -> slot.warning(WarningType.NO_SPACE_IN_OUTPUT, getWarningCheck(RecipeError.NOT_ENOUGH_OUTPUT_SPACE)));
+        energySlot = builder.addSlot(EnergyInventorySlot.fillOrConvert(getMainEnergyContainer(), this::getWorld, listener, 173, 69));
+        return builder.build();
+    }
+
+    @Override
+    protected IGasTankHolder getInitialGasTanks(IContentsListener listener) {
+        GasTankHelper builder = createGasTankHelper();
+        builder.addTank(getOrCreateInputGasTank());
+        return builder.build();
+    }
+
+    private BasicGasTank getOrCreateInputGasTank() {
+        if (inputGasTank == null) {
+            inputGasTank = BasicGasTank.input(10000, this::isValidGas, getRecipeCacheListener());
+        }
+        return inputGasTank;
     }
 
     @Override
     public void onAsyncUpdateServer() {
         super.onAsyncUpdateServer();
-        NucleosynthesizerRecipe recipe = getRecipe();
-        ChargeUtils.discharge(1, this);
-        double energy = recipe != null ? MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK + recipe.extraEnergy) : 0;
-        getProcess(recipe, true, energy);
+        energySlot.fillContainerOrConvert();
+        gasInputSlot.fillTankOrConvert();
+        clientEnergyUsed = ((NucleosynthesizerRecipeCacheLookupMonitor) recipeCacheLookupMonitor).updateAndProcess(getMainEnergyContainer());
+        if (clientEnergyUsed <= 0 && prevEnergy >= getEnergy()) {
+            setActive(false);
+        }
         prevEnergy = getEnergy();
     }
 
     @Override
     protected void setNoFinish() {
-        BASE_TICKS_REQUIRED = 100;
+        ticksRequired = BASE_TICKS_REQUIRED;
     }
 
     @Override
-    protected void setupVariableValues() {
-        if (getRecipe() == null) {
-            return;
-        }
-        boolean update = BASE_TICKS_REQUIRED != getRecipe().ticks;
-        BASE_TICKS_REQUIRED = getRecipe().ticks;
-        if (update) {
-            recalculateUpgradables(Upgrade.SPEED);
-        }
+    public void onCachedRecipeChanged(CachedRecipe<NucleosynthesizerRecipe> cachedRecipe, int cacheIndex) {
+        super.onCachedRecipeChanged(cachedRecipe, cacheIndex);
+        ticksRequired = cachedRecipe == null ? BASE_TICKS_REQUIRED : cachedRecipe.getRecipe().ticks;
     }
 
+    @Nullable
     @Override
-    protected void upgradeInventory(TileEntityFactory factory) {
-        setInputGasTank(factory, inputGasTank);
-        setInputSlotItem(factory, inventory.get(0));
-        setEnergySlotItem(factory, inventory.get(1));
-        setOutputSlotItem(factory, inventory.get(2));
-        setUpgradeSlot(factory, inventory.get(3));
+    protected GasStack getInputGasForUpgrade() {
+        return inputGasTank.getGas();
     }
 
+    @Nonnull
     @Override
-    public boolean isItemValidForSlot(int slotID, @Nonnull ItemStack itemstack) {
-        if (slotID == 0) {
-            return RecipeHandler.isInNucleosynthesizerRecipe(itemstack);
-        } else if (slotID == 1) {
-            return ChargeUtils.canBeDischarged(itemstack);
-        } else if (slotID == 3) {
-            return itemstack.getItem() instanceof ItemUpgrade;
-        }
-        return false;
+    protected ItemStack getExtraSlotForUpgrade() {
+        return gasInputSlot.getStack();
+    }
+
+    @Nonnull
+    @Override
+    protected ItemStack getInputSlotForUpgrade() {
+        return inputSlot.getStack();
+    }
+
+    @Nonnull
+    @Override
+    protected ItemStack getEnergySlotForUpgrade() {
+        return energySlot.getStack();
+    }
+
+    @Nonnull
+    @Override
+    protected ItemStack getOutputSlotForUpgrade() {
+        return outputSlot.getStack();
     }
 
     @Override
     public NucleosynthesizerRecipe getRecipe() {
+        refreshRecipeLookupCache();
         NucleosynthesizerInput input = getInput();
         if (cachedRecipe == null || !input.testEquality(cachedRecipe.getInput())) {
             cachedRecipe = RecipeHandler.getNucleosynthesizerRecipe(input);
@@ -119,33 +184,102 @@ public class TileEntityAntiprotonicNucleosynthesizer extends TileEntityUpgradeab
         return cachedRecipe;
     }
 
-    @Override
-    public NucleosynthesizerInput getInput() {
-        return new NucleosynthesizerInput(inventory.get(0), inputGasTank.getGas());
+    public MachineEnergyContainer getEnergyContainer() {
+        return getMainEnergyContainer();
+    }
+
+    public double getEnergyUsed() {
+        return clientEnergyUsed;
+    }
+
+    public double getProcessRate() {
+        double energyPerTick = getEnergyContainer().getEnergyPerTick();
+        return energyPerTick <= 0 ? 0 : clientEnergyUsed / energyPerTick;
+    }
+
+    public boolean hasWarningNoMatchingSecondaryInput() {
+        if (hasWarning(RecipeError.NOT_ENOUGH_SECONDARY_INPUT)) {
+            return true;
+        }
+        if (inputSlot.isEmpty()) {
+            return false;
+        }
+        NucleosynthesizerRecipe recipe = getRecipe();
+        if (recipe != null) {
+            return inputGasTank.getStored() < recipe.getInput().getGas().amount;
+        }
+        return hasMatchingSolidInput(inputSlot.getStack());
+    }
+
+    public boolean hasWarningNoMatchingItemInput() {
+        if (hasWarning(RecipeError.NOT_ENOUGH_INPUT)) {
+            return true;
+        }
+        return !inputSlot.isEmpty() && getRecipe() == null;
+    }
+
+    public boolean hasWarningNoSpaceInOutput() {
+        if (hasWarning(RecipeError.NOT_ENOUGH_OUTPUT_SPACE)) {
+            return true;
+        }
+        ItemStack output = getCurrentOutput();
+        if (output.isEmpty()) {
+            return false;
+        }
+        ItemStack current = outputSlot.getStack();
+        if (!current.isEmpty() && !ItemHandlerHelper.canItemStacksStack(current, output)) {
+            return false;
+        }
+        return !outputSlot.insertItem(output.copy(), Action.SIMULATE, AutomationType.INTERNAL).isEmpty();
+    }
+
+    public boolean hasWarningInputDoesntProduceOutput() {
+        if (hasWarning(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT)) {
+            return true;
+        }
+        ItemStack output = getCurrentOutput();
+        ItemStack current = outputSlot.getStack();
+        return !output.isEmpty() && !current.isEmpty() && !ItemHandlerHelper.canItemStacksStack(current, output);
     }
 
     @Override
-    public void operate(NucleosynthesizerRecipe recipe) {
-        recipe.operate(inventory, 0, inputGasTank, 2);
-        markNoUpdateSync();
+    public NucleosynthesizerInput getInput() {
+        return new NucleosynthesizerInput(inputSlot.getStack(), inputGasTank.getGas());
+    }
+
+    @Override
+    public CachedRecipe<NucleosynthesizerRecipe> createNewCachedRecipe(NucleosynthesizerRecipe recipe, int cacheIndex) {
+        return new TwoInputCachedRecipe<>(recipe, this::shouldRecheckAllRecipeErrors,
+              InputHelper.getInputHandler(inputSlot, RecipeError.NOT_ENOUGH_INPUT),
+              InputHelper.getGasInputHandler(inputGasTank, RecipeError.NOT_ENOUGH_SECONDARY_INPUT),
+              OutputHelper.getOutputHandler(outputSlot, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
+              () -> recipe.getInput().getSolid(), () -> recipe.getInput().getGas(),
+              (item, gas) -> MachineInput.inputContains(item, recipe.getInput().getSolid())
+                    && gas != null && gas.isGasEqual(recipe.getInput().getGas()),
+              (item, gas) -> recipe.getOutput().output.copy(), ItemStack::isEmpty, gas -> gas == null || gas.amount <= 0, ItemStack::isEmpty)
+              .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
+              .setActive(active -> {
+                  if (active || prevEnergy >= getEnergy()) {
+                      setActive(active);
+                  }
+              })
+              .setEnergyRequirements(() -> MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK + recipe.extraEnergy), getMainEnergyContainer())
+              .setRequiredTicks(() -> ticksRequired)
+              .setBaselineMaxOperations(() -> getBaselineMaxOperations(MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK + recipe.extraEnergy), true))
+              .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
+              .setErrorsChanged(this::onRecipeErrorsChanged)
+              .setOnFinish(this::onCachedRecipeFinish);
     }
 
     @Override
     public boolean canOperate(NucleosynthesizerRecipe recipe) {
-        return recipe != null && recipe.canOperate(inventory, 0, inputGasTank, 2);
-    }
-
-    @Override
-    public boolean canExtractItem(int slotID, @Nonnull ItemStack itemstack, @Nonnull EnumFacing side) {
-        if (slotID == 1) {
-            return ChargeUtils.canBeOutputted(itemstack, false);
-        }
-        return slotID == 2 || slotID == 4;
+        return recipe != null && recipe.canOperate(inputSlot, inputGasTank, outputSlot);
     }
 
     @Override
     public TileNetworkList getNetworkedData(TileNetworkList data) {
         super.getNetworkedData(data);
+        data.add(clientEnergyUsed);
         TileUtils.addTankData(data, inputGasTank);
         return data;
     }
@@ -154,6 +288,7 @@ public class TileEntityAntiprotonicNucleosynthesizer extends TileEntityUpgradeab
     public void handlePacketData(ByteBuf dataStream) {
         super.handlePacketData(dataStream);
         if (FMLCommonHandler.instance().getEffectiveSide().isClient()) {
+            clientEnergyUsed = dataStream.readDouble();
             TileUtils.readTankData(dataStream, inputGasTank);
         }
     }
@@ -161,13 +296,15 @@ public class TileEntityAntiprotonicNucleosynthesizer extends TileEntityUpgradeab
     @Override
     public void readCustomNBT(NBTTagCompound nbtTags) {
         super.readCustomNBT(nbtTags);
-        inputGasTank.read(nbtTags.getCompoundTag("inputGasTank"));
+        if (!hasStoredGasTanks(nbtTags) && nbtTags.hasKey("inputGasTank")) {
+            inputGasTank.read(nbtTags.getCompoundTag("inputGasTank"));
+        }
+        sanitizeAndClampTank();
     }
 
     @Override
     public void writeCustomNBT(NBTTagCompound nbtTags) {
         super.writeCustomNBT(nbtTags);
-        nbtTags.setTag("inputGasTank", inputGasTank.write(new NBTTagCompound()));
     }
 
 
@@ -196,84 +333,49 @@ public class TileEntityAntiprotonicNucleosynthesizer extends TileEntityUpgradeab
         };
     }
 
-    @Override
-    public int receiveGas(EnumFacing side, GasStack stack, boolean doTransfer) {
-        if (stack == null || stack.getGas() == null) {
-            return 0;
+    private boolean isValidGas(Gas gas) {
+        return RecipeHandler.Recipe.ANTIPROTONIC_NUCLEOSYNTHESIZER.containsRecipe(gas);
+    }
+
+    private boolean hasMatchingSolidInput(ItemStack stack) {
+        return getRecipes().keySet().stream().anyMatch(input -> MachineInput.inputContains(stack, input.getSolid()));
+    }
+
+    private ItemStack getCurrentOutput() {
+        NucleosynthesizerRecipe recipe = getRecipe();
+        if (recipe == null || recipe.getOutput().output.isEmpty()) {
+            return ItemStack.EMPTY;
         }
-        if (canReceiveGas(side, stack.getGas())) {
-            return inputGasTank.receive(stack, doTransfer);
-        }
-        return 0;
+        return recipe.getOutput().output;
     }
 
     @Override
-    public GasStack drawGas(EnumFacing side, int amount, boolean doTransfer) {
-        return null;
+    public Object[] getManagedTanks() {
+        return new Object[]{inputGasTank};
     }
-
-    @Override
-    public boolean canReceiveGas(EnumFacing side, Gas type) {
-        return configComponent.getOutput(TransmissionType.GAS, side, facing).ioState == SideData.IOState.INPUT && inputGasTank.canReceive(type);
-    }
-
-    @Override
-    public boolean canDrawGas(EnumFacing side, Gas type) {
-        return false;
-    }
-
-    @Nonnull
-    @Override
-    public GasTankInfo[] getTankInfo() {
-        return new GasTankInfo[]{inputGasTank};
-    }
-
-    @Override
-    public boolean hasCapability(@Nonnull Capability<?> capability, EnumFacing side) {
-        if (isCapabilityDisabled(capability, side)) {
-            return false;
-        }
-        return capability == Capabilities.GAS_HANDLER_CAPABILITY || super.hasCapability(capability, side);
-    }
-
-    @Override
-    public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing side) {
-        if (isCapabilityDisabled(capability, side)) {
-            return null;
-        } else if (capability == Capabilities.GAS_HANDLER_CAPABILITY) {
-            return Capabilities.GAS_HANDLER_CAPABILITY.cast(this);
-        }
-        return super.getCapability(capability, side);
-    }
-
 
     @Override
     public void writeSustainedData(ItemStack itemStack) {
-        if (inputGasTank.getGas() != null) {
-            ItemDataUtils.setCompound(itemStack, "inputGasTank", inputGasTank.getGas().write(new NBTTagCompound()));
-        }
+        writeSustainedGasTanks(itemStack);
+        ItemDataUtils.setLegacyGas(itemStack, "inputGasTank", inputGasTank.getGas());
     }
 
     @Override
     public void readSustainedData(ItemStack itemStack) {
-        inputGasTank.setGas(GasStack.readFromNBT(ItemDataUtils.getCompound(itemStack, "inputGasTank")));
+        if (!readSustainedGasTanks(itemStack)) {
+            inputGasTank.setStackUnchecked(ItemDataUtils.getLegacyGas(itemStack, "inputGasTank"));
+        }
+        sanitizeAndClampTank();
     }
 
-    @Override
-    public boolean getEnergySlot() {
-        return inventory.get(1).isEmpty();
+    private void sanitizeAndClampTank() {
+        GasStack stored = inputGasTank.getGas();
+        if (stored != null && (stored.amount <= 0 || stored.getGas() == null)) {
+            inputGasTank.setEmpty();
+        } else if (stored != null) {
+            inputGasTank.setStackSize(stored.amount, Action.EXECUTE);
+        }
     }
-
-    @Override
-    public boolean getInputSlot() {
-        return inventory.get(0).isEmpty();
-    }
-
-    @Override
-    public boolean getOuputSlot() {
-        return inventory.get(2).isEmpty();
-    }
-
     @Override
     @SideOnly(Side.CLIENT)
     public Class<?> getSelectionWireframeModelClass() {

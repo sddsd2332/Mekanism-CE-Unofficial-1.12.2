@@ -12,9 +12,9 @@ import mekanism.common.base.ILogisticalTransporter;
 import mekanism.common.block.property.PropertyColor;
 import mekanism.common.block.states.BlockStateTransmitter.TransmitterType;
 import mekanism.common.capabilities.Capabilities;
+import mekanism.common.capabilities.item.CursedTransporterItemHandler;
+import mekanism.common.capabilities.resolver.ICapabilityResolver;
 import mekanism.common.content.transporter.PathfinderCache;
-import mekanism.common.content.transporter.TransitRequest;
-import mekanism.common.content.transporter.TransitRequest.TransitResponse;
 import mekanism.common.content.transporter.TransporterStack;
 import mekanism.common.integration.multipart.MultipartTileNetworkJoiner;
 import mekanism.common.tier.AlloyTier;
@@ -29,7 +29,6 @@ import mekanism.common.util.TransporterUtils;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.nbt.NBTTagList;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumActionResult;
 import net.minecraft.util.EnumFacing;
@@ -37,33 +36,31 @@ import net.minecraft.util.text.TextFormatting;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.property.IExtendedBlockState;
 import net.minecraftforge.fml.common.FMLCommonHandler;
+import net.minecraftforge.items.CapabilityItemHandler;
+import net.minecraftforge.items.IItemHandler;
 
 import javax.annotation.Nonnull;
-import java.util.Collection;
+import javax.annotation.Nullable;
+import java.util.*;
 
 public class TileEntityLogisticalTransporter extends TileEntityTransmitter<TileEntity, InventoryNetwork, Void> {
 
     private final int SYNC_PACKET = 1;
     private final int BATCH_PACKET = 2;
 
-    public TransporterTier tier = TransporterTier.BASIC;
-
-    private int delay = 0;
-    private int delayCount = 0;
-    private int Removetick = 0;
-
     public TileEntityLogisticalTransporter() {
         transmitterDelegate = new TransporterImpl(this);
+        addCapabilityResolver(new TransporterCapabilityResolver());
     }
 
     @Override
     public BaseTier getBaseTier() {
-        return tier.getBaseTier();
+        return getTransmitter().getTier().getBaseTier();
     }
 
     @Override
     public void setBaseTier(BaseTier baseTier) {
-        tier = TransporterTier.get(baseTier);
+        getTransmitter().setTier(TransporterTier.get(baseTier));
     }
 
     @Override
@@ -87,6 +84,10 @@ public class TileEntityLogisticalTransporter extends TileEntityTransmitter<TileE
     @Override
     public TileEntity getCachedAcceptor(EnumFacing side) {
         return getCachedTile(side);
+    }
+
+    public boolean exposesInsertCap(EnumFacing side) {
+        return side != null && connectionTypes[side.ordinal()].canAccept();
     }
 
     @Override
@@ -114,45 +115,28 @@ public class TileEntityLogisticalTransporter extends TileEntityTransmitter<TileE
         getTransmitter().update();
     }
 
-    public void pullItems() {
-        // If a delay has been imposed, wait a bit
-        if (delay > 0) {
-            delay--;
-            return;
-        }
-
-        // Reset delay to 3 ticks; if nothing is available to insert OR inserted, we'll try again
-        // in 3 ticks
-        delay = 3;
-
-        // Attempt to pull
-        for (EnumFacing side : getConnections(ConnectionType.PULL)) {
-            final TileEntity tile = MekanismUtils.getTileEntity(world, getPos().offset(side));
-            if (tile != null) {
-                TransitRequest request = TransitRequest.buildInventoryMap(tile, side, tier.getPullAmount());
-                // There's a stack available to insert into the network...
-                if (!request.isEmpty()) {
-                    TransitResponse response = TransporterUtils.insert(tile, getTransmitter(), request, getTransmitter().getColor(), true, 0);
-
-                    // If the insert succeeded, remove the inserted count and try again for another 10 ticks
-                    if (!response.isEmpty()) {
-                        response.getInvStack(tile, side.getOpposite()).use(response.getSendingAmount());
-                        delay = 10;
-                    } else {
-                        // Insert failed; increment the backoff and calculate delay. Note that we cap retries
-                        // at a max of 40 ticks (2 seocnds), which would be 4 consecutive retries
-                        delayCount++;
-                        delay = Math.min(40, (int) Math.exp(delayCount));
-                    }
-                }
-            }
-        }
-    }
-
     @Override
     public void onWorldJoin() {
         super.onWorldJoin();
         PathfinderCache.onChanged(new Coord4D(getPos(), getWorld()));
+    }
+
+    @Override
+    public void refreshConnections() {
+        invalidateCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null);
+        super.refreshConnections();
+    }
+
+    @Override
+    public void refreshConnections(EnumFacing side) {
+        invalidateCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, side);
+        super.refreshConnections(side);
+    }
+
+    @Override
+    protected void onModeChange(EnumFacing side) {
+        invalidateCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, side);
+        super.onModeChange(side);
     }
 
     @Override
@@ -171,7 +155,7 @@ public class TileEntityLogisticalTransporter extends TileEntityTransmitter<TileE
             int type = dataStream.readInt();
             if (type == 0) {
                 super.handlePacketData(dataStream);
-                tier = MekanismUtils.getByIndex(TransporterTier.values(), dataStream.readInt(), tier);
+                getTransmitter().setTier(MekanismUtils.getByIndex(TransporterTier.values(), dataStream.readInt(), getTransmitter().getTier()));
                 int c = dataStream.readInt();
                 EnumColor prev = getTransmitter().getColor();
                 if (c != -1) {
@@ -202,7 +186,7 @@ public class TileEntityLogisticalTransporter extends TileEntityTransmitter<TileE
     public TileNetworkList getNetworkedData(TileNetworkList data) {
         data.add(0);
         super.getNetworkedData(data);
-        data.add(tier.ordinal());
+        data.add(getTransmitter().getTier().ordinal());
         if (getTransmitter().getColor() != null) {
             data.add(TransporterUtils.colors.indexOf(getTransmitter().getColor()));
         } else {
@@ -255,28 +239,13 @@ public class TileEntityLogisticalTransporter extends TileEntityTransmitter<TileE
     @Override
     public void readCustomNBT(NBTTagCompound nbtTags) {
         super.readCustomNBT(nbtTags);
-        if (nbtTags.hasKey("tier")) {
-            tier = MekanismUtils.getByIndex(TransporterTier.values(), nbtTags.getInteger("tier"), tier);
-        }
         getTransmitter().readCustomNBT(nbtTags);
     }
 
     @Override
     public void writeCustomNBT(NBTTagCompound nbtTags) {
         super.writeCustomNBT(nbtTags);
-        nbtTags.setInteger("tier", tier.ordinal());
-        if (getTransmitter().getColor() != null) {
-            nbtTags.setInteger("color", TransporterUtils.colors.indexOf(getTransmitter().getColor()));
-        }
-        NBTTagList stacks = new NBTTagList();
-        getTransmitter().getTransit().forEach(stack -> {
-            NBTTagCompound tagCompound = new NBTTagCompound();
-            stack.write(tagCompound);
-            stacks.appendTag(tagCompound);
-        });
-        if (stacks.tagCount() != 0) {
-            nbtTags.setTag("stacks", stacks);
-        }
+        getTransmitter().writeCustomNBT(nbtTags);
     }
 
     @Override
@@ -320,6 +289,7 @@ public class TileEntityLogisticalTransporter extends TileEntityTransmitter<TileE
     @Override
     public void onChunkUnload() {
         super.onChunkUnload();
+        invalidateCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null);
         if (!getWorld().isRemote) {
             getTransmitter().getTransit().forEach(stack -> TransporterUtils.drop(getTransmitter(), stack));
         }
@@ -350,13 +320,14 @@ public class TileEntityLogisticalTransporter extends TileEntityTransmitter<TileE
     }
 
     public double getCost() {
-        return (double) TransporterTier.ULTIMATE.getSpeed() / (double) tier.getSpeed();
+        return (double) TransporterTier.ULTIMATE.getSpeed() / (double) getTransmitter().getSpeed();
     }
 
     @Override
     public boolean upgrade(AlloyTier tierOrdinal) {
+        TransporterTier tier = getTransmitter().getTier();
         if (tier.ordinal() < BaseTier.ULTIMATE.ordinal() && tierOrdinal.ordinal() == tier.ordinal()) {
-            tier = TransporterTier.values()[tier.ordinal() + 1];
+            getTransmitter().setTier(TransporterTier.values()[tier.ordinal() + 1]);
             markDirtyTransmitters();
             sendDesc = true;
             return true;
@@ -380,5 +351,52 @@ public class TileEntityLogisticalTransporter extends TileEntityTransmitter<TileE
             return Capabilities.LOGISTICAL_TRANSPORTER_CAPABILITY.cast(getTransmitter());
         }
         return super.getCapability(capability, side);
+    }
+
+    private class TransporterCapabilityResolver implements ICapabilityResolver {
+
+        private final List<Capability<?>> supportedCapabilities = Collections.singletonList(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY);
+        private final Map<EnumFacing, CursedTransporterItemHandler> cursedHandlers = new EnumMap<>(EnumFacing.class);
+        private final Map<EnumFacing, IItemHandler> handlers = new EnumMap<>(EnumFacing.class);
+
+        @Nonnull
+        @Override
+        public List<Capability<?>> getSupportedCapabilities() {
+            return supportedCapabilities;
+        }
+
+        @Override
+        public boolean canResolve(@Nonnull Capability<?> capability, @Nullable EnumFacing side) {
+            return supports(capability) && side != null && exposesInsertCap(side);
+        }
+
+        @Nullable
+        @Override
+        public <T> T resolve(@Nonnull Capability<T> capability, @Nullable EnumFacing side) {
+            if (side == null || !exposesInsertCap(side)) {
+                return null;
+            }
+            IItemHandler handler = handlers.get(side);
+            if (handler == null) {
+                handler = cursedHandlers.computeIfAbsent(side, s -> new CursedTransporterItemHandler(getTransmitter(), Coord4D.get(TileEntityLogisticalTransporter.this).offset(s),
+                      () -> world == null ? -1 : world.getTotalWorldTime(), () -> exposesInsertCap(s)));
+                handlers.put(side, handler);
+            }
+            return CapabilityItemHandler.ITEM_HANDLER_CAPABILITY.cast(handler);
+        }
+
+        @Override
+        public void invalidate(@Nonnull Capability<?> capability, @Nullable EnumFacing side) {
+            if (side == null) {
+                invalidateAll();
+            } else {
+                handlers.remove(side);
+            }
+        }
+
+        @Override
+        public void invalidateAll() {
+            handlers.clear();
+        }
     }
 }

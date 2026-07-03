@@ -1,10 +1,11 @@
 package mekanism.client.jei.machine.other;
 
-import mekanism.client.gui.element.GuiProgress;
-import mekanism.client.gui.element.gauge.GuiGauge;
+import mekanism.client.gui.element.gauge.GaugeType;
 import mekanism.client.gui.element.gauge.GuiNumberGauge;
-import mekanism.client.gui.element.gauge.GuiNumberGauge.INumberInfoHandler;
-import mekanism.client.gui.element.slot.GuiInputSlot;
+import mekanism.client.gui.element.progress.GuiProgress;
+import mekanism.client.gui.element.progress.ProgressType;
+import mekanism.client.gui.element.slot.GuiSlot;
+import mekanism.client.gui.element.slot.SlotType;
 import mekanism.client.jei.BaseRecipeCategory;
 import mekanism.client.render.MekanismRenderer;
 import mekanism.common.recipe.ItemStackToEnergyRecipe;
@@ -20,16 +21,17 @@ import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 public class ItemStackToEnergyRecipeCategory<WRAPPER extends ItemStackToEnergyRecipeWrapper<ItemStackToEnergyRecipe>> extends BaseRecipeCategory<WRAPPER> {
 
     public IGuiHelper helper;
+    private GuiSlot input;
 
     public ItemStackToEnergyRecipeCategory(IGuiHelper helper) {
         super(helper, "mekanism:gui/Null.png", RecipeHandler.Recipe.ENERGY_RECIPE.getJEICategory(),
-                "conversion.mekanism.energy", GuiProgress.ProgressBar.LARGE_RIGHT, 20, 12, 132, 62);
+                "conversion.mekanism.energy", 20, 12, 132, 62, ProgressType.LARGE_RIGHT);
         this.helper = helper;
     }
 
     @Override
     protected void addGuiElements() {
-        guiElements.add(new GuiNumberGauge(new INumberInfoHandler() {
+        guiElements.add(new GuiNumberGauge(new GuiNumberGauge.INumberInfoHandler() {
             @Override
             public TextureAtlasSprite getIcon() {
                 return MekanismRenderer.energyIcon;
@@ -41,30 +43,33 @@ public class ItemStackToEnergyRecipeCategory<WRAPPER extends ItemStackToEnergyRe
             }
 
             @Override
-            public double getMaxLevel() {
+            public double getScaledLevel() {
                 return 1D;
             }
 
             @Override
-            public String getText(double level) {
+            public String getText() {
                 return "";
             }
-        }, GuiGauge.Type.STANDARD, this, guiLocation, 131, 13));
-        guiElements.add(new GuiInputSlot(this, guiLocation, 25, 35));
-        guiElements.add(new GuiProgress(new GuiProgress.IProgressInfoHandler() {
+        }, GaugeType.STANDARD, this, 133, 13));
+        input = addElement(new GuiSlot(SlotType.INPUT, this, 25, 35).setRenderAboveSlots());
+        guiElements.add(new GuiProgress(new mekanism.client.gui.element.progress.IProgressInfoHandler() {
             @Override
             public double getProgress() {
                 return (double) timer.getValue() / 20F;
             }
-        }, progressBar, this, guiLocation, 62, 39, false));
+            @Override
+            public boolean isGuiInJei() {
+                return true;
+            }
+        }, progressType, this, 64, 40));
     }
 
     @Override
     public void setRecipe(IRecipeLayout recipeLayout, WRAPPER recipeWrapper, IIngredients ingredients) {
         ItemStackToEnergyRecipe tempRecipe = recipeWrapper.getRecipe();
         IGuiItemStackGroup itemStacks = recipeLayout.getItemStacks();
-        itemStacks.init(0, true, 25 - xOffset, 35 - yOffset);
-        itemStacks.set(0, tempRecipe.getInput().ingredient);
+        initItem(itemStacks, 0, true, input, tempRecipe.getInput().ingredient);
     }
 
     @Override

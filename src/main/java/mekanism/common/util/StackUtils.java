@@ -1,5 +1,6 @@
 package mekanism.common.util;
 
+import mekanism.api.inventory.IInventorySlot;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.player.EntityPlayer;
@@ -74,6 +75,30 @@ public final class StackUtils {
         for (int i = 0; i < toAdd.size(); i++) {
             if (!toAdd.get(i).isEmpty()) {
                 orig.set(i, merge(orig.get(i), toAdd.get(i)));
+            }
+        }
+    }
+
+    public static List<ItemStack> getMergeRejects(List<IInventorySlot> orig, List<IInventorySlot> toAdd) {
+        List<ItemStack> ret = new ArrayList<>();
+        for (int i = 0; i < toAdd.size(); i++) {
+            IInventorySlot toAddSlot = toAdd.get(i);
+            if (!toAddSlot.isEmpty()) {
+                ItemStack reject = getMergeReject(orig.get(i).getStack(), toAddSlot.getStack());
+                if (!reject.isEmpty()) {
+                    ret.add(reject);
+                }
+            }
+        }
+        return ret;
+    }
+
+    public static void merge(List<IInventorySlot> orig, List<IInventorySlot> toAdd) {
+        for (int i = 0; i < toAdd.size(); i++) {
+            IInventorySlot toAddSlot = toAdd.get(i);
+            if (!toAddSlot.isEmpty()) {
+                IInventorySlot origSlot = orig.get(i);
+                origSlot.setStack(merge(origSlot.getStack(), toAddSlot.getStack()));
             }
         }
     }

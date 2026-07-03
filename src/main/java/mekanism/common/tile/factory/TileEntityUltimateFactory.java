@@ -6,7 +6,6 @@ import mekanism.common.tier.FactoryTier;
 public class TileEntityUltimateFactory extends TileEntityFactory {
 
     public TileEntityUltimateFactory() {
-        super(FactoryTier.ULTIMATE, BlockStateMachine.MachineType.ULTIMATE_FACTORY, 0);
-
+        super(FactoryTier.ULTIMATE, BlockStateMachine.MachineType.ULTIMATE_FACTORY);
     }
 }

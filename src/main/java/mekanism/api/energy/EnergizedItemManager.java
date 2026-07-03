@@ -2,41 +2,40 @@ package mekanism.api.energy;
 
 import net.minecraft.item.ItemStack;
 
-public class EnergizedItemManager {
+/**
+ * Legacy 1.12 item energy helper.
+ *
+ * @deprecated Use the strict energy capability APIs instead.
+ */
+@Deprecated
+public final class EnergizedItemManager {
+
+    private EnergizedItemManager() {
+    }
 
     /**
-     * Discharges an IEnergizedItem with the defined amount of energy.
+     * Discharges a legacy energized item.
      *
-     * @param itemStack - ItemStack to discharge
-     * @param amount    - amount of energy to discharge from the item, usually the total amount of energy needed in a TileEntity
-     * @return amount of energy discharged
+     * @deprecated Use the strict energy capability APIs instead.
      */
+    @Deprecated
     public static double discharge(ItemStack itemStack, double amount) {
-        if (!itemStack.isEmpty() && itemStack.getItem() instanceof IEnergizedItem energizedItem) {
-            if (energizedItem.canSend(itemStack)) {
-                double energyToUse = Math.min(energizedItem.getMaxTransfer(itemStack), Math.min(energizedItem.getEnergy(itemStack), amount));
-                energizedItem.setEnergy(itemStack, energizedItem.getEnergy(itemStack) - energyToUse);
-                return energyToUse;
-            }
+        if (!itemStack.isEmpty() && itemStack.getItem() instanceof IEnergizedItem energizedItem && energizedItem.canSend(itemStack)) {
+            return energizedItem.extract(itemStack, Math.min(energizedItem.getMaxTransfer(itemStack), amount), true);
         }
         return 0;
     }
 
     /**
-     * Charges an IEnergizedItem with the defined amount of energy.
+     * Charges a legacy energized item.
      *
-     * @param itemStack - ItemStack to charge
-     * @param amount    - amount of energy to charge the item with, usually the total amount of energy stored in a TileEntity
-     * @return amount of energy charged
+     * @deprecated Use the strict energy capability APIs instead.
      */
+    @Deprecated
     public static double charge(ItemStack itemStack, double amount) {
-        if (!itemStack.isEmpty() && itemStack.getItem() instanceof IEnergizedItem energizedItem) {
-            if (energizedItem.canReceive(itemStack)) {
-                double energyToSend = Math.min(energizedItem.getMaxTransfer(itemStack),
-                        Math.min(energizedItem.getMaxEnergy(itemStack) - energizedItem.getEnergy(itemStack), amount));
-                energizedItem.setEnergy(itemStack, energizedItem.getEnergy(itemStack) + energyToSend);
-                return energyToSend;
-            }
+        if (!itemStack.isEmpty() && itemStack.getItem() instanceof IEnergizedItem energizedItem && energizedItem.canReceive(itemStack)) {
+            double toSend = Math.min(energizedItem.getMaxTransfer(itemStack), amount);
+            return toSend - energizedItem.insert(itemStack, toSend, true);
         }
         return 0;
     }

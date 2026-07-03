@@ -5,8 +5,10 @@ import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasStack;
 import mekanism.api.gas.IGasItem;
 import mekanism.common.MekanismFluids;
+import mekanism.common.capabilities.ItemCapabilityWrapper;
+import mekanism.common.capabilities.gas.item.RateLimitGasHandler;
 import mekanism.common.config.MekanismConfig;
-import mekanism.common.util.ItemDataUtils;
+import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.util.LangUtils;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.creativetab.CreativeTabs;
@@ -22,6 +24,7 @@ import net.minecraft.util.EnumHand;
 import net.minecraft.util.NonNullList;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.world.World;
+import net.minecraftforge.common.capabilities.ICapabilityProvider;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
@@ -47,7 +50,7 @@ public class ItemCanteen extends ItemMekanism implements IGasItem {
         if (gasStack == null) {
             list.add(LangUtils.localize("tooltip.noGas") + ".");
         } else {
-            list.add(LangUtils.localize("tooltip.stored") + " " + gasStack.getGas().getLocalizedName() + ": " + getStored(itemstack));
+            list.add(LangUtils.localize("tooltip.stored") + " " + gasStack.getGas().getLocalizedName() + ": " + gasStack.amount);
         }
     }
 
@@ -58,7 +61,8 @@ public class ItemCanteen extends ItemMekanism implements IGasItem {
 
     @Override
     public double getDurabilityForDisplay(ItemStack stack) {
-        return 1D - ((getGas(stack) != null ? (double) getGas(stack).amount : 0D) / (double) getMaxGas(stack));
+        GasStack gas = getGas(stack);
+        return 1D - ((gas != null ? (double) gas.amount : 0D) / (double) getMaxGas(stack));
     }
 
     @Override
@@ -67,14 +71,17 @@ public class ItemCanteen extends ItemMekanism implements IGasItem {
     }
 
     public GasStack useGas(ItemStack itemstack, int amount) {
-        GasStack gas = getGas(itemstack);
-        if (gas == null) {
-            return null;
-        }
-        Gas type = gas.getGas();
-        int gasToUse = Math.min(gas.amount, Math.min(getRate(itemstack), amount));
-        setGas(itemstack, new GasStack(type, gas.amount - gasToUse));
-        return new GasStack(type, gasToUse);
+        return GasInventorySlot.useGas(itemstack, MekanismFluids.NutritionalPaste, amount);
+    }
+
+    public boolean hasGas(ItemStack itemstack) {
+        GasStack stored = getContainedGas(itemstack);
+        return stored != null && stored.amount > 0;
+    }
+
+    public GasStack getContainedGas(ItemStack itemstack) {
+        GasStack stored = getGas(itemstack);
+        return stored != null && stored.getGas() == MekanismFluids.NutritionalPaste ? stored : null;
     }
 
     @Override
@@ -89,24 +96,37 @@ public class ItemCanteen extends ItemMekanism implements IGasItem {
 
     @Override
     public int addGas(ItemStack itemstack, GasStack stack) {
-        if (getGas(itemstack) != null && getGas(itemstack).getGas() != stack.getGas()) {
+        GasStack storedGas = getGas(itemstack);
+        if (storedGas != null && storedGas.getGas() != stack.getGas()) {
             return 0;
         }
         if (stack.getGas() != MekanismFluids.NutritionalPaste) {
             return 0;
         }
-        int toUse = Math.min(getMaxGas(itemstack) - getStored(itemstack), Math.min(getRate(itemstack), stack.amount));
-        setGas(itemstack, new GasStack(stack.getGas(), getStored(itemstack) + toUse));
+        int stored = storedGas == null ? 0 : storedGas.amount;
+        int toUse = Math.min(getMaxGas(itemstack) - stored, Math.min(getRate(itemstack), stack.amount));
+        setGas(itemstack, new GasStack(stack.getGas(), stored + toUse));
         return toUse;
     }
 
     @Override
     public GasStack removeGas(ItemStack itemstack, int amount) {
-        return null;
+        GasStack gas = getGas(itemstack);
+        if (gas == null || gas.getGas() != MekanismFluids.NutritionalPaste || amount <= 0) {
+            return null;
+        }
+        int gasToUse = Math.min(gas.amount, Math.min(getRate(itemstack), amount));
+        if (gasToUse <= 0) {
+            return null;
+        }
+        int remaining = gas.amount - gasToUse;
+        setGas(itemstack, remaining <= 0 ? null : new GasStack(gas.getGas(), remaining));
+        return new GasStack(gas.getGas(), gasToUse);
     }
 
     public int getStored(ItemStack itemstack) {
-        return getGas(itemstack) != null ? getGas(itemstack).amount : 0;
+        GasStack gas = getGas(itemstack);
+        return gas == null ? 0 : gas.amount;
     }
 
 
@@ -117,25 +137,28 @@ public class ItemCanteen extends ItemMekanism implements IGasItem {
 
     @Override
     public boolean canProvideGas(ItemStack itemstack, Gas type) {
-        return false;
+        GasStack gas = getGas(itemstack);
+        return gas != null && gas.amount > 0 && (type == null || gas.getGas() == type);
     }
 
     @Override
     public GasStack getGas(ItemStack itemstack) {
-        return GasStack.readFromNBT(ItemDataUtils.getCompound(itemstack, "stored"));
+        return GasInventorySlot.getStoredGas(itemstack, "stored");
     }
 
     @Override
     public void setGas(ItemStack itemstack, GasStack stack) {
-        if (stack == null || stack.amount <= 0) {
-            ItemDataUtils.removeData(itemstack, "stored");
-        } else if (stack.getGas() != MekanismFluids.NutritionalPaste) {
+        if (stack != null && stack.getGas() != null && stack.getGas() != MekanismFluids.NutritionalPaste) {
             return;
-        } else {
-            int amount = Math.max(0, Math.min(stack.amount, getMaxGas(itemstack)));
-            GasStack gasStack = new GasStack(stack.getGas(), amount);
-            ItemDataUtils.setCompound(itemstack, "stored", gasStack.write(new NBTTagCompound()));
         }
+        GasInventorySlot.setStoredGas(itemstack, stack, "stored", getMaxGas(itemstack));
+    }
+
+    @Override
+    public ICapabilityProvider initCapabilities(ItemStack stack, NBTTagCompound nbt) {
+        return new ItemCapabilityWrapper(stack, RateLimitGasHandler.create(() -> getRate(stack), () -> getMaxGas(stack),
+              mekanism.api.functions.ConstantPredicates.notExternal(), mekanism.api.functions.ConstantPredicates.alwaysTrueBi(),
+              gasStack -> gasStack != null && gasStack.getGas() == MekanismFluids.NutritionalPaste, "stored"));
     }
 
 
@@ -148,7 +171,7 @@ public class ItemCanteen extends ItemMekanism implements IGasItem {
         setGas(empty, null);
         list.add(empty);
         ItemStack filled = new ItemStack(this);
-        setGas(filled, new GasStack(MekanismFluids.NutritionalPaste, ((IGasItem) filled.getItem()).getMaxGas(filled)));
+        setGas(filled, new GasStack(MekanismFluids.NutritionalPaste, getMaxGas(filled)));
         list.add(filled);
     }
 
@@ -157,10 +180,15 @@ public class ItemCanteen extends ItemMekanism implements IGasItem {
     @Override
     public ItemStack onItemUseFinish(ItemStack stack, World worldIn, EntityLivingBase entityLiving) {
         if (!worldIn.isRemote && entityLiving instanceof EntityPlayer player && player.canEat(false)) {
-            int needed = Math.min(20 - player.getFoodStats().getFoodLevel(), getStored(stack) / MekanismConfig.current().general.nutritionalPasteMBPerFood.val());
+            GasStack stored = getContainedGas(stack);
+            int storedAmount = stored == null ? 0 : stored.amount;
+            int needed = Math.min(20 - player.getFoodStats().getFoodLevel(), storedAmount / MekanismConfig.current().general.nutritionalPasteMBPerFood.val());
             if (needed > 0) {
-                player.getFoodStats().addStats(needed, MekanismConfig.current().general.nutritionalPasteSaturation.val());
-                useGas(stack, needed * MekanismConfig.current().general.nutritionalPasteMBPerFood.val());
+                GasStack used = useGas(stack, needed * MekanismConfig.current().general.nutritionalPasteMBPerFood.val());
+                int fed = used == null ? 0 : used.amount / MekanismConfig.current().general.nutritionalPasteMBPerFood.val();
+                if (fed > 0) {
+                    player.getFoodStats().addStats(fed, MekanismConfig.current().general.nutritionalPasteSaturation.val());
+                }
             }
         }
         return stack;

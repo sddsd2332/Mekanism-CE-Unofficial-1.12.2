@@ -1,27 +1,33 @@
 package mekanism.common.tile.prefab;
 
-import mekanism.api.gas.GasTank;
-import mekanism.api.transmitters.TransmissionType;
-import mekanism.common.Mekanism;
+import mekanism.api.gas.GasStack;
+import mekanism.common.InfuseStorage;
 import mekanism.common.MekanismBlocks;
-import mekanism.common.Upgrade;
 import mekanism.common.base.IFactory.RecipeType;
-import mekanism.common.base.ITierUpgradeable;
+import mekanism.common.base.IUpgradeableTile;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
+import mekanism.common.recipe.cache.CachedRecipe.OperationTracker.RecipeError;
 import mekanism.common.recipe.inputs.MachineInput;
 import mekanism.common.recipe.machines.MachineRecipe;
 import mekanism.common.recipe.outputs.MachineOutput;
 import mekanism.common.tier.BaseTier;
-import mekanism.common.tile.factory.TileEntityFactory;
+import mekanism.common.upgrade.FactoryUpgradeData;
+import mekanism.common.upgrade.IUpgradeData;
+import net.minecraft.block.state.IBlockState;
 import net.minecraft.item.ItemStack;
-import net.minecraftforge.fluids.FluidTank;
+import net.minecraft.nbt.NBTTagCompound;
+import net.minecraftforge.fluids.FluidStack;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.List;
 
 /**
  * 可用升级的机器类型 ，一般用于工厂
  */
 
 public abstract class TileEntityUpgradeableMachine<INPUT extends MachineInput<INPUT>, OUTPUT extends MachineOutput<OUTPUT>, RECIPE extends MachineRecipe<INPUT, OUTPUT, RECIPE>> extends
-        TileEntityBasicMachine<INPUT, OUTPUT, RECIPE> implements ITierUpgradeable {
+        TileEntityBasicMachine<INPUT, OUTPUT, RECIPE> implements IUpgradeableTile {
 
 
     /**
@@ -35,103 +41,130 @@ public abstract class TileEntityUpgradeableMachine<INPUT extends MachineInput<IN
         super(soundPath, type, upgradeSlot, baseTicksRequired);
     }
 
+    public TileEntityUpgradeableMachine(String soundPath, MachineType type, int upgradeSlot, int baseTicksRequired, List<RecipeError> trackedErrorTypes) {
+        super(soundPath, type, upgradeSlot, baseTicksRequired, trackedErrorTypes);
+    }
+
     public boolean isUpgrade = true;
 
+    protected long getSavedUsedSoFarForUpgrade() {
+        return 0;
+    }
+
     @Override
-    public boolean upgrade(BaseTier upgradeTier) {
-        if (upgradeTier != BaseTier.BASIC) {
-            return false;
+    public boolean canInstallUpgrade(BaseTier upgradeTier) {
+        return upgradeTier == BaseTier.BASIC && getRecipeTypeForUpgrade() != null;
+    }
+
+    @Nullable
+    private RecipeType getRecipeTypeForUpgrade() {
+        MachineType machineType = MachineType.get(getBlockType(), getBlockMetadata());
+        if (machineType == null) {
+            return null;
         }
-        RecipeType type = RecipeType.getFromMachine(getBlockType(), getBlockMetadata());
+        return switch (machineType) {
+            case ENERGIZED_SMELTER -> RecipeType.SMELTING;
+            case ENRICHMENT_CHAMBER -> RecipeType.ENRICHING;
+            case CRUSHER -> RecipeType.CRUSHING;
+            case OSMIUM_COMPRESSOR -> RecipeType.COMPRESSING;
+            case COMBINER -> RecipeType.COMBINING;
+            case PURIFICATION_CHAMBER -> RecipeType.PURIFYING;
+            case CHEMICAL_INJECTION_CHAMBER -> RecipeType.INJECTING;
+            case METALLURGIC_INFUSER -> RecipeType.INFUSING;
+            case PRECISION_SAWMILL -> RecipeType.SAWING;
+            case STAMPING -> RecipeType.STAMPING;
+            case ROLLING -> RecipeType.ROLLING;
+            case BRUSHED -> RecipeType.BRUSHED;
+            case TURNING -> RecipeType.TURNING;
+            case ALLOY -> RecipeType.AllOY;
+            case CELL_EXTRACTOR -> RecipeType.EXTRACTOR;
+            case CELL_SEPARATOR -> RecipeType.SEPARATOR;
+            case ORGANIC_FARM -> RecipeType.FARM;
+            case RECYCLER -> RecipeType.RECYCLER;
+            case PRESSURIZED_REACTION_CHAMBER -> RecipeType.PRC;
+            case ANTIPROTONIC_NUCLEOSYNTHESIZER -> RecipeType.NUCLEOSYNTHESIZER;
+            default -> null;
+        };
+    }
+
+    @Nullable
+    @Override
+    public IBlockState getUpgradeResult(BaseTier upgradeTier) {
+        return canInstallUpgrade(upgradeTier) ? MekanismBlocks.MachineBlock.getStateFromMeta(5) : null;
+    }
+
+    @Override
+    public void prepareForUpgrade() {
         isUpgrade = false;
-        world.setBlockToAir(getPos());
-        world.setBlockState(getPos(), MekanismBlocks.MachineBlock.getStateFromMeta(5), 3);
-        if (world.getTileEntity(getPos()) instanceof TileEntityFactory factory) {
-            //Basic
-            factory.facing = facing;
-            factory.clientFacing = clientFacing;
-            factory.ticker = ticker;
-            factory.redstone = redstone;
-            factory.redstoneLastTick = redstoneLastTick;
-            factory.doAutoSync = doAutoSync;
+    }
 
-            //Electric
-            factory.electricityStored.set(electricityStored.get());
-
-            //Machine
-            factory.progress[0] = operatingTicks;
-            factory.isActive = isActive;
-            factory.setControlType(getControlType());
-            factory.prevEnergy = prevEnergy;
-            factory.upgradeComponent.readFrom(upgradeComponent);
-            factory.upgradeComponent.setUpgradeSlot(0);
-            factory.ejectorComponent.readFrom(ejectorComponent);
-
-            factory.ejectorComponent.setOutputData(TransmissionType.ITEM, factory.configComponent.getOutputs(TransmissionType.ITEM).get(2));
-            factory.ejectorComponent.setInputOutputData(TransmissionType.ITEM, factory.configComponent.getOutputs(TransmissionType.ITEM).get(6));
-            factory.ejectorComponent.setInputExtraOutputData(TransmissionType.ITEM, factory.configComponent.getOutputs(TransmissionType.ITEM).get(11));
-
-            factory.ejectorComponent.setOutputData(TransmissionType.GAS, factory.configComponent.getOutputs(TransmissionType.GAS).get(2));
-            factory.ejectorComponent.setInputOutputData(TransmissionType.GAS, factory.configComponent.getOutputs(TransmissionType.GAS).get(3));
-
-            factory.setRecipeType(type);
-            factory.upgradeComponent.setSupported(Upgrade.GAS, type.fuelEnergyUpgrades());
-            factory.securityComponent.readFrom(securityComponent);
-            configComponent.getTransmissions().forEach(transmission -> {
-                factory.configComponent.setConfig(transmission, configComponent.getConfig(transmission).asByteArray());
-                factory.configComponent.setEjecting(transmission, configComponent.isEjecting(transmission));
-            });
-
-            upgradeInventory(factory);
-
-            factory.upgradeComponent.getSupportedTypes().forEach(factory::recalculateUpgradables);
-
-            factory.upgraded = true;
-            factory.isUpgrade = true;
-            factory.markNoUpdateSync();
-            Mekanism.packetHandler.sendUpdatePacket(factory);
-            return true;
+    @Nullable
+    @Override
+    public IUpgradeData getUpgradeData(BaseTier upgradeTier) {
+        RecipeType recipeType = getRecipeTypeForUpgrade();
+        if (upgradeTier != BaseTier.BASIC || recipeType == null) {
+            return null;
         }
-
-        return false;
+        return new FactoryUpgradeData(upgradeTier, facing, clientFacing, ticker, redstone, redstoneLastTick, doAutoSync, electricityStored.get(), isActive,
+              prevEnergy, getControlType(), writeUpgradeComponentData(), recipeType, false, new int[]{operatingTicks}, new long[]{getSavedUsedSoFarForUpgrade()},
+              getInfusionForUpgrade(), getEnergySlotForUpgrade(), getExtraSlotForUpgrade(), new ItemStack[]{getInputSlotForUpgrade()},
+              new ItemStack[]{getOutputSlotForUpgrade()}, new ItemStack[]{getSecondaryOutputSlotForUpgrade()}, getInputGasForUpgrade(), getOutputGasForUpgrade(),
+              getInputFluidForUpgrade());
     }
 
-    protected abstract void upgradeInventory(TileEntityFactory factory);
-
-    protected void setUpgradeSlot(TileEntityFactory factory, ItemStack stack) {
-        factory.inventory.set(0, stack);
+    @Nonnull
+    private NBTTagCompound writeUpgradeComponentData() {
+        NBTTagCompound componentData = new NBTTagCompound();
+        upgradeComponent.write(componentData);
+        configComponent.write(componentData);
+        ejectorComponent.write(componentData);
+        securityComponent.write(componentData);
+        return componentData;
     }
 
-    protected void setEnergySlotItem(TileEntityFactory factory, ItemStack stack) {
-        factory.inventory.set(1, stack);
+    @Nonnull
+    protected InfuseStorage getInfusionForUpgrade() {
+        return new InfuseStorage();
     }
 
-    protected void setExtraSlotItem(TileEntityFactory factory, ItemStack stack) {
-        factory.inventory.set(4, stack);
+    @Nonnull
+    protected ItemStack getEnergySlotForUpgrade() {
+        return ItemStack.EMPTY;
     }
 
-    protected void setInputSlotItem(TileEntityFactory factory, ItemStack stack) {
-        factory.inventory.set(TileEntityFactory.getSlotsWithTier(factory.tier)[0], stack);
+    @Nonnull
+    protected ItemStack getInputSlotForUpgrade() {
+        return ItemStack.EMPTY;
     }
 
-    protected void setOutputSlotItem(TileEntityFactory factory, ItemStack stack) {
-        factory.inventory.set(TileEntityFactory.getOutputSlotsWithTier(factory.tier)[0], stack);
+    @Nonnull
+    protected ItemStack getExtraSlotForUpgrade() {
+        return ItemStack.EMPTY;
     }
 
-    protected void setSecondaryOutputSlotItem(TileEntityFactory factory, ItemStack stack) {
-        factory.inventory.set(TileEntityFactory.getSecondaryOutputSlotsWithTier(factory.tier)[0], stack);
+    @Nonnull
+    protected ItemStack getOutputSlotForUpgrade() {
+        return ItemStack.EMPTY;
     }
 
-    protected void setInputGasTank(TileEntityFactory factory, GasTank gasTank) {
-        factory.gasTank.setGas(gasTank.getGas());
+    @Nonnull
+    protected ItemStack getSecondaryOutputSlotForUpgrade() {
+        return ItemStack.EMPTY;
     }
 
-    protected void setInputFluidTank(TileEntityFactory factory, FluidTank fluidTank) {
-        factory.fluidTank.setFluid(fluidTank.getFluid());
+    @Nullable
+    protected GasStack getInputGasForUpgrade() {
+        return null;
     }
 
-    protected void setOutputGasTank(TileEntityFactory factory, GasTank gasTank) {
-        factory.gasOutTank.setGas(gasTank.getGas());
+    @Nullable
+    protected GasStack getOutputGasForUpgrade() {
+        return null;
+    }
+
+    @Nullable
+    protected FluidStack getInputFluidForUpgrade() {
+        return null;
     }
 
     @Override

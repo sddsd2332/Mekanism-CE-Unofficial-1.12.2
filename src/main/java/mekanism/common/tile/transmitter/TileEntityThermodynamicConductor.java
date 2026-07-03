@@ -3,11 +3,14 @@ package mekanism.common.tile.transmitter;
 import io.netty.buffer.ByteBuf;
 import mekanism.api.IHeatTransfer;
 import mekanism.api.TileNetworkList;
+import mekanism.api.heat.IHeatCapacitor;
 import mekanism.api.transmitters.TransmissionType;
 import mekanism.common.ColourRGBA;
 import mekanism.common.Mekanism;
 import mekanism.common.block.states.BlockStateTransmitter.TransmitterType;
 import mekanism.common.capabilities.Capabilities;
+import mekanism.common.capabilities.holder.heat.ProxiedHeatCapacitorHolder;
+import mekanism.common.capabilities.resolver.manager.HeatHandlerManager;
 import mekanism.common.tier.AlloyTier;
 import mekanism.common.tier.BaseTier;
 import mekanism.common.tier.ConductorTier;
@@ -21,7 +24,10 @@ import net.minecraft.util.EnumFacing;
 import net.minecraftforge.common.capabilities.Capability;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 public class TileEntityThermodynamicConductor extends TileEntityTransmitter<IHeatTransfer, HeatNetwork, Void> implements IHeatTransfer {
 
@@ -30,6 +36,12 @@ public class TileEntityThermodynamicConductor extends TileEntityTransmitter<IHea
     public double temperature = 0;
     public double clientTemperature = 0;
     public double heatToAbsorb = 0;
+
+    private final HeatHandlerManager heatHandlerManager = new HeatHandlerManager(ProxiedHeatCapacitorHolder.create(
+          side -> true,
+          side -> true,
+          this::getConductorHeatTransfers
+    ));
 
     @Override
     public BaseTier getBaseTier() {
@@ -189,15 +201,20 @@ public class TileEntityThermodynamicConductor extends TileEntityTransmitter<IHea
 
     @Override
     public boolean hasCapability(@Nonnull Capability<?> capability, EnumFacing side) {
-        return capability == Capabilities.HEAT_TRANSFER_CAPABILITY || super.hasCapability(capability, side);
+        return heatHandlerManager.canResolve(capability, side) || super.hasCapability(capability, side);
     }
 
     @Override
     public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing side) {
-        if (capability == Capabilities.HEAT_TRANSFER_CAPABILITY) {
-            return Capabilities.HEAT_TRANSFER_CAPABILITY.cast(this);
+        if (heatHandlerManager.canResolve(capability, side)) {
+            return heatHandlerManager.resolve(capability, side);
         }
         return super.getCapability(capability, side);
+    }
+
+    @Nonnull
+    private List<IHeatCapacitor> getConductorHeatTransfers(@Nullable EnumFacing side) {
+        return isRedstoneActivated() || side != null && !canConnect(side) ? Collections.emptyList() : Collections.singletonList(this);
     }
 
     @Override

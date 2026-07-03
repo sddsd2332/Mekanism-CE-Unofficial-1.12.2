@@ -1,9 +1,10 @@
 package mekanism.common.recipe.inputs;
 
+import mekanism.api.Action;
+import mekanism.api.inventory.IInventorySlot;
 import mekanism.common.util.StackUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.NonNullList;
 import net.minecraftforge.oredict.OreDictionary;
 
 public class ItemStackInput extends MachineInput<ItemStackInput> implements IWildInput<ItemStackInput> {
@@ -49,10 +50,10 @@ public class ItemStackInput extends MachineInput<ItemStackInput> implements IWil
         return this.wildVersion;
     }
 
-    public boolean useItemStackFromInventory(NonNullList<ItemStack> inventory, int index, boolean deplete) {
-        if (inputContains(inventory.get(index), ingredient)) {
+    public boolean useItemStackFromSlot(IInventorySlot slot, boolean deplete) {
+        if (inputContains(slot.getStack(), ingredient)) {
             if (deplete) {
-                inventory.set(index, StackUtils.subtract(inventory.get(index), ingredient));
+                slot.shrinkStack(ingredient.getCount(), Action.EXECUTE);
             }
             return true;
         }

@@ -1,39 +1,42 @@
 package mekanism.generators.common.tile;
 
 import io.netty.buffer.ByteBuf;
-import mekanism.api.Coord4D;
-import mekanism.api.TileNetworkList;
+import mekanism.api.*;
 import mekanism.common.base.IBoundingBlock;
-import mekanism.common.base.IMachineSlotTip;
 import mekanism.common.base.ISpecialSelectionWireframeTile;
+import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
+import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
 import mekanism.common.config.MekanismConfig;
-import mekanism.common.util.ChargeUtils;
+import mekanism.common.inventory.slot.EnergyInventorySlot;
 import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.NonNullListSynchronized;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
-import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.IBlockAccess;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
-import javax.annotation.Nonnull;
-
-public class TileEntityWindGenerator extends TileEntityGenerator implements IBoundingBlock, IMachineSlotTip, ISpecialSelectionWireframeTile {
+public class TileEntityWindGenerator extends TileEntityGenerator implements IBoundingBlock, ISpecialSelectionWireframeTile {
 
     public static final float SPEED = 32F;
     public static final float SPEED_SCALED = 256F / SPEED;
     static final String[] methods = new String[]{"getEnergy", "getOutput", "getMaxEnergy", "getEnergyNeeded", "getMultiplier"};
-    private static final int[] SLOTS = {0};
     private double angle;
     private float currentMultiplier;
     private boolean isBlacklistDimension = false;
+    private EnergyInventorySlot energySlot;
 
     public TileEntityWindGenerator() {
         super("wind", "WindGenerator", MekanismConfig.current().generators.windGeneratorStorage.val(), MekanismConfig.current().generators.windGenerationMax.val() * 2);
-        inventory = NonNullListSynchronized.withSize(SLOTS.length, ItemStack.EMPTY);
+        initializeInventorySlots();
+    }
+
+    @Override
+    protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
+        InventorySlotHelper builder = createInventorySlotHelper();
+        energySlot = builder.addSlot(EnergyInventorySlot.drain(this, listener, 143, 35));
+        return builder.build();
     }
 
     @Override
@@ -52,7 +55,7 @@ public class TileEntityWindGenerator extends TileEntityGenerator implements IBou
     @Override
     public void onAsyncUpdateServer() {
         super.onAsyncUpdateServer();
-        ChargeUtils.charge(0, this);
+        energySlot.drainContainer();
         // If we're in a blacklisted dimension, there's nothing more to do
         if (isBlacklistDimension) {
             return;
@@ -63,7 +66,7 @@ public class TileEntityWindGenerator extends TileEntityGenerator implements IBou
             setActive(MekanismUtils.canFunction(this) && currentMultiplier > 0);
         }
         if (getActive()) {
-            setEnergy(electricityStored.get() + getEnergyAdd());
+            getEnergyContainer().insert(getEnergyAdd(), Action.EXECUTE, AutomationType.INTERNAL);
         }
     }
 
@@ -144,7 +147,7 @@ public class TileEntityWindGenerator extends TileEntityGenerator implements IBou
 
     @Override
     public boolean canOperate() {
-        return electricityStored.get() < BASE_MAX_ENERGY && getMultiplier() > 0 && MekanismUtils.canFunction(this);
+        return getEnergyContainer().getNeeded() > 0 && getMultiplier() > 0 && MekanismUtils.canFunction(this);
     }
 
     @Override
@@ -188,35 +191,7 @@ public class TileEntityWindGenerator extends TileEntityGenerator implements IBou
     public boolean isBlacklistDimension() {
         return isBlacklistDimension;
     }
-
-
-    @Nonnull
-    @Override
-    public int[] getSlotsForFace(@Nonnull EnumFacing side) {
-        return SLOTS;
-    }
-
-    @Override
-    public boolean isItemValidForSlot(int slot, @Nonnull ItemStack stack) {
-        return ChargeUtils.canBeCharged(stack);
-    }
-
-    @Override
-    public boolean getEnergySlot() {
-        return inventory.get(0).isEmpty();
-    }
-
-    @Override
-    public boolean getInputSlot() {
-        return false;
-    }
-
-    @Override
-    public boolean getOuputSlot() {
-        return false;
-    }
-
-    @Override
+@Override
     @SideOnly(Side.CLIENT)
     public Class<?> getSelectionWireframeModelClass() {
         return mekanism.generators.client.model.ModelWindGenerator.class;

@@ -5,7 +5,6 @@ import mekanism.api.EnumColor;
 import mekanism.api.radial.RadialData;
 import mekanism.api.radial.mode.INestedRadialMode;
 import mekanism.api.radial.mode.IRadialMode;
-import mekanism.client.gui.element.GuiUtils;
 import mekanism.client.render.MekanismRenderer;
 import mekanism.common.Mekanism;
 import mekanism.common.MekanismLang;

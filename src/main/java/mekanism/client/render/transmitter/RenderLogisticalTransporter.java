@@ -84,7 +84,7 @@ public class RenderLogisticalTransporter extends RenderTransmitterBase<TileEntit
             entityItem.setPosition(transporter.getPos().getX() + 0.5, transporter.getPos().getY() + 0.5, transporter.getPos().getZ() + 0.5);
             entityItem.world = transporter.getWorld();
 
-            float partial = partialTick * transporter.tier.getSpeed();
+            float partial = partialTick * transporter.getTransmitter().getSpeed();
             Collection<TransporterStack> reducedTransit = getReducedTransit(inTransit);
             reducedTransit.forEach(stack -> {
                 entityItem.setItem(stack.itemStack);

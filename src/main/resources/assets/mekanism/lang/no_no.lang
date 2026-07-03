@@ -784,3 +784,20 @@ mekanism.configgui.ctgy.tools.tools=Verktøy Balanse
 mekanism.configgui.ctgy.tools.general.tooltip=Innstillinger vedrørende MekanismTools' generell konfigurasjon.
 mekanism.configgui.ctgy.tools.armor.tooltip=Innstillinger vedrørende beskyttelses verdier og balanse for MekanismTools rustninger.
 mekanism.configgui.ctgy.tools.tools.tooltip=Innstillinger vedrørende effektivitet verdier og balanse for MekanismTools verktøy.
+
+# Migration GUI keys
+gui.trusted=Trusted
+gui.inputRate=Input Rate
+gui.progress=Progress
+gui.processRate=Process Rate
+mekanism.gui.visuals.toobig=Radius too big to display visuals
+gui.back=Back
+gui.Blades_damaged=Blades damaged
+gui.Blades_damaged_number=Damaged blades
+gui.forced_run=Force run
+gui.forced_run_off=Disable force run
+gui.updateRun=Update run state
+gui.protection=Protection active
+gui.protection2=Secondary protection active
+gui.protection.off=Protection disabled
+mekanism.configgui.ctgy.multiblock.multiblock=Multiblock Machine Settings

@@ -1,13 +1,11 @@
 package mekanism.common.transmitters.grid;
 
-import it.unimi.dsi.fastutil.objects.ReferenceOpenHashSet;
-import it.unimi.dsi.fastutil.objects.ReferenceSet;
 import mekanism.api.Coord4D;
 import mekanism.api.energy.EnergyStack;
 import mekanism.api.transmitters.DynamicNetwork;
 import mekanism.api.transmitters.IGridTransmitter;
 import mekanism.common.base.EnergyAcceptorWrapper;
-import mekanism.common.base.target.EnergyAcceptorTarget;
+import mekanism.common.content.network.distribution.EnergyAcceptorTarget;
 import mekanism.common.util.EmitUtils;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.tileentity.TileEntity;
@@ -28,8 +26,7 @@ public class EnergyNetwork extends DynamicNetwork<EnergyAcceptorWrapper, EnergyN
     private double joulesTransmitted = 0;
     private double jouleBufferLastTick = 0;
 
-    private final ReferenceSet<EnergyAcceptorTarget> targets = new ReferenceOpenHashSet<>();
-    private volatile int totalHandlers = 0;
+    private EnergyAcceptorTarget target;
 
     public EnergyNetwork() {
     }
@@ -52,7 +49,8 @@ public class EnergyNetwork extends DynamicNetwork<EnergyAcceptorWrapper, EnergyN
             joulesTransmitted = net.joulesTransmitted;
             lastPowerScale = net.lastPowerScale;
         }
-        buffer.amount += net.buffer.amount;
+        growBuffer(net.buffer.amount);
+        net.setBufferAmount(0);
         super.adoptTransmittersAndAcceptorsFrom(net);
     }
 
@@ -69,33 +67,55 @@ public class EnergyNetwork extends DynamicNetwork<EnergyAcceptorWrapper, EnergyN
     @Override
     public void absorbBuffer(IGridTransmitter<EnergyAcceptorWrapper, EnergyNetwork, EnergyStack> transmitter) {
         EnergyStack energy = transmitter.getBuffer();
-        buffer.amount += energy.amount;
-        energy.amount = 0;
+        growBuffer(energy.amount);
+        transmitter.clearBuffer();
     }
 
     @Override
     public void clampBuffer() {
-        if (buffer.amount > getCapacityAsDouble()) {
-            buffer.amount = getCapacityAsDouble();
-        }
-        if (buffer.amount < 0) {
-            buffer.amount = 0;
-        }
+        setBufferAmount(buffer.amount);
     }
 
     public double getEnergyNeeded() {
         if (FMLCommonHandler.instance().getEffectiveSide().isClient()) {
             return 0;
         }
-        return getCapacityAsDouble() - buffer.amount;
+        return getCapacityAsDouble() - getBufferAmount();
+    }
+
+    public double getBufferAmount() {
+        return buffer.amount;
     }
 
     public double emit(double energyToSend, boolean doEmit) {
         double toUse = Math.min(getEnergyNeeded(), energyToSend);
         if (doEmit) {
-            buffer.amount += toUse;
+            growBuffer(toUse);
         }
         return energyToSend - toUse;
+    }
+
+    public void setBufferAmount(double amount) {
+        double capacity = getCapacityAsDouble();
+        buffer.setAmountClamped(amount, capacity);
+    }
+
+    public double growBuffer(double amount) {
+        if (amount <= 0) {
+            return 0;
+        }
+        double current = buffer.amount;
+        setBufferAmount(current + amount);
+        return buffer.amount - current;
+    }
+
+    public double shrinkBuffer(double amount) {
+        if (amount <= 0) {
+            return 0;
+        }
+        double current = buffer.amount;
+        setBufferAmount(current - amount);
+        return current - buffer.amount;
     }
 
     @Override
@@ -133,19 +153,18 @@ public class EnergyNetwork extends DynamicNetwork<EnergyAcceptorWrapper, EnergyN
         if (FMLCommonHandler.instance().getEffectiveSide() != null && FMLCommonHandler.instance().getEffectiveSide().isServer()) {
             if (buffer.amount > 0) {
                 joulesTransmitted = tickEmit(buffer.amount);
-                buffer.amount -= joulesTransmitted;
+                shrinkBuffer(joulesTransmitted);
             }
         }
     }
 
     private double tickEmit(double energyToSend) {
-        return EmitUtils.sendToAcceptors(targets, totalHandlers, energyToSend);
+        EnergyAcceptorTarget target = this.target;
+        return target == null || target.getHandlerCount() == 0 ? 0 : EmitUtils.sendToAcceptors(target, energyToSend);
     }
 
     private void collectTargets() {
-        ReferenceSet<EnergyAcceptorTarget> targets = this.targets;
-        targets.clear();
-        int totalHandlers = 0;
+        EnergyAcceptorTarget target = new EnergyAcceptorTarget(possibleAcceptors.size() * 2);
         for (Coord4D coord : possibleAcceptors) {
             EnumSet<EnumFacing> sides = acceptorDirections.get(coord);
             if (sides == null || sides.isEmpty()) {
@@ -155,20 +174,14 @@ public class EnergyNetwork extends DynamicNetwork<EnergyAcceptorWrapper, EnergyN
             if (tile == null) {
                 continue;
             }
-            EnergyAcceptorTarget target = new EnergyAcceptorTarget();
             for (EnumFacing side : sides) {
                 EnergyAcceptorWrapper acceptor = EnergyAcceptorWrapper.get(tile, side);
                 if (acceptor != null && acceptor.canReceiveEnergy(side) && acceptor.needsEnergy(side)) {
                     target.addHandler(side, acceptor);
                 }
             }
-            int curHandlers = target.getHandlers().size();
-            if (curHandlers > 0) {
-                targets.add(target);
-                totalHandlers += curHandlers;
-            }
         }
-        this.totalHandlers = totalHandlers;
+        this.target = target;
     }
 
     public double getPowerScale() {

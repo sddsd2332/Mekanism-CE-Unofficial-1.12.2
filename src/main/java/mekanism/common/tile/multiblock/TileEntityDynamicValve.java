@@ -3,36 +3,34 @@ package mekanism.common.tile.multiblock;
 import io.netty.buffer.ByteBuf;
 import mekanism.api.EnumColor;
 import mekanism.api.IConfigurable;
+import mekanism.api.IContentsListener;
 import mekanism.api.TileNetworkList;
-import mekanism.api.gas.*;
 import mekanism.common.Mekanism;
-import mekanism.common.base.FluidHandlerWrapper;
 import mekanism.common.base.IComparatorSupport;
-import mekanism.common.base.IFluidHandlerWrapper;
 import mekanism.common.capabilities.Capabilities;
+import mekanism.common.capabilities.holder.fluid.IFluidTankHolder;
+import mekanism.common.capabilities.holder.fluid.ProxiedFluidTankHolder;
+import mekanism.common.capabilities.holder.gas.IGasTankHolder;
+import mekanism.common.capabilities.holder.gas.ProxiedGasTankHolder;
 import mekanism.common.content.tank.DynamicFluidTank;
 import mekanism.common.content.tank.DynamicGasTank;
-import mekanism.common.util.*;
+import mekanism.common.util.FluidUtils;
+import mekanism.common.util.GasUtils;
+import mekanism.common.util.LangUtils;
+import mekanism.common.util.MekanismUtils;
 import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.EnumActionResult;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.FluidTankInfo;
-import net.minecraftforge.fluids.IFluidTank;
-import net.minecraftforge.fluids.capability.CapabilityFluidHandler;
-import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.fml.common.FMLCommonHandler;
-import net.minecraftforge.items.CapabilityItemHandler;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+import java.util.Collections;
 import java.util.EnumSet;
 
-public class TileEntityDynamicValve extends TileEntityDynamicTank implements IFluidHandlerWrapper, IGasHandler, IComparatorSupport, IConfigurable {
+public class TileEntityDynamicValve extends TileEntityDynamicTank implements IComparatorSupport, IConfigurable {
 
     public DynamicFluidTank fluidTank;
     public DynamicGasTank gasTank;
@@ -44,6 +42,29 @@ public class TileEntityDynamicValve extends TileEntityDynamicTank implements IFl
         super("Dynamic Valve");
         fluidTank = new DynamicFluidTank(this);
         gasTank = new DynamicGasTank(this);
+        initializeInventorySlots();
+    }
+
+    @Override
+    protected IFluidTankHolder getInitialFluidTanks(IContentsListener listener) {
+        return ProxiedFluidTankHolder.create(
+              side -> isFormed() && !eject && (structure == null || !structure.hasGas()),
+              side -> isFormed() && structure != null && structure.hasFluid(),
+              side -> isFormed() ? Collections.singletonList(fluidTank) : Collections.emptyList()
+        );
+    }
+
+    @Override
+    protected IGasTankHolder getInitialGasTanks(IContentsListener listener) {
+        return ProxiedGasTankHolder.create(
+              side -> isFormed() && !eject && (structure == null || !structure.hasFluid()),
+              side -> isFormed() && structure != null && structure.hasGas(),
+              side -> isFormed() ? Collections.singletonList(gasTank) : Collections.emptyList()
+        );
+    }
+
+    private boolean isFormed() {
+        return (!isRemote() && structure != null) || (isRemote() && clientHasStructure);
     }
 
     @Override
@@ -69,52 +90,10 @@ public class TileEntityDynamicValve extends TileEntityDynamicTank implements IFl
         }
         if (structure != null && eject) {
             if (fluidTank.getFluid() != null && fluidTank.getFluid().getFluid() != null) {
-                IFluidTank tank = fluidTank;
-                EmitUtils.forEachSide(getWorld(), getPos(), EnumSet.allOf(EnumFacing.class), (tile, side) -> {
-                    if (!(tile instanceof TileEntityDynamicValve)) {
-                        IFluidHandler handler = CapabilityUtils.getCapability(tile, CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, side.getOpposite());
-                        if (handler != null && PipeUtils.canFill(handler, tank.getFluid())) {
-                            tank.drain(handler.fill(tank.getFluid(), true), true);
-                        }
-                    }
-                });
+                FluidUtils.emit(EnumSet.allOf(EnumFacing.class), fluidTank, this);
             }
-            if (gasTank.getGas() != null && gasTank.getGas().getGas() != null) {
-                GasStack toSend = gasTank.getGas().copy().withAmount(Math.min(gasTank.getMaxGas(), gasTank.getGasAmount()));
-                gasTank.output(GasUtils.emit(toSend, this, EnumSet.allOf(EnumFacing.class)), true);
-            }
+            GasUtils.emit(EnumSet.allOf(EnumFacing.class), gasTank, this);
         }
-    }
-
-    @Override
-    public FluidTankInfo[] getTankInfo(EnumFacing from) {
-        return ((!isRemote() && structure != null) || (isRemote() && clientHasStructure)) ? new FluidTankInfo[]{fluidTank.getInfo()} : PipeUtils.EMPTY;
-    }
-
-    @Override
-    public FluidTankInfo[] getAllTanks() {
-        return getTankInfo(null);
-    }
-
-    @Override
-    public int fill(EnumFacing from, @Nonnull FluidStack resource, boolean doFill) {
-        return fluidTank.fill(resource, doFill);
-    }
-
-    @Override
-    @Nullable
-    public FluidStack drain(EnumFacing from, int maxDrain, boolean doDrain) {
-        return fluidTank.drain(maxDrain, doDrain);
-    }
-
-    @Override
-    public boolean canFill(EnumFacing from, @Nonnull FluidStack fluid) {
-        return ((!isRemote() && structure != null) || (isRemote() && clientHasStructure)) && !eject && (structure == null || !structure.hasGas());
-    }
-
-    @Override
-    public boolean canDrain(EnumFacing from, @Nullable FluidStack fluid) {
-        return ((!isRemote() && structure != null) || (isRemote() && clientHasStructure)) && structure != null && FluidContainerUtils.canDrain(structure.fluidStored, fluid);
     }
 
     @Nonnull
@@ -125,45 +104,23 @@ public class TileEntityDynamicValve extends TileEntityDynamicTank implements IFl
 
     @Override
     public boolean hasCapability(@Nonnull Capability<?> capability, EnumFacing side) {
-        if ((!isRemote() && structure != null) || (isRemote() && clientHasStructure)) {
-            if (capability == CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY || capability == Capabilities.GAS_HANDLER_CAPABILITY || capability == Capabilities.CONFIGURABLE_CAPABILITY) {
-                return true;
-            }
+        if (isFormed() && capability == Capabilities.CONFIGURABLE_CAPABILITY) {
+            return true;
         }
         return super.hasCapability(capability, side);
     }
 
     @Override
     public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing side) {
-        if ((!isRemote() && structure != null) || (isRemote() && clientHasStructure)) {
-            if (capability == Capabilities.CONFIGURABLE_CAPABILITY || capability == Capabilities.GAS_HANDLER_CAPABILITY) {
-                return (T) this;
-            }
-            if (capability == CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY) {
-                return CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY.cast(new FluidHandlerWrapper(this, side));
-            }
+        if (isFormed() && capability == Capabilities.CONFIGURABLE_CAPABILITY) {
+            return (T) this;
         }
         return super.getCapability(capability, side);
     }
 
     @Override
-    public boolean isCapabilityDisabled(@Nonnull Capability<?> capability, EnumFacing side) {
-        if (capability == CapabilityItemHandler.ITEM_HANDLER_CAPABILITY) {
-            return !isRemote() ? structure == null : !clientHasStructure;
-        }
-        return super.isCapabilityDisabled(capability, side);
-    }
-
-    @Nonnull
-    @Override
-    public int[] getSlotsForFace(@Nonnull EnumFacing side) {
-        return (!isRemote() && structure != null) || (isRemote() && clientHasStructure) ? SLOTS : InventoryUtils.EMPTY;
-    }
-
-    @Override
-    public boolean isItemValidForSlot(int slot, @Nonnull ItemStack stack) {
-        //can be filled/emptied (fluid or gas container)
-        return slot == 0 && (FluidContainerUtils.isFluidContainer(stack) || stack.getItem() instanceof IGasItem);
+    protected boolean exposesInventoryToAutomation() {
+        return true;
     }
 
     @Override
@@ -171,32 +128,6 @@ public class TileEntityDynamicValve extends TileEntityDynamicTank implements IFl
         int stored = Math.max(fluidTank.getFluidAmount(), gasTank.getGasAmount());
         int capacity = Math.max(fluidTank.getCapacity(), gasTank.getMaxGas());
         return MekanismUtils.redstoneLevelFromContents(stored, capacity);
-    }
-
-    @Override
-    public int receiveGas(EnumFacing side, GasStack stack, boolean doTransfer) {
-        return gasTank.input(stack, doTransfer);
-    }
-
-    @Override
-    public GasStack drawGas(EnumFacing side, int amount, boolean doTransfer) {
-        return gasTank.output(amount, doTransfer);
-    }
-
-    @Override
-    public boolean canReceiveGas(EnumFacing side, Gas type) {
-        return ((!isRemote() && structure != null) || (isRemote() && clientHasStructure)) && !eject && (structure == null || !structure.hasFluid());
-    }
-
-    @Override
-    public boolean canDrawGas(EnumFacing side, Gas type) {
-        return ((!isRemote() && structure != null) || (isRemote() && clientHasStructure)) && structure != null && GasUtils.canDrain(structure.gasstored, type);
-    }
-
-    @Nonnull
-    @Override
-    public GasTankInfo[] getTankInfo() {
-        return ((!isRemote() && structure != null) || (isRemote() && clientHasStructure)) ? new GasTankInfo[]{gasTank.getInfo()} : IGasHandler.NONE;
     }
 
     @Override

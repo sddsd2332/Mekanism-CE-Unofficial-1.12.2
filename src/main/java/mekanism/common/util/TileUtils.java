@@ -2,19 +2,12 @@ package mekanism.common.util;
 
 import io.netty.buffer.ByteBuf;
 import mekanism.api.TileNetworkList;
-import mekanism.api.gas.Gas;
+import mekanism.api.fluid.IExtendedFluidTank;
 import mekanism.api.gas.GasStack;
 import mekanism.api.gas.GasTank;
-import mekanism.api.gas.IGasItem;
 import mekanism.common.PacketHandler;
-import mekanism.common.tile.prefab.TileEntityBasicBlock;
-import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.EnumFacing;
 import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.FluidTank;
-
-import java.util.EnumSet;
 
 //TODO: Move this and factor out the parts into proper classes. This is mainly just temp to make organization not as needed
 public class TileUtils {
@@ -28,7 +21,7 @@ public class TileUtils {
         addGasStack(data, tank.getGas());
     }
 
-    public static void addTankData(TileNetworkList data, FluidTank tank) {
+    public static void addTankData(TileNetworkList data, IExtendedFluidTank tank) {
         addFluidStack(data, tank.getFluid());
     }
 
@@ -52,8 +45,8 @@ public class TileUtils {
         tank.setGas(GasStack.readFromNBT(PacketHandler.readNBT(dataStream)));
     }
 
-    public static void readTankData(ByteBuf dataStream, FluidTank tank) {
-        tank.setFluid(readFluidStack(dataStream));
+    public static void readTankData(ByteBuf dataStream, IExtendedFluidTank tank) {
+        tank.setStack(readFluidStack(dataStream));
     }
 
     public static FluidStack readFluidStack(ByteBuf dataStream) {
@@ -88,59 +81,5 @@ public class TileUtils {
 
     public static GasStack readGasStack(ByteBuf dataStream) {
         return GasStack.readFromNBT(PacketHandler.readNBT(dataStream));
-    }
-
-    //Returns true if it entered the if statement, basically for use by TileEntityGasTank
-    public static boolean receiveGas(ItemStack stack, GasTank tank) {
-        if (!stack.isEmpty() && (tank.getGas() == null || tank.getStored() < tank.getMaxGas())) {
-            tank.receive(GasUtils.removeGas(stack, tank.getGasType(), tank.getNeeded()), true);
-            return true;
-        }
-        return false;
-    }
-
-    public static void receiveGasItem(ItemStack stack, GasTank tank) {
-        receiveGasItem(stack, tank, true);
-    }
-
-    public static void receiveGasItem(ItemStack stack, GasTank tank, boolean doReceive) {
-        if (!stack.isEmpty() && tank.getNeeded() > 0 && stack.getItem() instanceof IGasItem item) {
-            GasStack gasStack = item.getGas(stack);
-            if (gasStack != null && item.canProvideGas(stack, gasStack.getGas())) {
-                Gas gas = gasStack.getGas();
-                if (gas != null && tank.canReceive(gas)) {
-                    tank.receive(GasUtils.removeGas(stack, gas, tank.getNeeded()), doReceive);
-                }
-            }
-        }
-    }
-
-    public static void receiveGasItem(ItemStack stack, GasTank tank, Gas isValidGas) {
-        if (!stack.isEmpty() && tank.getNeeded() > 0 && stack.getItem() instanceof IGasItem item) {
-            GasStack gasStack = item.getGas(stack);
-            if (gasStack != null && item.canProvideGas(stack, gasStack.getGas())) {
-                Gas gas = gasStack.getGas();
-                if (gas != null && tank.canReceive(gas) && gas == isValidGas) {
-                    tank.receive(GasUtils.removeGas(stack, gas, tank.getNeeded()), true);
-                }
-            }
-        }
-    }
-
-    public static void drawGas(ItemStack stack, GasTank tank) {
-        drawGas(stack, tank, true);
-    }
-
-    public static void drawGas(ItemStack stack, GasTank tank, boolean doDraw) {
-        if (!stack.isEmpty() && tank.getGas() != null) {
-            tank.draw(GasUtils.addGas(stack, tank.getGas()), doDraw);
-        }
-    }
-
-    public static void emitGas(TileEntityBasicBlock tile, GasTank tank, int gasOutput, EnumFacing facing) {
-        if (tank.getGas() != null && tank.getGas().getGas() != null) {
-            GasStack toSend = tank.getGas().copy().withAmount(Math.min(tank.getStored(), gasOutput));
-            tank.draw(GasUtils.emit(toSend, tile, EnumSet.of(facing)), true);
-        }
     }
 }

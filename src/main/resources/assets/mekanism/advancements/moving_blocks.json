@@ -1,9 +1,16 @@
 {
       "parent": "mekanism:sawmill",
-      "criteria": {"mekanism_moving_blocks": {
-            "trigger": "minecraft:inventory_changed",
-            "conditions": {"items": [{"item": "mekanism:cardboardbox"}]}
-      }},
+      "requirements": [
+            ["cardboard_box"],
+            ["unbox"]
+      ],
+      "criteria": {
+            "cardboard_box": {
+                  "trigger": "minecraft:inventory_changed",
+                  "conditions": {"items": [{"item": "mekanism:cardboardbox"}]}
+            },
+            "unbox": {"trigger": "mekanism:unbox_cardboard_box"}
+      },
       "display": {
             "icon": {"item": "mekanism:cardboardbox"},
             "description": {"translate": "advancements.mekanism.moving_blocks.description"},

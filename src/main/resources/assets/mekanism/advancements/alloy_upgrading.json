@@ -1,0 +1,10 @@
+{
+      "parent": "mekanism:infused_alloy",
+      "criteria": {"upgrade": {"trigger": "mekanism:alloy_upgrade"}},
+      "display": {
+            "icon": {"item": "mekanism:enrichedalloy"},
+            "description": {"translate": "advancements.mekanism.alloy_upgrading.description"},
+            "title": {"translate": "advancements.mekanism.alloy_upgrading.title"},
+            "frame": "goal"
+      }
+}

@@ -4,9 +4,8 @@ import io.netty.buffer.ByteBuf;
 import mekanism.api.Coord4D;
 import mekanism.common.PacketHandler;
 import mekanism.common.base.IFluidContainerManager;
+import mekanism.common.base.IFluidContainerManager.ContainerEditMode;
 import mekanism.common.network.PacketContainerEditMode.ContainerEditModeMessage;
-import mekanism.common.util.FluidContainerUtils.ContainerEditMode;
-import mekanism.common.util.MekanismUtils;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
@@ -55,7 +54,7 @@ public class PacketContainerEditMode implements IMessageHandler<ContainerEditMod
         @Override
         public void fromBytes(ByteBuf dataStream) {
             coord4D = Coord4D.read(dataStream);
-            value = MekanismUtils.getByIndex(ContainerEditMode.values(), dataStream.readInt(), ContainerEditMode.BOTH);
+            value = ContainerEditMode.byIndexStatic(dataStream.readInt());
         }
     }
 }

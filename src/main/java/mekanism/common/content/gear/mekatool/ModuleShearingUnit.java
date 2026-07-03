@@ -1,6 +1,8 @@
 package mekanism.common.content.gear.mekatool;
 
-import mekanism.api.energy.IEnergizedItem;
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
+import mekanism.api.energy.IEnergyContainer;
 import mekanism.api.gear.ICustomModule;
 import mekanism.api.gear.IModule;
 import mekanism.common.config.MekanismConfig;
@@ -35,7 +37,7 @@ public class ModuleShearingUnit implements ICustomModule<ModuleShearingUnit> {
     @Nonnull
     @Override
     public EnumActionResult onItemUse(IModule<ModuleShearingUnit> module, EntityPlayer player, World world, BlockPos pos, EnumHand hand, EnumFacing side, float hitX, float hitY, float hitZ) {
-        IEnergizedItem energyContainer = module.getEnergyContainer();
+        IEnergyContainer energyContainer = module.getEnergyContainer();
         if (energyContainer == null || energyContainer.getEnergy(module.getContainer()) < (MekanismConfig.current().meka.mekaToolEnergyUsageShearBlock.val())) {
             return EnumActionResult.PASS;
         }
@@ -48,8 +50,8 @@ public class ModuleShearingUnit implements ICustomModule<ModuleShearingUnit> {
     @Override
     public EnumActionResult onInteract(IModule<ModuleShearingUnit> module, EntityPlayer player, EntityLivingBase entity, EnumHand hand) {
         if (entity instanceof IShearable) {
-            IEnergizedItem energyContainer = module.getEnergyContainer();
-            if (energyContainer != null && energyContainer.getEnergy(module.getContainer()) >= (MekanismConfig.current().meka.mekaToolEnergyUsageShearEntity.val()) && shearEntity(energyContainer, entity, module.getContainer(), entity.world, entity.getPosition())){
+            IEnergyContainer energyContainer = module.getEnergyContainer();
+            if (energyContainer != null && energyContainer.getEnergy() >= MekanismConfig.current().meka.mekaToolEnergyUsageShearEntity.val() && shearEntity(energyContainer, entity, module.getContainer(), entity.world, entity.getPosition())){
                 return EnumActionResult.SUCCESS;
             }
         }
@@ -59,7 +61,7 @@ public class ModuleShearingUnit implements ICustomModule<ModuleShearingUnit> {
     @Nonnull
     @Override
     public ModuleDispenseResult onDispense(IModule<ModuleShearingUnit> module, IBlockSource source) {
-        IEnergizedItem energyContainer = module.getEnergyContainer();
+        IEnergyContainer energyContainer = module.getEnergyContainer();
         if (energyContainer != null) {
             World world = source.getWorld();
             EnumFacing facing = source.getBlockState().getValue(PropertyDirection.create("facing", Arrays.asList(new EnumFacing[]{EnumFacing.NORTH, EnumFacing.EAST, EnumFacing.SOUTH, EnumFacing.WEST, EnumFacing.UP, EnumFacing.DOWN})));
@@ -72,7 +74,7 @@ public class ModuleShearingUnit implements ICustomModule<ModuleShearingUnit> {
     }
 
     /*
-    private EnumActionResult carvePumpkin(IEnergizedItem energyContainer, EntityPlayer player, World worldS, BlockPos blockPos, EnumHand hand, EnumFacing EnumSide, float hitX, float hitY, float hitZ, IBlockState state) {
+    private EnumActionResult carvePumpkin(IEnergyContainer energyContainer, EntityPlayer player, World worldS, BlockPos blockPos, EnumHand hand, EnumFacing EnumSide, float hitX, float hitY, float hitZ, IBlockState state) {
         if (state.getBlock() == Blocks.PUMPKIN) {
             World world = worldS;
             //Carve pumpkin - copy from Pumpkin Block's onBlockActivated
@@ -127,7 +129,7 @@ public class ModuleShearingUnit implements ICustomModule<ModuleShearingUnit> {
     //Slightly modified copy of BeehiveDispenseBehavior#tryShearBeehive modified to not crash if the tag has a block that isn't a
     // beehive block instance in it, and also to support shearing pumpkins via the dispenser
     /*
-    private boolean tryShearBlock(IEnergizedItem energyContainer, World world, BlockPos pos, EnumFacing sideClicked) {
+    private boolean tryShearBlock(IEnergyContainer energyContainer, World world, BlockPos pos, EnumFacing sideClicked) {
         if (energyContainer.getEnergy().greaterOrEqual(MekanismConfig.gear.mekaToolEnergyUsageShearBlock.get())) {
             BlockState state = world.getBlockState(pos);
             if (state.is(BlockTags.BEEHIVES) && state.getBlock() instanceof BeehiveBlock && state.getValue(BeehiveBlock.HONEY_LEVEL) >= 5) {
@@ -152,8 +154,8 @@ public class ModuleShearingUnit implements ICustomModule<ModuleShearingUnit> {
      */
 
     //Modified copy of BeehiveDispenseBehavior#tryShearLivingEntity to work with IShearable
-    private boolean tryShearLivingEntity(IEnergizedItem energyContainer, World world, BlockPos pos, ItemStack stack) {
-        if (energyContainer.getEnergy(stack) > (MekanismConfig.current().meka.mekaToolEnergyUsageShearEntity.val())) {
+    private boolean tryShearLivingEntity(IEnergyContainer energyContainer, World world, BlockPos pos, ItemStack stack) {
+        if (energyContainer.getEnergy() > MekanismConfig.current().meka.mekaToolEnergyUsageShearEntity.val()) {
             for (EntityLivingBase entity : world.getEntitiesWithinAABB(EntityLivingBase.class, new AxisAlignedBB(pos), entity -> (entity instanceof EntityPlayer player && !player.isSpectator()) && entity instanceof IShearable)) {
                 if (shearEntity(energyContainer, entity, stack, world, pos)) {
                     return true;
@@ -163,7 +165,7 @@ public class ModuleShearingUnit implements ICustomModule<ModuleShearingUnit> {
         return false;
     }
 
-    private boolean shearEntity(IEnergizedItem energyContainer, EntityLivingBase entity, ItemStack stack, World world, BlockPos pos) {
+    private boolean shearEntity(IEnergyContainer energyContainer, EntityLivingBase entity, ItemStack stack, World world, BlockPos pos) {
         IShearable target = (IShearable) entity;
         if (target.isShearable(stack, world, pos)) {
             if (!world.isRemote) {
@@ -175,7 +177,7 @@ public class ModuleShearingUnit implements ICustomModule<ModuleShearingUnit> {
                         ent.motionZ += (world.rand.nextFloat() - world.rand.nextFloat()) * 0.1F;
                     }
                 }
-                energyContainer.extract(stack, MekanismConfig.current().meka.mekaToolEnergyUsageShearEntity.val(), true);
+                energyContainer.extract(MekanismConfig.current().meka.mekaToolEnergyUsageShearEntity.val(), Action.EXECUTE, AutomationType.MANUAL);
             }
             return true;
         }

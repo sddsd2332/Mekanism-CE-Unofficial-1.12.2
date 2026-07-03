@@ -1,7 +1,9 @@
 package mekanism.common.recipe.outputs;
 
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTank;
+import mekanism.api.gas.IExtendedGasTank;
 import net.minecraft.nbt.NBTTagCompound;
 
 import java.util.Random;
@@ -29,11 +31,9 @@ public class GasOutput extends MachineOutput<GasOutput> {
         return new GasOutput(output.copy());
     }
 
-    public boolean applyOutputs(GasTank gasTank, boolean doEmit, int scale) {
-        if (gasTank.canReceive(output.getGas()) && gasTank.getNeeded() >= output.amount * scale) {
-            gasTank.receive(output.copy().withAmount(output.amount * scale), doEmit);
-            return true;
-        }
-        return false;
+    public boolean applyOutputs(IExtendedGasTank gasTank, boolean doEmit, int scale) {
+        GasStack toOutput = output.copy().withAmount(output.amount * scale);
+        GasStack remainder = gasTank.insert(toOutput, Action.get(doEmit), AutomationType.INTERNAL);
+        return remainder == null || remainder.amount <= 0;
     }
 }

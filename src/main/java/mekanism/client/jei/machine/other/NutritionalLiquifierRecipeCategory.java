@@ -1,12 +1,12 @@
 package mekanism.client.jei.machine.other;
 
 import mekanism.api.gas.GasStack;
-import mekanism.client.gui.element.GuiProgress;
-import mekanism.client.gui.element.GuiProgress.IProgressInfoHandler;
-import mekanism.client.gui.element.GuiProgress.ProgressBar;
 import mekanism.client.gui.element.gauge.GuiGasGauge;
 import mekanism.client.gui.element.gauge.GuiGauge;
-import mekanism.client.gui.element.slot.GuiInputSlot;
+import mekanism.client.gui.element.progress.GuiProgress;
+import mekanism.client.gui.element.progress.ProgressType;
+import mekanism.client.gui.element.slot.GuiSlot;
+import mekanism.client.gui.element.slot.SlotType;
 import mekanism.client.jei.BaseRecipeCategory;
 import mekanism.client.jei.MekanismJEI;
 import mekanism.common.recipe.RecipeHandler.Recipe;
@@ -19,30 +19,36 @@ import mezz.jei.api.ingredients.IIngredients;
 
 public class NutritionalLiquifierRecipeCategory<WRAPPER extends NutritionalLiquifierRecipeWrapper<NutritionalRecipe>> extends BaseRecipeCategory<WRAPPER> {
 
+    private GuiSlot input;
+    private GuiGauge<?> output;
+
     public NutritionalLiquifierRecipeCategory(IGuiHelper helper) {
-        super(helper, "mekanism:gui/Null.png", Recipe.NUTRITIONAL_LIQUIFIER.getJEICategory(),
-                "tile.MachineBlock3.NutritionalLiquifier.name", ProgressBar.LARGE_RIGHT, 20, 12, 132, 62);
+        super(helper, DUMMY_GUI_TEXTURE, Recipe.NUTRITIONAL_LIQUIFIER.getJEICategory(),
+                "tile.MachineBlock3.NutritionalLiquifier.name", 20, 12, 132, 62, ProgressType.LARGE_RIGHT);
     }
 
     @Override
     protected void addGuiElements() {
-        guiElements.add(GuiGasGauge.getDummy(GuiGauge.Type.STANDARD, this, guiLocation, 133, 13).withColor(GuiGauge.TypeColor.BLUE));
-        guiElements.add(new GuiInputSlot(this, guiLocation, 25, 35));
-        guiElements.add(new GuiProgress(new IProgressInfoHandler() {
+        output = addElement(dummyGasGauge(GuiGasGauge.Type.STANDARD, GuiGasGauge.GaugeColor.BLUE, 133, 13));
+        input = addElement(new GuiSlot(SlotType.INPUT, this, 25, 35).setRenderAboveSlots());
+        guiElements.add(new GuiProgress(new mekanism.client.gui.element.progress.IProgressInfoHandler() {
             @Override
             public double getProgress() {
                 return (double) timer.getValue() / 20F;
             }
-        }, progressBar, this, guiLocation, 62, 39,false));
+            @Override
+            public boolean isGuiInJei() {
+                return true;
+            }
+        }, progressType, this, 54, 40));
     }
 
     @Override
     public void setRecipe(IRecipeLayout recipeLayout, WRAPPER recipeWrapper, IIngredients ingredients) {
         NutritionalRecipe tempRecipe = recipeWrapper.getRecipe();
         IGuiItemStackGroup itemStacks = recipeLayout.getItemStacks();
-        itemStacks.init(0, true, 25 - xOffset, 35 - yOffset);
-        itemStacks.set(0, tempRecipe.getInput().ingredient);
+        initItem(itemStacks, 0, true, input, tempRecipe.getInput().ingredient);
         IGuiIngredientGroup<GasStack> gasStacks = recipeLayout.getIngredientsGroup(MekanismJEI.TYPE_GAS);
-        initGas(gasStacks, 0, false, 134 - xOffset, 14 - yOffset, 16, 58, tempRecipe.recipeOutput.output, true);
+        initGas(gasStacks, 0, false, output, tempRecipe.recipeOutput.output);
     }
 }

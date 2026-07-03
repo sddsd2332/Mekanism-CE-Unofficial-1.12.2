@@ -38,6 +38,19 @@ public abstract class Option<THISTYPE extends Option> {
         owner.registerOption(this);
     }
 
+    public String category() {
+        return category;
+    }
+
+    public String key() {
+        return key;
+    }
+
+    @Nullable
+    public String comment() {
+        return comment;
+    }
+
     /**
      * Loads this option from the config file NB: saving back is handled by the config system / GUIs, load will be re-called
      *

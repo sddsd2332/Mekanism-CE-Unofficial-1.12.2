@@ -1,7 +1,6 @@
 package mekanism.common.block;
 
 import mekanism.api.IMekWrench;
-import mekanism.api.gas.IGasItem;
 import mekanism.common.Mekanism;
 import mekanism.common.MekanismBlocks;
 import mekanism.common.base.ISideConfiguration;
@@ -10,6 +9,7 @@ import mekanism.common.base.ITierItem;
 import mekanism.common.block.states.BlockStateFacing;
 import mekanism.common.block.states.BlockStateGasTank;
 import mekanism.common.integration.wrenches.Wrenches;
+import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.security.ISecurityItem;
 import mekanism.common.security.ISecurityTile;
 import mekanism.common.tile.TileEntityGasTank;
@@ -200,9 +200,7 @@ public class BlockGasTank extends BlockMekanismContainer {
         }
         ITierItem tierItem = (ITierItem) itemStack.getItem();
         tierItem.setBaseTier(itemStack, tileEntity.tier.getBaseTier());
-
-        IGasItem storageTank = (IGasItem) itemStack.getItem();
-        storageTank.setGas(itemStack, tileEntity.gasTank.getGas());
+        GasInventorySlot.setGasContained(itemStack, tileEntity.gasTank.getGas());
 
         ISustainedInventory inventory = (ISustainedInventory) itemStack.getItem();
         inventory.setInventory(tileEntity.getInventory(), itemStack);

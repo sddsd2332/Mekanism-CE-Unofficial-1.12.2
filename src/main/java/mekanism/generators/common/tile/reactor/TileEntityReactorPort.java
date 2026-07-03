@@ -2,27 +2,29 @@ package mekanism.generators.common.tile.reactor;
 
 import io.netty.buffer.ByteBuf;
 import mekanism.api.*;
-import mekanism.api.gas.Gas;
-import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTankInfo;
-import mekanism.api.gas.IGasHandler;
+import mekanism.api.fluid.IExtendedFluidTank;
+import mekanism.api.gas.IExtendedGasTank;
+import mekanism.api.inventory.IInventorySlot;
 import mekanism.common.Mekanism;
-import mekanism.common.MekanismFluids;
-import mekanism.common.base.FluidHandlerWrapper;
-import mekanism.common.base.IFluidHandlerWrapper;
 import mekanism.common.capabilities.Capabilities;
+import mekanism.common.capabilities.holder.energy.IEnergyContainerHolder;
+import mekanism.common.capabilities.holder.energy.ProxiedEnergyContainerHolder;
+import mekanism.common.capabilities.holder.fluid.IFluidTankHolder;
+import mekanism.common.capabilities.holder.fluid.ProxiedFluidTankHolder;
+import mekanism.common.capabilities.holder.gas.IGasTankHolder;
+import mekanism.common.capabilities.holder.gas.ProxiedGasTankHolder;
+import mekanism.common.capabilities.holder.heat.IHeatCapacitorHolder;
+import mekanism.common.capabilities.holder.heat.ProxiedHeatCapacitorHolder;
+import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
+import mekanism.common.capabilities.holder.slot.ProxiedInventorySlotHolder;
 import mekanism.common.util.*;
-import mekanism.generators.common.item.ItemHohlraum;
 import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumActionResult;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.FluidTankInfo;
 import net.minecraftforge.fluids.IFluidTank;
 import net.minecraftforge.fluids.capability.CapabilityFluidHandler;
 import net.minecraftforge.fluids.capability.IFluidHandler;
@@ -31,15 +33,85 @@ import net.minecraftforge.items.CapabilityItemHandler;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.List;
 
-public class TileEntityReactorPort extends TileEntityReactorBlock implements IFluidHandlerWrapper, IGasHandler, IHeatTransfer, IConfigurable {
+public class TileEntityReactorPort extends TileEntityReactorBlock implements IHeatTransfer, IConfigurable {
 
     public boolean fluidEject;
 
     public TileEntityReactorPort() {
         super("name", 1);
-        inventory = NonNullListSynchronized.withSize(0, ItemStack.EMPTY);
+        initializeInventorySlots();
+    }
+
+    @Override
+    protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
+        return ProxiedInventorySlotHolder.create(
+              side -> getReactor() != null && getReactor().isFormed(),
+              side -> getReactor() != null && getReactor().isFormed(),
+              side -> {
+                  IInventorySlot slot = getReactorInventorySlot(0);
+                  return slot == null ? Collections.emptyList() : Collections.singletonList(slot);
+              }
+        );
+    }
+
+    @Override
+    protected IFluidTankHolder getInitialFluidTanks(IContentsListener listener) {
+        return ProxiedFluidTankHolder.create(
+              side -> getReactor() != null && getReactor().isFormed() && !fluidEject,
+              side -> getReactor() != null && getReactor().isFormed(),
+              this::getReactorFluidTanks,
+              this::getReactorFluidTanksForInsert,
+              this::getReactorFluidTanksForExtract
+        );
+    }
+
+    @Override
+    protected IGasTankHolder getInitialGasTanks(IContentsListener listener) {
+        return ProxiedGasTankHolder.create(
+              side -> getReactor() != null && getReactor().isFormed(),
+              side -> false,
+              this::getReactorGasTanks
+        );
+    }
+
+    @Override
+    protected IEnergyContainerHolder getInitialEnergyContainers(IContentsListener listener) {
+        return ProxiedEnergyContainerHolder.create(
+              side -> false,
+              side -> getReactor() != null && getReactor().isFormed(),
+              side -> getReactor() != null && getReactor().isFormed() ? Collections.singletonList(this) : Collections.emptyList()
+        );
+    }
+
+    private List<IExtendedFluidTank> getReactorFluidTanks(EnumFacing side) {
+        return getReactor() == null ? Collections.emptyList() : Arrays.asList(getReactor().getWaterTank(), getReactor().getSteamTank());
+    }
+
+    private List<IExtendedFluidTank> getReactorFluidTanksForInsert(EnumFacing side) {
+        return getReactor() == null ? Collections.emptyList() : Collections.singletonList(getReactor().getWaterTank());
+    }
+
+    private List<IExtendedFluidTank> getReactorFluidTanksForExtract(EnumFacing side) {
+        return getReactor() == null ? Collections.emptyList() : Collections.singletonList(getReactor().getSteamTank());
+    }
+
+    private List<IExtendedGasTank> getReactorGasTanks(EnumFacing side) {
+        return getReactor() == null ? Collections.emptyList() :
+              Arrays.asList(getReactor().getDeuteriumTank(), getReactor().getTritiumTank(), getReactor().getFuelTank());
+    }
+
+    @Override
+    protected IHeatCapacitorHolder getInitialHeatCapacitors(IContentsListener listener) {
+        return ProxiedHeatCapacitorHolder.create(
+              side -> getReactor() != null && getReactor().isFormed(),
+              side -> getReactor() != null && getReactor().isFormed(),
+              side -> getReactor() == null ? Collections.emptyList() : Collections.singletonList(this)
+        );
     }
 
     @Override
@@ -89,84 +161,11 @@ public class TileEntityReactorPort extends TileEntityReactorBlock implements IFl
 
 
     @Override
-    public int fill(EnumFacing from, @Nonnull FluidStack resource, boolean doFill) {
-        return getReactor() == null ? 0 : getReactor().getWaterTank().fill(resource, doFill);
-    }
-
-    @Override
-    @Nullable
-    public FluidStack drain(EnumFacing from, int maxDrain, boolean doDrain) {
-        return getReactor() == null ? null : getReactor().getSteamTank().drain(maxDrain, doDrain);
-    }
-
-    @Override
-    public boolean canFill(EnumFacing from, @Nonnull FluidStack fluid) {
-        return getReactor() != null && !fluidEject && getReactor().hasRecipe(fluid.getFluid());
-    }
-
-    @Override
-    public boolean canDrain(EnumFacing from, @Nullable FluidStack fluid) {
-        return getReactor() != null && (fluid == null || FluidContainerUtils.canDrain(getReactor().controller.steamTank.getFluid(), fluid));
-    }
-
-    @Override
-    public FluidTankInfo[] getTankInfo(EnumFacing from) {
-        if (getReactor() == null) {
-            return PipeUtils.EMPTY;
-        }
-        return new FluidTankInfo[]{getReactor().getWaterTank().getInfo(), getReactor().getSteamTank().getInfo()};
-    }
-
-    @Override
-    public FluidTankInfo[] getAllTanks() {
-        return getTankInfo(null);
-    }
-
-    @Override
-    public int receiveGas(EnumFacing side, GasStack stack, boolean doTransfer) {
-        if (stack == null || stack.getGas() == null) {
-            return 0;
-        }
-        if (getReactor() != null) {
-            if (stack.getGas() == MekanismFluids.Deuterium) {
-                return getReactor().getDeuteriumTank().receive(stack, doTransfer);
-            } else if (stack.getGas() == MekanismFluids.Tritium) {
-                return getReactor().getTritiumTank().receive(stack, doTransfer);
-            } else if (stack.getGas() == MekanismFluids.FusionFuel) {
-                return getReactor().getFuelTank().receive(stack, doTransfer);
-            }
-        }
-        return 0;
-    }
-
-    @Override
-    public GasStack drawGas(EnumFacing side, int amount, boolean doTransfer) {
-        return null;
-    }
-
-    @Override
-    public boolean canReceiveGas(EnumFacing side, Gas type) {
-        return type == MekanismFluids.Deuterium || type == MekanismFluids.Tritium || type == MekanismFluids.FusionFuel;
-    }
-
-    @Override
-    public boolean canDrawGas(EnumFacing side, Gas type) {
-        return false;
-    }
-
-    @Nonnull
-    @Override
-    public GasTankInfo[] getTankInfo() {
-        return getReactor() != null ? new GasTankInfo[]{getReactor().getDeuteriumTank(), getReactor().getTritiumTank(), getReactor().getFuelTank()} : IGasHandler.NONE;
-    }
-
-    @Override
     public boolean hasCapability(@Nonnull Capability<?> capability, EnumFacing side) {
         if (isCapabilityDisabled(capability, side)) {
             return false;
         }
-        return capability == Capabilities.GAS_HANDLER_CAPABILITY || capability == Capabilities.HEAT_TRANSFER_CAPABILITY ||
-                capability == CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY || capability == Capabilities.CONFIGURABLE_CAPABILITY || super.hasCapability(capability, side);
+        return capability == Capabilities.CONFIGURABLE_CAPABILITY || super.hasCapability(capability, side);
     }
 
     @Override
@@ -174,11 +173,8 @@ public class TileEntityReactorPort extends TileEntityReactorBlock implements IFl
         if (isCapabilityDisabled(capability, side)) {
             return null;
         }
-        if (capability == Capabilities.GAS_HANDLER_CAPABILITY || capability == Capabilities.HEAT_TRANSFER_CAPABILITY || capability == Capabilities.CONFIGURABLE_CAPABILITY) {
+        if (capability == Capabilities.CONFIGURABLE_CAPABILITY) {
             return (T) this;
-        }
-        if (capability == CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY) {
-            return CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY.cast(new FluidHandlerWrapper(this, side));
         }
         return super.getCapability(capability, side);
     }
@@ -285,29 +281,8 @@ public class TileEntityReactorPort extends TileEntityReactorBlock implements IFl
 
     @Nonnull
     @Override
-    public ItemStack getStackInSlot(int slotID) {
-        return getReactor() != null && getReactor().isFormed() ? getReactor().getInventory().get(slotID) : ItemStack.EMPTY;
-    }
-
-    @Override
-    public int getSizeInventory() {
-        return getReactor() != null && getReactor().isFormed() ? 1 : 0;
-    }
-
-    @Override
-    public void setInventorySlotContents(int slotID, @Nonnull ItemStack itemstack) {
-        if (getReactor() != null && getReactor().isFormed()) {
-            getReactor().getInventory().set(slotID, itemstack);
-            if (!itemstack.isEmpty() && itemstack.getCount() > getInventoryStackLimit()) {
-                itemstack.setCount(getInventoryStackLimit());
-            }
-        }
-    }
-
-    @Nonnull
-    @Override
     public int[] getSlotsForFace(@Nonnull EnumFacing side) {
-        return getReactor() != null && getReactor().isFormed() ? new int[]{0} : InventoryUtils.EMPTY;
+        return getInventorySlotIdsForSide(side);
     }
 
     @Override
@@ -319,22 +294,6 @@ public class TileEntityReactorPort extends TileEntityReactorBlock implements IFl
             return getReactor() == null;
         }
         return super.isCapabilityDisabled(capability, side);
-    }
-
-    @Override
-    public boolean isItemValidForSlot(int slotID, @Nonnull ItemStack itemstack) {
-        if (getReactor() != null && getReactor().isFormed() && itemstack.getItem() instanceof ItemHohlraum hohlraum) {
-            return hohlraum.getGas(itemstack) != null && hohlraum.getGas(itemstack).amount == hohlraum.getMaxGas(itemstack);
-        }
-        return false;
-    }
-
-    @Override
-    public boolean canExtractItem(int slotID, @Nonnull ItemStack itemstack, @Nonnull EnumFacing side) {
-        if (getReactor() != null && getReactor().isFormed() && itemstack.getItem() instanceof ItemHohlraum hohlraum) {
-            return hohlraum.getGas(itemstack) == null;
-        }
-        return false;
     }
 
     @Override
@@ -380,5 +339,10 @@ public class TileEntityReactorPort extends TileEntityReactorBlock implements IFl
     @Override
     protected boolean shouldDumpRadiation() {
         return true;
+    }
+
+    @Nullable
+    private IInventorySlot getReactorInventorySlot(int slotID) {
+        return slotID == 0 && getReactor() != null ? getReactor().getHohlraumSlot() : null;
     }
 }

@@ -161,29 +161,10 @@ public class BoilerUpdateProtocol extends UpdateProtocol<SynchronizedBoilerData>
     protected void mergeCaches(List<ItemStack> rejectedItems, MultiblockCache<SynchronizedBoilerData> cache, MultiblockCache<SynchronizedBoilerData> merge) {
         BoilerCache boilerCache = (BoilerCache) cache;
         BoilerCache mergeCache = (BoilerCache) merge;
-        if (boilerCache.water == null) {
-            boilerCache.water = mergeCache.water;
-        } else if (mergeCache.water != null && boilerCache.water.isFluidEqual(mergeCache.water)) {
-            boilerCache.water.amount += mergeCache.water.amount;
-        }
-
-        if (boilerCache.steam == null) {
-            boilerCache.steam = mergeCache.steam;
-        } else if (mergeCache.steam != null && boilerCache.steam.isFluidEqual(mergeCache.steam)) {
-            boilerCache.steam.amount += mergeCache.steam.amount;
-        }
-
-        if (boilerCache.input == null){
-            boilerCache.input = mergeCache.input;
-        }else if (mergeCache.input != null && boilerCache.input.isGasEqual(mergeCache.input)) {
-            boilerCache.input.amount += mergeCache.input.amount;
-        }
-
-        if (boilerCache.output == null){
-            boilerCache.output = mergeCache.output;
-        }else if (mergeCache.output != null && boilerCache.output.isGasEqual(mergeCache.output)) {
-            boilerCache.output.amount += mergeCache.output.amount;
-        }
+        boilerCache.water = mergeFluidStack(boilerCache.water, mergeCache.water);
+        boilerCache.steam = mergeFluidStack(boilerCache.steam, mergeCache.steam);
+        boilerCache.input = mergeGasStack(boilerCache.input, mergeCache.input);
+        boilerCache.output = mergeGasStack(boilerCache.output, mergeCache.output);
 
         boilerCache.temperature = Math.max(boilerCache.temperature, mergeCache.temperature);
     }
@@ -191,18 +172,7 @@ public class BoilerUpdateProtocol extends UpdateProtocol<SynchronizedBoilerData>
     @Override
     protected void onFormed() {
         super.onFormed();
-        if (structureFound.waterStored != null) {
-            structureFound.waterStored.amount = Math.min(structureFound.waterStored.amount, structureFound.waterVolume * WATER_PER_TANK);
-        }
-        if (structureFound.steamStored != null) {
-            structureFound.steamStored.amount = Math.min(structureFound.steamStored.amount, structureFound.steamVolume * STEAM_PER_TANK);
-        }
-        if (structureFound.InputGas != null) {
-            structureFound.InputGas.amount = Math.min(structureFound.InputGas.amount, structureFound.waterVolume * WATER_PER_TANK);
-        }
-        if (structureFound.OutputGas != null) {
-            structureFound.OutputGas.amount = Math.min(structureFound.OutputGas.amount, structureFound.steamVolume * STEAM_PER_TANK);
-        }
+        structureFound.clampStoredSubstancesToCapacity();
     }
 
     @Override

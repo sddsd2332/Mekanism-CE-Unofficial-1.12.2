@@ -1,0 +1,38 @@
+{
+      "parent": "mekanism:disassembler",
+      "requirements": [
+            ["helmet"],
+            ["bodyarmor"],
+            ["pants"],
+            ["boots"],
+            ["tool"]
+      ],
+      "criteria": {
+            "helmet": {
+                  "trigger": "minecraft:inventory_changed",
+                  "conditions": {"items": [{"item": "mekanism:mekasuit_helmet"}]}
+            },
+            "bodyarmor": {
+                  "trigger": "minecraft:inventory_changed",
+                  "conditions": {"items": [{"item": "mekanism:mekasuit_bodyarmor"}]}
+            },
+            "pants": {
+                  "trigger": "minecraft:inventory_changed",
+                  "conditions": {"items": [{"item": "mekanism:mekasuit_pants"}]}
+            },
+            "boots": {
+                  "trigger": "minecraft:inventory_changed",
+                  "conditions": {"items": [{"item": "mekanism:mekasuit_boots"}]}
+            },
+            "tool": {
+                  "trigger": "minecraft:inventory_changed",
+                  "conditions": {"items": [{"item": "mekanism:meka_tool"}]}
+            }
+      },
+      "display": {
+            "icon": {"item": "mekanism:mekasuit_bodyarmor"},
+            "description": {"translate": "advancements.mekanism.mekasuit.description"},
+            "title": {"translate": "advancements.mekanism.mekasuit.title"},
+            "frame": "goal"
+      }
+}

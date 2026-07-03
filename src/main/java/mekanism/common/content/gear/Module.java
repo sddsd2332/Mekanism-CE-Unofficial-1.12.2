@@ -2,9 +2,11 @@ package mekanism.common.content.gear;
 
 import com.google.common.collect.Multimap;
 import mcp.MethodsReturnNonnullByDefault;
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
 import mekanism.api.EnumColor;
 import mekanism.api.NBTConstants;
-import mekanism.api.energy.IEnergizedItem;
+import mekanism.api.energy.IEnergyContainer;
 import mekanism.api.gear.ICustomModule;
 import mekanism.api.gear.IHUDElement;
 import mekanism.api.gear.IModule;
@@ -26,6 +28,7 @@ import mekanism.common.item.interfaces.IModeItem.DisplayChange;
 import mekanism.common.util.ItemDataUtils;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.StorageUtils;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.ai.attributes.AttributeModifier;
@@ -161,17 +164,14 @@ public final class Module<MODULE extends ICustomModule<MODULE>> implements IModu
 
     @Nullable
     @Override
-    public IEnergizedItem getEnergyContainer() {
-        if (getContainer().getItem() instanceof IEnergizedItem item) {
-            return item;
-        }
-        return null;
+    public IEnergyContainer getEnergyContainer() {
+        return StorageUtils.getEnergyContainer(getContainer(), 0);
     }
 
     @Override
     public double getContainerEnergy() {
-        IEnergizedItem energyContainer = getEnergyContainer();
-        return energyContainer == null ? 0 : energyContainer.getEnergy(getContainer());
+        IEnergyContainer energyContainer = getEnergyContainer();
+        return energyContainer == null ? 0 : energyContainer.getEnergy();
     }
 
 
@@ -192,11 +192,11 @@ public final class Module<MODULE extends ICustomModule<MODULE>> implements IModu
     }
 
     @Override
-    public boolean canUseEnergy(EntityLivingBase wearer, @Nullable IEnergizedItem energyContainer, double energy, boolean ignoreCreative) {
+    public boolean canUseEnergy(EntityLivingBase wearer, @Nullable IEnergyContainer energyContainer, double energy, boolean ignoreCreative) {
         if (energyContainer != null && wearer instanceof EntityPlayer player && !player.isSpectator()) {
             //Don't check spectators in general
             if (!ignoreCreative || !player.isCreative()) {
-                return energyContainer.extract(getContainer(), energy, false) == (energy);
+                return energyContainer.extract(energy, Action.SIMULATE, AutomationType.MANUAL) == energy;
             }
         }
         return false;
@@ -213,11 +213,11 @@ public final class Module<MODULE extends ICustomModule<MODULE>> implements IModu
     }
 
     @Override
-    public double useEnergy(EntityLivingBase wearer, @Nullable IEnergizedItem energyContainer, double energy, boolean freeCreative) {
+    public double useEnergy(EntityLivingBase wearer, @Nullable IEnergyContainer energyContainer, double energy, boolean freeCreative) {
         if (energyContainer != null) {
             //Use from spectators if this is called due to the various edge cases that exist for when things are calculated manually
             if (!freeCreative || !(wearer instanceof EntityPlayer player) || MekanismUtils.isPlayingMode(player)) {
-                return energyContainer.extract(getContainer(), energy, true);
+                return energyContainer.extract(energy, Action.EXECUTE, AutomationType.MANUAL);
             }
         }
         return 0;

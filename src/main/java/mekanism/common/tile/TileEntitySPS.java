@@ -1,24 +1,29 @@
 package mekanism.common.tile;
 
 import io.netty.buffer.ByteBuf;
-import mekanism.api.IConfigCardAccess;
-import mekanism.api.TileNetworkList;
-import mekanism.api.gas.*;
+import mekanism.api.*;
+import mekanism.api.gas.Gas;
+import mekanism.api.gas.GasStack;
 import mekanism.api.math.MathUtils;
 import mekanism.api.transmitters.TransmissionType;
 import mekanism.common.MekanismFluids;
-import mekanism.common.SideData;
 import mekanism.common.Upgrade;
 import mekanism.common.base.ISideConfiguration;
 import mekanism.common.base.ISustainedData;
 import mekanism.common.base.ITankManager;
 import mekanism.common.block.states.BlockStateMachine;
 import mekanism.common.capabilities.Capabilities;
+import mekanism.common.capabilities.gas.BasicGasTank;
+import mekanism.common.capabilities.holder.gas.GasTankHelper;
+import mekanism.common.capabilities.holder.gas.IGasTankHolder;
 import mekanism.common.tile.component.TileComponentConfig;
 import mekanism.common.tile.component.TileComponentEjector;
 import mekanism.common.tile.component.config.DataType;
 import mekanism.common.tile.prefab.TileEntityMachine;
-import mekanism.common.util.*;
+import mekanism.common.util.InventoryUtils;
+import mekanism.common.util.ItemDataUtils;
+import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.TileUtils;
 import net.minecraft.block.Block;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -29,11 +34,11 @@ import org.jetbrains.annotations.NotNull;
 
 import javax.annotation.Nonnull;
 
-public class TileEntitySPS extends TileEntityMachine implements IGasHandler, ISideConfiguration, ISustainedData, ITankManager, IConfigCardAccess {
+public class TileEntitySPS extends TileEntityMachine implements ISideConfiguration, ISustainedData, ITankManager, IConfigCardAccess {
 
     public double progress;
-    public GasTank inputTank = new GasTank(1000);
-    public GasTank outputTank = new GasTank(1000);
+    public BasicGasTank inputTank;
+    public BasicGasTank outputTank;
     public int inputProcessed = 0;
     public double receivedEnergy = 0;
     public double lastReceivedEnergy = 0;
@@ -49,17 +54,24 @@ public class TileEntitySPS extends TileEntityMachine implements IGasHandler, ISi
         upgradeComponent.removeSupported(Upgrade.MUFFLING);
 
         configComponent = new TileComponentConfig(this, TransmissionType.ENERGY, TransmissionType.GAS);
-
-        configComponent.addOutput(TransmissionType.GAS, new SideData(DataType.NONE, InventoryUtils.EMPTY));
-        configComponent.addOutput(TransmissionType.GAS, new SideData(DataType.INPUT, new int[]{0}));
-        configComponent.addOutput(TransmissionType.GAS, new SideData(DataType.OUTPUT, new int[]{1}));
-        configComponent.setConfig(TransmissionType.GAS, new byte[]{0, 0, 0, 0, 1, 2});
+        initializeInventorySlots();
+        configComponent.setupGasIOConfig(inputTank, outputTank);
+        configComponent.setConfig(TransmissionType.GAS, DataType.NONE, DataType.NONE, DataType.INPUT, DataType.NONE, DataType.INPUT, DataType.OUTPUT);
 
         configComponent.setInputConfig(TransmissionType.ENERGY);
 
         ejectorComponent = new TileComponentEjector(this);
-        ejectorComponent.setOutputData(TransmissionType.GAS, configComponent.getOutputs(TransmissionType.GAS).get(2));
-        inventory = NonNullListSynchronized.withSize(1, ItemStack.EMPTY);
+        ejectorComponent.setOutputData(configComponent, TransmissionType.GAS);
+    }
+
+    @Override
+    protected IGasTankHolder getInitialGasTanks(IContentsListener listener) {
+        GasTankHelper builder = createGasTankHelper();
+        inputTank = BasicGasTank.input(1000, gas -> gas == MekanismFluids.Polonium, listener);
+        outputTank = BasicGasTank.output(1000, gas -> gas == MekanismFluids.Antimatter, listener);
+        builder.addTank(inputTank);
+        builder.addTank(outputTank);
+        return builder.build();
     }
 
 
@@ -81,7 +93,7 @@ public class TileEntitySPS extends TileEntityMachine implements IGasHandler, ISi
             } else {
                 processed = processable;
                 progress += processable;
-                setEnergy(getEnergy() - receivedEnergy);
+                getMainEnergyContainer().extract(receivedEnergy, Action.EXECUTE, AutomationType.INTERNAL);
                 int toProcess = MathUtils.clampToInt(progress);
                 long actualProcessed = process(toProcess);
                 if (actualProcessed < toProcess) {
@@ -114,31 +126,21 @@ public class TileEntitySPS extends TileEntityMachine implements IGasHandler, ISi
         if (operations == 0) {
             return 0;
         }
-        long processed = inputTank.draw(operations, true).amount;
+        GasStack extracted = inputTank.extract(operations, Action.EXECUTE, AutomationType.INTERNAL);
+        long processed = extracted == null ? 0 : extracted.amount;
         int lastInputProcessed = inputProcessed;
         //Limit how much input we actually increase the input processed by to how much we were actually able to remove from the input tank
         inputProcessed += MathUtils.clampToInt(processed);
         final int inputPerAntimatter = 1000;
         if (inputProcessed >= inputPerAntimatter) {
             GasStack toAdd = new GasStack(MekanismFluids.Antimatter, inputProcessed / inputPerAntimatter);
-            outputTank.receive(toAdd, true);
+            outputTank.insert(toAdd, Action.EXECUTE, AutomationType.INTERNAL);
             inputProcessed %= inputPerAntimatter;
         }
         if (lastInputProcessed != inputProcessed) {
             markDirty();
         }
         return processed;
-    }
-
-
-    @Override
-    public boolean canInsertItem(int i, @Nonnull ItemStack itemStack, @Nonnull EnumFacing side) {
-        return false;
-    }
-
-    @Override
-    public boolean canExtractItem(int slotID, @Nonnull ItemStack itemstack, @Nonnull EnumFacing side) {
-        return false;
     }
 
 
@@ -155,60 +157,38 @@ public class TileEntitySPS extends TileEntityMachine implements IGasHandler, ISi
     }
 
 
-    @Nonnull
-    @Override
-    public GasTankInfo[] getTankInfo() {
-        return new GasTankInfo[]{inputTank, outputTank};
-    }
-
-
-    @Override
-    public int receiveGas(EnumFacing side, GasStack stack, boolean doTransfer) {
-        if (stack == null || stack.getGas() == null) {
-            return 0;
-        }
-        if (canReceiveGas(side, stack.getGas())) {
-            return inputTank.receive(stack, doTransfer);
-        }
-        return 0;
-    }
-
-    @Override
-    public GasStack drawGas(EnumFacing side, int amount, boolean doTransfer) {
-        if (canDrawGas(side, null)) {
-            return outputTank.draw(amount, doTransfer);
-        }
-        return null;
-    }
-
-    @Override
-    public boolean canReceiveGas(EnumFacing side, Gas type) {
-        return configComponent.getOutput(TransmissionType.GAS, side, facing).hasSlot(0) & inputTank.canReceive(type) && type == MekanismFluids.Polonium;
-    }
-
-    @Override
-    public boolean canDrawGas(EnumFacing side, Gas type) {
-        return configComponent.getOutput(TransmissionType.GAS, side, facing).hasSlot(1) && outputTank.canDraw(type);
-    }
-
     @Override
     public void writeSustainedData(ItemStack itemStack) {
-        if (inputTank.getGas() != null) {
-            ItemDataUtils.setCompound(itemStack, "inputTank", inputTank.getGas().write(new NBTTagCompound()));
-        }
-        if (outputTank.getGas() != null) {
-            ItemDataUtils.setCompound(itemStack, "outputTank", outputTank.getGas().write(new NBTTagCompound()));
-        }
+        writeSustainedGasTanks(itemStack);
+        ItemDataUtils.setLegacyGas(itemStack, "inputTank", inputTank.getGas());
+        ItemDataUtils.setLegacyGas(itemStack, "outputTank", outputTank.getGas());
     }
 
     @Override
     public void readSustainedData(ItemStack itemStack) {
-        inputTank.setGas(GasStack.readFromNBT(ItemDataUtils.getCompound(itemStack, "inputTank")));
-        outputTank.setGas(GasStack.readFromNBT(ItemDataUtils.getCompound(itemStack, "outputTank")));
+        if (!readSustainedGasTanks(itemStack)) {
+            inputTank.setStackUnchecked(ItemDataUtils.getLegacyGas(itemStack, "inputTank"));
+            outputTank.setStackUnchecked(ItemDataUtils.getLegacyGas(itemStack, "outputTank"));
+        }
+        sanitizeAndClampTanks();
+    }
+
+    private void sanitizeAndClampTanks() {
+        sanitizeAndClampTank(inputTank, MekanismFluids.Polonium);
+        sanitizeAndClampTank(outputTank, MekanismFluids.Antimatter);
+    }
+
+    private void sanitizeAndClampTank(BasicGasTank tank, Gas expectedGas) {
+        GasStack stored = tank.getGas();
+        if (stored != null && (stored.amount <= 0 || stored.getGas() == null || stored.getGas() != expectedGas)) {
+            tank.setEmpty();
+        } else if (stored != null) {
+            tank.setStackSize(stored.amount, Action.EXECUTE);
+        }
     }
 
     @Override
-    public Object[] getTanks() {
+    public Object[] getManagedTanks() {
         return new Object[]{inputTank, outputTank};
     }
 
@@ -216,11 +196,6 @@ public class TileEntitySPS extends TileEntityMachine implements IGasHandler, ISi
     @Override
     public int[] getSlotsForFace(@NotNull EnumFacing side) {
         return InventoryUtils.EMPTY;
-    }
-
-    @Override
-    public boolean handleInventory() {
-        return false;
     }
 
     @Override
@@ -266,8 +241,13 @@ public class TileEntitySPS extends TileEntityMachine implements IGasHandler, ISi
         super.readCustomNBT(nbtTags);
         lastReceivedEnergy = nbtTags.getDouble("lastReceivedEnergy");
         lastProcessed = nbtTags.getDouble("lastProcessed");
-        inputTank.read(nbtTags.getCompoundTag("inputTank"));
-        outputTank.read(nbtTags.getCompoundTag("outputTank"));
+        if (!hasStoredGasTanks(nbtTags) && nbtTags.hasKey("inputTank")) {
+            inputTank.read(nbtTags.getCompoundTag("inputTank"));
+        }
+        if (!hasStoredGasTanks(nbtTags) && nbtTags.hasKey("outputTank")) {
+            outputTank.read(nbtTags.getCompoundTag("outputTank"));
+        }
+        sanitizeAndClampTanks();
     }
 
     @Override
@@ -275,8 +255,6 @@ public class TileEntitySPS extends TileEntityMachine implements IGasHandler, ISi
         super.writeCustomNBT(nbtTags);
         nbtTags.setDouble("lastReceivedEnergy", lastReceivedEnergy);
         nbtTags.setDouble("lastProcessed", lastProcessed);
-        nbtTags.setTag("inputTank", inputTank.write(new NBTTagCompound()));
-        nbtTags.setTag("outputTank", outputTank.write(new NBTTagCompound()));
     }
 
     @Override
@@ -284,15 +262,13 @@ public class TileEntitySPS extends TileEntityMachine implements IGasHandler, ISi
         if (isCapabilityDisabled(capability, side)) {
             return false;
         }
-        return capability == Capabilities.GAS_HANDLER_CAPABILITY || capability == Capabilities.CONFIG_CARD_CAPABILITY || super.hasCapability(capability, side);
+        return capability == Capabilities.CONFIG_CARD_CAPABILITY || super.hasCapability(capability, side);
     }
 
     @Override
     public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing side) {
         if (isCapabilityDisabled(capability, side)) {
             return null;
-        } else if (capability == Capabilities.GAS_HANDLER_CAPABILITY) {
-            return Capabilities.GAS_HANDLER_CAPABILITY.cast(this);
         } else if (capability == Capabilities.CONFIG_CARD_CAPABILITY) {
             return Capabilities.CONFIG_CARD_CAPABILITY.cast(this);
         }

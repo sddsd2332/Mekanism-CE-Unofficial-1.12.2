@@ -43,7 +43,7 @@ public class ThreadMinerSearch extends Thread {
     @Override
     public void run() {
         state = State.SEARCHING;
-        if (!tileEntity.inverse && tileEntity.filters.isEmpty()) {
+        if (!tileEntity.inverse && !tileEntity.getFilterManager().hasEnabledFilters()) {
             state = State.FINISHED;
             return;
         }
@@ -89,7 +89,7 @@ public class ThreadMinerSearch extends Thread {
                 if (tileEntity.isReplaceStack(stack)) {
                     continue;
                 }
-                for (MinerFilter filter : tileEntity.filters) {
+                for (MinerFilter filter : tileEntity.getFilterManager().getEnabledFilters()) {
                     if (filter.canFilter(stack)) {
                         filterFound = filter;
                         break;

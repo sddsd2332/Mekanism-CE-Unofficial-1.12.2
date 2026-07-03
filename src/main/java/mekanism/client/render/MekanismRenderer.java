@@ -56,6 +56,7 @@ public class MekanismRenderer {
     public static TextureAtlasSprite energyIcon;
     public static TextureAtlasSprite heatIcon;
     public static TextureAtlasSprite laserIcon;
+    public static TextureAtlasSprite redstonePulse;
     public static TextureAtlasSprite whiteIcon;
     public static Map<TransmissionType, TextureAtlasSprite> overlays = new EnumMap<>(TransmissionType.class);
     private static RenderConfigurableMachine machineRenderer = new RenderConfigurableMachine();
@@ -216,6 +217,18 @@ public class MekanismRenderer {
     //Color
     public static void resetColor() {
         GlStateManager.color(1, 1, 1, 1);
+    }
+
+    public static void resetGuiRenderState() {
+        resetColor();
+        GlStateManager.setActiveTexture(OpenGlHelper.defaultTexUnit);
+        GlStateManager.enableTexture2D();
+        GlStateManager.disableLighting();
+        GlStateManager.enableAlpha();
+        GlStateManager.disableBlend();
+        GlStateManager.enableDepth();
+        GlStateManager.depthMask(true);
+        GlStateManager.shadeModel(GL11.GL_FLAT);
     }
 
     public static void resetItemRenderState() {
@@ -442,6 +455,7 @@ public class MekanismRenderer {
         energyIcon = event.getMap().registerSprite(new ResourceLocation(Mekanism.MODID, "blocks/liquid/LiquidEnergy"));
         heatIcon = event.getMap().registerSprite(new ResourceLocation(Mekanism.MODID, "blocks/liquid/LiquidHeat"));
         laserIcon = event.getMap().registerSprite(new ResourceLocation(Mekanism.MODID, "blocks/Laser"));
+        redstonePulse = event.getMap().registerSprite(new ResourceLocation(Mekanism.MODID, "icon/redstone_control_pulse"));
 
         event.getMap().registerSprite(new ResourceLocation(Mekanism.MODID, "blocks/liquid/LiquidHeavyWater"));
 

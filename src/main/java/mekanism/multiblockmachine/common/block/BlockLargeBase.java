@@ -1,7 +1,6 @@
 package mekanism.multiblockmachine.common.block;
 
 import mekanism.api.IMekWrench;
-import mekanism.api.energy.IEnergizedItem;
 import mekanism.api.energy.IStrictEnergyStorage;
 import mekanism.common.base.*;
 import mekanism.common.block.BlockMekanismContainer;
@@ -15,6 +14,7 @@ import mekanism.common.tile.prefab.TileEntityContainerBlock;
 import mekanism.common.util.ItemDataUtils;
 import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.SecurityUtils;
+import mekanism.common.util.StorageUtils;
 import mekanism.multiblockmachine.common.MekanismMultiblockMachine;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
@@ -265,7 +265,7 @@ public abstract class BlockLargeBase extends BlockMekanismContainer {
             if (tileEntity instanceof IRedstoneControl control) {
                 ItemDataUtils.setInt(itemStack, "controlType", control.getControlType().ordinal());
             }
-            if (tileEntity instanceof TileEntityContainerBlock containerBlock && !containerBlock.inventory.isEmpty()) {
+            if (tileEntity instanceof TileEntityContainerBlock containerBlock && !containerBlock.isEmpty()) {
                 if (itemStack.getItem() instanceof ISustainedInventory inventory) {
                     inventory.setInventory(containerBlock.getInventory(), itemStack);
                 }
@@ -278,9 +278,7 @@ public abstract class BlockLargeBase extends BlockMekanismContainer {
                 }
             }
             if (tileEntity instanceof IStrictEnergyStorage storage) {
-                if (itemStack.getItem() instanceof IEnergizedItem energizedItem) {
-                    energizedItem.setEnergy(itemStack, storage.getEnergy());
-                }
+                StorageUtils.setStoredEnergy(itemStack, storage.getEnergy(), storage.getMaxEnergy());
             }
         }
         return itemStack;

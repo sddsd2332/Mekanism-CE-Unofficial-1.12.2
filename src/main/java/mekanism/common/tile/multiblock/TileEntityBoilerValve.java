@@ -3,39 +3,38 @@ package mekanism.common.tile.multiblock;
 import io.netty.buffer.ByteBuf;
 import mekanism.api.EnumColor;
 import mekanism.api.IConfigurable;
+import mekanism.api.IContentsListener;
 import mekanism.api.TileNetworkList;
-import mekanism.api.gas.Gas;
-import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTankInfo;
-import mekanism.api.gas.IGasHandler;
+import mekanism.api.fluid.IExtendedFluidTank;
+import mekanism.api.gas.IExtendedGasTank;
 import mekanism.common.Mekanism;
-import mekanism.common.MekanismFluids;
-import mekanism.common.base.FluidHandlerWrapper;
 import mekanism.common.base.IComparatorSupport;
-import mekanism.common.base.IFluidHandlerWrapper;
 import mekanism.common.block.states.BlockStateBasic.BoilerValveModeProperty;
 import mekanism.common.capabilities.Capabilities;
+import mekanism.common.capabilities.holder.fluid.IFluidTankHolder;
+import mekanism.common.capabilities.holder.fluid.ProxiedFluidTankHolder;
+import mekanism.common.capabilities.holder.gas.IGasTankHolder;
+import mekanism.common.capabilities.holder.gas.ProxiedGasTankHolder;
 import mekanism.common.content.boiler.*;
 import mekanism.common.integration.computer.IComputerIntegration;
-import mekanism.common.util.*;
+import mekanism.common.util.FluidUtils;
+import mekanism.common.util.GasUtils;
+import mekanism.common.util.LangUtils;
+import mekanism.common.util.MekanismUtils;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.EnumActionResult;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.fluids.FluidRegistry;
-import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.FluidTankInfo;
-import net.minecraftforge.fluids.capability.CapabilityFluidHandler;
-import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.List;
 
-public class TileEntityBoilerValve extends TileEntityBoilerCasing implements IFluidHandlerWrapper, IComputerIntegration, IComparatorSupport, IGasHandler, IConfigurable {
+public class TileEntityBoilerValve extends TileEntityBoilerCasing implements IComputerIntegration, IComparatorSupport, IConfigurable {
 
     private static final String[] methods = new String[]{"isFormed", "getSteam", "getWater", "getBoilRate", "getMaxBoilRate", "getTemp"};
     public BoilerTank waterTank;
@@ -55,6 +54,51 @@ public class TileEntityBoilerValve extends TileEntityBoilerCasing implements IFl
         steamTank = new BoilerSteamTank(this);
         inputTank = new BoilerInputGasTank(this);
         outputTank = new BoilerOutputGasTank(this);
+        initializeInventorySlots();
+    }
+
+    @Override
+    protected IFluidTankHolder getInitialFluidTanks(IContentsListener listener) {
+        return ProxiedFluidTankHolder.create(
+              side -> isFormed() && mode == PortMode.INPUT,
+              side -> isFormed() && mode == PortMode.OUTPUT_STEAM,
+              this::getValveFluidTanks
+        );
+    }
+
+    @Override
+    protected IGasTankHolder getInitialGasTanks(IContentsListener listener) {
+        return ProxiedGasTankHolder.create(
+              side -> isFormed() && mode == PortMode.INPUT,
+              side -> isFormed() && mode == PortMode.OUTPUT_COOLANT,
+              this::getValveGasTanks
+        );
+    }
+
+    private List<IExtendedFluidTank> getValveFluidTanks(EnumFacing side) {
+        if (!isFormed()) {
+            return Collections.emptyList();
+        }
+        return switch (mode) {
+            case INPUT -> Collections.singletonList(waterTank);
+            case OUTPUT_STEAM -> Collections.singletonList(steamTank);
+            case OUTPUT_COOLANT -> Collections.emptyList();
+        };
+    }
+
+    private List<IExtendedGasTank> getValveGasTanks(EnumFacing side) {
+        if (!isFormed()) {
+            return Collections.emptyList();
+        }
+        return switch (mode) {
+            case INPUT -> Collections.singletonList(inputTank);
+            case OUTPUT_COOLANT -> Collections.singletonList(outputTank);
+            case OUTPUT_STEAM -> Collections.emptyList();
+        };
+    }
+
+    private boolean isFormed() {
+        return (!isRemote() && structure != null) || (isRemote() && clientHasStructure);
     }
 
     @Override
@@ -81,21 +125,10 @@ public class TileEntityBoilerValve extends TileEntityBoilerCasing implements IFl
         super.onUpdateServer();
         if (structure != null) {
             if (mode == PortMode.OUTPUT_STEAM && structure.steamStored != null && structure.steamStored.amount > 0) {
-                EmitUtils.forEachSide(getWorld(), getPos(), EnumSet.allOf(EnumFacing.class), (tile, side) -> {
-                    if (!(tile instanceof TileEntityBoilerValve)) {
-                        IFluidHandler handler = CapabilityUtils.getCapability(tile, CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, side.getOpposite());
-                        if (handler != null && PipeUtils.canFill(handler, structure.steamStored)) {
-                            structure.steamStored.amount -= handler.fill(structure.steamStored, true);
-                            if (structure.steamStored.amount <= 0) {
-                                structure.steamStored = null;
-                            }
-                        }
-                    }
-                });
+                FluidUtils.emit(EnumSet.allOf(EnumFacing.class), steamTank, this);
             }
-            if (mode == PortMode.OUTPUT_COOLANT && outputTank.getGas() != null && outputTank.getGas().getGas() != null) {
-                GasStack toSend = outputTank.getGas().copy().withAmount(Math.min(outputTank.getMaxGas(), outputTank.getGasAmount()));
-                outputTank.output(GasUtils.emit(toSend, this, EnumSet.allOf(EnumFacing.class)), true);
+            if (mode == PortMode.OUTPUT_COOLANT) {
+                GasUtils.emit(EnumSet.allOf(EnumFacing.class), outputTank, this);
             }
             int newRedstoneLevel = getRedstoneLevel();
             if (newRedstoneLevel != currentRedstoneLevel) {
@@ -103,56 +136,6 @@ public class TileEntityBoilerValve extends TileEntityBoilerCasing implements IFl
                 currentRedstoneLevel = newRedstoneLevel;
             }
         }
-    }
-
-    @Override
-    public FluidTankInfo[] getTankInfo(EnumFacing from) {
-        if ((!isRemote() && structure != null) || (isRemote() && clientHasStructure)) {
-            if (mode == PortMode.INPUT) {
-                return new FluidTankInfo[]{waterTank.getInfo()};
-            } else if (mode == PortMode.OUTPUT_STEAM) {
-                return new FluidTankInfo[]{steamTank.getInfo()};
-            }
-        }
-        return PipeUtils.EMPTY;
-    }
-
-    @Override
-    public FluidTankInfo[] getAllTanks() {
-        return getTankInfo(null);
-    }
-
-    @Override
-    public int fill(EnumFacing from, @Nonnull FluidStack resource, boolean doFill) {
-        if (mode != PortMode.INPUT || resource.getFluid() != FluidRegistry.WATER) {
-            return 0;
-        }
-        return waterTank.fill(resource, doFill);
-    }
-
-    @Override
-    @Nullable
-    public FluidStack drain(EnumFacing from, int maxDrain, boolean doDrain) {
-        if (mode != PortMode.OUTPUT_STEAM) {
-            return null;
-        }
-        return steamTank.drain(maxDrain, doDrain);
-    }
-
-    @Override
-    public boolean canFill(EnumFacing from, @Nonnull FluidStack fluid) {
-        if (((!isRemote() && structure != null) || (isRemote() && clientHasStructure)) && mode == PortMode.INPUT) {
-            return fluid.getFluid() == FluidRegistry.WATER;
-        }
-        return false;
-    }
-
-    @Override
-    public boolean canDrain(EnumFacing from, @Nullable FluidStack fluid) {
-        if (((!isRemote() && structure != null) || (isRemote() && clientHasStructure)) && mode == PortMode.OUTPUT_STEAM) {
-            return FluidContainerUtils.canDrain(structure.steamStored, fluid);
-        }
-        return false;
     }
 
     @Override
@@ -191,23 +174,16 @@ public class TileEntityBoilerValve extends TileEntityBoilerCasing implements IFl
 
     @Override
     public boolean hasCapability(@Nonnull Capability<?> capability, EnumFacing side) {
-        if ((!isRemote() && structure != null) || (isRemote() && clientHasStructure)) {
-            if (capability == CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY || capability == Capabilities.GAS_HANDLER_CAPABILITY || capability == Capabilities.CONFIGURABLE_CAPABILITY) {
-                return true;
-            }
+        if (isFormed() && capability == Capabilities.CONFIGURABLE_CAPABILITY) {
+            return true;
         }
         return super.hasCapability(capability, side);
     }
 
     @Override
     public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing side) {
-        if ((!isRemote() && structure != null) || (isRemote() && clientHasStructure)) {
-            if (capability == Capabilities.CONFIGURABLE_CAPABILITY || capability == Capabilities.GAS_HANDLER_CAPABILITY) {
-                return (T) this;
-            }
-            if (capability == CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY) {
-                return CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY.cast(new FluidHandlerWrapper(this, side));
-            }
+        if (isFormed() && capability == Capabilities.CONFIGURABLE_CAPABILITY) {
+            return (T) this;
         }
         return super.getCapability(capability, side);
     }
@@ -216,52 +192,6 @@ public class TileEntityBoilerValve extends TileEntityBoilerCasing implements IFl
     public int getRedstoneLevel() {
         return MekanismUtils.redstoneLevelFromContents(waterTank.getFluidAmount(), waterTank.getCapacity());
     }
-
-    @Override
-    public int receiveGas(EnumFacing side, GasStack stack, boolean doTransfer) {
-        if (stack == null || stack.getGas() == null || !canReceiveGas(side, stack.getGas())) {
-            return 0;
-        }
-        return inputTank.input(stack, doTransfer);
-    }
-
-    @Override
-    public GasStack drawGas(EnumFacing side, int amount, boolean doTransfer) {
-        if (mode != PortMode.OUTPUT_COOLANT) {
-            return null;
-        }
-        return outputTank.output(amount, doTransfer);
-    }
-
-    @Override
-    public boolean canReceiveGas(EnumFacing side, Gas type) {
-        if (((!isRemote() && structure != null) || (isRemote() && clientHasStructure)) && mode == PortMode.INPUT) {
-            return type == MekanismFluids.SuperheatedSodium;
-        }
-        return false;
-    }
-
-    @Override
-    public boolean canDrawGas(EnumFacing side, Gas type) {
-        if (((!isRemote() && structure != null) || (isRemote() && clientHasStructure)) && mode == PortMode.OUTPUT_COOLANT) {
-            return GasUtils.canDrain(structure.OutputGas, type);
-        }
-        return false;
-    }
-
-    @Nonnull
-    @Override
-    public GasTankInfo[] getTankInfo() {
-        if ((!isRemote() && structure != null) || (isRemote() && clientHasStructure)) {
-            if (mode == PortMode.INPUT) {
-                return new GasTankInfo[]{inputTank.getInfo()};
-            } else if (mode == PortMode.OUTPUT_COOLANT) {
-                return new GasTankInfo[]{outputTank.getInfo()};
-            }
-        }
-        return IGasHandler.NONE;
-    }
-
 
     @Override
     public void handlePacketData(ByteBuf dataStream) {

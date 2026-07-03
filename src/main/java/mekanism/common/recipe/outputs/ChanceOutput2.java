@@ -1,9 +1,10 @@
 package mekanism.common.recipe.outputs;
 
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
+import mekanism.api.inventory.IInventorySlot;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.NonNullList;
-import net.minecraftforge.items.ItemHandlerHelper;
 
 import java.util.Random;
 
@@ -38,27 +39,24 @@ public class ChanceOutput2 extends MachineOutput<ChanceOutput2> {
         return !primaryOutput.isEmpty();
     }
 
-    public boolean applyOutputs(NonNullList<ItemStack> inventory, int primaryIndex, boolean doEmit) {
-        if (hasPrimary() && (!doEmit || checkSecondary())) {
-            return !applyOutputs(inventory, primaryIndex, doEmit, primaryOutput);
+    public ItemStack getMaxPrimaryOutput() {
+        return primaryChance > 0 && hasPrimary() ? primaryOutput.copy() : ItemStack.EMPTY;
+    }
+
+    public ItemStack getPrimaryOutput() {
+        return primaryChance > 0 && checkSecondary() ? primaryOutput.copy() : ItemStack.EMPTY;
+    }
+
+    public boolean applyOutputs(IInventorySlot primarySlot, boolean doEmit) {
+        ItemStack output = doEmit ? getPrimaryOutput() : getMaxPrimaryOutput();
+        if (!output.isEmpty()) {
+            return !applyOutputs(primarySlot, doEmit, output);
         }
         return true;
     }
 
-    private boolean applyOutputs(NonNullList<ItemStack> inventory, int index, boolean doEmit, ItemStack output) {
-        ItemStack stack = inventory.get(index);
-        if (stack.isEmpty()) {
-            if (doEmit) {
-                inventory.set(index, output.copy());
-            }
-            return false;
-        } else if (ItemHandlerHelper.canItemStacksStack(stack, output) && stack.getCount() + output.getCount() <= stack.getMaxStackSize()) {
-            if (doEmit) {
-                stack.grow(output.getCount());
-            }
-            return false;
-        }
-        return true;
+    private boolean applyOutputs(IInventorySlot slot, boolean doEmit, ItemStack output) {
+        return !slot.insertItem(output, doEmit ? Action.EXECUTE : Action.SIMULATE, AutomationType.INTERNAL).isEmpty();
     }
 
     @Override

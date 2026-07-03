@@ -1,6 +1,7 @@
 package mekanism.common.inventory.container.robit;
 
 import mekanism.common.entity.EntityRobit;
+import mekanism.common.util.SecurityUtils;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.inventory.ContainerRepair;
@@ -15,10 +16,17 @@ public class ContainerRobitRepair extends ContainerRepair {
     public ContainerRobitRepair(InventoryPlayer inventory, EntityRobit entity) {
         super(inventory, entity.world, BlockPos.ORIGIN, inventory.player);
         robit = entity;
+        robit.openInventory(inventory.player);
     }
 
     @Override
     public boolean canInteractWith(@Nonnull EntityPlayer entityplayer) {
-        return !robit.isDead;
+        return !robit.isDead && SecurityUtils.canAccess(entityplayer, robit);
+    }
+
+    @Override
+    public void onContainerClosed(@Nonnull EntityPlayer playerIn) {
+        super.onContainerClosed(playerIn);
+        robit.closeInventory(playerIn);
     }
 }

@@ -1,45 +1,57 @@
 package mekanism.common.inventory.container.robit;
 
+import mekanism.api.inventory.IInventorySlot;
 import mekanism.common.entity.EntityRobit;
+import mekanism.common.inventory.container.MekanismContainer;
+import mekanism.common.util.SecurityUtils;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.InventoryPlayer;
-import net.minecraft.inventory.Container;
 import net.minecraft.inventory.Slot;
 
 import javax.annotation.Nonnull;
 
-public abstract class ContainerRobit extends Container {
+public abstract class ContainerRobit extends MekanismContainer {
 
     public EntityRobit robit;
 
-    protected ContainerRobit(EntityRobit robit, InventoryPlayer inventory) {
+    protected ContainerRobit(InventoryPlayer inventory, EntityRobit robit) {
+        super(inventory);
         this.robit = robit;
-        robit.openInventory(inventory.player);
-        addSlots();
-        addInventorySlots(inventory);
+        robit.addContainerTrackers(this, getType());
+        addSlotsAndOpen();
     }
 
-    protected abstract void addSlots();
+    protected abstract EntityRobit.ContainerType getType();
 
-    protected void addInventorySlots(InventoryPlayer inventory) {
-        for (int slotY = 0; slotY < 3; slotY++) {
-            for (int slotX = 0; slotX < 9; slotX++) {
-                addSlotToContainer(new Slot(inventory, slotX + slotY * 9 + 9, 8 + slotX * 18, 84 + slotY * 18));
+    protected void addRobitInventorySlots(EntityRobit.ContainerType containerType) {
+        for (IInventorySlot inventorySlot : robit.getContainerInventorySlots(containerType)) {
+            Slot slot = inventorySlot.createContainerSlot();
+            if (slot != null) {
+                addSlot(slot);
             }
-        }
-        for (int slotY = 0; slotY < 9; slotY++) {
-            addSlotToContainer(new Slot(inventory, slotY, 8 + slotY * 18, 142));
         }
     }
 
     @Override
-    public void onContainerClosed(EntityPlayer entityplayer) {
-        super.onContainerClosed(entityplayer);
-        robit.closeInventory(entityplayer);
+    protected void addSlots() {
+        super.addSlots();
+        addRobitInventorySlots(getType());
+    }
+
+    @Override
+    protected void openInventory(@Nonnull InventoryPlayer inv) {
+        super.openInventory(inv);
+        robit.openInventory(inv.player);
+    }
+
+    @Override
+    protected void closeInventory(@Nonnull EntityPlayer player) {
+        super.closeInventory(player);
+        robit.closeInventory(player);
     }
 
     @Override
     public boolean canInteractWith(@Nonnull EntityPlayer entityplayer) {
-        return !robit.isDead;
+        return !robit.isDead && SecurityUtils.canAccess(entityplayer, robit);
     }
 }

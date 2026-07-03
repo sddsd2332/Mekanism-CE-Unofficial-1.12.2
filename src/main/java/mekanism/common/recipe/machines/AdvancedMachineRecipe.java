@@ -1,13 +1,16 @@
 package mekanism.common.recipe.machines;
 
 import mekanism.api.gas.Gas;
-import mekanism.api.gas.GasTank;
+import mekanism.api.gas.GasStack;
+import mekanism.api.gas.IExtendedGasTank;
+import mekanism.api.inventory.IInventorySlot;
+import mekanism.common.recipe.cache.IConstantGasRecipe;
 import mekanism.common.recipe.inputs.AdvancedMachineInput;
+import mekanism.common.recipe.inputs.MachineInput;
 import mekanism.common.recipe.outputs.ItemStackOutput;
 import net.minecraft.item.ItemStack;
-import net.minecraft.util.NonNullList;
 
-public abstract class AdvancedMachineRecipe<RECIPE extends AdvancedMachineRecipe<RECIPE>> extends MachineRecipe<AdvancedMachineInput, ItemStackOutput, RECIPE> {
+public abstract class AdvancedMachineRecipe<RECIPE extends AdvancedMachineRecipe<RECIPE>> extends MachineRecipe<AdvancedMachineInput, ItemStackOutput, RECIPE> implements IConstantGasRecipe<ItemStack> {
 
     public AdvancedMachineRecipe(AdvancedMachineInput input, ItemStackOutput output) {
         super(input, output);
@@ -17,21 +20,37 @@ public abstract class AdvancedMachineRecipe<RECIPE extends AdvancedMachineRecipe
         this(new AdvancedMachineInput(input, gas), new ItemStackOutput(output));
     }
 
-    public boolean inputMatches(NonNullList<ItemStack> inventory, int inputIndex, GasTank gasTank, int amount) {
-        return getInput().useItem(inventory, inputIndex, false) && getInput().useSecondary(gasTank, amount, false);
+    @Override
+    public ItemStack getItemInput() {
+        return getInput().itemStack;
     }
 
-    public boolean canOperate(NonNullList<ItemStack> inventory, int inputIndex, int outputIndex, GasTank gasTank, int amount) {
-        return inputMatches(inventory, inputIndex, gasTank, amount) && getOutput().applyOutputs(inventory, outputIndex, false);
+    @Override
+    public GasStack getGasInput() {
+        return new GasStack(getInput().gasType, 1);
     }
 
-    public void operate(NonNullList<ItemStack> inventory, int inputIndex, int outputIndex, GasTank gasTank, int needed) {
-        operate(inventory, inputIndex, outputIndex, gasTank, needed, true);
+    @Override
+    public boolean test(ItemStack itemInput, GasStack gasInput) {
+        return MachineInput.inputContains(itemInput, getInput().itemStack) && gasInput != null && gasInput.getGas() == getInput().gasType;
     }
 
-    public void operate(NonNullList<ItemStack> inventory, int inputIndex, int outputIndex, GasTank gasTank, int needed, boolean deplete) {
-        if (getInput().useItem(inventory, inputIndex, deplete) && getInput().useSecondary(gasTank, needed, deplete)) {
-            getOutput().applyOutputs(inventory, outputIndex, true);
-        }
+    @Override
+    public ItemStack getOutput(ItemStack itemInput, GasStack gasInput) {
+        return getOutput().output.copy();
     }
+
+    @Override
+    public boolean isOutputEmpty(ItemStack output) {
+        return output.isEmpty();
+    }
+
+    public boolean inputMatches(IInventorySlot inputSlot, IExtendedGasTank gasTank, int amount) {
+        return getInput().useItem(inputSlot, false) && getInput().useSecondary(gasTank, amount, false);
+    }
+
+    public boolean canOperate(IInventorySlot inputSlot, IInventorySlot outputSlot, IExtendedGasTank gasTank, int amount) {
+        return inputMatches(inputSlot, gasTank, amount) && getOutput().applyOutputs(outputSlot, false);
+    }
+
 }

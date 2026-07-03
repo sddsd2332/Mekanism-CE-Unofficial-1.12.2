@@ -3,6 +3,7 @@ package mekanism.common.capabilities;
 import mekanism.api.*;
 import mekanism.api.IConfigCardAccess.ISpecialConfigData;
 import mekanism.api.energy.IStrictEnergyAcceptor;
+import mekanism.api.energy.IStrictEnergyHandler;
 import mekanism.api.energy.IStrictEnergyOutputter;
 import mekanism.api.energy.IStrictEnergyStorage;
 import mekanism.api.gas.IGasHandler;
@@ -36,6 +37,9 @@ public class Capabilities {
 
     @CapabilityInject(IStrictEnergyStorage.class)
     public static Capability<IStrictEnergyStorage> ENERGY_STORAGE_CAPABILITY = null;
+
+    @CapabilityInject(IStrictEnergyHandler.class)
+    public static Capability<IStrictEnergyHandler> STRICT_ENERGY_CAPABILITY = null;
 
     @CapabilityInject(IStrictEnergyAcceptor.class)
     public static Capability<IStrictEnergyAcceptor> ENERGY_ACCEPTOR_CAPABILITY = null;
@@ -111,6 +115,7 @@ public class Capabilities {
     public static Capability<IMekaFishHook> MEKA_FISH_HOOK = null;
 
     public static void registerCapabilities() {
+        DefaultStrictEnergyHandler.register();
         DefaultStrictEnergyStorage.register();
         DefaultStrictEnergyAcceptor.register();
         DefaultCableOutputter.register();

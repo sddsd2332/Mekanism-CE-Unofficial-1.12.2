@@ -1,27 +1,60 @@
 package mekanism.common.tile.multiblock;
 
 import mekanism.api.Coord4D;
+import mekanism.api.IContentsListener;
 import mekanism.api.IHeatTransfer;
-import mekanism.common.base.FluidHandlerWrapper;
+import mekanism.api.fluid.IExtendedFluidTank;
 import mekanism.common.base.IComparatorSupport;
-import mekanism.common.base.IFluidHandlerWrapper;
-import mekanism.common.capabilities.Capabilities;
-import mekanism.common.util.FluidContainerUtils;
+import mekanism.common.capabilities.holder.fluid.IFluidTankHolder;
+import mekanism.common.capabilities.holder.fluid.ProxiedFluidTankHolder;
+import mekanism.common.capabilities.holder.heat.IHeatCapacitorHolder;
+import mekanism.common.capabilities.holder.heat.ProxiedHeatCapacitorHolder;
 import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.PipeUtils;
 import net.minecraft.util.EnumFacing;
-import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.FluidTankInfo;
-import net.minecraftforge.fluids.capability.CapabilityFluidHandler;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
-public class TileEntityThermalEvaporationValve extends TileEntityThermalEvaporationBlock implements IFluidHandlerWrapper, IHeatTransfer, IComparatorSupport {
+public class TileEntityThermalEvaporationValve extends TileEntityThermalEvaporationBlock implements IHeatTransfer, IComparatorSupport {
 
     public boolean prevMaster = false;
     private int currentRedstoneLevel;
+
+    @Override
+    protected IFluidTankHolder getInitialFluidTanks(IContentsListener listener) {
+        return ProxiedFluidTankHolder.create(
+              side -> getController() != null,
+              side -> getController() != null,
+              this::getValveFluidTanks,
+              this::getValveFluidTanksForInsert,
+              this::getValveFluidTanksForExtract
+        );
+    }
+
+    @Override
+    protected IHeatCapacitorHolder getInitialHeatCapacitors(IContentsListener listener) {
+        return ProxiedHeatCapacitorHolder.create(
+              side -> true,
+              side -> true,
+              side -> getController() == null ? Collections.emptyList() : Collections.singletonList(this)
+        );
+    }
+
+    private List<IExtendedFluidTank> getValveFluidTanks(EnumFacing side) {
+        TileEntityThermalEvaporationController controller = getController();
+        return controller == null ? Collections.emptyList() : Arrays.asList(controller.inputTank, controller.outputTank);
+    }
+
+    private List<IExtendedFluidTank> getValveFluidTanksForInsert(EnumFacing side) {
+        TileEntityThermalEvaporationController controller = getController();
+        return controller == null ? Collections.emptyList() : Collections.singletonList(controller.inputTank);
+    }
+
+    private List<IExtendedFluidTank> getValveFluidTanksForExtract(EnumFacing side) {
+        TileEntityThermalEvaporationController controller = getController();
+        return controller == null ? Collections.emptyList() : Collections.singletonList(controller.outputTank);
+    }
 
     @Override
     public void onUpdateServer() {
@@ -40,45 +73,6 @@ public class TileEntityThermalEvaporationValve extends TileEntityThermalEvaporat
             updateComparatorOutputLevelSync();
             currentRedstoneLevel = newRedstoneLevel;
         }
-    }
-
-    @Override
-    public int fill(EnumFacing from, @Nonnull FluidStack resource, boolean doFill) {
-        TileEntityThermalEvaporationController controller = getController();
-        return controller == null ? 0 : controller.inputTank.fill(resource, doFill);
-    }
-
-    @Override
-    @Nullable
-    public FluidStack drain(EnumFacing from, int maxDrain, boolean doDrain) {
-        TileEntityThermalEvaporationController controller = getController();
-        return controller == null ? null : controller.outputTank.drain(maxDrain, doDrain);
-    }
-
-    @Override
-    public boolean canFill(EnumFacing from, @Nonnull FluidStack fluid) {
-        TileEntityThermalEvaporationController controller = getController();
-        return controller != null && controller.hasRecipe(fluid.getFluid());
-    }
-
-    @Override
-    public boolean canDrain(EnumFacing from, @Nullable FluidStack fluid) {
-        TileEntityThermalEvaporationController controller = getController();
-        return controller != null && controller.outputTank.getFluidAmount() > 0 && FluidContainerUtils.canDrain(controller.outputTank.getFluid(), fluid);
-    }
-
-    @Override
-    public FluidTankInfo[] getTankInfo(EnumFacing from) {
-        TileEntityThermalEvaporationController controller = getController();
-        if (controller == null) {
-            return PipeUtils.EMPTY;
-        }
-        return new FluidTankInfo[]{new FluidTankInfo(controller.inputTank), new FluidTankInfo(controller.outputTank)};
-    }
-
-    @Override
-    public FluidTankInfo[] getAllTanks() {
-        return getTankInfo(null);
     }
 
     @Override
@@ -122,23 +116,6 @@ public class TileEntityThermalEvaporationValve extends TileEntityThermalEvaporat
     @Override
     public IHeatTransfer getAdjacent(EnumFacing side) {
         return null;
-    }
-
-    @Override
-    public boolean hasCapability(@Nonnull Capability<?> capability, EnumFacing side) {
-        return capability == Capabilities.HEAT_TRANSFER_CAPABILITY || (capability == CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY && getController() != null) ||
-                super.hasCapability(capability, side);
-    }
-
-    @Override
-    public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing side) {
-        if (capability == Capabilities.HEAT_TRANSFER_CAPABILITY) {
-            return Capabilities.HEAT_TRANSFER_CAPABILITY.cast(this);
-        }
-        if (capability == CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY && getController() != null) {
-            return CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY.cast(new FluidHandlerWrapper(this, side));
-        }
-        return super.getCapability(capability, side);
     }
 
     @Override

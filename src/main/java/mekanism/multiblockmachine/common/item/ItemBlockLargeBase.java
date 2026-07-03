@@ -7,6 +7,7 @@ import mekanism.client.MekanismKeyHandler;
 import mekanism.common.Upgrade;
 import mekanism.common.base.*;
 import mekanism.common.config.MekanismConfig;
+import mekanism.common.item.interfaces.IItemSustainedInventory;
 import mekanism.common.security.ISecurityItem;
 import mekanism.common.security.ISecurityTile;
 import mekanism.common.tile.prefab.TileEntityBasicBlock;
@@ -36,7 +37,7 @@ import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.UUID;
 
-public abstract class ItemBlockLargeBase extends ItemBlock implements ISustainedInventory, ISecurityItem {
+public abstract class ItemBlockLargeBase extends ItemBlock implements IItemSustainedInventory, ISecurityItem {
 
     public String name;
 
@@ -82,8 +83,8 @@ public abstract class ItemBlockLargeBase extends ItemBlock implements ISustained
             if (itemstack.getItem() instanceof ISustainedInventory inventory) {
                 list.add(EnumColor.AQUA + LangUtils.localize("tooltip.inventory") + ": " + EnumColor.GREY + LangUtils.transYesNo(inventory.getInventory(itemstack) != null && inventory.getInventory(itemstack).tagCount() != 0));
             }
-            if (ItemDataUtils.hasData(itemstack, "upgrades")) {
-                Upgrade.buildMap(ItemDataUtils.getDataMap(itemstack)).forEach((key, value) -> list.add(key.getColor() + "- " + key.getName() + (key.canMultiply() ? ": " + EnumColor.GREY + "x" + value : "")));
+            if (Upgrade.hasUpgradeData(ItemDataUtils.getDataMapIfPresent(itemstack))) {
+                Upgrade.buildComponentMap(ItemDataUtils.getDataMapIfPresent(itemstack)).forEach((key, value) -> list.add(key.getColor() + "- " + key.getName() + (key.canMultiply() ? ": " + EnumColor.GREY + "x" + value : "")));
             }
         } else {
             String getDescription = LangUtils.localize("tooltip." + name);
@@ -97,9 +98,6 @@ public abstract class ItemBlockLargeBase extends ItemBlock implements ISustained
 
     @Override
     public boolean placeBlockAt(@Nonnull ItemStack stack, @Nonnull EntityPlayer player, World world, @Nonnull BlockPos pos, EnumFacing side, float hitX, float hitY, float hitZ, @Nonnull IBlockState state) {
-        if (stack.getCount() > 1 && MekanismConfig.current().mekce.StackingPlacementLimits.val()) {
-            return false;
-        }
         boolean place = true;
         Block block = world.getBlockState(pos).getBlock();
         if (!block.isReplaceable(world, pos)) {
@@ -120,7 +118,7 @@ public abstract class ItemBlockLargeBase extends ItemBlock implements ISustained
                     }
                 }
                 if (tileEntity instanceof IUpgradeTile upgradeTile) {
-                    if (ItemDataUtils.hasData(stack, "upgrades")) {
+                    if (Upgrade.hasUpgradeData(ItemDataUtils.getDataMapIfPresent(stack))) {
                         upgradeTile.getComponent().read(ItemDataUtils.getDataMap(stack));
                     }
                 }

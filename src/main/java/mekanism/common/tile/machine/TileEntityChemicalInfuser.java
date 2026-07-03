@@ -1,18 +1,35 @@
 package mekanism.common.tile.machine;
 
 import io.netty.buffer.ByteBuf;
+import mekanism.api.Action;
+import mekanism.api.IContentsListener;
 import mekanism.api.TileNetworkList;
-import mekanism.api.gas.*;
+import mekanism.api.gas.Gas;
+import mekanism.api.gas.GasStack;
+import mekanism.api.gas.GasTank;
 import mekanism.api.transmitters.TransmissionType;
-import mekanism.common.SideData;
 import mekanism.common.Upgrade;
 import mekanism.common.Upgrade.IUpgradeInfoHandler;
 import mekanism.common.base.ISustainedData;
 import mekanism.common.base.ITankManager;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
-import mekanism.common.capabilities.Capabilities;
+import mekanism.common.capabilities.energy.MachineEnergyContainer;
+import mekanism.common.capabilities.gas.BasicGasTank;
+import mekanism.common.capabilities.holder.gas.GasTankHelper;
+import mekanism.common.capabilities.holder.gas.IGasTankHolder;
+import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
+import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
 import mekanism.common.config.MekanismConfig;
+import mekanism.common.inventory.container.slot.ContainerSlotType;
+import mekanism.common.inventory.container.slot.SlotOverlay;
+import mekanism.common.inventory.slot.EnergyInventorySlot;
+import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.recipe.RecipeHandler;
+import mekanism.common.recipe.cache.CachedRecipe;
+import mekanism.common.recipe.cache.CachedRecipe.OperationTracker.RecipeError;
+import mekanism.common.recipe.cache.ChemicalPairCachedRecipe;
+import mekanism.common.recipe.cache.inputs.InputHelper;
+import mekanism.common.recipe.cache.outputs.OutputHelper;
 import mekanism.common.recipe.inputs.ChemicalPairInput;
 import mekanism.common.recipe.machines.ChemicalInfuserRecipe;
 import mekanism.common.recipe.outputs.GasOutput;
@@ -20,77 +37,111 @@ import mekanism.common.tile.component.TileComponentConfig;
 import mekanism.common.tile.component.TileComponentEjector;
 import mekanism.common.tile.component.config.DataType;
 import mekanism.common.tile.prefab.TileEntityBasicMachine;
-import mekanism.common.util.*;
+import mekanism.common.util.ItemDataUtils;
+import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.TileUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.EnumFacing;
-import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 
-import javax.annotation.Nonnull;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-public class TileEntityChemicalInfuser extends TileEntityBasicMachine<ChemicalPairInput, GasOutput, ChemicalInfuserRecipe> implements IGasHandler, ISustainedData, IUpgradeInfoHandler,
+public class TileEntityChemicalInfuser extends TileEntityBasicMachine<ChemicalPairInput, GasOutput, ChemicalInfuserRecipe> implements ISustainedData, IUpgradeInfoHandler,
         ITankManager {
 
     public static final int MAX_GAS = 10000;
-    public GasTank leftTank = new GasTank(MAX_GAS);
-    public GasTank rightTank = new GasTank(MAX_GAS);
-    public GasTank centerTank = new GasTank(MAX_GAS);
+    private static final List<RecipeError> TRACKED_ERROR_TYPES = Arrays.asList(
+          RecipeError.NOT_ENOUGH_ENERGY,
+          RecipeError.NOT_ENOUGH_ENERGY_REDUCED_RATE,
+          RecipeError.NOT_ENOUGH_LEFT_INPUT,
+          RecipeError.NOT_ENOUGH_RIGHT_INPUT,
+          RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
+          RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
+    );
+    public BasicGasTank leftTank;
+    public BasicGasTank rightTank;
+    public BasicGasTank centerTank;
 
     public ChemicalInfuserRecipe cachedRecipe;
 
     public double clientEnergyUsed;
+    private GasInventorySlot leftSlot;
+    private GasInventorySlot rightSlot;
+    private GasInventorySlot centerSlot;
+    private EnergyInventorySlot energySlot;
 
     public TileEntityChemicalInfuser() {
-        super("cheminfuser", MachineType.CHEMICAL_INFUSER, 4, 1);
+        super("cheminfuser", MachineType.CHEMICAL_INFUSER, 4, 1, TRACKED_ERROR_TYPES);
         configComponent = new TileComponentConfig(this, TransmissionType.ITEM, TransmissionType.GAS, TransmissionType.ENERGY);
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.NONE, InventoryUtils.EMPTY));
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.INPUT_1, new int[]{0}));
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.INPUT_2, new int[]{1}));
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.OUTPUT, new int[]{2}));
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.ENERGY, new int[]{3}));
-        configComponent.setConfig(TransmissionType.ITEM, new byte[]{0, 0, 3, 4, 1, 2});
+        initializeInventorySlots();
+        configComponent.setupItemDualInputOutputConfig(leftSlot, rightSlot, centerSlot, energySlot);
+        configComponent.setConfig(TransmissionType.ITEM, DataType.NONE, DataType.NONE, DataType.OUTPUT, DataType.ENERGY, DataType.INPUT_1, DataType.INPUT_2);
         configComponent.setCanEject(TransmissionType.ITEM, false);
-
-        configComponent.addOutput(TransmissionType.GAS, new SideData(DataType.NONE, InventoryUtils.EMPTY));
-        configComponent.addOutput(TransmissionType.GAS, new SideData(DataType.INPUT_1, new int[]{0}));
-        configComponent.addOutput(TransmissionType.GAS, new SideData(DataType.INPUT_2, new int[]{1}));
-        configComponent.addOutput(TransmissionType.GAS, new SideData(DataType.OUTPUT, new int[]{2}));
-        configComponent.addOutput(TransmissionType.GAS, new SideData(DataType.INPUT, new int[]{0, 1}));
-        configComponent.addOutput(TransmissionType.GAS, new SideData(new int[]{0, 1, 2}, new boolean[]{false, false, true}));
-        configComponent.setConfig(TransmissionType.GAS, new byte[]{0, 0, 3, 0, 1, 2});
+        configComponent.setupGasDualInputOutputConfig(leftTank, rightTank, centerTank);
+        configComponent.setConfig(TransmissionType.GAS, DataType.NONE, DataType.NONE, DataType.OUTPUT, DataType.NONE, DataType.INPUT_1, DataType.INPUT_2);
 
         configComponent.setInputConfig(TransmissionType.ENERGY);
-
         ejectorComponent = new TileComponentEjector(this);
-        ejectorComponent.setOutputData(TransmissionType.GAS, configComponent.getOutputs(TransmissionType.GAS).get(3));
-        ejectorComponent.setInputOutputData(TransmissionType.GAS, configComponent.getOutputs(TransmissionType.GAS).get(5));
+        ejectorComponent.setOutputData(configComponent, TransmissionType.GAS);
+    }
 
-        inventory = NonNullListSynchronized.withSize(5, ItemStack.EMPTY);
+    @Override
+    protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
+        InventorySlotHelper builder = createInventorySlotHelper();
+        leftSlot = builder.addSlot(GasInventorySlot.fill(leftTank, listener, 6, 56));
+        rightSlot = builder.addSlot(GasInventorySlot.fill(rightTank, listener, 154, 56));
+        centerSlot = builder.addSlot(GasInventorySlot.drain(centerTank, listener, 80, 65));
+        energySlot = builder.addSlot(EnergyInventorySlot.fillOrConvert(getMainEnergyContainer(), this::getWorld, listener, 154, 14));
+        leftSlot.setSlotType(ContainerSlotType.INPUT);
+        leftSlot.setSlotOverlay(SlotOverlay.MINUS);
+        rightSlot.setSlotType(ContainerSlotType.INPUT);
+        rightSlot.setSlotOverlay(SlotOverlay.MINUS);
+        centerSlot.setSlotType(ContainerSlotType.OUTPUT);
+        centerSlot.setSlotOverlay(SlotOverlay.PLUS);
+        return builder.build();
+    }
+
+    @Override
+    protected IGasTankHolder getInitialGasTanks(IContentsListener listener) {
+        GasTankHelper builder = createGasTankHelper();
+        builder.addTank(getOrCreateLeftTank());
+        builder.addTank(getOrCreateRightTank());
+        builder.addTank(getOrCreateCenterTank(listener));
+        return builder.build();
+    }
+
+    private BasicGasTank getOrCreateLeftTank() {
+        if (leftTank == null) {
+            leftTank = BasicGasTank.input(MAX_GAS, this::isValidLeftGas, getRecipeCacheListener());
+        }
+        return leftTank;
+    }
+
+    private BasicGasTank getOrCreateRightTank() {
+        if (rightTank == null) {
+            rightTank = BasicGasTank.input(MAX_GAS, this::isValidRightGas, getRecipeCacheListener());
+        }
+        return rightTank;
+    }
+
+    private BasicGasTank getOrCreateCenterTank(IContentsListener listener) {
+        if (centerTank == null) {
+            centerTank = BasicGasTank.output(MAX_GAS, getRecipeCacheChangeListener(listener));
+        }
+        return centerTank;
     }
 
     @Override
     public void onAsyncUpdateServer() {
         super.onAsyncUpdateServer();
-        ChargeUtils.discharge(3, this);
-        TileUtils.receiveGasItem(inventory.get(0), leftTank);
-        TileUtils.receiveGasItem(inventory.get(1), rightTank);
-        TileUtils.drawGas(inventory.get(2), centerTank);
-        ChemicalInfuserRecipe recipe = getRecipe();
-        double energy = recipe != null ? energyPerTick * getUpgradedUsage(recipe) : 0;
-        getProcess(recipe, true, energy, true, false);
+        energySlot.fillContainerOrConvert();
+        leftSlot.fillTank();
+        rightSlot.fillTank();
+        centerSlot.drainTank();
+        clientEnergyUsed = processRecipe(getMainEnergyContainer());
         prevEnergy = getEnergy();
-    }
-
-    @Override
-    protected void setUpOtherActions() {
-        double prev = getEnergy();
-        if (getRecipe() != null) {
-            setEnergy(getEnergy() - energyPerTick * getUpgradedUsage(getRecipe()));
-        }
-        clientEnergyUsed = prev - getEnergy();
     }
 
     public int getUpgradedUsage(ChemicalInfuserRecipe recipe) {
@@ -114,8 +165,21 @@ public class TileEntityChemicalInfuser extends TileEntityBasicMachine<ChemicalPa
         return new ChemicalPairInput(leftTank.getGas(), rightTank.getGas());
     }
 
+    public MachineEnergyContainer getEnergyContainer() {
+        return getMainEnergyContainer();
+    }
+
+    public boolean usedEnergy() {
+        return clientEnergyUsed > 0;
+    }
+
+    public double getEnergyUsed() {
+        return clientEnergyUsed;
+    }
+
     @Override
     public ChemicalInfuserRecipe getRecipe() {
+        refreshRecipeLookupCache();
         ChemicalPairInput input = getInput();
         if (cachedRecipe == null || !input.testEquality(cachedRecipe.getInput())) {
             cachedRecipe = RecipeHandler.getChemicalInfuserRecipe(getInput());
@@ -124,20 +188,133 @@ public class TileEntityChemicalInfuser extends TileEntityBasicMachine<ChemicalPa
     }
 
     @Override
-    public boolean canOperate(ChemicalInfuserRecipe recipe) {
-        return recipe != null && recipe.canOperate(leftTank, rightTank, centerTank);
+    protected void clearRecipeLookupCache() {
+        super.clearRecipeLookupCache();
+        cachedRecipe = null;
     }
 
     @Override
-    public void operate(ChemicalInfuserRecipe recipe) {
-        int operations = getUpgradedUsage(recipe);
-        recipe.operate(leftTank, rightTank, centerTank, operations);
-        markNoUpdateSync();
+    public ChemicalInfuserRecipe getRecipe(int cacheIndex) {
+        return getRecipe();
+    }
+
+    public boolean hasWarningNoMatchingLeftInput() {
+        if (leftTank.getGas() == null) {
+            return rightTank.getGas() != null;
+        }
+        ChemicalInfuserRecipe recipe = getRecipe();
+        if (recipe == null) {
+            return rightTank.getGas() != null;
+        }
+        GasStack required = getRequiredLeftInput(recipe);
+        return required == null || leftTank.getStored() < required.amount;
+    }
+
+    public boolean hasWarningNoMatchingRightInput() {
+        if (rightTank.getGas() == null) {
+            return leftTank.getGas() != null;
+        }
+        ChemicalInfuserRecipe recipe = getRecipe();
+        if (recipe == null) {
+            return leftTank.getGas() != null;
+        }
+        GasStack required = getRequiredRightInput(recipe);
+        return required == null || rightTank.getStored() < required.amount;
+    }
+
+    public boolean hasWarningNoSpaceInOutput() {
+        GasStack output = getCurrentOutput();
+        return output != null && centerTank.canReceiveType(output.getGas()) && centerTank.getNeeded() < output.amount;
+    }
+
+    public boolean hasWarningInputDoesntProduceOutput() {
+        GasStack output = getCurrentOutput();
+        return output != null && !centerTank.canReceiveType(output.getGas());
+    }
+
+    @Override
+    public CachedRecipe<ChemicalInfuserRecipe> createNewCachedRecipe(ChemicalInfuserRecipe recipe, int cacheIndex) {
+        return new ChemicalPairCachedRecipe<>(recipe, this::shouldRecheckAllRecipeErrors,
+              InputHelper.getGasInputHandler(leftTank, CachedRecipe.OperationTracker.RecipeError.NOT_ENOUGH_LEFT_INPUT),
+              InputHelper.getGasInputHandler(rightTank, CachedRecipe.OperationTracker.RecipeError.NOT_ENOUGH_RIGHT_INPUT),
+              OutputHelper.getGasOutputHandler(centerTank, CachedRecipe.OperationTracker.RecipeError.NOT_ENOUGH_OUTPUT_SPACE), recipe.getInput(), recipe.getOutput())
+              .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
+              .setActive(active -> {
+                  if (active || prevEnergy >= getEnergy()) {
+                      setActive(active);
+                  }
+              })
+              .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
+              .setRequiredTicks(() -> ticksRequired)
+              .setBaselineMaxOperations(() -> getUpgradedUsage(recipe))
+              .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
+              .setErrorsChanged(this::onRecipeErrorsChanged)
+              .setOnFinish(this::onCachedRecipeFinish);
     }
 
     @Override
     public Map<ChemicalPairInput, ChemicalInfuserRecipe> getRecipes() {
         return RecipeHandler.Recipe.CHEMICAL_INFUSER.get();
+    }
+
+    private boolean isValidLeftGas(Gas gas) {
+        return isValidGas(gas, rightTank);
+    }
+
+    private boolean isValidRightGas(Gas gas) {
+        return isValidGas(gas, leftTank);
+    }
+
+    private boolean isValidGas(Gas gas, GasTank otherTank) {
+        if (gas == null) {
+            return false;
+        }
+        Gas otherGas = otherTank == null ? null : otherTank.getGasType();
+        for (ChemicalPairInput input : getRecipes().keySet()) {
+            if (otherGas == null && (input.leftGas.getGas() == gas || input.rightGas.getGas() == gas)) {
+                return true;
+            } else if (otherGas != null && ((input.leftGas.getGas() == gas && input.rightGas.getGas() == otherGas) ||
+                  (input.rightGas.getGas() == gas && input.leftGas.getGas() == otherGas))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private GasStack getRequiredLeftInput(ChemicalInfuserRecipe recipe) {
+        GasStack leftRecipe = recipe.getInput().leftGas;
+        GasStack rightRecipe = recipe.getInput().rightGas;
+        GasStack leftStored = leftTank.getGas();
+        if (leftStored != null) {
+            if (leftRecipe != null && leftStored.isGasEqual(leftRecipe)) {
+                return leftRecipe;
+            } else if (rightRecipe != null && leftStored.isGasEqual(rightRecipe)) {
+                return rightRecipe;
+            }
+        }
+        return leftRecipe;
+    }
+
+    private GasStack getRequiredRightInput(ChemicalInfuserRecipe recipe) {
+        GasStack leftRecipe = recipe.getInput().leftGas;
+        GasStack rightRecipe = recipe.getInput().rightGas;
+        GasStack rightStored = rightTank.getGas();
+        if (rightStored != null) {
+            if (rightRecipe != null && rightStored.isGasEqual(rightRecipe)) {
+                return rightRecipe;
+            } else if (leftRecipe != null && rightStored.isGasEqual(leftRecipe)) {
+                return leftRecipe;
+            }
+        }
+        return rightRecipe;
+    }
+
+    private GasStack getCurrentOutput() {
+        ChemicalInfuserRecipe recipe = getRecipe();
+        if (recipe == null || recipe.getOutput().output == null) {
+            return null;
+        }
+        return recipe.getOutput().output;
     }
 
     @Override
@@ -164,131 +341,54 @@ public class TileEntityChemicalInfuser extends TileEntityBasicMachine<ChemicalPa
     @Override
     public void readCustomNBT(NBTTagCompound nbtTags) {
         super.readCustomNBT(nbtTags);
-        leftTank.read(nbtTags.getCompoundTag("leftTank"));
-        rightTank.read(nbtTags.getCompoundTag("rightTank"));
-        centerTank.read(nbtTags.getCompoundTag("centerTank"));
+        if (!hasStoredGasTanks(nbtTags) && nbtTags.hasKey("leftTank")) {
+            leftTank.read(nbtTags.getCompoundTag("leftTank"));
+        }
+        if (!hasStoredGasTanks(nbtTags) && nbtTags.hasKey("rightTank")) {
+            rightTank.read(nbtTags.getCompoundTag("rightTank"));
+        }
+        if (!hasStoredGasTanks(nbtTags) && nbtTags.hasKey("centerTank")) {
+            centerTank.read(nbtTags.getCompoundTag("centerTank"));
+        }
+        sanitizeAndClampTanks();
     }
 
     @Override
     public void writeCustomNBT(NBTTagCompound nbtTags) {
         super.writeCustomNBT(nbtTags);
-        nbtTags.setTag("leftTank", leftTank.write(new NBTTagCompound()));
-        nbtTags.setTag("rightTank", rightTank.write(new NBTTagCompound()));
-        nbtTags.setTag("centerTank", centerTank.write(new NBTTagCompound()));
     }
-
-
-    public GasTank getTank(EnumFacing side) {
-        if (configComponent.getOutput(TransmissionType.GAS, side, facing).hasSlot(0)) {
-            return leftTank;
-        } else if (configComponent.getOutput(TransmissionType.GAS, side, facing).hasSlot(1)) {
-            return rightTank;
-        } else if (configComponent.getOutput(TransmissionType.GAS, side, facing).hasSlot(2)) {
-            return centerTank;
-        }
-        return null;
-    }
-
-    @Nonnull
-    @Override
-    public GasTankInfo[] getTankInfo() {
-        return new GasTankInfo[]{leftTank, centerTank, rightTank};
-    }
-
-    @Override
-    public boolean canReceiveGas(EnumFacing side, Gas type) {
-        if (configComponent.getOutput(TransmissionType.GAS, side, facing).hasSlot(0, 1)) {
-            return leftTank.canReceive(type) || rightTank.canReceive(type);
-        }
-        return getTank(side) != null && getTank(side) != centerTank && getTank(side).canReceive(type);
-    }
-
-    @Override
-    public int receiveGas(EnumFacing side, GasStack stack, boolean doTransfer) {
-        if (canReceiveGas(side, stack != null ? stack.getGas() : null)) {
-            if (configComponent.getOutput(TransmissionType.GAS, side, facing).hasSlot(0, 1)) {
-                if (stack != null) {
-                    if (leftTank.canReceive(stack.getGas()) && rightTank.getGasType() != stack.getGas()) {
-                        return leftTank.receive(stack, doTransfer);
-                    }
-                    if (rightTank.canReceive(stack.getGas()) && leftTank.getGasType() != stack.getGas()) {
-                        return rightTank.receive(stack, doTransfer);
-                    }
-                }
-            } else {
-                return getTank(side).receive(stack, doTransfer);
-            }
-        }
-        return 0;
-    }
-
-    @Override
-    public GasStack drawGas(EnumFacing side, int amount, boolean doTransfer) {
-        if (canDrawGas(side, null)) {
-            return centerTank.draw(amount, doTransfer);
-        }
-        return null;
-    }
-
-    @Override
-    public boolean canDrawGas(EnumFacing side, Gas type) {
-        return configComponent.getOutput(TransmissionType.GAS, side, facing).hasSlot(2) && centerTank.canDraw(type);
-    }
-
-    @Override
-    public boolean hasCapability(@Nonnull Capability<?> capability, EnumFacing side) {
-        if (isCapabilityDisabled(capability, side)) {
-            return false;
-        }
-        return capability == Capabilities.GAS_HANDLER_CAPABILITY || super.hasCapability(capability, side);
-    }
-
-    @Override
-    public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing side) {
-        if (isCapabilityDisabled(capability, side)) {
-            return null;
-        } else if (capability == Capabilities.GAS_HANDLER_CAPABILITY) {
-            return Capabilities.GAS_HANDLER_CAPABILITY.cast(this);
-        }
-        return super.getCapability(capability, side);
-    }
-
-    @Override
-    public boolean isItemValidForSlot(int slotID, @Nonnull ItemStack itemstack) {
-        return slotID == 3 && ChargeUtils.canBeDischarged(itemstack);
-    }
-
-    @Override
-    public boolean canExtractItem(int slotID, @Nonnull ItemStack itemstack, @Nonnull EnumFacing side) {
-        if (slotID == 0 || slotID == 2) {
-            return !itemstack.isEmpty() && itemstack.getItem() instanceof IGasItem gasItem && gasItem.canReceiveGas(itemstack, null);
-        } else if (slotID == 1) {
-            return !itemstack.isEmpty() && itemstack.getItem() instanceof IGasItem gasItem && gasItem.canProvideGas(itemstack, null);
-        } else if (slotID == 3) {
-            return ChargeUtils.canBeOutputted(itemstack, false);
-        }
-        return false;
-    }
-
 
     @Override
     public void writeSustainedData(ItemStack itemStack) {
-        if (leftTank.getGas() != null) {
-            ItemDataUtils.setCompound(itemStack, "leftTank", leftTank.getGas().write(new NBTTagCompound()));
-        }
-        if (rightTank.getGas() != null) {
-            ItemDataUtils.setCompound(itemStack, "rightTank", rightTank.getGas().write(new NBTTagCompound()));
-        }
-        if (centerTank.getGas() != null) {
-            ItemDataUtils.setCompound(itemStack, "centerTank", centerTank.getGas().write(new NBTTagCompound()));
-        }
+        writeSustainedGasTanks(itemStack);
+        ItemDataUtils.setLegacyGas(itemStack, "leftTank", leftTank.getGas());
+        ItemDataUtils.setLegacyGas(itemStack, "rightTank", rightTank.getGas());
+        ItemDataUtils.setLegacyGas(itemStack, "centerTank", centerTank.getGas());
     }
 
     @Override
     public void readSustainedData(ItemStack itemStack) {
-        leftTank.setGas(GasStack.readFromNBT(ItemDataUtils.getCompound(itemStack, "leftTank")));
-        rightTank.setGas(GasStack.readFromNBT(ItemDataUtils.getCompound(itemStack, "rightTank")));
-        centerTank.setGas(GasStack.readFromNBT(ItemDataUtils.getCompound(itemStack, "centerTank")));
+        if (!readSustainedGasTanks(itemStack)) {
+            leftTank.setStackUnchecked(ItemDataUtils.getLegacyGas(itemStack, "leftTank"));
+            rightTank.setStackUnchecked(ItemDataUtils.getLegacyGas(itemStack, "rightTank"));
+            centerTank.setStackUnchecked(ItemDataUtils.getLegacyGas(itemStack, "centerTank"));
+        }
+        sanitizeAndClampTanks();
+    }
+
+    private void sanitizeAndClampTanks() {
+        sanitizeAndClampTank(leftTank);
+        sanitizeAndClampTank(rightTank);
+        sanitizeAndClampTank(centerTank);
+    }
+
+    private void sanitizeAndClampTank(BasicGasTank tank) {
+        GasStack stored = tank.getGas();
+        if (stored != null && (stored.amount <= 0 || stored.getGas() == null)) {
+            tank.setEmpty();
+        } else if (stored != null) {
+            tank.setStackSize(stored.amount, Action.EXECUTE);
+        }
     }
 
     @Override
@@ -298,7 +398,7 @@ public class TileEntityChemicalInfuser extends TileEntityBasicMachine<ChemicalPa
 
 
     @Override
-    public Object[] getTanks() {
+    public Object[] getManagedTanks() {
         return new Object[]{leftTank, rightTank, centerTank};
     }
 
@@ -312,24 +412,7 @@ public class TileEntityChemicalInfuser extends TileEntityBasicMachine<ChemicalPa
     public Object[] invoke(int method, Object[] args) throws NoSuchMethodException {
         return new Object[0];
     }
-
-
-    @Override
-    public boolean getEnergySlot() {
-        return inventory.get(3).isEmpty();
-    }
-
-    @Override
-    public boolean getInputSlot() {
-        return false;
-    }
-
-    @Override
-    public boolean getOuputSlot() {
-        return false;
-    }
-
-    @Override
+@Override
     protected boolean shouldDumpRadiation() {
         return true;
     }

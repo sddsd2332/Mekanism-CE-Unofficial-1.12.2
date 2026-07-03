@@ -79,7 +79,7 @@ public class BlockStateMachine extends ExtendedBlockState {
         COMBINER(MachineBlock.MACHINE_BLOCK_1, 2, "Combiner", 5, TileEntityCombiner::new, true, false, true, Plane.HORIZONTAL, true, true, true),
         CRUSHER(MachineBlock.MACHINE_BLOCK_1, 3, "Crusher", 6, TileEntityCrusher::new, true, false, true, Plane.HORIZONTAL, true, true, true),
         DIGITAL_MINER(MachineBlock.MACHINE_BLOCK_1, 4, "DigitalMiner", 2, TileEntityDigitalMiner::new, true, true, true, Plane.HORIZONTAL, true, false, false),
-        BASIC_FACTORY(MachineBlock.MACHINE_BLOCK_1, 5, "Factory", 11, TileEntityFactory::new, true, false, true, Plane.HORIZONTAL, true, FactoryTier.BASIC, false, false),
+        BASIC_FACTORY(MachineBlock.MACHINE_BLOCK_1, 5, "Factory", 11, TileEntityBasicFactory::new, true, false, true, Plane.HORIZONTAL, true, FactoryTier.BASIC, false, false),
         ADVANCED_FACTORY(MachineBlock.MACHINE_BLOCK_1, 6, "Factory", 11, TileEntityAdvancedFactory::new, true, false, true, Plane.HORIZONTAL, true, FactoryTier.ADVANCED, false, false),
         ELITE_FACTORY(MachineBlock.MACHINE_BLOCK_1, 7, "Factory", 11, TileEntityEliteFactory::new, true, false, true, Plane.HORIZONTAL, true, FactoryTier.ELITE, false, false),
         METALLURGIC_INFUSER(MachineBlock.MACHINE_BLOCK_1, 8, "MetallurgicInfuser", 12, TileEntityMetallurgicInfuser::new, true, true, true, Plane.HORIZONTAL, false, false, false),
@@ -116,7 +116,6 @@ public class BlockStateMachine extends ExtendedBlockState {
         FORMULAIC_ASSEMBLICATOR(MachineBlock.MACHINE_BLOCK_3, 5, "FormulaicAssemblicator", 56, TileEntityFormulaicAssemblicator::new, true, false, true, Plane.HORIZONTAL, true, true, true),
         FUELWOOD_HEATER(MachineBlock.MACHINE_BLOCK_3, 6, "FuelwoodHeater", 58, TileEntityFuelwoodHeater::new, false, false, false, Plane.HORIZONTAL, true, true, true),
         ULTIMATE_FACTORY(MachineBlock.MACHINE_BLOCK_3, 7, "Factory", 11, TileEntityUltimateFactory::new, true, false, true, Plane.HORIZONTAL, true, FactoryTier.ULTIMATE, false, false),
-        CREATIVE_FACTORY(MachineBlock.MACHINE_BLOCK_3, 8, "Factory", 11, TileEntityCreativeFactory::new, true, false, true, Plane.HORIZONTAL, true, FactoryTier.CREATIVE, false, false),
         ISOTOPIC_CENTRIFUGE(MachineBlock.MACHINE_BLOCK_3, 9, "IsotopicCentrifuge", 60, TileEntityIsotopicCentrifuge::new, true, true, false, Plane.HORIZONTAL, false, false, false),
         NUTRITIONAL_LIQUIFIER(MachineBlock.MACHINE_BLOCK_3, 10, "NutritionalLiquifier", 61, TileEntityNutritionalLiquifier::new, true, true, true, Plane.HORIZONTAL, false, false, false),
         SUPERCHARGED_COIL(MachineBlock.MACHINE_BLOCK_3, 11, "SuperchargedCoil", -1, TileEntitySuperchargedCoil::new, false, true, false, BlockStateUtils.ALL_FACINGS, false, false, false),
@@ -507,4 +506,3 @@ public class BlockStateMachine extends ExtendedBlockState {
         }
     }
 }
-

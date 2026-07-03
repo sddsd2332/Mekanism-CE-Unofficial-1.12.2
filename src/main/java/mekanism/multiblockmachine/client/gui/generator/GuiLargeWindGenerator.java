@@ -2,190 +2,114 @@ package mekanism.multiblockmachine.client.gui.generator;
 
 import mekanism.api.EnumColor;
 import mekanism.api.TileNetworkList;
-import mekanism.client.gui.GuiMekanismTile;
-import mekanism.client.gui.button.GuiDisableableButton;
-import mekanism.client.gui.element.*;
-import mekanism.client.gui.element.slot.GuiEnergySlot;
-import mekanism.client.gui.element.tab.GuiSecurityTab;
-import mekanism.client.gui.element.tab.GuiSideHolder;
-import mekanism.client.gui.element.tab.GuiUpgradeTab;
-import mekanism.client.sound.SoundHandler;
+import mekanism.client.gui.element.GuiInnerScreen;
+import mekanism.client.gui.element.GuiSideHolder;
+import mekanism.client.gui.element.bar.GuiVerticalPowerBar;
+import mekanism.client.gui.element.button.MekanismImageButton;
+import mekanism.client.gui.element.tab.GuiEnergyTab;
 import mekanism.common.Mekanism;
 import mekanism.common.base.IRedstoneControl;
-import mekanism.common.network.PacketTileEntity;
+import mekanism.common.network.PacketTileEntity.TileEntityMessage;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
+import mekanism.generators.client.gui.GuiGenerator;
+import mekanism.generators.client.gui.element.GuiGeneratorStateTexture;
+import mekanism.generators.client.gui.element.GuiGeneratorStateTexture.Icon;
 import mekanism.multiblockmachine.common.inventory.container.ContainerLargeWindGenerator;
 import mekanism.multiblockmachine.common.tile.generator.TileEntityLargeWindGenerator;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiButton;
 import net.minecraft.entity.player.InventoryPlayer;
-import net.minecraft.init.SoundEvents;
-import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.text.ITextComponent;
+import net.minecraft.util.text.TextComponentString;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
-import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 @SideOnly(Side.CLIENT)
-public class GuiLargeWindGenerator extends GuiMekanismTile<TileEntityLargeWindGenerator> {
-
-    private GuiButton ForcedRun;
-    private GuiButton updateRun;
+public class GuiLargeWindGenerator extends GuiGenerator<TileEntityLargeWindGenerator, ContainerLargeWindGenerator> {
 
     public GuiLargeWindGenerator(InventoryPlayer inventory, TileEntityLargeWindGenerator tile) {
         super(tile, new ContainerLargeWindGenerator(inventory, tile));
-        ResourceLocation resource = getGuiLocation();
-        addGuiElement(new GuiRedstoneControl(this, tileEntity, resource));
-        addGuiElement(new GuiSecurityTab(this, tileEntity, resource));
-        addGuiElement(new GuiEnergyInfo(() -> Arrays.asList(
-                LangUtils.localize("gui.producing") + ": " +
-                        MekanismUtils.getEnergyDisplay(tileEntity.getActive() ? tileEntity.getEnergyAdd() : 0) + "/t",
-                LangUtils.localize("gui.maxOutput") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getMaxOutput()) + "/t"), this, resource));
-        addGuiElement(new GuiPowerBarLong(this, tileEntity, resource, 164, 9));
-        addGuiElement(new GuiEnergySlot(this, resource, 142, 34 + 2, tileEntity));
-        addGuiElement(new GuiPlayerSlot(this, resource, 7, 83 + 9));
-        addGuiElement(new GuiSlot(GuiSlot.SlotType.STATE_HOLDER, this, resource, 18, 35 + 2));
-        addGuiElement(new GuiInnerScreen(this, resource, 48, 21, 80, 62));
-        addGuiElement(new GuiUpgradeTab(this, tileEntity, resource));
-        ySize += 9;
     }
 
     @Override
-    public void initGui() {
-        super.initGui();
-        buttonList.add(ForcedRun = new GuiDisableableButton(1, guiLeft - 21, guiTop + 90, 18, 18) {
+    protected void addGuiElements() {
+        super.addGuiElements();
+        addButton(new GuiInnerScreen(this, 48, 21, 80, 44, this::getScreenText));
+        addButton(new GuiEnergyTab(this, () -> getEnergyTabText(tileEntity.getActive() ? tileEntity.getEnergyAdd() : 0)));
+        addButton(new GuiVerticalPowerBar(this, tileEntity.getEnergyContainer(), 164, 15));
+        addButton(new GuiGeneratorStateTexture(this, 18, 35, tileEntity::getActive, Icon.WIND_ON, Icon.WIND_OFF));
+        addButton(new GuiSideHolder(this, -26, 86, 26, true, false) {
             @Override
-            public void drawButton(Minecraft mc, int mouseX, int mouseY, float partialTicks) {
+            public void renderButton(int mouseX, int mouseY, float partialTicks) {
                 if (tileEntity.getBladeDamage()) {
-                    super.drawButton(mc, mouseX, mouseY, partialTicks);
+                    super.renderButton(mouseX, mouseY, partialTicks);
                 }
             }
 
             @Override
-            public boolean mousePressed(Minecraft mc, int mouseX, int mouseY) {
-                return tileEntity.getBladeDamage() && super.mousePressed(mc, mouseX, mouseY);
-            }
-        }.with(GuiDisableableButton.ImageOverlay.FORCE_RUN));
-
-        buttonList.add(updateRun = new GuiDisableableButton(2, guiLeft - 21, guiTop + 64, 18, 18) {
-            @Override
-            public void drawButton(Minecraft mc, int mouseX, int mouseY, float partialTicks) {
-                if (tileEntity.getMachineStop2()) {
-                    super.drawButton(mc, mouseX, mouseY, partialTicks);
+            public void drawBackground(int mouseX, int mouseY, float partialTicks) {
+                if (tileEntity.getBladeDamage()) {
+                    super.drawBackground(mouseX, mouseY, partialTicks);
                 }
             }
-
-            @Override
-            public boolean mousePressed(Minecraft mc, int mouseX, int mouseY) {
-                return tileEntity.getMachineStop2() && super.mousePressed(mc, mouseX, mouseY);
-            }
-        }.with(GuiDisableableButton.ImageOverlay.FORCE_RUN));
+        });
+        addButton(new MekanismImageButton(this, -21, 90, 18, 16, getButtonLocation("stock_control"), () -> sendButtonPacket(1),
+              getOnHover(() -> new TextComponentString(tileEntity.getMachineStop() ? LangUtils.localize("gui.forced_run") : LangUtils.localize("gui.forced_run_off"))))
+              .visibility(tileEntity::getBladeDamage));
+        addButton(new MekanismImageButton(this, -21, 64, 18, 16, getButtonLocation("stock_control"), () -> sendButtonPacket(2),
+              getOnHover(() -> new TextComponentString(LangUtils.localize("gui.updateRun"))))
+              .visibility(tileEntity::getMachineStop2));
     }
 
     @Override
-    protected void drawGuiContainerForegroundLayer(int mouseX, int mouseY) {
-        fontRenderer.drawString(tileEntity.getName(), (xSize / 2) - (fontRenderer.getStringWidth(tileEntity.getName()) / 2), 4, 0x404040);
-        fontRenderer.drawString(LangUtils.localize("container.inventory"), 8, (ySize - 96) + 2, 0x404040);
-        fontRenderer.drawString(MekanismUtils.getEnergyDisplay(tileEntity.getEnergy(), tileEntity.getMaxEnergy()), 51, 26, 0xFF3CFE9A);
-        fontRenderer.drawString(LangUtils.localize("gui.power") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getActive() ? tileEntity.getEnergyAdd() : 0) + "/t", 51, 35, 0xFF3CFE9A);
-        fontRenderer.drawString(LangUtils.localize("gui.out") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getMaxOutput()) + "/t", 51, 44, 0xFF3CFE9A);
-        int size = 44;
-        boolean isblacklist = tileEntity.isBlacklistDimension();
+    protected int titleY() {
+        return 6;
+    }
+
+    private void sendButtonPacket(int type) {
+        Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(type)));
+    }
+
+    private List<ITextComponent> getScreenText() {
+        List<ITextComponent> list = new ArrayList<>();
+        list.add(energy(tileEntity.getEnergy(), tileEntity.getMaxEnergy()));
+        list.add(text(LangUtils.localize("gui.power") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getActive() ? tileEntity.getEnergyAdd() : 0) + "/t"));
+        list.add(text(LangUtils.localize("gui.out") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getMaxOutput()) + "/t"));
+        String status = getStatusKey();
+        if (status != null) {
+            list.add(text(EnumColor.DARK_RED + LangUtils.localize(status)));
+        }
+        if (tileEntity.getBladeDamage()) {
+            list.add(text(EnumColor.DARK_RED + LangUtils.localize("gui.Blades_damaged")));
+            list.add(text(EnumColor.DARK_RED + LangUtils.localize("gui.Blades_damaged_number") + ": " + tileEntity.getBladeDamageNumber()));
+        }
+        return list;
+    }
+
+    private String getStatusKey() {
+        boolean blacklisted = tileEntity.isBlacklistDimension();
         if (!tileEntity.getActive()) {
-            String info = "gui.skyBlocked";
-            size += 9;
-            if (isblacklist) {
-                info = "gui.noWind";
+            if (blacklisted) {
+                return "gui.noWind";
             }
-            if (tileEntity.getMachineStop() && !isblacklist) {
-                info = "gui.protection";
+            if (tileEntity.getMachineStop()) {
+                return "gui.protection";
             }
-            if (tileEntity.getMachineStop2() && !isblacklist) {
-                info = "gui.protection2";
+            if (tileEntity.getMachineStop2()) {
+                return "gui.protection2";
             }
-
-            if (!tileEntity.getMachineStop() && !isblacklist && tileEntity.getBladeDamage() && tileEntity.getActive()) {
-                info = "gui.protection.off";
+            if (tileEntity.controlType == IRedstoneControl.RedstoneControl.HIGH && !tileEntity.redstone) {
+                return "control.high.desc";
             }
-            if (tileEntity.controlType == IRedstoneControl.RedstoneControl.HIGH && !tileEntity.redstone && !isblacklist && !tileEntity.getMachineStop()) {
-                info = "control.high.desc";
+            if (tileEntity.controlType == IRedstoneControl.RedstoneControl.LOW && tileEntity.redstone) {
+                return "control.low.desc";
             }
-            if (tileEntity.controlType == IRedstoneControl.RedstoneControl.LOW && tileEntity.redstone && !isblacklist && !tileEntity.getMachineStop()) {
-                info = "control.low.desc";
-            }
-            fontRenderer.drawString(EnumColor.DARK_RED + LangUtils.localize(info), 51, size, 0x00CD00);
-
-        } else if (!tileEntity.getMachineStop() && !isblacklist && tileEntity.getBladeDamage() && tileEntity.getActive()) {
-            size += 9;
-            fontRenderer.drawString(EnumColor.DARK_RED + LangUtils.localize("gui.protection.off"), 51, size, 0x00CD00);
+            return "gui.skyBlocked";
+        } else if (!tileEntity.getMachineStop() && !blacklisted && tileEntity.getBladeDamage()) {
+            return "gui.protection.off";
         }
-        if (tileEntity.getBladeDamage()) {
-            size += 9;
-            fontRenderer.drawString(EnumColor.DARK_RED + LangUtils.localize("gui.Blades_damaged"), 51, size, 0x00CD00);
-            size += 9;
-            fontRenderer.drawString(EnumColor.DARK_RED + LangUtils.localize("gui.Blades_damaged_number") + ": " + tileEntity.getBladeDamageNumber(), 51, size, 0x00CD00);
-        }
-        int xAxis = mouseX - guiLeft;
-        int yAxis = mouseY - guiTop;
-        if (xAxis >= -21 && xAxis <= -3 && yAxis >= 116 && yAxis <= 134) {
-            if (tileEntity.getBladeDamage()) {
-                List<String> info = new ArrayList<>();
-                info.add(LangUtils.localize("gui.Blades_damaged"));
-                info.add(LangUtils.localize("gui.Blades_damaged_number") + ": " + tileEntity.getBladeDamageNumber());
-                this.displayTooltips(info, xAxis, yAxis);
-            }
-        } else if (ForcedRun.isMouseOver()) {
-            this.displayTooltip(tileEntity.getMachineStop() ? LangUtils.localize("gui.forced_run") : LangUtils.localize("gui.forced_run_off"), xAxis, yAxis);
-        } else if (updateRun.isMouseOver() && tileEntity.getMachineStop2()) {
-            this.displayTooltip(LangUtils.localize("gui.updateRun"), xAxis, yAxis);
-        }
-
-        super.drawGuiContainerForegroundLayer(mouseX, mouseY);
-    }
-
-    @Override
-    protected void drawGuiContainerBackgroundLayer(int xAxis, int yAxis) {
-        super.drawGuiContainerBackgroundLayer(xAxis, yAxis);
-        mc.getTextureManager().bindTexture(MekanismUtils.getResource(MekanismUtils.ResourceType.SLOT, "Slot_Icon.png"));
-        drawTexturedModalRect(guiLeft + 20, guiTop + 37 + 2, tileEntity.getActive() ? 12 : 0, 88, 12, 12);
-        if (tileEntity.getBladeDamage()) {
-            mc.getTextureManager().bindTexture(MekanismUtils.getResource(MekanismUtils.ResourceType.TAB, "Warning_Info.png"));
-            drawTexturedModalRect(guiLeft - 26, guiTop + 112, 0, 0, 26, 26);
-            addGuiElement(new GuiWarningInfo(this, getGuiLocation(), false));
-            addGuiElement(new GuiSideHolder(this, getGuiLocation(), -26, 86, 26, 26, true));
-        }
-        if (tileEntity.getMachineStop2()) {
-            mc.getTextureManager().bindTexture(MekanismUtils.getResource(MekanismUtils.ResourceType.BUTTON_TAB, "holder_left.png"));
-            int halfWidthLeft = 26 / 2;
-            int halfHeightTop = 26 / 2;
-            drawTexturedModalRect(guiLeft - 26, guiTop + 60, 0, 0, halfWidthLeft, halfHeightTop);
-            drawTexturedRect(guiLeft - 26, guiTop + 60 + halfHeightTop, 0, 256 - halfHeightTop, halfWidthLeft, halfHeightTop);
-            drawTexturedRect(guiLeft - 26 + halfWidthLeft, guiTop + 60, 256 - halfWidthLeft, 0, halfWidthLeft, halfHeightTop);
-            drawTexturedRect(guiLeft - 26 + halfWidthLeft, guiTop + 60 + halfHeightTop, 256 - halfWidthLeft, 256 - halfHeightTop, halfWidthLeft, halfHeightTop);
-        }
-
-    }
-
-    @Override
-    public void updateScreen() {
-        super.updateScreen();
-    }
-
-    @Override
-    protected void actionPerformed(GuiButton button) throws IOException {
-        super.actionPerformed(button);
-        if (button == ForcedRun) {
-            TileNetworkList data = TileNetworkList.withContents(1);
-            Mekanism.packetHandler.sendToServer(new PacketTileEntity.TileEntityMessage(tileEntity, data));
-            SoundHandler.playSound(SoundEvents.UI_BUTTON_CLICK);
-        } else if (button == updateRun) {
-            TileNetworkList data = TileNetworkList.withContents(2);
-            Mekanism.packetHandler.sendToServer(new PacketTileEntity.TileEntityMessage(tileEntity, data));
-            SoundHandler.playSound(SoundEvents.UI_BUTTON_CLICK);
-        }
+        return null;
     }
 }

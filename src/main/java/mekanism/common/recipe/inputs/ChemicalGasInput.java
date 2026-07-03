@@ -1,7 +1,9 @@
 package mekanism.common.recipe.inputs;
 
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTank;
+import mekanism.api.gas.IExtendedGasTank;
 import net.minecraft.nbt.NBTTagCompound;
 
 /**
@@ -41,12 +43,19 @@ public class ChemicalGasInput extends MachineInput<ChemicalGasInput> {
         uu = GasStack.readFromNBT(nbtTags.getCompoundTag("uu"));
     }
 
-    public boolean useGas(GasTank inputTank, GasTank UUTank, boolean deplete, int scale) {
-        if ((inputTank.getGasType() == input.getGas() && inputTank.getStored() >= input.amount * scale) && (UUTank.getGasType() == uu.getGas() && UUTank.getStored() >= uu.amount * scale)) {
-            UUTank.draw(uu.amount * scale, deplete);
-            return true;
+    public boolean useGas(IExtendedGasTank inputTank, IExtendedGasTank UUTank, boolean deplete, int scale) {
+        int inputAmount = input.amount * scale;
+        int uuAmount = uu.amount * scale;
+        if (hasGas(inputTank, input, inputAmount) && hasGas(UUTank, uu, uuAmount)) {
+            GasStack extracted = UUTank.extract(uuAmount, Action.get(deplete), AutomationType.INTERNAL);
+            return extracted != null && extracted.amount == uuAmount;
         }
         return false;
+    }
+
+    private boolean hasGas(IExtendedGasTank tank, GasStack stack, int amount) {
+        GasStack stored = tank.getGas();
+        return stored != null && stored.isGasEqual(stack) && stored.amount >= amount;
     }
 
     /**

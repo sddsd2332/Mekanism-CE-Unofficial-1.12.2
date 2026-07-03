@@ -1,0 +1,9 @@
+{
+      "parent": "mekanism:laser",
+      "criteria": {"block": {"trigger": "mekanism:block_laser"}},
+      "display": {
+            "icon": {"item": "minecraft:shield"},
+            "description": {"translate": "advancements.mekanism.stopping_lasers.description"},
+            "title": {"translate": "advancements.mekanism.stopping_lasers.title"}
+      }
+}

@@ -1,9 +1,14 @@
 package mekanism.api.functions;
 
 import mekanism.api.AutomationType;
+import mekanism.api.gas.GasStack;
+import net.minecraft.item.ItemStack;
+import net.minecraftforge.fluids.FluidStack;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.function.BiPredicate;
+import java.util.function.BooleanSupplier;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 
 /**
@@ -15,14 +20,40 @@ public class ConstantPredicates {
     private ConstantPredicates() {
     }
 
+    /**
+     * A boolean supplier that returns {@code true}.
+     */
+    public static final BooleanSupplier ALWAYS_TRUE = () -> true;
+
+    /**
+     * A supplier that returns {@code 0L}.
+     */
+    public static final LongSupplier ZERO_LONG = () -> 0;
+
     private static final Predicate<Object> alwaysTrue = t -> true;
     private static final BiPredicate<Object, Object> alwaysTrueBi = (t, u) -> true;
     private static final TriPredicate<Object, Object, Object> alwaysTrueTri = (t, u, v) -> true;
+
+    /**
+     * Represents a predicate that checks if an item stack is empty.
+     */
+    public static final Predicate<ItemStack> ITEM_EMPTY = ItemStack::isEmpty;
+
+    /**
+     * Represents a predicate that checks if a fluid stack is empty.
+     */
+    public static final Predicate<FluidStack> FLUID_EMPTY = stack -> stack == null || stack.amount <= 0;
+
+    /**
+     * Represents a predicate that checks if a gas stack is empty.
+     */
+    public static final Predicate<GasStack> GAS_EMPTY = stack -> stack == null || stack.amount <= 0;
 
     private static final Predicate<Object> alwaysFalse = t -> false;
     private static final BiPredicate<Object, Object> alwaysFalseBi = (t, u) -> false;
     private static final TriPredicate<Object, Object, Object> alwaysFalseTri = (t, u, v) -> false;
 
+    private static final BiPredicate<Object, @NotNull AutomationType> manualOnly = (t, automationType) -> automationType == AutomationType.MANUAL;
     private static final BiPredicate<Object, @NotNull AutomationType> internalOnly = (t, automationType) -> automationType == AutomationType.INTERNAL;
     private static final BiPredicate<Object, @NotNull AutomationType> notExternal = (t, automationType) -> automationType != AutomationType.EXTERNAL;
 
@@ -66,6 +97,13 @@ public class ConstantPredicates {
      */
     public static <T, U, V> TriPredicate<T, U, V> alwaysFalseTri() {
         return (TriPredicate<T, U, V>) alwaysFalseTri;
+    }
+
+    /**
+     * Returns a bi predicate that returns {@code true} for any input when the automation type is manual.
+     */
+    public static <T> BiPredicate<T, @NotNull AutomationType> manualOnly() {
+        return (BiPredicate<T, @NotNull AutomationType>) manualOnly;
     }
 
     /**

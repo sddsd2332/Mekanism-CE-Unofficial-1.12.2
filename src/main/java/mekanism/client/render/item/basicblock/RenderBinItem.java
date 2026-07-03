@@ -15,7 +15,7 @@ public class RenderBinItem {
         //TODO: Implement it
         /*GlStateManager.pushMatrix();
         ItemBlockBasic itemBasic = (ItemBlockBasic) stack.getItem();
-        InventoryBin inv = new InventoryBin(stack);
+        BinMekanismInventory inv = BinMekanismInventory.create(stack);
         binRenderer.render(EnumFacing.NORTH, inv.getItemType(), inv.getItemCount(), false, -0.5, -0.5, -0.5);
         MekanismRenderer.bindTexture(TextureMap.LOCATION_BLOCKS_TEXTURE);
         GlStateManager.enableRescaleNormal();

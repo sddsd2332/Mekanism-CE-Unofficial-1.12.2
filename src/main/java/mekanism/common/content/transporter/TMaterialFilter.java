@@ -3,7 +3,7 @@ package mekanism.common.content.transporter;
 import io.netty.buffer.ByteBuf;
 import mekanism.api.TileNetworkList;
 import mekanism.common.content.filter.IMaterialFilter;
-import mekanism.common.content.transporter.Finder.MaterialFinder;
+import mekanism.common.lib.inventory.Finder;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
@@ -24,12 +24,12 @@ public class TMaterialFilter extends TransporterFilter implements IMaterialFilte
 
     @Override
     public boolean canFilter(ItemStack itemStack, boolean strict) {
-        return super.canFilter(itemStack, strict) && (itemStack.getItem() instanceof ItemBlock) && new MaterialFinder(getMaterial()).modifies(itemStack);
+        return super.canFilter(itemStack, strict) && (itemStack.getItem() instanceof ItemBlock) && getFinder().modifies(itemStack);
     }
 
     @Override
     public Finder getFinder() {
-        return new MaterialFinder(getMaterial());
+        return Finder.material(getMaterial());
     }
 
     @Override
@@ -78,9 +78,8 @@ public class TMaterialFilter extends TransporterFilter implements IMaterialFilte
     @Override
     public TMaterialFilter clone() {
         TMaterialFilter filter = new TMaterialFilter();
-        filter.allowDefault = allowDefault;
-        filter.color = color;
-        filter.materialItem = materialItem;
+        copyBaseData(filter);
+        filter.materialItem = materialItem.copy();
         return filter;
     }
 

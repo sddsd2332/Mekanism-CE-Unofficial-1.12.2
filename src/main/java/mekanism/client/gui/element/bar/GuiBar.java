@@ -1,71 +1,122 @@
 package mekanism.client.gui.element.bar;
 
+
 import mekanism.client.gui.IGuiWrapper;
-import mekanism.client.gui.element.GuiElement;
-import mekanism.client.render.MekanismRenderer;
+import mekanism.client.gui.element.GuiTexturedElement;
+import mekanism.client.gui.element.bar.GuiBar.IBarInfoHandler;
+import mekanism.client.gui.element.slot.GuiSlot;
+import mekanism.client.gui.warning.WarningTracker.WarningType;
+import mekanism.common.inventory.warning.ISupportsWarning;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.text.ITextComponent;
 
-@SideOnly(Side.CLIENT)
-public class GuiBar extends GuiElement {
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.function.BooleanSupplier;
 
-    private final int xPosition;
-    private final int yPosition;
-    private final int xSize;
-    private final int ySize;
+import static mekanism.client.gui.GuiUtils.blit;
 
-    public GuiBar(IGuiWrapper gui, ResourceLocation def, int x, int y, int sizeX, int sizeY) {
-        super(MekanismUtils.getResource(MekanismUtils.ResourceType.GUI_BAR, "Base.png"), gui, def);
-        xPosition = x;
-        yPosition = y;
-        xSize = sizeX;
-        ySize = sizeY;
+public abstract class GuiBar<INFO extends IBarInfoHandler> extends GuiTexturedElement implements ISupportsWarning<GuiBar<INFO>> {
+
+    public static final ResourceLocation BAR = MekanismUtils.getResource(MekanismUtils.ResourceType.GUI_BAR, "base.png");
+
+    private final INFO handler;
+    protected final boolean horizontal;
+    @Nullable
+    private BooleanSupplier warningSupplier;
+
+    public GuiBar(ResourceLocation resource, IGuiWrapper gui, INFO handler, int x, int y, int width, int height, boolean horizontal) {
+        super(resource, gui, x, y, width + 2, height + 2);
+        this.handler = handler;
+        this.horizontal = horizontal;
     }
 
 
-    @Override
-    public Rectangle4i getBounds(int guiWidth, int guiHeight) {
-        return new Rectangle4i(guiWidth + xPosition, guiHeight + yPosition, xSize, ySize);
-    }
-
-    @Override
-    protected boolean inBounds(int xAxis, int yAxis) {
-        return xAxis >= xPosition && xAxis <= xPosition + xSize && yAxis >= yPosition && yAxis <= yPosition + ySize;
-    }
-
-    @Override
-    public void renderBackground(int xAxis, int yAxis, int guiWidth, int guiHeight) {
-        mc.renderEngine.bindTexture(RESOURCE);
-        drawBlack(guiWidth, guiHeight);
-        mc.renderEngine.bindTexture(defaultLocation);
-    }
-
-    public void drawBlack(int guiWidth, int guiHeight) {
-        int halfWidthLeft = xSize / 2;
-        int halfWidthRight = xSize % 2 == 0 ? halfWidthLeft : halfWidthLeft + 1;
-        int halfHeightTop = ySize / 2;
-        int halfHeight = ySize % 2 == 0 ? halfHeightTop : halfHeightTop + 1;
-        MekanismRenderer.resetColor();
-        guiObj.drawTexturedRect(guiWidth + xPosition, guiHeight + yPosition, 0, 0, halfWidthLeft, halfHeightTop);
-        guiObj.drawTexturedRect(guiWidth + xPosition, guiHeight + yPosition + halfHeightTop, 0, 256 - halfHeight, halfWidthLeft, halfHeight);
-        guiObj.drawTexturedRect(guiWidth + xPosition + halfWidthLeft, guiHeight + yPosition, 256 - halfWidthRight, 0, halfWidthRight, halfHeightTop);
-        guiObj.drawTexturedRect(guiWidth + xPosition + halfWidthLeft, guiHeight + yPosition + halfHeightTop, 256 - halfWidthRight, 256 - halfHeight, halfWidthRight, halfHeight);
-    }
-
-
-    @Override
-    public void renderForeground(int xAxis, int yAxis) {
+    public GuiBar<INFO> warning(@Nonnull WarningType type, @Nonnull BooleanSupplier warningSupplier) {
+        this.warningSupplier = ISupportsWarning.compound(this.warningSupplier, gui().trackWarning(type, warningSupplier));
+        return this;
     }
 
     @Override
-    public void preMouseClicked(int xAxis, int yAxis, int button) {
+    public GuiBar<INFO> warning(@Nonnull mekanism.common.inventory.warning.WarningTracker.WarningType type, @Nonnull BooleanSupplier warningSupplier) {
+        this.warningSupplier = ISupportsWarning.compound(this.warningSupplier, gui().trackWarning(type, warningSupplier));
+        return this;
+    }
 
+    public INFO getHandler() {
+        return handler;
     }
 
     @Override
-    public void mouseClicked(int xAxis, int yAxis, int button) {
+    public void drawBackground(int mouseX, int mouseY, float partialTicks) {
+        //Render the bar
+        renderExtendedTexture(BAR, 2, 2);
+        boolean warning = warningSupplier != null && warningSupplier.getAsBoolean();
+        if (warning) {
+            //Draw background (we do it regardless of if we are full or not as if the thing being drawn has transparency
+            // we may as well show the background)
+            minecraft.renderEngine.bindTexture(GuiSlot.WARNING_BACKGROUND_TEXTURE);
+            blit(relativeX + 1, relativeY + 1, 0, 0, width - 2, height - 2, 256, 256);
+        }
+        //Render Contents
+        drawContentsChecked(mouseX, mouseY, partialTicks, handler.getLevel(), warning);
     }
 
+    void drawContentsChecked(int mouseX, int mouseY, float partialTicks, double handlerLevel, boolean warning) {
+        //If there are any contents render them
+        handlerLevel = MathHelper.clamp(handlerLevel, 0, 1);
+        if (handlerLevel > 0) {
+            if (getResource() != null) {
+                minecraft.renderEngine.bindTexture(getResource());
+            }
+            renderBarOverlay(mouseX, mouseY, partialTicks, handlerLevel);
+            if (warning && handlerLevel >= 0.98) {
+                minecraft.renderEngine.bindTexture(WARNING_TEXTURE);
+                //Note: We also start the drawing after half the dimension so that we are sure it will properly line up with
+                // the one drawn to the background if the contents of things are translucent
+                if (horizontal) {
+                    int halfHeight = (height - 2) / 2;
+                    blit( relativeX + 1, relativeY + 1 + halfHeight, 0, halfHeight, width - 2, halfHeight, 256, 256);
+                } else {//vertical
+                    int halfWidth = (width - 2) / 2;
+                    blit( relativeX + 1 + halfWidth, relativeY + 1, halfWidth, 0, halfWidth, height - 2, 256, 256);
+                }
+            }
+        }
+    }
+
+    protected abstract void renderBarOverlay(int mouseX, int mouseY, float partialTicks, double handlerLevel);
+
+    @Override
+    public void renderToolTip(int mouseX, int mouseY) {
+        super.renderToolTip( mouseX, mouseY);
+        ITextComponent tooltip = handler.getTooltip();
+        if (tooltip != null) {
+            displayTooltip(tooltip, mouseX, mouseY);
+        }
+    }
+
+    protected static int calculateScaled(double scale, int value) {
+        if (scale == 1) {
+            return value;
+        } else if (scale < 1) {
+            //Round down
+            return (int) (scale * value);
+        }//else > 1
+        //Allow rounding up
+        return (int) Math.round(scale * value);
+    }
+
+
+    public interface IBarInfoHandler {
+
+        @Nullable
+        default ITextComponent getTooltip() {
+            return null;
+        }
+
+        double getLevel();
+    }
 }

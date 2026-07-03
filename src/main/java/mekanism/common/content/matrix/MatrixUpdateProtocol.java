@@ -45,7 +45,7 @@ public class MatrixUpdateProtocol extends UpdateProtocol<SynchronizedMatrixData>
 
     @Override
     protected SynchronizedMatrixData getNewStructure() {
-        return new SynchronizedMatrixData();
+        return new SynchronizedMatrixData((TileEntityInductionCasing) pointer);
     }
 
     @Override
@@ -57,11 +57,11 @@ public class MatrixUpdateProtocol extends UpdateProtocol<SynchronizedMatrixData>
     protected void mergeCaches(List<ItemStack> rejectedItems, MultiblockCache<SynchronizedMatrixData> cache, MultiblockCache<SynchronizedMatrixData> merge) {
         MatrixCache matrixCache = (MatrixCache) cache;
         MatrixCache mergeCache = (MatrixCache) merge;
-        List<ItemStack> rejects = StackUtils.getMergeRejects(matrixCache.inventory, mergeCache.inventory);
+        List<ItemStack> rejects = StackUtils.getMergeRejects(matrixCache.getInventorySlots(null), mergeCache.getInventorySlots(null));
         if (!rejects.isEmpty()) {
             rejectedItems.addAll(rejects);
         }
-        StackUtils.merge(matrixCache.inventory, mergeCache.inventory);
+        StackUtils.merge(matrixCache.getInventorySlots(null), mergeCache.getInventorySlots(null));
     }
 
     @Override

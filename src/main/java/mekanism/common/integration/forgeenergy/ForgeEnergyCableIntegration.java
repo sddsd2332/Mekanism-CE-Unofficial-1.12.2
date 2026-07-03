@@ -22,7 +22,7 @@ public class ForgeEnergyCableIntegration implements IEnergyStorage {
 
     @Override
     public int extractEnergy(int maxExtract, boolean simulate) {
-        return 0;
+        return ForgeEnergyIntegration.toForge(tileEntity.pullEnergy(side, ForgeEnergyIntegration.fromForge(maxExtract), simulate));
     }
 
     @Override
@@ -37,7 +37,7 @@ public class ForgeEnergyCableIntegration implements IEnergyStorage {
 
     @Override
     public boolean canExtract() {
-        return false;
+        return tileEntity.canOutputEnergy(side);
     }
 
     @Override

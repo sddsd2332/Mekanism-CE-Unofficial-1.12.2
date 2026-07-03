@@ -71,6 +71,9 @@ public class IngredientHelper {
     }
 
     public static boolean matches(Object input, IIngredient toMatch) {
+        if (toMatch == IngredientAny.INSTANCE) {
+            return true;
+        }
         return matches(getIngredient(input), toMatch);
     }
 
@@ -93,6 +96,8 @@ public class IngredientHelper {
             return matches(input.inputStack, toMatch.getIngredient()) && (toMatch.getInfuseType().isEmpty() || toMatch.getInfuseType().equalsIgnoreCase(input.infuse.getType().name));
         } else if (in instanceof GasAndFluidInput input) {
             return matches(input.ingredientGas, toMatch.getLeft()) && matches(input.ingredientFluid, toMatch.getRight());
+        } else if (in instanceof RotaryInput input) {
+            return matches(input.fluidInput, toMatch.getLeft()) && matches(input.gasInput, toMatch.getRight());
         } else if (in instanceof IntegerInput input) {
             return input.ingredient == toMatch.getAmount();
         }
@@ -112,6 +117,8 @@ public class IngredientHelper {
             return matches(output.leftGas, toMatch.getLeft()) && matches(output.rightGas, toMatch.getRight());
         } else if (out instanceof PressurizedOutput output) {
             return matches(output.getItemOutput(), toMatch.getLeft()) && matches(output.getGasOutput(), toMatch.getRight());
+        } else if (out instanceof RotaryOutput output) {
+            return matches(output.gasOutput, toMatch.getLeft()) && matches(output.fluidOutput, toMatch.getRight());
         }
         return false;
     }

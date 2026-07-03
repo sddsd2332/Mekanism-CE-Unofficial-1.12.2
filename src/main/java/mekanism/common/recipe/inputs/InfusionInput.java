@@ -1,12 +1,13 @@
 package mekanism.common.recipe.inputs;
 
+import mekanism.api.Action;
 import mekanism.api.infuse.InfuseRegistry;
 import mekanism.api.infuse.InfuseType;
+import mekanism.api.inventory.IInventorySlot;
 import mekanism.common.InfuseStorage;
 import mekanism.common.util.StackUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.NonNullList;
 import net.minecraftforge.oredict.OreDictionary;
 
 /**
@@ -54,11 +55,10 @@ public class InfusionInput extends MachineInput<InfusionInput> implements IWildI
         return infuse.getType() != null && !inputStack.isEmpty();
     }
 
-    public boolean use(NonNullList<ItemStack> inventory, int index, InfuseStorage infuseStorage, boolean deplete) {
-        ItemStack stack = inventory.get(index);
-        if (inputContains(stack, inputStack) && infuseStorage.contains(infuse)) {
+    public boolean use(IInventorySlot slot, InfuseStorage infuseStorage, boolean deplete) {
+        if (inputContains(slot.getStack(), inputStack) && infuseStorage.contains(infuse)) {
             if (deplete) {
-                inventory.set(index, StackUtils.subtract(stack, inputStack));
+                slot.shrinkStack(inputStack.getCount(), Action.EXECUTE);
                 infuseStorage.subtract(infuse);
             }
             return true;

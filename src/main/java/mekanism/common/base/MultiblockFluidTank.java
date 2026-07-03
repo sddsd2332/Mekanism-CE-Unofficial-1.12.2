@@ -1,14 +1,17 @@
 package mekanism.common.base;
 
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
+import mekanism.api.fluid.ExtendedFluidHandlerUtils;
+import mekanism.api.fluid.IExtendedFluidTank;
 import mekanism.common.tile.multiblock.TileEntityMultiblock;
 import mekanism.common.util.MekanismUtils;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.FluidTankInfo;
-import net.minecraftforge.fluids.IFluidTank;
 
 import javax.annotation.Nullable;
 
-public abstract class MultiblockFluidTank<MULTIBLOCK extends TileEntityMultiblock> implements IFluidTank {
+public abstract class MultiblockFluidTank<MULTIBLOCK extends TileEntityMultiblock> implements IExtendedFluidTank {
 
     protected final MULTIBLOCK multiblock;
 
@@ -16,85 +19,194 @@ public abstract class MultiblockFluidTank<MULTIBLOCK extends TileEntityMultibloc
         this.multiblock = multiblock;
     }
 
-    public abstract void setFluid(FluidStack stack);
-
-    protected abstract void updateValveData();
+    public abstract void setFluid(@Nullable FluidStack stack);
 
     @Override
-    public int fill(@Nullable FluidStack resource, boolean doFill) {
-        if (multiblock.structure != null && !multiblock.getWorld().isRemote) {
-            if (resource == null) {
-                return 0;
-            }
-            FluidStack fluidStack = getFluid();
-            if (fluidStack != null && !fluidStack.isFluidEqual(resource)) {
-                return 0;
-            }
-            if (fluidStack == null) {
-                if (resource.amount <= getCapacity()) {
-                    if (doFill) {
-                        setFluid(fluidStack = resource.copy());
-                        if (resource.amount > 0) {
-                            MekanismUtils.saveChunk(multiblock);
-                            updateValveData();
-                        }
-                    }
-                    return resource.amount;
-                }
-                if (doFill) {
-                    setFluid(fluidStack = resource.copy());
-                    fluidStack.amount = getCapacity();
-                    if (getCapacity() > 0) {
-                        MekanismUtils.saveChunk(multiblock);
-                        updateValveData();
-                    }
-                }
-                return getCapacity();
-            }
-            int needed = getCapacity() - fluidStack.amount;
-            if (resource.amount <= needed) {
-                if (doFill) {
-                    fluidStack.amount += resource.amount;
-                    if (resource.amount > 0) {
-                        MekanismUtils.saveChunk(multiblock);
-                        updateValveData();
-                    }
-                }
-                return resource.amount;
-            }
-            if (doFill) {
-                fluidStack.amount = getCapacity();
-                if (needed > 0) {
-                    MekanismUtils.saveChunk(multiblock);
-                    updateValveData();
-                }
-            }
-            return needed;
+    public void setStack(@Nullable FluidStack stack) {
+        if (!ExtendedFluidHandlerUtils.isEmpty(stack) && !isFluidValid(stack)) {
+            throw new RuntimeException("Invalid fluid for tank: " + stack.getFluid().getName() + " " + stack.amount);
         }
-        return 0;
+        setStackUnchecked(stack);
     }
 
     @Override
+    public void setStackUnchecked(@Nullable FluidStack stack) {
+        setFluid(stack == null ? null : stack.copy());
+        onContentsChanged();
+    }
+
+    @Override
+    public boolean isFluidValid(@Nullable FluidStack stack) {
+        return stack != null;
+    }
+
+    protected abstract void updateValveData();
+
+    protected void onContentsInserted() {
+        MekanismUtils.saveChunk(multiblock);
+        updateValveData();
+    }
+
+    protected void onContentsExtracted() {
+        MekanismUtils.saveChunk(multiblock);
+        multiblock.sendPacketToRenderer();
+    }
+
+    @Override
+    public int setStackSize(int amount, Action action) {
+        FluidStack fluidStack = getFluid();
+        if (fluidStack == null || fluidStack.amount <= 0) {
+            return 0;
+        } else if (amount <= 0) {
+            if (action.execute()) {
+                setFluid(null);
+                onContentsChanged();
+            }
+            return 0;
+        }
+        int capacity = getCapacity();
+        if (amount > capacity) {
+            amount = capacity;
+        }
+        if (amount <= 0) {
+            if (action.execute()) {
+                setFluid(null);
+                onContentsChanged();
+            }
+            return 0;
+        } else if (fluidStack.amount == amount || action.simulate()) {
+            return amount;
+        }
+        setFluid(new FluidStack(fluidStack, amount));
+        onContentsChanged();
+        return amount;
+    }
+
+    protected int growStackForInsert(int amount, Action action) {
+        int current = getFluidAmount();
+        if (current == 0) {
+            return 0;
+        } else if (amount > 0) {
+            amount = Math.min(amount, getNeeded());
+        }
+        int newSize = setStackSizeForInsert(current + amount, action);
+        return newSize - current;
+    }
+
+    protected int shrinkStackForExtract(int amount, Action action) {
+        int current = getFluidAmount();
+        if (current == 0 || amount <= 0) {
+            return 0;
+        }
+        int newSize = setStackSizeForExtract(current - amount, action);
+        return current - newSize;
+    }
+
+    protected int setStackSizeForInsert(int amount, Action action) {
+        return setStackSize(amount, action, true);
+    }
+
+    protected int setStackSizeForExtract(int amount, Action action) {
+        return setStackSize(amount, action, false);
+    }
+
+    private int setStackSize(int amount, Action action, boolean insert) {
+        FluidStack fluidStack = getFluid();
+        if (fluidStack == null || fluidStack.amount <= 0) {
+            return 0;
+        } else if (amount <= 0) {
+            if (action.execute()) {
+                setFluid(null);
+                if (insert) {
+                    onContentsInserted();
+                } else {
+                    onContentsExtracted();
+                }
+            }
+            return 0;
+        }
+        int capacity = getCapacity();
+        if (amount > capacity) {
+            amount = capacity;
+        }
+        if (amount <= 0) {
+            if (action.execute()) {
+                setFluid(null);
+                if (insert) {
+                    onContentsInserted();
+                } else {
+                    onContentsExtracted();
+                }
+            }
+            return 0;
+        } else if (fluidStack.amount == amount || action.simulate()) {
+            return amount;
+        }
+        setFluid(new FluidStack(fluidStack, amount));
+        if (insert) {
+            onContentsInserted();
+        } else {
+            onContentsExtracted();
+        }
+        return amount;
+    }
+
+    @Override
+    @Nullable
+    public FluidStack insert(@Nullable FluidStack stack, Action action, AutomationType automationType) {
+        if (multiblock.structure != null && !multiblock.getWorld().isRemote) {
+            if (ExtendedFluidHandlerUtils.isEmpty(stack) || !isFluidValid(stack)) {
+                return stack;
+            }
+            FluidStack fluidStack = getFluid();
+            if (fluidStack != null && !fluidStack.isFluidEqual(stack)) {
+                return stack;
+            }
+            int needed = getCapacity() - getFluidAmount();
+            if (needed <= 0) {
+                return stack;
+            }
+            int toAdd = Math.min(stack.amount, needed);
+            if (action.execute()) {
+                if (fluidStack == null) {
+                    setFluid(new FluidStack(stack, toAdd));
+                    onContentsInserted();
+                } else {
+                    growStackForInsert(toAdd, Action.EXECUTE);
+                }
+            }
+            return stack.amount == toAdd ? null : new FluidStack(stack, stack.amount - toAdd);
+        }
+        return stack;
+    }
+
+    @Override
+    public int fill(@Nullable FluidStack resource, boolean doFill) {
+        if (ExtendedFluidHandlerUtils.isEmpty(resource)) {
+            return 0;
+        }
+        FluidStack remainder = insert(resource, Action.get(doFill), AutomationType.EXTERNAL);
+        return resource.amount - (remainder == null ? 0 : remainder.amount);
+    }
+
+    @Override
+    @Nullable
     public FluidStack drain(int maxDrain, boolean doDrain) {
+        return extract(maxDrain, Action.get(doDrain), AutomationType.EXTERNAL);
+    }
+
+    @Override
+    @Nullable
+    public FluidStack extract(int amount, Action action, AutomationType automationType) {
         if (multiblock.structure != null && !multiblock.getWorld().isRemote) {
             FluidStack fluidStack = getFluid();
-            if (fluidStack == null || fluidStack.amount <= 0) {
+            if (fluidStack == null || fluidStack.amount <= 0 || amount <= 0) {
                 return null;
             }
-            int used = maxDrain;
-            if (fluidStack.amount < used) {
-                used = fluidStack.amount;
-            }
-            if (doDrain) {
-                fluidStack.amount -= used;
-            }
+            int used = Math.min(fluidStack.amount, amount);
             FluidStack drained = new FluidStack(fluidStack, used);
-            if (fluidStack.amount <= 0) {
-                setFluid(null);
-            }
-            if (drained.amount > 0 && doDrain) {
-                MekanismUtils.saveChunk(multiblock);
-                multiblock.sendPacketToRenderer();
+            if (action.execute()) {
+                shrinkStackForExtract(used, Action.EXECUTE);
             }
             return drained;
         }
@@ -113,5 +225,11 @@ public abstract class MultiblockFluidTank<MULTIBLOCK extends TileEntityMultibloc
     @Override
     public FluidTankInfo getInfo() {
         return new FluidTankInfo(this);
+    }
+
+    @Override
+    public void onContentsChanged() {
+        MekanismUtils.saveChunk(multiblock);
+        updateValveData();
     }
 }

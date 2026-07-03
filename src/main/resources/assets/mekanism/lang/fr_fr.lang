@@ -1021,3 +1021,20 @@ mekanism.configgui.ctgy.tools.tools=Balance d'outils
 mekanism.configgui.ctgy.tools.general.tooltip=Options concernant la configuration générale des 'MekanismTools' 
 mekanism.configgui.ctgy.tools.armor.tooltip=Options concernant les valeurs de protection et la balance des armures MekanismTools 
 mekanism.configgui.ctgy.tools.tools.tooltip=Options concernant les valeurs d'efficacité et la balance des outils MekanismTools
+
+# Migration GUI keys
+gui.trusted=Confiance
+gui.inputRate=Input Rate
+gui.progress=Progress
+gui.processRate=Process Rate
+mekanism.gui.visuals.toobig=Radius too big to display visuals
+gui.back=Back
+gui.Blades_damaged=Blades damaged
+gui.Blades_damaged_number=Damaged blades
+gui.forced_run=Force run
+gui.forced_run_off=Disable force run
+gui.updateRun=Update run state
+gui.protection=Protection active
+gui.protection2=Secondary protection active
+gui.protection.off=Protection disabled
+mekanism.configgui.ctgy.multiblock.multiblock=Multiblock Machine Settings

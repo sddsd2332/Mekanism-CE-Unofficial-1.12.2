@@ -1,0 +1,29 @@
+{
+      "parent": "mekanism:ultimate_control_circuit",
+      "requirements": [
+            ["dimensional_stabilizer"],
+            ["anchor_upgrade"]
+      ],
+      "criteria": {
+            "dimensional_stabilizer": {
+                  "trigger": "minecraft:inventory_changed",
+                  "conditions": {"items": [{
+                        "item": "mekanism:machineblock4",
+                        "data": 14
+                  }]}
+            },
+            "anchor_upgrade": {
+                  "trigger": "minecraft:inventory_changed",
+                  "conditions": {"items": [{"item": "mekanism:anchorupgrade"}]}
+            }
+      },
+      "display": {
+            "icon": {
+                  "item": "mekanism:machineblock4",
+                  "data": 14
+            },
+            "description": {"translate": "advancements.mekanism.stabilizing_chunks.description"},
+            "title": {"translate": "advancements.mekanism.stabilizing_chunks.title"},
+            "frame": "challenge"
+      }
+}

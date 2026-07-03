@@ -1,22 +1,33 @@
 package mekanism.generators.common.tile.reactor;
 
 import io.netty.buffer.ByteBuf;
+import mekanism.api.Action;
+import mekanism.api.IContentsListener;
 import mekanism.api.TileNetworkList;
+import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTank;
 import mekanism.client.sound.SoundHandler;
 import mekanism.common.Mekanism;
 import mekanism.common.MekanismFluids;
 import mekanism.common.base.IActiveState;
+import mekanism.common.capabilities.energy.MachineEnergyContainer;
+import mekanism.common.capabilities.fluid.BasicFluidTank;
+import mekanism.common.capabilities.fluid.VariableCapacityFluidTank;
+import mekanism.common.capabilities.gas.BasicGasTank;
+import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
+import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
+import mekanism.common.capabilities.holder.slot.ProxiedInventorySlotHolder;
 import mekanism.common.config.MekanismConfig;
-import mekanism.common.util.*;
+import mekanism.common.recipe.RecipeHandler;
+import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.TileUtils;
 import mekanism.generators.common.FusionReactor;
 import mekanism.generators.common.item.ItemHohlraum;
+import mekanism.generators.common.slot.ReactorInventorySlot;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.audio.ISound;
 import net.minecraft.entity.Entity;
-import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
@@ -24,7 +35,8 @@ import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.SoundEvent;
 import net.minecraft.util.math.*;
 import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.fluids.FluidTank;
+import net.minecraftforge.fluids.Fluid;
+import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
@@ -32,17 +44,22 @@ import net.minecraftforge.items.CapabilityItemHandler;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class TileEntityReactorController extends TileEntityReactorBlock implements IActiveState {
 
-    public FluidTank waterTank = new FluidTankSync(MekanismConfig.current().generators.FusionReactorsWaterTank.val());
-    public FluidTank steamTank = new FluidTankSync(MekanismConfig.current().generators.FusionReactorsSteamTank.val());
+    public VariableCapacityFluidTank waterTank = VariableCapacityFluidTank.input(this::getWaterTankCapacity,
+          fluid -> RecipeHandler.Recipe.FUSION_COOLING.containsRecipe(fluid.getFluid()), this);
+    public VariableCapacityFluidTank steamTank = VariableCapacityFluidTank.output(this::getSteamTankCapacity, BasicFluidTank.alwaysTrue, this);
 
-    public GasTank deuteriumTank = new GasTank(MekanismConfig.current().generators.FusionReactorsDeuteriumTank.val());
-    public GasTank tritiumTank = new GasTank(MekanismConfig.current().generators.FusionReactorsTritiumTank.val());
+    public BasicGasTank deuteriumTank = BasicGasTank.input(MekanismConfig.current().generators.FusionReactorsDeuteriumTank.val(),
+          gas -> gas == MekanismFluids.Deuterium, this);
+    public BasicGasTank tritiumTank = BasicGasTank.input(MekanismConfig.current().generators.FusionReactorsTritiumTank.val(),
+          gas -> gas == MekanismFluids.Tritium, this);
 
-    public GasTank fuelTank = new GasTank(MekanismConfig.current().generators.FusionReactorsFuelTank.val());
+    public BasicGasTank fuelTank = BasicGasTank.input(MekanismConfig.current().generators.FusionReactorsFuelTank.val(),
+          gas -> gas == MekanismFluids.FusionFuel, this);
 
     public AxisAlignedBB box;
     public double clientTemp = 0;
@@ -60,7 +77,35 @@ public class TileEntityReactorController extends TileEntityReactorBlock implemen
 
     public TileEntityReactorController() {
         super("ReactorController", MekanismConfig.current().generators.reactorGeneratorStorage.val());
-        inventory = NonNullListSynchronized.withSize(1, ItemStack.EMPTY);
+        initializeInventorySlots();
+    }
+
+    private int getFusionTankCapacityMultiplier() {
+        if (getReactor() == null) {
+            return 1;
+        }
+        int rate = getReactor().getInjectionRate();
+        int capRate = Math.min(Math.min(Math.max(1, rate), MekanismConfig.current().generators.reactorGeneratorInjectionRate.val()), 1000);
+        return capRate - capRate % 2;
+    }
+
+    private int getWaterTankCapacity() {
+        return MekanismConfig.current().generators.FusionReactorsWaterTank.val() * getFusionTankCapacityMultiplier();
+    }
+
+    private int getSteamTankCapacity() {
+        return MekanismConfig.current().generators.FusionReactorsSteamTank.val() * getFusionTankCapacityMultiplier();
+    }
+
+    @Override
+    protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
+        InventorySlotHelper builder = createInventorySlotHelper();
+        ReactorInventorySlot hohlraumSlot = ReactorInventorySlot.at(stack -> stack.getItem() instanceof ItemHohlraum, listener, 80, 39);
+        hohlraumSlot.setEnabledSupplier(this::isFormed);
+        builder.addSlot(hohlraumSlot);
+        IInventorySlotHolder slotHolder = builder.build();
+        return ProxiedInventorySlotHolder.create(side -> isFormed() && slotHolder.canInsert(side), side -> isFormed() && slotHolder.canExtract(side),
+              side -> side == null || isFormed() ? slotHolder.getInventorySlots(side) : Collections.emptyList());
     }
 
     @Override
@@ -95,6 +140,56 @@ public class TileEntityReactorController extends TileEntityReactorBlock implemen
 
     public boolean getactivelyCooled() {
         return steamTank.getFluidAmount() < steamTank.getCapacity() && steamTank.getFluidAmount() != steamTank.getCapacity();
+    }
+
+    public void sanitizeStoredContents() {
+        sanitizeGasTank(fuelTank, MekanismFluids.FusionFuel);
+        sanitizeGasTank(deuteriumTank, MekanismFluids.Deuterium);
+        sanitizeGasTank(tritiumTank, MekanismFluids.Tritium);
+        sanitizeFluidTank(waterTank, true);
+        sanitizeFluidTank(steamTank, false);
+    }
+
+    public void clampTanksToCapacity() {
+        clampGasTank(fuelTank);
+        clampGasTank(deuteriumTank);
+        clampGasTank(tritiumTank);
+        clampFluidTank(waterTank);
+        clampFluidTank(steamTank);
+    }
+
+    public void sanitizeAndClampTanks() {
+        sanitizeStoredContents();
+        clampTanksToCapacity();
+    }
+
+    private void sanitizeGasTank(BasicGasTank tank, Gas expectedGas) {
+        GasStack stored = tank.getGas();
+        if (stored != null && (stored.amount <= 0 || stored.getGas() != expectedGas)) {
+            tank.setEmpty();
+        }
+    }
+
+    private void clampGasTank(BasicGasTank tank) {
+        GasStack stored = tank.getGas();
+        if (stored != null) {
+            tank.setStackSize(stored.amount, Action.EXECUTE);
+        }
+    }
+
+    private void sanitizeFluidTank(VariableCapacityFluidTank tank, boolean validateRecipeInput) {
+        FluidStack stored = tank.getFluid();
+        Fluid fluid = stored == null ? null : stored.getFluid();
+        if (stored != null && (stored.amount <= 0 || fluid == null || validateRecipeInput && !RecipeHandler.Recipe.FUSION_COOLING.containsRecipe(fluid))) {
+            tank.setEmpty();
+        }
+    }
+
+    private void clampFluidTank(VariableCapacityFluidTank tank) {
+        FluidStack stored = tank.getFluid();
+        if (stored != null) {
+            tank.setStackSize(stored.amount, Action.EXECUTE);
+        }
     }
 
     @Override
@@ -199,6 +294,7 @@ public class TileEntityReactorController extends TileEntityReactorBlock implemen
         tritiumTank.read(tag.getCompoundTag("tritiumTank"));
         waterTank.readFromNBT(tag.getCompoundTag("waterTank"));
         steamTank.readFromNBT(tag.getCompoundTag("steamTank"));
+        sanitizeAndClampTanks();
     }
 
     @Override
@@ -208,6 +304,8 @@ public class TileEntityReactorController extends TileEntityReactorBlock implemen
         if (getReactor() != null) {
             data.add(getReactor().getPlasmaTemp());
             data.add(getReactor().getCaseTemp());
+            data.add(getReactor().lastTransferLoss);
+            data.add(getReactor().lastEnvironmentLoss);
             data.add(getReactor().getInjectionRate());
             data.add(getReactor().isBurning());
 
@@ -254,6 +352,8 @@ public class TileEntityReactorController extends TileEntityReactorBlock implemen
                 getReactor().formed = true;
                 getReactor().setPlasmaTemp(dataStream.readDouble());
                 getReactor().setCaseTemp(dataStream.readDouble());
+                getReactor().lastTransferLoss = dataStream.readDouble();
+                getReactor().lastEnvironmentLoss = dataStream.readDouble();
                 getReactor().setInjectionRate(dataStream.readInt());
                 getReactor().setBurning(dataStream.readBoolean());
 
@@ -280,6 +380,10 @@ public class TileEntityReactorController extends TileEntityReactorBlock implemen
 
     public boolean isBurning() {
         return getActive() && getReactor().isBurning();
+    }
+
+    public MachineEnergyContainer getEnergyContainer() {
+        return getMainEnergyContainer();
     }
 
     @Override
@@ -431,19 +535,13 @@ public class TileEntityReactorController extends TileEntityReactorBlock implemen
     @Nonnull
     @Override
     public int[] getSlotsForFace(@Nonnull EnumFacing side) {
-        return isFormed() ? new int[]{0} : InventoryUtils.EMPTY;
-    }
-
-    @Override
-    public boolean isItemValidForSlot(int slot, @Nonnull ItemStack stack) {
-        return stack.getItem() instanceof ItemHohlraum;
+        return getInventorySlotIdsForSide(side);
     }
 
     @Override
     public boolean isCapabilityDisabled(@Nonnull Capability<?> capability, EnumFacing side) {
         if (capability == CapabilityItemHandler.ITEM_HANDLER_CAPABILITY) {
-            //Allow inserting
-            return false;
+            return !isFormed();
         }
         return super.isCapabilityDisabled(capability, side);
     }

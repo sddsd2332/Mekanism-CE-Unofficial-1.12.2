@@ -1,0 +1,19 @@
+{
+      "parent": "mekanism:antimatter",
+      "criteria": {"nucleosynthesizer": {
+            "trigger": "minecraft:inventory_changed",
+            "conditions": {"items": [{
+                  "item": "mekanism:machineblock3",
+                  "data": 13
+            }]}
+      }},
+      "display": {
+            "icon": {
+                  "item": "mekanism:machineblock3",
+                  "data": 13
+            },
+            "description": {"translate": "advancements.mekanism.nucleosynthesizer.description"},
+            "title": {"translate": "advancements.mekanism.nucleosynthesizer.title"},
+            "frame": "challenge"
+      }
+}

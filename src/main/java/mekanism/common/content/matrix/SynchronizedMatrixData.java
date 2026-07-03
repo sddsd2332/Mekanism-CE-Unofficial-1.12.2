@@ -4,23 +4,26 @@ import io.netty.buffer.ByteBuf;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import mekanism.api.Coord4D;
 import mekanism.api.TileNetworkList;
+import mekanism.api.energy.IEnergyContainer;
+import mekanism.common.inventory.container.slot.SlotOverlay;
+import mekanism.common.inventory.slot.EnergyInventorySlot;
 import mekanism.common.multiblock.SynchronizedData;
+import mekanism.common.tile.multiblock.TileEntityInductionCasing;
 import mekanism.common.tile.multiblock.TileEntityInductionCell;
 import mekanism.common.tile.multiblock.TileEntityInductionProvider;
 import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.NonNullListSynchronized;
-import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 
 import java.util.Set;
 
 //TODO: Do something better for purposes of double precision such as BigInt
-public class SynchronizedMatrixData extends SynchronizedData<SynchronizedMatrixData> {
+public class SynchronizedMatrixData extends SynchronizedData<SynchronizedMatrixData> implements IEnergyContainer {
 
-    private NonNullListSynchronized<ItemStack> inventory = NonNullListSynchronized.withSize(2, ItemStack.EMPTY);
     private Set<Coord4D> providers = new ObjectOpenHashSet<>();
     private Set<Coord4D> cells = new ObjectOpenHashSet<>();
+    private final EnergyInventorySlot chargeSlot;
+    private final EnergyInventorySlot dischargeSlot;
     private double queuedOutput;
     private double queuedInput;
     private double lastOutput;
@@ -33,13 +36,17 @@ public class SynchronizedMatrixData extends SynchronizedData<SynchronizedMatrixD
     private int clientProviders;
     private int clientCells;
 
-    @Override
-    public NonNullListSynchronized<ItemStack> getInventory() {
-        return inventory;
+    public SynchronizedMatrixData(TileEntityInductionCasing tile) {
+        energyContainers.add(this);
+        inventorySlots.add(chargeSlot = EnergyInventorySlot.drain(this, this, 146, 20));
+        chargeSlot.setSlotOverlay(SlotOverlay.PLUS);
+        inventorySlots.add(dischargeSlot = EnergyInventorySlot.fillOrConvert(this, tile::getWorld, this, 146, 51));
+        dischargeSlot.setSlotOverlay(SlotOverlay.MINUS);
     }
 
-    public void setInventory(NonNullListSynchronized<ItemStack> inventory) {
-        this.inventory = inventory;
+    public void manageInventory() {
+        chargeSlot.drainContainer();
+        dischargeSlot.fillContainerOrConvert();
     }
 
     public void addCell(Coord4D coord, TileEntityInductionCell cell) {
@@ -239,8 +246,19 @@ public class SynchronizedMatrixData extends SynchronizedData<SynchronizedMatrixD
         return transferCap;
     }
 
+    @Override
     public double getEnergy() {
         return cachedTotal;
+    }
+
+    @Override
+    public void setEnergy(double energy) {
+        queueSetEnergy(energy);
+    }
+
+    @Override
+    public double getMaxEnergy() {
+        return storageCap;
     }
 
     public double getLastInput() {

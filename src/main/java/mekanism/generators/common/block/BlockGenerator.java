@@ -1,7 +1,6 @@
 package mekanism.generators.common.block;
 
 import mekanism.api.IMekWrench;
-import mekanism.api.energy.IEnergizedItem;
 import mekanism.common.base.*;
 import mekanism.common.block.BlockMekanismContainer;
 import mekanism.common.block.states.BlockStateFacing;
@@ -16,6 +15,7 @@ import mekanism.common.tile.prefab.TileEntityContainerBlock;
 import mekanism.common.tile.prefab.TileEntityElectricBlock;
 import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.SecurityUtils;
+import mekanism.common.util.StorageUtils;
 import mekanism.generators.common.GeneratorsItems;
 import mekanism.generators.common.MekanismGenerators;
 import mekanism.generators.common.block.states.BlockStateGenerator;
@@ -497,10 +497,9 @@ public abstract class BlockGenerator extends BlockMekanismContainer {
         }
 
         if (tileEntity instanceof TileEntityElectricBlock block) {
-            IEnergizedItem electricItem = (IEnergizedItem) itemStack.getItem();
-            electricItem.setEnergy(itemStack, block.electricityStored.get());
+            StorageUtils.setStoredEnergy(itemStack, block.electricityStored.get(), block.getMaxEnergy());
         }
-        if (tileEntity instanceof TileEntityContainerBlock block && block.handleInventory()) {
+        if (tileEntity instanceof TileEntityContainerBlock block && block.persistInventory()) {
             ISustainedInventory inventory = (ISustainedInventory) itemStack.getItem();
             inventory.setInventory(block.getInventory(), itemStack);
         }

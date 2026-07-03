@@ -2,7 +2,6 @@ package mekanism.client.model;
 
 import mekanism.client.render.MekanismRenderer;
 import mekanism.client.render.MekanismRenderer.GlowInfo;
-import mekanism.common.SideData.IOState;
 import mekanism.common.tier.EnergyCubeTier;
 import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.MekanismUtils.ResourceType;
@@ -392,14 +391,14 @@ public class ModelEnergyCube extends ModelBase {
         GlStateManager.popMatrix();
     }
 
-    public void renderSide(float size, EnumFacing side, IOState state, EnergyCubeTier tier, TextureManager renderer) {
-        if (state != IOState.OFF) { //input or output
+    public void renderSide(float size, EnumFacing side, EnergyCubeSideState state, EnergyCubeTier tier, TextureManager renderer) {
+        if (state != EnergyCubeSideState.OFF) { //input or output
             connectors[side.ordinal()].render(size);
             ports[side.ordinal()].render(size);
         }
 
         GlowInfo glowInfo;
-        if (state == IOState.OUTPUT) {
+        if (state == EnergyCubeSideState.OUTPUT) {
             glowInfo = MekanismRenderer.enableGlow();
             renderer.bindTexture(BASE_OVERLAY);
             ports[side.ordinal()].render(size);
@@ -407,7 +406,7 @@ public class ModelEnergyCube extends ModelBase {
             glowInfo = MekanismRenderer.NO_GLOW;
         }
 
-        renderer.bindTexture(state == IOState.OUTPUT ? OVERLAY_ON : OVERLAY_OFF);
+        renderer.bindTexture(state == EnergyCubeSideState.OUTPUT ? OVERLAY_ON : OVERLAY_OFF);
 
         leds1[side.ordinal()].render(size);
         leds2[side.ordinal()].render(size);
@@ -418,6 +417,12 @@ public class ModelEnergyCube extends ModelBase {
         model.rotateAngleX = x;
         model.rotateAngleY = y;
         model.rotateAngleZ = z;
+    }
+
+    public enum EnergyCubeSideState {
+        INPUT,
+        OUTPUT,
+        OFF
     }
 
     public static class ModelEnergyCore extends ModelBase {

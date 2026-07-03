@@ -6,14 +6,15 @@ import it.unimi.dsi.fastutil.longs.Long2DoubleArrayMap;
 import it.unimi.dsi.fastutil.longs.Long2DoubleMap;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
-import mekanism.api.Chunk3D;
-import mekanism.api.Coord4D;
-import mekanism.api.IMekWrench;
-import mekanism.api.energy.IEnergizedItem;
+import mekanism.api.*;
+import mekanism.api.energy.IEnergyContainer;
 import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasStack;
 import mekanism.api.transmitters.TransmissionType;
-import mekanism.common.*;
+import mekanism.common.Mekanism;
+import mekanism.common.MekanismBlocks;
+import mekanism.common.MekanismFluids;
+import mekanism.common.Upgrade;
 import mekanism.common.base.*;
 import mekanism.common.base.IFactory.RecipeType;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
@@ -23,7 +24,7 @@ import mekanism.common.integration.forgeenergy.FEIntegration;
 import mekanism.common.integration.ic2.IC2Integration;
 import mekanism.common.integration.redstoneflux.RFIntegration;
 import mekanism.common.integration.tesla.TeslaIntegration;
-import mekanism.common.item.ItemBlockGasTank;
+import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.item.ItemBlockTransmitter;
 import mekanism.common.tier.BaseTier;
 import mekanism.common.tier.FactoryTier;
@@ -31,7 +32,6 @@ import mekanism.common.tier.GasTankTier;
 import mekanism.common.tile.TileEntityAdvancedBoundingBlock;
 import mekanism.common.tile.TileEntityBoundingBlock;
 import mekanism.common.tile.base.TileEntitySynchronized;
-import mekanism.common.tile.component.SideConfig;
 import mekanism.common.util.UnitDisplayUtils.ElectricUnit;
 import mekanism.common.util.UnitDisplayUtils.TemperatureUnit;
 import net.minecraft.advancements.CriteriaTriggers;
@@ -90,6 +90,16 @@ public final class MekanismUtils {
     public static final ThreadLocal<Boolean> isInjecting = ThreadLocal.withInitial(() -> false);
 
     private static final List<UUID> warnedFails = new ArrayList<>();
+
+    public static void logMismatchedStackSize(long actual, long expected) {
+        if (expected != actual) {
+            Mekanism.logger.error("Stack size changed by a different amount ({}) than requested ({}).", actual, expected);
+            if (MekanismAPI.debug) {
+                Mekanism.logger.error("Location ", new Exception());
+            }
+        }
+    }
+
     /**
      * Pre-calculated cache of translated block orientations
      */
@@ -109,7 +119,12 @@ public final class MekanismUtils {
      * @return empty gas tank
      */
     public static ItemStack getEmptyGasTank(GasTankTier tier) {
-        return ((ItemBlockGasTank) new ItemStack(MekanismBlocks.GasTank).getItem()).getEmptyItem(tier);
+        ItemStack empty = new ItemStack(MekanismBlocks.GasTank);
+        if (empty.getItem() instanceof ITierItem tierItem) {
+            tierItem.setBaseTier(empty, tier.getBaseTier());
+        }
+        GasInventorySlot.setGasContained(empty, null);
+        return empty;
     }
 
     public static ItemStack getTransmitter(TransmitterType type, BaseTier tier, int amount) {
@@ -128,13 +143,18 @@ public final class MekanismUtils {
      */
     public static ItemStack getFactory(FactoryTier tier, RecipeType type) {
         ItemStack itemstack;
-        if (tier == FactoryTier.ULTIMATE || tier == FactoryTier.CREATIVE) {
+        if (tier == FactoryTier.ULTIMATE) {
             itemstack = new ItemStack(MekanismBlocks.MachineBlock3, 1, 4 + tier.ordinal());
         } else {
             itemstack = new ItemStack(MekanismBlocks.MachineBlock, 1, MachineType.BASIC_FACTORY.ordinal() + tier.ordinal());
         }
         ((IFactory) itemstack.getItem()).setRecipeType(type.ordinal(), itemstack);
         return itemstack;
+    }
+
+    public static String getModId(ItemStack stack) {
+        ResourceLocation registryName = stack.getItem().getRegistryName();
+        return registryName == null ? "" : registryName.getNamespace();
     }
 
     /**
@@ -250,16 +270,8 @@ public final class MekanismUtils {
      * @param direction - side to increment output of
      */
     public static void incrementOutput(ISideConfiguration config, TransmissionType type, EnumFacing direction) {
-        ArrayList<SideData> outputs = config.getConfig().getOutputs(type);
-        SideConfig sideConfig = config.getConfig().getConfig(type);
-        int max = outputs.size() - 1;
-        if (sideConfig.get(direction) != -1) {
-            int current = outputs.indexOf(outputs.get(sideConfig.get(direction)));
-            if (current < max) {
-                sideConfig.set(direction, (byte) (current + 1));
-            } else if (current == max) {
-                sideConfig.set(direction, (byte) 0);
-            }
+        if (config.getConfig().isSideEnabled(type, direction)) {
+            config.getConfig().incrementOutput(type, direction);
             assert config instanceof TileEntity;
             TileEntity tile = (TileEntity) config;
             tile.markDirty();
@@ -274,16 +286,8 @@ public final class MekanismUtils {
      * @param direction - side to increment output of
      */
     public static void decrementOutput(ISideConfiguration config, TransmissionType type, EnumFacing direction) {
-        ArrayList<SideData> outputs = config.getConfig().getOutputs(type);
-        SideConfig sideConfig = config.getConfig().getConfig(type);
-        int max = outputs.size() - 1;
-        if (sideConfig.get(direction) != -1) {
-            int current = outputs.indexOf(outputs.get(sideConfig.get(direction)));
-            if (current > 0) {
-                sideConfig.set(direction, (byte) (current - 1));
-            } else if (current == 0) {
-                sideConfig.set(direction, (byte) max);
-            }
+        if (config.getConfig().isSideEnabled(type, direction)) {
+            config.getConfig().decrementOutput(type, direction);
             assert config instanceof TileEntity;
             TileEntity tile = (TileEntity) config;
             tile.markDirty();
@@ -399,7 +403,7 @@ public final class MekanismUtils {
      * @return max energy
      */
     public static double getMaxEnergy(ItemStack itemStack, double def) {
-        Map<Upgrade, Integer> upgrades = Upgrade.buildMap(ItemDataUtils.getDataMap(itemStack));
+        Map<Upgrade, Integer> upgrades = Upgrade.buildComponentMap(ItemDataUtils.getDataMapIfPresent(itemStack));
         float numUpgrades = upgrades.get(Upgrade.ENERGY) == null ? 0 : (float) upgrades.get(Upgrade.ENERGY);
         return def * Math.pow(MekanismConfig.current().general.maxUpgradeMultiplier.val(), numUpgrades / (float) Upgrade.ENERGY.getMaxInstalled());
     }
@@ -889,8 +893,7 @@ public final class MekanismUtils {
      */
     public static ItemStack getFullGasTank(GasTankTier tier, Gas gas) {
         ItemStack tank = getEmptyGasTank(tier);
-        ItemBlockGasTank item = (ItemBlockGasTank) tank.getItem();
-        item.setGas(tank, new GasStack(gas, item.MAX_GAS));
+        GasInventorySlot.setGasContained(tank, new GasStack(gas, GasInventorySlot.getTankCapacity(tank, 0)));
         return tank;
     }
 
@@ -1185,17 +1188,12 @@ public final class MekanismUtils {
         GUI_BUTTON("gui/button"),
         GUI_ICONS("gui/icons"),
         GUI_BAR("gui/bar"),
-        GUI_ELEMENT("gui/elements"),
+        GUI_GAUGE("gui/gauge"),
+        GUI_PROGRESS("gui/progress"),
         GUI_SLOT("gui/slot"),
-        BUTTON("gui/button"),
-        BUTTON_TAB("gui/button_tab"),
+        GUI_TAB("gui/tabs"),
         GUI_RADIAL("gui/radial"),
-        GAUGE("gui/gauge"),
         GUI_HUD("gui/hud"),
-        PROGRESS("gui/progress"),
-        SLOT("gui/slot"),
-        TAB("gui/tab"),
-        SWITCH("gui/switch"),
         SOUND("sound"),
         RENDER("render"),
         TEXTURE_BLOCKS("textures/blocks"),
@@ -1361,10 +1359,10 @@ public final class MekanismUtils {
     }
 
 
-    public static void veinMineArea(IEnergizedItem energyContainer, double energyRequired, World world, BlockPos pos, EntityPlayerMP player, ItemStack stack, Item usedTool,
+    public static void veinMineArea(IEnergyContainer energyContainer, double energyRequired, World world, BlockPos pos, EntityPlayerMP player, ItemStack stack, Item usedTool,
                                     Object2IntMap<BlockPos> found, BlastEnergyFunction blastEnergy, VeinEnergyFunction veinEnergy) {
         double energyUsed = 0;
-        double energyAvailable = energyContainer.getEnergy(stack);
+        double energyAvailable = energyContainer.getEnergy();
         //Subtract from our available energy the amount that we will require to break the target block
         energyAvailable = energyAvailable - (energyRequired);
         for (Object2IntMap.Entry<BlockPos> foundEntry : found.object2IntEntrySet()) {
@@ -1413,7 +1411,7 @@ public final class MekanismUtils {
                 energyUsed = energyUsed + (destroyEnergy);
             }
         }
-        energyContainer.extract(stack, energyUsed, true);
+        energyContainer.extract(energyUsed, Action.EXECUTE, AutomationType.MANUAL);
     }
 
 
@@ -1434,6 +1432,3 @@ public final class MekanismUtils {
 
 
 }
-
-
-

@@ -4,7 +4,7 @@ import io.netty.buffer.ByteBuf;
 import mekanism.api.TileNetworkList;
 import mekanism.common.PacketHandler;
 import mekanism.common.content.filter.IOreDictFilter;
-import mekanism.common.content.transporter.Finder.OreDictFinder;
+import mekanism.common.lib.inventory.Finder;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -18,7 +18,12 @@ public class MOreDictFilter extends MinerFilter implements IOreDictFilter {
         if (itemStack.isEmpty() || !(itemStack.getItem() instanceof ItemBlock)) {
             return false;
         }
-        return new OreDictFinder(oreDictName).modifies(itemStack);
+        return Finder.oreDict(oreDictName).modifies(itemStack);
+    }
+
+    @Override
+    public boolean hasBlacklistedElement() {
+        return MinerBlacklistHelper.hasBlacklistedOreDict(oreDictName);
     }
 
     @Override
@@ -50,7 +55,7 @@ public class MOreDictFilter extends MinerFilter implements IOreDictFilter {
 
     @Override
     public int hashCode() {
-        int code = 1;
+        int code = super.hashCode();
         code = 31 * code + oreDictName.hashCode();
         return code;
     }
@@ -63,8 +68,7 @@ public class MOreDictFilter extends MinerFilter implements IOreDictFilter {
     @Override
     public MOreDictFilter clone() {
         MOreDictFilter filter = new MOreDictFilter();
-        filter.replaceStack = replaceStack;
-        filter.requireStack = requireStack;
+        copyBaseData(filter);
         filter.oreDictName = oreDictName;
         return filter;
     }

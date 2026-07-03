@@ -7,11 +7,32 @@ import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasRegistry;
 import mekanism.api.gas.GasStack;
 import mekanism.api.gear.ModuleData;
-import mekanism.client.gui.element.GuiProgress.ProgressBar;
-import mekanism.client.jei.gas.GasStackRenderer;
-import mekanism.client.jei.machine.*;
-import mekanism.client.jei.machine.chemical.*;
-import mekanism.client.jei.machine.other.*;
+import mekanism.client.gui.GuiMekanism;
+import mekanism.client.gui.element.progress.ProgressType;
+import mekanism.client.recipe_viewer.type.IRecipeViewerRecipeType;
+import mekanism.client.recipe_viewer.type.RecipeViewerRecipeType;
+import mekanism.client.jei.machine.FarmMachineRecipeCategory;
+import mekanism.client.jei.machine.RecyclerRecipeCategory;
+import mekanism.client.recipe_viewer.jei.machine.ChemicalChemicalToChemicalRecipeCategory;
+import mekanism.client.recipe_viewer.jei.machine.ChemicalCrystallizerRecipeCategory;
+import mekanism.client.recipe_viewer.jei.machine.ChemicalDissolutionRecipeCategory;
+import mekanism.client.recipe_viewer.jei.machine.ChemicalToChemicalRecipeCategory;
+import mekanism.client.recipe_viewer.jei.machine.CombinerRecipeCategory;
+import mekanism.client.recipe_viewer.jei.machine.ElectrolysisRecipeCategory;
+import mekanism.client.recipe_viewer.jei.machine.FluidChemicalToChemicalRecipeCategory;
+import mekanism.client.recipe_viewer.jei.machine.FluidToFluidRecipeCategory;
+import mekanism.client.recipe_viewer.jei.machine.ItemStackChemicalToItemStackRecipeCategory;
+import mekanism.client.recipe_viewer.jei.machine.ItemStackToChemicalRecipeCategory;
+import mekanism.client.recipe_viewer.jei.machine.ItemStackToEnergyRecipeCategory;
+import mekanism.client.recipe_viewer.jei.machine.ItemStackToFluidOptionalItemRecipeCategory;
+import mekanism.client.recipe_viewer.jei.machine.ItemStackToItemStackRecipeCategory;
+import mekanism.client.recipe_viewer.jei.machine.MetallurgicInfuserRecipeCategory;
+import mekanism.client.recipe_viewer.jei.machine.NucleosynthesizingRecipeCategory;
+import mekanism.client.recipe_viewer.jei.machine.PressurizedReactionRecipeCategory;
+import mekanism.client.recipe_viewer.jei.machine.RotaryCondensentratorRecipeCategory;
+import mekanism.client.recipe_viewer.jei.machine.SPSRecipeCategory;
+import mekanism.client.recipe_viewer.jei.machine.SawmillRecipeCategory;
+import mekanism.client.jei.machine.other.AmbientGasCategory;
 import mekanism.common.Mekanism;
 import mekanism.common.MekanismBlocks;
 import mekanism.common.MekanismItems;
@@ -22,11 +43,10 @@ import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.content.gear.ModuleHelper;
 import mekanism.common.inventory.container.robit.ContainerRobitInventory;
-import mekanism.common.item.ItemBlockEnergyCube;
-import mekanism.common.item.ItemBlockGasTank;
+import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.recipe.RecipeHandler.Recipe;
-import mekanism.common.recipe.machines.RecyclerRecipe;
 import mekanism.common.util.LangUtils;
+import mekanism.common.util.StorageUtils;
 import mezz.jei.api.*;
 import mezz.jei.api.ISubtypeRegistry.ISubtypeInterpreter;
 import mezz.jei.api.ingredients.IIngredientBlacklist;
@@ -52,10 +72,30 @@ import java.util.stream.Collectors;
 public class MekanismJEI implements IModPlugin {
 
     public static final IIngredientType<GasStack> TYPE_GAS = () -> GasStack.class;
+    public static final IIngredientType<GasStack> TYPE_CHEMICAL = TYPE_GAS;
+    public static final mekanism.client.recipe_viewer.jei.ChemicalStackHelper CHEMICAL_STACK_HELPER = new mekanism.client.recipe_viewer.jei.ChemicalStackHelper();
+    public static final GasStackHelper GAS_STACK_HELPER = CHEMICAL_STACK_HELPER;
+    public static IJeiRuntime jeiRuntime;
     private static final String NC_MOD_ID = "nuclearcraft";
     private static final String NC_SHIELDING_RECIPE_CLASS = "nc.recipe.vanilla.recipe.ShapelessArmorRadShieldingRecipe";
     private static final String NC_RAD_SHIELDING_ITEM = "rad_shielding";
     private static final List<IRecipe> NC_SHIELDING_RECIPES_FOR_JEI = new ArrayList<>();
+
+    public static String genericRecipeType(IRecipeViewerRecipeType<?> recipeType) {
+        return mekanism.client.recipe_viewer.jei.MekanismJEI.genericRecipeType(recipeType);
+    }
+
+    public static <TYPE> String recipeType(IRecipeViewerRecipeType<TYPE> recipeType) {
+        return mekanism.client.recipe_viewer.jei.MekanismJEI.recipeType(recipeType);
+    }
+
+    public static <TYPE> String holderRecipeType(IRecipeViewerRecipeType<TYPE> recipeType) {
+        return mekanism.client.recipe_viewer.jei.MekanismJEI.holderRecipeType(recipeType);
+    }
+
+    public static String[] recipeType(IRecipeViewerRecipeType<?>... recipeTypes) {
+        return mekanism.client.recipe_viewer.jei.MekanismJEI.recipeType(recipeTypes);
+    }
 
     public static final ISubtypeInterpreter NBT_INTERPRETER = itemStack -> {
         String ret = Integer.toString(itemStack.getMetadata());
@@ -71,15 +111,15 @@ public class MekanismJEI implements IModPlugin {
             }
         }
 
-        if (itemStack.getItem() instanceof ItemBlockGasTank) {
-            GasStack gasStack = ((ItemBlockGasTank) itemStack.getItem()).getGas(itemStack);
+        if (itemStack.getItem() == Item.getItemFromBlock(MekanismBlocks.GasTank)) {
+            GasStack gasStack = GasInventorySlot.getContainedGas(itemStack);
             if (gasStack != null) {
                 ret += ":" + gasStack.getGas().getName();
             }
         }
 
-        if (itemStack.getItem() instanceof ItemBlockEnergyCube) {
-            ret += ":" + (((ItemBlockEnergyCube) itemStack.getItem()).getEnergy(itemStack) > 0 ? "filled" : "empty");
+        if (itemStack.getItem() == Item.getItemFromBlock(MekanismBlocks.EnergyCube)) {
+            ret += ":" + (StorageUtils.getStoredEnergy(itemStack) > 0 ? "filled" : "empty");
         }
 
         return ret.toLowerCase(Locale.ROOT);
@@ -104,72 +144,62 @@ public class MekanismJEI implements IModPlugin {
     @Override
     public void registerIngredients(IModIngredientRegistration registry) {
         List<GasStack> list = GasRegistry.getRegisteredGasses().stream().filter(Gas::isVisible).map(g -> new GasStack(g, Fluid.BUCKET_VOLUME)).collect(Collectors.toList());
-        registry.register(MekanismJEI.TYPE_GAS, list, new GasStackHelper(), new GasStackRenderer());
+        registry.register(MekanismJEI.TYPE_CHEMICAL, list, CHEMICAL_STACK_HELPER, new mekanism.client.recipe_viewer.jei.ChemicalStackRenderer());
     }
 
     @Override
     public void registerCategories(IRecipeCategoryRegistration registry) {
         IGuiHelper guiHelper = registry.getJeiHelpers().getGuiHelper();
 
-        addRecipeCategory(registry, MachineType.CHEMICAL_CRYSTALLIZER, new ChemicalCrystallizerRecipeCategory(guiHelper));
-        addRecipeCategory(registry, MachineType.CHEMICAL_DISSOLUTION_CHAMBER, new ChemicalDissolutionChamberRecipeCategory(guiHelper));
-        addRecipeCategory(registry, MachineType.CHEMICAL_INFUSER, new ChemicalInfuserRecipeCategory(guiHelper));
-        addRecipeCategory(registry, MachineType.CHEMICAL_OXIDIZER, new ChemicalOxidizerRecipeCategory(guiHelper));
-        addRecipeCategory(registry, MachineType.CHEMICAL_WASHER, new ChemicalWasherRecipeCategory(guiHelper));
-        addRecipeCategory(registry, MachineType.ELECTROLYTIC_SEPARATOR, new ElectrolyticSeparatorRecipeCategory(guiHelper));
-        addRecipeCategory(registry, MachineType.METALLURGIC_INFUSER, new MetallurgicInfuserRecipeCategory(guiHelper));
-        addRecipeCategory(registry, MachineType.PRESSURIZED_REACTION_CHAMBER, new PRCRecipeCategory(guiHelper));
+        addRecipeCategory(registry, MachineType.CHEMICAL_CRYSTALLIZER, new ChemicalCrystallizerRecipeCategory(guiHelper, RecipeViewerRecipeType.CRYSTALLIZING));
+        addRecipeCategory(registry, MachineType.CHEMICAL_DISSOLUTION_CHAMBER, new ChemicalDissolutionRecipeCategory(guiHelper, RecipeViewerRecipeType.DISSOLUTION));
+        addRecipeCategory(registry, MachineType.CHEMICAL_INFUSER, new ChemicalChemicalToChemicalRecipeCategory(guiHelper, RecipeViewerRecipeType.CHEMICAL_INFUSING));
+        addRecipeCategory(registry, MachineType.CHEMICAL_OXIDIZER, new ItemStackToChemicalRecipeCategory(guiHelper, RecipeViewerRecipeType.OXIDIZING, false));
+        addRecipeCategory(registry, MachineType.CHEMICAL_WASHER, new FluidChemicalToChemicalRecipeCategory(guiHelper, RecipeViewerRecipeType.WASHING));
+        addRecipeCategory(registry, MachineType.ELECTROLYTIC_SEPARATOR, new ElectrolysisRecipeCategory(guiHelper, RecipeViewerRecipeType.SEPARATING));
+        addRecipeCategory(registry, MachineType.METALLURGIC_INFUSER, new MetallurgicInfuserRecipeCategory(guiHelper, RecipeViewerRecipeType.METALLURGIC_INFUSING));
+        addRecipeCategory(registry, MachineType.PRESSURIZED_REACTION_CHAMBER, new PressurizedReactionRecipeCategory(guiHelper, RecipeViewerRecipeType.REACTION));
 
         addRecipeCategory(registry, MachineType.ROTARY_CONDENSENTRATOR, new RotaryCondensentratorRecipeCategory(guiHelper, true));
         addRecipeCategory(registry, MachineType.ROTARY_CONDENSENTRATOR, new RotaryCondensentratorRecipeCategory(guiHelper, false));
 
-        addRecipeCategory(registry, MachineType.SOLAR_NEUTRON_ACTIVATOR, new SolarNeutronRecipeCategory(guiHelper));
+        addRecipeCategory(registry, MachineType.SOLAR_NEUTRON_ACTIVATOR, new ChemicalToChemicalRecipeCategory(guiHelper, RecipeViewerRecipeType.ACTIVATING));
 
-        addRecipeCategory(registry, MachineType.COMBINER, new DoubleMachineRecipeCategory(guiHelper, Recipe.COMBINER.getJEICategory(),
-                "tile.MachineBlock.Combiner.name", ProgressBar.BAR));
+        addRecipeCategory(registry, MachineType.COMBINER, new CombinerRecipeCategory(guiHelper, RecipeViewerRecipeType.COMBINING));
 
-        addRecipeCategory(registry, MachineType.PURIFICATION_CHAMBER, new AdvancedMachineRecipeCategory(guiHelper, Recipe.PURIFICATION_CHAMBER.getJEICategory(),
-                "tile.MachineBlock.PurificationChamber.name", ProgressBar.BAR));
-        addRecipeCategory(registry, MachineType.OSMIUM_COMPRESSOR, new AdvancedMachineRecipeCategory(guiHelper, Recipe.OSMIUM_COMPRESSOR.getJEICategory(),
-                "tile.MachineBlock.OsmiumCompressor.name", ProgressBar.BAR));
-        addRecipeCategory(registry, MachineType.CHEMICAL_INJECTION_CHAMBER, new AdvancedMachineRecipeCategory(guiHelper, Recipe.CHEMICAL_INJECTION_CHAMBER.getJEICategory(),
-                "tile.MachineBlock2.ChemicalInjectionChamber.name", ProgressBar.BAR));
+        addRecipeCategory(registry, MachineType.PURIFICATION_CHAMBER, new ItemStackChemicalToItemStackRecipeCategory(guiHelper, RecipeViewerRecipeType.PURIFYING));
+        addRecipeCategory(registry, MachineType.OSMIUM_COMPRESSOR, new ItemStackChemicalToItemStackRecipeCategory(guiHelper, RecipeViewerRecipeType.COMPRESSING));
+        addRecipeCategory(registry, MachineType.CHEMICAL_INJECTION_CHAMBER, new ItemStackChemicalToItemStackRecipeCategory(guiHelper, RecipeViewerRecipeType.INJECTING));
 
-        addRecipeCategory(registry, MachineType.PRECISION_SAWMILL, new ChanceMachineRecipeCategory(guiHelper, Recipe.PRECISION_SAWMILL.getJEICategory(),
-                "tile.MachineBlock2.PrecisionSawmill.name", ProgressBar.BAR));
+        addRecipeCategory(registry, MachineType.PRECISION_SAWMILL, new SawmillRecipeCategory(guiHelper, RecipeViewerRecipeType.SAWING));
 
-        addRecipeCategory(registry, MachineType.ENRICHMENT_CHAMBER, new MachineRecipeCategory(guiHelper, Recipe.ENRICHMENT_CHAMBER.getJEICategory(),
-                "tile.MachineBlock.EnrichmentChamber.name", ProgressBar.BAR));
-        addRecipeCategory(registry, MachineType.CRUSHER, new MachineRecipeCategory(guiHelper, Recipe.CRUSHER.getJEICategory(), "tile.MachineBlock.Crusher.name",
-                ProgressBar.BAR));
-        addRecipeCategory(registry, MachineType.ENERGIZED_SMELTER, new MachineRecipeCategory(guiHelper, Recipe.ENERGIZED_SMELTER.getJEICategory(),
-                "tile.MachineBlock.EnergizedSmelter.name", ProgressBar.BAR));
+        addRecipeCategory(registry, MachineType.ENRICHMENT_CHAMBER, new ItemStackToItemStackRecipeCategory(guiHelper, RecipeViewerRecipeType.ENRICHING));
+        addRecipeCategory(registry, MachineType.CRUSHER, new ItemStackToItemStackRecipeCategory(guiHelper, RecipeViewerRecipeType.CRUSHING));
+        addRecipeCategory(registry, MachineType.ENERGIZED_SMELTER, new ItemStackToItemStackRecipeCategory(guiHelper, RecipeViewerRecipeType.SMELTING));
 
         //There is no config option to disable the thermal evaporation plant
-        registry.addRecipeCategories(new ThermalEvaporationRecipeCategory<>(guiHelper));
+        registry.addRecipeCategories(new FluidToFluidRecipeCategory(guiHelper, RecipeViewerRecipeType.EVAPORATING));
 
         /**
          * ADD START
          */
-        addRecipeCategory(registry, MachineType.ISOTOPIC_CENTRIFUGE, new IsotopicRecipeCategory(guiHelper));
-        addRecipeCategory(registry, MachineType.NUTRITIONAL_LIQUIFIER, new NutritionalLiquifierRecipeCategory(guiHelper));
-        addRecipeCategory(registry, MachineType.ORGANIC_FARM, new FarmMachineRecipeCategory(guiHelper, Recipe.ORGANIC_FARM.getJEICategory(), "tile.MachineBlock3.OrganicFarm.name", ProgressBar.BAR));
-        addRecipeCategory(registry, MachineType.ANTIPROTONIC_NUCLEOSYNTHESIZER, new AntiprotonicNucleosynthesizerRecipeCategory(guiHelper));
-        addRecipeCategory(registry, MachineType.STAMPING, new MachineRecipeCategory(guiHelper, Recipe.STAMPING.getJEICategory(), "tile.MachineBlock4.Stamping.name", ProgressBar.BAR));
-        addRecipeCategory(registry, MachineType.ROLLING, new MachineRecipeCategory(guiHelper, Recipe.ROLLING.getJEICategory(), "tile.MachineBlock4.Rolling.name", ProgressBar.BAR));
-        addRecipeCategory(registry, MachineType.BRUSHED, new MachineRecipeCategory(guiHelper, Recipe.BRUSHED.getJEICategory(), "tile.MachineBlock4.Brushed.name", ProgressBar.BAR));
-        addRecipeCategory(registry, MachineType.TURNING, new MachineRecipeCategory(guiHelper, Recipe.TURNING.getJEICategory(), "tile.MachineBlock4.Turning.name", ProgressBar.BAR));
-        addRecipeCategory(registry, MachineType.ALLOY, new DoubleMachineRecipeCategory(guiHelper, Recipe.ALLOY.getJEICategory(), "tile.MachineBlock4.Alloy.name", ProgressBar.BAR));
-        addRecipeCategory(registry, MachineType.CELL_EXTRACTOR, new ChanceMachineRecipeCategory(guiHelper, Recipe.CELL_EXTRACTOR.getJEICategory(),
-                "tile.MachineBlock4.CellExtractor.name", ProgressBar.BAR));
-        addRecipeCategory(registry, MachineType.CELL_SEPARATOR, new ChanceMachineRecipeCategory(guiHelper, Recipe.CELL_SEPARATOR.getJEICategory(),
-                "tile.MachineBlock4.CellSeparator.name", ProgressBar.BAR));
+        addRecipeCategory(registry, MachineType.ISOTOPIC_CENTRIFUGE, new ChemicalToChemicalRecipeCategory(guiHelper, RecipeViewerRecipeType.CENTRIFUGING));
+        addRecipeCategory(registry, MachineType.NUTRITIONAL_LIQUIFIER, new ItemStackToFluidOptionalItemRecipeCategory(guiHelper, RecipeViewerRecipeType.NUTRITIONAL_LIQUIFICATION, false));
+        addRecipeCategory(registry, MachineType.ORGANIC_FARM, new FarmMachineRecipeCategory(guiHelper, Recipe.ORGANIC_FARM.getJEICategory(), "tile.MachineBlock3.OrganicFarm.name", ProgressType.BAR));
+        addRecipeCategory(registry, MachineType.ANTIPROTONIC_NUCLEOSYNTHESIZER, new NucleosynthesizingRecipeCategory(guiHelper, RecipeViewerRecipeType.NUCLEOSYNTHESIZING));
+        addRecipeCategory(registry, MachineType.STAMPING, new ItemStackToItemStackRecipeCategory(guiHelper, RecipeViewerRecipeType.STAMPING));
+        addRecipeCategory(registry, MachineType.ROLLING, new ItemStackToItemStackRecipeCategory(guiHelper, RecipeViewerRecipeType.ROLLING));
+        addRecipeCategory(registry, MachineType.BRUSHED, new ItemStackToItemStackRecipeCategory(guiHelper, RecipeViewerRecipeType.BRUSHED));
+        addRecipeCategory(registry, MachineType.TURNING, new ItemStackToItemStackRecipeCategory(guiHelper, RecipeViewerRecipeType.TURNING));
+        addRecipeCategory(registry, MachineType.ALLOY, new CombinerRecipeCategory(guiHelper, RecipeViewerRecipeType.ALLOYING));
+        addRecipeCategory(registry, MachineType.CELL_EXTRACTOR, new SawmillRecipeCategory(guiHelper, RecipeViewerRecipeType.CELL_EXTRACTING));
+        addRecipeCategory(registry, MachineType.CELL_SEPARATOR, new SawmillRecipeCategory(guiHelper, RecipeViewerRecipeType.CELL_SEPARATING));
         if (MekanismConfig.current().mekce.EnableRecyclerRecipeInJei.val()) {
             addRecipeCategory(registry, MachineType.RECYCLER, new RecyclerRecipeCategory(guiHelper));
         }
         addRecipeCategory(registry, MachineType.AMBIENT_ACCUMULATOR, new AmbientGasCategory(guiHelper));
-        addRecipeCategory(registry, MachineType.SPS, new SPSRecipeCategory(guiHelper));
-        registry.addRecipeCategories(new ItemStackToEnergyRecipeCategory<>(guiHelper));
+        addRecipeCategory(registry, MachineType.SPS, new SPSRecipeCategory(guiHelper, RecipeViewerRecipeType.SPS));
+        registry.addRecipeCategories(new ItemStackToEnergyRecipeCategory<>(guiHelper, RecipeViewerRecipeType.ENERGY_CONVERSION));
         /**
          * ADD END
          */
@@ -185,8 +215,8 @@ public class MekanismJEI implements IModPlugin {
 
     @Override
     public void register(IModRegistry registry) {
-        registry.addAdvancedGuiHandlers(new GuiElementHandler());
-        registry.addAdvancedGuiHandlers(new NewGuiElementHandler());
+        registry.addAdvancedGuiHandlers(new mekanism.client.recipe_viewer.jei.JeiGuiElementHandler());
+        registry.addGhostIngredientHandler(GuiMekanism.class, new mekanism.client.recipe_viewer.jei.JeiGhostIngredientHandler<>());
 
         //Blacklist
         IIngredientBlacklist ingredientBlacklist = registry.getJeiHelpers().getIngredientBlacklist();
@@ -198,48 +228,48 @@ public class MekanismJEI implements IModPlugin {
         }
 
         //Register the recipes and their catalysts if enabled
-        RecipeRegistryHelper.registerEnrichmentChamber(registry);
-        RecipeRegistryHelper.registerCrusher(registry);
-        RecipeRegistryHelper.registerCombiner(registry);
-        RecipeRegistryHelper.registerPurification(registry);
-        RecipeRegistryHelper.registerCompressor(registry);
-        RecipeRegistryHelper.registerInjection(registry);
-        RecipeRegistryHelper.registerSawmill(registry);
-        RecipeRegistryHelper.registerMetallurgicInfuser(registry);
-        RecipeRegistryHelper.registerCrystallizer(registry);
-        RecipeRegistryHelper.registerDissolution(registry);
-        RecipeRegistryHelper.registerChemicalInfuser(registry);
-        RecipeRegistryHelper.registerOxidizer(registry);
-        RecipeRegistryHelper.registerWasher(registry);
-        RecipeRegistryHelper.registerNeutronActivator(registry);
-        RecipeRegistryHelper.registerSeparator(registry);
-        RecipeRegistryHelper.registerEvaporationPlant(registry);
-        RecipeRegistryHelper.registerReactionChamber(registry);
-        RecipeRegistryHelper.registerCondensentrator(registry);
-        RecipeRegistryHelper.registerSmelter(registry);
-        RecipeRegistryHelper.registerFormulaicAssemblicator(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerEnrichmentChamber(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerCrusher(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerCombiner(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerPurification(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerCompressor(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerInjection(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerSawmill(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerMetallurgicInfuser(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerCrystallizer(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerDissolution(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerChemicalInfuser(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerOxidizer(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerWasher(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerNeutronActivator(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerSeparator(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerEvaporationPlant(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerReactionChamber(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerCondensentrator(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerSmelter(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerFormulaicAssemblicator(registry);
         registry.getRecipeTransferRegistry().addRecipeTransferHandler(ContainerRobitInventory.class, VanillaRecipeCategoryUid.CRAFTING, 1, 9, 10, 36);
 
         /**
          *  ADD START
          */
-        RecipeRegistryHelper.registerIsotopicCentrifuge(registry);
-        RecipeRegistryHelper.registerNutritional(registry);
-        RecipeRegistryHelper.registerFarm(registry);
-        RecipeRegistryHelper.registerAntiprotonicNucleosynthesizer(registry);
-        RecipeRegistryHelper.registerStamping(registry);
-        RecipeRegistryHelper.registerRolling(registry);
-        RecipeRegistryHelper.registerBrushed(registry);
-        RecipeRegistryHelper.registerTurning(registry);
-        RecipeRegistryHelper.registerAlloy(registry);
-        RecipeRegistryHelper.registerCellExtractor(registry);
-        RecipeRegistryHelper.registerCellSeparator(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerIsotopicCentrifuge(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerNutritional(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerFarm(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerAntiprotonicNucleosynthesizer(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerStamping(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerRolling(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerBrushed(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerTurning(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerAlloy(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerCellExtractor(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerCellSeparator(registry);
         if (MekanismConfig.current().mekce.EnableRecyclerRecipeInJei.val()) {
-            RecipeRegistryHelper.registerRecycler(registry);
+            mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerRecycler(registry);
         }
-        RecipeRegistryHelper.registerAmbientAccumulator(registry);
-        RecipeRegistryHelper.registerSPS(registry);
-        RecipeRegistryHelper.registerItemStackToEnergyRecipe(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerAmbientAccumulator(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerSPS(registry);
+        mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerItemStackToEnergyRecipe(registry);
 
         if (Mekanism.hooks.MekanismMixinHelp) {
             IVanillaRecipeFactory factory = registry.getJeiHelpers().getVanillaRecipeFactory();
@@ -274,6 +304,7 @@ public class MekanismJEI implements IModPlugin {
 
     @Override
     public void onRuntimeAvailable(IJeiRuntime jeiRuntime) {
+        MekanismJEI.jeiRuntime = jeiRuntime;
         if (!Mekanism.hooks.NuclearCraft || jeiRuntime == null || NC_SHIELDING_RECIPES_FOR_JEI.isEmpty()) {
             return;
         }

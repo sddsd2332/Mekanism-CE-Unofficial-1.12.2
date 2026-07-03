@@ -1,7 +1,9 @@
 package mekanism.common.recipe.inputs;
 
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTank;
+import mekanism.api.gas.IExtendedGasTank;
 import net.minecraft.nbt.NBTTagCompound;
 
 public class GasInput extends MachineInput<GasInput> {
@@ -30,12 +32,14 @@ public class GasInput extends MachineInput<GasInput> {
         return ingredient != null;
     }
 
-    public boolean useGas(GasTank gasTank, boolean deplete, int scale) {
-        if (gasTank.getGasType() == ingredient.getGas() && gasTank.getStored() >= ingredient.amount * scale) {
-            gasTank.draw(ingredient.amount * scale, deplete);
-            return true;
+    public boolean useGas(IExtendedGasTank gasTank, boolean deplete, int scale) {
+        int amount = ingredient.amount * scale;
+        GasStack gas = gasTank.getGas();
+        if (gas == null || !gas.isGasEqual(ingredient) || gas.amount < amount) {
+            return false;
         }
-        return false;
+        GasStack extracted = gasTank.extract(amount, Action.get(deplete), AutomationType.INTERNAL);
+        return extracted != null && extracted.amount == amount;
     }
 
     @Override

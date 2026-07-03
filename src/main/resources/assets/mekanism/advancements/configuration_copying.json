@@ -1,9 +1,19 @@
 {
       "parent": "mekanism:basic_control_circuit",
-      "criteria": {"mekanism_configuration_copying": {
-            "trigger": "minecraft:inventory_changed",
-            "conditions": {"items": [{"item": "mekanism:configurationcard"}]}
-      }},
+      "requirements": [
+            ["copy"],
+            ["paste"]
+      ],
+      "criteria": {
+            "copy": {
+                  "trigger": "mekanism:configuration_card",
+                  "conditions": {"copy": true}
+            },
+            "paste": {
+                  "trigger": "mekanism:configuration_card",
+                  "conditions": {"copy": false}
+            }
+      },
       "display": {
             "icon": {"item": "mekanism:configurationcard"},
             "description": {"translate": "advancements.mekanism.configuration_copying.description"},

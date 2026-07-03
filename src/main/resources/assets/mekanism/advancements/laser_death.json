@@ -1,0 +1,19 @@
+{
+      "parent": "mekanism:laser",
+      "criteria": {"death": {
+            "trigger": "mekanism:damage",
+            "conditions": {
+                  "damage": "mekanism:laser",
+                  "killed": true
+            }
+      }},
+      "display": {
+            "icon": {
+                  "item": "minecraft:skull",
+                  "data": 0
+            },
+            "description": {"translate": "advancements.mekanism.laser_death.description"},
+            "title": {"translate": "advancements.mekanism.laser_death.title"},
+            "hidden": true
+      }
+}

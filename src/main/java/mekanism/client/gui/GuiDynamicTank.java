@@ -1,97 +1,58 @@
 package mekanism.client.gui;
 
-import mekanism.client.gui.element.GuiContainerEditMode;
+import mekanism.client.gui.element.GuiDownArrow;
+import mekanism.client.gui.element.GuiElementHolder;
 import mekanism.client.gui.element.GuiInnerScreen;
-import mekanism.client.gui.element.GuiPlayerArmmorSlot;
-import mekanism.client.gui.element.GuiPlayerSlot;
-import mekanism.client.gui.element.gauge.GuiGauge;
-import mekanism.client.gui.element.gauge.GuiNumberGauge;
-import mekanism.client.render.MekanismRenderer;
+import mekanism.client.gui.element.GuiSideHolder;
+import mekanism.client.gui.element.gauge.GaugeType;
+import mekanism.client.gui.element.gauge.GuiMergedTankGauge;
+import mekanism.client.gui.element.slot.GuiSlot;
+import mekanism.client.gui.element.slot.SlotType;
+import mekanism.client.gui.element.tab.GuiContainerEditModeTab;
 import mekanism.common.inventory.container.ContainerDynamicTank;
 import mekanism.common.tile.multiblock.TileEntityDynamicTank;
 import mekanism.common.util.LangUtils;
-import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.MekanismUtils.ResourceType;
-import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.entity.player.InventoryPlayer;
-import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.text.ITextComponent;
+import net.minecraft.util.text.TextComponentString;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @SideOnly(Side.CLIENT)
-public class GuiDynamicTank extends GuiMekanismTile<TileEntityDynamicTank> {
+public class GuiDynamicTank extends GuiMekanismTile<TileEntityDynamicTank, ContainerDynamicTank> {
 
     public GuiDynamicTank(InventoryPlayer inventory, TileEntityDynamicTank tile) {
         super(tile, new ContainerDynamicTank(inventory, tile));
-        ResourceLocation resource = getGuiLocation();
-        addGuiElement(new GuiContainerEditMode(this, tileEntity, resource));
-        addGuiElement(new GuiInnerScreen(this, resource, 49, 21, 84, 46));
-        addGuiElement(new GuiPlayerArmmorSlot(this, resource, -26, 62, true));
-        addGuiElement(new GuiPlayerSlot(this, resource));
-        addGuiElement(new GuiNumberGauge(new GuiNumberGauge.INumberInfoHandler() {
-            @Override
-            public TextureAtlasSprite getIcon() {
-                if (tileEntity.structure == null) {
-                    return null;
-                }
-                if (tileEntity.structure.fluidStored != null) {
-                    return MekanismRenderer.getFluidTexture(tileEntity.structure.fluidStored, MekanismRenderer.FluidType.STILL);
-                }
-                if (tileEntity.structure.gasstored != null && tileEntity.structure.gasstored.getGas() != null) {
-                    return tileEntity.structure.gasstored.getGas().getSprite();
-                }
-                return null;
-            }
-
-            @Override
-            public double getLevel() {
-                if (tileEntity.structure != null) {
-                    if (tileEntity.structure.fluidStored != null) {
-                        return tileEntity.structure.fluidStored.amount;
-                    }
-                    if (tileEntity.structure.gasstored != null) {
-                        return tileEntity.structure.gasstored.amount;
-                    }
-                }
-                return 0;
-            }
-
-            @Override
-            public double getMaxLevel() {
-                if (tileEntity.structure != null && (tileEntity.structure.fluidStored != null || tileEntity.structure.gasstored != null)) {
-                    return tileEntity.clientCapacity;
-                }
-                return 0;
-            }
-
-            @Override
-            public String getText(double level) {
-                if (tileEntity.structure == null) {
-                    return "";
-                }
-                if (tileEntity.structure.fluidStored != null) {
-                    return LangUtils.localizeFluidStack(tileEntity.structure.fluidStored) + ": " + tileEntity.structure.fluidStored.amount + "mB";
-                }
-                if (tileEntity.structure.gasstored != null) {
-                    return tileEntity.structure.gasstored.getGas().getLocalizedName() + ": " + tileEntity.structure.gasstored.amount + "mB";
-                }
-                return LangUtils.localize("gui.empty");
-            }
-        }, GuiGauge.Type.MEDIUM, this, resource, 7, 13) {
-            @Override
-            protected void applyRenderColor() {
-                if (tileEntity.structure != null && tileEntity.structure.fluidStored == null && tileEntity.structure.gasstored != null) {
-                    MekanismRenderer.color(tileEntity.structure.gasstored);
-                }
-            }
-        }.withColor(GuiGauge.TypeColor.BLUE));
+        inventoryLabelY += 2;
+        dynamicSlots = true;
     }
 
     @Override
-    protected void drawGuiContainerForegroundLayer(int mouseX, int mouseY) {
-        fontRenderer.drawString(tileEntity.getName(), (xSize / 2) - (fontRenderer.getStringWidth(tileEntity.getName()) / 2), 4, 0x404040);
-        fontRenderer.drawString(LangUtils.localize("container.inventory"), 8, (ySize - 94) + 2, 0x404040);
+    protected void addGuiElements() {
+        addButton(GuiSideHolder.armorHolder(this));
+        addButton(new GuiElementHolder(this, 141, 16, 26, 56));
+        super.addGuiElements();
+        addButton(new GuiSlot(SlotType.INNER_HOLDER_SLOT, this, 145, 20));
+        addButton(new GuiSlot(SlotType.INNER_HOLDER_SLOT, this, 145, 50));
+        addButton(new GuiInnerScreen(this, 49, 21, 84, 46, this::getScreenText).spacing(1));
+        addButton(new GuiDownArrow(this, 150, 39));
+        addButton(new GuiContainerEditModeTab<>(this, tileEntity));
+        addButton(new GuiMergedTankGauge(this, tileEntity, GaugeType.MEDIUM, 7, 16, 34, 56));
+    }
+
+    @Override
+    protected void drawForegroundText(int mouseX, int mouseY) {
+        drawTitleText(new TextComponentString(tileEntity.getName()), 4);
+        renderInventoryText();
+        super.drawForegroundText(mouseX, mouseY);
+    }
+
+    private List<ITextComponent> getScreenText() {
+        List<ITextComponent> text = new ArrayList<>();
         String storedName = null;
         int storedAmount = 0;
         if (tileEntity.structure != null) {
@@ -99,26 +60,17 @@ public class GuiDynamicTank extends GuiMekanismTile<TileEntityDynamicTank> {
             if (fluidStored != null) {
                 storedName = LangUtils.localizeFluidStack(fluidStored);
                 storedAmount = fluidStored.amount;
-            } else if (tileEntity.structure.gasstored != null) {
+            } else if (tileEntity.structure.gasstored != null && tileEntity.structure.gasstored.getGas() != null) {
                 storedName = tileEntity.structure.gasstored.getGas().getLocalizedName();
                 storedAmount = tileEntity.structure.gasstored.amount;
             }
         }
-        renderScaledText(storedName != null ? storedName + ":" : LangUtils.localize("gui.empty"), 53, storedName != null ? 26 : 35, 0xFF3CFE9A, 74);
+        text.add(new TextComponentString(storedName == null ? LangUtils.localize("gui.empty") : storedName + ":"));
         if (storedName != null) {
-            fontRenderer.drawString(storedAmount + "mB", 53, 35, 0xFF3CFE9A);
+            text.add(new TextComponentString(storedAmount + "mB"));
         }
-        fontRenderer.drawString(LangUtils.localize("gui.capacity") + ": ", 53, 44, 0xFF3CFE9A);
-        fontRenderer.drawString(tileEntity.clientCapacity + "mB", 53, 53, 0xFF3CFE9A);
-        super.drawGuiContainerForegroundLayer(mouseX, mouseY);
+        text.add(new TextComponentString(LangUtils.localize("gui.capacity") + ":"));
+        text.add(new TextComponentString(tileEntity.clientCapacity + "mB"));
+        return text;
     }
-
-    @Override
-    protected void drawGuiContainerBackgroundLayer(int xAxis, int yAxis) {
-        super.drawGuiContainerBackgroundLayer(xAxis, yAxis);
-        mc.getTextureManager().bindTexture(MekanismUtils.getResource(ResourceType.GUI, "Other_Icon.png"));
-        drawTexturedModalRect(guiLeft + 141, guiTop + 15, 0, 16, 26, 57);
-        drawTexturedModalRect(guiLeft + 150, guiTop + 39, 13, 0, 8, 9);
-    }
-
 }

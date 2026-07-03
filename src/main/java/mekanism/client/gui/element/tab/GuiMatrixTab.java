@@ -1,74 +1,61 @@
 package mekanism.client.gui.element.tab;
 
 import mekanism.api.Coord4D;
+import mekanism.client.SpecialColors;
 import mekanism.client.gui.IGuiWrapper;
-import mekanism.client.gui.element.tab.GuiMatrixTab.MatrixTab;
+import mekanism.client.render.lib.ColorAtlas.ColorRegistryObject;
 import mekanism.common.Mekanism;
 import mekanism.common.network.PacketSimpleGui.SimpleGuiMessage;
 import mekanism.common.tile.multiblock.TileEntityInductionCasing;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
-import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraft.util.text.ITextComponent;
+import net.minecraft.util.text.TextComponentString;
 
-@SideOnly(Side.CLIENT)
-public class GuiMatrixTab extends GuiTabElementType<TileEntityInductionCasing, MatrixTab> {
+public class GuiMatrixTab extends GuiTabElementType<TileEntityInductionCasing, GuiMatrixTab.MatrixTab> {
 
-    private MatrixTab tab;
+    private static final ResourceLocation ENERGY = MekanismUtils.getResource(MekanismUtils.ResourceType.GUI, "energy.png");
+    private static final ResourceLocation STATS = MekanismUtils.getResource(MekanismUtils.ResourceType.GUI, "stats.png");
 
-    public GuiMatrixTab(IGuiWrapper gui, TileEntityInductionCasing tile, MatrixTab type, ResourceLocation def) {
-        super(gui, tile, type, def);
-        tab = type;
+    public GuiMatrixTab(IGuiWrapper gui, TileEntityInductionCasing tile, MatrixTab type) {
+        super(gui, tile, type);
     }
 
-    @Override
-    public void renderBackground(int xAxis, int yAxis, int guiWidth, int guiHeight) {
-        super.renderBackground(xAxis, yAxis, guiWidth, guiHeight);
-        mc.renderEngine.bindTexture(MekanismUtils.getResource(MekanismUtils.ResourceType.BUTTON_TAB, "button_tab_icon.png"));
-        guiObj.drawTexturedRect(guiWidth - 21, guiHeight + tab.getYPos() + 4, tab.xlocation, tab.ylocation, 18, 18);
-    }
+    public enum MatrixTab implements TabType<TileEntityInductionCasing> {
+        MAIN(ENERGY, 49, "gui.main", SpecialColors.TAB_MULTIBLOCK_MAIN),
+        STAT(STATS, 50, "gui.matrixStats", SpecialColors.TAB_MULTIBLOCK_STATS);
 
-    public enum MatrixTab implements TabType {
-        MAIN(126, 0, 49, "gui.main"),
-        STAT(198, 18, 50, "gui.matrixStats");
-
-        private final String description;
-
-        public final int xlocation;
-
-        public final int ylocation;
+        private final ResourceLocation resource;
         private final int guiId;
+        private final String description;
+        private final ColorRegistryObject color;
 
-        MatrixTab(int x, int y, int id, String desc) {
-            xlocation = x;
-            ylocation = y;
-            guiId = id;
-            description = desc;
+        MatrixTab(ResourceLocation resource, int guiId, String description, ColorRegistryObject color) {
+            this.resource = resource;
+            this.guiId = guiId;
+            this.description = description;
+            this.color = color;
         }
-
 
         @Override
         public ResourceLocation getResource() {
-            return MekanismUtils.getResource(MekanismUtils.ResourceType.GUI, "Null.png");
+            return resource;
         }
 
         @Override
-        public void openGui(TileEntity tile) {
+        public void onClick(TileEntityInductionCasing tile) {
             Mekanism.packetHandler.sendToServer(new SimpleGuiMessage(Coord4D.get(tile), 0, guiId));
         }
 
         @Override
-        public String getDesc() {
-            return LangUtils.localize(description);
+        public ITextComponent getDescription() {
+            return new TextComponentString(LangUtils.localize(description));
         }
 
         @Override
-        public int getYPos() {
-            return 6;
+        public ColorRegistryObject getTabColor() {
+            return color;
         }
-
-
     }
 }

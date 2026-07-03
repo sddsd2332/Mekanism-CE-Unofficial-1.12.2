@@ -1,8 +1,11 @@
 package mekanism.common.recipe.outputs;
 
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
+import mekanism.api.fluid.ExtendedFluidHandlerUtils;
+import mekanism.api.fluid.IExtendedFluidTank;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.FluidTank;
 
 public class FluidOutput extends MachineOutput<FluidOutput> {
 
@@ -25,9 +28,13 @@ public class FluidOutput extends MachineOutput<FluidOutput> {
         return new FluidOutput(output.copy());
     }
 
-    public boolean applyOutputs(FluidTank fluidTank, boolean doEmit) {
-        if (fluidTank.fill(output, false) > 0) {
-            fluidTank.fill(output, doEmit);
+    public boolean applyOutputs(IExtendedFluidTank fluidTank, boolean doEmit) {
+        if (output == null || output.amount <= 0) {
+            return false;
+        }
+        FluidStack remainder = fluidTank.insert(output, Action.SIMULATE, AutomationType.INTERNAL);
+        if (output.amount - (ExtendedFluidHandlerUtils.isEmpty(remainder) ? 0 : remainder.amount) > 0) {
+            fluidTank.insert(output, Action.get(doEmit), AutomationType.INTERNAL);
             return true;
         }
         return false;

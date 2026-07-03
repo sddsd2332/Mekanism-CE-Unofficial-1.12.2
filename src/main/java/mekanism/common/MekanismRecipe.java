@@ -2,7 +2,6 @@ package mekanism.common;
 
 
 import mekanism.api.EnumColor;
-import mekanism.api.energy.IEnergizedItem;
 import mekanism.api.gas.GasRegistry;
 import mekanism.api.gas.GasStack;
 import mekanism.api.gas.OreGas;
@@ -12,11 +11,11 @@ import mekanism.api.infuse.InfuseType;
 import mekanism.common.block.states.BlockStateMachine;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.content.gear.IModuleContainerItem;
-import mekanism.common.item.armor.ItemMekaSuitBodyArmor;
-import mekanism.common.item.armor.ItemMekaSuitHelmet;
+import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.recipe.RecipeHandler;
 import mekanism.common.recipe.inputs.ItemStackInput;
 import mekanism.common.util.StackUtils;
+import mekanism.common.util.StorageUtils;
 import net.minecraft.block.BlockCrops;
 import net.minecraft.init.Blocks;
 import net.minecraft.init.Items;
@@ -258,6 +257,11 @@ public class MekanismRecipe {
                     new GasStack(MekanismFluids.Sodium, 1), new GasStack(MekanismFluids.Chlorine, 1));
             RecipeHandler.addElectrolyticSeparatorRecipe(FluidRegistry.getFluidStack("heavywater", 2), MekanismConfig.current().usage.heavyWaterElectrolysis.val(),
                     new GasStack(MekanismFluids.Deuterium, 2), new GasStack(MekanismFluids.Oxygen, 1));
+        }
+
+        //Rotary Condensentrator Recipes
+        if (MekanismConfig.current().general.machinesManager.isEnabled(BlockStateMachine.MachineType.ROTARY_CONDENSENTRATOR)) {
+            RecipeHandler.addDefaultRotaryRecipes();
         }
 
         //Thermal Evaporation Plant Recipes
@@ -531,12 +535,8 @@ public class MekanismRecipe {
         addEnergy(boots);
         addEnergy(tool);
 
-        if (helmet.getItem() instanceof ItemMekaSuitHelmet item) {
-            item.setGas(helmet, new GasStack(MekanismFluids.NutritionalPaste, item.getMaxGas(helmet)));
-        }
-        if (bodyarmor.getItem() instanceof ItemMekaSuitBodyArmor item) {
-            item.setGas(bodyarmor, new GasStack(MekanismFluids.Hydrogen, item.getMaxGas(bodyarmor)));
-        }
+        GasInventorySlot.setGasContained(helmet, new GasStack(MekanismFluids.NutritionalPaste, GasInventorySlot.getTankCapacity(helmet, 0)));
+        GasInventorySlot.setGasContained(bodyarmor, new GasStack(MekanismFluids.Hydrogen, GasInventorySlot.getTankCapacity(bodyarmor, 0)));
 
         GameRegistry.addShapedRecipe(Mekanism.rl("super_fumo"), null, SuperFumo, "A B", " C ", "D E", 'A', helmet, 'B', bodyarmor, 'C', tool, 'D', pants, 'E', boots);
     }
@@ -549,8 +549,9 @@ public class MekanismRecipe {
     }
 
     public static void addEnergy(ItemStack stack) {
-        if (stack.getItem() instanceof IEnergizedItem item) {
-            item.setEnergy(stack, item.getMaxEnergy(stack));
+        double maxEnergy = StorageUtils.getMaxEnergy(stack);
+        if (maxEnergy > 0) {
+            StorageUtils.setStoredEnergy(stack, maxEnergy, maxEnergy);
         }
     }
 

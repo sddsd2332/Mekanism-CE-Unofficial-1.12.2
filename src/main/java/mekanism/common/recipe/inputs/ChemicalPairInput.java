@@ -1,7 +1,9 @@
 package mekanism.common.recipe.inputs;
 
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTank;
+import mekanism.api.gas.IExtendedGasTank;
 import net.minecraft.nbt.NBTTagCompound;
 
 /**
@@ -41,21 +43,17 @@ public class ChemicalPairInput extends MachineInput<ChemicalPairInput> {
         rightGas = GasStack.readFromNBT(nbtTags.getCompoundTag("rightInput"));
     }
 
-    public boolean useGas(GasTank leftTank, GasTank rightTank, boolean deplete, int scale) {
+    public boolean useGas(IExtendedGasTank leftTank, IExtendedGasTank rightTank, boolean deplete, int scale) {
         int leftAmount = leftGas.amount * scale;
         int rightAmount = rightGas.amount * scale;
-        if (leftTank.canDraw(leftGas.getGas()) && rightTank.canDraw(rightGas.getGas())) {
-            if (leftTank.getStored() >= leftAmount && rightTank.getStored() >= rightAmount) {
-                leftTank.draw(leftAmount, deplete);
-                rightTank.draw(rightAmount, deplete);
-                return true;
-            }
-        } else if (leftTank.canDraw(rightGas.getGas()) && rightTank.canDraw(leftGas.getGas())) {
-            if (leftTank.getStored() >= rightAmount && rightTank.getStored() >= leftAmount) {
-                leftTank.draw(rightAmount, deplete);
-                rightTank.draw(leftAmount, deplete);
-                return true;
-            }
+        if (hasGas(leftTank, leftGas, leftAmount) && hasGas(rightTank, rightGas, rightAmount)) {
+            leftTank.extract(leftAmount, Action.get(deplete), AutomationType.INTERNAL);
+            rightTank.extract(rightAmount, Action.get(deplete), AutomationType.INTERNAL);
+            return true;
+        } else if (hasGas(leftTank, rightGas, rightAmount) && hasGas(rightTank, leftGas, leftAmount)) {
+            leftTank.extract(rightAmount, Action.get(deplete), AutomationType.INTERNAL);
+            rightTank.extract(leftAmount, Action.get(deplete), AutomationType.INTERNAL);
+            return true;
         }
         return false;
     }
@@ -93,14 +91,19 @@ public class ChemicalPairInput extends MachineInput<ChemicalPairInput> {
      * @param leftTank  - left tank to draw from
      * @param rightTank - right tank to draw from
      */
-    public void draw(GasTank leftTank, GasTank rightTank) {
+    public void draw(IExtendedGasTank leftTank, IExtendedGasTank rightTank) {
         if (meets(new ChemicalPairInput(leftTank.getGas(), rightTank.getGas()))) {
-            leftTank.draw(leftGas.amount, true);
-            rightTank.draw(rightGas.amount, true);
+            leftTank.extract(leftGas.amount, Action.EXECUTE, AutomationType.INTERNAL);
+            rightTank.extract(rightGas.amount, Action.EXECUTE, AutomationType.INTERNAL);
         } else if (meets(new ChemicalPairInput(rightTank.getGas(), leftTank.getGas()))) {
-            leftTank.draw(rightGas.amount, true);
-            rightTank.draw(leftGas.amount, true);
+            leftTank.extract(rightGas.amount, Action.EXECUTE, AutomationType.INTERNAL);
+            rightTank.extract(leftGas.amount, Action.EXECUTE, AutomationType.INTERNAL);
         }
+    }
+
+    private boolean hasGas(IExtendedGasTank tank, GasStack stack, int amount) {
+        GasStack stored = tank.getGas();
+        return stored != null && stored.isGasEqual(stack) && stored.amount >= amount;
     }
 
     /**

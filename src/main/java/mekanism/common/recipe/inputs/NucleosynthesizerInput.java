@@ -1,11 +1,13 @@
 package mekanism.common.recipe.inputs;
 
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTank;
+import mekanism.api.gas.IExtendedGasTank;
+import mekanism.api.inventory.IInventorySlot;
 import mekanism.common.util.StackUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.NonNullList;
 import net.minecraftforge.oredict.OreDictionary;
 
 /**
@@ -38,17 +40,17 @@ public class NucleosynthesizerInput extends MachineInput<NucleosynthesizerInput>
         return !theSolid.isEmpty() && theGas != null;
     }
 
-    public boolean use(NonNullList<ItemStack> inventory, int index, GasTank gasTank, boolean deplete) {
-        return use(inventory,index,gasTank,deplete,deplete);
+    public boolean use(IInventorySlot slot, IExtendedGasTank gasTank, boolean deplete) {
+        return use(slot, gasTank, deplete, deplete);
     }
 
-    public boolean use(NonNullList<ItemStack> inventory, int index, GasTank gasTank, boolean deplete,boolean useGas) {
-        if (meets(new NucleosynthesizerInput(inventory.get(index), gasTank.getGas()))) {
+    public boolean use(IInventorySlot slot, IExtendedGasTank gasTank, boolean deplete, boolean useGas) {
+        if (meets(new NucleosynthesizerInput(slot.getStack(), gasTank.getGas()))) {
             if (deplete) {
-                inventory.set(index, StackUtils.subtract(inventory.get(index), theSolid));
+                slot.shrinkStack(theSolid.getCount(), Action.EXECUTE);
             }
-            if (useGas){
-                gasTank.draw(theGas.amount, true);
+            if (useGas) {
+                gasTank.extract(theGas.amount, Action.EXECUTE, AutomationType.INTERNAL);
             }
             return true;
         }

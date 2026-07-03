@@ -1,440 +1,220 @@
 package mekanism.client.gui;
 
 import mekanism.api.EnumColor;
-import mekanism.api.TileNetworkList;
-import mekanism.client.ClientTickHandler;
-import mekanism.client.MekanismClient;
-import mekanism.client.gui.button.GuiColorButton;
-import mekanism.client.gui.button.GuiDisableableButton;
-import mekanism.client.gui.element.*;
-import mekanism.client.gui.element.GuiPowerBar.IPowerInfoHandler;
-import mekanism.client.gui.element.slot.GuiEnergySlot;
-import mekanism.client.gui.element.tab.GuiSecurityTab;
-import mekanism.client.gui.element.tab.GuiUpgradeTab;
-import mekanism.client.render.MekanismRenderer;
-import mekanism.client.sound.SoundHandler;
+import mekanism.client.gui.element.GuiElement;
+import mekanism.client.gui.element.GuiElementHolder;
+import mekanism.client.gui.element.GuiInnerScreen;
+import mekanism.client.gui.element.bar.GuiVerticalPowerBar;
+import mekanism.client.gui.element.button.ColorButton;
+import mekanism.client.gui.element.button.MekanismButton;
+import mekanism.client.gui.element.custom.GuiTeleporterStatus;
+import mekanism.client.gui.element.scroll.GuiTextScrollList;
+import mekanism.client.gui.element.slot.GuiSlot;
+import mekanism.client.gui.element.slot.SlotType;
+import mekanism.client.gui.element.text.BackgroundType;
+import mekanism.client.gui.element.text.GuiTextField;
+import mekanism.client.gui.warning.WarningTracker.WarningType;
 import mekanism.common.Mekanism;
 import mekanism.common.frequency.Frequency;
+import mekanism.common.frequency.Frequency.FrequencyIdentity;
 import mekanism.common.frequency.FrequencyManager;
-import mekanism.common.inventory.container.ContainerNull;
+import mekanism.common.frequency.FrequencyType;
 import mekanism.common.inventory.container.ContainerTeleporter;
-import mekanism.common.item.ItemPortableTeleporter;
-import mekanism.common.network.PacketPortableTeleporter.PortableTeleporterMessage;
-import mekanism.common.network.PacketPortableTeleporter.PortableTeleporterPacketType;
-import mekanism.common.network.PacketTileEntity.TileEntityMessage;
-import mekanism.common.security.IOwnerItem;
+import mekanism.common.network.PacketSetFrequencyColor.SetFrequencyColorMessage;
+import mekanism.common.network.PacketSetTileFrequency.SetTileFrequencyMessage;
+import mekanism.common.security.ISecurityTile.SecurityMode;
 import mekanism.common.tile.TileEntityTeleporter;
 import mekanism.common.util.LangUtils;
-import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.MekanismUtils.ResourceType;
-import net.minecraft.client.gui.GuiButton;
-import net.minecraft.client.gui.GuiTextField;
-import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.InventoryPlayer;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.EnumHand;
-import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
-import org.lwjgl.input.Keyboard;
+import net.minecraft.util.text.TextComponentString;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.UUID;
 
-@SideOnly(Side.CLIENT)
-public class GuiTeleporter extends GuiMekanismTile<TileEntityTeleporter> {
+public class GuiTeleporter extends GuiMekanismTile<TileEntityTeleporter, ContainerTeleporter> {
 
-    private final boolean isPortable;
-    private EnumHand currentHand;
-    private ItemStack itemStack = ItemStack.EMPTY;
-    private EntityPlayer entityPlayer;
-    private GuiDisableableButton publicButton;
-    private GuiDisableableButton privateButton;
-    private GuiDisableableButton setButton;
-    private GuiDisableableButton deleteButton;
-    private GuiDisableableButton teleportButton;
-    private GuiDisableableButton checkboxButton;
-
-    private GuiColorButton colorButton;
-    private GuiScrollList scrollList;
+    private MekanismButton publicButton;
+    private MekanismButton privateButton;
+    private MekanismButton trustedButton;
+    private MekanismButton setButton;
+    private MekanismButton deleteButton;
+    private GuiTextScrollList scrollList;
     private GuiTextField frequencyField;
-    private boolean privateMode;
-    private Frequency clientFreq;
-    private byte clientStatus;
-    private List<Frequency> clientPublicCache = new ArrayList<>();
-    private List<Frequency> clientPrivateCache = new ArrayList<>();
-    private boolean isInit = true;
-
-    private int yStart;
+    private GuiTeleporterStatus status;
+    private SecurityMode selectedMode = SecurityMode.PUBLIC;
 
     public GuiTeleporter(InventoryPlayer inventory, TileEntityTeleporter tile) {
         super(tile, new ContainerTeleporter(inventory, tile));
-        isPortable = false;
-        ResourceLocation resource = getGuiLocation();
-        addGuiElement(new GuiRedstoneControl(this, tileEntity, resource));
-        addGuiElement(new GuiUpgradeTab(this, tileEntity, resource));
-        addGuiElement(new GuiSecurityTab(this, tileEntity, resource));
-        addGuiElement(new GuiPowerBar(this, new IPowerInfoHandler() {
-            @Override
-            public String getTooltip() {
-                return MekanismUtils.getEnergyDisplay(getEnergy(), getMaxEnergy());
-            }
-
-            @Override
-            public double getLevel() {
-                return getEnergy() / getMaxEnergy();
-            }
-
-            @Override
-            public boolean powerbarWarning() {
-                return tileEntity.getEnergy() == 0;
-            }
-        }, resource, 158, 26));
-
-        addGuiElement(new GuiEnergySlot( this, resource, 152, 6, tileEntity));
-        addGuiElement(scrollList = new GuiScrollList(this, resource, 28, 37, 120, 4));
-        if (tileEntity.frequency != null) {
-            privateMode = !tileEntity.frequency.publicFreq;
-        }
+        dynamicSlots = true;
         ySize += 74;
-        addGuiElement(new GuiPlayerSlot(this, resource, 7, 157));
-        addGuiElement(new GuiElementScreen(this, getGuiLocation(), 27, 36, 122, 42).isFrame());
-        addGuiElement(new GuiInnerScreen(this, getGuiLocation(), 48, 111, 101, 13));
-        yStart = 14;
-    }
-
-    public GuiTeleporter(EntityPlayer player, EnumHand hand, ItemStack stack) {
-        super(null, new ContainerNull());
-        isPortable = true;
-        currentHand = hand;
-        itemStack = stack;
-        entityPlayer = player;
-        ResourceLocation resource = getGuiLocation();
-        addGuiElement(new GuiPowerBar(this, new IPowerInfoHandler() {
-            @Override
-            public String getTooltip() {
-                return MekanismUtils.getEnergyDisplay(getEnergy(), getMaxEnergy());
-            }
-
-            @Override
-            public double getLevel() {
-                return getEnergy() / getMaxEnergy();
-            }
-        }, resource, 158, 26));
-        addGuiElement(scrollList = new GuiScrollList(this, resource, 28, 37, 120, 4));
-        ItemPortableTeleporter item = (ItemPortableTeleporter) itemStack.getItem();
-        if (item.getFrequency(stack) != null) {
-            privateMode = !item.getFrequency(stack).publicFreq;
-            setFrequency(item.getFrequency(stack).name);
-        } else {
-            Mekanism.packetHandler.sendToServer(new PortableTeleporterMessage(PortableTeleporterPacketType.DATA_REQUEST, currentHand, clientFreq));
+        titleLabelY = 4;
+        inventoryLabelY = ySize - 93;
+        if (tile.getFreq() != null) {
+            selectedMode = tile.getFreq().getSecurity();
         }
-        ySize = 172;
-        addGuiElement(new GuiElementScreen(this, getGuiLocation(), 27, 36, 122, 42).isFrame());
-        addGuiElement(new GuiInnerScreen(this, getGuiLocation(), 48, 111, 101, 13));
-        yStart = 14;
     }
 
     @Override
-    public void initGui() {
-        super.initGui();
-        buttonList.clear();
-        buttonList.add(publicButton = new GuiDisableableButton(0, guiLeft + 27, guiTop + yStart, 60, 20, LangUtils.localize("gui.public")));
-        buttonList.add(privateButton = new GuiDisableableButton(1, guiLeft + 89, guiTop + yStart, 60, 20, LangUtils.localize("gui.private")));
-        int buttonWidth = isPortable ? 60 : 50;
-        buttonList.add(setButton = new GuiDisableableButton(2, guiLeft + 27, guiTop + yStart + 113, buttonWidth, 18, LangUtils.localize("gui.set")));
-        buttonList.add(deleteButton = new GuiDisableableButton(3, guiLeft + 29 + buttonWidth, guiTop + yStart + 113, buttonWidth, 18, LangUtils.localize("gui.delete")));
-        if (!itemStack.isEmpty()) {
-            buttonList.add(teleportButton = new GuiDisableableButton(4, guiLeft + 42, guiTop + 147, 92, 20, LangUtils.localize("gui.teleport")));
-        }
+    protected void addGuiElements() {
+        addButton(new GuiElementHolder(this, 27, 36, 122, 42));
+        addButton(new GuiInnerScreen(this, 48, 111, 101, 13));
+        super.addGuiElements();
+        status = addButton(new GuiTeleporterStatus(this, () -> tileEntity.getFreq() != null, () -> tileEntity.status));
+        scrollList = addButton(new GuiTextScrollList(this, 28, 37, 120, 42));
+        publicButton = addButton(new MekanismButton(this, 27, 14, 39, 20, new TextComponentString(LangUtils.localize("gui.public")),
+              () -> setMode(SecurityMode.PUBLIC), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.publicMode")))));
+        privateButton = addButton(new MekanismButton(this, 68, 14, 39, 20, new TextComponentString(LangUtils.localize("gui.private")),
+              () -> setMode(SecurityMode.PRIVATE), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.privateMode")))));
+        trustedButton = addButton(new MekanismButton(this, 109, 14, 40, 20, new TextComponentString(LangUtils.localize("gui.trusted")),
+              () -> setMode(SecurityMode.TRUSTED), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.trustedMode")))));
+        setButton = addButton(new MekanismButton(this, 27, 127, 50, 18, new TextComponentString(LangUtils.localize("gui.set")),
+              this::setSelectedFrequency, null));
+        deleteButton = addButton(new MekanismButton(this, 79, 127, 50, 18, new TextComponentString(LangUtils.localize("gui.delete")),
+              this::deleteSelectedFrequency, null));
+        frequencyField = addButton(new GuiTextField(this, 4, 50, 113, 98, 11)
+              .setMaxLength(FrequencyManager.MAX_FREQ_LENGTH)
+              .setBackground(BackgroundType.INNER_SCREEN)
+              .setInputValidator(this::isValidFrequencyInput)
+              .setEnterHandler(this::setTypedFrequency)
+              .addCheckmarkButton(this::setTypedFrequency));
+        addButton(new GuiVerticalPowerBar(this, tileEntity.getMainEnergyContainer(), 158, 26)
+              .warning(WarningType.NOT_ENOUGH_ENERGY, () -> tileEntity.status == 4));
+        addButton(new GuiSlot(SlotType.NORMAL, this, 131, 127));
+        addButton(new ColorButton(this, 132, 128, 16, 16, () -> tileEntity.getFreq() == null ? null : tileEntity.getFreq().getColor(),
+              () -> sendColorUpdate(true),
+              () -> sendColorUpdate(false),
+              () -> java.util.Arrays.asList(LangUtils.localize("gui.Teleportercolor"),
+                    LangUtils.localize("tooltip.configurator.viewColor") + ": " + (tileEntity.getFreq() == null ? LangUtils.localize("gui.none") : tileEntity.getFreq().getColor().getColoredName()))));
+        updateFrequencyButtons();
+    }
 
-        if (!isPortable) {
-            buttonList.add(colorButton = new GuiColorButton(7, guiLeft + 132, guiTop + yStart + 114, () -> tileEntity.color));
-        }
-        frequencyField = new GuiTextField(5, fontRenderer, guiLeft + 50, guiTop + yStart + 99, 98, 11);
-        frequencyField.setMaxStringLength(FrequencyManager.MAX_FREQ_LENGTH);
-        frequencyField.setEnableBackgroundDrawing(false);
-        buttonList.add(checkboxButton = new GuiDisableableButton(6, guiLeft + 137, guiTop + yStart + 98, 11, 11).with(GuiDisableableButton.ImageOverlay.CHECKMARK));
-        updateButtons();
-        if (!itemStack.isEmpty()) {
-            if (!isInit) {
-                Mekanism.packetHandler.sendToServer(new PortableTeleporterMessage(PortableTeleporterPacketType.DATA_REQUEST, currentHand, clientFreq));
-            } else {
-                isInit = false;
-            }
+    private void sendColorUpdate(boolean next) {
+        Frequency frequency = tileEntity.getFreq();
+        if (frequency != null) {
+            Mekanism.packetHandler.sendToServer(new SetFrequencyColorMessage(frequency, next));
         }
     }
 
-    public String getSecurity(Frequency freq) {
-        return !freq.publicFreq ? EnumColor.DARK_RED + LangUtils.localize("gui.private") : EnumColor.BRIGHT_GREEN + LangUtils.localize("gui.public");
+    private void setMode(SecurityMode mode) {
+        selectedMode = mode;
+        scrollList.clearSelection();
+        updateFrequencyButtons();
     }
 
-    public void updateButtons() {
-        if (getOwner() == null) {
+    private boolean isValidFrequencyInput(char c, int keyCode) {
+        return Character.isDigit(c) || Character.isLetter(c) || FrequencyManager.SPECIAL_CHARS.contains(c) ||
+              GuiMekanism.isTextboxKey(c, keyCode);
+    }
+
+    private void setTypedFrequency() {
+        String name = frequencyField.getText();
+        if (!name.isEmpty()) {
+            Mekanism.packetHandler.sendToServer(new SetTileFrequencyMessage(true, FrequencyType.TELEPORTER,
+                  new FrequencyIdentity(name, selectedMode, tileEntity.getSecurity().getOwnerUUID()), tileEntity));
+        }
+        frequencyField.clear();
+        scrollList.clearSelection();
+        updateFrequencyButtons();
+    }
+
+    private void setSelectedFrequency() {
+        Frequency selected = getSelectedFrequency();
+        if (selected != null) {
+            Mekanism.packetHandler.sendToServer(new SetTileFrequencyMessage(true, FrequencyType.TELEPORTER, selected.getIdentity(), tileEntity));
+        }
+        updateFrequencyButtons();
+    }
+
+    private void deleteSelectedFrequency() {
+        Frequency selected = getSelectedFrequency();
+        if (selected != null) {
+            Mekanism.packetHandler.sendToServer(new SetTileFrequencyMessage(false, FrequencyType.TELEPORTER, selected.getIdentity(), tileEntity));
+            scrollList.clearSelection();
+        }
+        updateFrequencyButtons();
+    }
+
+    private Frequency getSelectedFrequency() {
+        int selection = scrollList.getSelection();
+        List<? extends Frequency> frequencies = getVisibleFrequencies();
+        return selection >= 0 && selection < frequencies.size() ? frequencies.get(selection) : null;
+    }
+
+    private List<? extends Frequency> getVisibleFrequencies() {
+        return switch (selectedMode) {
+            case PUBLIC -> tileEntity.getPublicCache(FrequencyType.TELEPORTER);
+            case PRIVATE -> tileEntity.getPrivateCache(FrequencyType.TELEPORTER);
+            case TRUSTED -> tileEntity.getTrustedCache(FrequencyType.TELEPORTER);
+        };
+    }
+
+    private void updateFrequencyButtons() {
+        if (scrollList == null || tileEntity.getSecurity().getOwnerUUID() == null) {
             return;
         }
         List<String> text = new ArrayList<>();
-        if (privateMode) {
-            getPrivateCache().forEach(freq -> text.add(freq.name));
-        } else {
-            getPublicCache().forEach(freq -> text.add(freq.name + " (" + freq.clientOwner + ")"));
-        }
+        getVisibleFrequencies().forEach(freq -> text.add(selectedMode == SecurityMode.PRIVATE ? freq.name : freq.name + " (" + freq.clientOwner + ")"));
         scrollList.setText(text);
-        if (privateMode) {
-            publicButton.enabled = true;
-            privateButton.enabled = false;
+        publicButton.active = selectedMode != SecurityMode.PUBLIC;
+        privateButton.active = selectedMode != SecurityMode.PRIVATE;
+        trustedButton.active = selectedMode != SecurityMode.TRUSTED;
+        Frequency selected = getSelectedFrequency();
+        Frequency current = tileEntity.getFreq();
+        if (selected == null) {
+            setButton.active = false;
+            deleteButton.active = false;
         } else {
-            publicButton.enabled = false;
-            privateButton.enabled = true;
+            setButton.active = current == null || !current.equals(selected);
+            deleteButton.active = tileEntity.getSecurity().getOwnerUUID().equals(selected.ownerUUID);
         }
-        if (scrollList.hasSelection()) {
-            Frequency freq = privateMode ? getPrivateCache().get(scrollList.getSelection()) : getPublicCache().get(scrollList.getSelection());
-            setButton.enabled = getFrequency() == null || !getFrequency().equals(freq);
-            deleteButton.enabled = getOwner().equals(freq.ownerUUID);
-        } else {
-            setButton.enabled = false;
-            deleteButton.enabled = false;
+    }
+
+    private String getSecurity(Frequency freq) {
+        return switch (freq.getSecurity()) {
+            case PUBLIC -> EnumColor.BRIGHT_GREEN + LangUtils.localize("gui.public");
+            case PRIVATE -> EnumColor.DARK_RED + LangUtils.localize("gui.private");
+            case TRUSTED -> EnumColor.INDIGO + LangUtils.localize("gui.trusted");
+        };
+    }
+
+    private String getOwnerUsername(Frequency frequency) {
+        if (frequency == null) {
+            return EnumColor.DARK_RED + LangUtils.localize("gui.none");
         }
-        if (!itemStack.isEmpty()) {
-            teleportButton.enabled = clientFreq != null && clientStatus == 1;
+        if (selectedMode == SecurityMode.PRIVATE) {
+            return EnumColor.BRIGHT_GREEN + tileEntity.getSecurity().getClientOwner();
         }
-        checkboxButton.enabled = !frequencyField.getText().isEmpty();
+        return (Objects.equals(tileEntity.getSecurity().getClientOwner(), frequency.clientOwner) ? EnumColor.BRIGHT_GREEN : EnumColor.DARK_RED) + frequency.clientOwner;
     }
 
     @Override
     public void updateScreen() {
         super.updateScreen();
-        updateButtons();
-        frequencyField.updateCursorCounter();
+        updateFrequencyButtons();
     }
 
     @Override
-    public void mouseClicked(int mouseX, int mouseY, int button) throws IOException {
+    public void mouseClicked(int mouseX, int mouseY, int button) throws java.io.IOException {
         super.mouseClicked(mouseX, mouseY, button);
-        updateButtons();
-        frequencyField.mouseClicked(mouseX, mouseY, button);
-        if (tileEntity != null && colorButton.isMouseOver() && button == 1) {
-            Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(2, 1)));
-            SoundHandler.playSound(net.minecraft.init.SoundEvents.UI_BUTTON_CLICK);
-        }
-    }
-
-
-    @Override
-    public void keyTyped(char c, int i) throws IOException {
-        if (!frequencyField.isFocused() || i == Keyboard.KEY_ESCAPE) {
-            super.keyTyped(c, i);
-        }
-        if (i == Keyboard.KEY_RETURN) {
-            if (frequencyField.isFocused()) {
-                setFrequency(frequencyField.getText());
-                frequencyField.setText("");
-            }
-        }
-        if (Character.isDigit(c) || Character.isLetter(c) || isTextboxKey(c, i) || FrequencyManager.SPECIAL_CHARS.contains(c)) {
-            frequencyField.textboxKeyTyped(c, i);
-        }
-        updateButtons();
+        updateFrequencyButtons();
     }
 
     @Override
-    protected void actionPerformed(GuiButton guibutton) throws IOException {
-        super.actionPerformed(guibutton);
-        if (guibutton.id == publicButton.id) {
-            privateMode = false;
-        } else if (guibutton.id == privateButton.id) {
-            privateMode = true;
-        } else if (guibutton.id == setButton.id) {
-            int selection = scrollList.getSelection();
-            if (selection != -1) {
-                Frequency freq = privateMode ? getPrivateCache().get(selection) : getPublicCache().get(selection);
-                setFrequency(freq.name);
-            }
-        } else if (guibutton.id == deleteButton.id) {
-            int selection = scrollList.getSelection();
-            if (selection != -1) {
-                Frequency freq = privateMode ? getPrivateCache().get(selection) : getPublicCache().get(selection);
-                if (tileEntity != null) {
-                    TileNetworkList data = TileNetworkList.withContents(1, freq.name, freq.publicFreq);
-                    Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, data));
-                } else {
-                    Mekanism.packetHandler.sendToServer(new PortableTeleporterMessage(PortableTeleporterPacketType.DEL_FREQ, currentHand, freq));
-                    Mekanism.packetHandler.sendToServer(new PortableTeleporterMessage(PortableTeleporterPacketType.DATA_REQUEST, currentHand, null));
-                }
-                scrollList.clearSelection();
-            }
-        } else if (guibutton.id == 4) {
-            if (clientFreq != null && clientStatus == 1) {
-                mc.setIngameFocus();
-                ClientTickHandler.portableTeleport(entityPlayer, currentHand, clientFreq);
-            }
-        } else if (guibutton.id == checkboxButton.id) {
-            setFrequency(frequencyField.getText());
-            frequencyField.setText("");
-        } else if (guibutton.id == colorButton.id) {
-            if (tileEntity != null) {
-                Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(2, Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) ? 2 : 0)));
-            }
-        }
-        updateButtons();
-    }
-
-    @Override
-    protected void drawGuiContainerForegroundLayer(int mouseX, int mouseY) {
-        fontRenderer.drawString(getName(), (xSize / 2) - (fontRenderer.getStringWidth(getName()) / 2), 4, 0x404040);
-
-        fontRenderer.drawString(LangUtils.localize("gui.freq") + ":", 27, yStart + 67, 0x404040);
-        fontRenderer.drawString(" " + (getFrequency() != null ? getFrequency().name : EnumColor.DARK_RED + LangUtils.localize("gui.none")), 27 + fontRenderer.getStringWidth(LangUtils.localize("gui.freq") + ":"), yStart + 67, 0x797979);
-
-        fontRenderer.drawString((isPortable ? LangUtils.localize("gui.itemowner") : LangUtils.localize("gui.owner")) + ": " + (getFrequency() != null ? getOwnerUsername() : EnumColor.DARK_RED + LangUtils.localize("gui.none")), 27, yStart + 77, 0x404040);
-
-        fontRenderer.drawString(LangUtils.localize("gui.security") + ":", 27, yStart + 87, 0x404040);
-        fontRenderer.drawString(" " + (getFrequency() != null ? getSecurity(getFrequency()) : EnumColor.DARK_RED + LangUtils.localize("gui.none")),
-                27 + fontRenderer.getStringWidth(LangUtils.localize("gui.security") + ":"), yStart + 87, 0x797979);
-        String str = LangUtils.localize("gui.set") + ":";
-        renderScaledText(str, 27, yStart + 100, 0x404040, 20);
-        if (itemStack.isEmpty()) {
-            fontRenderer.drawString(LangUtils.localize("container.inventory"), 8, (ySize - 96) + 4, 0x404040);
-        }
-        int xAxis = mouseX - guiLeft;
-        int yAxis = mouseY - guiTop;
-        if (xAxis >= 6 && xAxis <= 24 && yAxis >= 6 && yAxis <= 24) {
-            if (getFrequency() == null) {
-                this.displayTooltip(EnumColor.DARK_RED + LangUtils.localize("gui.teleporter.noFreq"), xAxis, yAxis);
-            } else {
-                this.displayTooltip(getStatusDisplay(), xAxis, yAxis);
-            }
-        } else if (xAxis >= -21 && xAxis <= -3 && yAxis >= 116 && yAxis <= 134) {
-            List<String> info = new ArrayList<>();
-            boolean energy = getEnergy() == 0;
-            if (energy) {
-                info.add(LangUtils.localize("gui.no_energy"));
-            }
-            if (energy) {
-                this.displayTooltips(info, xAxis, yAxis);
-            }
-        } else if (!isPortable && colorButton.isMouseOver()) {
-            if (tileEntity != null) {
-                List<String> info = new ArrayList<>();
-                info.add(LangUtils.localize("gui.Teleportercolor"));
-                info.add(LangUtils.localize("tooltip.configurator.viewColor") + ":" + tileEntity.color.getColoredName());
-                this.displayTooltips(info, xAxis, yAxis);
-            }
-        }
-        super.drawGuiContainerForegroundLayer(mouseX, mouseY);
-    }
-
-    @Override
-    protected void drawGuiContainerBackgroundLayer(int xAxis, int yAxis) {
-        super.drawGuiContainerBackgroundLayer(xAxis, yAxis);
-        mc.getTextureManager().bindTexture(MekanismUtils.getResource(ResourceType.GUI, "Teleporter_Icon.png"));
-        int y = getFrequency() == null ? 72 : getStatus() == 2 ? 0 : getStatus() == 3 ? 18 : getStatus() == 4 ? 36 : 54;
-        drawTexturedModalRect(guiLeft + 6, guiTop + 6, 0, y, 18, 18);
-        frequencyField.drawTextBox();
-        MekanismRenderer.resetColor();
-        boolean energy = getEnergy() == 0;
-        if (energy) {
-            mc.getTextureManager().bindTexture(MekanismUtils.getResource(ResourceType.TAB, "Warning_Info.png"));
-            drawTexturedModalRect(guiLeft - 26, guiTop + 112, 0, 0, 26, 26);
-            addGuiElement(new GuiWarningInfo(this, getGuiLocation(), false));
-        }
-    }
-
-    public String getStatusDisplay() {
-        return switch (getStatus()) {
-            case 1 -> EnumColor.DARK_GREEN + LangUtils.localize("gui.teleporter.ready");
-            case 2 -> EnumColor.DARK_RED + LangUtils.localize("gui.teleporter.noFrame");
-            case 3 -> EnumColor.DARK_RED + LangUtils.localize("gui.teleporter.noLink");
-            case 4 -> EnumColor.DARK_RED + LangUtils.localize("gui.teleporter.needsEnergy");
-            default -> EnumColor.DARK_RED + LangUtils.localize("gui.teleporter.noLink");
-        };
-    }
-
-    private UUID getOwner() {
-        if (tileEntity != null) {
-            return tileEntity.getSecurity().getOwnerUUID();
-        }
-        return ((IOwnerItem) itemStack.getItem()).getOwnerUUID(itemStack);
-    }
-
-    private String getOwnerUsername() {
-        if (tileEntity != null) {
-            if (privateMode) {
-                return EnumColor.BRIGHT_GREEN + tileEntity.getSecurity().getClientOwner();
-            } else {
-                return (Objects.equals(tileEntity.getSecurity().getClientOwner(), tileEntity.frequency.clientOwner) ? EnumColor.BRIGHT_GREEN : EnumColor.DARK_RED) + tileEntity.frequency.clientOwner;
-            }
-        }
-        return EnumColor.BRIGHT_GREEN + MekanismClient.clientUUIDMap.get(((IOwnerItem) itemStack.getItem()).getOwnerUUID(itemStack));
-    }
-
-    private byte getStatus() {
-        return tileEntity != null ? tileEntity.status : clientStatus;
-    }
-
-    public void setStatus(byte status) {
-        clientStatus = status;
-    }
-
-    private List<Frequency> getPublicCache() {
-        return tileEntity != null ? tileEntity.publicCache : clientPublicCache;
-    }
-
-    public void setPublicCache(List<Frequency> cache) {
-        clientPublicCache = cache;
-    }
-
-    private List<Frequency> getPrivateCache() {
-        return tileEntity != null ? tileEntity.privateCache : clientPrivateCache;
-    }
-
-    public void setPrivateCache(List<Frequency> cache) {
-        clientPrivateCache = cache;
-    }
-
-    private Frequency getFrequency() {
-        return tileEntity != null ? tileEntity.frequency : clientFreq;
-    }
-
-    public void setFrequency(Frequency newFrequency) {
-        clientFreq = newFrequency;
-    }
-
-    public void setFrequency(String freq) {
-        if (freq.isEmpty()) {
-            return;
-        }
-        if (tileEntity != null) {
-            TileNetworkList data = TileNetworkList.withContents(0, freq, !privateMode);
-            Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, data));
-        } else {
-            Frequency newFreq = new Frequency(freq, null).setPublic(!privateMode);
-            Mekanism.packetHandler.sendToServer(new PortableTeleporterMessage(PortableTeleporterPacketType.SET_FREQ, currentHand, newFreq));
-        }
-    }
-
-    private String getName() {
-        return tileEntity != null ? tileEntity.getName() : itemStack.getDisplayName();
-    }
-
-    private double getEnergy() {
-        if (!itemStack.isEmpty()) {
-            return ((ItemPortableTeleporter) itemStack.getItem()).getEnergy(itemStack);
-        }
-        return tileEntity.getEnergy();
-    }
-
-    private double getMaxEnergy() {
-        if (!itemStack.isEmpty()) {
-            return ((ItemPortableTeleporter) itemStack.getItem()).getMaxEnergy(itemStack);
-        }
-        return tileEntity.getMaxEnergy();
-    }
-
-    public boolean isStackEmpty() {
-        return itemStack.isEmpty();
+    protected void drawForegroundText(int mouseX, int mouseY) {
+        drawTitleTextWithOffset(new TextComponentString(tileEntity.getName()), status.getRelativeRight(), titleLabelY, 153);
+        Frequency frequency = tileEntity.getFreq();
+        String none = EnumColor.DARK_RED + LangUtils.localize("gui.none");
+        drawTextExact(new TextComponentString(LangUtils.localize("gui.freq") + ":"), 27, 81, titleTextColor());
+        drawTextExact(new TextComponentString(" " + (frequency != null ? frequency.name : none)), 27 + fontRenderer.getStringWidth(LangUtils.localize("gui.freq") + ":"),
+              81, subheadingTextColor());
+        drawTextExact(new TextComponentString(LangUtils.localize("gui.owner") + ": " + (frequency != null ? getOwnerUsername(frequency) : none)), 27, 91, titleTextColor());
+        drawTextExact(new TextComponentString(LangUtils.localize("gui.security") + ":"), 27, 101, titleTextColor());
+        drawTextExact(new TextComponentString(" " + (frequency != null ? getSecurity(frequency) : none)),
+              27 + fontRenderer.getStringWidth(LangUtils.localize("gui.security") + ":"), 101, subheadingTextColor());
+        drawScaledScrollingString(new TextComponentString(LangUtils.localize("gui.set") + ":"), 0, 114, TextAlignment.RIGHT, titleTextColor(),
+              frequencyField.getRelativeX(), 5, false, 1, GuiElement.getMillis());
+        renderInventoryText();
+        super.drawForegroundText(mouseX, mouseY);
     }
 }

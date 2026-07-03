@@ -1,66 +1,93 @@
 package mekanism.common.tile.prefab;
 
+import mekanism.api.*;
+import mekanism.api.energy.IEnergyContainer;
+import mekanism.api.energy.IMekanismStrictEnergyHandler;
+import mekanism.api.fluid.ExtendedFluidHandlerUtils;
+import mekanism.api.fluid.IExtendedFluidTank;
+import mekanism.api.fluid.IMekanismFluidHandler;
+import mekanism.api.gas.*;
+import mekanism.api.heat.IHeatCapacitor;
+import mekanism.api.heat.IMekanismHeatHandler;
+import mekanism.api.inventory.IInventorySlot;
 import mekanism.common.Upgrade;
+import mekanism.common.base.IEnergyWrapper;
+import mekanism.common.base.ISideConfiguration;
 import mekanism.common.base.ISustainedInventory;
-import mekanism.common.base.ItemHandlerWrapper;
-import mekanism.common.capabilities.CapabilityWrapperManager;
+import mekanism.common.base.ITankManager;
+import mekanism.common.capabilities.Capabilities;
+import mekanism.common.capabilities.CapabilityCache;
 import mekanism.common.capabilities.IToggleableCapability;
+import mekanism.common.capabilities.holder.energy.EnergyContainerHelper;
+import mekanism.common.capabilities.holder.energy.IEnergyContainerHolder;
+import mekanism.common.capabilities.holder.energy.ProxiedEnergyContainerHolder;
+import mekanism.common.capabilities.holder.fluid.FluidTankHelper;
+import mekanism.common.capabilities.holder.fluid.IFluidTankHolder;
+import mekanism.common.capabilities.holder.gas.GasTankHelper;
+import mekanism.common.capabilities.holder.gas.IGasTankHolder;
+import mekanism.common.capabilities.holder.heat.HeatCapacitorHelper;
+import mekanism.common.capabilities.holder.heat.IHeatCapacitorHolder;
+import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
+import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
+import mekanism.common.capabilities.resolver.BasicCapabilityResolver;
+import mekanism.common.capabilities.resolver.ICapabilityResolver;
+import mekanism.common.capabilities.resolver.manager.*;
+import mekanism.common.frequency.TileComponentFrequency;
+import mekanism.common.inventory.ISlotBackedInventory;
+import mekanism.common.inventory.slot.BasicInventorySlot;
+import mekanism.common.util.ItemDataUtils;
 import mekanism.common.util.LangUtils;
-import mekanism.common.util.NonNullListSynchronized;
 import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.inventory.ISidedInventory;
-import net.minecraft.inventory.ItemStackHelper;
+import net.minecraft.inventory.Slot;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.util.EnumFacing;
-import net.minecraft.util.text.ITextComponent;
-import net.minecraft.util.text.TextComponentString;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.util.Constants.NBT;
+import net.minecraftforge.fluids.FluidStack;
+import net.minecraftforge.fluids.capability.CapabilityFluidHandler;
+import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.items.wrapper.InvWrapper;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * 带有可已存储类型的方块
  */
 
-public abstract class TileEntityContainerBlock extends TileEntityBasicBlock implements ISidedInventory, ISustainedInventory, IToggleableCapability {
+public abstract class TileEntityContainerBlock extends TileEntityBasicBlock implements ISustainedInventory, IToggleableCapability,
+        ISlotBackedInventory, IMekanismFluidHandler, IMekanismGasHandler, IMekanismStrictEnergyHandler, IMekanismHeatHandler {
 
-    /**
-     * The inventory slot itemstacks used by this block.
-     */
-    public NonNullListSynchronized<ItemStack> inventory;
+    private IInventorySlotHolder inventorySlotHolder;
+    private IFluidTankHolder fluidTankHolder;
+    private IGasTankHolder gasTankHolder;
+    private IEnergyContainerHolder energyContainerHolder;
+    private IHeatCapacitorHolder heatCapacitorHolder;
+    private final CapabilityCache capabilityCache = new CapabilityCache();
+    protected final TileComponentFrequency frequencyComponent = new TileComponentFrequency(this);
+    private ItemHandlerManager itemHandlerManager;
+    private FluidHandlerManager fluidHandlerManager;
+    private GasHandlerManager gasHandlerManager;
+    private EnergyHandlerManager energyHandlerManager;
+    private HeatHandlerManager heatHandlerManager;
+    private final List<IInventorySlot> noSlots = Collections.emptyList();
+    private final List<IExtendedFluidTank> noFluidTanks = Collections.emptyList();
+    private final List<IExtendedGasTank> noGasTanks = Collections.emptyList();
+    private final List<IEnergyContainer> noEnergyContainers = Collections.emptyList();
+    private final List<IHeatTransfer> noHeatTransfers = Collections.emptyList();
+    private final List<IHeatCapacitor> noHeatCapacitors = Collections.emptyList();
 
     /**
      * The full name of this machine.
      */
     public String fullName;
-    private CapabilityWrapperManager<ISidedInventory, ItemHandlerWrapper> itemManager = new CapabilityWrapperManager<>(ISidedInventory.class, ItemHandlerWrapper.class);
-    /**
-     * Read only itemhandler for the null facing.
-     */
-    private IItemHandler nullHandler = new InvWrapper(this) {
-        @Nonnull
-        @Override
-        public ItemStack insertItem(int slot, @Nonnull ItemStack stack, boolean simulate) {
-            return stack;
-        }
-
-        @Nonnull
-        @Override
-        public ItemStack extractItem(int slot, int amount, boolean simulate) {
-            return ItemStack.EMPTY;
-        }
-
-        @Override
-        public void setStackInSlot(int slot, @Nonnull ItemStack stack) {
-            //no
-        }
-    };
 
     /**
      * A simple tile entity with a container and facing state.
@@ -71,101 +98,213 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
         fullName = name;
     }
 
-    @Override
-    public boolean isEmpty() {
-        for (ItemStack stack : getInventory()) {
-            if (!stack.isEmpty()) {
-                return false;
+    public TileComponentFrequency getFrequencyComponent() {
+        return frequencyComponent;
+    }
+
+    protected void initializeInventorySlots() {
+        initializeContainerHolders(true);
+    }
+
+    @Nullable
+    protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
+        return null;
+    }
+
+    protected void setInventorySlotHolder(IInventorySlotHolder slotHolder) {
+        inventorySlotHolder = slotHolder;
+        clearCapabilityCache();
+        initializeCapabilityManagers();
+    }
+
+    protected InventorySlotHelper createInventorySlotHelper() {
+        if (this instanceof ISideConfiguration) {
+            return InventorySlotHelper.forSideWithConfig((ISideConfiguration) this);
+        }
+        return InventorySlotHelper.forSide(() -> facing);
+    }
+
+    protected FluidTankHelper createFluidTankHelper() {
+        if (this instanceof ISideConfiguration) {
+            ISideConfiguration sideConfiguration = (ISideConfiguration) this;
+            return FluidTankHelper.forSideWithConfig(sideConfiguration::getOrientation, sideConfiguration::getConfig);
+        }
+        return FluidTankHelper.forSide(() -> facing);
+    }
+
+    protected GasTankHelper createGasTankHelper() {
+        if (this instanceof ISideConfiguration) {
+            return GasTankHelper.forSideWithConfig((ISideConfiguration) this);
+        }
+        return GasTankHelper.forSide(() -> facing);
+    }
+
+    protected EnergyContainerHelper createEnergyContainerHelper() {
+        if (this instanceof ISideConfiguration) {
+            return EnergyContainerHelper.forSideWithConfig((ISideConfiguration) this);
+        }
+        return EnergyContainerHelper.forSide(() -> facing);
+    }
+
+    protected HeatCapacitorHelper createHeatCapacitorHelper() {
+        if (this instanceof ISideConfiguration) {
+            return HeatCapacitorHelper.forSideWithConfig((ISideConfiguration) this);
+        }
+        return HeatCapacitorHelper.forSide(() -> facing);
+    }
+
+    @Nullable
+    protected IFluidTankHolder getInitialFluidTanks(IContentsListener listener) {
+        FluidTankHelper builder = createFluidTankHelper();
+        Object[] tanks = getManagedTanks();
+        if (tanks != null) {
+            for (Object tank : tanks) {
+                if (tank instanceof IExtendedFluidTank fluidTank) {
+                    builder.addTank(fluidTank);
+                }
             }
         }
-        return true;
+        return builder.build();
+    }
+
+    @Nullable
+    protected IGasTankHolder getInitialGasTanks(IContentsListener listener) {
+        GasTankHelper builder = createGasTankHelper();
+        Object[] tanks = getManagedTanks();
+        if (tanks != null) {
+            for (Object tank : tanks) {
+                if (tank instanceof IExtendedGasTank gasTank) {
+                    builder.addTank(gasTank);
+                }
+            }
+        }
+        return builder.build();
+    }
+
+    @Nullable
+    protected IEnergyContainerHolder getInitialEnergyContainers(IContentsListener listener) {
+        if (this instanceof IEnergyWrapper energyWrapper) {
+            if (!(this instanceof ISideConfiguration configurable) || configurable.getConfig() == null) {
+                return ProxiedEnergyContainerHolder.create(
+                      side -> side != null && energyWrapper.sideIsConsumer(side),
+                      side -> side != null && energyWrapper.sideIsOutput(side),
+                      side -> side == null || energyWrapper.sideIsConsumer(side) || energyWrapper.sideIsOutput(side) ? Collections.singletonList(energyWrapper) : Collections.emptyList());
+            }
+            EnergyContainerHelper builder = createEnergyContainerHelper();
+            builder.addContainer(energyWrapper);
+            return builder.build();
+        }
+        return null;
+    }
+
+    @Nullable
+    protected IHeatCapacitorHolder getInitialHeatCapacitors(IContentsListener listener) {
+        HeatCapacitorHelper builder = createHeatCapacitorHelper();
+        if (this instanceof IHeatCapacitor heatCapacitor) {
+            builder.addCapacitor(heatCapacitor);
+        }
+        return builder.build();
+    }
+
+    @Nullable
+    private Object[] getManagedTanks() {
+        return this instanceof ITankManager tankManager ? tankManager.getManagedTanks() : null;
+    }
+
+    @Nullable
+    public IInventorySlot getInventorySlot(int slot) {
+        List<IInventorySlot> slots = getInventorySlots(null);
+        return slot >= 0 && slot < slots.size() ? slots.get(slot) : null;
+    }
+
+    @Nullable
+    protected <SLOT extends IInventorySlot> SLOT getInventorySlotAs(int slot, Class<SLOT> slotType) {
+        IInventorySlot inventorySlot = getInventorySlot(slot);
+        return slotType.isInstance(inventorySlot) ? slotType.cast(inventorySlot) : null;
+    }
+
+    protected void clearCapabilityCache() {
+        capabilityCache.invalidateAll();
+    }
+
+    public void invalidateCapability(@Nullable Capability<?> capability, @Nullable EnumFacing side) {
+        capabilityCache.invalidate(capability, side);
+    }
+
+    protected void clearContainerHolderCache() {
+        initializeContainerHolders(false);
+    }
+
+    protected void initializeContainerHolders() {
+        initializeContainerHolders(false);
+    }
+
+    protected void initializeContainerHolders(boolean initializeInventory) {
+        fluidTankHolder = getInitialFluidTanks(this);
+        gasTankHolder = getInitialGasTanks(this);
+        energyContainerHolder = getInitialEnergyContainers(this);
+        heatCapacitorHolder = getInitialHeatCapacitors(this);
+        if (initializeInventory) {
+            inventorySlotHolder = getInitialInventory(this);
+        }
+        initializeCapabilityManagers();
+    }
+
+    protected void initializeCapabilityManagers() {
+        itemHandlerManager = new ItemHandlerManager(inventorySlotHolder, this);
+        fluidHandlerManager = new FluidHandlerManager(fluidTankHolder, this);
+        gasHandlerManager = new GasHandlerManager(gasTankHolder, this);
+        energyHandlerManager = new EnergyHandlerManager(energyContainerHolder, this);
+        heatHandlerManager = new HeatHandlerManager(heatCapacitorHolder);
+        List<ICapabilityResolver> resolvers = new ArrayList<>(Arrays.asList(itemHandlerManager, fluidHandlerManager, gasHandlerManager, energyHandlerManager, heatHandlerManager));
+        if (this instanceof IConfigurable configurable) {
+            resolvers.add(BasicCapabilityResolver.constant(Capabilities.CONFIGURABLE_CAPABILITY, configurable));
+        }
+        capabilityCache.setCapabilityResolvers(resolvers);
+    }
+
+    @Override
+    public boolean isEmpty() {
+        return ISlotBackedInventory.super.isEmpty();
     }
 
     @Override
     public void readCustomNBT(NBTTagCompound nbtTags) {
         super.readCustomNBT(nbtTags);
-        if (handleInventory()) {
-            NBTTagList tagList = nbtTags.getTagList("Items", NBT.TAG_COMPOUND);
-            inventory = NonNullListSynchronized.withSize(getSizeInventory(), ItemStack.EMPTY);
-            for (int tagCount = 0; tagCount < tagList.tagCount(); tagCount++) {
-                NBTTagCompound tagCompound = tagList.getCompoundTagAt(tagCount);
-                byte slotID = tagCompound.getByte("Slot");
-                if (slotID >= 0 && slotID < getSizeInventory()) {
-                    setInventorySlotContents(slotID, new ItemStack(tagCompound));
-                }
-            }
+        readCustomNBTBeforeInventory(nbtTags);
+        if (persistInventory() && hasInventory()) {
+            DataHandlerUtils.readContainers(getInventorySlots(null), nbtTags.getTagList(NBTConstants.ITEMS, NBT.TAG_COMPOUND));
         }
+        if (persistFluidTanks() && hasFluidTanks() && hasStoredFluidTanks(nbtTags)) {
+            DataHandlerUtils.readContainers(getFluidTanks(null), nbtTags.getTagList(NBTConstants.FLUID_TANKS, NBT.TAG_COMPOUND));
+        }
+        if (persistGasTanks() && hasGasTanks() && hasStoredGasTanks(nbtTags)) {
+            DataHandlerUtils.readContainers(getGasTanks(null), nbtTags.getTagList(NBTConstants.GAS_TANKS, NBT.TAG_COMPOUND));
+        }
+    }
+
+    protected void readCustomNBTBeforeInventory(NBTTagCompound nbtTags) {
+    }
+
+    protected boolean hasStoredFluidTanks(NBTTagCompound nbtTags) {
+        return nbtTags.hasKey(NBTConstants.FLUID_TANKS, NBT.TAG_LIST);
+    }
+
+    protected boolean hasStoredGasTanks(NBTTagCompound nbtTags) {
+        return nbtTags.hasKey(NBTConstants.GAS_TANKS, NBT.TAG_LIST);
     }
 
     @Override
     public void writeCustomNBT(NBTTagCompound nbtTags) {
         super.writeCustomNBT(nbtTags);
-        if (handleInventory()) {
-            NBTTagList tagList = new NBTTagList();
-            for (int slotCount = 0; slotCount < getSizeInventory(); slotCount++) {
-                ItemStack stackInSlot = getStackInSlot(slotCount);
-                if (!stackInSlot.isEmpty()) {
-                    NBTTagCompound tagCompound = new NBTTagCompound();
-                    tagCompound.setByte("Slot", (byte) slotCount);
-                    stackInSlot.writeToNBT(tagCompound);
-                    tagList.appendTag(tagCompound);
-                }
-            }
-            nbtTags.setTag("Items", tagList);
+        if (persistInventory() && hasInventory()) {
+            nbtTags.setTag(NBTConstants.ITEMS, DataHandlerUtils.writeContainers(getInventorySlots(null)));
         }
-    }
-
-    protected NonNullListSynchronized<ItemStack> getInventory() {
-        return inventory;
-    }
-
-    @Override
-    public int getSizeInventory() {
-        return getInventory() != null ? getInventory().size() : 0;
-    }
-
-    @Nonnull
-    @Override
-    public ItemStack getStackInSlot(int slotID) {
-        return getInventory() != null ? getInventory().get(slotID) : ItemStack.EMPTY;
-    }
-
-    @Nonnull
-    @Override
-    public ItemStack decrStackSize(int slotID, int amount) {
-        NonNullListSynchronized<ItemStack> inventory = getInventory();
-        if (inventory == null) {
-            return ItemStack.EMPTY;
+        if (persistFluidTanks() && hasFluidTanks()) {
+            nbtTags.setTag(NBTConstants.FLUID_TANKS, DataHandlerUtils.writeContainers(getFluidTanks(null)));
         }
-        synchronized (inventory) {
-            return ItemStackHelper.getAndSplit(inventory, slotID, amount);
-        }
-    }
-
-    @Nonnull
-    @Override
-    public ItemStack removeStackFromSlot(int slotID) {
-        NonNullListSynchronized<ItemStack> inventory = getInventory();
-        if (inventory == null) {
-            return ItemStack.EMPTY;
-        }
-        synchronized (inventory) {
-            return ItemStackHelper.getAndRemove(inventory, slotID);
-        }
-    }
-
-    @Override
-    public void setInventorySlotContents(int slotID, @Nonnull ItemStack itemstack) {
-        NonNullListSynchronized<ItemStack> inventory = getInventory();
-        if (inventory == null) {
-            return;
-        }
-        synchronized (inventory) {
-            inventory.set(slotID, itemstack);
-            if (!itemstack.isEmpty() && itemstack.getCount() > getInventoryStackLimit()) {
-                itemstack.setCount(getInventoryStackLimit());
-            }
-            markNoUpdateSync();
+        if (persistGasTanks() && hasGasTanks()) {
+            nbtTags.setTag(NBTConstants.GAS_TANKS, DataHandlerUtils.writeContainers(getGasTanks(null)));
         }
     }
 
@@ -181,11 +320,6 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
     }
 
     @Override
-    public int getInventoryStackLimit() {
-        return 64;
-    }
-
-    @Override
     public void openInventory(@Nonnull EntityPlayer player) {
     }
 
@@ -198,85 +332,87 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
         return true;
     }
 
-    @Override
-    public boolean isItemValidForSlot(int slotID, @Nonnull ItemStack itemstack) {
-        return true;
-    }
-
-    @Override
     public boolean canInsertItem(int slotID, @Nonnull ItemStack itemstack, @Nonnull EnumFacing side) {
-        return isItemValidForSlot(slotID, itemstack);
+        IInventorySlot slot = getInventorySlot(slotID);
+        return slot != null && canInsertItem(slot, itemstack, side) &&
+              slot.insertItem(itemstack, Action.SIMULATE, AutomationType.EXTERNAL).getCount() < itemstack.getCount();
     }
 
     @Nonnull
-    @Override
-    public abstract int[] getSlotsForFace(@Nonnull EnumFacing side);
+    public int[] getSlotsForFace(@Nonnull EnumFacing side) {
+        return getInventorySlotIdsForSide(side);
+    }
 
-    @Override
+    @Nonnull
+    protected int[] getInventorySlotIdsForSide(@Nullable EnumFacing side) {
+        List<IInventorySlot> slots = getInventorySlots(side);
+        List<IInventorySlot> internalSlots = getInventorySlots(null);
+        int[] slotIds = new int[slots.size()];
+        for (int i = 0; i < slots.size(); i++) {
+            slotIds[i] = internalSlots.indexOf(slots.get(i));
+        }
+        return slotIds;
+    }
+
     public boolean canExtractItem(int slotID, @Nonnull ItemStack itemstack, @Nonnull EnumFacing side) {
-        return true;
+        IInventorySlot slot = getInventorySlot(slotID);
+        return slot != null && canExtractItem(slot, itemstack, side) &&
+              !slot.extractItem(itemstack.getCount(), Action.SIMULATE, AutomationType.EXTERNAL).isEmpty();
     }
 
     @Override
     public void setInventory(NBTTagList nbtTags, Object... data) {
-        if (nbtTags == null || nbtTags.tagCount() == 0 || !handleInventory()) {
+        if (nbtTags == null || nbtTags.tagCount() == 0 || !hasInventory() || !persistInventory()) {
             return;
         }
-        inventory = NonNullListSynchronized.withSize(getSizeInventory(), ItemStack.EMPTY);
-        for (int slots = 0; slots < nbtTags.tagCount(); slots++) {
-            NBTTagCompound tagCompound = nbtTags.getCompoundTagAt(slots);
-            byte slotID = tagCompound.getByte("Slot");
-            if (slotID >= 0 && slotID < inventory.size()) {
-                inventory.set(slotID, new ItemStack(tagCompound));
-            }
-        }
+        DataHandlerUtils.readContainers(getInventorySlots(null), nbtTags);
     }
 
     @Override
     public NBTTagList getInventory(Object... data) {
-        NBTTagList tagList = new NBTTagList();
-        if (handleInventory()) {
-            for (int slots = 0; slots < inventory.size(); slots++) {
-                if (!inventory.get(slots).isEmpty()) {
-                    NBTTagCompound tagCompound = new NBTTagCompound();
-                    tagCompound.setByte("Slot", (byte) slots);
-                    inventory.get(slots).writeToNBT(tagCompound);
-                    tagList.appendTag(tagCompound);
-                }
-            }
+        if (hasInventory() && persistInventory()) {
+            return DataHandlerUtils.writeContainers(getInventorySlots(null));
         }
-        return tagList;
+        return new NBTTagList();
     }
 
-    public boolean handleInventory() {
-        return true;
+    public boolean persistInventory() {
+        return hasInventory();
+    }
+
+    protected boolean persistFluidTanks() {
+        return hasFluidTanks();
+    }
+
+    protected boolean persistGasTanks() {
+        return hasGasTanks();
+    }
+
+    protected void writeSustainedFluidTanks(ItemStack itemStack) {
+        ItemDataUtils.writeContainers(itemStack, NBTConstants.FLUID_TANKS, getFluidTanks(null));
+    }
+
+    protected boolean readSustainedFluidTanks(ItemStack itemStack) {
+        if (ItemDataUtils.hasData(itemStack, NBTConstants.FLUID_TANKS, NBT.TAG_LIST)) {
+            ItemDataUtils.readContainers(itemStack, NBTConstants.FLUID_TANKS, getFluidTanks(null));
+            return true;
+        }
+        return false;
+    }
+
+    protected void writeSustainedGasTanks(ItemStack itemStack) {
+        ItemDataUtils.writeContainers(itemStack, NBTConstants.GAS_TANKS, getGasTanks(null));
+    }
+
+    protected boolean readSustainedGasTanks(ItemStack itemStack) {
+        if (ItemDataUtils.hasData(itemStack, NBTConstants.GAS_TANKS, NBT.TAG_LIST)) {
+            ItemDataUtils.readContainers(itemStack, NBTConstants.GAS_TANKS, getGasTanks(null));
+            return true;
+        }
+        return false;
     }
 
     public void recalculateUpgradables(Upgrade upgradeType) {
-    }
-
-    @Override
-    public int getField(int id) {
-        return 0;
-    }
-
-    @Override
-    public void setField(int id, int value) {
-    }
-
-    @Override
-    public int getFieldCount() {
-        return 0;
-    }
-
-    @Override
-    public void clear() {
-    }
-
-    @Nonnull
-    @Override
-    public ITextComponent getDisplayName() {
-        return new TextComponentString(getName());
     }
 
     @Override
@@ -284,22 +420,441 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
         if (isCapabilityDisabled(capability, side)) {
             return false;
         }
-        return capability == CapabilityItemHandler.ITEM_HANDLER_CAPABILITY || super.hasCapability(capability, side);
+        return capabilityCache.hasCapability(capability, side) || super.hasCapability(capability, side);
     }
 
     @Override
     public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing side) {
         if (isCapabilityDisabled(capability, side)) {
             return null;
-        } else if (capability == CapabilityItemHandler.ITEM_HANDLER_CAPABILITY) {
-            return CapabilityItemHandler.ITEM_HANDLER_CAPABILITY.cast(getItemHandler(side));
+        }
+        T resolved = capabilityCache.getCapability(capability, side);
+        if (resolved != null) {
+            return resolved;
         }
         return super.getCapability(capability, side);
     }
 
-    protected IItemHandler getItemHandler(EnumFacing side) {
-        return side == null ? nullHandler : itemManager.getWrapper(this, side);
+    @Override
+    public boolean isCapabilityDisabled(@Nonnull Capability<?> capability, @Nullable EnumFacing side) {
+        if (side != null && this instanceof ISideConfiguration) {
+            ISideConfiguration configurable = (ISideConfiguration) this;
+            if (configurable.getConfig() != null && configurable.getConfig().isCapabilityDisabled(capability, side, configurable.getOrientation())) {
+                return true;
+            }
+        }
+        return IToggleableCapability.super.isCapabilityDisabled(capability, side);
     }
 
+    protected IItemHandler getItemHandler(EnumFacing side) {
+        return itemHandlerManager == null ? null : itemHandlerManager.resolve(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, side);
+    }
+
+    protected IFluidHandler getFluidHandler(EnumFacing side) {
+        return fluidHandlerManager == null ? null : fluidHandlerManager.resolve(CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, side);
+    }
+
+    protected IGasHandler getGasHandler(EnumFacing side) {
+        return gasHandlerManager == null ? null : gasHandlerManager.resolve(Capabilities.GAS_HANDLER_CAPABILITY, side);
+    }
+
+    protected <T> T getEnergyHandler(Capability<T> capability, EnumFacing side) {
+        return energyHandlerManager == null ? null : energyHandlerManager.resolve(capability, side);
+    }
+
+    private boolean hasItemHandler(@Nullable EnumFacing side) {
+        return hasInventory() && !getInventorySlots(side).isEmpty();
+    }
+
+    protected boolean canInsertItems(@Nullable EnumFacing side) {
+        return side == null || inventorySlotHolder == null || inventorySlotHolder.canInsert(side);
+    }
+
+    protected boolean canExtractItems(@Nullable EnumFacing side) {
+        return side == null || inventorySlotHolder == null || inventorySlotHolder.canExtract(side);
+    }
+
+    protected boolean canInsertItem(@Nonnull IInventorySlot slot, @Nonnull ItemStack stack, @Nullable EnumFacing side) {
+        return side == null || inventorySlotHolder == null || inventorySlotHolder.canInsert(side, slot);
+    }
+
+    protected boolean canExtractItem(@Nonnull IInventorySlot slot, @Nonnull ItemStack stack, @Nullable EnumFacing side) {
+        return side == null || inventorySlotHolder == null || inventorySlotHolder.canExtract(side, slot);
+    }
+
+    @Nonnull
+    @Override
+    public List<IInventorySlot> getInventorySlots(@Nullable EnumFacing side) {
+        if (!hasInventory()) {
+            return noSlots;
+        }
+        return inventorySlotHolder == null ? noSlots : inventorySlotHolder.getInventorySlots(side);
+    }
+
+    @Nonnull
+    @Override
+    public ItemStack insertItem(int slot, @Nonnull ItemStack stack, @Nullable EnumFacing side, @Nonnull Action action) {
+        IInventorySlot inventorySlot = getInventorySlot(slot, side);
+        if (inventorySlot == null || !canInsertItem(inventorySlot, stack, side)) {
+            return stack;
+        }
+        return inventorySlot.insertItem(stack, action, AutomationType.handler(side));
+    }
+
+    @Nonnull
+    @Override
+    public ItemStack extractItem(int slot, int amount, @Nullable EnumFacing side, @Nonnull Action action) {
+        IInventorySlot inventorySlot = getInventorySlot(slot, side);
+        if (inventorySlot == null || !canExtractItem(inventorySlot, ItemStack.EMPTY, side)) {
+            return ItemStack.EMPTY;
+        }
+        return inventorySlot.extractItem(amount, action, AutomationType.handler(side));
+    }
+
+    @Override
+    public boolean isItemValid(int slot, @Nonnull ItemStack stack, @Nullable EnumFacing side) {
+        IInventorySlot inventorySlot = getInventorySlot(slot, side);
+        if (inventorySlot == null || !canInsertItem(inventorySlot, stack, side)) {
+            return false;
+        }
+        if (inventorySlot instanceof BasicInventorySlot basicSlot) {
+            return basicSlot.isItemValidForInsertion(stack, AutomationType.handler(side));
+        }
+        return inventorySlot.isItemValid(stack);
+    }
+
+    public boolean hasFluidTanks() {
+        return !getFluidTanks(null).isEmpty();
+    }
+
+    @Override
+    public boolean canHandleFluid() {
+        return fluidTankHolder != null && fluidHandlerManager != null && fluidHandlerManager.canHandle();
+    }
+
+    @Nonnull
+    public List<IExtendedFluidTank> getFluidTanks(@Nullable EnumFacing side) {
+        return canHandleFluid() ? fluidTankHolder.getTanks(side) : noFluidTanks;
+    }
+
+    public boolean canInsertFluid(@Nullable EnumFacing side) {
+        if (side == null) {
+            return false;
+        }
+        return fluidTankHolder != null && fluidTankHolder.canInsert(side);
+    }
+
+    public boolean canExtractFluid(@Nullable EnumFacing side) {
+        if (side == null) {
+            return false;
+        }
+        return fluidTankHolder != null && fluidTankHolder.canExtract(side);
+    }
+
+    protected boolean canInsertFluid(@Nonnull IExtendedFluidTank tank, @Nullable EnumFacing side) {
+        return side == null || fluidTankHolder == null || fluidTankHolder.canInsert(side, tank);
+    }
+
+    protected boolean canExtractFluid(@Nonnull IExtendedFluidTank tank, @Nullable EnumFacing side) {
+        return side == null || fluidTankHolder == null || fluidTankHolder.canExtract(side, tank);
+    }
+
+    @Override
+    @Nullable
+    public FluidStack insertFluid(int tank, @Nullable FluidStack stack, @Nullable EnumFacing side, Action action) {
+        IExtendedFluidTank fluidTank = getFluidTank(tank, side);
+        if (fluidTank == null || !canInsertFluid(fluidTank, side)) {
+            return stack;
+        }
+        return fluidTank.insert(stack, action, AutomationType.handler(side));
+    }
+
+    @Override
+    @Nullable
+    public FluidStack insertFluid(@Nullable FluidStack stack, @Nullable EnumFacing side, Action action) {
+        if (side != null && !canInsertFluid(side)) {
+            return stack;
+        }
+        if (side == null || fluidTankHolder == null) {
+            return IMekanismFluidHandler.super.insertFluid(stack, side, action);
+        }
+        List<IExtendedFluidTank> fluidTanks = fluidTankHolder.getTanksForInsert(side);
+        return ExtendedFluidHandlerUtils.insert(stack, action, AutomationType.handler(side), fluidTanks.size(), fluidTanks);
+    }
+
+    @Override
+    @Nullable
+    public FluidStack extractFluid(int tank, int amount, @Nullable EnumFacing side, Action action) {
+        IExtendedFluidTank fluidTank = getFluidTank(tank, side);
+        if (fluidTank == null || !canExtractFluid(fluidTank, side)) {
+            return null;
+        }
+        return fluidTank.extract(amount, action, AutomationType.handler(side));
+    }
+
+    @Override
+    @Nullable
+    public FluidStack extractFluid(int amount, @Nullable EnumFacing side, Action action) {
+        if (side != null && !canExtractFluid(side)) {
+            return null;
+        }
+        if (side == null || fluidTankHolder == null) {
+            return IMekanismFluidHandler.super.extractFluid(amount, side, action);
+        }
+        List<IExtendedFluidTank> fluidTanks = fluidTankHolder.getTanksForExtract(side);
+        return ExtendedFluidHandlerUtils.extract(amount, action, AutomationType.handler(side), fluidTanks.size(), fluidTanks);
+    }
+
+    @Override
+    @Nullable
+    public FluidStack extractFluid(@Nullable FluidStack stack, @Nullable EnumFacing side, Action action) {
+        if (side != null && !canExtractFluid(side)) {
+            return null;
+        }
+        if (side == null || fluidTankHolder == null) {
+            return IMekanismFluidHandler.super.extractFluid(stack, side, action);
+        }
+        List<IExtendedFluidTank> fluidTanks = fluidTankHolder.getTanksForExtract(side);
+        return ExtendedFluidHandlerUtils.extract(stack, action, AutomationType.handler(side), fluidTanks.size(), fluidTanks);
+    }
+
+    public boolean hasGasTanks() {
+        return !getGasTanks(null).isEmpty();
+    }
+
+    @Override
+    public boolean canHandleGas() {
+        return gasTankHolder != null && gasHandlerManager != null && gasHandlerManager.canHandle();
+    }
+
+    @Nonnull
+    @Override
+    public List<IExtendedGasTank> getGasTanks(@Nullable EnumFacing side) {
+        return canHandleGas() ? gasTankHolder.getTanks(side) : noGasTanks;
+    }
+
+    public boolean canInsertGas(@Nullable EnumFacing side) {
+        if (side == null) {
+            return false;
+        }
+        return gasTankHolder != null && gasTankHolder.canInsert(side);
+    }
+
+    public boolean canExtractGas(@Nullable EnumFacing side) {
+        if (side == null) {
+            return false;
+        }
+        return gasTankHolder != null && gasTankHolder.canExtract(side);
+    }
+
+    protected boolean canInsertGas(@Nonnull IExtendedGasTank tank, @Nullable EnumFacing side) {
+        return side == null || gasTankHolder == null || gasTankHolder.canInsert(side, tank);
+    }
+
+    protected boolean canExtractGas(@Nonnull IExtendedGasTank tank, @Nullable EnumFacing side) {
+        return side == null || gasTankHolder == null || gasTankHolder.canExtract(side, tank);
+    }
+
+    @Override
+    @Nullable
+    public GasStack insertGas(int tank, @Nullable GasStack stack, @Nullable EnumFacing side, Action action) {
+        IExtendedGasTank gasTank = getGasTank(tank, side);
+        if (gasTank == null || !canInsertGas(gasTank, side)) {
+            return stack;
+        }
+        return gasTank.insert(stack, action, AutomationType.handler(side));
+    }
+
+    @Override
+    @Nullable
+    public GasStack insertGas(@Nullable GasStack stack, @Nullable EnumFacing side, Action action) {
+        if (side != null && !canInsertGas(side)) {
+            return stack;
+        }
+        if (side == null || gasTankHolder == null) {
+            return IMekanismGasHandler.super.insertGas(stack, side, action);
+        }
+        List<IExtendedGasTank> gasTanks = gasTankHolder.getTanksForInsert(side);
+        return ExtendedGasHandlerUtils.insert(stack, action, AutomationType.handler(side), gasTanks.size(), gasTanks);
+    }
+
+    @Override
+    @Nullable
+    public GasStack extractGas(int tank, int amount, @Nullable EnumFacing side, Action action) {
+        IExtendedGasTank gasTank = getGasTank(tank, side);
+        if (gasTank == null || !canExtractGas(gasTank, side)) {
+            return null;
+        }
+        return gasTank.extract(amount, action, AutomationType.handler(side));
+    }
+
+    @Override
+    @Nullable
+    public GasStack extractGas(int amount, @Nullable EnumFacing side, Action action) {
+        if (side != null && !canExtractGas(side)) {
+            return null;
+        }
+        if (side == null || gasTankHolder == null) {
+            return IMekanismGasHandler.super.extractGas(amount, side, action);
+        }
+        List<IExtendedGasTank> gasTanks = gasTankHolder.getTanksForExtract(side);
+        return ExtendedGasHandlerUtils.extract(amount, action, AutomationType.handler(side), gasTanks.size(), gasTanks);
+    }
+
+    @Override
+    @Nullable
+    public GasStack extractGas(@Nullable GasStack stack, @Nullable EnumFacing side, Action action) {
+        if (side != null && !canExtractGas(side)) {
+            return null;
+        }
+        if (side == null || gasTankHolder == null) {
+            return IMekanismGasHandler.super.extractGas(stack, side, action);
+        }
+        List<IExtendedGasTank> gasTanks = gasTankHolder.getTanksForExtract(side);
+        return ExtendedGasHandlerUtils.extract(stack, action, AutomationType.handler(side), gasTanks.size(), gasTanks);
+    }
+
+    public boolean hasEnergyContainers() {
+        return !getEnergyContainers(null).isEmpty();
+    }
+
+    @Override
+    public boolean canHandleEnergy() {
+        return energyContainerHolder != null && energyHandlerManager != null && energyHandlerManager.canHandle();
+    }
+
+    @Nonnull
+    @Override
+    public List<IEnergyContainer> getEnergyContainers(@Nullable EnumFacing side) {
+        return canHandleEnergy() ? energyContainerHolder.getEnergyContainers(side) : noEnergyContainers;
+    }
+
+    public boolean canInsertEnergy(@Nullable EnumFacing side) {
+        if (side == null) {
+            return false;
+        }
+        return energyContainerHolder != null && energyContainerHolder.canInsert(side);
+    }
+
+    public boolean canExtractEnergy(@Nullable EnumFacing side) {
+        if (side == null) {
+            return false;
+        }
+        return energyContainerHolder != null && energyContainerHolder.canExtract(side);
+    }
+
+    @Override
+    public double insertEnergy(int container, double amount, @Nullable EnumFacing side, Action action) {
+        return side != null && !canInsertEnergy(side) ? amount : IMekanismStrictEnergyHandler.super.insertEnergy(container, amount, side, action);
+    }
+
+    @Override
+    public double insertEnergy(double amount, @Nullable EnumFacing side, Action action) {
+        return side != null && !canInsertEnergy(side) ? amount : IMekanismStrictEnergyHandler.super.insertEnergy(amount, side, action);
+    }
+
+    @Override
+    public double extractEnergy(int container, double amount, @Nullable EnumFacing side, Action action) {
+        return side != null && !canExtractEnergy(side) ? 0 : IMekanismStrictEnergyHandler.super.extractEnergy(container, amount, side, action);
+    }
+
+    @Override
+    public double extractEnergy(double amount, @Nullable EnumFacing side, Action action) {
+        return side != null && !canExtractEnergy(side) ? 0 : IMekanismStrictEnergyHandler.super.extractEnergy(amount, side, action);
+    }
+
+    public boolean hasHeatTransfers() {
+        return !getHeatTransfers(null).isEmpty();
+    }
+
+    @Override
+    public boolean canHandleHeat() {
+        return heatCapacitorHolder != null && heatHandlerManager != null && heatHandlerManager.canHandle();
+    }
+
+    @Nonnull
+    @Override
+    public List<IHeatCapacitor> getHeatCapacitors(@Nullable EnumFacing side) {
+        return canHandleHeat() ? heatCapacitorHolder.getHeatCapacitors(side) : noHeatCapacitors;
+    }
+
+    @Nonnull
+    public List<IHeatTransfer> getHeatTransfers(@Nullable EnumFacing side) {
+        List<IHeatCapacitor> heatCapacitors = getHeatCapacitors(side);
+        if (heatCapacitors.isEmpty()) {
+            return noHeatTransfers;
+        }
+        List<IHeatTransfer> heatTransfers = null;
+        for (IHeatCapacitor heatCapacitor : heatCapacitors) {
+            if (heatCapacitor instanceof IHeatTransfer heatTransfer) {
+                if (heatTransfers == null) {
+                    heatTransfers = new ArrayList<>();
+                }
+                heatTransfers.add(heatTransfer);
+            }
+        }
+        return heatTransfers == null ? noHeatTransfers : heatTransfers;
+    }
+
+    @Override
+    public void handleHeat(double transfer) {
+        if (this instanceof IHeatTransfer heatTransfer) {
+            heatTransfer.transferHeatTo(transfer);
+            return;
+        }
+        List<IHeatCapacitor> heatCapacitors = getHeatCapacitors(getHeatSideFor());
+        if (heatCapacitors.isEmpty()) {
+            return;
+        } else if (heatCapacitors.size() == 1) {
+            heatCapacitors.get(0).handleHeat(transfer);
+            return;
+        }
+        double totalHeatCapacity = 0;
+        for (IHeatCapacitor heatCapacitor : heatCapacitors) {
+            totalHeatCapacity += heatCapacitor.getHeatCapacity();
+        }
+        if (totalHeatCapacity <= 0) {
+            return;
+        }
+        for (IHeatCapacitor heatCapacitor : heatCapacitors) {
+            heatCapacitor.handleHeat(transfer * (heatCapacitor.getHeatCapacity() / totalHeatCapacity));
+        }
+    }
+
+    public boolean canInsertHeat(@Nullable EnumFacing side) {
+        if (side == null) {
+            return false;
+        }
+        return heatCapacitorHolder != null && heatCapacitorHolder.canInsert(side);
+    }
+
+    public boolean canExtractHeat(@Nullable EnumFacing side) {
+        if (side == null) {
+            return false;
+        }
+        return heatCapacitorHolder != null && heatCapacitorHolder.canExtract(side);
+    }
+
+    @Nonnull
+    public List<Slot> getContainerSlots() {
+        List<Slot> slots = new ArrayList<>();
+        for (IInventorySlot inventorySlot : getInventorySlots(null)) {
+            Slot slot = inventorySlot.createContainerSlot();
+            if (slot != null) {
+                slots.add(slot);
+            }
+        }
+        return slots;
+    }
+
+    @Override
+    public boolean hasInventory() {
+        return inventorySlotHolder != null;
+    }
+
+    @Override
+    public void onContentsChanged() {
+        markNoUpdateSync();
+    }
 
 }

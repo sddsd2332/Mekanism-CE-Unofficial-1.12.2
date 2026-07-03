@@ -113,6 +113,11 @@ public class TransmitterImpl<ACCEPTOR, NETWORK extends DynamicNetwork<ACCEPTOR, 
         return getTileEntity().getBuffer();
     }
 
+    @Override
+    public void clearBuffer() {
+        getTileEntity().clearBuffer();
+    }
+
     @Nullable
     @Override
     public BUFFER getBufferWithFallback() {

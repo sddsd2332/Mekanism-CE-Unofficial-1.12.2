@@ -1,7 +1,7 @@
 package mekanism.common.util;
 
-import mekanism.api.gas.GasTank;
-import net.minecraftforge.fluids.FluidTank;
+import mekanism.api.gas.IExtendedGasTank;
+import net.minecraftforge.fluids.IFluidTank;
 
 public interface TankProvider {
 
@@ -11,9 +11,9 @@ public interface TankProvider {
 
     class Fluid implements TankProvider {
 
-        private final FluidTank handler;
+        private final IFluidTank handler;
 
-        public Fluid(final FluidTank handler) {
+        public Fluid(final IFluidTank handler) {
             this.handler = handler;
         }
 
@@ -30,9 +30,9 @@ public interface TankProvider {
 
     class Gas implements TankProvider {
         
-        private final GasTank handler;
+        private final IExtendedGasTank handler;
 
-        public Gas(final GasTank handler) {
+        public Gas(final IExtendedGasTank handler) {
             this.handler = handler;
         }
 
@@ -43,7 +43,7 @@ public interface TankProvider {
 
         @Override
         public int getTankAmount() {
-            return handler.getStored();
+            return handler.getGasAmount();
         }
 
     }

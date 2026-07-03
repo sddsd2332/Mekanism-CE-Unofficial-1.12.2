@@ -3,209 +3,196 @@ package mekanism.client.gui.element.gauge;
 import mekanism.api.EnumColor;
 import mekanism.api.transmitters.TransmissionType;
 import mekanism.client.gui.GuiMekanismTile;
+import mekanism.client.gui.GuiUtils;
+import mekanism.client.gui.GuiUtils.TilingDirection;
 import mekanism.client.gui.IGuiWrapper;
-import mekanism.client.gui.element.GuiElement;
-import mekanism.client.gui.element.GuiUtils;
+import mekanism.client.gui.element.GuiTexturedElement;
 import mekanism.client.render.MekanismRenderer;
-import mekanism.common.SideData;
 import mekanism.common.base.ISideConfiguration;
+import mekanism.common.inventory.warning.ISupportsWarning;
 import mekanism.common.item.ItemConfigurator;
-import mekanism.common.util.MekanismUtils;
+import mekanism.common.tile.component.config.ConfigInfo;
+import mekanism.common.tile.component.config.DataType;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.renderer.texture.TextureMap;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraft.util.text.ITextComponent;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 
-@SideOnly(Side.CLIENT)
-public abstract class GuiGauge<T> extends GuiElement {
+public abstract class GuiGauge<T> extends GuiTexturedElement implements ISupportsWarning<GuiGauge<T>> {
 
-    protected final int xLocation;
-    protected final int yLocation;
-    protected final int texX;
-    protected final int texY;
-    protected final int width;
-    protected final int height;
-    protected final boolean vertical;
-    protected EnumColor color;
+    private final GaugeType gaugeType;
     protected boolean dummy;
-
     protected T dummyType;
-    private TypeColor typecolor = TypeColor.NORMAL;
+    @Nullable
+    private BooleanSupplier warningSupplier;
+    @Nullable
+    private GaugeInfo colorOverride;
 
-    public GuiGauge(Type type, IGuiWrapper gui, ResourceLocation def, int x, int y) {
-        super(MekanismUtils.getResource(MekanismUtils.ResourceType.GAUGE, "Gauge_Icon.png"), gui, def);
-        xLocation = x;
-        yLocation = y;
-        width = type.width;
-        height = type.height;
-        texX = type.texX;
-        texY = type.texY;
-        vertical = type.vertical;
+    public GuiGauge(GaugeType gaugeType, IGuiWrapper gui, int x, int y) {
+        this(gaugeType, gui, x, y, gaugeType.getGaugeOverlay().getWidth() + 2, gaugeType.getGaugeOverlay().getHeight() + 2);
+    }
+
+    public GuiGauge(GaugeType gaugeType, IGuiWrapper gui, int x, int y, int sizeX, int sizeY) {
+        super(gaugeType.getGaugeOverlay().getResource(), gui, x, y, sizeX, sizeY);
+        this.gaugeType = gaugeType;
+    }
+
+    @Override
+    public GuiGauge<T> warning(@Nonnull mekanism.common.inventory.warning.WarningTracker.WarningType type, @Nonnull BooleanSupplier warningSupplier) {
+        this.warningSupplier = ISupportsWarning.compound(this.warningSupplier, gui().trackWarning(type, warningSupplier));
+        return this;
+    }
+
+    public GuiGauge<T> warning(@Nonnull mekanism.client.gui.warning.WarningTracker.WarningType type, @Nonnull BooleanSupplier warningSupplier) {
+        BooleanSupplier trackedWarning = gui().trackWarning(type, warningSupplier);
+        this.warningSupplier = ISupportsWarning.compound(this.warningSupplier, trackedWarning);
+        return this;
     }
 
     public abstract int getScaledLevel();
 
+    @Nullable
     public abstract TextureAtlasSprite getIcon();
 
-    public abstract String getTooltipText();
+    @Nullable
+    public abstract ITextComponent getLabel();
 
-    public List<String> getTooltipTexts() {
-        return new ArrayList<>();
+    public abstract List<String> getTooltipText();
+
+    @Nullable
+    public abstract TransmissionType getTransmission();
+
+    protected boolean isVertical() {
+        return true;
     }
 
+    protected int getFillDimension() {
+        return (isVertical() ? height : width) - 2;
+    }
+
+    public GaugeOverlay getGaugeOverlay() {
+        return gaugeType.getGaugeOverlay();
+    }
+
+    protected GaugeInfo getGaugeColor() {
+        return colorOverride == null ? gaugeType.getGaugeInfo() : colorOverride;
+    }
+
+    @Nullable
+    protected GaugeInfo getColorOverride() {
+        return colorOverride;
+    }
+
+    protected void setGaugeColor(GaugeInfo colorOverride) {
+        this.colorOverride = colorOverride;
+    }
 
     protected void applyRenderColor() {
     }
 
+    @Override
+    public void drawBackground(int mouseX, int mouseY, float partialTicks) {
+        super.drawBackground(mouseX, mouseY, partialTicks);
+        GaugeInfo color = getGaugeColor();
+        GuiUtils.renderExtendedTexture(color.getResourceLocation(), color.getSideWidth(), color.getSideHeight(), relativeX, relativeY, width, height);
+        MekanismRenderer.resetColor();
+        if (!dummy) {
+            renderContents();
+        }
+    }
 
     @Override
-    public void renderBackground(int xAxis, int yAxis, int guiWidth, int guiHeight) {
-        drawBlack(guiWidth, guiHeight);
-        mc.renderEngine.bindTexture(RESOURCE);
-        if (!dummy) {
-            renderScale(guiWidth, guiHeight);
+    public void renderButton(int mouseX, int mouseY, float partialTicks) {
+    }
+
+    public void renderContents() {
+        boolean warning = warningSupplier != null && warningSupplier.getAsBoolean();
+        if (warning) {
+            minecraft.renderEngine.bindTexture(WARNING_BACKGROUND_TEXTURE);
+            GuiUtils.blit(relativeX + 1, relativeY + 1, 0, 0, width - 2, height - 2, 256, 256);
         }
-        mc.renderEngine.bindTexture(defaultLocation);
+        int scale = getScaledLevel();
+        TextureAtlasSprite icon = getIcon();
+        if (scale > 0 && icon != null) {
+            applyRenderColor();
+            minecraft.renderEngine.bindTexture(TextureMap.LOCATION_BLOCKS_TEXTURE);
+            if (isVertical()) {
+                drawTiledSprite(relativeX + 1, relativeY + 1, height - 2, width - 2, scale, icon, TilingDirection.UP_RIGHT);
+            } else {
+                drawTiledSprite(relativeX + 1, relativeY + 1, height - 2, scale, height - 2, icon, TilingDirection.DOWN_RIGHT);
+            }
+            MekanismRenderer.resetColor();
+            if (warning && (scale / (double) getFillDimension()) > 0.98) {
+                int halfWidth = (width - 2) / 2;
+                minecraft.renderEngine.bindTexture(WARNING_TEXTURE);
+                GuiUtils.blit(relativeX + 1 + halfWidth, relativeY + 1, halfWidth, 0, halfWidth, height - 2, 256, 256);
+            }
+        }
+        drawBarOverlay();
     }
 
-    public void drawBlack(int guiWidth, int guiHeight) {
-        mc.renderEngine.bindTexture(MekanismUtils.getResource(MekanismUtils.ResourceType.GAUGE, typecolor.textureLocation));
-        int halfWidthLeft = width / 2;
-        int halfWidthRight = width % 2 == 0 ? halfWidthLeft : halfWidthLeft + 1;
-        int halfHeightTop = height / 2;
-        int halfHeight = height % 2 == 0 ? halfHeightTop : halfHeightTop + 1;
+    public void drawBarOverlay() {
+        GaugeOverlay gaugeOverlay = getGaugeOverlay();
+        MekanismRenderer.bindTexture(getResource());
+        GuiUtils.blit(relativeX + 1, relativeY + 1, width - 2, height - 2, 0, 0, gaugeOverlay.getWidth(), gaugeOverlay.getHeight(),
+              gaugeOverlay.getWidth(), gaugeOverlay.getHeight());
         MekanismRenderer.resetColor();
-        guiObj.drawTexturedRect(guiWidth + xLocation, guiHeight + yLocation, 0, 0, halfWidthLeft, halfHeightTop);
-        guiObj.drawTexturedRect(guiWidth + xLocation, guiHeight + yLocation + halfHeightTop, 0, 256 - halfHeight, halfWidthLeft, halfHeight);
-        guiObj.drawTexturedRect(guiWidth + xLocation + halfWidthLeft, guiHeight + yLocation, 256 - halfWidthRight, 0, halfWidthRight, halfHeightTop);
-        guiObj.drawTexturedRect(guiWidth + xLocation + halfWidthLeft, guiHeight + yLocation + halfHeightTop, 256 - halfWidthRight, 256 - halfHeight, halfWidthRight, halfHeight);
     }
 
-
-    public void renderScale(int guiWidth, int guiHeight) {
-        if (getScaledLevel() == 0 || getIcon() == null) {
-            guiObj.drawTexturedRect(guiWidth + xLocation, guiHeight + yLocation, texX, texY, width, height);
+    @Override
+    public void renderToolTip(int mouseX, int mouseY) {
+        super.renderToolTip(mouseX, mouseY);
+        if (dummy) {
             return;
         }
-        applyRenderColor();
-        mc.renderEngine.bindTexture(TextureMap.LOCATION_BLOCKS_TEXTURE);
-        GuiUtils.drawBarSprite(guiWidth + xLocation, guiHeight + yLocation, width, height, getScaledLevel(), getIcon(), vertical);
-        MekanismRenderer.resetColor();
-        mc.renderEngine.bindTexture(RESOURCE);
-        guiObj.drawTexturedRect(guiWidth + xLocation, guiHeight + yLocation, texX, texY, width, height);
+        List<String> tooltip = getTooltipForRender();
+        if (!tooltip.isEmpty()) {
+            gui().displayTooltips(tooltip, mouseX, mouseY);
+        }
     }
 
-    @Override
-    public void renderForeground(int xAxis, int yAxis) {
-        if (xAxis >= xLocation + 1 && xAxis <= xLocation + width - 1 && yAxis >= yLocation + 1 && yAxis <= yLocation + height - 1) {
-            ItemStack stack = mc.player.inventory.getItemStack();
-            if (!stack.isEmpty() && stack.getItem() instanceof ItemConfigurator && color != null) {
-                if (guiObj instanceof GuiMekanismTile<?> guiMekanismTile) {
-                    TileEntity tile = guiMekanismTile.getTileEntity();
-                    if (tile instanceof ISideConfiguration side && getTransmission() != null) {
-                        SideData data = null;
-                        for (SideData iterData : side.getConfig().getOutputs(getTransmission())) {
-                            if (iterData.color == color) {
-                                data = iterData;
+    private List<String> getTooltipForRender() {
+        ItemStack stack = minecraft.player.inventory.getItemStack();
+        EnumColor color = getGaugeColor().getColor();
+        if (!stack.isEmpty() && stack.getItem() instanceof ItemConfigurator && color != null) {
+            if (gui() instanceof GuiMekanismTile<?, ?> guiTile) {
+                TileEntity tile = guiTile.getTileEntity();
+                if (tile instanceof ISideConfiguration sideConfig && sideConfig.getConfig() != null && getTransmission() != null) {
+                    DataType dataType = null;
+                    ConfigInfo config = sideConfig.getConfig().getConfigInfo(getTransmission());
+                    if (config != null) {
+                        for (DataType type : config.getSupportedDataTypes()) {
+                            if (type.getColor() == color) {
+                                dataType = type;
                                 break;
                             }
                         }
-                        String localized = data == null ? "" : data.localize();
-                        guiObj.displayTooltip(color + localized + " (" + color.getColoredName() + ")", xAxis, yAxis);
                     }
-                }
-            } else {
-                if (getTooltipText() != null && !getTooltipText().isEmpty()) {
-                    guiObj.displayTooltip(getTooltipText(), xAxis, yAxis);
-                }
-                if (getTooltipTexts() != null && !getTooltipTexts().isEmpty()) {
-                    guiObj.displayTooltips(getTooltipTexts(), xAxis, yAxis);
+                    if (dataType == null) {
+                        return Collections.singletonList(color.getColoredName());
+                    }
+                    return Collections.singletonList(color + dataType.localize() + " (" + color.getColoredName() + ")");
                 }
             }
+            return Collections.emptyList();
         }
+        List<String> tooltip = new ArrayList<>(getTooltipText());
+        ITextComponent label = getLabel();
+        if (label != null) {
+            tooltip.add(0, label.getFormattedText());
+        }
+        return tooltip;
     }
-
-
-    public boolean isMouseOver(int xAxis, int yAxis) {
-        return xAxis >= xLocation + 1 && xAxis <= xLocation + width - 1 && yAxis >= yLocation + 1 && yAxis <= yLocation + height - 1;
-    }
-
-    public GuiGauge<T> withColor(TypeColor color) {
-        this.typecolor = color;
-        return this;
-    }
-
-    @Override
-    public void preMouseClicked(int xAxis, int yAxis, int button) {
-    }
-
-    @Override
-    public void mouseClicked(int xAxis, int yAxis, int button) {
-    }
-
-    public abstract TransmissionType getTransmission();
 
     public void setDummyType(T type) {
         dummyType = type;
-    }
-
-    @Override
-    public Rectangle4i getBounds(int guiWidth, int guiHeight) {
-        return new Rectangle4i(guiWidth + xLocation, guiHeight + yLocation, width, height);
-    }
-
-    public enum TypeColor {
-        AQUA("Aqua.png"),
-        BLUE("Blue.png"),
-        NORMAL("Normal.png"),
-        ORANGE("Orange.png"),
-        RED("Red.png"),
-        YELLOW("Yellow.png");
-        public final String textureLocation;
-
-        TypeColor(String color) {
-            textureLocation = color;
-        }
-    }
-
-    public enum Type {
-        MEDIUM(34, 60, 0, 0),
-        SMALL(18, 30, 72, 0),
-        SMALL_MED(18, 48, 53, 0),
-        STANDARD(18, 60, 34, 0),
-        WIDE(66, 50, 91, 0),
-        //这是工厂使用的
-        SLOT(18, 18, 158, 0),
-        SLOT_BASIC(94, 18, 0, 60, false),
-        SLOT_ADVANCED(122, 18, 0, 60, false),
-        SLOT_ELITE(132, 18, 0, 60, false),
-        SLOT_ULTIMATE(170, 18, 0, 60, false),
-        SLOT_CREATIVE(208, 18, 0, 60, false),
-        ;
-
-        public final int width;
-        public final int height;
-        public final int texX;
-        public final int texY;
-        public final boolean vertical;
-
-        Type(int w, int h, int tx, int ty) {
-            this(w, h, tx, ty, true);
-        }
-
-        Type(int w, int h, int tx, int ty, boolean vertical) {
-            width = w;
-            height = h;
-            texX = tx;
-            texY = ty;
-            this.vertical = vertical;
-        }
-
     }
 }

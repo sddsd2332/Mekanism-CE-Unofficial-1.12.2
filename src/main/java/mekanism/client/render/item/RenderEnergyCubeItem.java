@@ -2,14 +2,14 @@ package mekanism.client.render.item;
 
 import mekanism.client.MekanismClient;
 import mekanism.client.model.ModelEnergyCube;
+import mekanism.client.model.ModelEnergyCube.EnergyCubeSideState;
 import mekanism.client.model.ModelEnergyCube.ModelEnergyCore;
 import mekanism.client.render.MekanismRenderer;
 import mekanism.client.render.MekanismRenderer.GlowInfo;
 import mekanism.client.render.tileentity.RenderEnergyCube;
-import mekanism.common.SideData.IOState;
 import mekanism.common.base.ITierItem;
 import mekanism.common.tier.EnergyCubeTier;
-import mekanism.common.util.ItemDataUtils;
+import mekanism.common.util.StorageUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.GlStateManager.DestFactor;
@@ -46,12 +46,11 @@ public class RenderEnergyCubeItem extends MekanismItemStackRenderer {
 
         for (EnumFacing side : EnumFacing.VALUES) {
             MekanismRenderer.bindTexture(RenderEnergyCube.baseTexture);
-            energyCube.renderSide(0.0625F, side, side == EnumFacing.NORTH ? IOState.OUTPUT : IOState.INPUT, tier, Minecraft.getMinecraft().renderEngine);
+            energyCube.renderSide(0.0625F, side, side == EnumFacing.NORTH ? EnergyCubeSideState.OUTPUT : EnergyCubeSideState.INPUT, tier, Minecraft.getMinecraft().renderEngine);
         }
         GlStateManager.popMatrix();
 
-        double energy = ItemDataUtils.getDouble(stack, "energyStored");
-        double energyPercentage = energy / tier.getMaxEnergy();
+        double energyPercentage = StorageUtils.getEnergyRatio(stack);
         if (energyPercentage > 0.1) {
             MekanismRenderer.bindTexture(RenderEnergyCube.coreTexture);
             GlowInfo glowInfo = MekanismRenderer.enableGlow();

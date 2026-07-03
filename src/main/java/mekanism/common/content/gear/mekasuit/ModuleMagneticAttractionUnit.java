@@ -2,7 +2,7 @@ package mekanism.common.content.gear.mekasuit;
 
 import mekanism.api.Pos3D;
 import mekanism.api.annotations.ParametersAreNotNullByDefault;
-import mekanism.api.energy.IEnergizedItem;
+import mekanism.api.energy.IEnergyContainer;
 import mekanism.api.gear.ICustomModule;
 import mekanism.api.gear.IModule;
 import mekanism.api.gear.config.IModuleConfigItem;
@@ -35,8 +35,8 @@ public class ModuleMagneticAttractionUnit implements ICustomModule<ModuleMagneti
             float size = 4 + range.get().getRange();
             double usage = MekanismConfig.current().meka.mekaSuitEnergyUsageItemAttraction.val() * range.get().getRange();
             boolean free = usage == 0 || player.isCreative();
-            IEnergizedItem energyContainer = free ? null : module.getEnergyContainer();
-            if (free || (energyContainer != null && energyContainer.getEnergy(module.getContainer()) >= (usage))) {
+            IEnergyContainer energyContainer = free ? null : module.getEnergyContainer();
+            if (free || (energyContainer != null && energyContainer.getEnergy() >= usage)) {
                 List<EntityItem> items = player.world.getEntitiesWithinAABB(EntityItem.class, player.getEntityBoundingBox().grow(size, size, size), item -> !item.cannotPickup());
                 for (EntityItem item : items) {
                     if (item.getDistance(player) > 0.001) {
@@ -47,7 +47,7 @@ public class ModuleMagneticAttractionUnit implements ICustomModule<ModuleMagneti
                             break;
                         } else {
                             pullItem(player, item);
-                            if (energyContainer.getEnergy(module.getContainer()) < (usage)) {
+                            if (energyContainer.getEnergy() < usage) {
                                 //If after using energy, our energy is now smaller than how much we need to use, exit
                                 break;
                             }

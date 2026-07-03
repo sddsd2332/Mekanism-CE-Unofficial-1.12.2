@@ -1,7 +1,9 @@
 package mekanism.generators.common.content.gear.mekasuit;
 
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
 import mekanism.api.IHeatTransfer;
-import mekanism.api.energy.IEnergizedItem;
+import mekanism.api.energy.IEnergyContainer;
 import mekanism.api.gear.ICustomModule;
 import mekanism.api.gear.IModule;
 import mekanism.common.config.MekanismConfig;
@@ -29,8 +31,8 @@ public class ModuleGeothermalGeneratorUnit implements ICustomModule<ModuleGeothe
 
     @Override
     public void tickServer(IModule<ModuleGeothermalGeneratorUnit> module, EntityPlayer player) {
-        IEnergizedItem energyContainer = module.getEnergyContainer();
-        if (energyContainer != null && energyContainer.getNeeded(module.getContainer()) != 0) {
+        IEnergyContainer energyContainer = module.getEnergyContainer();
+        if (energyContainer != null && energyContainer.getNeeded() != 0) {
             double highestScaledDegrees = 0;
             double legHeight = player.isSneaking() ? 0.6 : 0.7;
             Map<Block, MekanismUtils.FluidInDetails> fluidsIn = MekanismUtils.getFluidsIn(player, bb -> new AxisAlignedBB(bb.minX, bb.minY, bb.minZ, bb.maxX, Math.min(bb.minY + legHeight, bb.maxY), bb.maxZ), Material.LAVA);
@@ -68,7 +70,7 @@ public class ModuleGeothermalGeneratorUnit implements ICustomModule<ModuleGeothe
                 }
                 //Insert energy
                 double rate = MekanismConfig.current().meka.mekaSuitGeothermalChargingRate.val() * module.getInstalledCount() * highestScaledDegrees;
-                energyContainer.insert(module.getContainer(), rate, true);
+                energyContainer.insert(rate, Action.EXECUTE, AutomationType.MANUAL);
             }
         }
     }

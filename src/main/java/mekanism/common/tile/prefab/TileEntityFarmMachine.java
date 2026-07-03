@@ -1,34 +1,52 @@
 package mekanism.common.tile.prefab;
 
 import io.netty.buffer.ByteBuf;
-import mekanism.api.TileNetworkList;
-import mekanism.api.gas.*;
+import mekanism.api.*;
+import mekanism.api.gas.Gas;
+import mekanism.api.gas.GasStack;
+import mekanism.api.math.MathUtils;
 import mekanism.api.transmitters.TransmissionType;
-import mekanism.common.MekanismItems;
-import mekanism.common.SideData;
 import mekanism.common.Upgrade;
 import mekanism.common.base.ISustainedData;
+import mekanism.common.base.ITankManager;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
-import mekanism.common.capabilities.Capabilities;
+import mekanism.common.capabilities.energy.MachineEnergyContainer;
+import mekanism.common.capabilities.gas.BasicGasTank;
+import mekanism.common.capabilities.holder.gas.GasTankHelper;
+import mekanism.common.capabilities.holder.gas.IGasTankHolder;
+import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
+import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
+import mekanism.common.inventory.slot.EnergyInventorySlot;
+import mekanism.common.inventory.slot.InputInventorySlot;
+import mekanism.common.inventory.slot.OutputInventorySlot;
+import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.recipe.GasConversionHandler;
 import mekanism.common.recipe.RecipeHandler;
+import mekanism.common.recipe.cache.CachedRecipe;
+import mekanism.common.recipe.cache.CachedRecipe.OperationTracker.RecipeError;
+import mekanism.common.recipe.cache.IRecipeLookupHandler.ConstantUsageRecipeLookupHandler;
+import mekanism.common.recipe.cache.ItemStackConstantGasCachedRecipe;
+import mekanism.common.recipe.cache.ItemStackConstantGasCachedRecipe.GasUsageMultiplier;
+import mekanism.common.recipe.cache.inputs.InputHelper;
+import mekanism.common.recipe.cache.outputs.OutputHelper;
 import mekanism.common.recipe.inputs.AdvancedMachineInput;
 import mekanism.common.recipe.machines.FarmMachineRecipe;
 import mekanism.common.recipe.outputs.ChanceOutput;
 import mekanism.common.tile.component.TileComponentConfig;
 import mekanism.common.tile.component.TileComponentEjector;
 import mekanism.common.tile.component.config.DataType;
-import mekanism.common.tile.factory.TileEntityFactory;
-import mekanism.common.util.*;
+import mekanism.common.util.ItemDataUtils;
+import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.StatUtils;
+import mekanism.common.util.TileUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.EnumFacing;
-import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.items.ItemHandlerHelper;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.Map;
 
 /**
@@ -37,7 +55,7 @@ import java.util.Map;
  * 物品输出 概率物品输出
  */
 
-public abstract class TileEntityFarmMachine<RECIPE extends FarmMachineRecipe<RECIPE>> extends TileEntityUpgradeableMachine<AdvancedMachineInput, ChanceOutput, RECIPE> implements IGasHandler, ISustainedData {
+public abstract class TileEntityFarmMachine<RECIPE extends FarmMachineRecipe<RECIPE>> extends TileEntityUpgradeableMachine<AdvancedMachineInput, ChanceOutput, RECIPE> implements ISustainedData, ITankManager, ConstantUsageRecipeLookupHandler {
 
     public static final int BASE_TICKS_REQUIRED = 200;
     public static final int BASE_GAS_PER_TICK = 1;
@@ -53,49 +71,117 @@ public abstract class TileEntityFarmMachine<RECIPE extends FarmMachineRecipe<REC
      */
     public double secondaryEnergyPerTick;
     public int secondaryEnergyThisTick;
-    public GasTank gasTank;
+    private double gasPerTickMeanMultiplier = 1;
+    private long baseTotalUsage;
+    private long usedSoFar;
+    public BasicGasTank gasTank;
     public Gas prevGas;
+    protected InputInventorySlot inputSlot;
+    protected GasInventorySlot gasSlot;
+    protected EnergyInventorySlot energySlot;
+    protected OutputInventorySlot outputSlot;
+    protected OutputInventorySlot secondaryOutputSlot;
+    protected final GasUsageMultiplier gasUsageMultiplier;
 
 
     public TileEntityFarmMachine(String soundPath, MachineType type, int ticksRequired, int secondaryPerTick) {
         super(soundPath, type, 5, ticksRequired);
-        configComponent = new TileComponentConfig(this, TransmissionType.ITEM, TransmissionType.ENERGY);
+        configComponent = new TileComponentConfig(this, TransmissionType.ITEM, TransmissionType.GAS, TransmissionType.ENERGY);
 
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.NONE, InventoryUtils.EMPTY));
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.INPUT, new int[]{0}));
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.OUTPUT, new int[]{3, 4}));
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.ENERGY, new int[]{2}));
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.EXTRA, new int[]{1}));
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(new int[]{0, 3, 4}, new boolean[]{false, true, true}));
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.INPUT_ENHANCED, new int[]{0}));
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.INPUT_ENHANCED_OUTPUT_ENHANCED, new int[]{0, 3, 4}, new boolean[]{false, true, true}));
-        configComponent.setConfig(TransmissionType.ITEM, new byte[]{2, 1, 0, 0, 0, 3});
+        initializeInventorySlots();
+        configComponent.setupItemIOExtraConfig(inputSlot, Arrays.asList(outputSlot, secondaryOutputSlot), gasSlot, energySlot);
+        configComponent.setConfig(TransmissionType.ITEM, DataType.ENERGY, DataType.INPUT, DataType.NONE, DataType.NONE, DataType.NONE, DataType.OUTPUT);
+
+        configComponent.setupInputConfig(TransmissionType.GAS, gasTank);
         configComponent.setInputConfig(TransmissionType.ENERGY);
-
-        gasTank = new GasTank(MAX_GAS);
-
-        inventory = NonNullListSynchronized.withSize(6, ItemStack.EMPTY);
 
         BASE_SECONDARY_ENERGY_PER_TICK = secondaryPerTick;
         secondaryEnergyPerTick = secondaryPerTick;
+        baseTotalUsage = ticksRequired;
+        if (useStatisticalMechanics()) {
+            gasUsageMultiplier = (usedSoFar, operatingTicks) -> StatUtils.inversePoisson(gasPerTickMeanMultiplier);
+        } else {
+            gasUsageMultiplier = (usedSoFar, operatingTicks) -> {
+                long baseRemaining = baseTotalUsage - usedSoFar;
+                int remainingTicks = getTicksRequired() - operatingTicks;
+                if (baseRemaining < remainingTicks) {
+                    return 0;
+                } else if (baseRemaining == remainingTicks) {
+                    return 1;
+                }
+                return Math.max(MathUtils.clampToLong(baseRemaining / (double) remainingTicks), 0);
+            };
+        }
 
         if (upgradeableSecondaryEfficiency()) {
             upgradeComponent.setSupported(Upgrade.GAS);
         }
         ejectorComponent = new TileComponentEjector(this);
-        ejectorComponent.setOutputData(TransmissionType.ITEM, configComponent.getOutputs(TransmissionType.ITEM).get(2));
-        ejectorComponent.setInputOutputData(TransmissionType.ITEM, configComponent.getOutputs(TransmissionType.ITEM).get(5));
+        ejectorComponent.setOutputData(configComponent, TransmissionType.ITEM);
     }
 
     @Override
-    protected void upgradeInventory(TileEntityFactory factory) {
-        setInputGasTank(factory,gasTank);
-        setInputSlotItem(factory, inventory.get(0));
-        setExtraSlotItem(factory, inventory.get(1));
-        setOutputSlotItem(factory, inventory.get(3));
-        setSecondaryOutputSlotItem(factory, inventory.get(4));
-        setEnergySlotItem(factory, inventory.get(2));
-        setUpgradeSlot(factory, inventory.get(5));
+    protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
+        InventorySlotHelper builder = createInventorySlotHelper();
+        IContentsListener recipeCacheListener = getRecipeCacheListener();
+        IContentsListener recipeCacheChangeListener = getRecipeCacheChangeListener(listener);
+        inputSlot = builder.addSlot(InputInventorySlot.at(stack -> getRecipes().keySet().stream().anyMatch(input -> ItemHandlerHelper.canItemStacksStack(input.itemStack, stack)), recipeCacheListener, 56, 17)
+              .setAutoPullValidator((stack, side) -> canAutoPullInput(stack)));
+        gasSlot = builder.addSlot(GasInventorySlot.fillOrConvert(gasTank, this::getWorld, listener, 56, 53));
+        energySlot = builder.addSlot(EnergyInventorySlot.fillOrConvert(getMainEnergyContainer(), this::getWorld, listener, 31, 35));
+        outputSlot = builder.addSlot(OutputInventorySlot.at(recipeCacheChangeListener, 116, 35));
+        secondaryOutputSlot = builder.addSlot(OutputInventorySlot.at(recipeCacheChangeListener, 132, 35));
+        return builder.build();
+    }
+
+    @Override
+    protected IGasTankHolder getInitialGasTanks(IContentsListener listener) {
+        GasTankHelper builder = createGasTankHelper();
+        builder.addTank(getOrCreateGasTank());
+        return builder.build();
+    }
+
+    private BasicGasTank getOrCreateGasTank() {
+        if (gasTank == null) {
+            gasTank = BasicGasTank.input(MAX_GAS, this::isValidGas, getRecipeCacheListener());
+        }
+        return gasTank;
+    }
+
+    @Nullable
+    @Override
+    protected GasStack getInputGasForUpgrade() {
+        return gasTank.getGas();
+    }
+
+    @Nonnull
+    @Override
+    protected ItemStack getInputSlotForUpgrade() {
+        return inputSlot.getStack();
+    }
+
+    @Nonnull
+    @Override
+    protected ItemStack getExtraSlotForUpgrade() {
+        return gasSlot.getStack();
+    }
+
+    @Nonnull
+    @Override
+    protected ItemStack getOutputSlotForUpgrade() {
+        return outputSlot.getStack();
+    }
+
+    @Nonnull
+    @Override
+    protected ItemStack getSecondaryOutputSlotForUpgrade() {
+        return secondaryOutputSlot.getStack();
+    }
+
+    @Nonnull
+    @Override
+    protected ItemStack getEnergySlotForUpgrade() {
+        return energySlot.getStack();
     }
 
     @Nullable
@@ -105,20 +191,15 @@ public abstract class TileEntityFarmMachine<RECIPE extends FarmMachineRecipe<REC
 
     public abstract boolean isValidGas(Gas gas);
 
-    private boolean inactive;
-
     @Override
     public void onAsyncUpdateServer() {
         super.onAsyncUpdateServer();
-        ChargeUtils.discharge(2, this);
-        handleSecondaryFuel();
-        inactive = false;
-        RECIPE recipe = getRecipe();
-        secondaryEnergyThisTick = useStatisticalMechanics() ? StatUtils.inversePoisson(secondaryEnergyPerTick) : (int) Math.ceil(secondaryEnergyPerTick);
-        getProcess(recipe, gasTank.getStored() >= secondaryEnergyThisTick, energyPerTick, false, true);
-        if (!(canOperate(recipe) && MekanismUtils.canFunction(this) && getEnergy() >= energyPerTick && gasTank.getStored() >= secondaryEnergyThisTick)) {
-            inactive = true;
+        if (energySlot != null) {
+            energySlot.fillContainerOrConvert();
         }
+        handleSecondaryFuel();
+        secondaryEnergyThisTick = useStatisticalMechanics() ? StatUtils.inversePoisson(secondaryEnergyPerTick) : (int) Math.ceil(secondaryEnergyPerTick);
+        processRecipe();
         prevEnergy = getEnergy();
         if (!(gasTank.getGasType() == null || gasTank.getStored() == 0)) {
             prevGas = gasTank.getGasType();
@@ -127,38 +208,10 @@ public abstract class TileEntityFarmMachine<RECIPE extends FarmMachineRecipe<REC
 
     @Override
     public void addTileSyncTask() {
-        AutomaticallyExtractItems(6, 0);
-        AutomaticallyExtractItems(7, 0);
-        BetterEjectingItem(7, 3);
-        BetterEjectingItem(7, 4);
-    }
-
-    @Override
-    public void setUpOtherActions() {
-        gasTank.draw(secondaryEnergyThisTick, true);
-    }
-
-    @Override
-    public void setClearOperatingTicks() {
-        if (inactive && getRecipe() == null) {
-            operatingTicks = 0;
-        }
     }
 
     public void handleSecondaryFuel() {
-        ItemStack itemStack = inventory.get(1);
-        int needed = gasTank.getNeeded();
-        if (!itemStack.isEmpty() && needed > 0) {
-            GasStack gasStack = getItemGas(itemStack);
-            if (gasStack != null && needed >= gasStack.amount) {
-                if (itemStack.getItem() instanceof IGasItem item) {
-                    gasTank.receive(item.removeGas(itemStack, gasStack.amount), true);
-                } else {
-                    gasTank.receive(gasStack, true);
-                    itemStack.shrink(1);
-                }
-            }
-        }
+        gasSlot.fillTankOrConvert();
     }
 
     public boolean upgradeableSecondaryEfficiency() {
@@ -170,32 +223,13 @@ public abstract class TileEntityFarmMachine<RECIPE extends FarmMachineRecipe<REC
     }
 
     @Override
-    public boolean isItemValidForSlot(int slotID, @Nonnull ItemStack itemstack) {
-        if (slotID == 3 || slotID == 4) {
-            return false;
-        } else if (slotID == 5) {
-            return itemstack.getItem() == MekanismItems.SpeedUpgrade || itemstack.getItem() == MekanismItems.EnergyUpgrade;
-        } else if (slotID == 0) {
-            for (AdvancedMachineInput input : getRecipes().keySet()) {
-                if (ItemHandlerHelper.canItemStacksStack(input.itemStack, itemstack)) {
-                    return true;
-                }
-            }
-        } else if (slotID == 2) {
-            return ChargeUtils.canBeDischarged(itemstack);
-        } else if (slotID == 1) {
-            return getItemGas(itemstack) != null;
-        }
-        return false;
-    }
-
-    @Override
     public AdvancedMachineInput getInput() {
-        return new AdvancedMachineInput(inventory.get(0), prevGas);
+        return new AdvancedMachineInput(inputSlot.getStack(), prevGas);
     }
 
     @Override
     public RECIPE getRecipe() {
+        refreshRecipeLookupCache();
         AdvancedMachineInput input = getInput();
         if (cachedRecipe == null || !input.testEquality(cachedRecipe.getInput())) {
             cachedRecipe = RecipeHandler.getFarmRecipe(input, getRecipes());
@@ -204,14 +238,78 @@ public abstract class TileEntityFarmMachine<RECIPE extends FarmMachineRecipe<REC
     }
 
     @Override
-    public void operate(RECIPE recipe) {
-        recipe.operate(inventory, 0, gasTank, secondaryEnergyThisTick, 3, 4);
-        markNoUpdateSync();
+    public RECIPE getRecipe(int cacheIndex) {
+        return getRecipe();
+    }
+
+    public MachineEnergyContainer getEnergyContainer() {
+        return getMainEnergyContainer();
+    }
+
+    public boolean hasWarningNoMatchingSecondaryInput() {
+        return getRecipe() != null && gasTank.getStored() < secondaryEnergyThisTick;
+    }
+
+    public boolean hasWarningNoSpaceInOutput() {
+        ChanceOutput output = getCurrentOutput();
+        return output != null && (hasNoSpace(output.getMainOutput(), outputSlot) || hasNoSpace(output.getMaxSecondaryOutput(), secondaryOutputSlot));
+    }
+
+    public boolean hasWarningInputDoesntProduceOutput() {
+        ChanceOutput output = getCurrentOutput();
+        return output != null && (doesntStack(output.getMainOutput(), outputSlot) || doesntStack(output.getMaxSecondaryOutput(), secondaryOutputSlot));
+    }
+
+    private ChanceOutput getCurrentOutput() {
+        RECIPE recipe = getRecipe();
+        return recipe == null ? null : recipe.getOutput();
+    }
+
+    private boolean hasNoSpace(ItemStack output, OutputInventorySlot slot) {
+        if (output.isEmpty()) {
+            return false;
+        }
+        ItemStack current = slot.getStack();
+        if (!current.isEmpty() && !ItemHandlerHelper.canItemStacksStack(current, output)) {
+            return false;
+        }
+        return !slot.insertItem(output.copy(), Action.SIMULATE, AutomationType.INTERNAL).isEmpty();
+    }
+
+    private boolean doesntStack(ItemStack output, OutputInventorySlot slot) {
+        ItemStack current = slot.getStack();
+        return !output.isEmpty() && !current.isEmpty() && !ItemHandlerHelper.canItemStacksStack(current, output);
     }
 
     @Override
     public boolean canOperate(RECIPE recipe) {
-        return recipe != null && recipe.canOperate(inventory, 0, gasTank, secondaryEnergyThisTick, 3, 4);
+        return recipe != null && recipe.canOperate(inputSlot, gasTank, secondaryEnergyThisTick, outputSlot, secondaryOutputSlot);
+    }
+
+    private boolean canAutoPullInput(ItemStack stack) {
+        Gas gasType = gasTank.getGasType() == null ? prevGas : gasTank.getGasType();
+        RECIPE recipe = RecipeHandler.getFarmRecipe(new AdvancedMachineInput(getSimulatedStackWithInsert(0, stack), gasType), getRecipes());
+        return recipe != null && recipe.getOutput().applyOutputs(outputSlot, secondaryOutputSlot, false);
+    }
+
+    @Override
+    public CachedRecipe<RECIPE> createNewCachedRecipe(RECIPE recipe, int cacheIndex) {
+        return new ItemStackConstantGasCachedRecipe<>(recipe, this::shouldRecheckAllRecipeErrors,
+              InputHelper.getInputHandler(inputSlot, RecipeError.NOT_ENOUGH_INPUT),
+              InputHelper.getConstantGasInputHandler(gasTank, RecipeError.NOT_ENOUGH_SECONDARY_INPUT, false),
+              OutputHelper.getOutputHandler(outputSlot, secondaryOutputSlot, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
+              gasUsageMultiplier, used -> usedSoFar = used)
+              .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
+              .setActive(active -> {
+                  if (active || prevEnergy >= getEnergy()) {
+                      setActive(active);
+                  }
+              })
+              .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
+              .setRequiredTicks(() -> ticksRequired)
+              .setBaselineMaxOperations(() -> getBaselineMaxOperations(energyPerTick, true))
+              .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
+              .setOnFinish(this::onCachedRecipeFinish);
     }
 
     @Override
@@ -233,15 +331,18 @@ public abstract class TileEntityFarmMachine<RECIPE extends FarmMachineRecipe<REC
     @Override
     public void readCustomNBT(NBTTagCompound nbtTags) {
         super.readCustomNBT(nbtTags);
-        gasTank.read(nbtTags.getCompoundTag("gasTank"));
+        usedSoFar = nbtTags.getLong(NBTConstants.USED_SO_FAR);
+        if (!hasStoredGasTanks(nbtTags) && nbtTags.hasKey("gasTank")) {
+            gasTank.read(nbtTags.getCompoundTag("gasTank"));
+        }
         gasTank.setMaxGas(MAX_GAS);
-        GasUtils.clearIfInvalid(gasTank, this::isValidGas);
+        sanitizeAndClampGasTank();
     }
 
     @Override
     public void writeCustomNBT(NBTTagCompound nbtTags) {
         super.writeCustomNBT(nbtTags);
-        nbtTags.setTag("gasTank", gasTank.write(new NBTTagCompound()));
+        nbtTags.setLong(NBTConstants.USED_SO_FAR, usedSoFar);
     }
 
     /**
@@ -255,55 +356,8 @@ public abstract class TileEntityFarmMachine<RECIPE extends FarmMachineRecipe<REC
     }
 
     @Override
-    public boolean canExtractItem(int slotID, @Nonnull ItemStack itemstack, @Nonnull EnumFacing side) {
-        if (slotID == 2) {
-            return ChargeUtils.canBeOutputted(itemstack, false);
-        }
-        return slotID == 3 || slotID == 4;
-    }
-
-    @Override
-    public int receiveGas(EnumFacing side, GasStack stack, boolean doTransfer) {
-        return 0;
-    }
-
-    @Override
-    public GasStack drawGas(EnumFacing side, int amount, boolean doTransfer) {
-        return null;
-    }
-
-    @Override
-    public boolean canReceiveGas(EnumFacing side, Gas type) {
-        return false;
-    }
-
-    @Override
-    public boolean canDrawGas(EnumFacing side, Gas type) {
-        return false;
-    }
-
-    @Override
-    @Nonnull
-    public GasTankInfo[] getTankInfo() {
-        return new GasTankInfo[]{gasTank};
-    }
-
-    @Override
-    public boolean hasCapability(@Nonnull Capability<?> capability, EnumFacing side) {
-        if (isCapabilityDisabled(capability, side)) {
-            return false;
-        }
-        return capability == Capabilities.GAS_HANDLER_CAPABILITY || super.hasCapability(capability, side);
-    }
-
-    @Override
-    public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing side) {
-        if (isCapabilityDisabled(capability, side)) {
-            return null;
-        } else if (capability == Capabilities.GAS_HANDLER_CAPABILITY) {
-            return Capabilities.GAS_HANDLER_CAPABILITY.cast(this);
-        }
-        return super.getCapability(capability, side);
+    public Object[] getManagedTanks() {
+        return new Object[]{gasTank};
     }
 
     @Override
@@ -311,7 +365,22 @@ public abstract class TileEntityFarmMachine<RECIPE extends FarmMachineRecipe<REC
         super.recalculateUpgradables(upgrade);
         if (upgrade == Upgrade.SPEED || (upgradeableSecondaryEfficiency() && upgrade == Upgrade.GAS)) {
             secondaryEnergyPerTick = MekanismUtils.getSecondaryEnergyPerTickMean(this, BASE_SECONDARY_ENERGY_PER_TICK);
+            if (useStatisticalMechanics()) {
+                gasPerTickMeanMultiplier = MekanismUtils.getGasPerTickMeanMultiplier(this);
+            } else {
+                baseTotalUsage = MekanismUtils.getBaseUsage(this, BASE_TICKS_REQUIRED);
+            }
         }
+    }
+
+    @Override
+    public long getSavedUsedSoFar(int cacheIndex) {
+        return usedSoFar;
+    }
+
+    @Override
+    protected long getSavedUsedSoFarForUpgrade() {
+        return usedSoFar;
     }
 
     @Override
@@ -341,33 +410,25 @@ public abstract class TileEntityFarmMachine<RECIPE extends FarmMachineRecipe<REC
 
     @Override
     public void writeSustainedData(ItemStack itemStack) {
-        GasUtils.writeSustainedData(gasTank, itemStack);
+        writeSustainedGasTanks(itemStack);
+        ItemDataUtils.setLegacyGas(itemStack, "gasStored", gasTank.getGas());
     }
 
     @Override
     public void readSustainedData(ItemStack itemStack) {
-        GasUtils.readSustainedData(gasTank, itemStack);
+        if (!readSustainedGasTanks(itemStack)) {
+            gasTank.setStackUnchecked(ItemDataUtils.getLegacyGas(itemStack, "gasStored"));
+        }
+        gasTank.setMaxGas(MAX_GAS);
+        sanitizeAndClampGasTank();
     }
 
-    @Override
-    public boolean getEnergySlot() {
-        return inventory.get(2).isEmpty();
+    private void sanitizeAndClampGasTank() {
+        GasStack stored = gasTank.getGas();
+        if (stored != null && (stored.amount <= 0 || stored.getGas() == null)) {
+            gasTank.setEmpty();
+        } else if (stored != null) {
+            gasTank.setStackSize(stored.amount, Action.EXECUTE);
+        }
     }
-
-    @Override
-    public boolean getInputSlot() {
-        return inventory.get(0).isEmpty();
-    }
-
-    @Override
-    public boolean getOuputSlot() {
-        return inventory.get(3).isEmpty();
-    }
-
-    @Override
-    public boolean getExtraSlot() {
-        return inventory.get(1).isEmpty();
-    }
-
-
 }

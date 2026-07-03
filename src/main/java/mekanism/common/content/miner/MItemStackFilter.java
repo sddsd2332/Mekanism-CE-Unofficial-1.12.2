@@ -34,6 +34,11 @@ public class MItemStackFilter extends MinerFilter implements IItemStackFilter {
     }
 
     @Override
+    public boolean hasBlacklistedElement() {
+        return MinerBlacklistHelper.hasBlacklistedItem(itemType);
+    }
+
+    @Override
     public NBTTagCompound write(NBTTagCompound nbtTags) {
         super.write(nbtTags);
         nbtTags.setInteger("type", 0);
@@ -68,7 +73,7 @@ public class MItemStackFilter extends MinerFilter implements IItemStackFilter {
 
     @Override
     public int hashCode() {
-        int code = 1;
+        int code = super.hashCode();
         code = 31 * code + MekanismUtils.getID(itemType);
         code = 31 * code + itemType.getCount();
         code = 31 * code + itemType.getItemDamage();
@@ -83,8 +88,7 @@ public class MItemStackFilter extends MinerFilter implements IItemStackFilter {
     @Override
     public MItemStackFilter clone() {
         MItemStackFilter filter = new MItemStackFilter();
-        filter.replaceStack = replaceStack;
-        filter.requireStack = requireStack;
+        copyBaseData(filter);
         filter.fuzzy = fuzzy;
         filter.itemType = itemType.copy();
         return filter;

@@ -4,7 +4,7 @@ import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasStack;
 import mekanism.api.gas.IGasItem;
 import mekanism.api.mixninapi.EnderMaskMixinHelp;
-import mekanism.client.gui.element.GuiUtils;
+import mekanism.client.gui.GuiUtils;
 import mekanism.client.model.mekasuitarmour.ModelMekAsuitHead;
 import mekanism.client.model.mekasuitarmour.ModuleSolarHelmet;
 import mekanism.client.render.MekanismRenderer;
@@ -12,7 +12,7 @@ import mekanism.common.MekanismFluids;
 import mekanism.common.MekanismModules;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.interfaces.IOverlayRenderAware;
-import mekanism.common.util.ItemDataUtils;
+import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.util.LangUtils;
 import net.minecraft.client.model.ModelBiped;
 import net.minecraft.client.renderer.BufferBuilder;
@@ -23,7 +23,6 @@ import net.minecraft.entity.monster.EntityEnderman;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.inventory.EntityEquipmentSlot;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.world.World;
 import net.minecraftforge.fml.relauncher.Side;
@@ -84,19 +83,22 @@ public class ItemMekaSuitHelmet extends ItemMekaSuitArmor implements IGasItem, E
         if (!hasModule(itemstack, MekanismModules.NUTRITIONAL_INJECTION_UNIT)) {
             return 0;
         }
-        if (getGas(itemstack) != null && getGas(itemstack).getGas() != stack.getGas()) {
+        GasStack storedGas = getGas(itemstack);
+        if (storedGas != null && storedGas.getGas() != stack.getGas()) {
             return 0;
         }
         if (stack.getGas() != MekanismFluids.NutritionalPaste) {
             return 0;
         }
-        int toUse = Math.min(getMaxGas(itemstack) - getStored(itemstack), Math.min(getRate(itemstack), stack.amount));
-        setGas(itemstack, new GasStack(stack.getGas(), getStored(itemstack) + toUse));
+        int stored = storedGas == null ? 0 : storedGas.amount;
+        int toUse = Math.min(getMaxGas(itemstack) - stored, Math.min(getRate(itemstack), stack.amount));
+        setGas(itemstack, new GasStack(stack.getGas(), stored + toUse));
         return toUse;
     }
 
     public int getStored(ItemStack itemstack) {
-        return getGas(itemstack) != null ? getGas(itemstack).amount : 0;
+        GasStack gas = getGas(itemstack);
+        return gas == null ? 0 : gas.amount;
     }
 
 
@@ -114,7 +116,17 @@ public class ItemMekaSuitHelmet extends ItemMekaSuitArmor implements IGasItem, E
 
     @Override
     public GasStack removeGas(ItemStack itemstack, int amount) {
-        return null;
+        GasStack gas = getGas(itemstack);
+        if (gas == null || gas.getGas() != MekanismFluids.NutritionalPaste || amount <= 0) {
+            return null;
+        }
+        int gasToUse = Math.min(gas.amount, Math.min(getRate(itemstack), amount));
+        if (gasToUse <= 0) {
+            return null;
+        }
+        int remaining = gas.amount - gasToUse;
+        setGas(itemstack, remaining <= 0 ? null : new GasStack(gas.getGas(), remaining));
+        return new GasStack(gas.getGas(), gasToUse);
     }
 
     @Override
@@ -124,12 +136,16 @@ public class ItemMekaSuitHelmet extends ItemMekaSuitArmor implements IGasItem, E
 
     @Override
     public boolean canProvideGas(ItemStack itemstack, Gas type) {
-        return false;
+        GasStack gas = getGas(itemstack);
+        return gas != null && gas.amount > 0 && (type == null || gas.getGas() == type);
     }
 
     @Override
     public GasStack getGas(ItemStack itemstack) {
-        return hasModule(itemstack, MekanismModules.NUTRITIONAL_INJECTION_UNIT) ? GasStack.readFromNBT(ItemDataUtils.getCompound(itemstack, "gasStored")) : null;
+        if (!hasModule(itemstack, MekanismModules.NUTRITIONAL_INJECTION_UNIT)) {
+            return null;
+        }
+        return GasInventorySlot.getStoredGas(itemstack, "gasStored");
     }
 
     @Override
@@ -140,18 +156,42 @@ public class ItemMekaSuitHelmet extends ItemMekaSuitArmor implements IGasItem, E
         if (stack != null && stack.getGas() != null && stack.getGas() != MekanismFluids.NutritionalPaste) {
             return;
         }
-        if (stack == null || stack.amount <= 0) {
-            ItemDataUtils.removeData(itemstack, "gasStored");
-        } else {
-            int amount = Math.max(0, Math.min(stack.amount, getMaxGas(itemstack)));
-            GasStack gasStack = new GasStack(stack.getGas(), amount);
-            ItemDataUtils.setCompound(itemstack, "gasStored", gasStack.write(new NBTTagCompound()));
-        }
+        GasInventorySlot.setStoredGas(itemstack, stack, "gasStored", getMaxGas(itemstack));
     }
 
     @Override
     public int getMaxGas(ItemStack itemstack) {
         return hasModule(itemstack, MekanismModules.NUTRITIONAL_INJECTION_UNIT) ? MekanismConfig.current().meka.mekaSuitNutritionalMaxStorage.val() : 0;
+    }
+
+    @Override
+    protected boolean hasGasCapabilitySupport() {
+        return true;
+    }
+
+    @Override
+    protected boolean isGasCapabilityEnabled(ItemStack stack) {
+        return hasModule(stack, MekanismModules.NUTRITIONAL_INJECTION_UNIT);
+    }
+
+    @Override
+    protected int getGasCapabilityRate(ItemStack stack) {
+        return getRate(stack);
+    }
+
+    @Override
+    protected int getGasCapabilityCapacity(ItemStack stack) {
+        return getMaxGas(stack);
+    }
+
+    @Override
+    protected String getGasCapabilityLegacyKey() {
+        return "gasStored";
+    }
+
+    @Override
+    protected java.util.function.Predicate<GasStack> getGasCapabilityValidator(ItemStack stack) {
+        return gasStack -> gasStack != null && gasStack.getGas() == MekanismFluids.NutritionalPaste && hasModule(stack, MekanismModules.NUTRITIONAL_INJECTION_UNIT);
     }
 
     @Override
@@ -186,7 +226,8 @@ public class ItemMekaSuitHelmet extends ItemMekaSuitArmor implements IGasItem, E
     }
 
     private double getDurabilityForDisplayGas(ItemStack stack) {
-        return 1D - ((getGas(stack) != null ? (double) getGas(stack).amount : 0D) / (double) getMaxGas(stack));
+        GasStack gas = getGas(stack);
+        return 1D - ((gas != null ? (double) gas.amount : 0D) / (double) getMaxGas(stack));
     }
 
 

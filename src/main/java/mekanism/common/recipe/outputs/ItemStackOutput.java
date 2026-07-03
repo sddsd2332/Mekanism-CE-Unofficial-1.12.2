@@ -1,9 +1,10 @@
 package mekanism.common.recipe.outputs;
 
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
+import mekanism.api.inventory.IInventorySlot;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.NonNullList;
-import net.minecraftforge.items.ItemHandlerHelper;
 
 public class ItemStackOutput extends MachineOutput<ItemStackOutput> {
 
@@ -21,20 +22,8 @@ public class ItemStackOutput extends MachineOutput<ItemStackOutput> {
         output = new ItemStack(nbtTags.getCompoundTag("output"));
     }
 
-    public boolean applyOutputs(NonNullList<ItemStack> inventory, int index, boolean doEmit) {
-        ItemStack stack = inventory.get(index);
-        if (stack.isEmpty()) {
-            if (doEmit) {
-                inventory.set(index, output.copy());
-            }
-            return true;
-        } else if (ItemHandlerHelper.canItemStacksStack(stack, output) && stack.getCount() + output.getCount() <= stack.getMaxStackSize()) {
-            if (doEmit) {
-                stack.grow(output.getCount());
-            }
-            return true;
-        }
-        return false;
+    public boolean applyOutputs(IInventorySlot slot, boolean doEmit) {
+        return slot.insertItem(output, doEmit ? Action.EXECUTE : Action.SIMULATE, AutomationType.INTERNAL).isEmpty();
     }
 
     @Override

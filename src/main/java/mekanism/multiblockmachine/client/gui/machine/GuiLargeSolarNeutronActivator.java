@@ -1,81 +1,45 @@
 package mekanism.multiblockmachine.client.gui.machine;
 
-import mekanism.api.util.time.Timeticks;
 import mekanism.client.gui.GuiMekanismTile;
-import mekanism.client.gui.IJeiNoShowRecipe;
-import mekanism.client.gui.element.*;
 import mekanism.client.gui.element.gauge.GuiGasGauge;
-import mekanism.client.gui.element.gauge.GuiGauge;
-import mekanism.client.gui.element.slot.GuiInputSlot;
-import mekanism.client.gui.element.slot.GuiOutputSlot;
-import mekanism.client.gui.element.tab.GuiSecurityTab;
-import mekanism.client.gui.element.tab.GuiUpgradeTab;
-import mekanism.common.util.LangUtils;
-import mekanism.common.util.MekanismUtils;
+import mekanism.client.gui.element.progress.GuiProgress;
+import mekanism.client.gui.element.progress.ProgressType;
+import mekanism.client.gui.warning.WarningTracker.WarningType;
+import mekanism.client.recipe_viewer.type.RecipeViewerRecipeType;
 import mekanism.multiblockmachine.common.inventory.container.ContainerLargeSolarNeutronActivator;
 import mekanism.multiblockmachine.common.tile.machine.TileEntityLargeSolarNeutronActivator;
 import net.minecraft.entity.player.InventoryPlayer;
-import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.text.TextComponentString;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 
-import java.util.ArrayList;
-import java.util.List;
-
-public class GuiLargeSolarNeutronActivator extends GuiMekanismTile<TileEntityLargeSolarNeutronActivator> implements IJeiNoShowRecipe {
-
-    protected Timeticks time;
+@SideOnly(Side.CLIENT)
+public class GuiLargeSolarNeutronActivator extends GuiMekanismTile<TileEntityLargeSolarNeutronActivator, ContainerLargeSolarNeutronActivator>
+{
 
     public GuiLargeSolarNeutronActivator(InventoryPlayer inventory, TileEntityLargeSolarNeutronActivator tile) {
         super(tile, new ContainerLargeSolarNeutronActivator(inventory, tile));
-        time = new Timeticks(20, 20, false);
-        ResourceLocation resource = getGuiLocation();
-        addGuiElement(new GuiSecurityTab(this, tileEntity, resource));
-        addGuiElement(new GuiRedstoneControl(this, tileEntity, resource));
-        addGuiElement(new GuiUpgradeTab(this, tileEntity, resource));
-        addGuiElement(new GuiInputSlot(this, resource, 4, 55, tileEntity).with(GuiSlot.SlotOverlay.MINUS));
-        addGuiElement(new GuiOutputSlot(this, resource, 154, 55, tileEntity).with(GuiSlot.SlotOverlay.PLUS));
-        addGuiElement(new GuiGasGauge(() -> tileEntity.inputTank, GuiGauge.Type.STANDARD, this, resource, 25, 13).withColor(GuiGauge.TypeColor.RED));
-        addGuiElement(new GuiGasGauge(() -> tileEntity.outputTank, GuiGauge.Type.STANDARD, this, resource, 133, 13).withColor(GuiGauge.TypeColor.BLUE));
-        addGuiElement(new GuiProgress(new GuiProgress.IProgressInfoHandler() {
-            @Override
-            public double getProgress() {
-                return tileEntity.getActive() ? (double) time.getValue() / 20F : 0;
-            }
-        }, GuiProgress.ProgressBar.LARGE_RIGHT, this, resource, 62, 38));
-        addGuiElement(new GuiPlayerSlot(this, resource));
+        inventoryLabelY += 2;
+        titleLabelY = 4;
+        dynamicSlots = true;
     }
 
     @Override
-    protected void drawGuiContainerForegroundLayer(int mouseX, int mouseY) {
-        fontRenderer.drawString(tileEntity.getName(), (xSize / 2) - (fontRenderer.getStringWidth(tileEntity.getName()) / 2), 4, 0x404040);
-        fontRenderer.drawString(LangUtils.localize("container.inventory"), 8, (ySize - 96) + 4, 0x404040);
-        int xAxis = mouseX - guiLeft;
-        int yAxis = mouseY - guiTop;
-        if (xAxis >= -21 && xAxis <= -3 && yAxis >= 116 && yAxis <= 134) {
-            List<String> info = new ArrayList<>();
-            boolean outputgas = tileEntity.outputTank.getStored() == tileEntity.outputTank.getMaxGas();
-            if (outputgas) {
-                info.add(LangUtils.localize("gui.gas_no_space"));
-            }
-            if (outputgas) {
-                this.displayTooltips(info, xAxis, yAxis);
-            }
-        }
-        super.drawGuiContainerForegroundLayer(mouseX, mouseY);
+    protected void addGuiElements() {
+        super.addGuiElements();
+        addButton(new GuiGasGauge(this, tileEntity.inputTank, 25, 13)
+              .warning(WarningType.NO_MATCHING_RECIPE, tileEntity::hasWarningNoMatchingRecipe));
+        addButton(new GuiGasGauge(this, tileEntity.outputTank, 133, 13)
+              .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity::hasWarningNoSpaceInOutput));
+        addButton(new GuiProgress(tileEntity::getActive, ProgressType.LARGE_RIGHT, this, 64, 39))
+              .recipeViewerCategories(RecipeViewerRecipeType.ACTIVATING)
+              .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity::hasWarningInputDoesntProduceOutput);
     }
 
     @Override
-    protected void drawGuiContainerBackgroundLayer(int xAxis, int yAxis) {
-        super.drawGuiContainerBackgroundLayer(xAxis, yAxis);
-        boolean outputgas = tileEntity.outputTank.getStored() == tileEntity.outputTank.getMaxGas();
-        if (outputgas) {
-            mc.getTextureManager().bindTexture(MekanismUtils.getResource(MekanismUtils.ResourceType.GUI, "Warning.png"));
-            drawTexturedModalRect(guiLeft + 133 + 9, guiTop + 13 + 1, 9, 1, 8, 29);
-            drawTexturedModalRect(guiLeft + 133 + 9, guiTop + 13 + 31, 9, 32, 8, 28);
-        }
-        if (outputgas) {
-            mc.getTextureManager().bindTexture(MekanismUtils.getResource(MekanismUtils.ResourceType.TAB, "Warning_Info.png"));
-            drawTexturedModalRect(guiLeft - 26, guiTop + 112, 0, 0, 26, 26);
-            addGuiElement(new GuiWarningInfo(this, getGuiLocation(), false));
-        }
+    protected void drawForegroundText(int mouseX, int mouseY) {
+        drawTitleText(new TextComponentString(tileEntity.getName()), 4);
+        renderInventoryText();
+        super.drawForegroundText(mouseX, mouseY);
     }
 }

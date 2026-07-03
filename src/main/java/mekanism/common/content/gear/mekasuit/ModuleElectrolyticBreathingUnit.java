@@ -2,7 +2,6 @@ package mekanism.common.content.gear.mekasuit;
 
 import mekanism.api.annotations.ParametersAreNotNullByDefault;
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.IGasItem;
 import mekanism.api.gear.ICustomModule;
 import mekanism.api.gear.IModule;
 import mekanism.api.gear.config.IModuleConfigItem;
@@ -14,7 +13,8 @@ import mekanism.common.MekanismLang;
 import mekanism.common.MekanismModules;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.content.gear.ModuleHelper;
-import mekanism.common.util.GasUtils;
+import mekanism.common.inventory.slot.gas.GasInventorySlot;
+import mekanism.common.item.armor.ItemMekaSuitArmor;
 import net.minecraft.block.material.Material;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.inventory.EntityEquipmentSlot;
@@ -52,15 +52,21 @@ public class ModuleElectrolyticBreathingUnit implements ICustomModule<ModuleElec
             GasStack hydrogenStack = new GasStack(MekanismFluids.Hydrogen, maxRate * 2);
             ItemStack chestStack = player.getItemStackFromSlot(EntityEquipmentSlot.CHEST);
             if (checkChestPlate(chestStack)) {
-                if (chestStack.getItem() instanceof IGasItem) {
-                    hydrogenUsed = maxRate * 2 - GasUtils.addGas(chestStack, hydrogenStack);
-                    hydrogenStack.withAmount(hydrogenStack.amount - hydrogenUsed);
+                int accepted;
+                if (chestStack.getItem() instanceof ItemMekaSuitArmor armor) {
+                    accepted = armor.insertGas(chestStack, hydrogenStack);
+                } else {
+                    accepted = GasInventorySlot.insertGas(chestStack, hydrogenStack, true);
                 }
+                hydrogenUsed += accepted;
+                hydrogenStack.withAmount(hydrogenStack.amount - accepted);
             }
             if (fillHeld.get()) {
                 ItemStack handStack = player.getItemStackFromSlot(EntityEquipmentSlot.MAINHAND);
-                if (handStack.getItem() instanceof IGasItem) {
-                    hydrogenUsed = maxRate * 2 - GasUtils.addGas(handStack, hydrogenStack);
+                if (handStack.getItem() instanceof ItemMekaSuitArmor armor) {
+                    hydrogenUsed += armor.insertGas(handStack, hydrogenStack);
+                } else {
+                    hydrogenUsed += GasInventorySlot.insertGas(handStack, hydrogenStack, true);
                 }
             }
             int oxygenUsed = Math.min(maxRate, 300 - player.getAir());

@@ -1,22 +1,24 @@
 package mekanism.common.tile.machine;
 
 import io.netty.buffer.ByteBuf;
-import mekanism.api.Coord4D;
-import mekanism.api.TileNetworkList;
+import mekanism.api.*;
 import mekanism.common.Mekanism;
 import mekanism.common.base.*;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
+import mekanism.common.capabilities.energy.MachineEnergyContainer;
+import mekanism.common.capabilities.holder.energy.EnergyContainerHelper;
+import mekanism.common.capabilities.holder.energy.IEnergyContainerHolder;
+import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
+import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
 import mekanism.common.config.MekanismConfig;
+import mekanism.common.inventory.slot.EnergyInventorySlot;
 import mekanism.common.security.ISecurityTile;
 import mekanism.common.tile.component.TileComponentSecurity;
 import mekanism.common.tile.prefab.TileEntityElectricBlock;
-import mekanism.common.util.ChargeUtils;
 import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.NonNullListSynchronized;
 import net.minecraft.block.state.BlockFaceShape;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
-import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
@@ -28,9 +30,7 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 
 import javax.annotation.Nonnull;
 
-public class TileEntitySeismicVibrator extends TileEntityElectricBlock implements IActiveState, IRedstoneControl, ISecurityTile, IBoundingBlock, IMachineSlotTip, ISpecialSelectionWireframeTile {
-
-    private static final int[] SLOTS = {0};
+public class TileEntitySeismicVibrator extends TileEntityElectricBlock implements IActiveState, IRedstoneControl, ISecurityTile, IBoundingBlock, ISpecialSelectionWireframeTile {
 
     public boolean isActive;
 
@@ -45,10 +45,27 @@ public class TileEntitySeismicVibrator extends TileEntityElectricBlock implement
     public RedstoneControl controlType = RedstoneControl.DISABLED;
 
     public TileComponentSecurity securityComponent = new TileComponentSecurity(this);
+    private MachineEnergyContainer energyContainer;
+    private EnergyInventorySlot energySlot;
 
     public TileEntitySeismicVibrator() {
         super("SeismicVibrator", MachineType.SEISMIC_VIBRATOR.getStorage());
-        inventory = NonNullListSynchronized.withSize(SLOTS.length, ItemStack.EMPTY);
+        initializeInventorySlots();
+    }
+
+    @Override
+    protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
+        InventorySlotHelper builder = createInventorySlotHelper();
+        energySlot = builder.addSlot(EnergyInventorySlot.fillOrConvert(energyContainer, this::getWorld, listener, 143, 35));
+        return builder.build();
+    }
+
+    @Override
+    protected IEnergyContainerHolder getInitialEnergyContainers(IContentsListener listener) {
+        EnergyContainerHelper builder = createEnergyContainerHelper();
+        builder.addContainer(energyContainer = MachineEnergyContainer.input(this::getEnergy, this::setEnergy, this::getMaxEnergy, () -> BASE_ENERGY_PER_TICK, listener),
+              RelativeSide.BACK);
+        return builder.build();
     }
 
     @Override
@@ -75,10 +92,14 @@ public class TileEntitySeismicVibrator extends TileEntityElectricBlock implement
                 Mekanism.packetHandler.sendUpdatePacket(this);
             }
         }
-        ChargeUtils.discharge(0, this);
-        if (MekanismUtils.canFunction(this) && getEnergy() >= BASE_ENERGY_PER_TICK) {
-            setActive(true);
-            setEnergy(getEnergy() - BASE_ENERGY_PER_TICK);
+        energySlot.fillContainerOrConvert();
+        if (MekanismUtils.canFunction(this)) {
+            if (energyContainer.extract(BASE_ENERGY_PER_TICK, Action.SIMULATE, AutomationType.INTERNAL) == BASE_ENERGY_PER_TICK) {
+                setActive(true);
+                energyContainer.extract(BASE_ENERGY_PER_TICK, Action.EXECUTE, AutomationType.INTERNAL);
+            } else {
+                setActive(false);
+            }
         } else {
             setActive(false);
         }
@@ -193,6 +214,10 @@ public class TileEntitySeismicVibrator extends TileEntityElectricBlock implement
         return securityComponent;
     }
 
+    public MachineEnergyContainer getEnergyContainer() {
+        return energyContainer;
+    }
+
     @Override
     public void onPlace() {
         MekanismUtils.makeBoundingBlock(world, getPos().up(), Coord4D.get(this));
@@ -204,40 +229,12 @@ public class TileEntitySeismicVibrator extends TileEntityElectricBlock implement
         world.setBlockToAir(getPos());
     }
 
-
-    @Nonnull
-    @Override
-    public int[] getSlotsForFace(@Nonnull EnumFacing side) {
-        return SLOTS;
-    }
-
-    @Override
-    public boolean isItemValidForSlot(int slot, @Nonnull ItemStack stack) {
-        return ChargeUtils.canBeDischarged(stack);
-    }
-
     @Nonnull
     @Override
     public BlockFaceShape getOffsetBlockFaceShape(@Nonnull EnumFacing face, @Nonnull Vec3i offset) {
         return BlockFaceShape.SOLID;
     }
-
-    @Override
-    public boolean getEnergySlot() {
-        return inventory.get(0).isEmpty();
-    }
-
-    @Override
-    public boolean getInputSlot() {
-        return false;
-    }
-
-    @Override
-    public boolean getOuputSlot() {
-        return false;
-    }
-
-    @Override
+@Override
     @SideOnly(Side.CLIENT)
     public Class<?> getSelectionWireframeModelClass() {
         return mekanism.client.model.ModelSeismicVibrator.class;

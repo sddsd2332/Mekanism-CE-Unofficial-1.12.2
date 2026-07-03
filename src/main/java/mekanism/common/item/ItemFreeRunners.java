@@ -3,16 +3,18 @@ package mekanism.common.item;
 import cofh.redstoneflux.api.IEnergyContainerItem;
 import ic2.api.item.IElectricItemManager;
 import ic2.api.item.ISpecialElectricItem;
+import mekanism.api.Action;
 import mekanism.api.EnumColor;
 import mekanism.api.IIncrementalEnum;
 import mekanism.api.NBTConstants;
-import mekanism.api.energy.IEnergizedItem;
+import mekanism.api.functions.ConstantPredicates;
 import mekanism.api.math.MathUtils;
 import mekanism.client.render.ModelCustomArmor;
 import mekanism.client.render.ModelCustomArmor.ArmorModel;
 import mekanism.common.Mekanism;
 import mekanism.common.MekanismItems;
 import mekanism.common.capabilities.ItemCapabilityWrapper;
+import mekanism.common.capabilities.energy.item.RateLimitEnergyHandler;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.integration.MekanismHooks;
 import mekanism.common.integration.forgeenergy.ForgeEnergyItemWrapper;
@@ -20,10 +22,12 @@ import mekanism.common.integration.ic2.IC2ItemManager;
 import mekanism.common.integration.redstoneflux.RFIntegration;
 import mekanism.common.integration.tesla.TeslaItemWrapper;
 import mekanism.common.item.interfaces.IItemHUDProvider;
+import mekanism.common.item.interfaces.ILegacyEnergizedItem;
 import mekanism.common.item.interfaces.IModeItem;
 import mekanism.common.util.ItemDataUtils;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.StorageUtils;
 import net.minecraft.client.model.ModelBiped;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.creativetab.CreativeTabs;
@@ -58,7 +62,7 @@ import java.util.List;
         @Interface(iface = "ic2.api.item.ISpecialElectricItem", modid = MekanismHooks.IC2_MOD_ID),
         @Interface(iface = "cofh.redstoneflux.api.IEnergyContainerItem", modid = MekanismHooks.REDSTONEFLUX_MOD_ID)
 })
-public class ItemFreeRunners extends ItemArmor implements IEnergizedItem, ISpecialElectricItem, IEnergyContainerItem, ISpecialArmor, IItemHUDProvider, IModeItem {
+public class ItemFreeRunners extends ItemArmor implements ILegacyEnergizedItem, ISpecialElectricItem, IEnergyContainerItem, ISpecialArmor, IItemHUDProvider, IModeItem {
 
     /**
      * The maximum amount of energy this item can hold.
@@ -97,7 +101,7 @@ public class ItemFreeRunners extends ItemArmor implements IEnergizedItem, ISpeci
     @Override
     @SideOnly(Side.CLIENT)
     public void addInformation(ItemStack itemstack, World world, List<String> list, ITooltipFlag flag) {
-        list.add(EnumColor.AQUA + LangUtils.localize("tooltip.storedEnergy") + ": " + EnumColor.GREY + MekanismUtils.getEnergyDisplay(getEnergy(itemstack), getMaxEnergy(itemstack)));
+        list.add(EnumColor.AQUA + LangUtils.localize("tooltip.storedEnergy") + ": " + EnumColor.GREY + MekanismUtils.getEnergyDisplay(StorageUtils.getStoredEnergy(itemstack), getEnergyCapacity(itemstack)));
         list.add(EnumColor.GREY + LangUtils.localize("tooltip.mode") + ": " + EnumColor.GREY + getMode(itemstack).getName());
     }
 
@@ -109,58 +113,33 @@ public class ItemFreeRunners extends ItemArmor implements IEnergizedItem, ISpeci
         ItemStack discharged = new ItemStack(this);
         list.add(discharged);
         ItemStack charged = new ItemStack(this);
-        setEnergy(charged, ((IEnergizedItem) charged.getItem()).getMaxEnergy(charged));
+        StorageUtils.setStoredEnergy(charged, getEnergyCapacity(charged));
         list.add(charged);
     }
 
-    @Override
-    public double getEnergy(ItemStack itemStack) {
-        return ItemDataUtils.getDouble(itemStack, "energyStored");
-    }
-
-    @Override
-    public void setEnergy(ItemStack itemStack, double amount) {
-        if (amount == 0) {
-            NBTTagCompound dataMap = ItemDataUtils.getDataMap(itemStack);
-            dataMap.removeTag("energyStored");
-            if (dataMap.isEmpty() && itemStack.getTagCompound() != null) {
-                itemStack.getTagCompound().removeTag(ItemDataUtils.DATA_ID);
-            }
-        } else {
-            ItemDataUtils.setDouble(itemStack, "energyStored", Math.max(Math.min(amount, getMaxEnergy(itemStack)), 0));
-        }
-    }
-
-    @Override
-    public double getMaxEnergy(ItemStack itemStack) {
+    public double getEnergyCapacity(ItemStack itemStack) {
         return MAX_ELECTRICITY;
     }
 
-    @Override
-    public double getMaxTransfer(ItemStack itemStack) {
-        return getMaxEnergy(itemStack) * 0.005;
+    public double getEnergyTransfer(ItemStack itemStack) {
+        return getEnergyCapacity(itemStack) * 0.005;
     }
 
-    @Override
-    public boolean canReceive(ItemStack itemStack) {
-        return getMaxEnergy(itemStack) - getEnergy(itemStack) > 0;
+    public boolean canReceiveEnergy(ItemStack itemStack) {
+        return StorageUtils.getNeededEnergy(itemStack) > 0;
     }
 
-    @Override
-    public boolean canSend(ItemStack itemStack) {
+    public boolean canSendEnergy(ItemStack itemStack) {
         return false;
     }
 
     @Override
     @Method(modid = MekanismHooks.REDSTONEFLUX_MOD_ID)
     public int receiveEnergy(ItemStack theItem, int energy, boolean simulate) {
-        if (canReceive(theItem)) {
-            double energyNeeded = getMaxEnergy(theItem) - getEnergy(theItem);
-            double toReceive = Math.min(RFIntegration.fromRF(energy), energyNeeded);
-            if (!simulate) {
-                setEnergy(theItem, getEnergy(theItem) + toReceive);
-            }
-            return RFIntegration.toRF(toReceive);
+        if (canReceiveEnergy(theItem)) {
+            double amount = RFIntegration.fromRF(energy);
+            double remainder = StorageUtils.insertEnergy(theItem, amount, Action.get(!simulate));
+            return RFIntegration.toRF(amount - remainder);
         }
         return 0;
     }
@@ -168,13 +147,8 @@ public class ItemFreeRunners extends ItemArmor implements IEnergizedItem, ISpeci
     @Override
     @Method(modid = MekanismHooks.REDSTONEFLUX_MOD_ID)
     public int extractEnergy(ItemStack theItem, int energy, boolean simulate) {
-        if (canSend(theItem)) {
-            double energyRemaining = getEnergy(theItem);
-            double toSend = Math.min(RFIntegration.fromRF(energy), energyRemaining);
-            if (!simulate) {
-                setEnergy(theItem, getEnergy(theItem) - toSend);
-            }
-            return RFIntegration.toRF(toSend);
+        if (canSendEnergy(theItem)) {
+            return RFIntegration.toRF(StorageUtils.extractEnergy(theItem, RFIntegration.fromRF(energy), Action.get(!simulate)));
         }
         return 0;
     }
@@ -182,23 +156,23 @@ public class ItemFreeRunners extends ItemArmor implements IEnergizedItem, ISpeci
     @Override
     @Method(modid = MekanismHooks.REDSTONEFLUX_MOD_ID)
     public int getEnergyStored(ItemStack theItem) {
-        return RFIntegration.toRF(getEnergy(theItem));
+        return RFIntegration.toRF(StorageUtils.getStoredEnergy(theItem));
     }
 
     @Override
     @Method(modid = MekanismHooks.REDSTONEFLUX_MOD_ID)
     public int getMaxEnergyStored(ItemStack theItem) {
-        return RFIntegration.toRF(getMaxEnergy(theItem));
+        return RFIntegration.toRF(getEnergyCapacity(theItem));
     }
 
     @Override
     public boolean showDurabilityBar(ItemStack stack) {
-        return getEnergy(stack) > 0;
+        return StorageUtils.getStoredEnergy(stack) > 0;
     }
 
     @Override
     public double getDurabilityForDisplay(ItemStack stack) {
-        return 1D - (getEnergy(stack) / getMaxEnergy(stack));
+        return 1D - StorageUtils.getEnergyRatio(stack);
     }
 
     @Override
@@ -209,7 +183,7 @@ public class ItemFreeRunners extends ItemArmor implements IEnergizedItem, ISpeci
     @Override
     @Method(modid = MekanismHooks.IC2_MOD_ID)
     public IElectricItemManager getManager(ItemStack itemStack) {
-        return IC2ItemManager.getManager(this);
+        return IC2ItemManager.getManager();
     }
 
 
@@ -247,7 +221,9 @@ public class ItemFreeRunners extends ItemArmor implements IEnergizedItem, ISpeci
 
     @Override
     public ICapabilityProvider initCapabilities(ItemStack stack, NBTTagCompound nbt) {
-        return new ItemCapabilityWrapper(stack, new TeslaItemWrapper(), new ForgeEnergyItemWrapper());
+        return new ItemCapabilityWrapper(stack, new TeslaItemWrapper(), new ForgeEnergyItemWrapper(),
+              RateLimitEnergyHandler.create(() -> getEnergyTransfer(stack), () -> getEnergyCapacity(stack),
+                    ConstantPredicates.alwaysFalse(), ConstantPredicates.alwaysTrue()));
     }
 
     public FreeRunnerMode getMode(ItemStack itemStack) {
@@ -262,7 +238,7 @@ public class ItemFreeRunners extends ItemArmor implements IEnergizedItem, ISpeci
     public void addHUDStrings(List<String> list, EntityPlayer player, ItemStack stack, EntityEquipmentSlot slotType) {
         if (slotType == getEquipmentSlot()) {
             list.add(LangUtils.localize("tooltip.free_runners.mode") + " " + getMode(stack).getName());
-            list.add(LangUtils.localize("tooltip.free_runners.stored") + " " + MekanismUtils.getEnergyDisplay(getEnergy(stack)));
+            list.add(LangUtils.localize("tooltip.free_runners.stored") + " " + MekanismUtils.getEnergyDisplay(StorageUtils.getStoredEnergy(stack)));
         }
     }
 

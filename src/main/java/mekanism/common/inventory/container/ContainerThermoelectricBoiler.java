@@ -10,7 +10,7 @@ public class ContainerThermoelectricBoiler extends ContainerFilter {
     }
 
     @Override
-    protected int getInventorXOffset() {
-        return 27;
+    protected int getInventoryXOffset() {
+        return 29;
     }
 }

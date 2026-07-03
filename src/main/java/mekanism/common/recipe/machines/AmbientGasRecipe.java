@@ -2,7 +2,7 @@ package mekanism.common.recipe.machines;
 
 import mekanism.api.gas.GasRegistry;
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTank;
+import mekanism.api.gas.IExtendedGasTank;
 import mekanism.common.recipe.inputs.IntegerInput;
 import mekanism.common.recipe.outputs.ChanceGasOutput;
 
@@ -20,7 +20,7 @@ public class AmbientGasRecipe extends MachineRecipe<IntegerInput, ChanceGasOutpu
         this(new IntegerInput(input), new ChanceGasOutput(new GasStack(GasRegistry.getGas(output), 1),chance));
     }
 
-    public boolean canOperate(int cachedDimensionId, GasTank outputTank) {
+    public boolean canOperate(int cachedDimensionId, IExtendedGasTank outputTank) {
         return getInput().ingredient == cachedDimensionId && getOutput().applyOutputs(outputTank, false, 1);
     }
 
@@ -29,9 +29,4 @@ public class AmbientGasRecipe extends MachineRecipe<IntegerInput, ChanceGasOutpu
         return new AmbientGasRecipe(getInput().copy(), getOutput().copy());
     }
 
-    public void operate(int cachedDimensionId, GasTank outputTank, int scale) {
-        if (getInput().ingredient == cachedDimensionId) {
-            getOutput().applyOutputs(outputTank, true, scale);
-        }
-    }
 }

@@ -2,12 +2,17 @@ package mekanism.common.content.transporter;
 
 import io.netty.buffer.ByteBuf;
 import mekanism.api.EnumColor;
+import mekanism.api.NBTConstants;
 import mekanism.api.TileNetworkList;
 import mekanism.common.content.filter.IFilter;
+import mekanism.common.lib.inventory.Finder;
+import mekanism.common.lib.inventory.TransitRequest;
 import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.TransporterUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.EnumFacing;
 
 import javax.annotation.Nullable;
 import java.util.Arrays;
@@ -22,6 +27,7 @@ public abstract class TransporterFilter implements IFilter {
     public EnumColor color;
 
     public boolean allowDefault;
+    private boolean enabled = true;
 
     @Nullable
     public static TransporterFilter readFromNBT(NBTTagCompound nbtTags) {
@@ -62,11 +68,12 @@ public abstract class TransporterFilter implements IFilter {
 
     public abstract Finder getFinder();
 
-    public InvStack getStackFromInventory(StackSearcher searcher, boolean singleItem) {
-        return searcher.takeTopStack(getFinder(), singleItem ? 1 : 64);
+    public TransitRequest mapInventory(TileEntity tile, EnumFacing side, boolean singleItem) {
+        return TransitRequest.definedItem(tile, side, singleItem ? 1 : 64, getFinder());
     }
 
     public void write(NBTTagCompound nbtTags) {
+        nbtTags.setBoolean(NBTConstants.ENABLED, enabled);
         nbtTags.setBoolean("allowDefault", allowDefault);
         if (color != null) {
             nbtTags.setInteger("color", TransporterUtils.colors.indexOf(color));
@@ -74,6 +81,7 @@ public abstract class TransporterFilter implements IFilter {
     }
 
     protected void read(NBTTagCompound nbtTags) {
+        enabled = !nbtTags.hasKey(NBTConstants.ENABLED) || nbtTags.getBoolean(NBTConstants.ENABLED);
         allowDefault = nbtTags.getBoolean("allowDefault");
         if (nbtTags.hasKey("color")) {
             color = MekanismUtils.getByIndex(TransporterUtils.colors, nbtTags.getInteger("color"), null);
@@ -81,6 +89,7 @@ public abstract class TransporterFilter implements IFilter {
     }
 
     public void write(TileNetworkList data) {
+        data.add(enabled);
         data.add(allowDefault);
         if (color != null) {
             data.add(TransporterUtils.colors.indexOf(color));
@@ -90,6 +99,7 @@ public abstract class TransporterFilter implements IFilter {
     }
 
     protected void read(ByteBuf dataStream) {
+        enabled = dataStream.readBoolean();
         allowDefault = dataStream.readBoolean();
         int c = dataStream.readInt();
         if (c != -1) {
@@ -99,15 +109,34 @@ public abstract class TransporterFilter implements IFilter {
         }
     }
 
+    protected void copyBaseData(TransporterFilter filter) {
+        filter.enabled = enabled;
+        filter.allowDefault = allowDefault;
+        filter.color = color;
+    }
+
+    @Override
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    @Override
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+
     @Override
     public int hashCode() {
         int code = 1;
+        code = 31 * code + (enabled ? 1 : 0);
+        code = 31 * code + (allowDefault ? 1 : 0);
         code = 31 * code + (color != null ? color.ordinal() : -1);
         return code;
     }
 
     @Override
     public boolean equals(Object filter) {
-        return filter instanceof TransporterFilter filter1&& filter1.color == color;
+        return filter instanceof TransporterFilter transporterFilter && transporterFilter.enabled == enabled && transporterFilter.allowDefault == allowDefault
+                && transporterFilter.color == color;
     }
 }

@@ -12,9 +12,12 @@ import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.integration.MekanismHooks;
+import mekanism.common.inventory.container.ITrackableContainer;
+import mekanism.common.inventory.container.MekanismContainer;
 import mekanism.common.network.PacketDataRequest.DataRequestMessage;
 import mekanism.common.network.PacketTileEntity.TileEntityMessage;
 import mekanism.common.tile.base.TileEntityRestrictedTick;
+import mekanism.common.tile.component.TileComponentUpgrade;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.block.Block;
 import net.minecraft.entity.player.EntityPlayer;
@@ -37,7 +40,7 @@ import java.util.Set;
  * 基本方块类型
  */
 @Interface(iface = "ic2.api.tile.IWrenchable", modid = MekanismHooks.IC2_MOD_ID)
-public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick implements ITileNetwork {
+public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick implements ITileNetwork, ITrackableContainer {
 
     /**
      * The direction this block is facing.
@@ -89,6 +92,9 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
         }
         onUpdate(); //最后同时更新
 
+        if (!isRemote() && this instanceof TileEntityElectricBlock electricBlock) {
+            electricBlock.trackEnergyInputRate();
+        }
 
         if (!isRemote() && doAutoSync && !playersUsing.isEmpty()) {
             if (supportsAsync()) {
@@ -117,6 +123,14 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
 
     protected void tickComponents() {
         components.forEach(ITileComponent::tick);
+    }
+
+    @Override
+    public void addContainerTrackers(MekanismContainer container) {
+        components.forEach(component -> component.trackForMainContainer(container));
+        components.stream().filter(TileComponentUpgrade.class::isInstance)
+              .map(TileComponentUpgrade.class::cast)
+              .forEach(component -> container.startTracking(component, component));
     }
 
 

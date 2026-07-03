@@ -3,8 +3,8 @@ package mekanism.common.util;
 import cofh.redstoneflux.api.IEnergyContainerItem;
 import ic2.api.item.ElectricItem;
 import ic2.api.item.IElectricItemManager;
-import mekanism.api.energy.EnergizedItemManager;
-import mekanism.api.energy.IEnergizedItem;
+import mekanism.api.Action;
+import mekanism.api.energy.IStrictEnergyHandler;
 import mekanism.api.energy.IStrictEnergyStorage;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.integration.forgeenergy.ForgeEnergyIntegration;
@@ -23,11 +23,11 @@ import net.minecraftforge.energy.IEnergyStorage;
 public final class ChargeUtils {
 
     public static boolean isIC2Chargeable(ItemStack itemStack) {
-        return ElectricItem.manager.getMaxCharge(itemStack) > 0 && ElectricItem.manager.charge(itemStack, Integer.MAX_VALUE, 4, true, true) > 0;
+        return ElectricItem.manager.getMaxCharge(itemStack) > 0 && ElectricItem.manager.charge(itemStack, Integer.MAX_VALUE, IC2Integration.getItemOutputTier(itemStack), true, true) > 0;
     }
 
     public static boolean isIC2Dischargeable(ItemStack itemStack) {
-        return ElectricItem.manager.getMaxCharge(itemStack) > 0 && ElectricItem.manager.discharge(itemStack, Integer.MAX_VALUE, 4, true, true, true) > 0;
+        return ElectricItem.manager.getMaxCharge(itemStack) > 0 && ElectricItem.manager.discharge(itemStack, Integer.MAX_VALUE, IC2Integration.getConfiguredInputTier(), true, true, true) > 0;
     }
 
     /**
@@ -38,11 +38,29 @@ public final class ChargeUtils {
      */
     public static void discharge(int slotID, IStrictEnergyStorage storer) {
         IInventory inv = (TileEntityContainerBlock) storer;
-        ItemStack stack = inv.getStackInSlot(slotID);
+        discharge(inv.getStackInSlot(slotID), storer);
+    }
+
+    /**
+     * Universally discharges an item, and updates the TileEntity's energy level.
+     *
+     * @param stack - ItemStack to discharge
+     * @param storer - TileEntity the item is being discharged into
+     */
+    public static void discharge(ItemStack stack, IStrictEnergyStorage storer) {
         if (!stack.isEmpty() && storer.getEnergy() < storer.getMaxEnergy()) {
-            if (stack.getItem() instanceof IEnergizedItem) {
-                storer.setEnergy(storer.getEnergy() + EnergizedItemManager.discharge(stack, storer.getMaxEnergy() - storer.getEnergy()));
-            } else if (MekanismUtils.useTesla() && stack.hasCapability(Capabilities.TESLA_PRODUCER_CAPABILITY, null)) {
+            if (stack.hasCapability(Capabilities.STRICT_ENERGY_CAPABILITY, null)) {
+                IStrictEnergyHandler energyHandler = stack.getCapability(Capabilities.STRICT_ENERGY_CAPABILITY, null);
+                if (energyHandler != null && energyHandler.getEnergyContainerCount() > 0) {
+                    double needed = storer.getMaxEnergy() - storer.getEnergy();
+                    double extracted = energyHandler.extractEnergy(needed, Action.EXECUTE);
+                    if (extracted > 0) {
+                        storer.setEnergy(storer.getEnergy() + extracted);
+                    }
+                    return;
+                }
+            }
+            if (MekanismUtils.useTesla() && stack.hasCapability(Capabilities.TESLA_PRODUCER_CAPABILITY, null)) {
                 ITeslaProducer producer = stack.getCapability(Capabilities.TESLA_PRODUCER_CAPABILITY, null);
                 long needed = TeslaIntegration.toTesla(storer.getMaxEnergy() - storer.getEnergy());
                 storer.setEnergy(storer.getEnergy() + TeslaIntegration.fromTesla(producer.takePower(needed, false)));
@@ -56,7 +74,7 @@ public final class ChargeUtils {
                 int needed = RFIntegration.toRF(storer.getMaxEnergy() - storer.getEnergy());
                 storer.setEnergy(storer.getEnergy() + RFIntegration.fromRF(item.extractEnergy(stack, needed, false)));
             } else if (MekanismUtils.useIC2() && isIC2Dischargeable(stack)) {
-                double gain = IC2Integration.fromEU(ElectricItem.manager.discharge(stack, IC2Integration.toEU(storer.getMaxEnergy() - storer.getEnergy()), 4, true, true, false));
+                double gain = IC2Integration.fromEU(ElectricItem.manager.discharge(stack, IC2Integration.toEU(storer.getMaxEnergy() - storer.getEnergy()), IC2Integration.getConfiguredInputTier(), true, true, false));
                 storer.setEnergy(storer.getEnergy() + gain);
             } /*else if (stack.getItem() == Items.REDSTONE && storer.getEnergy() + MekanismConfig.current().general.ENERGY_PER_REDSTONE.val() <= storer.getMaxEnergy()) {
                 storer.setEnergy(storer.getEnergy() + MekanismConfig.current().general.ENERGY_PER_REDSTONE.val());
@@ -95,9 +113,18 @@ public final class ChargeUtils {
      */
     public static void charge(ItemStack stack, IStrictEnergyStorage storer) {
         if (!stack.isEmpty() && storer.getEnergy() > 0) {
-            if (stack.getItem() instanceof IEnergizedItem) {
-                storer.setEnergy(storer.getEnergy() - EnergizedItemManager.charge(stack, storer.getEnergy()));
-            } else if (MekanismUtils.useTesla() && stack.hasCapability(Capabilities.TESLA_CONSUMER_CAPABILITY, null)) {
+            if (stack.hasCapability(Capabilities.STRICT_ENERGY_CAPABILITY, null)) {
+                IStrictEnergyHandler energyHandler = stack.getCapability(Capabilities.STRICT_ENERGY_CAPABILITY, null);
+                if (energyHandler != null && energyHandler.getEnergyContainerCount() > 0) {
+                    double remainder = energyHandler.insertEnergy(storer.getEnergy(), Action.EXECUTE);
+                    double inserted = storer.getEnergy() - remainder;
+                    if (inserted > 0) {
+                        storer.setEnergy(storer.getEnergy() - inserted);
+                    }
+                    return;
+                }
+            }
+            if (MekanismUtils.useTesla() && stack.hasCapability(Capabilities.TESLA_CONSUMER_CAPABILITY, null)) {
                 ITeslaConsumer consumer = stack.getCapability(Capabilities.TESLA_CONSUMER_CAPABILITY, null);
                 long stored = TeslaIntegration.toTesla(storer.getEnergy());
                 storer.setEnergy(storer.getEnergy() - TeslaIntegration.fromTesla(consumer.givePower(stored, false)));
@@ -111,7 +138,7 @@ public final class ChargeUtils {
                 int toTransfer = RFIntegration.toRF(storer.getEnergy());
                 storer.setEnergy(storer.getEnergy() - RFIntegration.fromRF(item.receiveEnergy(stack, toTransfer, false)));
             } else if (MekanismUtils.useIC2() && isIC2Chargeable(stack)) {
-                double sent = IC2Integration.fromEU(ElectricItem.manager.charge(stack, IC2Integration.toEU(storer.getEnergy()), 4, true, false));
+                double sent = IC2Integration.fromEU(ElectricItem.manager.charge(stack, IC2Integration.toEU(storer.getEnergy()), IC2Integration.getItemOutputTier(stack), true, false));
                 storer.setEnergy(storer.getEnergy() - sent);
             }
         }
@@ -124,11 +151,18 @@ public final class ChargeUtils {
      * @return if the ItemStack can be discharged
      */
     public static boolean canBeDischarged(ItemStack itemstack) {
-        if (itemstack.getItem() instanceof IEnergizedItem item && item.getMaxEnergy(itemstack) > 0) {
-            if (item.canSend(itemstack)) {
-                if (item.getEnergy(itemstack) > 0) {
-                    return true;
-                }
+        return canBeDischargedEnergyContainer(itemstack) || RecipeHandler.Recipe.ENERGY_RECIPE.containsRecipe(itemstack);
+        // return itemstack.getItem() == Items.REDSTONE || itemstack.getItem() == Item.getItemFromBlock(Blocks.REDSTONE_BLOCK);
+    }
+
+    /**
+     * Whether or not a defined ItemStack is a real energy container that currently has energy to discharge.
+     */
+    public static boolean canBeDischargedEnergyContainer(ItemStack itemstack) {
+        if (itemstack.hasCapability(Capabilities.STRICT_ENERGY_CAPABILITY, null)) {
+            IStrictEnergyHandler energyHandler = itemstack.getCapability(Capabilities.STRICT_ENERGY_CAPABILITY, null);
+            if (energyHandler != null && energyHandler.extractEnergy(1, Action.SIMULATE) > 0) {
+                return true;
             }
         }
         if (MekanismUtils.useTesla()) {
@@ -155,12 +189,11 @@ public final class ChargeUtils {
             }
         }
         if (MekanismUtils.useIC2()) {
-            if (ElectricItem.manager.getMaxCharge(itemstack) > 0 && ElectricItem.manager.discharge(itemstack, 1, 0, true, true, true) > 0) {
+            if (ElectricItem.manager.getMaxCharge(itemstack) > 0 && ElectricItem.manager.discharge(itemstack, 1, IC2Integration.getConfiguredInputTier(), true, true, true) > 0) {
                 return true;
             }
         }
-        return RecipeHandler.Recipe.ENERGY_RECIPE.containsRecipe(itemstack);
-        // return itemstack.getItem() == Items.REDSTONE || itemstack.getItem() == Item.getItemFromBlock(Blocks.REDSTONE_BLOCK);
+        return false;
     }
 
     /**
@@ -170,11 +203,10 @@ public final class ChargeUtils {
      * @return if the ItemStack can be discharged
      */
     public static boolean canBeCharged(ItemStack itemstack) {
-        if (itemstack.getItem() instanceof IEnergizedItem energizedItem && energizedItem.getMaxEnergy(itemstack) > 0) {
-            if (energizedItem.canReceive(itemstack)) {
-                if (energizedItem.getMaxEnergy(itemstack) < energizedItem.getEnergy(itemstack)) {
-                    return true;
-                }
+        if (itemstack.hasCapability(Capabilities.STRICT_ENERGY_CAPABILITY, null)) {
+            IStrictEnergyHandler energyHandler = itemstack.getCapability(Capabilities.STRICT_ENERGY_CAPABILITY, null);
+            if (energyHandler != null && energyHandler.insertEnergy(1, Action.SIMULATE) == 0) {
+                return true;
             }
         }
         if (MekanismUtils.useTesla()) {
@@ -216,11 +248,11 @@ public final class ChargeUtils {
      * @return if the ItemStack can be outputted
      */
     public static boolean canBeOutputted(ItemStack itemstack, boolean chargeSlot) {
-        if (itemstack.getItem() instanceof IEnergizedItem energized) {
-            if (chargeSlot) {
-                return energized.getEnergy(itemstack) == energized.getMaxEnergy(itemstack);
+        if (itemstack.hasCapability(Capabilities.STRICT_ENERGY_CAPABILITY, null)) {
+            IStrictEnergyHandler energyHandler = itemstack.getCapability(Capabilities.STRICT_ENERGY_CAPABILITY, null);
+            if (energyHandler != null && energyHandler.getEnergyContainerCount() > 0) {
+                return chargeSlot ? energyHandler.insertEnergy(1, Action.SIMULATE) != 0 : energyHandler.extractEnergy(1, Action.SIMULATE) == 0;
             }
-            return energized.getEnergy(itemstack) == 0;
         }
         if (MekanismUtils.useTesla()) {
             if (chargeSlot && itemstack.hasCapability(Capabilities.TESLA_CONSUMER_CAPABILITY, null)) {
@@ -248,9 +280,9 @@ public final class ChargeUtils {
             IElectricItemManager manager = ElectricItem.manager;
             if (manager != null) {
                 if (chargeSlot) {
-                    return manager.charge(itemstack, 1, 3, true, true) == 0;
+                    return manager.charge(itemstack, 1, IC2Integration.getItemOutputTier(itemstack), true, true) == 0;
                 }
-                return manager.discharge(itemstack, 1, 3, true, true, true) == 0;
+                return manager.discharge(itemstack, 1, IC2Integration.getConfiguredInputTier(), true, true, true) == 0;
             }
         }
         return true;

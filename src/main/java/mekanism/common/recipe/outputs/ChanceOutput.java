@@ -1,9 +1,10 @@
 package mekanism.common.recipe.outputs;
 
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
+import mekanism.api.inventory.IInventorySlot;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.NonNullList;
-import net.minecraftforge.items.ItemHandlerHelper;
 
 import java.util.Random;
 
@@ -49,32 +50,37 @@ public class ChanceOutput extends MachineOutput<ChanceOutput> {
         return !secondaryOutput.isEmpty();
     }
 
-    public boolean applyOutputs(NonNullList<ItemStack> inventory, int primaryIndex, int secondaryIndex, boolean doEmit) {
+    public ItemStack getMainOutput() {
+        return primaryOutput.copy();
+    }
+
+    public ItemStack getMaxSecondaryOutput() {
+        return secondaryChance > 0 && hasSecondary() ? secondaryOutput.copy() : ItemStack.EMPTY;
+    }
+
+    public ItemStack getSecondaryOutput() {
+        return secondaryChance > 0 && checkSecondary() ? secondaryOutput.copy() : ItemStack.EMPTY;
+    }
+
+    public ItemStack nextSecondaryOutput() {
+        return getSecondaryOutput();
+    }
+
+    public boolean applyOutputs(IInventorySlot primarySlot, IInventorySlot secondarySlot, boolean doEmit) {
         if (hasPrimary()) {
-            if (applyOutputs(inventory, primaryIndex, doEmit, primaryOutput)) {
+            if (applyOutputs(primarySlot, doEmit, primaryOutput)) {
                 return false;
             }
         }
-        if (hasSecondary() && (!doEmit || checkSecondary())) {
-            return !applyOutputs(inventory, secondaryIndex, doEmit, secondaryOutput);
+        ItemStack secondary = doEmit ? getSecondaryOutput() : getMaxSecondaryOutput();
+        if (!secondary.isEmpty()) {
+            return !applyOutputs(secondarySlot, doEmit, secondary);
         }
         return true;
     }
 
-    private boolean applyOutputs(NonNullList<ItemStack> inventory, int index, boolean doEmit, ItemStack output) {
-        ItemStack stack = inventory.get(index);
-        if (stack.isEmpty()) {
-            if (doEmit) {
-                inventory.set(index, output.copy());
-            }
-            return false;
-        } else if (ItemHandlerHelper.canItemStacksStack(stack, output) && stack.getCount() + output.getCount() <= stack.getMaxStackSize()) {
-            if (doEmit) {
-                stack.grow(output.getCount());
-            }
-            return false;
-        }
-        return true;
+    private boolean applyOutputs(IInventorySlot slot, boolean doEmit, ItemStack output) {
+        return !slot.insertItem(output, doEmit ? Action.EXECUTE : Action.SIMULATE, AutomationType.INTERNAL).isEmpty();
     }
 
     @Override

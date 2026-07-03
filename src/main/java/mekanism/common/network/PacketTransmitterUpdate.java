@@ -75,7 +75,7 @@ public class PacketTransmitterUpdate implements IMessageHandler<TransmitterUpdat
                         if (message.gasType != null) {
                             net.refGas = message.gasType;
                         }
-                        net.buffer = message.gasStack;
+                        net.setBuffer(message.gasStack);
                         net.didTransfer = message.didGasTransfer;
                     }
                 } else if (message.packetType == PacketType.FLUID) {
@@ -84,7 +84,7 @@ public class PacketTransmitterUpdate implements IMessageHandler<TransmitterUpdat
                         if (message.fluidType != null) {
                             net.refFluid = message.fluidType;
                         }
-                        net.buffer = message.fluidStack;
+                        net.setBuffer(message.fluidStack);
                         net.didTransfer = message.didFluidTransfer;
                     }
                 }

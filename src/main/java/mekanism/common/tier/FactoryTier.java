@@ -8,8 +8,7 @@ public enum FactoryTier implements ITier {
     BASIC(3),
     ADVANCED(5),
     ELITE(7),
-    ULTIMATE(9),
-    CREATIVE(11);
+    ULTIMATE(9);
 
     public final int processes;
     private final BaseTier baseTier;
@@ -36,9 +35,6 @@ public enum FactoryTier implements ITier {
         }
         if (MachineType.ULTIMATE_FACTORY.isEnabled()) {
             consumer.accept(FactoryTier.ULTIMATE);
-        }
-        if (MachineType.CREATIVE_FACTORY.isEnabled()) {
-            consumer.accept(FactoryTier.CREATIVE);
         }
     }
 }

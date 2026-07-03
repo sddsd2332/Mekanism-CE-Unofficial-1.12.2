@@ -1,8 +1,9 @@
 package mekanism.api.gear.config;
 
-import java.util.Objects;
 import mekanism.api.annotations.NothingNullByDefault;
 import net.minecraft.nbt.NBTTagCompound;
+
+import java.util.Objects;
 
 /**
  * Integer implementation of {@link ModuleConfigData}.

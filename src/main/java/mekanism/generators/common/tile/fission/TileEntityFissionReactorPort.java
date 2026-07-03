@@ -1,19 +1,17 @@
 package mekanism.generators.common.tile.fission;
 
 import io.netty.buffer.ByteBuf;
-import mekanism.api.EnumColor;
-import mekanism.api.IConfigurable;
-import mekanism.api.TileNetworkList;
-import mekanism.api.gas.Gas;
+import mekanism.api.*;
+import mekanism.api.fluid.IExtendedFluidTank;
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTankInfo;
-import mekanism.api.gas.IGasHandler;
+import mekanism.api.gas.IExtendedGasTank;
 import mekanism.common.Mekanism;
-import mekanism.common.MekanismFluids;
-import mekanism.common.base.FluidHandlerWrapper;
 import mekanism.common.base.IActiveState;
-import mekanism.common.base.IFluidHandlerWrapper;
 import mekanism.common.capabilities.Capabilities;
+import mekanism.common.capabilities.holder.fluid.IFluidTankHolder;
+import mekanism.common.capabilities.holder.fluid.ProxiedFluidTankHolder;
+import mekanism.common.capabilities.holder.gas.IGasTankHolder;
+import mekanism.common.capabilities.holder.gas.ProxiedGasTankHolder;
 import mekanism.common.util.*;
 import mekanism.generators.common.block.states.BlockStateGenerator.FissionPortModeProperty;
 import net.minecraft.entity.player.EntityPlayer;
@@ -22,23 +20,64 @@ import net.minecraft.util.EnumActionResult;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.fluids.FluidRegistry;
 import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.FluidTankInfo;
 import net.minecraftforge.fluids.capability.CapabilityFluidHandler;
 import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.List;
 
-public class TileEntityFissionReactorPort extends TileEntityFissionReactorCasing implements IGasHandler, IFluidHandlerWrapper, IConfigurable, IActiveState {
+public class TileEntityFissionReactorPort extends TileEntityFissionReactorCasing implements IConfigurable, IActiveState {
 
     private PortMode mode = PortMode.INPUT;
 
     public TileEntityFissionReactorPort() {
         super("FissionReactorPort");
+        initializeInventorySlots();
+    }
+
+    @Override
+    protected IFluidTankHolder getInitialFluidTanks(IContentsListener listener) {
+        return ProxiedFluidTankHolder.create(
+              side -> structure != null && mode == PortMode.INPUT && structure.gasCoolantTank.getStored() == 0,
+              side -> structure != null && mode == PortMode.OUTPUT_COOLANT,
+              this::getFissionFluidTanks
+        );
+    }
+
+    @Override
+    protected IGasTankHolder getInitialGasTanks(IContentsListener listener) {
+        return ProxiedGasTankHolder.create(
+              side -> structure != null && mode == PortMode.INPUT,
+              side -> structure != null && mode != PortMode.INPUT,
+              this::getFissionGasTanks
+        );
+    }
+
+    private List<IExtendedFluidTank> getFissionFluidTanks(EnumFacing side) {
+        if (structure == null) {
+            return Collections.emptyList();
+        }
+        return switch (mode) {
+            case INPUT -> Collections.singletonList(structure.coolantTank);
+            case OUTPUT_COOLANT -> Collections.singletonList(structure.steamTank);
+            case OUTPUT_WASTE -> Collections.emptyList();
+        };
+    }
+
+    private List<IExtendedGasTank> getFissionGasTanks(EnumFacing side) {
+        if (structure == null) {
+            return Collections.emptyList();
+        }
+        return switch (mode) {
+            case INPUT -> Arrays.asList(structure.fuelTank, structure.gasCoolantTank);
+            case OUTPUT_COOLANT -> Collections.singletonList(structure.heatedCoolantTank);
+            case OUTPUT_WASTE -> Collections.singletonList(structure.wasteTank);
+        };
     }
 
     @Override
@@ -52,7 +91,7 @@ public class TileEntityFissionReactorPort extends TileEntityFissionReactorCasing
             GasStack toSend = structure.wasteTank.getGas().copy();
             int sent = GasUtils.emit(toSend, this, EnumSet.allOf(EnumFacing.class));
             if (sent > 0) {
-                structure.wasteTank.draw(sent, true);
+                structure.wasteTank.extract(sent, Action.EXECUTE, AutomationType.INTERNAL);
             }
         }
 
@@ -75,7 +114,7 @@ public class TileEntityFissionReactorPort extends TileEntityFissionReactorCasing
             GasStack toSend = structure.heatedCoolantTank.getGas().copy();
             int sent = GasUtils.emit(toSend, this, EnumSet.allOf(EnumFacing.class));
             if (sent > 0) {
-                structure.heatedCoolantTank.draw(sent, true);
+                structure.heatedCoolantTank.extract(sent, Action.EXECUTE, AutomationType.INTERNAL);
             }
         }
     }
@@ -112,142 +151,8 @@ public class TileEntityFissionReactorPort extends TileEntityFissionReactorCasing
     }
 
     @Override
-    public int receiveGas(EnumFacing side, GasStack stack, boolean doTransfer) {
-        if (stack == null || stack.getGas() == null || !canReceiveGas(side, stack.getGas()) || structure == null) {
-            return 0;
-        }
-        if (stack.getGas() == MekanismFluids.FissileFuel) {
-            return structure.fuelTank.receive(stack, doTransfer);
-        } else if (stack.getGas() == MekanismFluids.Sodium) {
-            return structure.gasCoolantTank.receive(stack, doTransfer);
-        }
-        return 0;
-    }
-
-    @Override
-    public GasStack drawGas(EnumFacing side, int amount, boolean doTransfer) {
-        if (structure == null || !canDrawGas(side, null)) {
-            return null;
-        }
-        if (mode == PortMode.OUTPUT_WASTE) {
-            return structure.wasteTank.draw(amount, doTransfer);
-        }
-        return structure.heatedCoolantTank.draw(amount, doTransfer);
-    }
-
-    @Override
-    public boolean canReceiveGas(EnumFacing side, Gas type) {
-        if (structure == null || mode != PortMode.INPUT) {
-            return false;
-        }
-        if (type == null) {
-            return structure.fuelTank.getNeeded() > 0 || (structure.coolantTank.getFluidAmount() == 0 && structure.gasCoolantTank.getNeeded() > 0);
-        }
-        if (type == MekanismFluids.FissileFuel) {
-            return structure.fuelTank.canReceive(type);
-        } else if (type == MekanismFluids.Sodium) {
-            return structure.coolantTank.getFluidAmount() == 0 && structure.gasCoolantTank.canReceive(type);
-        }
-        return false;
-    }
-
-    @Override
-    public boolean canDrawGas(EnumFacing side, Gas type) {
-        if (structure == null) {
-            return false;
-        }
-        if (mode == PortMode.OUTPUT_WASTE) {
-            return structure.wasteTank.canDraw(type);
-        } else if (mode == PortMode.OUTPUT_COOLANT) {
-            return structure.heatedCoolantTank.canDraw(type);
-        }
-        return false;
-    }
-
-    @Nonnull
-    @Override
-    public GasTankInfo[] getTankInfo() {
-        if (structure == null) {
-            return IGasHandler.NONE;
-        }
-        return switch (mode) {
-            case INPUT -> new GasTankInfo[]{structure.fuelTank, structure.gasCoolantTank};
-            case OUTPUT_COOLANT -> new GasTankInfo[]{structure.heatedCoolantTank};
-            case OUTPUT_WASTE -> new GasTankInfo[]{structure.wasteTank};
-        };
-    }
-
-    @Override
-    public int fill(EnumFacing from, @Nonnull FluidStack resource, boolean doFill) {
-        if (structure == null || mode != PortMode.INPUT) {
-            return 0;
-        }
-        if (resource.getFluid() == FluidRegistry.WATER) {
-            if (structure.gasCoolantTank.getStored() > 0) {
-                return 0;
-            }
-            return structure.coolantTank.fill(resource, doFill);
-        }
-        if (resource.getFluid() == FluidRegistry.getFluid("liquidsodium")) {
-            if (structure.coolantTank.getFluidAmount() > 0) {
-                return 0;
-            }
-            return structure.gasCoolantTank.receive(new GasStack(MekanismFluids.Sodium, resource.amount), doFill);
-        }
-        return 0;
-    }
-
-    @Nullable
-    @Override
-    public FluidStack drain(EnumFacing from, int maxDrain, boolean doDrain) {
-        if (structure == null || mode != PortMode.OUTPUT_COOLANT) {
-            return null;
-        }
-        return structure.steamTank.drain(maxDrain, doDrain);
-    }
-
-    @Override
-    public boolean canFill(EnumFacing from, @Nonnull FluidStack fluid) {
-        if (structure == null || mode != PortMode.INPUT) {
-            return false;
-        }
-        if (fluid.getFluid() == FluidRegistry.WATER) {
-            return structure.gasCoolantTank.getStored() == 0;
-        }
-        if (fluid.getFluid() == FluidRegistry.getFluid("liquidsodium")) {
-            return structure.coolantTank.getFluidAmount() == 0;
-        }
-        return false;
-    }
-
-    @Override
-    public boolean canDrain(EnumFacing from, @Nullable FluidStack fluid) {
-        return structure != null && mode == PortMode.OUTPUT_COOLANT && (fluid == null || FluidContainerUtils.canDrain(structure.steamTank.getFluid(), fluid));
-    }
-
-    @Override
-    public FluidTankInfo[] getTankInfo(EnumFacing from) {
-        if (structure == null) {
-            return PipeUtils.EMPTY;
-        }
-        return switch (mode) {
-            case INPUT -> new FluidTankInfo[]{structure.coolantTank.getInfo()};
-            case OUTPUT_COOLANT -> new FluidTankInfo[]{structure.steamTank.getInfo()};
-            case OUTPUT_WASTE -> PipeUtils.EMPTY;
-        };
-    }
-
-    @Override
-    public FluidTankInfo[] getAllTanks() {
-        return getTankInfo(null);
-    }
-
-    @Override
     public boolean hasCapability(@Nonnull Capability<?> capability, EnumFacing side) {
-        if (capability == Capabilities.GAS_HANDLER_CAPABILITY || capability == Capabilities.CONFIGURABLE_CAPABILITY) {
-            return true;
-        }
-        if (capability == CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY && (structure != null || clientHasStructure)) {
+        if (capability == Capabilities.CONFIGURABLE_CAPABILITY) {
             return true;
         }
         return super.hasCapability(capability, side);
@@ -255,11 +160,8 @@ public class TileEntityFissionReactorPort extends TileEntityFissionReactorCasing
 
     @Override
     public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing side) {
-        if (capability == Capabilities.GAS_HANDLER_CAPABILITY || capability == Capabilities.CONFIGURABLE_CAPABILITY) {
+        if (capability == Capabilities.CONFIGURABLE_CAPABILITY) {
             return (T) this;
-        }
-        if (capability == CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY && (structure != null || clientHasStructure)) {
-            return CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY.cast(new FluidHandlerWrapper(this, side));
         }
         return super.getCapability(capability, side);
     }

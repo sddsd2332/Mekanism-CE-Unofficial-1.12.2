@@ -3,19 +3,14 @@ package mekanism.common.network;
 import io.netty.buffer.ByteBuf;
 import mekanism.api.Coord4D;
 import mekanism.api.TileNetworkList;
-import mekanism.client.gui.GuiDigitalMiner;
-import mekanism.client.gui.GuiDigitalMinerConfig;
-import mekanism.client.gui.filter.*;
 import mekanism.common.Mekanism;
 import mekanism.common.PacketHandler;
 import mekanism.common.inventory.container.ContainerDigitalMiner;
-import mekanism.common.inventory.container.ContainerFilter;
-import mekanism.common.inventory.container.ContainerNull;
+import mekanism.common.inventory.container.ContainerDigitalMinerConfig;
 import mekanism.common.network.PacketDataRequest.DataRequestMessage;
 import mekanism.common.network.PacketDigitalMinerGui.DigitalMinerGuiMessage;
 import mekanism.common.network.PacketTileEntity.TileEntityMessage;
 import mekanism.common.tile.machine.TileEntityDigitalMiner;
-import mekanism.common.tile.prefab.TileEntityContainerBlock;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.entity.player.EntityPlayer;
@@ -109,16 +104,8 @@ public class PacketDigitalMinerGui implements IMessageHandler<DigitalMinerGuiMes
         public static void openServerGui(MinerGuiPacket t, int guiType, World world, EntityPlayerMP playerMP, Coord4D obj, int i) {
             Container container;
             playerMP.closeContainer();
-            container = switch (guiType) {
-                case 0, 5 -> new ContainerNull(playerMP, (TileEntityContainerBlock) obj.getTileEntity(world));
-                case 4 -> new ContainerDigitalMiner(playerMP.inventory,
-                        (TileEntityDigitalMiner) obj.getTileEntity(world));
-                //				case 1:
-//				case 2:
-//				case 3:
-//				case 6:
-                default -> new ContainerFilter(playerMP.inventory, (TileEntityContainerBlock) obj.getTileEntity(world));
-            };
+            TileEntityDigitalMiner tile = (TileEntityDigitalMiner) obj.getTileEntity(world);
+            container = guiType == 4 ? new ContainerDigitalMiner(playerMP.inventory, tile) : new ContainerDigitalMinerConfig(playerMP.inventory, tile);
 
             playerMP.getNextWindowId();
             int window = playerMP.currentWindowId;
@@ -131,7 +118,6 @@ public class PacketDigitalMinerGui implements IMessageHandler<DigitalMinerGuiMes
             playerMP.openContainer.windowId = window;
             playerMP.openContainer.addListener(playerMP);
             if (guiType == 0) {
-                TileEntityDigitalMiner tile = (TileEntityDigitalMiner) obj.getTileEntity(world);
                 tile.playersUsing.forEach(player -> Mekanism.packetHandler.sendTo(new TileEntityMessage(obj, tile.getFilterPacket(new TileNetworkList())), (EntityPlayerMP) player));
             }
         }
@@ -139,33 +125,9 @@ public class PacketDigitalMinerGui implements IMessageHandler<DigitalMinerGuiMes
         @SideOnly(Side.CLIENT)
         public static GuiScreen getGui(MinerGuiPacket packetType, int type, EntityPlayer player, World world, BlockPos pos, int index) {
             if (type == 0) {
-                return new GuiDigitalMinerConfig(player, (TileEntityDigitalMiner) world.getTileEntity(pos));
+                return new mekanism.client.gui.machine.GuiDigitalMinerConfig(player, (TileEntityDigitalMiner) world.getTileEntity(pos));
             } else if (type == 4) {
-                return new GuiDigitalMiner(player.inventory, (TileEntityDigitalMiner) world.getTileEntity(pos));
-            } else if (type == 5) {
-                return new GuiMFilterSelect(player, (TileEntityDigitalMiner) world.getTileEntity(pos));
-            } else {
-                if (packetType == MinerGuiPacket.CLIENT) {
-                    if (type == 1) {
-                        return new GuiMItemStackFilter(player, (TileEntityDigitalMiner) world.getTileEntity(pos));
-                    } else if (type == 2) {
-                        return new GuiMOreDictFilter(player, (TileEntityDigitalMiner) world.getTileEntity(pos));
-                    } else if (type == 3) {
-                        return new GuiMMaterialFilter(player, (TileEntityDigitalMiner) world.getTileEntity(pos));
-                    } else if (type == 6) {
-                        return new GuiMModIDFilter(player, (TileEntityDigitalMiner) world.getTileEntity(pos));
-                    }
-                } else if (packetType == MinerGuiPacket.CLIENT_INDEX) {
-                    if (type == 1) {
-                        return new GuiMItemStackFilter(player, (TileEntityDigitalMiner) world.getTileEntity(pos), index);
-                    } else if (type == 2) {
-                        return new GuiMOreDictFilter(player, (TileEntityDigitalMiner) world.getTileEntity(pos), index);
-                    } else if (type == 3) {
-                        return new GuiMMaterialFilter(player, (TileEntityDigitalMiner) world.getTileEntity(pos), index);
-                    } else if (type == 6) {
-                        return new GuiMModIDFilter(player, (TileEntityDigitalMiner) world.getTileEntity(pos), index);
-                    }
-                }
+                return new mekanism.client.gui.machine.GuiDigitalMiner(player.inventory, (TileEntityDigitalMiner) world.getTileEntity(pos));
             }
             return null;
         }

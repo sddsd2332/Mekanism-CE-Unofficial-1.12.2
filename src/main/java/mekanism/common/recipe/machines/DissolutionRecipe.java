@@ -1,13 +1,16 @@
 package mekanism.common.recipe.machines;
 
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTank;
+import mekanism.api.gas.IExtendedGasTank;
+import mekanism.api.inventory.IInventorySlot;
+import mekanism.common.MekanismFluids;
+import mekanism.common.recipe.cache.IConstantGasRecipe;
 import mekanism.common.recipe.inputs.ItemStackInput;
+import mekanism.common.recipe.inputs.MachineInput;
 import mekanism.common.recipe.outputs.GasOutput;
 import net.minecraft.item.ItemStack;
-import net.minecraft.util.NonNullList;
 
-public class DissolutionRecipe extends MachineRecipe<ItemStackInput, GasOutput, DissolutionRecipe> {
+public class DissolutionRecipe extends MachineRecipe<ItemStackInput, GasOutput, DissolutionRecipe> implements IConstantGasRecipe<GasStack> {
 
     public DissolutionRecipe(ItemStackInput input, GasOutput output) {
         super(input, output);
@@ -17,18 +20,33 @@ public class DissolutionRecipe extends MachineRecipe<ItemStackInput, GasOutput, 
         this(new ItemStackInput(input), new GasOutput(output));
     }
 
-    public boolean canOperate(NonNullList<ItemStack> inventory, int inputIndex, GasTank outputTank) {
-        return getInput().useItemStackFromInventory(inventory, inputIndex, false) && getOutput().applyOutputs(outputTank, false, 1);
+    @Override
+    public ItemStack getItemInput() {
+        return getInput().ingredient;
     }
 
-    public void operate(NonNullList<ItemStack> inventory, int inputIndex, GasTank outputTank) {
-        operate(inventory,inputIndex,outputTank,true);
+    @Override
+    public GasStack getGasInput() {
+        return new GasStack(MekanismFluids.SulfuricAcid, 1);
     }
 
-    public void operate(NonNullList<ItemStack> inventory, int inputIndex, GasTank outputTank,boolean deplete) {
-        if (getInput().useItemStackFromInventory(inventory, inputIndex, deplete)) {
-            getOutput().applyOutputs(outputTank, true, 1);
-        }
+    @Override
+    public boolean test(ItemStack itemInput, GasStack gasInput) {
+        return MachineInput.inputContains(itemInput, getInput().ingredient) && gasInput != null && gasInput.getGas() == MekanismFluids.SulfuricAcid;
+    }
+
+    @Override
+    public GasStack getOutput(ItemStack itemInput, GasStack gasInput) {
+        return getOutput().output.copy();
+    }
+
+    @Override
+    public boolean isOutputEmpty(GasStack output) {
+        return output == null || output.amount <= 0;
+    }
+
+    public boolean canOperate(IInventorySlot inputSlot, IExtendedGasTank outputTank) {
+        return getInput().useItemStackFromSlot(inputSlot, false) && getOutput().applyOutputs(outputTank, false, 1);
     }
 
     @Override

@@ -2,6 +2,7 @@ package mekanism.common.content.gear.mekasuit;
 
 import mekanism.api.annotations.NothingNullByDefault;
 import mekanism.api.annotations.ParametersAreNotNullByDefault;
+import mekanism.api.gas.GasStack;
 import mekanism.api.gear.ICustomModule;
 import mekanism.api.gear.IHUDElement;
 import mekanism.api.gear.IModule;
@@ -10,10 +11,11 @@ import mekanism.api.gear.config.ModuleConfigItemCreator;
 import mekanism.api.gear.config.ModuleEnumData;
 import mekanism.api.text.IHasTextComponent;
 import mekanism.api.text.TextComponentGroup;
+import mekanism.common.MekanismFluids;
 import mekanism.common.MekanismLang;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.content.gear.ModuleHelper;
-import mekanism.common.item.armor.ItemMekaSuitBodyArmor;
+import mekanism.common.item.armor.ItemMekaSuitArmor;
 import mekanism.common.item.interfaces.IJetpackItem.JetpackMode;
 import mekanism.common.util.StorageUtils;
 import net.minecraft.entity.player.EntityPlayer;
@@ -40,10 +42,10 @@ public class ModuleJetpackUnit implements ICustomModule<ModuleJetpackUnit> {
     public void addHUDElements(IModule<ModuleJetpackUnit> module, EntityPlayer player, Consumer<IHUDElement> hudElementAdder) {
         if (module.isEnabled()) {
             ItemStack container = module.getContainer();
-            if (container.getItem() instanceof ItemMekaSuitBodyArmor armour) {
-                double ratio = StorageUtils.getRatio(armour.getStored(container), MekanismConfig.current().meka.mekaSuitJetpackMaxStorage.val() * module.getInstalledCount());
-                hudElementAdder.accept(ModuleHelper.get().hudElementPercent(jetpackMode.get().getHUDIcon(), ratio));
-            }
+            GasStack stored = ((ItemMekaSuitArmor) container.getItem()).getContainedGas(container, MekanismFluids.Hydrogen);
+            int amount = stored != null && stored.getGas() == MekanismFluids.Hydrogen ? stored.amount : 0;
+            double ratio = StorageUtils.getRatio(amount, MekanismConfig.current().meka.mekaSuitJetpackMaxStorage.val() * module.getInstalledCount());
+            hudElementAdder.accept(ModuleHelper.get().hudElementPercent(jetpackMode.get().getHUDIcon(), ratio));
         }
     }
 

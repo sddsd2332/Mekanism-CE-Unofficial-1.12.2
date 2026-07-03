@@ -1,36 +1,31 @@
 package mekanism.client.gui.element.gauge;
 
-import mekanism.api.math.MathUtils;
 import mekanism.api.transmitters.TransmissionType;
 import mekanism.client.gui.IGuiWrapper;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
-import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
 
-@SideOnly(Side.CLIENT)
+import javax.annotation.Nullable;
+import java.util.Collections;
+import java.util.List;
+
 public class GuiNumberGauge extends GuiGauge<Void> {
 
     private final INumberInfoHandler infoHandler;
 
-    public GuiNumberGauge(INumberInfoHandler handler, Type type, IGuiWrapper gui, ResourceLocation def, int x, int y) {
-        super(type, gui, def, x, y);
-        infoHandler = handler;
+    public GuiNumberGauge(INumberInfoHandler infoHandler, GaugeType type, IGuiWrapper gui, int x, int y) {
+        super(type, gui, x, y);
+        this.infoHandler = infoHandler;
     }
 
     @Override
+    @Nullable
     public TransmissionType getTransmission() {
         return null;
     }
 
     @Override
     public int getScaledLevel() {
-        double scale = Math.max(Math.min(infoHandler.getLevel() / infoHandler.getMaxLevel(), 1.0D), 0.0D);
-        if (vertical) {
-            return MathUtils.clampToInt(Math.round(scale * (height - 2)));
-        } else {
-            return MathUtils.clampToInt(Math.round(scale * (width - 2)));
-        }
+        return (int) ((height - 2) * infoHandler.getScaledLevel());
     }
 
     @Override
@@ -38,11 +33,16 @@ public class GuiNumberGauge extends GuiGauge<Void> {
         return infoHandler.getIcon();
     }
 
+    @Nullable
     @Override
-    public String getTooltipText() {
-        return infoHandler.getText(infoHandler.getLevel());
+    public net.minecraft.util.text.ITextComponent getLabel() {
+        return null;
     }
 
+    @Override
+    public List<String> getTooltipText() {
+        return Collections.singletonList(infoHandler.getText());
+    }
 
     public interface INumberInfoHandler {
 
@@ -50,8 +50,8 @@ public class GuiNumberGauge extends GuiGauge<Void> {
 
         double getLevel();
 
-        double getMaxLevel();
+        double getScaledLevel();
 
-        String getText(double level);
+        String getText();
     }
 }

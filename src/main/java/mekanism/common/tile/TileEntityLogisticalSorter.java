@@ -1,24 +1,36 @@
 package mekanism.common.tile;
 
 import io.netty.buffer.ByteBuf;
-import mekanism.api.Coord4D;
-import mekanism.api.EnumColor;
+import mekanism.api.*;
 import mekanism.api.IConfigCardAccess.ISpecialConfigData;
-import mekanism.api.TileNetworkList;
-import mekanism.common.HashList;
 import mekanism.common.Mekanism;
 import mekanism.common.Upgrade;
 import mekanism.common.base.*;
 import mekanism.common.block.states.BlockStateMachine;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.capabilities.Capabilities;
-import mekanism.common.content.transporter.*;
-import mekanism.common.content.transporter.TransitRequest.TransitResponse;
+import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
+import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
+import mekanism.common.content.filter.SortableFilterManager;
+import mekanism.common.content.transporter.TItemStackFilter;
+import mekanism.common.content.transporter.TOreDictFilter;
+import mekanism.common.content.transporter.TransporterFilter;
 import mekanism.common.integration.computer.IComputerIntegration;
+import mekanism.common.inventory.container.MekanismContainer;
+import mekanism.common.inventory.container.sync.SyncableBoolean;
+import mekanism.common.inventory.container.sync.SyncableInt;
+import mekanism.common.inventory.slot.InternalInventorySlot;
+import mekanism.common.lib.SidedBlockPos;
+import mekanism.common.lib.inventory.Finder;
+import mekanism.common.lib.inventory.IAdvancedTransportEjector;
+import mekanism.common.lib.inventory.TransitRequest;
+import mekanism.common.lib.inventory.TransitRequest.TransitResponse;
 import mekanism.common.network.PacketTileEntity.TileEntityMessage;
+import mekanism.common.network.to_client.container.property.FilterListPropertyData.FilterListType;
 import mekanism.common.security.ISecurityTile;
 import mekanism.common.tile.component.TileComponentSecurity;
 import mekanism.common.tile.component.TileComponentUpgrade;
+import mekanism.common.tile.interfaces.ITileFilterHolder;
 import mekanism.common.tile.prefab.TileEntityEffectsBlock;
 import mekanism.common.util.*;
 import net.minecraft.block.Block;
@@ -27,7 +39,6 @@ import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.nbt.NBTTagList;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraftforge.common.capabilities.Capability;
@@ -36,18 +47,20 @@ import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.items.CapabilityItemHandler;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Iterator;
 
 public class TileEntityLogisticalSorter extends TileEntityEffectsBlock implements IRedstoneControl, ISpecialConfigData, ISustainedData, ISecurityTile,
-        IComputerIntegration, IUpgradeTile, IComparatorSupport {
+        IComputerIntegration, IUpgradeTile, IComparatorSupport, IAdvancedTransportEjector, ITileFilterHolder<TransporterFilter> {
 
-    public HashList<TransporterFilter> filters = new HashList<>();
+    private final SortableFilterManager<TransporterFilter> filterManager = new SortableFilterManager<>(TransporterFilter.class, this::onFilterManagerChanged);
     public RedstoneControl controlType = RedstoneControl.DISABLED;
     public EnumColor color;
     public boolean autoEject;
     public boolean roundRobin;
     public boolean singleItem;
-    public int rrIndex = 0;
+    @Nullable
+    private SidedBlockPos rrTarget;
     public int delayTicks;
     public TileComponentUpgrade upgradeComponent;
     public TileComponentSecurity securityComponent = new TileComponentSecurity(this);
@@ -56,11 +69,18 @@ public class TileEntityLogisticalSorter extends TileEntityEffectsBlock implement
 
     public TileEntityLogisticalSorter() {
         super("machine.logisticalsorter", "LogisticalSorter", MachineType.LOGISTICAL_SORTER.getStorage(), 3);
-        inventory = NonNullListSynchronized.withSize(2, ItemStack.EMPTY);
+        initializeInventorySlots();
         doAutoSync = false;
-        upgradeComponent = new TileComponentUpgrade(this, 1);
+        upgradeComponent = new TileComponentUpgrade(this);
         upgradeComponent.clearSupportedTypes();
         upgradeComponent.setSupported(Upgrade.MUFFLING);
+    }
+
+    @Override
+    protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
+        InventorySlotHelper builder = createInventorySlotHelper();
+        builder.addSlot(InternalInventorySlot.create(listener), RelativeSide.FRONT);
+        return builder.build();
     }
 
     @Override
@@ -77,41 +97,30 @@ public class TileEntityLogisticalSorter extends TileEntityEffectsBlock implement
             //If there is no tile to pull from or the push to, skip doing any checks
             if (InventoryUtils.isItemHandler(back, facing) && front != null) {
                 boolean sentItems = false;
-                int min = 0;
 
                 outer:
-                for (TransporterFilter filter : filters) {
-                    for (StackSearcher search = new StackSearcher(back, facing.getOpposite()); search.getSlotCount() >= 0; ) {
-                        InvStack invStack = filter.getStackFromInventory(search, singleItem);
-                        if (invStack == null) {
-                            break;
-                        }
-                        ItemStack itemStack = invStack.getStack();
-                        if (filter.canFilter(itemStack, !singleItem)) {
-                            if (!singleItem && filter instanceof TItemStackFilter itemFilter) {
-                                if (itemFilter.sizeMode) {
-                                    min = itemFilter.min;
-                                }
-                            }
+                for (TransporterFilter filter : filterManager.getEnabledFilters()) {
+                    TransitRequest request = filter.mapInventory(back, facing, singleItem);
+                    if (request.isEmpty()) {
+                        continue;
+                    }
+                    int min = !singleItem && filter instanceof TItemStackFilter itemFilter && itemFilter.sizeMode ? itemFilter.min : 0;
 
-                            TransitRequest request = TransitRequest.getFromStack(itemStack);
-                            TransitResponse response = emitItemToTransporter(front, request, filter.color, min);
-                            if (!response.isEmpty()) {
-                                invStack.use(response.getSendingAmount());
-                                back.markDirty();
-                                setActive(true);
-                                sentItems = true;
-                                break outer;
-                            }
-                        }
+                    TransitResponse response = emitItemToTransporter(front, request, filter.color, min);
+                    if (!response.isEmpty()) {
+                        response.useAll();
+                        back.markDirty();
+                        setActive(true);
+                        sentItems = true;
+                        break outer;
                     }
                 }
 
                 if (!sentItems && autoEject) {
-                    TransitRequest request = TransitRequest.buildInventoryMap(back, facing.getOpposite(), singleItem ? 1 : 64, new StrictFilterFinder());
+                    TransitRequest request = TransitRequest.definedItem(back, facing, singleItem ? 1 : 64, new StrictFilterFinder());
                     TransitResponse response = emitItemToTransporter(front, request, color, 0);
                     if (!response.isEmpty()) {
-                        response.getInvStack(back, facing).use(response.getSendingAmount());
+                        response.useAll();
                         back.markDirty();
                         setActive(true);
                     }
@@ -139,10 +148,7 @@ public class TileEntityLogisticalSorter extends TileEntityEffectsBlock implement
     public TransitResponse emitItemToTransporter(TileEntity front, TransitRequest request, EnumColor filterColor, int min) {
         if (CapabilityUtils.hasCapability(front, Capabilities.LOGISTICAL_TRANSPORTER_CAPABILITY, facing.getOpposite())) {
             ILogisticalTransporter transporter = CapabilityUtils.getCapability(front, Capabilities.LOGISTICAL_TRANSPORTER_CAPABILITY, facing.getOpposite());
-            if (roundRobin) {
-                return TransporterUtils.insertRR(this, transporter, request, filterColor, true, min);
-            }
-            return TransporterUtils.insert(this, transporter, request, filterColor, true, min);
+            return TransporterUtils.insertMaybeRR(this, this, transporter, request, filterColor, true, min);
         }
         return InventoryUtils.putStackInInventory(front, request, facing, false);
     }
@@ -161,17 +167,12 @@ public class TileEntityLogisticalSorter extends TileEntityEffectsBlock implement
         nbtTags.setBoolean("roundRobin", roundRobin);
         nbtTags.setBoolean("singleItem", singleItem);
 
-        nbtTags.setInteger("rrIndex", rrIndex);
-
-        NBTTagList filterTags = new NBTTagList();
-        filters.forEach(filter -> {
-            NBTTagCompound tagCompound = new NBTTagCompound();
-            filter.write(tagCompound);
-            filterTags.appendTag(tagCompound);
-        });
-        if (filterTags.tagCount() != 0) {
-            nbtTags.setTag("filters", filterTags);
+        SidedBlockPos rrTarget = getRoundRobinTarget();
+        if (rrTarget != null) {
+            nbtTags.setTag(NBTConstants.ROUND_ROBIN_TARGET, rrTarget.serialize());
         }
+
+        filterManager.writeToNBT(nbtTags, TransporterFilter::write);
     }
 
     @Override
@@ -186,18 +187,12 @@ public class TileEntityLogisticalSorter extends TileEntityEffectsBlock implement
         roundRobin = nbtTags.getBoolean("roundRobin");
         singleItem = nbtTags.getBoolean("singleItem");
 
-        rrIndex = nbtTags.getInteger("rrIndex");
-        filters.clear();
-
-        if (nbtTags.hasKey("filters")) {
-            NBTTagList tagList = nbtTags.getTagList("filters", NBT.TAG_COMPOUND);
-            for (int i = 0; i < tagList.tagCount(); i++) {
-                TransporterFilter filter = TransporterFilter.readFromNBT(tagList.getCompoundTagAt(i));
-                if (filter != null) {
-                    filters.add(filter);
-                }
-            }
+        if (nbtTags.hasKey(NBTConstants.ROUND_ROBIN_TARGET)) {
+            setRoundRobinTarget(SidedBlockPos.deserialize(nbtTags.getCompoundTag(NBTConstants.ROUND_ROBIN_TARGET)));
+        } else {
+            setRoundRobinTarget((SidedBlockPos) null);
         }
+        filterManager.readFromNBT(nbtTags, TransporterFilter::readFromNBT);
     }
 
     @Override
@@ -216,24 +211,34 @@ public class TileEntityLogisticalSorter extends TileEntityEffectsBlock implement
             } else if (type == 1) {
                 autoEject = !autoEject;
             } else if (type == 2) {
-                roundRobin = !roundRobin;
-                rrIndex = 0;
+                toggleRoundRobin();
             } else if (type == 3) {
                 // Move filter up
                 int filterIndex = dataStream.readInt();
-                if (filterIndex > 0 && filterIndex < filters.size()) {
-                    filters.swap(filterIndex, filterIndex - 1);
+                if (filterManager.moveUp(filterIndex)) {
                     playersUsing.forEach(this::openInventory);
                 }
             } else if (type == 4) {
                 // Move filter down
                 int filterIndex = dataStream.readInt();
-                if (filterIndex >= 0 && filterIndex < filters.size() - 1) {
-                    filters.swap(filterIndex, filterIndex + 1);
+                if (filterManager.moveDown(filterIndex)) {
+                    playersUsing.forEach(this::openInventory);
+                }
+            } else if (type == 7) {
+                int filterIndex = dataStream.readInt();
+                if (filterManager.moveToTop(filterIndex)) {
+                    playersUsing.forEach(this::openInventory);
+                }
+            } else if (type == 8) {
+                int filterIndex = dataStream.readInt();
+                if (filterManager.moveToBottom(filterIndex)) {
                     playersUsing.forEach(this::openInventory);
                 }
             } else if (type == 5) {
                 singleItem = !singleItem;
+            } else if (type == 6) {
+                filterManager.toggleState(dataStream.readInt());
+                sendFilterUpdate(null);
             }
             return;
         }
@@ -279,14 +284,7 @@ public class TileEntityLogisticalSorter extends TileEntityEffectsBlock implement
     }
 
     private void readFilters(ByteBuf dataStream) {
-        filters.clear();
-        int amount = dataStream.readInt();
-        for (int i = 0; i < amount; i++) {
-            TransporterFilter filter = TransporterFilter.readFromPacket(dataStream);
-            if (filter != null) {
-                filters.add(filter);
-            }
-        }
+        filterManager.readFromPacket(dataStream, TransporterFilter::readFromPacket);
     }
 
     @Override
@@ -304,8 +302,7 @@ public class TileEntityLogisticalSorter extends TileEntityEffectsBlock implement
         data.add(roundRobin);
         data.add(singleItem);
 
-        data.add(filters.size());
-        filters.forEach(filter -> filter.write(data));
+        filterManager.writeToPacket(data, TransporterFilter::write);
         return data;
     }
 
@@ -328,11 +325,34 @@ public class TileEntityLogisticalSorter extends TileEntityEffectsBlock implement
     public TileNetworkList getFilterPacket(TileNetworkList data) {
         super.getNetworkedData(data);
         data.add(2);
-        data.add(filters.size());
-        filters.forEach(filter-> filter.write(data));
+        filterManager.writeToPacket(data, TransporterFilter::write);
         return data;
     }
 
+    @Override
+    @Nullable
+    public SidedBlockPos getRoundRobinTarget() {
+        return rrTarget;
+    }
+
+    @Override
+    public void setRoundRobinTarget(@Nullable SidedBlockPos target) {
+        rrTarget = target;
+    }
+
+    @Override
+    public boolean getRoundRobin() {
+        return roundRobin;
+    }
+
+    @Override
+    public void toggleRoundRobin() {
+        roundRobin = !roundRobin;
+        setRoundRobinTarget((SidedBlockPos) null);
+        MekanismUtils.saveChunk(this);
+    }
+
+    @Override
     public boolean canSendHome(ItemStack stack) {
         TileEntity back = Coord4D.get(this).offset(facing.getOpposite()).getTileEntity(world);
         return InventoryUtils.canInsert(back, null, stack, facing.getOpposite(), true);
@@ -344,32 +364,18 @@ public class TileEntityLogisticalSorter extends TileEntityEffectsBlock implement
     }
 
     public TransitResponse sendHome(ItemStack stack) {
+        return sendHome(TransitRequest.getFromStack(stack));
+    }
+
+    @Override
+    public TransitResponse sendHome(TransitRequest request) {
         TileEntity back = Coord4D.get(this).offset(facing.getOpposite()).getTileEntity(world);
-        return InventoryUtils.putStackInInventory(back, TransitRequest.getFromStack(stack), facing.getOpposite(), true);
-    }
-
-    @Override
-    public boolean canExtractItem(int slotID, @Nonnull ItemStack itemstack, @Nonnull EnumFacing side) {
-        return false;
-    }
-
-    @Override
-    public boolean isItemValidForSlot(int slotID, @Nonnull ItemStack itemstack) {
-        return false;
+        return request.addToInventory(back, facing.getOpposite(), 0, false);
     }
 
     @Override
     public int getInventoryStackLimit() {
         return 1;
-    }
-
-    @Nonnull
-    @Override
-    public int[] getSlotsForFace(@Nonnull EnumFacing side) {
-        if (side == facing || side == facing.getOpposite()) {
-            return new int[]{0};
-        }
-        return InventoryUtils.EMPTY;
     }
 
     @Override
@@ -427,17 +433,8 @@ public class TileEntityLogisticalSorter extends TileEntityEffectsBlock implement
         nbtTags.setBoolean("autoEject", autoEject);
         nbtTags.setBoolean("roundRobin", roundRobin);
         nbtTags.setBoolean("singleItem", singleItem);
-        nbtTags.setInteger("rrIndex", rrIndex);
 
-        NBTTagList filterTags = new NBTTagList();
-        filters.forEach(filter -> {
-            NBTTagCompound tagCompound = new NBTTagCompound();
-            filter.write(tagCompound);
-            filterTags.appendTag(tagCompound);
-        });
-        if (filterTags.tagCount() != 0) {
-            nbtTags.setTag("filters", filterTags);
-        }
+        filterManager.writeToNBT(nbtTags, TransporterFilter::write);
         return nbtTags;
     }
 
@@ -449,18 +446,7 @@ public class TileEntityLogisticalSorter extends TileEntityEffectsBlock implement
         autoEject = nbtTags.getBoolean("autoEject");
         roundRobin = nbtTags.getBoolean("roundRobin");
         singleItem = nbtTags.getBoolean("singleItem");
-        rrIndex = nbtTags.getInteger("rrIndex");
-        filters.clear();
-
-        if (nbtTags.hasKey("filters")) {
-            NBTTagList tagList = nbtTags.getTagList("filters", NBT.TAG_COMPOUND);
-            for (int i = 0; i < tagList.tagCount(); i++) {
-                TransporterFilter filter = TransporterFilter.readFromNBT(tagList.getCompoundTagAt(i));
-                if (filter != null) {
-                    filters.add(filter);
-                }
-            }
-        }
+        filterManager.readFromNBT(nbtTags, TransporterFilter::readFromNBT);
     }
 
     @Override
@@ -479,14 +465,10 @@ public class TileEntityLogisticalSorter extends TileEntityEffectsBlock implement
         ItemDataUtils.setBoolean(itemStack, "roundRobin", roundRobin);
         ItemDataUtils.setBoolean(itemStack, "singleItem", singleItem);
 
-        NBTTagList filterTags = new NBTTagList();
-        filters.forEach(filter -> {
-            NBTTagCompound tagCompound = new NBTTagCompound();
-            filter.write(tagCompound);
-            filterTags.appendTag(tagCompound);
-        });
-        if (filterTags.tagCount() != 0) {
-            ItemDataUtils.setList(itemStack, "filters", filterTags);
+        NBTTagCompound filterData = new NBTTagCompound();
+        filterManager.writeToNBT(filterData, TransporterFilter::write);
+        if (filterData.hasKey(NBTConstants.FILTERS)) {
+            ItemDataUtils.setList(itemStack, NBTConstants.FILTERS, filterData.getTagList(NBTConstants.FILTERS, NBT.TAG_COMPOUND));
         }
     }
 
@@ -499,16 +481,40 @@ public class TileEntityLogisticalSorter extends TileEntityEffectsBlock implement
             autoEject = ItemDataUtils.getBoolean(itemStack, "autoEject");
             roundRobin = ItemDataUtils.getBoolean(itemStack, "roundRobin");
             singleItem = ItemDataUtils.getBoolean(itemStack, "singleItem");
-            filters.clear();
             if (ItemDataUtils.hasData(itemStack, "filters")) {
-                NBTTagList tagList = ItemDataUtils.getList(itemStack, "filters");
-                for (int i = 0; i < tagList.tagCount(); i++) {
-                    TransporterFilter filter = TransporterFilter.readFromNBT(tagList.getCompoundTagAt(i));
-                    if (filter != null) {
-                        filters.add(filter);
-                    }
-                }
+                filterManager.readFromNBTList(ItemDataUtils.getList(itemStack, "filters"), TransporterFilter::readFromNBT);
+            } else {
+                filterManager.clear();
             }
+        }
+    }
+
+    private void onFilterManagerChanged() {
+        markDirty();
+    }
+
+    @Override
+    public SortableFilterManager<TransporterFilter> getFilterManager() {
+        return filterManager;
+    }
+
+    @Override
+    public void addContainerTrackers(MekanismContainer container) {
+        super.addContainerTrackers(container);
+        container.track(SyncableBoolean.create(() -> autoEject, value -> autoEject = value));
+        container.track(SyncableBoolean.create(() -> roundRobin, value -> roundRobin = value));
+        container.track(SyncableBoolean.create(() -> singleItem, value -> singleItem = value));
+        container.track(SyncableInt.create(() -> color == null ? -1 : TransporterUtils.colors.indexOf(color),
+              value -> color = MekanismUtils.getByIndex(TransporterUtils.colors, value, null)));
+        filterManager.addContainerTrackers(container, FilterListType.TRANSPORTER, TransporterFilter::write);
+    }
+
+    @Override
+    public void sendFilterUpdate(@Nullable EntityPlayerMP player) {
+        TileNetworkList filterPacket = getFilterPacket(new TileNetworkList());
+        playersUsing.forEach(iterPlayer -> Mekanism.packetHandler.sendTo(new TileEntityMessage(this, filterPacket), (EntityPlayerMP) iterPlayer));
+        if (player != null && !playersUsing.contains(player)) {
+            Mekanism.packetHandler.sendTo(new TileEntityMessage(this, filterPacket), player);
         }
     }
 
@@ -553,19 +559,19 @@ public class TileEntityLogisticalSorter extends TileEntityEffectsBlock implement
                 filter.sizeMode = (Boolean) arguments[3];
                 filter.min = ((Double) arguments[4]).intValue();
                 filter.max = ((Double) arguments[5]).intValue();
-                filters.add(filter);
+                filterManager.addFilter(filter);
                 return new Object[]{"Added filter."};
             } else if (method == 4) {
                 if (arguments.length != 2 || !(arguments[0] instanceof String) || !(arguments[1] instanceof Double)) {
                     return new Object[]{"Invalid parameters."};
                 }
                 ItemStack stack = new ItemStack(Item.getByNameOrId((String) arguments[0]), 1, ((Double) arguments[1]).intValue());
-                Iterator<TransporterFilter> iter = filters.iterator();
+                Iterator<TransporterFilter> iter = filterManager.getFilters().iterator();
                 while (iter.hasNext()) {
                     TransporterFilter filter = iter.next();
                     if (filter instanceof TItemStackFilter) {
                         if (StackUtils.equalsWildcard(((TItemStackFilter) filter).getItemStack(), stack)) {
-                            iter.remove();
+                            filterManager.removeFilter(filter);
                             return new Object[]{"Removed filter."};
                         }
                     }
@@ -578,18 +584,18 @@ public class TileEntityLogisticalSorter extends TileEntityEffectsBlock implement
                 TOreDictFilter filter = new TOreDictFilter();
                 filter.setOreDictName((String) arguments[0]);
                 filter.color = EnumColor.getFromDyeName((String) arguments[1]);
-                filters.add(filter);
+                filterManager.addFilter(filter);
                 return new Object[]{"Added filter."};
             } else if (method == 6) {
                 if (arguments.length != 1 || !(arguments[0] instanceof String ore)) {
                     return new Object[]{"Invalid parameters."};
                 }
-                Iterator<TransporterFilter> iter = filters.iterator();
+                Iterator<TransporterFilter> iter = filterManager.getFilters().iterator();
                 while (iter.hasNext()) {
                     TransporterFilter filter = iter.next();
                     if (filter instanceof TOreDictFilter) {
                         if (((TOreDictFilter) filter).getOreDictName().equals(ore)) {
-                            iter.remove();
+                            filterManager.removeFilter(filter);
                             return new Object[]{"Removed filter."};
                         }
                     }
@@ -645,11 +651,11 @@ public class TileEntityLogisticalSorter extends TileEntityEffectsBlock implement
     }
 
 
-    private class StrictFilterFinder extends Finder {
+    private class StrictFilterFinder implements Finder {
 
         @Override
         public boolean modifies(ItemStack stack) {
-            for (TransporterFilter filter : filters) {
+            for (TransporterFilter filter : filterManager.getEnabledFilters()) {
                 if (filter.canFilter(stack, false) && !filter.allowDefault) {
                     return false;
                 }

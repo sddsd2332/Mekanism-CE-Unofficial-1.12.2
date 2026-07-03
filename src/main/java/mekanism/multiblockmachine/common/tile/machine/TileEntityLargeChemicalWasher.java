@@ -1,17 +1,35 @@
 package mekanism.multiblockmachine.common.tile.machine;
 
 import io.netty.buffer.ByteBuf;
-import mekanism.api.Coord4D;
-import mekanism.api.TileNetworkList;
-import mekanism.api.gas.*;
+import mekanism.api.*;
+import mekanism.api.gas.GasStack;
 import mekanism.common.Mekanism;
 import mekanism.common.Upgrade;
 import mekanism.common.Upgrade.IUpgradeInfoHandler;
 import mekanism.common.base.*;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.capabilities.Capabilities;
+import mekanism.common.capabilities.fluid.BasicFluidTank;
+import mekanism.common.capabilities.gas.BasicGasTank;
+import mekanism.common.capabilities.holder.fluid.IFluidTankHolder;
+import mekanism.common.capabilities.holder.fluid.ProxiedFluidTankHolder;
+import mekanism.common.capabilities.holder.gas.IGasTankHolder;
+import mekanism.common.capabilities.holder.gas.ProxiedGasTankHolder;
+import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
+import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
 import mekanism.common.config.MekanismConfig;
+import mekanism.common.inventory.container.slot.ContainerSlotType;
+import mekanism.common.inventory.container.slot.SlotOverlay;
+import mekanism.common.inventory.slot.EnergyInventorySlot;
+import mekanism.common.inventory.slot.FluidInventorySlot;
+import mekanism.common.inventory.slot.OutputInventorySlot;
+import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.recipe.RecipeHandler;
+import mekanism.common.recipe.cache.CachedRecipe;
+import mekanism.common.recipe.cache.CachedRecipe.OperationTracker.RecipeError;
+import mekanism.common.recipe.cache.TwoInputCachedRecipe;
+import mekanism.common.recipe.cache.inputs.InputHelper;
+import mekanism.common.recipe.cache.outputs.OutputHelper;
 import mekanism.common.recipe.inputs.GasAndFluidInput;
 import mekanism.common.recipe.machines.WasherRecipe;
 import mekanism.common.recipe.outputs.GasOutput;
@@ -28,7 +46,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3i;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.energy.CapabilityEnergy;
-import net.minecraftforge.fluids.*;
+import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.capability.CapabilityFluidHandler;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.relauncher.Side;
@@ -37,16 +55,22 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.annotation.Nonnull;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
-public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAndFluidInput, GasOutput, WasherRecipe> implements IGasHandler, IFluidHandlerWrapper, ISustainedData, IUpgradeInfoHandler, ITankManager, IAdvancedBoundingBlock, ISpecialSelectionWireframeTile {
+public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAndFluidInput, GasOutput, WasherRecipe> implements ISustainedData, IUpgradeInfoHandler, ITankManager, IAdvancedBoundingBlock, ISpecialSelectionWireframeTile {
 
-    public FluidTank fluidTank = new FluidTankSync(8192000);
-    public GasTank inputTank = new GasTank(8192000);
-    public GasTank outputTank = new GasTank(8192000);
+    private static final int TANK_CAPACITY = 8_192_000;
+    private static final List<RecipeError> TRACKED_ERROR_TYPES = Arrays.asList(
+          RecipeError.NOT_ENOUGH_ENERGY,
+          RecipeError.NOT_ENOUGH_ENERGY_REDUCED_RATE,
+          RecipeError.NOT_ENOUGH_INPUT,
+          RecipeError.NOT_ENOUGH_SECONDARY_INPUT,
+          RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
+          RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
+    );
+    public BasicFluidTank fluidTank;
+    public BasicGasTank inputTank;
+    public BasicGasTank outputTank;
 
     public WasherRecipe cachedRecipe;
     public double clientEnergyUsed;
@@ -56,11 +80,93 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
     public int numPowering;
     public int updateDelay;
     public boolean needsPacket;
+    private FluidInventorySlot inputSlot;
+    private OutputInventorySlot outputSlot;
+    private GasInventorySlot outputGasSlot;
+    private EnergyInventorySlot energySlot;
 
     public TileEntityLargeChemicalWasher() {
-        super("washer", "LargeChemicalWasher", 0, MachineType.CHEMICAL_WASHER.getUsage(), 4, 1);
-        inventory = NonNullListSynchronized.withSize(5, ItemStack.EMPTY);
+        super("washer", MachineType.CHEMICAL_WASHER, 4, 1, TRACKED_ERROR_TYPES);
+        fullName = "LargeChemicalWasher";
+        initializeInventorySlots();
         upgradeComponent.setSupported(Upgrade.THREAD);
+    }
+
+    @Override
+    protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
+        InventorySlotHelper builder = InventorySlotHelper.readOnly();
+        inputSlot = builder.addSlot(FluidInventorySlot.fill(fluidTank, listener, 180, 71));
+        outputSlot = builder.addSlot(OutputInventorySlot.at(getRecipeCacheChangeListener(listener), 180, 102));
+        outputGasSlot = builder.addSlot(GasInventorySlot.drain(outputTank, listener, 152, 56));
+        energySlot = builder.addSlot(EnergyInventorySlot.fillOrConvert(getMainEnergyContainer(), this::getWorld, listener, 152, 14));
+        outputGasSlot.setSlotOverlay(SlotOverlay.MINUS);
+        inputSlot.setSlotType(ContainerSlotType.INPUT);
+        return builder.build();
+    }
+
+    @Override
+    protected IGasTankHolder getInitialGasTanks(IContentsListener listener) {
+        getOrCreateInputTank();
+        getOrCreateOutputTank(listener);
+        return ProxiedGasTankHolder.create(
+              this::isGasInputSide,
+              this::isGasOutputSide,
+              side -> {
+                  if (side == null || side == facing) {
+                      return Arrays.asList(inputTank, outputTank);
+                  } else if (isGasInputSide(side)) {
+                      return Collections.singletonList(inputTank);
+                  } else if (isGasOutputSide(side)) {
+                      return Collections.singletonList(outputTank);
+                  }
+                  return Collections.emptyList();
+              },
+              side -> isGasInputSide(side) ? Collections.singletonList(inputTank) : Collections.emptyList(),
+              side -> isGasOutputSide(side) ? Collections.singletonList(outputTank) : Collections.emptyList()
+        );
+    }
+
+    @Override
+    protected IFluidTankHolder getInitialFluidTanks(IContentsListener listener) {
+        getOrCreateFluidTank();
+        return ProxiedFluidTankHolder.create(
+              this::isFluidInputSide,
+              side -> false,
+              side -> side == null || isFluidInputSide(side) ? Collections.singletonList(fluidTank) : Collections.emptyList()
+        );
+    }
+
+    private BasicFluidTank getOrCreateFluidTank() {
+        if (fluidTank == null) {
+            fluidTank = BasicFluidTank.input(TANK_CAPACITY, fluid -> RecipeHandler.Recipe.CHEMICAL_WASHER.containsRecipe(fluid.getFluid()), getRecipeCacheListener());
+        }
+        return fluidTank;
+    }
+
+    private BasicGasTank getOrCreateInputTank() {
+        if (inputTank == null) {
+            inputTank = BasicGasTank.input(TANK_CAPACITY, gas -> RecipeHandler.Recipe.CHEMICAL_WASHER.containsRecipe(gas), getRecipeCacheListener());
+        }
+        return inputTank;
+    }
+
+    private BasicGasTank getOrCreateOutputTank(IContentsListener listener) {
+        if (outputTank == null) {
+            outputTank = BasicGasTank.output(TANK_CAPACITY, getRecipeCacheChangeListener(listener));
+        }
+        return outputTank;
+    }
+
+    private boolean isGasInputSide(@Nullable EnumFacing side) {
+        return side == facing || side == MekanismUtils.getLeft(facing);
+    }
+
+    private boolean isGasOutputSide(@Nullable EnumFacing side) {
+        return side == facing || side == MekanismUtils.getRight(facing);
+    }
+
+    private boolean isFluidInputSide(@Nullable EnumFacing side) {
+        return side == MekanismUtils.getBack(facing) || side == MekanismUtils.getLeft(facing) || side == MekanismUtils.getRight(facing);
     }
 
     @Override
@@ -83,11 +189,10 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
                 needsPacket = true;
             }
         }
-        ChargeUtils.discharge(3, this);
+        energySlot.fillContainerOrConvert();
         manageBuckets();
-        TileUtils.drawGas(inventory.get(2), outputTank);
-        WasherRecipe recipe = getRecipe();
-        getProcess(recipe, true, energyPerTick, true, false);
+        outputGasSlot.drainTank();
+        clientEnergyUsed = processRecipe(getMainEnergyContainer());
         prevEnergy = getEnergy();
         int newRedstoneLevel = getRedstoneLevel();
         if (newRedstoneLevel != currentRedstoneLevel) {
@@ -98,15 +203,6 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
             Mekanism.packetHandler.sendUpdatePacket(this);
             needsPacket = false;
         }
-    }
-
-    @Override
-    protected void setUpOtherActions() {
-        double prev = getEnergy();
-        if (getRecipe() != null) {
-            setEnergy(getEnergy() - energyPerTick * getUpgradedUsage(getRecipe()));
-        }
-        clientEnergyUsed = prev - getEnergy();
     }
 
     @Override
@@ -130,13 +226,13 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
     }
 
 
-    private void handleTank(GasTank tank, TileEntity tile, EnumFacing side) {
+    private void handleTank(BasicGasTank tank, TileEntity tile, EnumFacing side) {
         if (tile != null) {
             ejectGas(Collections.singleton(side), tank, this.gasSpeedController, tile);
         }
     }
 
-    private void ejectGas(Set<EnumFacing> outputSides, GasTank tank, EjectSpeedController speedController, TileEntity tile) {
+    private void ejectGas(Set<EnumFacing> outputSides, BasicGasTank tank, EjectSpeedController speedController, TileEntity tile) {
         speedController.record(0);
         if (tank.getGas() == null || tank.getStored() <= 0 || tank.getGas().getGas() == null) {
             return;
@@ -150,11 +246,12 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
         if (emitted <= 0) {
             return;
         }
-        tank.draw(emitted, true);
+        tank.extract(emitted, Action.EXECUTE, AutomationType.INTERNAL);
     }
 
     @Override
     public WasherRecipe getRecipe() {
+        refreshRecipeLookupCache();
         GasAndFluidInput input = getInput();
         if (cachedRecipe == null || !input.testEquality(cachedRecipe.getInput())) {
             cachedRecipe = RecipeHandler.getChemicalWasherRecipe(getInput());
@@ -163,18 +260,39 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
     }
 
     @Override
+    protected void clearRecipeLookupCache() {
+        super.clearRecipeLookupCache();
+        cachedRecipe = null;
+    }
+
+    @Override
     public GasAndFluidInput getInput() {
         return new GasAndFluidInput(inputTank.getGas(), fluidTank.getFluid());
     }
 
     @Override
-    public boolean canOperate(WasherRecipe recipe) {
-        return recipe != null && recipe.canOperate(inputTank, fluidTank, outputTank);
-    }
-
-    @Override
-    public void operate(WasherRecipe recipe) {
-        recipe.operate(inputTank, fluidTank, outputTank, getUpgradedUsage(recipe));
+    public CachedRecipe<WasherRecipe> createNewCachedRecipe(WasherRecipe recipe, int cacheIndex) {
+        return new TwoInputCachedRecipe<>(recipe, this::shouldRecheckAllRecipeErrors,
+              InputHelper.getGasInputHandler(inputTank, RecipeError.NOT_ENOUGH_INPUT),
+              InputHelper.getFluidInputHandler(fluidTank, RecipeError.NOT_ENOUGH_SECONDARY_INPUT),
+              OutputHelper.getGasOutputHandler(outputTank, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
+              () -> recipe.getInput().ingredientGas, () -> recipe.getInput().ingredientFluid,
+              (gas, fluid) -> gas != null && gas.isGasEqual(recipe.getInput().ingredientGas)
+                    && fluid != null && fluid.isFluidEqual(recipe.getInput().ingredientFluid),
+              (gas, fluid) -> recipe.getOutput().output.copy(), gas -> gas == null || gas.amount <= 0,
+              fluid -> fluid == null || fluid.amount <= 0, output -> output == null || output.amount <= 0)
+              .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
+              .setActive(active -> {
+                  if (active || prevEnergy >= getEnergy()) {
+                      setActive(active);
+                  }
+              })
+              .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
+              .setRequiredTicks(() -> ticksRequired)
+              .setBaselineMaxOperations(() -> getUpgradedUsage(recipe))
+              .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
+              .setErrorsChanged(this::onRecipeErrorsChanged)
+              .setOnFinish(this::onCachedRecipeFinish);
     }
 
     @Override
@@ -183,9 +301,7 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
     }
 
     private void manageBuckets() {
-        if (FluidContainerUtils.isFluidContainer(inventory.get(0)) && fluidTank.getFluidAmount() != fluidTank.getCapacity()) {
-            FluidContainerUtils.handleContainerItemEmpty(this, fluidTank, 0, 1, FluidContainerUtils.FluidChecker.check(FluidRegistry.WATER));
-        }
+        inputSlot.fillTank(outputSlot);
     }
 
     public int getThread() {
@@ -236,56 +352,26 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
     @Override
     public void readCustomNBT(NBTTagCompound nbtTags) {
         super.readCustomNBT(nbtTags);
-        fluidTank.readFromNBT(nbtTags.getCompoundTag("leftTank"));
-        inputTank.read(nbtTags.getCompoundTag("rightTank"));
-        outputTank.read(nbtTags.getCompoundTag("centerTank"));
+        if (!hasStoredFluidTanks(nbtTags) && nbtTags.hasKey("leftTank")) {
+            fluidTank.readFromNBT(nbtTags.getCompoundTag("leftTank"));
+        }
+        if (!hasStoredGasTanks(nbtTags)) {
+            if (nbtTags.hasKey("rightTank")) {
+                inputTank.read(nbtTags.getCompoundTag("rightTank"));
+            }
+            if (nbtTags.hasKey("centerTank")) {
+                outputTank.read(nbtTags.getCompoundTag("centerTank"));
+            }
+        }
+        sanitizeAndClampTanks();
         numPowering = nbtTags.getInteger("numPowering");
     }
 
     @Override
     public void writeCustomNBT(NBTTagCompound nbtTags) {
         super.writeCustomNBT(nbtTags);
-        nbtTags.setTag("leftTank", fluidTank.writeToNBT(new NBTTagCompound()));
-        nbtTags.setTag("rightTank", inputTank.write(new NBTTagCompound()));
-        nbtTags.setTag("centerTank", outputTank.write(new NBTTagCompound()));
         nbtTags.setInteger("numPowering", numPowering);
     }
-
-    @Override
-    public boolean canReceiveGas(EnumFacing side, Gas type) {
-        if (side == facing || side == MekanismUtils.getLeft(facing)) {
-            return inputTank.canReceive(type) && RecipeHandler.Recipe.CHEMICAL_WASHER.containsRecipe(type);
-        }
-        return false;
-    }
-
-    @Override
-    public int receiveGas(EnumFacing side, GasStack stack, boolean doTransfer) {
-        if (canReceiveGas(side, stack != null ? stack.getGas() : null)) {
-            return inputTank.receive(stack, doTransfer);
-        }
-        return 0;
-    }
-
-    @Override
-    public GasStack drawGas(EnumFacing side, int amount, boolean doTransfer) {
-        if (canDrawGas(side, null)) {
-            return outputTank.draw(amount, doTransfer);
-        }
-        return null;
-    }
-
-    @Override
-    public boolean canDrawGas(EnumFacing side, Gas type) {
-        return outputTank.canDraw(type) && (side == facing || side == MekanismUtils.getRight(facing));
-    }
-
-    @Nonnull
-    @Override
-    public GasTankInfo[] getTankInfo() {
-        return new GasTankInfo[]{inputTank, outputTank};
-    }
-
 
     @Nonnull
     @Override
@@ -294,21 +380,11 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
     }
 
     @Override
-    public boolean isItemValidForSlot(int slotID, @Nonnull ItemStack itemstack) {
-        if (slotID == 0) {
-            return FluidUtil.getFluidContained(itemstack) != null && FluidUtil.getFluidContained(itemstack).getFluid() == FluidRegistry.WATER;
-        } else if (slotID == 2) {
-            return ChargeUtils.canBeDischarged(itemstack);
-        }
-        return false;
-    }
-
-    @Override
     public boolean canExtractItem(int slotID, @Nonnull ItemStack itemstack, @Nonnull EnumFacing side) {
         if (slotID == 1) {
-            return !itemstack.isEmpty() && itemstack.getItem() instanceof IGasItem gasItem && gasItem.canProvideGas(itemstack, null);
+            return !itemstack.isEmpty() && GasInventorySlot.drainExtractCheck(outputTank, itemstack);
         } else if (slotID == 2) {
-            return ChargeUtils.canBeOutputted(itemstack, false);
+            return EnergyInventorySlot.fillExtractCheck(itemstack);
         }
         return false;
     }
@@ -318,17 +394,13 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
         if (isCapabilityDisabled(capability, side)) {
             return false;
         }
-        return capability == Capabilities.GAS_HANDLER_CAPABILITY || capability == CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY || super.hasCapability(capability, side);
+        return super.hasCapability(capability, side);
     }
 
     @Override
     public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing side) {
         if (isCapabilityDisabled(capability, side)) {
             return null;
-        } else if (capability == Capabilities.GAS_HANDLER_CAPABILITY) {
-            return Capabilities.GAS_HANDLER_CAPABILITY.cast(this);
-        } else if (capability == CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY) {
-            return CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY.cast(new FluidHandlerWrapper(this, side));
         }
         return super.getCapability(capability, side);
     }
@@ -343,46 +415,48 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
     }
 
     @Override
-    public int fill(EnumFacing from, @Nonnull FluidStack resource, boolean doFill) {
-        if (!canFill(from, resource)) {
-            return 0;
-        }
-        return fluidTank.fill(resource, doFill);
-    }
-
-    @Override
-    public boolean canFill(EnumFacing from, @Nonnull FluidStack fluid) {
-        return RecipeHandler.Recipe.CHEMICAL_WASHER.containsRecipe(fluid.getFluid());
-    }
-
-    @Override
-    public FluidTankInfo[] getTankInfo(EnumFacing from) {
-        return new FluidTankInfo[]{fluidTank.getInfo()};
-    }
-
-    @Override
-    public FluidTankInfo[] getAllTanks() {
-        return new FluidTankInfo[]{fluidTank.getInfo()};
-    }
-
-    @Override
     public void writeSustainedData(ItemStack itemStack) {
-        if (fluidTank.getFluid() != null) {
-            ItemDataUtils.setCompound(itemStack, "fluidTank", fluidTank.getFluid().writeToNBT(new NBTTagCompound()));
-        }
-        if (inputTank.getGas() != null) {
-            ItemDataUtils.setCompound(itemStack, "inputTank", inputTank.getGas().write(new NBTTagCompound()));
-        }
-        if (outputTank.getGas() != null) {
-            ItemDataUtils.setCompound(itemStack, "outputTank", outputTank.getGas().write(new NBTTagCompound()));
-        }
+        writeSustainedFluidTanks(itemStack);
+        writeSustainedGasTanks(itemStack);
+        ItemDataUtils.setLegacyFluid(itemStack, "fluidTank", fluidTank.getFluid());
+        ItemDataUtils.setLegacyGas(itemStack, "inputTank", inputTank.getGas());
+        ItemDataUtils.setLegacyGas(itemStack, "outputTank", outputTank.getGas());
     }
 
     @Override
     public void readSustainedData(ItemStack itemStack) {
-        fluidTank.setFluid(FluidStack.loadFluidStackFromNBT(ItemDataUtils.getCompound(itemStack, "fluidTank")));
-        inputTank.setGas(GasStack.readFromNBT(ItemDataUtils.getCompound(itemStack, "inputTank")));
-        outputTank.setGas(GasStack.readFromNBT(ItemDataUtils.getCompound(itemStack, "outputTank")));
+        if (!readSustainedFluidTanks(itemStack)) {
+            fluidTank.setStackUnchecked(ItemDataUtils.getLegacyFluid(itemStack, "fluidTank"));
+        }
+        if (!readSustainedGasTanks(itemStack)) {
+            inputTank.setStackUnchecked(ItemDataUtils.getLegacyGas(itemStack, "inputTank"));
+            outputTank.setStackUnchecked(ItemDataUtils.getLegacyGas(itemStack, "outputTank"));
+        }
+        sanitizeAndClampTanks();
+    }
+
+    private void sanitizeAndClampTanks() {
+        sanitizeAndClampTank(fluidTank);
+        sanitizeAndClampTank(inputTank);
+        sanitizeAndClampTank(outputTank);
+    }
+
+    private void sanitizeAndClampTank(BasicFluidTank tank) {
+        FluidStack stored = tank.getFluid();
+        if (stored != null && (stored.amount <= 0 || stored.getFluid() == null)) {
+            tank.setEmpty();
+        } else if (stored != null) {
+            tank.setStackSize(stored.amount, Action.EXECUTE);
+        }
+    }
+
+    private void sanitizeAndClampTank(BasicGasTank tank) {
+        GasStack stored = tank.getGas();
+        if (stored != null && (stored.amount <= 0 || stored.getGas() == null)) {
+            tank.setEmpty();
+        } else if (stored != null) {
+            tank.setStackSize(stored.amount, Action.EXECUTE);
+        }
     }
 
     @Override
@@ -391,7 +465,7 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
     }
 
     @Override
-    public Object[] getTanks() {
+    public Object[] getManagedTanks() {
         return new Object[]{fluidTank, inputTank, outputTank};
     }
 
@@ -414,24 +488,7 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
     public Object[] invoke(int method, Object[] args) throws NoSuchMethodException {
         return new Object[0];
     }
-
-    @Override
-    public boolean getEnergySlot() {
-        return inventory.get(3).isEmpty();
-    }
-
-    @Override
-    public boolean getInputSlot() {
-        return false;
-    }
-
-    @Override
-    public boolean getOuputSlot() {
-        return false;
-    }
-
-
-    @Override
+@Override
     public int getBlockGuiID(Block block, int metadata) {
         return 2;
     }
@@ -528,10 +585,12 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
             return false;
         }
         if (capability == Capabilities.GAS_HANDLER_CAPABILITY) {
-            return true;
+            return getGasHandler(side) != null;
         } else if (capability == CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY) {
-            return true;
-        } else if (isStrictEnergy(capability) || capability == CapabilityEnergy.ENERGY || isTesla(capability, side)) {
+            return getFluidHandler(side) != null;
+        } else if (isManagedStrictEnergy(capability)) {
+            return getEnergyHandler(capability, side) != null;
+        } else if (capability == CapabilityEnergy.ENERGY || isTesla(capability, side)) {
             return true;
         }
         return hasCapability(capability, side);
@@ -543,11 +602,11 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
         if (isOffsetCapabilityDisabled(capability, side, offset)) {
             return null;
         } else if (capability == Capabilities.GAS_HANDLER_CAPABILITY) {
-            return Capabilities.GAS_HANDLER_CAPABILITY.cast(this);
+            return Capabilities.GAS_HANDLER_CAPABILITY.cast(getGasHandler(side));
         } else if (capability == CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY) {
-            return CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY.cast(new FluidHandlerWrapper(this, side));
-        } else if (isStrictEnergy(capability)) {
-            return (T) this;
+            return CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY.cast(getFluidHandler(side));
+        } else if (isManagedStrictEnergy(capability)) {
+            return getEnergyHandler(capability, side);
         } else if (isTesla(capability, side)) {
             return (T) getTeslaEnergyWrapper(side);
         } else if (capability == CapabilityEnergy.ENERGY) {
@@ -593,7 +652,7 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
             }
             return true;
         }
-        if (isStrictEnergy(capability) || capability == CapabilityEnergy.ENERGY || isTesla(capability, side)) {
+        if (isManagedStrictEnergy(capability) || capability == CapabilityEnergy.ENERGY || isTesla(capability, side)) {
             if (offset.equals(new Vec3i(back.getXOffset(), 0, back.getZOffset()))) {
                 return side != back;
             }
@@ -640,10 +699,14 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
             return true;
         } else if (capability == CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY) {
             return true;
-        } else if (isStrictEnergy(capability) || capability == CapabilityEnergy.ENERGY || isTesla(capability, side)) {
+        } else if (isManagedStrictEnergy(capability) || capability == CapabilityEnergy.ENERGY || isTesla(capability, side)) {
             return true;
         }
         return false;
+    }
+
+    private boolean isManagedStrictEnergy(@Nonnull Capability<?> capability) {
+        return capability == Capabilities.STRICT_ENERGY_CAPABILITY || isStrictEnergy(capability);
     }
 
     @Override

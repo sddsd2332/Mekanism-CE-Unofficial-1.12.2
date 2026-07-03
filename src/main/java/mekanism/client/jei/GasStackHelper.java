@@ -5,7 +5,10 @@ import com.google.common.base.MoreObjects.ToStringHelper;
 import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasStack;
 import mekanism.common.MekanismBlocks;
-import mekanism.common.util.ItemDataUtils;
+import mekanism.common.inventory.slot.gas.GasInventorySlot;
+import mekanism.common.recipe.GasConversionHandler;
+import mekanism.common.tier.BaseTier;
+import mekanism.common.tier.GasTankTier;
 import mezz.jei.api.ingredients.IIngredientHelper;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -68,12 +71,12 @@ public class GasStackHelper implements IIngredientHelper<GasStack> {
     @Override
     public ItemStack getCheatItemStack(GasStack ingredient) {
         ItemStack gas = new ItemStack(MekanismBlocks.GasTank);
-        if (!gas.hasTagCompound()){
+        if (!gas.hasTagCompound()) {
             gas.setTagCompound(new NBTTagCompound());
         }
-        gas.getTagCompound().setInteger("tier", 4);
+        gas.getTagCompound().setInteger("tier", BaseTier.CREATIVE.ordinal());
         GasStack gasStack = new GasStack(ingredient.getGas(), Integer.MAX_VALUE);
-        ItemDataUtils.setCompound(gas,"stored", gasStack.write(new NBTTagCompound()));
+        GasInventorySlot.setStoredGas(gas, gasStack, "stored", GasTankTier.CREATIVE.getStorage());
         return gas;
     }
 
@@ -92,5 +95,20 @@ public class GasStackHelper implements IIngredientHelper<GasStack> {
             toStringHelper.add("Amount", ingredient.amount);
         }
         return toStringHelper.toString();
+    }
+
+    public List<ItemStack> getStacksFor(Gas type, boolean displayConversions) {
+        if (!displayConversions) {
+            if (type == null) {
+                return Collections.emptyList();
+            }
+            ItemStack gas = new ItemStack(MekanismBlocks.GasTank);
+            if (!gas.hasTagCompound()) {
+                gas.setTagCompound(new NBTTagCompound());
+            }
+            GasInventorySlot.setStoredGas(gas, new GasStack(type, GasTankTier.BASIC.getStorage()), "stored", GasTankTier.BASIC.getStorage());
+            return Collections.singletonList(gas);
+        }
+        return GasConversionHandler.getStacksForGas(type);
     }
 }

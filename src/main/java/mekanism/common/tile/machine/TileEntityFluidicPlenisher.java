@@ -2,27 +2,36 @@ package mekanism.common.tile.machine;
 
 import io.netty.buffer.ByteBuf;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
-import mekanism.api.Coord4D;
-import mekanism.api.EnumColor;
-import mekanism.api.IConfigurable;
-import mekanism.api.TileNetworkList;
+import mekanism.api.*;
 import mekanism.common.Mekanism;
 import mekanism.common.Upgrade;
 import mekanism.common.base.*;
 import mekanism.common.block.states.BlockStateMachine;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.capabilities.Capabilities;
+import mekanism.common.capabilities.energy.MachineEnergyContainer;
+import mekanism.common.capabilities.fluid.BasicFluidTank;
+import mekanism.common.capabilities.holder.energy.EnergyContainerHelper;
+import mekanism.common.capabilities.holder.energy.IEnergyContainerHolder;
+import mekanism.common.capabilities.holder.fluid.FluidTankHelper;
+import mekanism.common.capabilities.holder.fluid.IFluidTankHolder;
+import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
+import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.integration.computer.IComputerIntegration;
+import mekanism.common.inventory.container.slot.SlotOverlay;
+import mekanism.common.inventory.slot.EnergyInventorySlot;
+import mekanism.common.inventory.slot.FluidInventorySlot;
+import mekanism.common.inventory.slot.OutputInventorySlot;
 import mekanism.common.security.ISecurityTile;
 import mekanism.common.tile.component.TileComponentSecurity;
 import mekanism.common.tile.component.TileComponentUpgrade;
 import mekanism.common.tile.prefab.TileEntityElectricBlock;
-import mekanism.common.util.*;
-import mekanism.common.util.FluidContainerUtils.FluidChecker;
+import mekanism.common.util.LangUtils;
+import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.TileUtils;
 import net.minecraft.block.Block;
 import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.util.EnumActionResult;
@@ -30,8 +39,8 @@ import net.minecraft.util.EnumFacing;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.util.Constants.NBT;
-import net.minecraftforge.fluids.*;
-import net.minecraftforge.fluids.capability.CapabilityFluidHandler;
+import net.minecraftforge.fluids.Fluid;
+import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 
 import javax.annotation.Nonnull;
@@ -39,15 +48,15 @@ import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-public class TileEntityFluidicPlenisher extends TileEntityElectricBlock implements IComputerIntegration, IConfigurable, IFluidHandlerWrapper, ISustainedTank,
-        IUpgradeTile, IRedstoneControl, ISecurityTile, IComparatorSupport,IMachineSlotTip {
+public class TileEntityFluidicPlenisher extends TileEntityElectricBlock implements IComputerIntegration, IConfigurable, ISustainedTank,
+        IUpgradeTile, IRedstoneControl, ISecurityTile, IComparatorSupport {
 
     private static final String[] methods = new String[]{"reset"};
     private static EnumSet<EnumFacing> dirs = EnumSet.complementOf(EnumSet.of(EnumFacing.UP));
     public Set<Coord4D> activeNodes = new LinkedHashSet<>();
     public Set<Coord4D> usedNodes = new ObjectOpenHashSet<>();
     public boolean finishedCalc = false;
-    public FluidTank fluidTank = new FluidTankSync(10000);
+    public BasicFluidTank fluidTank;
     /**
      * How much energy this machine consumes per-tick.
      */
@@ -62,53 +71,79 @@ public class TileEntityFluidicPlenisher extends TileEntityElectricBlock implemen
      * How many ticks this machine has been operating for.
      */
     public int operatingTicks;
+    private boolean usedEnergy;
     public RedstoneControl controlType = RedstoneControl.DISABLED;
-    public TileComponentUpgrade upgradeComponent = new TileComponentUpgrade(this, 3);
+    public TileComponentUpgrade upgradeComponent = new TileComponentUpgrade(this);
     public TileComponentSecurity securityComponent = new TileComponentSecurity(this);
 
     private int currentRedstoneLevel;
+    private MachineEnergyContainer energyContainer;
+    private FluidInventorySlot inputSlot;
+    private OutputInventorySlot outputSlot;
+    private EnergyInventorySlot energySlot;
 
     public TileEntityFluidicPlenisher() {
         super("FluidicPlenisher", MachineType.FLUIDIC_PLENISHER.getStorage());
-        inventory = NonNullListSynchronized.withSize(4, ItemStack.EMPTY);
+        initializeInventorySlots();
+    }
+
+    @Override
+    protected IFluidTankHolder getInitialFluidTanks(IContentsListener listener) {
+        FluidTankHelper builder = FluidTankHelper.forSide(() -> facing);
+        fluidTank = BasicFluidTank.input(10000, fluid -> fluid.getFluid().canBePlacedInWorld(), listener);
+        builder.addTank(fluidTank, RelativeSide.TOP);
+        return builder.build();
+    }
+
+    @Override
+    protected IEnergyContainerHolder getInitialEnergyContainers(IContentsListener listener) {
+        EnergyContainerHelper builder = createEnergyContainerHelper();
+        builder.addContainer(energyContainer = MachineEnergyContainer.input(this::getEnergy, this::setEnergy, this::getMaxEnergy, () -> energyPerTick, listener),
+              RelativeSide.BACK);
+        return builder.build();
+    }
+
+    @Override
+    protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
+        InventorySlotHelper builder = createInventorySlotHelper();
+        inputSlot = builder.addSlot(FluidInventorySlot.fill(fluidTank, listener, 28, 20), RelativeSide.TOP);
+        inputSlot.setSlotOverlay(SlotOverlay.INPUT);
+        outputSlot = builder.addSlot(OutputInventorySlot.at(listener, 28, 51), RelativeSide.BOTTOM);
+        outputSlot.setSlotOverlay(SlotOverlay.OUTPUT);
+        energySlot = builder.addSlot(EnergyInventorySlot.fillOrConvert(energyContainer, this::getWorld, listener, 143, 35), RelativeSide.BACK);
+        return builder.build();
     }
 
     @Override
     public void onUpdateServer() {
         super.onUpdateServer();
-        ChargeUtils.discharge(2, this);
-        if (FluidContainerUtils.isFluidContainer(inventory.get(0)) && fluidTank.getFluidAmount() != fluidTank.getCapacity()) {
-            FluidContainerUtils.handleContainerItemEmpty(this, fluidTank, 0, 1, new FluidChecker() {
-                @Override
-                public boolean isValid(Fluid f) {
-                    return f.canBePlacedInWorld();
-                }
-            });
-        }
+        usedEnergy = false;
+        energySlot.fillContainerOrConvert();
+        inputSlot.fillTank(outputSlot);
 
-        if (MekanismUtils.canFunction(this) && getEnergy() >= energyPerTick && fluidTank.getFluid() != null && fluidTank.getFluid().getFluid().canBePlacedInWorld()) {
+        double clientEnergyUsed = 0;
+        if (MekanismUtils.canFunction(this) && fluidTank.getFluid() != null && fluidTank.getFluid().getFluid().canBePlacedInWorld() &&
+              Double.compare(energyContainer.extract(energyPerTick, Action.SIMULATE, AutomationType.INTERNAL), energyPerTick) == 0) {
             if (!finishedCalc) {
-                setEnergy(getEnergy() - energyPerTick);
+                clientEnergyUsed = energyContainer.extract(energyPerTick, Action.EXECUTE, AutomationType.INTERNAL);
             }
-            if ((operatingTicks + 1) < ticksRequired) {
-                operatingTicks++;
-            } else {
+            operatingTicks++;
+            if (operatingTicks >= ticksRequired) {
+                operatingTicks = 0;
                 if (!finishedCalc) {
                     doPlenish();
                 } else {
                     Coord4D below = Coord4D.get(this).offset(EnumFacing.DOWN);
 
-                    if (canReplace(below, false, false) && fluidTank.getFluidAmount() >= Fluid.BUCKET_VOLUME) {
-                        if (fluidTank.getFluid().getFluid().canBePlacedInWorld()) {
-                            world.setBlockState(below.getPos(), MekanismUtils.getFlowingBlock(fluidTank.getFluid().getFluid()).getDefaultState(), 3);
-                            setEnergy(getEnergy() - energyPerTick);
-                            fluidTank.drain(Fluid.BUCKET_VOLUME, true);
-                        }
+                    if (canReplace(below, false, false) && canExtractBucket()) {
+                        world.setBlockState(below.getPos(), MekanismUtils.getFlowingBlock(fluidTank.getFluid().getFluid()).getDefaultState(), 3);
+                        clientEnergyUsed = energyContainer.extract(energyPerTick, Action.EXECUTE, AutomationType.INTERNAL);
+                        fluidTank.extract(Fluid.BUCKET_VOLUME, Action.EXECUTE, AutomationType.INTERNAL);
                     }
                 }
-                operatingTicks = 0;
             }
         }
+        usedEnergy = clientEnergyUsed > 0;
 
         int newRedstoneLevel = getRedstoneLevel();
         if (newRedstoneLevel != currentRedstoneLevel) {
@@ -120,6 +155,11 @@ public class TileEntityFluidicPlenisher extends TileEntityElectricBlock implemen
     @Override
     public boolean supportsAsync() {
         return false;
+    }
+
+    private boolean canExtractBucket() {
+        FluidStack extracted = fluidTank.extract(Fluid.BUCKET_VOLUME, Action.SIMULATE, AutomationType.INTERNAL);
+        return extracted != null && extracted.amount == Fluid.BUCKET_VOLUME;
     }
 
     private void doPlenish() {
@@ -145,9 +185,9 @@ public class TileEntityFluidicPlenisher extends TileEntityElectricBlock implemen
         for (Coord4D coord : activeNodes) {
             if (coord.exists(world)) {
                 FluidStack fluid = fluidTank.getFluid();
-                if (canReplace(coord, true, false) && fluid != null) {
+                if (canReplace(coord, true, false) && fluid != null && canExtractBucket()) {
                     world.setBlockState(coord.getPos(), MekanismUtils.getFlowingBlock(fluid.getFluid()).getDefaultState(), 3);
-                    fluidTank.drain(Fluid.BUCKET_VOLUME, true);
+                    fluidTank.extract(Fluid.BUCKET_VOLUME, Action.EXECUTE, AutomationType.INTERNAL);
                 }
                 dirs.forEach(dir -> {
                     Coord4D sideCoord = coord.offset(dir);
@@ -204,10 +244,6 @@ public class TileEntityFluidicPlenisher extends TileEntityElectricBlock implemen
         nbtTags.setBoolean("finishedCalc", finishedCalc);
         nbtTags.setInteger("controlType", controlType.ordinal());
 
-        if (fluidTank.getFluid() != null) {
-            nbtTags.setTag("fluidTank", fluidTank.writeToNBT(new NBTTagCompound()));
-        }
-
         NBTTagList activeList = new NBTTagList();
         activeNodes.forEach(wrapper -> {
             NBTTagCompound tagCompound = new NBTTagCompound();
@@ -219,8 +255,8 @@ public class TileEntityFluidicPlenisher extends TileEntityElectricBlock implemen
         }
 
         NBTTagList usedList = new NBTTagList();
-        usedNodes.forEach(obj -> activeList.appendTag(obj.write(new NBTTagCompound())));
-        if (activeList.tagCount() != 0) {
+        usedNodes.forEach(obj -> usedList.appendTag(obj.write(new NBTTagCompound())));
+        if (usedList.tagCount() != 0) {
             nbtTags.setTag("usedNodes", usedList);
         }
 
@@ -233,9 +269,10 @@ public class TileEntityFluidicPlenisher extends TileEntityElectricBlock implemen
         finishedCalc = nbtTags.getBoolean("finishedCalc");
         controlType = MekanismUtils.getByIndex(RedstoneControl.values(), nbtTags.getInteger("controlType"), controlType);
 
-        if (nbtTags.hasKey("fluidTank")) {
+        if (!hasStoredFluidTanks(nbtTags) && nbtTags.hasKey("fluidTank")) {
             fluidTank.readFromNBT(nbtTags.getCompoundTag("fluidTank"));
         }
+        sanitizeAndClampTank();
 
         if (nbtTags.hasKey("activeNodes")) {
             NBTTagList tagList = nbtTags.getTagList("activeNodes", NBT.TAG_COMPOUND);
@@ -253,25 +290,13 @@ public class TileEntityFluidicPlenisher extends TileEntityElectricBlock implemen
         }
     }
 
-    @Override
-    public boolean isItemValidForSlot(int slotID, @Nonnull ItemStack itemstack) {
-        if (slotID == 1) {
-            return false;
-        } else if (slotID == 0) {
-            FluidStack fluidContained = FluidUtil.getFluidContained(itemstack);
-            return fluidContained != null && fluidContained.getFluid().canBePlacedInWorld();
-        } else if (slotID == 2) {
-            return ChargeUtils.canBeDischarged(itemstack);
+    private void sanitizeAndClampTank() {
+        FluidStack stored = fluidTank.getFluid();
+        if (stored == null || stored.getFluid() == null || stored.amount <= 0 || !fluidTank.isFluidValid(stored)) {
+            fluidTank.setEmpty();
+        } else {
+            fluidTank.setStackSize(stored.amount, Action.EXECUTE);
         }
-        return false;
-    }
-
-    @Override
-    public boolean canExtractItem(int slotID, @Nonnull ItemStack itemstack, @Nonnull EnumFacing side) {
-        if (slotID == 2) {
-            return ChargeUtils.canBeOutputted(itemstack, false);
-        }
-        return slotID == 1;
     }
 
     @Override
@@ -284,33 +309,10 @@ public class TileEntityFluidicPlenisher extends TileEntityElectricBlock implemen
         return facing != EnumFacing.DOWN && facing != EnumFacing.UP;
     }
 
-    @Nonnull
-    @Override
-    public int[] getSlotsForFace(@Nonnull EnumFacing side) {
-        if (side == EnumFacing.UP) {
-            return new int[]{0};
-        } else if (side == EnumFacing.DOWN) {
-            return new int[]{1};
-        }
-        return new int[]{2};
-    }
-
-    @Override
-    public FluidTankInfo[] getTankInfo(EnumFacing direction) {
-        if (direction == EnumFacing.UP) {
-            return new FluidTankInfo[]{fluidTank.getInfo()};
-        }
-        return PipeUtils.EMPTY;
-    }
-
-    @Override
-    public FluidTankInfo[] getAllTanks() {
-        return getTankInfo(EnumFacing.UP);
-    }
-
     @Override
     public void setFluidStack(FluidStack fluidStack, Object... data) {
         fluidTank.setFluid(fluidStack);
+        sanitizeAndClampTank();
     }
 
     @Override
@@ -321,16 +323,6 @@ public class TileEntityFluidicPlenisher extends TileEntityElectricBlock implemen
     @Override
     public boolean hasTank(Object... data) {
         return true;
-    }
-
-    @Override
-    public int fill(EnumFacing from, @Nonnull FluidStack resource, boolean doFill) {
-        return fluidTank.fill(resource, doFill);
-    }
-
-    @Override
-    public boolean canFill(EnumFacing from, @Nonnull FluidStack fluid) {
-        return from == EnumFacing.UP && fluid.getFluid().canBePlacedInWorld();
     }
 
     @Override
@@ -349,16 +341,13 @@ public class TileEntityFluidicPlenisher extends TileEntityElectricBlock implemen
 
     @Override
     public boolean hasCapability(@Nonnull Capability<?> capability, EnumFacing side) {
-        return capability == Capabilities.CONFIGURABLE_CAPABILITY || capability == CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY || super.hasCapability(capability, side);
+        return capability == Capabilities.CONFIGURABLE_CAPABILITY || super.hasCapability(capability, side);
     }
 
     @Override
     public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing side) {
         if (capability == Capabilities.CONFIGURABLE_CAPABILITY) {
             return Capabilities.CONFIGURABLE_CAPABILITY.cast(this);
-        }
-        if (capability == CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY) {
-            return CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY.cast(new FluidHandlerWrapper(this, side));
         }
         return super.getCapability(capability, side);
     }
@@ -423,22 +412,13 @@ public class TileEntityFluidicPlenisher extends TileEntityElectricBlock implemen
     public int getRedstoneLevel() {
         return MekanismUtils.redstoneLevelFromContents(fluidTank.getFluidAmount(), fluidTank.getCapacity());
     }
-
-    @Override
-    public boolean getEnergySlot() {
-        return inventory.get(2).isEmpty();
+public boolean usedEnergy() {
+        return usedEnergy;
     }
 
-    @Override
-    public boolean getInputSlot() {
-        return false;
+    public MachineEnergyContainer getEnergyContainer() {
+        return energyContainer;
     }
-
-    @Override
-    public boolean getOuputSlot() {
-        return false;
-    }
-
 
     @Override
     public int getBlockGuiID(Block block, int metadata) {

@@ -1,11 +1,11 @@
 package mekanism.common.item;
 
 import mekanism.api.EnumColor;
+import mekanism.api.NBTConstants;
 import mekanism.common.Mekanism;
 import mekanism.common.util.InventoryUtils;
 import mekanism.common.util.ItemDataUtils;
 import mekanism.common.util.LangUtils;
-import mekanism.common.util.NonNullListSynchronized;
 import net.minecraft.client.renderer.block.model.ModelResourceLocation;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.entity.player.EntityPlayer;
@@ -15,6 +15,7 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.util.*;
 import net.minecraft.world.World;
+import net.minecraftforge.common.util.Constants.NBT;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
@@ -74,13 +75,13 @@ public class ItemCraftingFormula extends ItemMekanism {
 
     @Override
     public int getItemStackLimit(ItemStack stack) {
-        return getInventory(stack) != null ? 1 : 64;
+        return hasInventory(stack) ? 1 : 64;
     }
 
     @Nonnull
     @Override
     public String getItemStackDisplayName(@Nonnull ItemStack stack) {
-        if (getInventory(stack) == null) {
+        if (!hasInventory(stack)) {
             return super.getItemStackDisplayName(stack);
         }
         return super.getItemStackDisplayName(stack) + " " + (isInvalid(stack) ? EnumColor.DARK_RED + "(" + LangUtils.localize("tooltip.invalid")
@@ -88,24 +89,28 @@ public class ItemCraftingFormula extends ItemMekanism {
     }
 
     public boolean isInvalid(ItemStack stack) {
-        return ItemDataUtils.getBoolean(stack, "invalid");
+        return ItemDataUtils.getBoolean(stack, NBTConstants.INVALID);
     }
 
     public void setInvalid(ItemStack stack, boolean invalid) {
-        ItemDataUtils.setBoolean(stack, "invalid", invalid);
+        ItemDataUtils.setBoolean(stack, NBTConstants.INVALID, invalid);
+    }
+
+    public boolean hasInventory(ItemStack stack) {
+        return ItemDataUtils.hasData(stack, NBTConstants.ITEMS, NBT.TAG_LIST);
     }
 
     public NonNullList<ItemStack> getInventory(ItemStack stack) {
-        if (!ItemDataUtils.hasData(stack, "Items")) {
+        if (!hasInventory(stack)) {
             return null;
         }
-        NBTTagList tagList = ItemDataUtils.getList(stack, "Items");
-        NonNullList<ItemStack> inventory = NonNullListSynchronized.withSize(9, ItemStack.EMPTY);
+        NBTTagList tagList = ItemDataUtils.getList(stack, NBTConstants.ITEMS);
+        NonNullList<ItemStack> inventory = NonNullList.withSize(9, ItemStack.EMPTY);
         for (int tagCount = 0; tagCount < tagList.tagCount(); tagCount++) {
             NBTTagCompound tagCompound = tagList.getCompoundTagAt(tagCount);
-            byte slotID = tagCompound.getByte("Slot");
-            if (slotID >= 0 && slotID < 9) {
-                inventory.set(slotID, new ItemStack(tagCompound));
+            byte slot = tagCompound.getByte(NBTConstants.SLOT);
+            if (slot >= 0 && slot < inventory.size()) {
+                inventory.set(slot, new ItemStack(tagCompound));
             }
         }
         return inventory;
@@ -113,18 +118,19 @@ public class ItemCraftingFormula extends ItemMekanism {
 
     public void setInventory(ItemStack stack, NonNullList<ItemStack> inv) {
         if (inv == null) {
-            ItemDataUtils.removeData(stack, "Items");
+            ItemDataUtils.removeData(stack, NBTConstants.ITEMS);
             return;
         }
         NBTTagList tagList = new NBTTagList();
-        for (int slotCount = 0; slotCount < 9; slotCount++) {
-            if (!inv.get(slotCount).isEmpty()) {
+        for (int slot = 0; slot < inv.size(); slot++) {
+            ItemStack slotStack = inv.get(slot);
+            if (!slotStack.isEmpty()) {
                 NBTTagCompound tagCompound = new NBTTagCompound();
-                tagCompound.setByte("Slot", (byte) slotCount);
-                inv.get(slotCount).writeToNBT(tagCompound);
+                slotStack.writeToNBT(tagCompound);
+                tagCompound.setByte(NBTConstants.SLOT, (byte) slot);
                 tagList.appendTag(tagCompound);
             }
         }
-        ItemDataUtils.setList(stack, "Items", tagList);
+        ItemDataUtils.setListOrRemove(stack, NBTConstants.ITEMS, tagList);
     }
 }

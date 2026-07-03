@@ -1,7 +1,7 @@
 package mekanism.common.content.gear.shared;
 
 import mekanism.api.annotations.ParametersAreNotNullByDefault;
-import mekanism.api.energy.IEnergizedItem;
+import mekanism.api.energy.IEnergyContainer;
 import mekanism.api.gear.ICustomModule;
 import mekanism.api.gear.IModule;
 import mekanism.common.config.MekanismConfig;
@@ -31,9 +31,9 @@ public class ModuleEnergyUnit implements ICustomModule<ModuleEnergyUnit> {
 
     @Override
     public void onRemoved(IModule<ModuleEnergyUnit> module, boolean last) {
-        IEnergizedItem energyContainer = module.getEnergyContainer();
+        IEnergyContainer energyContainer = module.getEnergyContainer();
         if (energyContainer != null) {
-            energyContainer.setEnergy(module.getContainer(), Math.min(energyContainer.getEnergy(module.getContainer()), energyContainer.getMaxEnergy(module.getContainer())));
+            energyContainer.setEnergy(Math.min(energyContainer.getEnergy(), energyContainer.getMaxEnergy()));
         }
     }
 }

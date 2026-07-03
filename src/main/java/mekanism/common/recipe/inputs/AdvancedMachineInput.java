@@ -1,11 +1,14 @@
 package mekanism.common.recipe.inputs;
 
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
 import mekanism.api.gas.Gas;
-import mekanism.api.gas.GasTank;
+import mekanism.api.gas.GasStack;
+import mekanism.api.gas.IExtendedGasTank;
+import mekanism.api.inventory.IInventorySlot;
 import mekanism.common.util.StackUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.NonNullList;
 import net.minecraftforge.oredict.OreDictionary;
 
 public class AdvancedMachineInput extends MachineInput<AdvancedMachineInput> implements IWildInput<AdvancedMachineInput> {
@@ -38,22 +41,23 @@ public class AdvancedMachineInput extends MachineInput<AdvancedMachineInput> imp
         return !itemStack.isEmpty() && gasType != null;
     }
 
-    public boolean useItem(NonNullList<ItemStack> inventory, int index, boolean deplete) {
-        if (inputContains(inventory.get(index), itemStack)) {
+    public boolean useItem(IInventorySlot slot, boolean deplete) {
+        if (inputContains(slot.getStack(), itemStack)) {
             if (deplete) {
-                inventory.set(index, StackUtils.subtract(inventory.get(index), itemStack));
+                slot.shrinkStack(itemStack.getCount(), Action.EXECUTE);
             }
             return true;
         }
         return false;
     }
 
-    public boolean useSecondary(GasTank gasTank, int amountToUse, boolean deplete) {
-        if (gasTank.getGasType() == gasType && gasTank.getStored() >= amountToUse) {
-            gasTank.draw(amountToUse, deplete);
-            return true;
+    public boolean useSecondary(IExtendedGasTank gasTank, int amountToUse, boolean deplete) {
+        GasStack gas = gasTank.getGas();
+        if (gas == null || gas.getGas() != gasType || gas.amount < amountToUse) {
+            return false;
         }
-        return false;
+        GasStack extracted = gasTank.extract(amountToUse, Action.get(deplete), AutomationType.INTERNAL);
+        return extracted != null && extracted.amount == amountToUse;
     }
 
     public boolean matches(AdvancedMachineInput input) {

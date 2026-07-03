@@ -11,6 +11,7 @@ import mekanism.api.*;
 import mekanism.api.gas.GasStack;
 import mekanism.api.gas.GasTank;
 import mekanism.api.gas.GasTankInfo;
+import mekanism.api.gas.IExtendedGasTank;
 import mekanism.api.radiation.IRadiationManager;
 import mekanism.api.radiation.IRadiationSource;
 import mekanism.api.radiation.capability.IRadiationEntity;
@@ -19,7 +20,6 @@ import mekanism.client.Particle;
 import mekanism.common.Mekanism;
 import mekanism.common.MekanismDamageSource;
 import mekanism.common.MekanismSounds;
-import mekanism.common.base.MultiblockGasTank;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.lib.collection.HashList;
@@ -195,25 +195,27 @@ public class RadiationManager implements IRadiationManager {
         }
     }
 
+    @Deprecated
     @Override
     public void dumpRadiation(Coord4D coord, GasTankInfo[] gasTanks, boolean clearRadioactive) {
         for (GasTankInfo gasTank : gasTanks) {
-            if (gasTank instanceof GasTank tank) {
+            if (gasTank instanceof IExtendedGasTank tank) {
                 if (tank.getGas() != null && dumpRadiation(coord, tank.getGas()) && clearRadioactive) {
-                    tank.setGas(null);
+                    tank.setEmpty();
                 }
-            } else if (gasTank instanceof MultiblockGasTank<?> tank) {
+            } else if (gasTank instanceof GasTank tank) {
                 if (tank.getGas() != null && dumpRadiation(coord, tank.getGas()) && clearRadioactive) {
                     tank.setGas(null);
                 }
             }
-
         }
     }
 
     @Override
     public boolean dumpRadiation(Coord4D coord, GasStack stack) {
-        if (stack.getGas() != null && stack.getGas().isRadiation()) {
+        // Match high-version semantics: don't report success when radiation is disabled,
+        // otherwise clearRadioactive callers would silently void radioactive contents.
+        if (isRadiationEnabled() && stack != null && stack.getGas() != null && stack.getGas().isRadiation()) {
             double radioactivity = stack.getGas().getRadioactivity();
             radiate(coord, radioactivity * stack.amount);
             return true;

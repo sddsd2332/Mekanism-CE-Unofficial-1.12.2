@@ -6,24 +6,25 @@ import ic2.api.energy.tile.IEnergyAcceptor;
 import ic2.api.energy.tile.IEnergyConductor;
 import ic2.api.energy.tile.IEnergyEmitter;
 import io.netty.buffer.ByteBuf;
-import mekanism.api.Coord4D;
-import mekanism.api.EnumColor;
-import mekanism.api.IConfigurable;
-import mekanism.api.TileNetworkList;
+import mekanism.api.*;
 import mekanism.common.Mekanism;
 import mekanism.common.base.IActiveState;
 import mekanism.common.base.IComparatorSupport;
 import mekanism.common.base.IEnergyWrapper;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.capabilities.CapabilityWrapperManager;
+import mekanism.common.capabilities.holder.energy.IEnergyContainerHolder;
+import mekanism.common.capabilities.holder.energy.ProxiedEnergyContainerHolder;
 import mekanism.common.integration.MekanismHooks;
 import mekanism.common.integration.forgeenergy.ForgeEnergyIntegration;
 import mekanism.common.integration.ic2.IC2Integration;
 import mekanism.common.integration.redstoneflux.RFIntegration;
 import mekanism.common.integration.tesla.TeslaIntegration;
-import mekanism.common.util.*;
+import mekanism.common.util.CableUtils;
+import mekanism.common.util.CapabilityUtils;
+import mekanism.common.util.LangUtils;
+import mekanism.common.util.MekanismUtils;
 import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumActionResult;
@@ -36,9 +37,9 @@ import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.common.Optional.Interface;
 import net.minecraftforge.fml.common.Optional.InterfaceList;
 import net.minecraftforge.fml.common.Optional.Method;
-import net.minecraftforge.items.CapabilityItemHandler;
 
 import javax.annotation.Nonnull;
+import java.util.Collections;
 
 @InterfaceList({
         @Interface(iface = "ic2.api.energy.tile.IEnergySink", modid = MekanismHooks.IC2_MOD_ID),
@@ -59,6 +60,16 @@ public class TileEntityInductionPort extends TileEntityInductionCasing implement
 
     public TileEntityInductionPort() {
         super("InductionPort");
+        initializeInventorySlots();
+    }
+
+    @Override
+    protected IEnergyContainerHolder getInitialEnergyContainers(IContentsListener listener) {
+        return ProxiedEnergyContainerHolder.create(
+                side -> side != null && sideIsConsumer(side),
+                side -> side != null && sideIsOutput(side),
+                side -> structure == null ? Collections.emptyList() : structure.getEnergyContainers(side)
+        );
     }
 
     @Override
@@ -213,13 +224,13 @@ public class TileEntityInductionPort extends TileEntityInductionCasing implement
     @Override
     @Method(modid = MekanismHooks.IC2_MOD_ID)
     public int getSinkTier() {
-        return 4;
+        return IC2Integration.getConfiguredInputTier();
     }
 
     @Override
     @Method(modid = MekanismHooks.IC2_MOD_ID)
     public int getSourceTier() {
-        return 4;
+        return IC2Integration.getOutputTierForJoules(getMaxOutput());
     }
 
     @Override
@@ -366,17 +377,11 @@ public class TileEntityInductionPort extends TileEntityInductionCasing implement
 
     @Override
     public boolean hasCapability(@Nonnull Capability<?> capability, EnumFacing facing) {
-        return capability == Capabilities.ENERGY_STORAGE_CAPABILITY || capability == Capabilities.ENERGY_ACCEPTOR_CAPABILITY
-                || capability == Capabilities.ENERGY_OUTPUTTER_CAPABILITY || capability == Capabilities.CONFIGURABLE_CAPABILITY
-                || capability == CapabilityEnergy.ENERGY || isTesla(capability, facing) || super.hasCapability(capability, facing);
+        return capability == CapabilityEnergy.ENERGY || isTesla(capability, facing) || super.hasCapability(capability, facing);
     }
 
     @Override
     public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing facing) {
-        if (capability == Capabilities.ENERGY_STORAGE_CAPABILITY || capability == Capabilities.ENERGY_ACCEPTOR_CAPABILITY ||
-                capability == Capabilities.ENERGY_OUTPUTTER_CAPABILITY || capability == Capabilities.CONFIGURABLE_CAPABILITY) {
-            return (T) this;
-        }
         if (isTesla(capability, facing)) {
             return (T) teslaManager.getWrapper(this, facing);
         }
@@ -391,29 +396,9 @@ public class TileEntityInductionPort extends TileEntityInductionCasing implement
                 || (capability == Capabilities.TESLA_PRODUCER_CAPABILITY && sideIsOutput(side));
     }
 
-    @Nonnull
     @Override
-    public int[] getSlotsForFace(@Nonnull EnumFacing side) {
-        //Inserting into input make it draw power from the item inserted
-        return (!isRemote() && structure != null) || (isRemote() && clientHasStructure) ? mode ? CHARGE_SLOT : DISCHARGE_SLOT : InventoryUtils.EMPTY;
-    }
-
-    @Override
-    public boolean isItemValidForSlot(int slot, @Nonnull ItemStack stack) {
-        if (slot == 0) {
-            return ChargeUtils.canBeCharged(stack);
-        } else if (slot == 1) {
-            return ChargeUtils.canBeDischarged(stack);
-        }
-        return false;
-    }
-
-    @Override
-    public boolean isCapabilityDisabled(@Nonnull Capability<?> capability, EnumFacing side) {
-        if (capability == CapabilityItemHandler.ITEM_HANDLER_CAPABILITY) {
-            return !isRemote() ? structure == null : !clientHasStructure;
-        }
-        return super.isCapabilityDisabled(capability, side);
+    protected boolean exposesInventoryToAutomation() {
+        return true;
     }
 
     @Override

@@ -1,13 +1,11 @@
 package mekanism.common.tile.machine;
 
 import mekanism.api.gas.Gas;
-import mekanism.api.gas.GasStack;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.recipe.RecipeHandler.Recipe;
 import mekanism.common.recipe.inputs.AdvancedMachineInput;
 import mekanism.common.recipe.machines.PurificationRecipe;
 import mekanism.common.tile.prefab.TileEntityAdvancedElectricMachine;
-import net.minecraft.util.EnumFacing;
 
 import java.util.Map;
 
@@ -20,22 +18,6 @@ public class TileEntityPurificationChamber extends TileEntityAdvancedElectricMac
     @Override
     public Map<AdvancedMachineInput, PurificationRecipe> getRecipes() {
         return Recipe.PURIFICATION_CHAMBER.get();
-    }
-
-    @Override
-    public int receiveGas(EnumFacing side, GasStack stack, boolean doTransfer) {
-        if (stack == null || stack.getGas() == null) {
-            return 0;
-        }
-        if (canReceiveGas(side, stack.getGas())) {
-            return gasTank.receive(stack, doTransfer);
-        }
-        return 0;
-    }
-
-    @Override
-    public boolean canReceiveGas(EnumFacing side, Gas type) {
-        return gasTank.canReceive(type) && isValidGas(type);
     }
 
     @Override

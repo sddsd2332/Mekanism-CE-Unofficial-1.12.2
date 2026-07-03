@@ -17,8 +17,11 @@ import mekanism.client.render.ModelCustomArmor.ArmorModel;
 import mekanism.common.Mekanism;
 import mekanism.common.MekanismFluids;
 import mekanism.common.MekanismItems;
+import mekanism.common.capabilities.ItemCapabilityWrapper;
+import mekanism.common.capabilities.gas.item.RateLimitGasHandler;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.integration.MekanismHooks;
+import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.item.interfaces.IItemHUDProvider;
 import mekanism.common.item.interfaces.IJetpackItem;
 import mekanism.common.item.interfaces.IModeItem;
@@ -43,6 +46,7 @@ import net.minecraft.util.NonNullList;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.world.World;
 import net.minecraftforge.common.ISpecialArmor;
+import net.minecraftforge.common.capabilities.ICapabilityProvider;
 import net.minecraftforge.common.util.EnumHelper;
 import net.minecraftforge.fml.common.Optional;
 import net.minecraftforge.fml.relauncher.Side;
@@ -73,7 +77,8 @@ public class ItemJetpack extends ItemArmor implements IGasItem, ISpecialArmor, I
 
     @Override
     public double getDurabilityForDisplay(ItemStack stack) {
-        return 1D - ((getGas(stack) != null ? (double) getGas(stack).amount : 0D) / (double) getMaxGas(stack));
+        GasStack gas = getGas(stack);
+        return 1D - ((gas != null ? (double) gas.amount : 0D) / (double) getMaxGas(stack));
     }
 
     @Override
@@ -134,25 +139,38 @@ public class ItemJetpack extends ItemArmor implements IGasItem, ISpecialArmor, I
 
     @Override
     public int addGas(ItemStack itemstack, GasStack stack) {
-        if (getGas(itemstack) != null && getGas(itemstack).getGas() != stack.getGas()) {
+        GasStack storedGas = getGas(itemstack);
+        if (storedGas != null && storedGas.getGas() != stack.getGas()) {
             return 0;
         }
         if (stack.getGas() != MekanismFluids.Hydrogen) {
             return 0;
         }
-        int toUse = Math.min(getMaxGas(itemstack) - getStored(itemstack), Math.min(getRate(itemstack), stack.amount));
-        setGas(itemstack, new GasStack(stack.getGas(), getStored(itemstack) + toUse));
+        int stored = storedGas == null ? 0 : storedGas.amount;
+        int toUse = Math.min(getMaxGas(itemstack) - stored, Math.min(getRate(itemstack), stack.amount));
+        setGas(itemstack, new GasStack(stack.getGas(), stored + toUse));
         return toUse;
     }
 
     @Override
     public GasStack removeGas(ItemStack itemstack, int amount) {
-        return null;
+        GasStack gas = getGas(itemstack);
+        if (gas == null || gas.getGas() != MekanismFluids.Hydrogen || amount <= 0) {
+            return null;
+        }
+        int gasToUse = Math.min(gas.amount, Math.min(getRate(itemstack), amount));
+        if (gasToUse <= 0) {
+            return null;
+        }
+        int remaining = gas.amount - gasToUse;
+        setGas(itemstack, remaining <= 0 ? null : new GasStack(gas.getGas(), remaining));
+        return new GasStack(gas.getGas(), gasToUse);
     }
 
 
     public int getStored(ItemStack itemstack) {
-        return getGas(itemstack) != null ? getGas(itemstack).amount : 0;
+        GasStack gas = getGas(itemstack);
+        return gas == null ? 0 : gas.amount;
     }
 
     @Override
@@ -162,12 +180,13 @@ public class ItemJetpack extends ItemArmor implements IGasItem, ISpecialArmor, I
 
     @Override
     public boolean canProvideGas(ItemStack itemstack, Gas type) {
-        return false;
+        GasStack gas = getGas(itemstack);
+        return gas != null && gas.amount > 0 && (type == null || gas.getGas() == type);
     }
 
     @Override
     public boolean canUseJetpack(ItemStack stack) {
-        return getGas(stack) != null && getStored(stack) > 0;
+        return hasGas(stack);
     }
 
     @Override
@@ -177,10 +196,7 @@ public class ItemJetpack extends ItemArmor implements IGasItem, ISpecialArmor, I
 
     @Override
     public void useJetpackFuel(ItemStack stack) {
-        GasStack gas = getGas(stack);
-        if (gas != null) {
-            setGas(stack, new GasStack(gas.getGas(), gas.amount - 1));
-        }
+        useGas(stack, 1);
     }
 
     @Override
@@ -191,20 +207,36 @@ public class ItemJetpack extends ItemArmor implements IGasItem, ISpecialArmor, I
 
     @Override
     public GasStack getGas(ItemStack itemstack) {
-        return GasStack.readFromNBT(ItemDataUtils.getCompound(itemstack, "stored"));
+        return GasInventorySlot.getStoredGas(itemstack, "stored");
+    }
+
+    private boolean hasGas(ItemStack stack) {
+        GasStack stored = getContainedGas(stack);
+        return stored != null && stored.amount > 0;
+    }
+
+    private GasStack getContainedGas(ItemStack stack) {
+        GasStack stored = getGas(stack);
+        return stored != null && stored.getGas() == MekanismFluids.Hydrogen ? stored : null;
+    }
+
+    private GasStack useGas(ItemStack stack, int amount) {
+        return GasInventorySlot.useGas(stack, MekanismFluids.Hydrogen, amount);
     }
 
     @Override
     public void setGas(ItemStack itemstack, GasStack stack) {
-        if (stack == null || stack.amount <= 0) {
-            ItemDataUtils.removeData(itemstack, "stored");
-        } else if (stack.getGas() != MekanismFluids.Hydrogen) {
+        if (stack != null && stack.getGas() != null && stack.getGas() != MekanismFluids.Hydrogen) {
             return;
-        } else {
-            int amount = Math.max(0, Math.min(stack.amount, getMaxGas(itemstack)));
-            GasStack gasStack = new GasStack(stack.getGas(), amount);
-            ItemDataUtils.setCompound(itemstack, "stored", gasStack.write(new NBTTagCompound()));
         }
+        GasInventorySlot.setStoredGas(itemstack, stack, "stored", getMaxGas(itemstack));
+    }
+
+    @Override
+    public ICapabilityProvider initCapabilities(ItemStack stack, NBTTagCompound nbt) {
+        return new ItemCapabilityWrapper(stack, RateLimitGasHandler.create(() -> getRate(stack), () -> getMaxGas(stack),
+              mekanism.api.functions.ConstantPredicates.notExternal(), mekanism.api.functions.ConstantPredicates.alwaysTrueBi(),
+              gasStack -> gasStack != null && gasStack.getGas() == MekanismFluids.Hydrogen, "stored"));
     }
 
 
@@ -217,7 +249,7 @@ public class ItemJetpack extends ItemArmor implements IGasItem, ISpecialArmor, I
         list.add(empty);
 
         ItemStack filled = new ItemStack(this);
-        setGas(filled, new GasStack(MekanismFluids.Hydrogen, ((IGasItem) filled.getItem()).getMaxGas(filled)));
+        setGas(filled, new GasStack(MekanismFluids.Hydrogen, getMaxGas(filled)));
         list.add(filled);
     }
 
@@ -250,9 +282,10 @@ public class ItemJetpack extends ItemArmor implements IGasItem, ISpecialArmor, I
     @Override
     public void addHUDStrings(List<String> list, EntityPlayer player, ItemStack stack, EntityEquipmentSlot slotType) {
         if (slotType == getEquipmentSlot()) {
+            int stored = getStored(stack);
             list.add(LangUtils.localize("tooltip.jetpack.mode") + " " + getJetpackMode(stack).getName());
-            if (getStored(stack) > 0) {
-                list.add(LangUtils.localize("tooltip.jetpack.stored") + " " + EnumColor.ORANGE + getStored(stack));
+            if (stored > 0) {
+                list.add(LangUtils.localize("tooltip.jetpack.stored") + " " + EnumColor.ORANGE + stored);
             } else {
                 list.add(LangUtils.localize("tooltip.jetpack.stored") + " " + EnumColor.ORANGE + LangUtils.localize("tooltip.noGas"));
             }
@@ -314,7 +347,8 @@ public class ItemJetpack extends ItemArmor implements IGasItem, ISpecialArmor, I
 
     @Override
     public boolean canElytraFly(ItemStack stack, EntityLivingBase entity) {
-        if (armorType == EntityEquipmentSlot.CHEST && !entity.isSneaking() && getStored(stack) > 0) {
+        GasStack stored = getContainedGas(stack);
+        if (armorType == EntityEquipmentSlot.CHEST && !entity.isSneaking() && stored != null && stored.amount > 0) {
             return getJetpackMode(stack) == JetpackMode.VECTOR;
         }
         return false;

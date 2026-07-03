@@ -1,0 +1,12 @@
+{
+      "parent": "mekanism:digital_miner",
+      "criteria": {"stone_generator": {
+            "trigger": "minecraft:inventory_changed",
+            "conditions": {"items": [{"item": "mekanism:stonegeneratorupgrade"}]}
+      }},
+      "display": {
+            "icon": {"item": "mekanism:stonegeneratorupgrade"},
+            "description": {"translate": "advancements.mekanism.stone_generator.description"},
+            "title": {"translate": "advancements.mekanism.stone_generator.title"}
+      }
+}

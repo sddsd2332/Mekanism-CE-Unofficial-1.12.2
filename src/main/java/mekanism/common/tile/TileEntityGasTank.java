@@ -1,19 +1,23 @@
 package mekanism.common.tile;
 
 import io.netty.buffer.ByteBuf;
-import mekanism.api.TileNetworkList;
-import mekanism.api.gas.*;
+import mekanism.api.*;
+import mekanism.api.gas.Gas;
+import mekanism.api.gas.GasStack;
 import mekanism.api.math.MathUtils;
 import mekanism.api.transmitters.TransmissionType;
 import mekanism.common.Mekanism;
-import mekanism.common.SideData;
-import mekanism.common.base.IComparatorSupport;
-import mekanism.common.base.IRedstoneControl;
-import mekanism.common.base.ISideConfiguration;
-import mekanism.common.base.ITierUpgradeable;
-import mekanism.common.capabilities.Capabilities;
+import mekanism.common.base.*;
+import mekanism.common.capabilities.gas.GasTankGasTank;
+import mekanism.common.capabilities.holder.gas.GasTankHelper;
+import mekanism.common.capabilities.holder.gas.IGasTankHolder;
+import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
+import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.integration.computer.IComputerIntegration;
+import mekanism.common.inventory.container.slot.ContainerSlotType;
+import mekanism.common.inventory.container.slot.SlotOverlay;
+import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.network.PacketTileEntity.TileEntityMessage;
 import mekanism.common.security.ISecurityTile;
 import mekanism.common.tier.BaseTier;
@@ -23,26 +27,28 @@ import mekanism.common.tile.component.TileComponentEjector;
 import mekanism.common.tile.component.TileComponentSecurity;
 import mekanism.common.tile.component.config.DataType;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
-import mekanism.common.util.*;
+import mekanism.common.upgrade.GasTankUpgradeData;
+import mekanism.common.upgrade.IUpgradeData;
+import mekanism.common.util.LangUtils;
+import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.TileUtils;
 import net.minecraft.block.Block;
 import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.EnumFacing;
-import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
-public class TileEntityGasTank extends TileEntityContainerBlock implements IGasHandler, IRedstoneControl, ISideConfiguration, ISecurityTile, ITierUpgradeable,
-        IComputerIntegration, IComparatorSupport {
+public class TileEntityGasTank extends TileEntityContainerBlock implements IRedstoneControl, ISideConfiguration, ISecurityTile, IUpgradeableTile,
+        IComputerIntegration, IComparatorSupport, ITankManager {
 
     private static final String[] methods = new String[]{"getMaxGas", "getStoredGas", "getGas"};
     /**
      * The type of gas stored in this tank.
      */
-    public GasTank gasTank;
+    public GasTankGasTank gasTank;
 
     public GasTankTier tier = GasTankTier.BASIC;
 
@@ -60,37 +66,55 @@ public class TileEntityGasTank extends TileEntityContainerBlock implements IGasH
     public TileComponentEjector ejectorComponent;
     public TileComponentConfig configComponent;
     public TileComponentSecurity securityComponent;
+    private GasInventorySlot drainSlot;
+    private GasInventorySlot fillSlot;
 
     public TileEntityGasTank() {
         super("GasTank");
         configComponent = new TileComponentConfig(this, TransmissionType.GAS, TransmissionType.ITEM);
-
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.NONE, InventoryUtils.EMPTY));
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.INPUT, new int[]{0}));
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.OUTPUT, new int[]{1}));
-        configComponent.setConfig(TransmissionType.ITEM, new byte[]{1, 1, 2, 1, 1, 1});
+        gasTank = GasTankGasTank.create(this, this);
+        initializeInventorySlots();
+        configComponent.setupItemIOConfig(fillSlot, drainSlot);
+        configComponent.setConfig(TransmissionType.ITEM, DataType.INPUT, DataType.INPUT, DataType.OUTPUT, DataType.INPUT, DataType.INPUT, DataType.INPUT);
         configComponent.setCanEject(TransmissionType.ITEM, false);
 
-        configComponent.setIOConfig(TransmissionType.GAS);
+        configComponent.setupIOConfig(TransmissionType.GAS, gasTank, RelativeSide.FRONT);
         configComponent.setEjecting(TransmissionType.GAS, true);
 
-        gasTank = new GasTank(tier.getStorage());
-        inventory = NonNullListSynchronized.withSize(2, ItemStack.EMPTY);
         dumping = GasMode.IDLE;
         controlType = RedstoneControl.DISABLED;
 
         ejectorComponent = new TileComponentEjector(this);
+        ejectorComponent.setOutputData(configComponent, TransmissionType.GAS)
+              .setCanEject(type -> MekanismUtils.canFunction(this) && (tier == GasTankTier.CREATIVE || dumping != GasMode.DUMPING));
 
         securityComponent = new TileComponentSecurity(this);
     }
 
     @Override
+    protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
+        InventorySlotHelper builder = createInventorySlotHelper();
+        drainSlot = builder.addSlot(GasInventorySlot.drain(gasTank, listener, 16, 16));
+        drainSlot.setSlotType(ContainerSlotType.OUTPUT);
+        drainSlot.setSlotOverlay(SlotOverlay.PLUS);
+        fillSlot = builder.addSlot(GasInventorySlot.fill(gasTank, listener, 16, 48));
+        fillSlot.setSlotType(ContainerSlotType.INPUT);
+        fillSlot.setSlotOverlay(SlotOverlay.MINUS);
+        return builder.build();
+    }
+
+    @Override
+    protected IGasTankHolder getInitialGasTanks(IContentsListener listener) {
+        GasTankHelper builder = createGasTankHelper();
+        builder.addTank(gasTank);
+        return builder.build();
+    }
+
+    @Override
     public void onAsyncUpdateServer() {
         super.onAsyncUpdateServer();
-        TileUtils.drawGas(inventory.get(0), gasTank, tier != GasTankTier.CREATIVE);
-        if (TileUtils.receiveGas(inventory.get(1), gasTank) && tier == GasTankTier.CREATIVE && gasTank.getGas() != null) {
-            gasTank.getGas().amount = Integer.MAX_VALUE;
-        }
+        drainSlot.drainTank();
+        fillSlot.fillTank();
         Mekanism.EXECUTE_MANAGER.addSyncTask(() -> {
             handTank();
             int newGasAmount = gasTank.getStored();
@@ -107,38 +131,80 @@ public class TileEntityGasTank extends TileEntityContainerBlock implements IGasH
     }
 
     public void handTank() {
-        if (gasTank.getGas() != null && MekanismUtils.canFunction(this) && (tier == GasTankTier.CREATIVE || dumping != GasMode.DUMPING)) {
-            if (configComponent.isEjecting(TransmissionType.GAS)) {
-                if (gasTank.getGas().getGas() != null) {
-                    GasStack toSend = gasTank.getGas().copy().withAmount(Math.min(gasTank.getStored(), tier.getOutput()));
-                    gasTank.draw(GasUtils.emit(toSend, this, configComponent.getSidesForData(TransmissionType.GAS, facing, 2)), tier != GasTankTier.CREATIVE);
-                }
-            }
-        }
         if (tier != GasTankTier.CREATIVE) {
             if (dumping == GasMode.DUMPING) {
-                gasTank.draw(tier.getStorage() / 400, true);
+                gasTank.extract(tier.getStorage() / 400, Action.EXECUTE, AutomationType.INTERNAL);
             } else if (dumping == GasMode.DUMPING_EXCESS) {
                 int target = MathUtils.clampToInt(gasTank.getMaxGas() * MekanismConfig.current().general.dumpExcessKeepRatio.val());
                 int stored = gasTank.getStored();
                 if (target < stored) {
-                    gasTank.draw(Math.min(stored - target, tier.getOutput()), true);
+                    gasTank.extract(Math.min(stored - target, tier.getOutput()), Action.EXECUTE, AutomationType.INTERNAL);
                 }
             }
         }
     }
 
+    public boolean isValidGas(Gas gas) {
+        return gas != null && (tier == GasTankTier.CREATIVE || !gas.isRadiation());
+    }
+
 
     @Override
-    public boolean upgrade(BaseTier upgradeTier) {
+    public boolean canInstallUpgrade(BaseTier upgradeTier) {
         if (upgradeTier.ordinal() != tier.ordinal() + 1) {
             return false;
         }
-        tier = GasTankTier.values()[upgradeTier.ordinal()];
-        gasTank.setMaxGas(tier.getStorage());
-        Mekanism.packetHandler.sendUpdatePacket(this);
-        markNoUpdateSync();
-        return true;
+        return upgradeTier.ordinal() < GasTankTier.values().length;
+    }
+
+    @Nullable
+    @Override
+    public IUpgradeData getUpgradeData(BaseTier upgradeTier) {
+        if (!canInstallUpgrade(upgradeTier)) {
+            return null;
+        }
+        return new GasTankUpgradeData(upgradeTier, facing, clientFacing, ticker, redstone, redstoneLastTick, doAutoSync, getControlType(),
+              dumping, gasTank.getGas(), currentGasAmount, currentRedstoneLevel, writeUpgradeComponentData(), drainSlot.serializeNBT(),
+              fillSlot.serializeNBT());
+    }
+
+    @Nonnull
+    private NBTTagCompound writeUpgradeComponentData() {
+        NBTTagCompound componentData = new NBTTagCompound();
+        configComponent.write(componentData);
+        ejectorComponent.write(componentData);
+        securityComponent.write(componentData);
+        return componentData;
+    }
+
+    @Override
+    public boolean parseUpgradeData(IUpgradeData upgradeData) {
+        if (upgradeData instanceof GasTankUpgradeData data && data.getUpgradeTier().ordinal() == tier.ordinal() + 1) {
+            facing = data.facing;
+            clientFacing = data.clientFacing;
+            ticker = data.ticker;
+            redstone = data.redstone;
+            redstoneLastTick = data.redstoneLastTick;
+            doAutoSync = data.doAutoSync;
+            tier = GasTankTier.values()[data.getUpgradeTier().ordinal()];
+            setControlType(data.controlType);
+            dumping = data.dumping;
+            currentGasAmount = data.currentGasAmount;
+            currentRedstoneLevel = data.currentRedstoneLevel;
+            configComponent.read(data.componentData);
+            ejectorComponent.read(data.componentData);
+            securityComponent.read(data.componentData);
+            ejectorComponent.setOutputData(configComponent, TransmissionType.GAS);
+            drainSlot.deserializeNBT(data.drainSlot);
+            fillSlot.deserializeNBT(data.fillSlot);
+            gasTank.setGas(data.stored);
+            sanitizeAndClampTank();
+            MekanismUtils.updateBlock(world, getPos());
+            Mekanism.packetHandler.sendUpdatePacket(this);
+            markNoUpdateSync();
+            return true;
+        }
+        return false;
     }
 
     @Nonnull
@@ -148,119 +214,8 @@ public class TileEntityGasTank extends TileEntityContainerBlock implements IGasH
     }
 
     @Override
-    public boolean canExtractItem(int slotID, @Nonnull ItemStack itemstack, @Nonnull EnumFacing side) {
-        Item item = itemstack.getItem();
-        if (slotID == 1) {
-            if (tier != GasTankTier.CREATIVE && item instanceof IGasItem gasItem && gasItem.getGas(itemstack) != null && gasItem.getGas(itemstack).getGas().isRadiation()) {
-                return false;
-            } else {
-                return item instanceof IGasItem gasItem && gasItem.getGas(itemstack) == null;
-            }
-        } else if (slotID == 0) {
-            return item instanceof IGasItem gasItem && gasItem.getGas(itemstack) != null &&
-                    gasItem.getGas(itemstack).amount == gasItem.getMaxGas(itemstack);
-        }
-        return false;
-    }
-
-    @Override
-    public boolean isItemValidForSlot(int slotID, @Nonnull ItemStack itemstack) {
-        Item item = itemstack.getItem();
-        if (slotID == 0) {
-            return item instanceof IGasItem gasItem && (gasTank.getGas() == null || gasItem.canReceiveGas(itemstack, gasTank.getGas().getGas()));
-        } else if (slotID == 1) {
-            if (tier == GasTankTier.CREATIVE) {
-                return item instanceof IGasItem gasItem && (gasTank.getGas() == null || gasItem.canProvideGas(itemstack, gasTank.getGas().getGas()));
-            }
-            if (item instanceof IGasItem gasItem) {
-                GasStack gas = gasItem.getGas(itemstack);
-                if (gas == null) {
-                    return true;
-                }
-                Gas type = gas.getGas();
-                if (type.isRadiation()) {
-                    return false;
-                } else {
-                    return gasTank.getGas() == null || gasItem.canProvideGas(itemstack, gasTank.getGas().getGas());
-                }
-            }
-            return false;
-        }
-        return false;
-    }
-
-    @Nonnull
-    @Override
-    public int[] getSlotsForFace(@Nonnull EnumFacing side) {
-        return configComponent.getOutput(TransmissionType.ITEM, side, facing).availableSlots;
-    }
-
-    @Override
-    public int receiveGas(EnumFacing side, GasStack stack, boolean doTransfer) {
-
-        if (tier == GasTankTier.CREATIVE) {
-            return stack != null ? stack.amount : 0;
-        }
-        if (stack.getGas().isRadiation()) {
-            return gasTank.receive(stack, false);
-        } else {
-            return gasTank.receive(stack, doTransfer);
-        }
-    }
-
-    @Override
-    public GasStack drawGas(EnumFacing side, int amount, boolean doTransfer) {
-        if (canDrawGas(side, null)) {
-            return gasTank.draw(amount, doTransfer && tier != GasTankTier.CREATIVE);
-        }
-        return null;
-    }
-
-    @Override
-    public boolean canDrawGas(EnumFacing side, Gas type) {
-        if (configComponent.hasSideForData(TransmissionType.GAS, facing, 2, side)) {
-            return gasTank.canDraw(type);
-        }
-        return false;
-    }
-
-    @Override
-    public boolean canReceiveGas(EnumFacing side, Gas type) {
-        if (tier != GasTankTier.CREATIVE && (type.isRadiation())) {
-            return false;
-        } else if (configComponent.hasSideForData(TransmissionType.GAS, facing, 1, side)) {
-            return gasTank.canReceive(type);
-        }
-        return false;
-    }
-
-    @Nonnull
-    @Override
-    public GasTankInfo[] getTankInfo() {
-        return new GasTankInfo[]{gasTank};
-    }
-
-    @Override
-    public boolean hasCapability(@Nonnull Capability<?> capability, EnumFacing side) {
-        if (isCapabilityDisabled(capability, side)) {
-            return false;
-        }
-        return capability == Capabilities.GAS_HANDLER_CAPABILITY || super.hasCapability(capability, side);
-    }
-
-    @Override
-    public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing side) {
-        if (isCapabilityDisabled(capability, side)) {
-            return null;
-        } else if (capability == Capabilities.GAS_HANDLER_CAPABILITY) {
-            return Capabilities.GAS_HANDLER_CAPABILITY.cast(this);
-        }
-        return super.getCapability(capability, side);
-    }
-
-    @Override
-    public boolean isCapabilityDisabled(@Nonnull Capability<?> capability, EnumFacing side) {
-        return configComponent.isCapabilityDisabled(capability, side, facing) || super.isCapabilityDisabled(capability, side);
+    public Object[] getManagedTanks() {
+        return new Object[]{gasTank};
     }
 
     @Override
@@ -272,7 +227,7 @@ public class TileEntityGasTank extends TileEntityContainerBlock implements IGasH
                 dumping = GasMode.values()[index];
             }
             if (type == 1) {
-                gasTank.setGas(null);
+                gasTank.setEmpty();
             }
             playersUsing.forEach(player -> Mekanism.packetHandler.sendTo(new TileEntityMessage(this), (EntityPlayerMP) player));
 
@@ -282,7 +237,6 @@ public class TileEntityGasTank extends TileEntityContainerBlock implements IGasH
         if (FMLCommonHandler.instance().getEffectiveSide().isClient()) {
             GasTankTier prevTier = tier;
             tier = MekanismUtils.getByIndex(GasTankTier.values(), dataStream.readInt(), tier);
-            gasTank.setMaxGas(tier.getStorage());
             TileUtils.readTankData(dataStream, gasTank);
             dumping = MekanismUtils.getByIndex(GasMode.values(), dataStream.readInt(), dumping);
             controlType = MekanismUtils.getByIndex(RedstoneControl.values(), dataStream.readInt(), controlType);
@@ -296,16 +250,27 @@ public class TileEntityGasTank extends TileEntityContainerBlock implements IGasH
     public void readCustomNBT(NBTTagCompound nbtTags) {
         super.readCustomNBT(nbtTags);
         tier = MekanismUtils.getByIndex(GasTankTier.values(), nbtTags.getInteger("tier"), tier);
-        gasTank.read(nbtTags.getCompoundTag("gasTank"));
+        if (!hasStoredGasTanks(nbtTags) && nbtTags.hasKey("gasTank")) {
+            gasTank.read(nbtTags.getCompoundTag("gasTank"));
+        }
+        sanitizeAndClampTank();
         dumping = MekanismUtils.getByIndex(GasMode.values(), nbtTags.getInteger("dumping"), dumping);
         controlType = MekanismUtils.getByIndex(RedstoneControl.values(), nbtTags.getInteger("controlType"), controlType);
+    }
+
+    private void sanitizeAndClampTank() {
+        GasStack stored = gasTank.getGas();
+        if (stored == null || stored.getGas() == null || stored.amount <= 0 || !isValidGas(stored.getGas())) {
+            gasTank.setEmpty();
+        } else {
+            gasTank.setStackSize(stored.amount, Action.EXECUTE);
+        }
     }
 
     @Override
     public void writeCustomNBT(NBTTagCompound nbtTags) {
         super.writeCustomNBT(nbtTags);
         nbtTags.setInteger("tier", tier.ordinal());
-        nbtTags.setTag("gasTank", gasTank.write(new NBTTagCompound()));
         nbtTags.setInteger("dumping", dumping.ordinal());
         nbtTags.setInteger("controlType", controlType.ordinal());
     }

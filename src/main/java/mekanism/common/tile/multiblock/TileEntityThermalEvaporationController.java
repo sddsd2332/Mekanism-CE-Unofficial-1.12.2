@@ -2,27 +2,40 @@ package mekanism.common.tile.multiblock;
 
 import io.netty.buffer.ByteBuf;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
-import mekanism.api.Coord4D;
-import mekanism.api.IEvaporationSolar;
-import mekanism.api.TileNetworkList;
+import mekanism.api.*;
 import mekanism.common.Mekanism;
 import mekanism.common.base.IActiveState;
 import mekanism.common.base.ITankManager;
 import mekanism.common.block.states.BlockStateBasic.BasicBlockType;
 import mekanism.common.capabilities.Capabilities;
+import mekanism.common.capabilities.fluid.BasicFluidTank;
+import mekanism.common.capabilities.fluid.VariableCapacityFluidTank;
+import mekanism.common.capabilities.holder.fluid.IFluidTankHolder;
+import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
+import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
+import mekanism.common.capabilities.holder.slot.ProxiedInventorySlotHolder;
 import mekanism.common.config.MekanismConfig;
+import mekanism.common.inventory.slot.FluidInventorySlot;
+import mekanism.common.inventory.slot.OutputInventorySlot;
 import mekanism.common.recipe.RecipeHandler;
 import mekanism.common.recipe.RecipeHandler.Recipe;
+import mekanism.common.recipe.cache.CachedRecipe;
+import mekanism.common.recipe.cache.CachedRecipe.OperationTracker.RecipeError;
+import mekanism.common.recipe.cache.IRecipeLookupHandler;
+import mekanism.common.recipe.cache.OneInputCachedRecipe;
+import mekanism.common.recipe.cache.RecipeCacheLookupMonitor;
+import mekanism.common.recipe.cache.inputs.InputHelper;
+import mekanism.common.recipe.cache.outputs.OutputHelper;
 import mekanism.common.recipe.inputs.FluidInput;
 import mekanism.common.recipe.machines.ThermalEvaporationRecipe;
 import mekanism.common.tile.TileEntityStructuralGlass;
-import mekanism.common.util.*;
-import mekanism.common.util.FluidContainerUtils.FluidChecker;
+import mekanism.common.util.CapabilityUtils;
+import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.TileUtils;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.Entity;
-import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
@@ -30,38 +43,42 @@ import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.util.math.Vec3d;
-import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.fluids.Fluid;
 import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.FluidTank;
-import net.minecraftforge.fluids.FluidUtil;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
-import net.minecraftforge.items.CapabilityItemHandler;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
-public class TileEntityThermalEvaporationController extends TileEntityThermalEvaporationBlock implements IActiveState, ITankManager {
+public class TileEntityThermalEvaporationController extends TileEntityThermalEvaporationBlock implements IActiveState, ITankManager,
+        IRecipeLookupHandler<ThermalEvaporationRecipe> {
 
     public static final int MAX_OUTPUT = 10000;
     public static final int MAX_HEIGHT = 18;
-    private static final int[] SLOTS = {0, 1, 2, 3};
-
-    public FluidTank inputTank = new FluidTankSync(0);
-    public FluidTank outputTank = new FluidTankSync(MAX_OUTPUT);
+    private static final List<RecipeError> TRACKED_ERROR_TYPES = Arrays.asList(
+          RecipeError.NOT_ENOUGH_INPUT,
+          RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
+          RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
+    );
+    private final RecipeCacheLookupMonitor<ThermalEvaporationRecipe> recipeCacheLookupMonitor = new RecipeCacheLookupMonitor<>(this);
+    public VariableCapacityFluidTank inputTank = VariableCapacityFluidTank.input(this::getMaxFluid, fluid -> hasRecipe(fluid.getFluid()), recipeCacheLookupMonitor);
+    public VariableCapacityFluidTank outputTank = VariableCapacityFluidTank.output(() -> MAX_OUTPUT, BasicFluidTank.alwaysTrue, this::onRecipeCacheContentsChanged);
+    private FluidInventorySlot inputSlot;
+    private OutputInventorySlot inputContainerSlot;
+    private FluidInventorySlot outputSlot;
+    private OutputInventorySlot outputContainerSlot;
+    private ThermalEvaporationRecipe cachedRecipe;
+    private int cachedRecipeVersion = -1;
+    private int operatingTicks;
+    private final boolean[] trackedErrors = new boolean[TRACKED_ERROR_TYPES.size()];
 
     public Set<Coord4D> tankParts = new ObjectOpenHashSet<>();
     public IEvaporationSolar[] solars = new IEvaporationSolar[4];
 
     public boolean temperatureSet = false;
-
-    public double partialInput = 0;
-    public double partialOutput = 0;
 
     public float biomeTemp = 0;
     public float temperature = 0;
@@ -104,7 +121,31 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
 
     public TileEntityThermalEvaporationController() {
         super("ThermalEvaporationController");
-        inventory = NonNullListSynchronized.withSize(SLOTS.length, ItemStack.EMPTY);
+        initializeInventorySlots();
+    }
+
+    @Override
+    protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
+        InventorySlotHelper builder = createInventorySlotHelper();
+        IContentsListener recipeCacheChangeListener = this::onRecipeCacheContentsChanged;
+        builder.addSlot(inputSlot = FluidInventorySlot.fill(inputTank, recipeCacheChangeListener, 28, 20));
+        builder.addSlot(inputContainerSlot = OutputInventorySlot.at(recipeCacheChangeListener, 28, 51));
+        builder.addSlot(outputSlot = FluidInventorySlot.drain(outputTank, recipeCacheChangeListener, 152, 20));
+        builder.addSlot(outputContainerSlot = OutputInventorySlot.at(recipeCacheChangeListener, 152, 51));
+        IInventorySlotHolder slotHolder = builder.build();
+        return ProxiedInventorySlotHolder.create(side -> getController() != null && slotHolder.canInsert(side),
+              side -> getController() != null && slotHolder.canExtract(side),
+              side -> side == null || getController() != null ? slotHolder.getInventorySlots(side) : Collections.emptyList());
+    }
+
+    private void onRecipeCacheContentsChanged() {
+        onContentsChanged();
+        recipeCacheLookupMonitor.onChange();
+    }
+
+    @Override
+    protected IFluidTankHolder getInitialFluidTanks(IContentsListener listener) {
+        return null;
     }
 
     @Override
@@ -120,40 +161,18 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
 
         manageBuckets();
 
+        sanitizeStoredFluids();
         if (structured) {
-            if (inputTank.getFluidAmount() > inputTank.getCapacity() && inputTank.getFluid() != null) {
-                inputTank.getFluid().amount = inputTank.getCapacity();
-            }
+            clampTanksToCapacity();
         }
 
 
         ThermalEvaporationRecipe recipe = getRecipe();
-        if (canOperate(recipe)) {
-            int outputNeeded = outputTank.getCapacity() - outputTank.getFluidAmount();
-            int inputStored = inputTank.getFluidAmount();
-            double outputRatio = (double) recipe.recipeOutput.output.amount / (double) recipe.recipeInput.ingredient.amount;
-            double tempMult = Math.max(0, getTemperature()) * MekanismConfig.current().general.evaporationTempMultiplier.val();
-            double inputToUse = tempMult * recipe.recipeInput.ingredient.amount * ((float) height / (float) MAX_HEIGHT);
-            inputToUse = Math.min(inputTank.getFluidAmount(), inputToUse);
-            inputToUse = Math.min(inputToUse, outputNeeded / outputRatio);
-
-            lastGain = (float) inputToUse / (float) recipe.recipeInput.ingredient.amount;
-            partialInput += inputToUse;
-
-            if (partialInput >= 1) {
-                int inputInt = (int) Math.floor(partialInput);
-                inputTank.drain(inputInt, true);
-                partialInput %= 1;
-                partialOutput += (double) inputInt / recipe.recipeInput.ingredient.amount;
-            }
-
-            if (partialOutput >= 1) {
-                int outputInt = (int) Math.floor(partialOutput);
-                outputTank.fill(new FluidStack(recipe.recipeOutput.output.getFluid(), outputInt), true);
-                partialOutput %= 1;
-            }
-        } else {
+        if (recipe == null) {
+            recipeCacheLookupMonitor.clear();
             lastGain = 0;
+        } else {
+            recipeCacheLookupMonitor.updateAndProcess();
         }
         if (structured) {
             if (Math.abs((float) inputTank.getFluidAmount() / inputTank.getCapacity() - prevScale) > 0.01) {
@@ -164,7 +183,28 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
     }
 
     public ThermalEvaporationRecipe getRecipe() {
-        return RecipeHandler.getThermalEvaporationRecipe(new FluidInput(inputTank.getFluid()));
+        refreshRecipeLookupCache();
+        FluidInput input = getInput();
+        if (!input.isValid()) {
+            cachedRecipe = null;
+            return null;
+        }
+        if (cachedRecipe == null || !input.testEquality(cachedRecipe.getInput())) {
+            cachedRecipe = RecipeHandler.getThermalEvaporationRecipe(input);
+        }
+        return cachedRecipe;
+    }
+
+    private void refreshRecipeLookupCache() {
+        int recipeVersion = RecipeHandler.getGlobalRecipeVersion();
+        if (cachedRecipeVersion != recipeVersion) {
+            cachedRecipe = null;
+            cachedRecipeVersion = recipeVersion;
+        }
+    }
+
+    public FluidInput getInput() {
+        return new FluidInput(inputTank.getFluid());
     }
 
     @Override
@@ -186,6 +226,30 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
         return Recipe.THERMAL_EVAPORATION_PLANT.containsRecipe(fluid);
     }
 
+    private void sanitizeStoredFluids() {
+        sanitizeStoredFluid(inputTank);
+        sanitizeStoredFluid(outputTank);
+    }
+
+    private void sanitizeStoredFluid(BasicFluidTank tank) {
+        FluidStack stored = tank.getFluid();
+        if (stored != null && (stored.amount <= 0 || stored.getFluid() == null)) {
+            tank.setEmpty();
+        }
+    }
+
+    private void clampTanksToCapacity() {
+        clampTank(inputTank);
+        clampTank(outputTank);
+    }
+
+    private void clampTank(BasicFluidTank tank) {
+        FluidStack stored = tank.getFluid();
+        if (stored != null) {
+            tank.setStackSize(stored.amount, Action.EXECUTE);
+        }
+    }
+
     protected void refresh() {
         if (!isRemote()) {
             if (!updatedThisTick) {
@@ -197,11 +261,8 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
                 }
 
                 if (structured) {
-                    inputTank.setCapacity(getMaxFluid());
-
-                    if (inputTank.getFluid() != null) {
-                        inputTank.getFluid().amount = Math.min(inputTank.getFluid().amount, getMaxFluid());
-                    }
+                    sanitizeStoredFluids();
+                    clampTanksToCapacity();
                 } else {
                     clearStructure();
                 }
@@ -217,21 +278,102 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
 
     }
 
-    private void manageBuckets() {
-        if (outputTank.getFluid() != null) {
-            if (FluidContainerUtils.isFluidContainer(inventory.get(2))) {
-                FluidContainerUtils.handleContainerItemFill(this, outputTank, 2, 3);
+    @Override
+    public int getSavedOperatingTicks(int cacheIndex) {
+        return operatingTicks;
+    }
+
+    @Override
+    public ThermalEvaporationRecipe getRecipe(int cacheIndex) {
+        return getRecipe();
+    }
+
+    @Override
+    public void onRecipeCacheInvalidated(int cacheIndex) {
+        cachedRecipe = null;
+        cachedRecipeVersion = RecipeHandler.getGlobalRecipeVersion();
+    }
+
+    @Override
+    public CachedRecipe<ThermalEvaporationRecipe> createNewCachedRecipe(ThermalEvaporationRecipe recipe, int cacheIndex) {
+        return new OneInputCachedRecipe<>(recipe, () -> false,
+              InputHelper.getFluidInputHandler(inputTank, RecipeError.NOT_ENOUGH_INPUT),
+              OutputHelper.getOutputHandler(outputTank, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
+              () -> recipe.getInput().ingredient,
+              input -> input != null && input.isFluidEqual(recipe.getInput().ingredient),
+              input -> recipe.getOutput().output.copy(),
+              input -> input == null || input.amount <= 0,
+              output -> output == null || output.amount <= 0)
+              .setCanHolderFunction(() -> structured && height >= 3 && height <= MAX_HEIGHT && getProductionRate() > 0)
+              .setActive(this::setRecipeActive)
+              .setRequiredTicks(this::getRecipeRequiredTicks)
+              .setBaselineMaxOperations(this::getBaselineMaxOperations)
+              .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
+              .setErrorsChanged(errors -> {
+                  for (int i = 0; i < trackedErrors.length; i++) {
+                      trackedErrors[i] = errors.contains(TRACKED_ERROR_TYPES.get(i));
+                  }
+              })
+              .setOnFinish(this::markNoUpdateSync);
+    }
+
+    @Override
+    public void clearRecipeErrors(int cacheIndex) {
+        Arrays.fill(trackedErrors, false);
+    }
+
+    public boolean hasWarning(RecipeError error) {
+        int errorIndex = TRACKED_ERROR_TYPES.indexOf(error);
+        return errorIndex != -1 && trackedErrors[errorIndex];
+    }
+
+    public boolean hasWarningNoMatchingRecipe() {
+        return hasWarning(RecipeError.NOT_ENOUGH_INPUT) || inputTank.getFluid() != null && getRecipe() == null;
+    }
+
+    public boolean hasWarningNoSpaceInOutput() {
+        return hasWarning(RecipeError.NOT_ENOUGH_OUTPUT_SPACE);
+    }
+
+    public boolean hasWarningInputDoesntProduceOutput() {
+        return hasWarning(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT);
+    }
+
+    private void setRecipeActive(boolean active) {
+        if (active) {
+            double productionRate = getProductionRate();
+            if (productionRate > 0 && productionRate < 1) {
+                lastGain = 1F / (float) Math.ceil(1 / productionRate);
+            } else {
+                lastGain = (float) productionRate;
             }
+        } else {
+            lastGain = 0;
+        }
+    }
+
+    private int getRecipeRequiredTicks() {
+        double productionRate = getProductionRate();
+        return productionRate > 0 && productionRate < 1 ? (int) Math.ceil(1 / productionRate) : 1;
+    }
+
+    private int getBaselineMaxOperations() {
+        double productionRate = getProductionRate();
+        return productionRate > 0 && productionRate < 1 ? 1 : (int) productionRate;
+    }
+
+    private double getProductionRate() {
+        return Math.max(0, getTemperature()) * MekanismConfig.current().general.evaporationTempMultiplier.val() * ((double) height / (double) MAX_HEIGHT);
+    }
+
+    private void manageBuckets() {
+        if (outputSlot != null && outputContainerSlot != null) {
+            outputSlot.drainTank(outputContainerSlot);
         }
 
         if (structured) {
-            if (FluidContainerUtils.isFluidContainer(inventory.get(0)) && inputTank.getFluidAmount() != inputTank.getCapacity()) {
-                FluidContainerUtils.handleContainerItemEmpty(this, inputTank, 0, 1, new FluidChecker() {
-                    @Override
-                    public boolean isValid(Fluid f) {
-                        return hasRecipe(f);
-                    }
-                });
+            if (inputSlot != null && inputContainerSlot != null) {
+                inputSlot.fillTank(inputContainerSlot);
             }
         }
     }
@@ -742,7 +884,6 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
             renderY = dataStream.readInt();
 
             if (structured != clientStructured) {
-                inputTank.setCapacity(getMaxFluid());
                 MekanismUtils.updateBlock(world, getPos());
                 if (structured) {
                     // Calculate the two corners of the evap tower using the render location as basis (which is the
@@ -780,11 +921,12 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
         super.readCustomNBT(nbtTags);
         inputTank.readFromNBT(nbtTags.getCompoundTag("waterTank"));
         outputTank.readFromNBT(nbtTags.getCompoundTag("brineTank"));
+        sanitizeStoredFluids();
+        clampTanksToCapacity();
 
         temperature = nbtTags.getFloat("temperature");
 
-        partialInput = nbtTags.getDouble("partialWater");
-        partialOutput = nbtTags.getDouble("partialBrine");
+        operatingTicks = nbtTags.getInteger("operatingTicks");
     }
 
     @Override
@@ -795,8 +937,7 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
 
         nbtTags.setFloat("temperature", temperature);
 
-        nbtTags.setDouble("partialWater", partialInput);
-        nbtTags.setDouble("partialBrine", partialOutput);
+        nbtTags.setInteger("operatingTicks", operatingTicks);
     }
 
     @Override
@@ -847,35 +988,14 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
     }
 
     @Override
-    public Object[] getTanks() {
+    public Object[] getManagedTanks() {
         return new Object[]{inputTank, outputTank};
     }
 
-    //TODO: Move getSlotsForFace, isItemValidForSlot, and isCapabilityDisabled to Valve
-    //NOTE: For now it has to be in the controller as it uses the old multiblock structure so the valve's don't actually
-    //have an inventory, which causes a crash trying to insert into them
     @Nonnull
     @Override
     public int[] getSlotsForFace(@Nonnull EnumFacing side) {
-        return getController() == null ? InventoryUtils.EMPTY : SLOTS;
-    }
-
-    @Override
-    public boolean isItemValidForSlot(int slot, @Nonnull ItemStack stack) {
-        if (slot == 0) {
-            return FluidContainerUtils.isFluidContainer(stack) && FluidUtil.getFluidContained(stack) != null;
-        } else if (slot == 2) {
-            return FluidContainerUtils.isFluidContainer(stack) && FluidUtil.getFluidContained(stack) == null;
-        }
-        return false;
-    }
-
-    @Override
-    public boolean isCapabilityDisabled(@Nonnull Capability<?> capability, EnumFacing side) {
-        if (capability == CapabilityItemHandler.ITEM_HANDLER_CAPABILITY) {
-            return false;
-        }
-        return super.isCapabilityDisabled(capability, side);
+        return getInventorySlotIdsForSide(side);
     }
 
     @SideOnly(Side.CLIENT)

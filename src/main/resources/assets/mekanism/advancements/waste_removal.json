@@ -1,0 +1,18 @@
+{
+      "parent": "mekanism:chemical_tank",
+      "criteria": {"waste_barrel": {
+            "trigger": "minecraft:inventory_changed",
+            "conditions": {"items": [{
+                  "item": "mekanism:machineblock4",
+                  "data": 12
+            }]}
+      }},
+      "display": {
+            "icon": {
+                  "item": "mekanism:machineblock4",
+                  "data": 12
+            },
+            "description": {"translate": "advancements.mekanism.waste_removal.description"},
+            "title": {"translate": "advancements.mekanism.waste_removal.title"}
+      }
+}

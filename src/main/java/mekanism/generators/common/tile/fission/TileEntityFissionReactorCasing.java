@@ -60,28 +60,7 @@ public class TileEntityFissionReactorCasing extends TileEntityMultiblock<Synchro
             return;
         }
 
-        if (structure.fuelTank.getGas() != null && structure.fuelTank.getGas().amount <= 0) {
-            structure.fuelTank.setGas(null);
-            markNoUpdateSync();
-        }
-        if (structure.wasteTank.getGas() != null && structure.wasteTank.getGas().amount <= 0) {
-            structure.wasteTank.setGas(null);
-            markNoUpdateSync();
-        }
-        if (structure.gasCoolantTank.getGas() != null && structure.gasCoolantTank.getGas().amount <= 0) {
-            structure.gasCoolantTank.setGas(null);
-            markNoUpdateSync();
-        }
-        if (structure.heatedCoolantTank.getGas() != null && structure.heatedCoolantTank.getGas().amount <= 0) {
-            structure.heatedCoolantTank.setGas(null);
-            markNoUpdateSync();
-        }
-        if (structure.coolantTank.getFluid() != null && structure.coolantTank.getFluid().amount <= 0) {
-            structure.coolantTank.setFluid(null);
-            markNoUpdateSync();
-        }
-        if (structure.steamTank.getFluid() != null && structure.steamTank.getFluid().amount <= 0) {
-            structure.steamTank.setFluid(null);
+        if (structure.sanitizeStoredContents()) {
             markNoUpdateSync();
         }
 
@@ -200,6 +179,7 @@ public class TileEntityFissionReactorCasing extends TileEntityMultiblock<Synchro
             data.add(structure.fuelAssemblies);
             data.add(structure.surfaceArea);
             data.add(structure.volume);
+            data.add(structure.casingHeatCapacity);
             data.add(structure.rateLimit);
             data.add(structure.active);
             data.add(structure.forceDisable);
@@ -240,6 +220,7 @@ public class TileEntityFissionReactorCasing extends TileEntityMultiblock<Synchro
             structure.fuelAssemblies = dataStream.readInt();
             structure.surfaceArea = dataStream.readInt();
             structure.volume = dataStream.readInt();
+            structure.casingHeatCapacity = dataStream.readDouble();
             structure.rateLimit = dataStream.readDouble();
             structure.active = dataStream.readBoolean();
             structure.forceDisable = dataStream.readBoolean();

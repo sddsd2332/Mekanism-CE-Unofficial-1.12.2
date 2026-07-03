@@ -1,65 +1,41 @@
 package mekanism.generators.client.gui;
 
-import mekanism.client.gui.GuiMekanismTile;
-import mekanism.client.gui.element.*;
-import mekanism.client.gui.element.bar.GuiBar;
-import mekanism.client.gui.element.slot.GuiEnergySlot;
-import mekanism.client.gui.element.slot.GuiNormalSlot;
-import mekanism.client.gui.element.tab.GuiSecurityTab;
-import mekanism.client.render.MekanismRenderer;
-import mekanism.common.MekanismFluids;
+import mekanism.client.gui.element.GuiInnerScreen;
+import mekanism.client.gui.element.bar.GuiFluidBar;
+import mekanism.client.gui.element.bar.GuiVerticalPowerBar;
+import mekanism.client.gui.element.tab.GuiEnergyTab;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.text.TextUtils;
 import mekanism.generators.common.inventory.container.ContainerBioGenerator;
 import mekanism.generators.common.tile.TileEntityBioGenerator;
 import net.minecraft.entity.player.InventoryPlayer;
-import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraft.util.text.ITextComponent;
 
 import java.util.Arrays;
+import java.util.List;
 
-@SideOnly(Side.CLIENT)
-public class GuiBioGenerator extends GuiMekanismTile<TileEntityBioGenerator> {
+public class GuiBioGenerator extends GuiGenerator<TileEntityBioGenerator, ContainerBioGenerator> {
 
     public GuiBioGenerator(InventoryPlayer inventory, TileEntityBioGenerator tile) {
         super(tile, new ContainerBioGenerator(inventory, tile));
-        ResourceLocation resource = getGuiLocation();
-        addGuiElement(new GuiRedstoneControl(this, tileEntity, resource));
-        addGuiElement(new GuiSecurityTab(this, tileEntity, resource));
-        addGuiElement(new GuiEnergyInfo(() -> Arrays.asList(
-                LangUtils.localize("gui.producing") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getActive() ? MekanismConfig.current().generators.bioGeneration.val() : 0) + "/t",
-                LangUtils.localize("gui.maxOutput") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getMaxOutput()) + "/t"), this, resource));
-        addGuiElement(new GuiPowerBar(this, tileEntity, resource, 164, 15));
-        addGuiElement(new GuiNormalSlot(this, resource, 16, 34));
-        addGuiElement(new GuiEnergySlot( this, resource, 142, 34, tileEntity));
-        addGuiElement(new GuiInnerScreen(this, resource, 48, 23, 80, 40));
-        addGuiElement(new GuiPlayerSlot(this, getGuiLocation()));
-        addGuiElement(new GuiBar(this, getGuiLocation(), 6, 16, 6, 54));
     }
 
     @Override
-    protected void drawGuiContainerForegroundLayer(int mouseX, int mouseY) {
-        fontRenderer.drawString(tileEntity.getName(), (xSize / 2) - (fontRenderer.getStringWidth(tileEntity.getName()) / 2), 4, 0x404040);
-        fontRenderer.drawString(LangUtils.localize("container.inventory"), 8, (ySize - 96) + 2, 0x404040);
-        fontRenderer.drawString(MekanismUtils.getEnergyDisplay(tileEntity.getEnergy()), 51, 26, 0xFF3CFE9A);
-        fontRenderer.drawString(LangUtils.localize("gui.bioGenerator.bioFuel") + ": " + tileEntity.bioFuelSlot.fluidStored, 51, 35, 0xFF3CFE9A);
-        fontRenderer.drawString(LangUtils.localize("gui.out") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getMaxOutput()) + "/t", 51, 44, 0xFF3CFE9A);
-        int xAxis = mouseX - guiLeft;
-        int yAxis = mouseY - guiTop;
-        if (xAxis >= 6 && xAxis <= 6 + 6 && yAxis >= 16 && yAxis <= 16 + 54) {
-            this.displayTooltip(tileEntity.bioFuelSlot.fluidStored > 0 ? LangUtils.localize("gui.bioGenerator.bioFuel") + ":" + tileEntity.bioFuelSlot.fluidStored : LangUtils.localize("gui.empty"), xAxis, yAxis);
-        }
-        super.drawGuiContainerForegroundLayer(mouseX, mouseY);
-
+    protected void addGuiElements() {
+        super.addGuiElements();
+        addButton(new GuiInnerScreen(this, 48, 23, 80, 40, this::getScreenText));
+        addButton(new GuiEnergyTab(this, () -> getEnergyTabText(tileEntity.getActive() ? MekanismConfig.current().generators.bioGeneration.val() : 0)));
+        addButton(new GuiVerticalPowerBar(this, tileEntity.getEnergyContainer(), 164, 15));
+        addButton(new GuiFluidBar(this, GuiFluidBar.getProvider(tileEntity.bioFuelTank, tileEntity.getFluidTanks(null)), 7, 15, 4, 52, false));
     }
 
-    @Override
-    protected void drawGuiContainerBackgroundLayer(int xAxis, int yAxis) {
-        super.drawGuiContainerBackgroundLayer(xAxis, yAxis);
-        MekanismRenderer.color(MekanismFluids.Biofuel);
-        GuiUtils.drawBarSprite(guiLeft + 6, guiTop + 16, 6, 54, tileEntity.getScaledFuelLevel(52), MekanismFluids.Biofuel.getSprite(), true);
+    private List<ITextComponent> getScreenText() {
+        return Arrays.asList(
+              energy(tileEntity.getEnergy()),
+              text(LangUtils.localize("gui.bioGenerator.bioFuel") + ": " + TextUtils.format(tileEntity.bioFuelTank.getFluidAmount())),
+              text(LangUtils.localize("gui.out") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getMaxOutput()) + "/t")
+        );
     }
-
 }

@@ -2,18 +2,12 @@ package mekanism.common.util;
 
 import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.item.ItemBlockMachine;
-import mekanism.common.tile.prefab.TileEntityContainerBlock;
 import net.minecraft.item.ItemStack;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.NonNullList;
-import net.minecraftforge.fluids.Fluid;
 import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.FluidTank;
-import net.minecraftforge.fluids.FluidUtil;
 import net.minecraftforge.fluids.capability.CapabilityFluidHandler;
 import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.fluids.capability.IFluidHandlerItem;
-import net.minecraftforge.items.ItemHandlerHelper;
+import net.minecraftforge.fluids.capability.IFluidTankProperties;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -30,6 +24,105 @@ public final class FluidContainerUtils {
         return !stack.isEmpty() && stack.hasCapability(CapabilityFluidHandler.FLUID_HANDLER_ITEM_CAPABILITY, null);
     }
 
+    @Nullable
+    public static IFluidHandlerItem getFluidHandlerCapability(ItemStack stack) {
+        return stack.isEmpty() ? null : stack.getCapability(CapabilityFluidHandler.FLUID_HANDLER_ITEM_CAPABILITY, null);
+    }
+
+    @Nullable
+    public static IFluidHandlerItem getUnstackedFluidHandlerCapability(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return null;
+        }
+        ItemStack toCheck = stack.getCount() > 1 ? StackUtils.size(stack, 1) : stack.copy();
+        return toCheck.getCapability(CapabilityFluidHandler.FLUID_HANDLER_ITEM_CAPABILITY, null);
+    }
+
+    @Nullable
+    public static FluidStack copyWithAmount(@Nullable FluidStack stack, int amount) {
+        return stack == null ? null : new FluidStack(stack, amount);
+    }
+
+    public static int getTankCount(@Nullable IFluidHandler handler) {
+        return getTankProperties(handler).length;
+    }
+
+    @Nullable
+    public static FluidStack getFluidInTank(@Nullable IFluidHandler handler, int tank) {
+        IFluidTankProperties[] tanks = getTankProperties(handler);
+        IFluidTankProperties tankProperties = tank >= 0 && tank < tanks.length ? tanks[tank] : null;
+        return tankProperties == null ? null : tankProperties.getContents();
+    }
+
+    public static int getTankCapacity(@Nullable IFluidHandler handler, int tank) {
+        IFluidTankProperties[] tanks = getTankProperties(handler);
+        IFluidTankProperties tankProperties = tank >= 0 && tank < tanks.length ? tanks[tank] : null;
+        return tankProperties == null ? 0 : tankProperties.getCapacity();
+    }
+
+    @Nullable
+    public static FluidStack getFluidContained(ItemStack stack) {
+        IFluidHandlerItem fluidHandler = getUnstackedFluidHandlerCapability(stack);
+        if (fluidHandler == null) {
+            return null;
+        }
+        FluidStack contained = null;
+        for (int tank = 0, tanks = getTankCount(fluidHandler); tank < tanks; tank++) {
+            FluidStack fluidInTank = getFluidInTank(fluidHandler, tank);
+            if (fluidInTank != null && fluidInTank.amount > 0) {
+                if (contained == null) {
+                    contained = fluidInTank.copy();
+                } else if (contained.isFluidEqual(fluidInTank)) {
+                    contained = copyWithAmount(contained, contained.amount + fluidInTank.amount);
+                } else {
+                    return contained;
+                }
+            }
+        }
+        return contained;
+    }
+
+    public static FluidTransferResult getTransferableFluid(ItemStack stack) {
+        if (!isFluidContainer(stack)) {
+            return FluidTransferResult.empty();
+        }
+        IFluidHandlerItem fluidHandler = getUnstackedFluidHandlerCapability(stack);
+        if (fluidHandler == null) {
+            return FluidTransferResult.empty();
+        }
+        FluidStack fluidFound = null;
+        for (int tank = 0, tanks = getTankCount(fluidHandler); tank < tanks; tank++) {
+            FluidStack stored = getFluidInTank(fluidHandler, tank);
+            if (stored != null && stored.amount > 0) {
+                FluidStack extracted = fluidHandler.drain(stored.copy(), true);
+                if (extracted != null && extracted.amount > 0) {
+                    if (fluidFound == null) {
+                        fluidFound = extracted.copy();
+                    } else if (fluidFound.getFluid() != extracted.getFluid()) {
+                        return FluidTransferResult.invalid();
+                    } else {
+                        fluidFound = copyWithAmount(fluidFound, fluidFound.amount + extracted.amount);
+                    }
+                }
+            }
+        }
+        return FluidTransferResult.of(fluidFound);
+    }
+
+    public static boolean isEmptyFluidContainer(ItemStack stack) {
+        IFluidHandlerItem fluidHandler = getUnstackedFluidHandlerCapability(stack);
+        if (fluidHandler == null) {
+            return false;
+        }
+        for (int tank = 0, tanks = getTankCount(fluidHandler); tank < tanks; tank++) {
+            FluidStack fluidInTank = getFluidInTank(fluidHandler, tank);
+            if (fluidInTank != null && fluidInTank.amount > 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public static boolean canDrain(@Nullable FluidStack tankFluid, @Nullable FluidStack drainFluid) {
         return tankFluid != null && (drainFluid == null || tankFluid.isFluidEqual(drainFluid));
     }
@@ -38,185 +131,44 @@ public final class FluidContainerUtils {
         return tankFluid == null || tankFluid.isFluidEqual(fillFluid);
     }
 
-    public static FluidStack extractFluid(FluidTank tileTank, TileEntityContainerBlock tile, int slotID) {
-        return extractFluid(tileTank, tile, slotID, FluidChecker.check(tileTank.getFluid()));
+    private static IFluidTankProperties[] getTankProperties(@Nullable IFluidHandler handler) {
+        IFluidTankProperties[] properties = handler == null ? null : handler.getTankProperties();
+        return properties == null ? new IFluidTankProperties[0] : properties;
     }
 
-    public static FluidStack extractFluid(FluidTank tileTank, TileEntityContainerBlock tile, int slotID, FluidChecker checker) {
-        IFluidHandlerItem handler = FluidUtil.getFluidHandler(tile.inventory.get(slotID));
-        FluidStack ret = null;
-        if (handler != null) {
-            ret = extractFluid(tileTank.getCapacity() - tileTank.getFluidAmount(), handler, checker);
-            tile.inventory.set(slotID, handler.getContainer());
-        }
-        return ret;
-    }
+    public static final class FluidTransferResult {
 
-    public static FluidStack extractFluid(int needed, IFluidHandlerItem handler, FluidChecker checker) {
-        if (handler == null) {
-            return null;
-        }
-        FluidStack fluidStack = handler.drain(Integer.MAX_VALUE, false);
-        if (fluidStack == null) {
-            return null;
-        }
-        if (checker != null && !checker.isValid(fluidStack.getFluid())) {
-            return null;
-        }
-        return handler.drain(needed, true);
-    }
+        private static final FluidTransferResult EMPTY = new FluidTransferResult(true, null);
+        private static final FluidTransferResult INVALID = new FluidTransferResult(false, null);
 
-    public static int insertFluid(FluidTank tileTank, ItemStack container) {
-        return insertFluid(tileTank.getFluid(), FluidUtil.getFluidHandler(container));
-    }
+        private final boolean valid;
+        @Nullable
+        private final FluidStack stack;
 
-    public static int insertFluid(FluidStack fluid, IFluidHandler handler) {
-        if (fluid == null || handler == null) {
-            return 0;
-        }
-        return handler.fill(fluid, true);
-    }
-
-    public static void handleContainerItemFill(TileEntityContainerBlock tileEntity, FluidTank tank, int inSlot, int outSlot) {
-        tank.setFluid(handleContainerItemFill(tileEntity, tileEntity.inventory, tank.getFluid(), inSlot, outSlot));
-    }
-
-    public static FluidStack handleContainerItemFill(TileEntity tileEntity, NonNullList<ItemStack> inventory, FluidStack stack, int inSlot, int outSlot) {
-        if (stack != null) {
-            ItemStack inputCopy = StackUtils.size(inventory.get(inSlot).copy(), 1);
-            IFluidHandlerItem handler = FluidUtil.getFluidHandler(inputCopy);
-            int drained = 0;
-            if (handler != null) {
-                drained = insertFluid(stack, handler);
-                inputCopy = handler.getContainer();
-            }
-            if (!inventory.get(outSlot).isEmpty() && (!ItemHandlerHelper.canItemStacksStack(inventory.get(outSlot), inputCopy) ||
-                    inventory.get(outSlot).getCount() == inventory.get(outSlot).getMaxStackSize())) {
-                return stack;
-            }
-            stack.amount -= drained;
-            if (inventory.get(outSlot).isEmpty()) {
-                inventory.set(outSlot, inputCopy);
-            } else if (ItemHandlerHelper.canItemStacksStack(inventory.get(outSlot), inputCopy)) {
-                inventory.get(outSlot).grow(1);
-            }
-            inventory.get(inSlot).shrink(1);
-            tileEntity.markDirty();
-        }
-        return stack;
-    }
-
-    public static void handleContainerItemEmpty(TileEntityContainerBlock tileEntity, FluidTank tank, int inSlot, int outSlot) {
-        handleContainerItemEmpty(tileEntity, tank, inSlot, outSlot, null);
-    }
-
-    public static void handleContainerItemEmpty(TileEntityContainerBlock tileEntity, FluidTank tank, int inSlot, int outSlot, FluidChecker checker) {
-        tank.setFluid(handleContainerItemEmpty(tileEntity, tileEntity.inventory, tank.getFluid(), tank.getCapacity() - tank.getFluidAmount(), inSlot, outSlot, checker));
-    }
-
-    public static FluidStack handleContainerItemEmpty(TileEntity tileEntity, NonNullList<ItemStack> inventory, FluidStack stored, int needed, int inSlot, int outSlot,
-                                                      final FluidChecker checker) {
-        final Fluid storedFinal = stored != null ? stored.getFluid() : null;
-        final ItemStack input = StackUtils.size(inventory.get(inSlot).copy(), 1);
-        final IFluidHandlerItem handler = FluidUtil.getFluidHandler(input);
-
-        if (handler == null) {
-            return stored;
-        }
-        FluidStack ret = extractFluid(needed, handler, new FluidChecker() {
-            @Override
-            public boolean isValid(Fluid f) {
-                return (checker == null || checker.isValid(f)) && (storedFinal == null || storedFinal == f);
-            }
-        });
-
-        if (ret == null) return stored;
-        ItemStack resultContainer = handler.getContainer();
-        if (!resultContainer.isEmpty()) {
-            ItemStack outStack = inventory.get(outSlot);
-            if (!outStack.isEmpty() && (!ItemHandlerHelper.canItemStacksStack(outStack, resultContainer) ||
-                        outStack.getCount() >= outStack.getMaxStackSize())) {
-                    return stored;
-            }
-        }
-        if (stored == null) {
-            stored = ret;
-        } else {
-            stored.amount += ret.amount;
-        }
-        if (!resultContainer.isEmpty()) {
-            if (inventory.get(outSlot).isEmpty()) {
-                inventory.set(outSlot, resultContainer);
-            } else {
-                inventory.get(outSlot).grow(1);
-            }
-        }
-        inventory.get(inSlot).shrink(1);
-        tileEntity.markDirty();
-        return stored;
-    }
-
-    public static void handleContainerItem(TileEntityContainerBlock tileEntity, ContainerEditMode editMode, FluidTank tank, int inSlot, int outSlot) {
-        handleContainerItem(tileEntity, editMode, tank, inSlot, outSlot, null);
-    }
-
-    public static void handleContainerItem(TileEntityContainerBlock tileEntity, ContainerEditMode editMode, FluidTank tank, int inSlot, int outSlot, FluidChecker checker) {
-        tank.setFluid(handleContainerItem(tileEntity, tileEntity.inventory, editMode, tank.getFluid(), tank.getCapacity() - tank.getFluidAmount(), inSlot, outSlot, checker));
-    }
-
-    public static FluidStack handleContainerItem(TileEntity tileEntity, NonNullList<ItemStack> inventory, ContainerEditMode editMode, FluidStack stack, int needed,
-                                                 int inSlot, int outSlot, final FluidChecker checker) {
-        FluidStack fluidStack = FluidUtil.getFluidContained(inventory.get(inSlot));
-        if ((editMode == ContainerEditMode.FILL || (editMode == ContainerEditMode.BOTH && fluidStack == null)) &&
-                (inventory.get(outSlot).isEmpty() || inventory.get(outSlot).getCount() != inventory.get(outSlot).getMaxStackSize())) {
-            return handleContainerItemFill(tileEntity, inventory, stack, inSlot, outSlot);
-        } else if ((editMode == ContainerEditMode.EMPTY || editMode == ContainerEditMode.BOTH) &&
-                (inventory.get(outSlot).isEmpty() || inventory.get(outSlot).getCount() != inventory.get(outSlot).getMaxStackSize())) {
-            return handleContainerItemEmpty(tileEntity, inventory, stack, needed, inSlot, outSlot, checker);
-        }
-        return stack;
-    }
-
-    public enum ContainerEditMode {
-        BOTH("fluidedit.both"),
-        FILL("fluidedit.fill"),
-        EMPTY("fluidedit.empty");
-
-        private String display;
-
-        ContainerEditMode(String s) {
-            display = s;
+        private FluidTransferResult(boolean valid, @Nullable FluidStack stack) {
+            this.valid = valid;
+            this.stack = stack;
         }
 
-        public String getDisplay() {
-            return LangUtils.localize(display);
-        }
-    }
-
-    public static class FluidChecker {
-
-        public static FluidChecker check(FluidStack fluid) {
-            final Fluid type = fluid != null ? fluid.getFluid() : null;
-
-            return new FluidChecker() {
-                @Override
-                public boolean isValid(Fluid f) {
-                    return type == null || type == f;
-                }
-            };
+        private static FluidTransferResult of(@Nullable FluidStack stack) {
+            return stack == null ? empty() : new FluidTransferResult(true, stack);
         }
 
-        public static FluidChecker check(final Fluid type) {
-            return new FluidChecker() {
-                @Override
-                public boolean isValid(Fluid f) {
-                    return type == null || type == f;
-                }
-            };
+        private static FluidTransferResult empty() {
+            return EMPTY;
         }
 
-        public boolean isValid(Fluid f) {
-            return true;
+        private static FluidTransferResult invalid() {
+            return INVALID;
+        }
+
+        public boolean isValid() {
+            return valid;
+        }
+
+        @Nullable
+        public FluidStack getStack() {
+            return stack;
         }
     }
 }

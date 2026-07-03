@@ -1,8 +1,9 @@
 package mekanism.client.render.hud;
 
-import mekanism.client.gui.element.GuiUtils;
+import mekanism.client.gui.GuiUtils;
 import mekanism.common.item.armor.ItemMekaSuitArmor;
 import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.StorageUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.item.ItemStack;
@@ -24,8 +25,8 @@ public class MekaSuitEnergyLevel {
             double capacity = 0, stored = 0;
             for (ItemStack stack : mc.player.getArmorInventoryList()) {
                 if (stack.getItem() instanceof ItemMekaSuitArmor armor) {
-                    capacity += armor.getMaxEnergy(stack);
-                    stored += armor.getEnergy(stack);
+                    capacity += armor.getEnergyCapacity(stack);
+                    stored += StorageUtils.getStoredEnergy(stack);
                 }
             }
             if (capacity != 0) {

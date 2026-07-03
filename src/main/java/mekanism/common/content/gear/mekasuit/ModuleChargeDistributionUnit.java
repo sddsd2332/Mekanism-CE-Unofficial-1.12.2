@@ -1,13 +1,11 @@
 package mekanism.common.content.gear.mekasuit;
 
 import baubles.api.BaublesApi;
-import cofh.redstoneflux.api.IEnergyContainerItem;
-import ic2.api.item.ElectricItem;
-import java.util.ArrayList;
-import java.util.List;
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
 import mekanism.api.annotations.ParametersAreNotNullByDefault;
-import mekanism.api.energy.EnergizedItemManager;
-import mekanism.api.energy.IEnergizedItem;
+import mekanism.api.energy.IEnergyContainer;
+import mekanism.api.energy.IStrictEnergyHandler;
 import mekanism.api.gear.ICustomModule;
 import mekanism.api.gear.IModule;
 import mekanism.api.gear.config.IModuleConfigItem;
@@ -15,25 +13,19 @@ import mekanism.api.gear.config.ModuleBooleanData;
 import mekanism.api.gear.config.ModuleConfigItemCreator;
 import mekanism.common.Mekanism;
 import mekanism.common.MekanismLang;
-import mekanism.common.capabilities.Capabilities;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.content.network.distribution.EnergySaveTarget;
 import mekanism.common.integration.MekanismHooks;
-import mekanism.common.integration.forgeenergy.ForgeEnergyIntegration;
-import mekanism.common.integration.ic2.IC2Integration;
-import mekanism.common.integration.redstoneflux.RFIntegration;
-import mekanism.common.integration.tesla.TeslaIntegration;
-import mekanism.common.util.EmitUtils2;
-import mekanism.common.util.MekanismUtils;
-import net.darkhax.tesla.api.ITeslaConsumer;
+import mekanism.common.integration.energy.EnergyCompatUtils;
+import mekanism.common.util.EmitUtils;
+import mekanism.common.util.StorageUtils;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
-import net.minecraftforge.energy.CapabilityEnergy;
-import net.minecraftforge.energy.IEnergyStorage;
 import net.minecraftforge.fml.common.Optional;
 import net.minecraftforge.items.IItemHandler;
 
-import static mekanism.common.util.ChargeUtils.isIC2Chargeable;
+import java.util.ArrayList;
+import java.util.List;
 
 @ParametersAreNotNullByDefault
 public class ModuleChargeDistributionUnit implements ICustomModule<ModuleChargeDistributionUnit> {
@@ -64,31 +56,31 @@ public class ModuleChargeDistributionUnit implements ICustomModule<ModuleChargeD
         double total = 0;
         EnergySaveTarget saveTarget = new EnergySaveTarget(4);
         for (ItemStack stack : player.inventory.armorInventory) {
-            if (stack.getItem() instanceof IEnergizedItem item) {
-                saveTarget.addDelegate(stack);
-                total += item.getEnergy(stack);
+            IEnergyContainer energyContainer = StorageUtils.getEnergyContainer(stack, 0);
+            if (energyContainer != null) {
+                saveTarget.addDelegate(energyContainer);
+                total += energyContainer.getEnergy();
             }
         }
         if (saveTarget.getHandlerCount() > 1) {
-            EmitUtils2.sendToAcceptors(saveTarget, total);
+            EmitUtils.sendToAcceptors(saveTarget, total);
             saveTarget.save();
         }
     }
 
     private void chargeInventory(IModule<ModuleChargeDistributionUnit> module, EntityPlayer player) {
-        IEnergizedItem energyContainer = module.getEnergyContainer();
+        IEnergyContainer energyContainer = module.getEnergyContainer();
         if (energyContainer == null) {
             return;
         }
-        ItemStack container = module.getContainer();
-        double toCharge = Math.min(MekanismConfig.current().meka.mekaSuitInventoryChargeRate.val(), energyContainer.getEnergy(container));
+        double toCharge = Math.min(MekanismConfig.current().meka.mekaSuitInventoryChargeRate.val(), energyContainer.getEnergy());
         if (toCharge <= 0) {
             return;
         }
         ItemStack mainHand = player.getHeldItemMainhand();
         ItemStack offHand = player.getHeldItemOffhand();
-        toCharge = charge(energyContainer, container, mainHand, toCharge);
-        toCharge = charge(energyContainer, container, offHand, toCharge);
+        toCharge = charge(energyContainer, mainHand, toCharge);
+        toCharge = charge(energyContainer, offHand, toCharge);
         if (toCharge <= 0) {
             return;
         }
@@ -98,7 +90,7 @@ public class ModuleChargeDistributionUnit implements ICustomModule<ModuleChargeD
         }
         for (ItemStack stack : stacks) {
             if (stack != mainHand && stack != offHand) {
-                toCharge = charge(energyContainer, container, stack, toCharge);
+                toCharge = charge(energyContainer, stack, toCharge);
                 if (toCharge <= 0) {
                     return;
                 }
@@ -117,87 +109,18 @@ public class ModuleChargeDistributionUnit implements ICustomModule<ModuleChargeD
     }
 
     /** return rejects */
-    private double charge(IEnergizedItem energyContainer, ItemStack container, ItemStack stack, double amount) {
+    private double charge(IEnergyContainer energyContainer, ItemStack stack, double amount) {
         if (!stack.isEmpty() && amount > 0) {
-            if (stack.getItem() instanceof IEnergizedItem item) {
-                double simulatedAccepted = simulateInsert(item, stack, amount);
-                if (simulatedAccepted > 0) {
-                    double extracted = energyContainer.extract(container, simulatedAccepted, true);
-                    if (extracted > 0) {
-                        double inserted = Math.min(extracted, EnergizedItemManager.charge(stack, extracted));
-                        refund(energyContainer, container, extracted - inserted);
-                        return getRemainder(amount, inserted);
-                    }
-                }
-            } else if (MekanismUtils.useTesla() && stack.hasCapability(Capabilities.TESLA_CONSUMER_CAPABILITY, null)) {
-                ITeslaConsumer consumer = stack.getCapability(Capabilities.TESLA_CONSUMER_CAPABILITY, null);
-                if (consumer != null) {
-                    double simulatedAccepted = clampAccepted(amount, TeslaIntegration.fromTesla(consumer.givePower(TeslaIntegration.toTesla(amount), true)));
-                    if (simulatedAccepted > 0) {
-                        double extracted = energyContainer.extract(container, simulatedAccepted, true);
-                        if (extracted > 0) {
-                            double inserted = clampAccepted(extracted, TeslaIntegration.fromTesla(consumer.givePower(TeslaIntegration.toTesla(extracted), false)));
-                            refund(energyContainer, container, extracted - inserted);
-                            return getRemainder(amount, inserted);
-                        }
-                    }
-                }
-            } else if (MekanismUtils.useForge() && stack.hasCapability(CapabilityEnergy.ENERGY, null)) {
-                IEnergyStorage storage = stack.getCapability(CapabilityEnergy.ENERGY, null);
-                if (storage != null && storage.canReceive()) {
-                    double simulatedAccepted = clampAccepted(amount, ForgeEnergyIntegration.fromForge(storage.receiveEnergy(ForgeEnergyIntegration.toForge(amount), true)));
-                    if (simulatedAccepted > 0) {
-                        double extracted = energyContainer.extract(container, simulatedAccepted, true);
-                        if (extracted > 0) {
-                            double inserted = clampAccepted(extracted, ForgeEnergyIntegration.fromForge(storage.receiveEnergy(ForgeEnergyIntegration.toForge(extracted), false)));
-                            refund(energyContainer, container, extracted - inserted);
-                            return getRemainder(amount, inserted);
-                        }
-                    }
-                }
-            } else if (MekanismUtils.useRF() && stack.getItem() instanceof IEnergyContainerItem item) {
-                double simulatedAccepted = clampAccepted(amount, RFIntegration.fromRF(item.receiveEnergy(stack, RFIntegration.toRF(amount), true)));
-                if (simulatedAccepted > 0) {
-                    double extracted = energyContainer.extract(container, simulatedAccepted, true);
-                    if (extracted > 0) {
-                        double inserted = clampAccepted(extracted, RFIntegration.fromRF(item.receiveEnergy(stack, RFIntegration.toRF(extracted), false)));
-                        refund(energyContainer, container, extracted - inserted);
-                        return getRemainder(amount, inserted);
-                    }
-                }
-            } else if (MekanismUtils.useIC2() && isIC2Chargeable(stack)) {
-                double simulatedAccepted = clampAccepted(amount, IC2Integration.fromEU(ElectricItem.manager.charge(stack, IC2Integration.toEU(amount), 4, true, true)));
-                if (simulatedAccepted > 0) {
-                    double extracted = energyContainer.extract(container, simulatedAccepted, true);
-                    if (extracted > 0) {
-                        double inserted = clampAccepted(extracted, IC2Integration.fromEU(ElectricItem.manager.charge(stack, IC2Integration.toEU(extracted), 4, true, false)));
-                        refund(energyContainer, container, extracted - inserted);
-                        return getRemainder(amount, inserted);
-                    }
+            IStrictEnergyHandler handler = EnergyCompatUtils.getStrictEnergyHandler(stack);
+            if (handler != null) {
+                double remaining = handler.insertEnergy(amount, Action.SIMULATE);
+                if (remaining < amount) {
+                    double extracted = energyContainer.extract(amount - remaining, Action.EXECUTE, AutomationType.MANUAL);
+                    double insertRemainder = handler.insertEnergy(extracted, Action.EXECUTE);
+                    return insertRemainder + remaining;
                 }
             }
         }
         return amount;
-    }
-
-    private double simulateInsert(IEnergizedItem item, ItemStack stack, double amount) {
-        if (item.canReceive(stack)) {
-            return Math.min(item.getMaxTransfer(stack), Math.min(item.getMaxEnergy(stack) - item.getEnergy(stack), amount));
-        }
-        return 0;
-    }
-
-    private double clampAccepted(double offered, double accepted) {
-        return Math.min(offered, Math.max(0, accepted));
-    }
-
-    private double getRemainder(double offered, double accepted) {
-        return offered - clampAccepted(offered, accepted);
-    }
-
-    private void refund(IEnergizedItem energyContainer, ItemStack container, double amount) {
-        if (amount > 0) {
-            energyContainer.insert(container, amount, true);
-        }
     }
 }

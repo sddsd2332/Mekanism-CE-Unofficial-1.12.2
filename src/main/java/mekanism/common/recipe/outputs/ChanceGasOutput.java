@@ -1,7 +1,9 @@
 package mekanism.common.recipe.outputs;
 
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTank;
+import mekanism.api.gas.IExtendedGasTank;
 import net.minecraft.nbt.NBTTagCompound;
 
 import java.util.Random;
@@ -30,16 +32,37 @@ public class ChanceGasOutput extends MachineOutput<ChanceGasOutput> {
         return rand.nextDouble() <= primaryChance;
     }
 
-    @Override
-    public ChanceGasOutput copy() {
-        return new ChanceGasOutput(output.copy(),primaryChance);
+    public GasStack getMaxOutput() {
+        return primaryChance > 0 && output != null && output.amount > 0 ? output.copy() : null;
     }
 
-    public boolean applyOutputs(GasTank gasTank, boolean doEmit, int scale) {
-        if (gasTank.canReceive(output.getGas()) && gasTank.getNeeded() >= output.amount * scale && checkSecondary()) {
-            gasTank.receive(output.copy().withAmount(output.amount * scale), doEmit);
+    public GasStack getOutput() {
+        return primaryChance > 0 && checkSecondary() && output != null && output.amount > 0 ? output.copy() : null;
+    }
+
+    @Override
+    public ChanceGasOutput copy() {
+        return new ChanceGasOutput(output == null ? null : output.copy(), primaryChance);
+    }
+
+    public boolean applyOutputs(IExtendedGasTank gasTank, boolean doEmit, int scale) {
+        GasStack maxOutput = getMaxOutput();
+        if (maxOutput == null || scale <= 0) {
             return true;
         }
-        return false;
+        maxOutput = maxOutput.withAmount(maxOutput.amount * scale);
+        GasStack remainder = gasTank.insert(maxOutput, Action.SIMULATE, AutomationType.INTERNAL);
+        if (remainder != null && remainder.amount > 0) {
+            return false;
+        }
+        if (doEmit) {
+            for (int i = 0; i < scale; i++) {
+                GasStack toOutput = getOutput();
+                if (toOutput != null) {
+                    gasTank.insert(toOutput, Action.EXECUTE, AutomationType.INTERNAL);
+                }
+            }
+        }
+        return true;
     }
 }

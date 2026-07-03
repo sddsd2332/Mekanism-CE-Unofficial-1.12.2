@@ -76,12 +76,7 @@ public class TileEntitySPSCasing extends TileEntityMultiblock<SynchronizedSPSDat
         if (structure == null) {
             return;
         }
-        if (structure.inputTank.getGas() != null && structure.inputTank.getGas().amount <= 0) {
-            structure.inputTank.setGas(null);
-            markNoUpdateSync();
-        }
-        if (structure.outputTank.getGas() != null && structure.outputTank.getGas().amount <= 0) {
-            structure.outputTank.setGas(null);
+        if (structure.sanitizeStoredGases()) {
             markNoUpdateSync();
         }
         if (isRendering) {

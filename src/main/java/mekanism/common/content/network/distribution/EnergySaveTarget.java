@@ -1,10 +1,9 @@
 package mekanism.common.content.network.distribution;
 
 import mcp.MethodsReturnNonnullByDefault;
-import mekanism.api.energy.IEnergizedItem;
+import mekanism.api.energy.IEnergyContainer;
 import mekanism.common.lib.distribution.SplitInfo;
 import mekanism.common.lib.distribution.Target;
-import net.minecraft.item.ItemStack;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 
@@ -30,39 +29,32 @@ public class EnergySaveTarget extends Target<EnergySaveTarget.SaveHandler,Double
         }
     }
 
-    public void addDelegate(ItemStack delegate) {
+    public void addDelegate(IEnergyContainer delegate) {
         this.addHandler(new SaveHandler(delegate));
     }
 
     @ParametersAreNonnullByDefault
     @MethodsReturnNonnullByDefault
     public static class SaveHandler {
-        private final ItemStack delegate;
+        private final IEnergyContainer delegate;
         private double currentStored = 0;
 
-        public SaveHandler(ItemStack delegate) {
+        public SaveHandler(IEnergyContainer delegate) {
             this.delegate = delegate;
         }
 
         protected void acceptAmount(SplitInfo<Double> splitInfo, double amount) {
-            if (delegate.getItem() instanceof IEnergizedItem item) {
-                amount = Math.min(amount, item.getMaxEnergy(delegate)) - currentStored;
-                currentStored += amount;
-                splitInfo.send(amount);
-            }
+            amount = Math.min(amount, delegate.getMaxEnergy() - currentStored);
+            currentStored += amount;
+            splitInfo.send(amount);
         }
 
         protected double simulate(double energyToSend) {
-            if (delegate.getItem() instanceof IEnergizedItem item) {
-                return Math.min(energyToSend, item.getMaxEnergy(delegate) - currentStored);
-            }
-            return 0;
+            return Math.min(energyToSend, delegate.getMaxEnergy() - currentStored);
         }
 
         protected void save() {
-            if (delegate.getItem() instanceof IEnergizedItem item) {
-                item.setEnergy(delegate, currentStored);
-            }
+            delegate.setEnergy(currentStored);
         }
     }
 }

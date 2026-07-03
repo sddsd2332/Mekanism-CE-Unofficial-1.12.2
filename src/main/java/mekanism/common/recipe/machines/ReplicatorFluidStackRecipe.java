@@ -1,12 +1,12 @@
 package mekanism.common.recipe.machines;
 
+import mekanism.api.fluid.IExtendedFluidTank;
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTank;
+import mekanism.api.gas.IExtendedGasTank;
 import mekanism.common.recipe.inputs.GasAndFluidInput;
 import mekanism.common.recipe.outputs.FluidOutput;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.FluidTank;
 
 public class ReplicatorFluidStackRecipe extends MachineRecipe<GasAndFluidInput, FluidOutput, ReplicatorFluidStackRecipe> {
 
@@ -30,18 +30,8 @@ public class ReplicatorFluidStackRecipe extends MachineRecipe<GasAndFluidInput, 
         ticks = extraNBT.getInteger("duration");
     }
 
-    public boolean canOperate(GasTank inputTank, FluidTank fluidTank, FluidTank outputTank) {
+    public boolean canOperate(IExtendedGasTank inputTank, IExtendedFluidTank fluidTank, IExtendedFluidTank outputTank) {
         return getInput().useGas(inputTank, false, 1) && getInput().useFluid(fluidTank, false, 1)  && getOutput().applyOutputs(outputTank, false);
-    }
-
-    public void operate(GasTank inputTank, FluidTank fluidTank, FluidTank outputTank, int scale) {
-        operate(inputTank, fluidTank, outputTank, scale, true);
-    }
-
-    public void operate(GasTank inputTank, FluidTank fluidTank, FluidTank outputTank, int scale, boolean deplete) {
-        if (getInput().useGas(inputTank, deplete, scale) && getInput().useFluid(fluidTank, false, scale)) {
-            getOutput().applyOutputs(outputTank, true);
-        }
     }
 
     @Override

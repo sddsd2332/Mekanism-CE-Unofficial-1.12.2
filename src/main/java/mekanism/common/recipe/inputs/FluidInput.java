@@ -1,8 +1,11 @@
 package mekanism.common.recipe.inputs;
 
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
+import mekanism.api.fluid.ExtendedFluidHandlerUtils;
+import mekanism.api.fluid.IExtendedFluidTank;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.FluidTank;
 
 public class FluidInput extends MachineInput<FluidInput> {
 
@@ -30,10 +33,15 @@ public class FluidInput extends MachineInput<FluidInput> {
         return ingredient != null;
     }
 
-    public boolean useFluid(FluidTank fluidTank, boolean deplete, int scale) {
-        if (fluidTank.getFluid() != null && fluidTank.getFluid().containsFluid(ingredient)) {
-            fluidTank.drain(ingredient.amount * scale, deplete);
-            return true;
+    public boolean useFluid(IExtendedFluidTank fluidTank, boolean deplete, int scale) {
+        if (ingredient == null || scale <= 0) {
+            return false;
+        }
+        int amount = ingredient.amount * scale;
+        FluidStack stored = fluidTank.getFluid();
+        if (stored != null && stored.containsFluid(new FluidStack(ingredient, amount))) {
+            FluidStack extracted = fluidTank.extract(amount, Action.get(deplete), AutomationType.INTERNAL);
+            return !ExtendedFluidHandlerUtils.isEmpty(extracted) && extracted.amount == amount;
         }
         return false;
     }

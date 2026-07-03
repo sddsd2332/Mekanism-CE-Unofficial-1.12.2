@@ -15,28 +15,22 @@ import net.minecraft.item.ItemStack;
 public class MultiblockRecipeRegistryHelper {
 
     public static void registerLargeSeparator(IModRegistry registry) {
-        registry.addRecipeClickArea(GuiLargeElectrolyticSeparator.class, 80, 30, 16, 6, Recipe.ELECTROLYTIC_SEPARATOR.getJEICategory());
         registerRecipeItem(registry, MultiblockMachineBlocks.LargeElectrolyticSeparator, Recipe.ELECTROLYTIC_SEPARATOR.getJEICategory());
     }
 
     public static void registerLargeChemicalInfuser(IModRegistry registry) {
-        registry.addRecipeClickArea(GuiLargeChemicalInfuser.class, 47, 50, 28, 8, Recipe.CHEMICAL_INFUSER.getJEICategory());
-        registry.addRecipeClickArea(GuiLargeChemicalInfuser.class, 101, 50, 28, 8, Recipe.CHEMICAL_INFUSER.getJEICategory());
         registerRecipeItem(registry, MultiblockMachineBlocks.LargeChemicalInfuser, Recipe.CHEMICAL_INFUSER.getJEICategory());
     }
 
     public static void registerLargeChemicalWasher(IModRegistry registry) {
-        registry.addRecipeClickArea(GuiLargeChemicalWasher.class, 61, 39, 55, 8, Recipe.CHEMICAL_WASHER.getJEICategory());
         registerRecipeItem(registry, MultiblockMachineBlocks.LargeChemicalWasher, Recipe.CHEMICAL_WASHER.getJEICategory());
     }
 
     public static void registerGasStackFlueToEnergyRecipe(IModRegistry registry) {
-        registry.addRecipeClickArea(GuiLargeGasGenerator.class, 55, 18, 66, 50, RecipeHandler.Recipe.GAS_FUEL_TO_ENERGY_RECIPE.getJEICategory());
         registerRecipeItem(registry, MultiblockMachineBlocks.LargeGasGenerator, RecipeHandler.Recipe.GAS_FUEL_TO_ENERGY_RECIPE.getJEICategory());
     }
 
     public static void registerLargeSolarNeutronActivator(IModRegistry registry) {
-        registry.addRecipeClickArea(GuiLargeSolarNeutronActivator.class, 64, 39, 48, 8, Recipe.SOLAR_NEUTRON_ACTIVATOR.getJEICategory());
         registerRecipeItem(registry, MultiblockMachineBlocks.LargeSolarNeutronActivator, RecipeHandler.Recipe.SOLAR_NEUTRON_ACTIVATOR.getJEICategory());
     }
 

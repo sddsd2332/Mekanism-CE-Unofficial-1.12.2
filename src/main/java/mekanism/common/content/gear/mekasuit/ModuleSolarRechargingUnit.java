@@ -1,6 +1,8 @@
 package mekanism.common.content.gear.mekasuit;
 
-import mekanism.api.energy.IEnergizedItem;
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
+import mekanism.api.energy.IEnergyContainer;
 import mekanism.api.gear.ICustomModule;
 import mekanism.api.gear.IModule;
 import mekanism.common.config.MekanismConfig;
@@ -18,8 +20,8 @@ public class ModuleSolarRechargingUnit implements ICustomModule<ModuleSolarRecha
 
     @Override
     public void tickServer(IModule<ModuleSolarRechargingUnit> module, EntityPlayer player) {
-        IEnergizedItem energyContainer = module.getEnergyContainer();
-        if (energyContainer != null && energyContainer.getNeeded(module.getContainer()) != 0) {
+        IEnergyContainer energyContainer = module.getEnergyContainer();
+        if (energyContainer != null && energyContainer.getNeeded() != 0) {
             //Use the position that is roughly where the solar panel is
             BlockPos pos = new BlockPos(player.posX, player.getEyeHeight() + player.posY + 0.2, player.posZ);
             //Based on how TileEntitySolarGenerator and the rest of our solar things do energy calculations
@@ -49,7 +51,7 @@ public class ModuleSolarRechargingUnit implements ICustomModule<ModuleSolarRecha
                     production = production * (RAIN_MULTIPLIER);
                 }
                 //Multiply actual production based on how many modules are installed
-                energyContainer.insert(module.getContainer(), production * (module.getInstalledCount()), true);
+                energyContainer.insert(production * module.getInstalledCount(), Action.EXECUTE, AutomationType.MANUAL);
             }
         }
     }

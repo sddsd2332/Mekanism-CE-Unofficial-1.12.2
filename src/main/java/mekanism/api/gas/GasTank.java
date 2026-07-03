@@ -10,7 +10,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  *
  * @author aidancbrady
  */
-public class GasTank implements GasTankInfo {
+public class GasTank implements GasTankInfo, IGasTank {
 
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
 
@@ -153,6 +153,11 @@ public class GasTank implements GasTankInfo {
         }
     }
 
+    @Override
+    public GasTankInfo getInfo() {
+        return this;
+    }
+
     /**
      * Gets the amount of gas needed by this GasTank.
      *
@@ -160,6 +165,16 @@ public class GasTank implements GasTankInfo {
      */
     public int getNeeded() {
         return maxGas - getStored();
+    }
+
+    @Override
+    public int input(GasStack resource, boolean input) {
+        return receive(resource, input);
+    }
+
+    @Override
+    public GasStack output(int Maxoutput, boolean output) {
+        return draw(Maxoutput, output);
     }
 
     /**
@@ -242,6 +257,11 @@ public class GasTank implements GasTankInfo {
         } finally {
             rwLock.readLock().unlock();
         }
+    }
+
+    @Override
+    public int getGasAmount() {
+        return getStored();
     }
 
     /**

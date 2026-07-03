@@ -1,7 +1,7 @@
 package mekanism.api.gear;
 
 import mcp.MethodsReturnNonnullByDefault;
-import mekanism.api.energy.IEnergizedItem;
+import mekanism.api.energy.IEnergyContainer;
 import mekanism.api.text.IHasTextComponent;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayer;
@@ -94,7 +94,7 @@ public interface IModule<MODULE extends ICustomModule<MODULE>> {
      * @return Energy container or {@code null} if something failed.
      */
     @Nullable
-    IEnergizedItem getEnergyContainer();
+    IEnergyContainer getEnergyContainer();
 
     /**
      * Helper to get the energy stored in {@link #getEnergyContainer()}
@@ -143,7 +143,7 @@ public interface IModule<MODULE extends ICustomModule<MODULE>> {
      * @return {@code true} if the energy can be used/provided.
      * @apiNote This method is mostly for use in not having to look up the energy container multiple times.
      */
-    boolean canUseEnergy(EntityLivingBase wearer, @Nullable IEnergizedItem energyContainer, double energy, boolean ignoreCreative);
+    boolean canUseEnergy(EntityLivingBase wearer, @Nullable IEnergyContainer energyContainer, double energy, boolean ignoreCreative);
 
     /**
      * Helper to use energy from the item this module is installed on.
@@ -177,5 +177,5 @@ public interface IModule<MODULE extends ICustomModule<MODULE>> {
      * @return Actual amount of energy used.
      * @apiNote This method is mostly for use in not having to look up the energy container multiple times.
      */
-    double useEnergy(EntityLivingBase wearer, @Nullable IEnergizedItem energyContainer, double energy, boolean freeCreative);
+    double useEnergy(EntityLivingBase wearer, @Nullable IEnergyContainer energyContainer, double energy, boolean freeCreative);
 }

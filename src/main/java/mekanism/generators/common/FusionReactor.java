@@ -1,18 +1,22 @@
 package mekanism.generators.common;
 
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
 import mekanism.api.Coord4D;
 import mekanism.api.IHeatTransfer;
+import mekanism.api.fluid.IExtendedFluidTank;
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTank;
+import mekanism.api.inventory.IInventorySlot;
 import mekanism.common.LaserManager;
 import mekanism.common.Mekanism;
 import mekanism.common.MekanismFluids;
+import mekanism.common.capabilities.gas.BasicGasTank;
 import mekanism.common.config.MekanismConfig;
+import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.network.PacketTileEntity.TileEntityMessage;
 import mekanism.common.recipe.RecipeHandler;
 import mekanism.common.recipe.inputs.FluidInput;
 import mekanism.common.recipe.machines.FusionCoolingRecipe;
-import mekanism.common.util.NonNullListSynchronized;
 import mekanism.common.util.UnitDisplayUtils.TemperatureUnit;
 import mekanism.generators.common.item.ItemHohlraum;
 import mekanism.generators.common.tile.reactor.TileEntityReactorBlock;
@@ -27,7 +31,6 @@ import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraftforge.fluids.Fluid;
 import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.FluidTank;
 
 import java.util.HashSet;
 import java.util.List;
@@ -57,6 +60,8 @@ public class FusionReactor {
     //Last values of temperature
     public double lastPlasmaTemperature;
     public double lastCaseTemperature;
+    public double lastTransferLoss;
+    public double lastEnvironmentLoss;
     public double heatToAbsorb = 0;
     public int injectionRate = 0;
     public boolean burning = false;
@@ -65,6 +70,8 @@ public class FusionReactor {
     public boolean updatedThisTick;
 
     public boolean formed = false;
+    private FusionCoolingRecipe cachedRecipe;
+    private int cachedRecipeVersion = -1;
 
 
     public FusionReactor(TileEntityReactorController c) {
@@ -76,11 +83,13 @@ public class FusionReactor {
     }
 
     public boolean hasHohlraum() {
-        if (controller != null) {
-            ItemStack hohlraum = controller.inventory.get(0);
-            if (!hohlraum.isEmpty() && hohlraum.getItem() instanceof ItemHohlraum itemHohlraum) {
-                GasStack gasStack = itemHohlraum.getGas(hohlraum);
-                return gasStack != null && gasStack.getGas() == MekanismFluids.FusionFuel && gasStack.amount == ItemHohlraum.MAX_GAS;
+        IInventorySlot hohlraumSlot = getHohlraumSlot();
+        if (hohlraumSlot != null) {
+            ItemStack hohlraum = hohlraumSlot.getStack();
+            if (!hohlraum.isEmpty() && hohlraum.getItem() instanceof ItemHohlraum) {
+                GasStack gasStack = GasInventorySlot.getContainedGas(hohlraum, MekanismFluids.FusionFuel);
+                int capacity = GasInventorySlot.getTankCapacity(hohlraum, 0);
+                return gasStack != null && gasStack.amount == (capacity > 0 ? capacity : ItemHohlraum.getMaxGasCapacity());
             }
         }
         return false;
@@ -129,9 +138,21 @@ public class FusionReactor {
     }
 
     public void vaporiseHohlraum() {
-        getFuelTank().receive(((ItemHohlraum) controller.inventory.get(0).getItem()).getGas(controller.inventory.get(0)), true);
+        IInventorySlot hohlraumSlot = getHohlraumSlot();
+        if (hohlraumSlot == null || hohlraumSlot.isEmpty()) {
+            return;
+        }
+        ItemStack hohlraum = hohlraumSlot.getStack();
+        if (!(hohlraum.getItem() instanceof ItemHohlraum)) {
+            return;
+        }
+        GasStack gasStack = GasInventorySlot.getContainedGas(hohlraum, MekanismFluids.FusionFuel);
+        if (gasStack == null || gasStack.getGas() != MekanismFluids.FusionFuel) {
+            return;
+        }
+        getFuelTank().insert(gasStack, Action.EXECUTE, AutomationType.INTERNAL);
         lastPlasmaTemperature = plasmaTemperature;
-        controller.inventory.set(0, ItemStack.EMPTY);
+        hohlraumSlot.setEmpty();
         burning = true;
     }
 
@@ -140,14 +161,14 @@ public class FusionReactor {
         int amountAvailable = 2 * Math.min(getDeuteriumTank().getStored(), getTritiumTank().getStored());
         int amountToInject = Math.min(amountNeeded, Math.min(amountAvailable, injectionRate));
         amountToInject -= amountToInject % 2;
-        getDeuteriumTank().draw(amountToInject / 2, true);
-        getTritiumTank().draw(amountToInject / 2, true);
-        getFuelTank().receive(new GasStack(MekanismFluids.FusionFuel, amountToInject), true);
+        getDeuteriumTank().extract(amountToInject / 2, Action.EXECUTE, AutomationType.INTERNAL);
+        getTritiumTank().extract(amountToInject / 2, Action.EXECUTE, AutomationType.INTERNAL);
+        getFuelTank().insert(new GasStack(MekanismFluids.FusionFuel, amountToInject), Action.EXECUTE, AutomationType.INTERNAL);
     }
 
     public int burnFuel() {
         int fuelBurned = (int) Math.min(getFuelTank().getStored(), Math.max(0, lastPlasmaTemperature - burnTemperature) * burnRatio);
-        getFuelTank().draw(fuelBurned, true);
+        getFuelTank().extract(fuelBurned, Action.EXECUTE, AutomationType.INTERNAL);
         plasmaTemperature += MekanismConfig.current().generators.energyPerFusionFuel.val() * fuelBurned / plasmaHeatCapacity;
         return fuelBurned;
     }
@@ -162,21 +183,30 @@ public class FusionReactor {
 
         //Transfer from casing to water if necessary
         //TODO：Rewrite this
-        if (activelyCooled) {
+        if (activelyCooled && recipe != null) {
             double caseWaterHeat = caseWaterConductivity * lastCaseTemperature;
             int waterToVaporize = (int) (steamTransferEfficiency * caseWaterHeat / enthalpyOfVaporization);
-            waterToVaporize = Math.min(waterToVaporize, Math.min(getWaterTank().getFluidAmount(), getSteamTank().getCapacity() - getSteamTank().getFluidAmount()));
+            FluidStack recipeOutput = recipe.getOutput().output;
+            int outputPerInput = recipeOutput == null ? 0 : Math.max(1, recipeOutput.amount);
+            int outputSpace = outputPerInput == 0 ? 0 : getSteamTank().getNeeded() / outputPerInput;
+            waterToVaporize = Math.min(waterToVaporize, Math.min(getWaterTank().getFluidAmount(), outputSpace));
             if (waterToVaporize > 0) {
-                getWaterTank().drain(waterToVaporize, true);
-                getSteamTank().fill(new FluidStack(recipe.getOutput().output.getFluid(), recipe.getOutput().output.amount > 1 ? recipe.getOutput().output.amount * waterToVaporize : waterToVaporize), true);
+                getWaterTank().extract(waterToVaporize, Action.EXECUTE, AutomationType.INTERNAL);
+                getSteamTank().insert(new FluidStack(recipeOutput.getFluid(), outputPerInput * waterToVaporize), Action.EXECUTE, AutomationType.INTERNAL);
             }
             caseWaterHeat = waterToVaporize * enthalpyOfVaporization / steamTransferEfficiency;
             caseTemperature -= caseWaterHeat / caseHeatCapacity;
-            for (IHeatTransfer source : heatTransfers) {
-                source.simulateHeat();
-            }
-            applyTemperatureChange();
         }
+        lastTransferLoss = 0;
+        lastEnvironmentLoss = 0;
+        for (IHeatTransfer source : heatTransfers) {
+            double[] loss = source.simulateHeat();
+            if (loss != null && loss.length > 1) {
+                lastTransferLoss += loss[0];
+                lastEnvironmentLoss += loss[1];
+            }
+        }
+        applyTemperatureChange();
 
         //Transfer from casing to environment
         double caseAirHeat = caseAirConductivity * lastCaseTemperature;
@@ -189,27 +219,36 @@ public class FusionReactor {
     }
 
     public FusionCoolingRecipe getRecipe() {
-        return RecipeHandler.getFusionCoolingRecipe(new FluidInput(controller.waterTank.getFluid()));
+        int recipeVersion = RecipeHandler.Recipe.FUSION_COOLING.getRecipeVersion();
+        FluidInput input = new FluidInput(controller.waterTank.getFluid());
+        if (cachedRecipeVersion != recipeVersion) {
+            cachedRecipe = null;
+            cachedRecipeVersion = recipeVersion;
+        }
+        if (cachedRecipe == null || !input.testEquality(cachedRecipe.getInput())) {
+            cachedRecipe = RecipeHandler.getFusionCoolingRecipe(input);
+        }
+        return cachedRecipe;
     }
 
 
-    public FluidTank getWaterTank() {
+    public IExtendedFluidTank getWaterTank() {
         return controller != null ? controller.waterTank : null;
     }
 
-    public FluidTank getSteamTank() {
+    public IExtendedFluidTank getSteamTank() {
         return controller.steamTank;
     }
 
-    public GasTank getDeuteriumTank() {
+    public BasicGasTank getDeuteriumTank() {
         return controller.deuteriumTank;
     }
 
-    public GasTank getTritiumTank() {
+    public BasicGasTank getTritiumTank() {
         return controller.tritiumTank;
     }
 
-    public GasTank getFuelTank() {
+    public BasicGasTank getFuelTank() {
         return controller.fuelTank;
     }
 
@@ -359,17 +398,7 @@ public class FusionReactor {
 
     public void setInjectionRate(int rate) {
         injectionRate = rate;
-        int capRate = Math.min(Math.min(Math.max(1, rate), MekanismConfig.current().generators.reactorGeneratorInjectionRate.val()), 1000);
-        capRate -= capRate % 2;
-        controller.waterTank.setCapacity(MekanismConfig.current().generators.FusionReactorsWaterTank.val() * capRate);
-        controller.steamTank.setCapacity(MekanismConfig.current().generators.FusionReactorsSteamTank.val() * capRate);
-
-        if (controller.waterTank.getFluid() != null) {
-            controller.waterTank.getFluid().amount = Math.min(controller.waterTank.getFluid().amount, controller.waterTank.getCapacity());
-        }
-        if (controller.steamTank.getFluid() != null) {
-            controller.steamTank.getFluid().amount = Math.min(controller.steamTank.getFluid().amount, controller.steamTank.getCapacity());
-        }
+        controller.sanitizeAndClampTanks();
     }
 
     public boolean isBurning() {
@@ -454,8 +483,8 @@ public class FusionReactor {
         return null;
     }
 
-    public NonNullListSynchronized<ItemStack> getInventory() {
-        return isFormed() ? controller.inventory : null;
+    public IInventorySlot getHohlraumSlot() {
+        return controller != null && isFormed() ? controller.getInventorySlot(0) : null;
     }
 
     public boolean hasRecipe(Fluid fluid) {

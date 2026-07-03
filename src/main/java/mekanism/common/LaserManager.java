@@ -4,6 +4,7 @@ import mekanism.api.Coord4D;
 import mekanism.api.Pos3D;
 import mekanism.api.lasers.ILaserDissipation;
 import mekanism.api.lasers.ILaserReceptor;
+import mekanism.common.advancements.MekanismCriteriaTriggers;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.util.CapabilityUtils;
@@ -23,6 +24,7 @@ import net.minecraft.util.NonNullList;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.RayTraceResult;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldServer;
 import net.minecraftforge.common.MinecraftForge;
@@ -60,7 +62,21 @@ public class LaserManager {
             if (entity.isEntityInvulnerable(MekanismDamageSource.LASER)) {
                 break;
             }
+            float damage = (float) energy / 1000F;
             if (entity instanceof EntityLivingBase base) {
+                if (canBlockLaser(base, from)) {
+                    double damageBlocked = damageShield(base, base.getActiveItemStack(), damage, 1);
+                    if (damageBlocked > 0) {
+                        if (base instanceof EntityPlayerMP playerMP) {
+                            MekanismCriteriaTriggers.BLOCK_LASER.trigger(playerMP);
+                        }
+                        damage -= (float) damageBlocked;
+                        if (damage <= 0) {
+                            continue;
+                        }
+                    }
+                }
+
                 double dissipationPercent = 0;
                 double refractionPercent = 0;
                 for (ItemStack armor : base.getArmorInventoryList()) {
@@ -85,8 +101,8 @@ public class LaserManager {
             if (!entity.isImmuneToFire()) {
                 entity.setFire((int) (energy / 1000));
             }
-            if (energy > 256) {
-                entity.attackEntityFrom(MekanismDamageSource.LASER, (float) energy / 1000F);
+            if (damage > 0.256F) {
+                entity.attackEntityFrom(MekanismDamageSource.LASER.fromPosition(from), damage);
             }
         }
         return new LaserInfo(mop, foundEntity);
@@ -160,6 +176,16 @@ public class LaserManager {
             return new Pos3D(d.x, entity.posY, d.z);
         } //Axis.Z
         return new Pos3D(d.x, d.y, entity.posZ);
+    }
+
+    private static boolean canBlockLaser(EntityLivingBase livingEntity, Pos3D from) {
+        if (!livingEntity.isActiveItemStackBlocking()) {
+            return false;
+        }
+        Vec3d look = livingEntity.getLook(1.0F);
+        Vec3d damageDirection = from.subtractReverse(new Vec3d(livingEntity.posX, livingEntity.posY, livingEntity.posZ)).normalize();
+        damageDirection = new Vec3d(damageDirection.x, 0.0D, damageDirection.z);
+        return damageDirection.dotProduct(look) < 0.0D;
     }
 
     private static double damageShield(EntityLivingBase livingEntity, ItemStack activeStack, double damage, int absorptionRatio) {

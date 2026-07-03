@@ -3,18 +3,22 @@ package mekanism.multiblockmachine.common.item;
 import cofh.redstoneflux.api.IEnergyContainerItem;
 import ic2.api.item.IElectricItemManager;
 import ic2.api.item.ISpecialElectricItem;
+import mekanism.api.Action;
 import mekanism.api.EnumColor;
-import mekanism.api.energy.IEnergizedItem;
+import mekanism.api.functions.ConstantPredicates;
 import mekanism.common.Upgrade;
 import mekanism.common.capabilities.ItemCapabilityWrapper;
+import mekanism.common.capabilities.energy.item.RateLimitEnergyHandler;
 import mekanism.common.integration.MekanismHooks;
 import mekanism.common.integration.forgeenergy.ForgeEnergyItemWrapper;
 import mekanism.common.integration.ic2.IC2ItemManager;
 import mekanism.common.integration.redstoneflux.RFIntegration;
 import mekanism.common.integration.tesla.TeslaItemWrapper;
+import mekanism.common.item.interfaces.ILegacyEnergizedItem;
 import mekanism.common.util.ItemDataUtils;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.StorageUtils;
 import net.minecraft.block.Block;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.item.ItemStack;
@@ -35,7 +39,7 @@ import java.util.Map;
         @Interface(iface = "cofh.redstoneflux.api.IEnergyContainerItem", modid = MekanismHooks.REDSTONEFLUX_MOD_ID),
         @Interface(iface = "ic2.api.item.ISpecialElectricItem", modid = MekanismHooks.IC2_MOD_ID)
 })
-public abstract class ItemBlockLargeBaseEnergy extends ItemBlockLargeBase implements IEnergizedItem, ISpecialElectricItem, IEnergyContainerItem {
+public abstract class ItemBlockLargeBaseEnergy extends ItemBlockLargeBase implements ILegacyEnergizedItem, ISpecialElectricItem, IEnergyContainerItem {
 
     public String name;
 
@@ -53,52 +57,31 @@ public abstract class ItemBlockLargeBaseEnergy extends ItemBlockLargeBase implem
     @Override
     @SideOnly(Side.CLIENT)
     public void addInformation(ItemStack itemstack, List<String> list, World world, ITooltipFlag flag) {
-        if (itemstack.getItem() instanceof IEnergizedItem energizedItem && itemstack.getCount() <= 1) {
-            list.add(EnumColor.BRIGHT_GREEN + LangUtils.localize("tooltip.storedEnergy") + ": " + EnumColor.GREY + MekanismUtils.getEnergyDisplay(energizedItem.getEnergy(itemstack), energizedItem.getMaxEnergy(itemstack)));
+        if (itemstack.getCount() <= 1) {
+            list.add(EnumColor.BRIGHT_GREEN + LangUtils.localize("tooltip.storedEnergy") + ": " + EnumColor.GREY + MekanismUtils.getEnergyDisplay(StorageUtils.getStoredEnergy(itemstack), getEnergyCapacity(itemstack)));
         }
     }
 
-    @Override
-    public double getEnergy(ItemStack itemStack) {
-        if (itemStack.getCount() > 1) {
-            return 0;
-        }
-        if (!itemStack.hasTagCompound()) {
-            return 0;
-        }
-        return ItemDataUtils.getDouble(itemStack, "energyStored");
-    }
-
-    @Override
-    public void setEnergy(ItemStack itemStack, double amount) {
+    public void setStoredEnergy(ItemStack itemStack, double amount) {
         if (itemStack.getCount() > 1) {
             return;
         }
-        if (amount == 0) {
-            NBTTagCompound dataMap = ItemDataUtils.getDataMap(itemStack);
-            dataMap.removeTag("energyStored");
-            if (dataMap.isEmpty() && itemStack.getTagCompound() != null) {
-                itemStack.getTagCompound().removeTag(ItemDataUtils.DATA_ID);
-            }
-        } else {
-            ItemDataUtils.setDouble(itemStack, "energyStored", Math.max(Math.min(amount, getMaxEnergy(itemStack)), 0));
-        }
+        StorageUtils.setStoredEnergy(itemStack, amount, getEnergyCapacity(itemStack));
     }
 
-    @Override
-    public double getMaxEnergy(ItemStack itemStack) {
+    public double getEnergyCapacity(ItemStack itemStack) {
         if (itemStack.getCount() > 1) {
             return 0;
         }
         double storage = getMachineStorage() * getThread(itemStack);
-        return ItemDataUtils.hasData(itemStack, "upgrades") ? MekanismUtils.getMaxEnergy(itemStack, storage) : storage;
+        return Upgrade.hasUpgradeData(ItemDataUtils.getDataMapIfPresent(itemStack)) ? MekanismUtils.getMaxEnergy(itemStack, storage) : storage;
     }
 
     abstract double getMachineStorage();
 
     private int getThread(ItemStack stack) {
         int thread = 1;
-        Map<Upgrade, Integer> upgrades = Upgrade.buildMap(ItemDataUtils.getDataMap(stack));
+        Map<Upgrade, Integer> upgrades = Upgrade.buildComponentMap(ItemDataUtils.getDataMapIfPresent(stack));
         if (upgrades.get(Upgrade.THREAD) != null) {
             thread += upgrades.get(Upgrade.THREAD);
         }
@@ -112,21 +95,18 @@ public abstract class ItemBlockLargeBaseEnergy extends ItemBlockLargeBase implem
         return thread;
     }
 
-    @Override
-    public double getMaxTransfer(ItemStack itemStack) {
+    public double getEnergyTransfer(ItemStack itemStack) {
         if (itemStack.getCount() > 1) {
             return 0;
         }
-        return getMaxEnergy(itemStack) * 0.005;
+        return getEnergyCapacity(itemStack) * 0.005;
     }
 
-    @Override
-    public boolean canReceive(ItemStack itemStack) {
+    public boolean canReceiveEnergy(ItemStack itemStack) {
         return itemStack.getCount() <= 1;
     }
 
-    @Override
-    public boolean canSend(ItemStack itemStack) {
+    public boolean canSendEnergy(ItemStack itemStack) {
         return false;
     }
 
@@ -136,13 +116,10 @@ public abstract class ItemBlockLargeBaseEnergy extends ItemBlockLargeBase implem
         if (theItem.getCount() > 1) {
             return 0;
         }
-        if (canReceive(theItem)) {
-            double energyNeeded = getMaxEnergy(theItem) - getEnergy(theItem);
-            double toReceive = Math.min(RFIntegration.fromRF(energy), energyNeeded);
-            if (!simulate) {
-                setEnergy(theItem, getEnergy(theItem) + toReceive);
-            }
-            return RFIntegration.toRF(toReceive);
+        if (canReceiveEnergy(theItem)) {
+            double amount = RFIntegration.fromRF(energy);
+            double remainder = StorageUtils.insertEnergy(theItem, amount, Action.get(!simulate));
+            return RFIntegration.toRF(amount - remainder);
         }
         return 0;
     }
@@ -153,13 +130,8 @@ public abstract class ItemBlockLargeBaseEnergy extends ItemBlockLargeBase implem
         if (theItem.getCount() > 1) {
             return 0;
         }
-        if (canSend(theItem)) {
-            double energyRemaining = getEnergy(theItem);
-            double toSend = Math.min(RFIntegration.fromRF(energy), energyRemaining);
-            if (!simulate) {
-                setEnergy(theItem, getEnergy(theItem) - toSend);
-            }
-            return RFIntegration.toRF(toSend);
+        if (canSendEnergy(theItem)) {
+            return RFIntegration.toRF(StorageUtils.extractEnergy(theItem, RFIntegration.fromRF(energy), Action.get(!simulate)));
         }
         return 0;
     }
@@ -170,7 +142,7 @@ public abstract class ItemBlockLargeBaseEnergy extends ItemBlockLargeBase implem
         if (theItem.getCount() > 1) {
             return 0;
         }
-        return RFIntegration.toRF(getEnergy(theItem));
+        return RFIntegration.toRF(StorageUtils.getStoredEnergy(theItem));
     }
 
     @Override
@@ -179,29 +151,31 @@ public abstract class ItemBlockLargeBaseEnergy extends ItemBlockLargeBase implem
         if (theItem.getCount() > 1) {
             return 0;
         }
-        return RFIntegration.toRF(getMaxEnergy(theItem));
+        return RFIntegration.toRF(getEnergyCapacity(theItem));
     }
 
     @Override
     public boolean showDurabilityBar(ItemStack stack) {
-        return getEnergy(stack) > 0;
+        return stack.getCount() == 1 && StorageUtils.getStoredEnergy(stack) > 0;
     }
 
 
     @Override
     public double getDurabilityForDisplay(ItemStack stack) {
-        return 1D - (getEnergy(stack) / getMaxEnergy(stack));
+        double capacity = getEnergyCapacity(stack);
+        return capacity <= 0 ? 1D : 1D - (StorageUtils.getStoredEnergy(stack) / capacity);
     }
 
     @Override
     @Optional.Method(modid = MekanismHooks.IC2_MOD_ID)
     public IElectricItemManager getManager(ItemStack itemStack) {
-        return IC2ItemManager.getManager(this);
+        return IC2ItemManager.getManager();
     }
 
     @Override
     public ICapabilityProvider initCapabilities(ItemStack stack, NBTTagCompound nbt) {
-        return new ItemCapabilityWrapper(stack, new TeslaItemWrapper(), new ForgeEnergyItemWrapper());
+        return new ItemCapabilityWrapper(stack, new TeslaItemWrapper(), new ForgeEnergyItemWrapper(),
+              RateLimitEnergyHandler.create(() -> getEnergyTransfer(stack), () -> getEnergyCapacity(stack), ConstantPredicates.alwaysFalse(), ConstantPredicates.alwaysTrue()));
     }
 
 }

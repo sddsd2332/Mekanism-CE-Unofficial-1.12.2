@@ -3,11 +3,18 @@ package mekanism.common.config;
 
 import io.netty.buffer.ByteBuf;
 import mekanism.common.config.options.*;
+import mekanism.common.inventory.container.SelectedWindowData.CachedWindowPosition;
+import mekanism.common.inventory.container.SelectedWindowData.WindowType;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Created by Thiakil on 15/03/2019.
  */
 public class ClientConfig extends BaseConfig {
+
+    public final Map<String, CachedWindowPosition> lastWindowPositions = new HashMap<>();
 
     public final BooleanOption enablePlayerSounds = new BooleanOption(this,  "EnablePlayerSounds", true,
             "Play sounds for Jetpack/Gas Mask/Flamethrower (all players).");
@@ -50,6 +57,9 @@ public class ClientConfig extends BaseConfig {
 
     public final BooleanOption enableHUD = new BooleanOption(this,  "enableHUD", true,
             "Enable item information HUD during gameplay");
+
+    public final BooleanOption enableSlotTypeTooltips = new BooleanOption(this, "EnableSlotTypeTooltips", true,
+            "Show helper tooltips for empty Mekanism GUI input/output/extra/energy slots.");
 
     public final IntOption AllMekGuiBg = new IntOption(this,  "AllMekGuiBg", 0xFFFFFFFF,
             "All mekanism GUI background colors");
@@ -132,6 +142,14 @@ public class ClientConfig extends BaseConfig {
 
     public final IntOption GazeCullingOpenGLQueryInterval = new IntOption(this, "GazeCullingOpenGLQueryInterval", 2,
             "How many client ticks to wait before issuing a new OpenGL occlusion query for the same tile. Higher values reduce GPU query overhead.", 1, 20);
+
+    public ClientConfig() {
+        for (WindowType windowType : WindowType.values()) {
+            for (String savePath : windowType.getSavePaths()) {
+                lastWindowPositions.put(savePath, new CachedWindowPosition(this, savePath, windowType.canPin()));
+            }
+        }
+    }
 
     @Override
     public void write(ByteBuf config) {

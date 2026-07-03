@@ -1,6 +1,7 @@
 package mekanism.common;
 
 import mekanism.api.EnumColor;
+import mekanism.api.NBTConstants;
 import mekanism.common.base.IUpgradeTile;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.util.LangUtils;
@@ -42,13 +43,13 @@ public enum Upgrade {
     public static Map<Upgrade, Integer> buildMap(@Nullable NBTTagCompound nbtTags) {
         Map<Upgrade, Integer> upgrades = new EnumMap<>(Upgrade.class);
         if (nbtTags != null) {
-            if (nbtTags.hasKey("upgrades")) {
-                NBTTagList list = nbtTags.getTagList("upgrades", NBT.TAG_COMPOUND);
+            if (nbtTags.hasKey(NBTConstants.UPGRADES)) {
+                NBTTagList list = nbtTags.getTagList(NBTConstants.UPGRADES, NBT.TAG_COMPOUND);
                 for (int tagCount = 0; tagCount < list.tagCount(); tagCount++) {
                     NBTTagCompound compound = list.getCompoundTagAt(tagCount);
-                    Upgrade upgrade = MekanismUtils.getByIndex(Upgrade.values(), compound.getInteger("type"), null);
+                    Upgrade upgrade = MekanismUtils.getByIndex(Upgrade.values(), compound.getInteger(NBTConstants.TYPE), null);
                     if (upgrade != null) {
-                        upgrades.put(upgrade, compound.getInteger("amount"));
+                        upgrades.put(upgrade, compound.getInteger(NBTConstants.AMOUNT));
                     }
                 }
             }
@@ -56,16 +57,31 @@ public enum Upgrade {
         return upgrades;
     }
 
+    public static boolean hasUpgradeData(@Nullable NBTTagCompound nbtTags) {
+        return nbtTags != null && nbtTags.hasKey(NBTConstants.COMPONENT_UPGRADE, NBT.TAG_COMPOUND) &&
+              nbtTags.getCompoundTag(NBTConstants.COMPONENT_UPGRADE).hasKey(NBTConstants.UPGRADES, NBT.TAG_LIST);
+    }
+
+    public static Map<Upgrade, Integer> buildComponentMap(@Nullable NBTTagCompound nbtTags) {
+        return buildMap(nbtTags == null ? null : nbtTags.getCompoundTag(NBTConstants.COMPONENT_UPGRADE));
+    }
+
+    public static void saveComponentMap(Map<Upgrade, Integer> upgrades, NBTTagCompound nbtTags) {
+        NBTTagCompound upgradeNBT = nbtTags.getCompoundTag(NBTConstants.COMPONENT_UPGRADE);
+        saveMap(upgrades, upgradeNBT);
+        nbtTags.setTag(NBTConstants.COMPONENT_UPGRADE, upgradeNBT);
+    }
+
     public static void saveMap(Map<Upgrade, Integer> upgrades, NBTTagCompound nbtTags) {
         NBTTagList list = new NBTTagList();
         upgrades.forEach((key, value) -> list.appendTag(getTagFor(key, value)));
-        nbtTags.setTag("upgrades", list);
+        nbtTags.setTag(NBTConstants.UPGRADES, list);
     }
 
     public static NBTTagCompound getTagFor(Upgrade upgrade, int amount) {
         NBTTagCompound compound = new NBTTagCompound();
-        compound.setInteger("type", upgrade.ordinal());
-        compound.setInteger("amount", amount);
+        compound.setInteger(NBTConstants.TYPE, upgrade.ordinal());
+        compound.setInteger(NBTConstants.AMOUNT, amount);
         return compound;
     }
 

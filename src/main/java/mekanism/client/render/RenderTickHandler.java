@@ -8,13 +8,13 @@ import mekanism.client.render.lib.effect.BoltRenderer;
 import mekanism.client.render.particle.EntityJetpackFlameFX;
 import mekanism.client.render.particle.EntityJetpackSmokeFX;
 import mekanism.client.render.particle.EntityScubaBubbleFX;
+import mekanism.common.CommonPlayerTickHandler;
 import mekanism.common.Mekanism;
 import mekanism.common.block.BlockBounding;
 import mekanism.common.block.interfaces.IHighlightBoxProvider;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.content.gear.IBlastingItem;
 import mekanism.common.content.gear.IModuleContainerItem;
-import mekanism.common.item.ItemFlamethrower;
 import mekanism.common.lib.effect.BoltEffect;
 import mekanism.common.lib.radiation.RadiationManager;
 import mekanism.common.util.MekanismUtils;
@@ -197,7 +197,7 @@ public class RenderTickHandler {
                     world.playerEntities.forEach(p -> {
                         if (!Mekanism.playerState.isFlamethrowerOn(p) && !p.isSwingInProgress) {
                             ItemStack currentItem = p.getHeldItemMainhand();
-                            if (!currentItem.isEmpty() && currentItem.getItem() instanceof ItemFlamethrower flamethrower && flamethrower.getGas(currentItem) != null) {
+                            if (CommonPlayerTickHandler.hasFlamethrowerGas(currentItem)) {
                                 Pos3D flameVec;
                                 boolean rightHanded = p.getPrimaryHand() == EnumHandSide.RIGHT;
                                 if (player == p && mc.gameSettings.thirdPersonView == 0) {

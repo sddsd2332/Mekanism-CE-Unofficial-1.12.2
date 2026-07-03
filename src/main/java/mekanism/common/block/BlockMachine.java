@@ -2,7 +2,7 @@ package mekanism.common.block;
 
 import mekanism.api.Coord4D;
 import mekanism.api.IMekWrench;
-import mekanism.api.energy.IEnergizedItem;
+import mekanism.api.NBTConstants;
 import mekanism.api.energy.IStrictEnergyStorage;
 import mekanism.client.render.particle.MekanismParticleHelper;
 import mekanism.common.Mekanism;
@@ -14,6 +14,7 @@ import mekanism.common.block.states.BlockStateMachine.MachineBlock;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.content.entangloporter.InventoryFrequency;
+import mekanism.common.frequency.FrequencyType;
 import mekanism.common.integration.wrenches.Wrenches;
 import mekanism.common.item.ItemBlockMachine;
 import mekanism.common.network.PacketLogisticalSorterGui.LogisticalSorterGuiMessage;
@@ -51,9 +52,6 @@ import net.minecraft.util.math.RayTraceResult.Type;
 import net.minecraft.world.Explosion;
 import net.minecraft.world.IBlockAccess;
 import net.minecraft.world.World;
-import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.FluidUtil;
-import net.minecraftforge.fluids.capability.IFluidHandlerItem;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
@@ -260,7 +258,7 @@ public abstract class BlockMachine extends BlockMekanismContainer {
         for (MachineType type : MachineType.getValidMachines()) {
             if (type.typeBlock == getMachineBlock() && type.isEnabled()) {
                 switch (type) {
-                    case BASIC_FACTORY, ADVANCED_FACTORY, ELITE_FACTORY, ULTIMATE_FACTORY, CREATIVE_FACTORY -> {
+                    case BASIC_FACTORY, ADVANCED_FACTORY, ELITE_FACTORY, ULTIMATE_FACTORY -> {
                         for (RecipeType recipe : RecipeType.values()) {
                             if (recipe.getType().isEnabled()) {
                                 ItemStack stack = new ItemStack(this, 1, type.meta);
@@ -342,11 +340,9 @@ public abstract class BlockMachine extends BlockMekanismContainer {
                 case FLUID_TANK -> {
                     if (!entityplayer.isSneaking()) {
                         if (SecurityUtils.canAccess(entityplayer, tileEntity)) {
-                            if (!stack.isEmpty() && FluidContainerUtils.isFluidContainer(stack)) {
-                                if (manageInventory(entityplayer, (TileEntityFluidTank) tileEntity, hand, stack)) {
-                                    entityplayer.inventory.markDirty();
-                                    return true;
-                                }
+                            if (!stack.isEmpty() && manageInventory(entityplayer, (TileEntityFluidTank) tileEntity, hand, stack)) {
+                                entityplayer.inventory.markDirty();
+                                return true;
                             } else {
                                 entityplayer.openGui(Mekanism.instance, type.guiId, world, pos.getX(), pos.getY(), pos.getZ());
                             }
@@ -455,75 +451,7 @@ public abstract class BlockMachine extends BlockMekanismContainer {
     }
 
     private boolean manageInventory(EntityPlayer player, TileEntityFluidTank tileEntity, EnumHand hand, ItemStack itemStack) {
-        ItemStack copyStack = StackUtils.size(itemStack.copy(), 1);
-        if (FluidContainerUtils.isFluidContainer(itemStack)) {
-            IFluidHandlerItem handler = FluidUtil.getFluidHandler(copyStack);
-            if (FluidUtil.getFluidContained(copyStack) == null) {
-                if (tileEntity.fluidTank.getFluid() != null) {
-                    int filled = handler.fill(tileEntity.fluidTank.getFluid(), !player.capabilities.isCreativeMode);
-                    copyStack = handler.getContainer();
-                    if (filled > 0) {
-                        if (itemStack.getCount() == 1) {
-                            player.setHeldItem(hand, copyStack);
-                        } else if (itemStack.getCount() > 1 && player.inventory.addItemStackToInventory(copyStack)) {
-                            itemStack.shrink(1);
-                        } else {
-                            player.dropItem(copyStack, false, true);
-                            itemStack.shrink(1);
-                        }
-                        if (tileEntity.tier != FluidTankTier.CREATIVE) {
-                            tileEntity.fluidTank.drain(filled, true);
-                        }
-                        return true;
-                    }
-                }
-            } else {
-                FluidStack itemFluid = FluidUtil.getFluidContained(copyStack);
-                int needed = tileEntity.getCurrentNeeded();
-                if (tileEntity.fluidTank.getFluid() != null && !tileEntity.fluidTank.getFluid().isFluidEqual(itemFluid)) {
-                    return false;
-                }
-                boolean filled = false;
-                FluidStack drained = handler.drain(needed, !player.capabilities.isCreativeMode);
-                copyStack = handler.getContainer();
-                if (copyStack.getCount() == 0) {
-                    copyStack = ItemStack.EMPTY;
-                }
-                if (drained != null) {
-                    if (player.capabilities.isCreativeMode) {
-                        filled = true;
-                    } else if (!copyStack.isEmpty()) {
-                        if (itemStack.getCount() == 1) {
-                            player.setHeldItem(hand, copyStack);
-                            filled = true;
-                        } else if (player.inventory.addItemStackToInventory(copyStack)) {
-                            itemStack.shrink(1);
-
-                            filled = true;
-                        }
-                    } else {
-                        itemStack.shrink(1);
-                        if (itemStack.getCount() == 0) {
-                            player.setHeldItem(hand, ItemStack.EMPTY);
-                        }
-                        filled = true;
-                    }
-
-                    if (filled) {
-                        int toFill = tileEntity.fluidTank.getCapacity() - tileEntity.fluidTank.getFluidAmount();
-                        if (tileEntity.tier != FluidTankTier.CREATIVE) {
-                            toFill = Math.min(toFill, drained.amount);
-                        }
-                        tileEntity.fluidTank.fill(PipeUtils.copy(drained, toFill), true);
-                        if (drained.amount - toFill > 0) {
-                            tileEntity.pushUp(PipeUtils.copy(itemFluid, drained.amount - toFill), true);
-                        }
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
+        return FluidUtils.handleTankInteraction(player, hand, itemStack, tileEntity.fluidTank, tileEntity.tier != FluidTankTier.CREATIVE);
     }
 
     @Override
@@ -580,7 +508,7 @@ public abstract class BlockMachine extends BlockMekanismContainer {
         if (tileEntity instanceof IRedstoneControl control) {
             ItemDataUtils.setInt(itemStack, "controlType", control.getControlType().ordinal());
         }
-        if (tileEntity instanceof TileEntityContainerBlock block && !block.inventory.isEmpty()) {
+        if (tileEntity instanceof TileEntityContainerBlock block && !block.isEmpty()) {
             ISustainedInventory inventory = (ISustainedInventory) itemStack.getItem();
             inventory.setInventory(((ISustainedInventory) tileEntity).getInventory(), itemStack);
         }
@@ -597,13 +525,14 @@ public abstract class BlockMachine extends BlockMekanismContainer {
         }
         //this MUST be done after the factory info is saved, as it caps the energy to max, which is based on the recipe type
         if (tileEntity instanceof IStrictEnergyStorage storage) {
-            IEnergizedItem energizedItem = (IEnergizedItem) itemStack.getItem();
-            energizedItem.setEnergy(itemStack, storage.getEnergy());
+            StorageUtils.setStoredEnergy(itemStack, storage.getEnergy(), storage.getMaxEnergy());
         }
         if (tileEntity instanceof TileEntityQuantumEntangloporter entangloporter) {
-            InventoryFrequency frequency = entangloporter.frequency;
+            InventoryFrequency frequency = entangloporter.getFreq();
             if (frequency != null) {
-                ItemDataUtils.setCompound(itemStack, "entangleporter_frequency", frequency.getIdentity().serialize());
+                NBTTagCompound frequencyNBT = new NBTTagCompound();
+                frequencyNBT.setTag(FrequencyType.INVENTORY.getName(), FrequencyType.INVENTORY.getIdentitySerializer().write(frequency.getIdentity()));
+                ItemDataUtils.setCompound(itemStack, NBTConstants.COMPONENT_FREQUENCY, frequencyNBT);
             }
         }
         return itemStack;

@@ -6,9 +6,11 @@ import it.unimi.dsi.fastutil.objects.Object2IntArrayMap;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Reference2BooleanArrayMap;
 import it.unimi.dsi.fastutil.objects.Reference2BooleanMap;
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
 import mekanism.api.Coord4D;
 import mekanism.api.EnumColor;
-import mekanism.api.energy.IEnergizedItem;
+import mekanism.api.energy.IEnergyContainer;
 import mekanism.api.gear.ICustomModule;
 import mekanism.api.gear.IModule;
 import mekanism.api.gear.Magnetic;
@@ -34,6 +36,7 @@ import mekanism.common.lib.radial.data.NestingRadialData;
 import mekanism.common.network.PacketPortalFX;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.StorageUtils;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockLiquid;
 import net.minecraft.block.BlockTripWire;
@@ -95,11 +98,11 @@ public class ItemMekaTool extends ItemEnergized implements IModuleContainerItem,
         ItemStack discharged = new ItemStack(this);
         list.add(discharged);
         ItemStack charged = new ItemStack(this);
-        setEnergy(charged, ((IEnergizedItem) charged.getItem()).getMaxEnergy(charged));
+        StorageUtils.setStoredEnergy(charged, getEnergyCapacity(charged));
         list.add(charged);
         ItemStack FullStack = new ItemStack(this);
         setAllModule(FullStack);
-        setEnergy(FullStack, ((IEnergizedItem) FullStack.getItem()).getMaxEnergy(FullStack));
+        StorageUtils.setStoredEnergy(FullStack, getEnergyCapacity(FullStack));
         list.add(FullStack);
     }
 
@@ -120,14 +123,14 @@ public class ItemMekaTool extends ItemEnergized implements IModuleContainerItem,
     @Override
     @Method(modid = MekanismHooks.FARMERS_DELIGHT_LEGACY_MOD_ID)
     public boolean canProcessCuttingBoardRecipe(ItemStack stack, World world, BlockPos pos, IBlockState state, EntityPlayer player, ItemStack inputStack) {
-        return getEnergy(stack) >= CUTTING_BOARD_RECIPE_ENERGY_USAGE && hasCuttingBoardRecipeModule(stack);
+        return StorageUtils.getStoredEnergy(stack) >= CUTTING_BOARD_RECIPE_ENERGY_USAGE && hasCuttingBoardRecipeModule(stack);
     }
 
     @Override
     @Method(modid = MekanismHooks.FARMERS_DELIGHT_LEGACY_MOD_ID)
     public void onCuttingBoardRecipeProcessed(ItemStack stack, World world, EntityPlayer player) {
-        if (getEnergy(stack) >= CUTTING_BOARD_RECIPE_ENERGY_USAGE) {
-            extract(stack, CUTTING_BOARD_RECIPE_ENERGY_USAGE, true);
+        if (StorageUtils.getStoredEnergy(stack) >= CUTTING_BOARD_RECIPE_ENERGY_USAGE) {
+            StorageUtils.extractEnergy(stack, CUTTING_BOARD_RECIPE_ENERGY_USAGE, Action.EXECUTE);
         }
     }
 
@@ -141,7 +144,7 @@ public class ItemMekaTool extends ItemEnergized implements IModuleContainerItem,
         if (MekKeyHandler.getIsKeyPressed(MekanismKeyHandler.sneakKey)) {
             addModuleDetails(stack, tooltip);
         } else {
-            tooltip.add(EnumColor.AQUA + LangUtils.localize("tooltip.storedEnergy") + ": " + EnumColor.GREY + MekanismUtils.getEnergyDisplay(getEnergy(stack), getMaxEnergy(stack)));
+            tooltip.add(EnumColor.AQUA + LangUtils.localize("tooltip.storedEnergy") + ": " + EnumColor.GREY + MekanismUtils.getEnergyDisplay(StorageUtils.getStoredEnergy(stack), getEnergyCapacity(stack)));
             tooltip.add(LangUtils.localize("tooltip.hold") + " " + EnumColor.INDIGO + GameSettings.getKeyDisplayString(MekanismKeyHandler.sneakKey.getKeyCode()) + EnumColor.GREY + " " + LangUtils.localize("tooltip.forDetails") + ".");
         }
     }
@@ -192,14 +195,14 @@ public class ItemMekaTool extends ItemEnergized implements IModuleContainerItem,
 
     @Override
     public float getDestroySpeed(ItemStack stack, IBlockState state) {
-        IEnergizedItem energyContainer = this;
+        IEnergyContainer energyContainer = StorageUtils.getEnergyContainer(stack, 0);
         if (energyContainer == null) {
             return 0;
         }
 
         //Use raw hardness to get the best guess of if it is zero or not
         double energyRequired = getDestroyEnergy(stack, state.getBlock().blockHardness, isModuleEnabled(stack, MekanismModules.SILK_TOUCH_UNIT));
-        double energyAvailable = energyContainer.extract(stack, energyRequired, false);
+        double energyAvailable = energyContainer.extract(energyRequired, Action.SIMULATE, AutomationType.MANUAL);
         if (energyAvailable < (energyRequired)) {
             //If we can't extract all the energy we need to break it go at base speed reduced by how much we actually have available
             return (float) (MekanismConfig.current().meka.mekaToolBaseEfficiency.val() * (energyAvailable / (energyRequired)));
@@ -210,10 +213,10 @@ public class ItemMekaTool extends ItemEnergized implements IModuleContainerItem,
 
     @Override
     public boolean onBlockDestroyed(ItemStack stack, World world, IBlockState state, BlockPos pos, EntityLivingBase entity) {
-        IEnergizedItem energyContainer = this;
+        IEnergyContainer energyContainer = StorageUtils.getEnergyContainer(stack, 0);
         if (energyContainer != null) {
             double energyRequired = getDestroyEnergy(stack, state.getBlockHardness(world, pos), isModuleEnabled(stack, MekanismModules.SILK_TOUCH_UNIT));
-            double extractedEnergy = energyContainer.extract(stack, energyRequired, true);
+            double extractedEnergy = energyContainer.extract(energyRequired, Action.EXECUTE, AutomationType.MANUAL);
             if (extractedEnergy == (energyRequired) || entity instanceof EntityPlayer player && player.isCreative()) {
                 //Only disarm tripwires if we had all the energy we tried to use (or are creative). Otherwise, treat it as if we may have failed to disarm it
                 if (state.getBlock() == Blocks.TRIPWIRE && !state.getValue(BlockTripWire.DISARMED) && isModuleEnabled(stack, MekanismModules.SHEARING_UNIT)) {
@@ -325,14 +328,14 @@ public class ItemMekaTool extends ItemEnergized implements IModuleContainerItem,
         if (player.world.isRemote || player.isCreative()) {
             return super.onBlockStartBreak(itemstack, pos, player);
         }
-        IEnergizedItem energyContainer = this;
+        IEnergyContainer energyContainer = StorageUtils.getEnergyContainer(itemstack, 0);
         if (energyContainer != null) {
             World world = player.world;
             IBlockState state = world.getBlockState(pos);
             boolean silk = isModuleEnabled(itemstack, MekanismModules.SILK_TOUCH_UNIT);
             double modDestroyEnergy = getDestroyEnergy(itemstack, silk);
             double energyRequired = getDestroyEnergy(modDestroyEnergy, state.getBlockHardness(world, pos));
-            if (energyContainer.extract(itemstack, energyRequired, false) >= (energyRequired)) {
+            if (energyContainer.extract(energyRequired, Action.SIMULATE, AutomationType.MANUAL) >= energyRequired) {
                 VeinMiningTargets targets = getVeinMiningTargets(world, player, itemstack, pos, state);
                 if (targets != null && !targets.getVeinedBlocks().isEmpty()) {
                     double baseDestroyEnergy = getDestroyEnergy(silk);
@@ -389,8 +392,8 @@ public class ItemMekaTool extends ItemEnergized implements IModuleContainerItem,
             int unitDamage = attackAmplificationUnit.getCustomInstance().getDamage();
             if (unitDamage > 0) {
                 double energyCost = MekanismConfig.current().meka.mekaToolEnergyUsageWeapon.val() * (unitDamage / 4D);
-                IEnergizedItem energyContainer = this;
-                double energy = energyContainer == null ? 0L : energyContainer.getEnergy(stack);
+                IEnergyContainer energyContainer = StorageUtils.getEnergyContainer(stack, 0);
+                double energy = energyContainer == null ? 0L : energyContainer.getEnergy();
                 if (energy < energyCost) {
                     //If we don't have enough power use it at a reduced power level (this will be false the majority of the time)
                     damage += unitDamage * MathUtils.divideToLevel(energy, energyCost);
@@ -424,12 +427,12 @@ public class ItemMekaTool extends ItemEnergized implements IModuleContainerItem,
                         if (distance < 5) {
                             return new ActionResult<>(EnumActionResult.PASS, stack);
                         }
-                        IEnergizedItem energyContainer = this;
+                        IEnergyContainer energyContainer = StorageUtils.getEnergyContainer(stack, 0);
                         double energyNeeded = MekanismConfig.current().meka.mekaToolEnergyUsageTeleport.val() * (distance / 10D);
-                        if (energyContainer == null || energyContainer.getEnergy(stack) < (energyNeeded)) {
+                        if (energyContainer == null || energyContainer.getEnergy() < energyNeeded) {
                             return new ActionResult<>(EnumActionResult.FAIL, stack);
                         }
-                        energyContainer.extract(stack, energyNeeded, true);
+                        energyContainer.extract(energyNeeded, Action.EXECUTE, AutomationType.MANUAL);
                         if (player.isRiding()) {
                             player.dismountRidingEntity();
                         }
@@ -488,14 +491,14 @@ public class ItemMekaTool extends ItemEnergized implements IModuleContainerItem,
     }
 
     @Override
-    public double getMaxEnergy(ItemStack stack) {
+    public double getEnergyCapacity(ItemStack stack) {
         IModule<ModuleEnergyUnit> module = getModule(stack, MekanismModules.ENERGY_UNIT);
         return module == null ? MekanismConfig.current().meka.mekaToolBaseEnergyCapacity.val() : module.getCustomInstance().getEnergyCapacity(module);
     }
 
 
     @Override
-    public double getMaxTransfer(ItemStack stack) {
+    public double getEnergyTransfer(ItemStack stack) {
         IModule<ModuleEnergyUnit> module = getModule(stack, MekanismModules.ENERGY_UNIT);
         return module == null ? MekanismConfig.current().meka.mekaToolBaseChargeRate.val() : module.getCustomInstance().getChargeRate(module);
     }

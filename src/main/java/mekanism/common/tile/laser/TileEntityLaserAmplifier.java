@@ -1,16 +1,16 @@
 package mekanism.common.tile.laser;
 
 import io.netty.buffer.ByteBuf;
-import mekanism.api.Coord4D;
-import mekanism.api.TileNetworkList;
-import mekanism.api.energy.IStrictEnergyOutputter;
-import mekanism.api.energy.IStrictEnergyStorage;
+import mekanism.api.*;
+import mekanism.api.energy.IEnergyContainer;
 import mekanism.api.lasers.ILaserReceptor;
 import mekanism.common.LaserManager;
 import mekanism.common.LaserManager.LaserInfo;
 import mekanism.common.Mekanism;
 import mekanism.common.base.IRedstoneControl;
 import mekanism.common.capabilities.Capabilities;
+import mekanism.common.capabilities.holder.energy.IEnergyContainerHolder;
+import mekanism.common.capabilities.holder.energy.ProxiedEnergyContainerHolder;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.integration.computer.IComputerIntegration;
 import mekanism.common.security.ISecurityTile;
@@ -19,9 +19,7 @@ import mekanism.common.tile.prefab.TileEntityContainerBlock;
 import mekanism.common.util.InventoryUtils;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.NonNullListSynchronized;
 import net.minecraft.block.state.IBlockState;
-import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
@@ -31,8 +29,10 @@ import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.items.CapabilityItemHandler;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.Collections;
 
-public class TileEntityLaserAmplifier extends TileEntityContainerBlock implements ILaserReceptor, IRedstoneControl, IStrictEnergyOutputter, IStrictEnergyStorage,
+public class TileEntityLaserAmplifier extends TileEntityContainerBlock implements ILaserReceptor, IRedstoneControl, IEnergyContainer,
         IComputerIntegration, ISecurityTile {
 
     public static final double MAX_ENERGY = 5E9;
@@ -54,12 +54,20 @@ public class TileEntityLaserAmplifier extends TileEntityContainerBlock implement
 
     public TileEntityLaserAmplifier() {
         super("LaserAmplifier");
-        inventory = NonNullListSynchronized.withSize(0, ItemStack.EMPTY);
+        initializeInventorySlots();
+    }
+
+    @Override
+    protected IEnergyContainerHolder getInitialEnergyContainers(IContentsListener listener) {
+        return ProxiedEnergyContainerHolder.create(
+              side -> false,
+              side -> side != null && canOutputEnergy(side),
+              side -> side == null || canOutputEnergy(side) ? Collections.singletonList(this) : Collections.emptyList());
     }
 
     @Override
     public void receiveLaserEnergy(double energy, EnumFacing side) {
-        setEnergy(getEnergy() + energy);
+        insert(energy, side, Action.EXECUTE, AutomationType.INTERNAL);
     }
 
     @Override
@@ -132,7 +140,7 @@ public class TileEntityLaserAmplifier extends TileEntityContainerBlock implement
                 }
             }
             emittingRedstone = info.foundEntity;
-            setEnergy(getEnergy() - firing);
+            extract(firing, Action.EXECUTE, AutomationType.INTERNAL);
         } else if (on) {
             on = false;
             diggingProgress = 0;
@@ -159,14 +167,32 @@ public class TileEntityLaserAmplifier extends TileEntityContainerBlock implement
 
     @Override
     public double pullEnergy(EnumFacing side, double amount, boolean simulate) {
-        double toGive = Math.min(getEnergy(), amount);
+        double toGive = extract(amount, Action.SIMULATE, AutomationType.EXTERNAL);
         if (toGive < 0.0001) {
             return 0;
         }
-        if (!simulate) {
-            setEnergy(getEnergy() - toGive);
+        return extract(toGive, Action.get(!simulate), AutomationType.EXTERNAL);
+    }
+
+    @Override
+    public double insert(double amount, @Nullable EnumFacing side, Action action, AutomationType automationType) {
+        if (automationType != AutomationType.INTERNAL) {
+            return amount;
         }
-        return toGive;
+        return IEnergyContainer.super.insert(amount, side, action, automationType);
+    }
+
+    @Override
+    public double extract(double amount, Action action, AutomationType automationType) {
+        if (automationType != AutomationType.INTERNAL && automationType != AutomationType.EXTERNAL) {
+            return 0;
+        }
+        return IEnergyContainer.super.extract(amount, action, automationType);
+    }
+
+    @Override
+    public boolean canReceiveEnergy(EnumFacing side) {
+        return false;
     }
 
     @Override
@@ -185,6 +211,40 @@ public class TileEntityLaserAmplifier extends TileEntityContainerBlock implement
 
     public double toFire() {
         return shouldFire() ? Math.min(collectedEnergy, maxThreshold) : 0;
+    }
+
+    public IEnergyContainer getEnergyContainer() {
+        return this;
+    }
+
+    public int getDelay() {
+        return time;
+    }
+
+    public double getMinThreshold() {
+        return minThreshold;
+    }
+
+    public double getMaxThreshold() {
+        return maxThreshold;
+    }
+
+    private void setMinThreshold(double threshold) {
+        minThreshold = Math.min(MAX_ENERGY, Math.max(0, threshold));
+        if (minThreshold > maxThreshold) {
+            maxThreshold = minThreshold;
+        }
+    }
+
+    private void setMaxThreshold(double threshold) {
+        maxThreshold = Math.min(MAX_ENERGY, Math.max(0, threshold));
+        if (maxThreshold < minThreshold) {
+            minThreshold = maxThreshold;
+        }
+    }
+
+    public RedstoneOutput getOutputMode() {
+        return outputMode;
     }
 
     public int getRedstoneLevel() {
@@ -213,11 +273,13 @@ public class TileEntityLaserAmplifier extends TileEntityContainerBlock implement
     public void handlePacketData(ByteBuf dataStream) {
         if (FMLCommonHandler.instance().getEffectiveSide().isServer()) {
             switch (dataStream.readInt()) {
-                case 0 -> minThreshold = Math.min(MAX_ENERGY, MekanismUtils.convertToJoules(dataStream.readDouble()));
-                case 1 -> maxThreshold = Math.min(MAX_ENERGY, MekanismUtils.convertToJoules(dataStream.readDouble()));
-                case 2 -> time = dataStream.readInt();
+                case 0 -> setMinThreshold(MekanismUtils.convertToJoules(dataStream.readDouble()));
+                case 1 -> setMaxThreshold(MekanismUtils.convertToJoules(dataStream.readDouble()));
+                case 2 -> time = Math.max(0, dataStream.readInt());
                 case 3 ->
                         outputMode = RedstoneOutput.values()[outputMode.ordinal() == RedstoneOutput.values().length - 1 ? 0 : outputMode.ordinal() + 1];
+                case 4 ->
+                        outputMode = RedstoneOutput.values()[outputMode.ordinal() == 0 ? RedstoneOutput.values().length - 1 : outputMode.ordinal() - 1];
             }
             return;
         }
@@ -241,9 +303,9 @@ public class TileEntityLaserAmplifier extends TileEntityContainerBlock implement
     public void readCustomNBT(NBTTagCompound nbtTags) {
         super.readCustomNBT(nbtTags);
         on = nbtTags.getBoolean("on");
-        minThreshold = nbtTags.getDouble("minThreshold");
-        maxThreshold = nbtTags.getDouble("maxThreshold");
-        time = nbtTags.getInteger("time");
+        setMinThreshold(nbtTags.getDouble("minThreshold"));
+        setMaxThreshold(nbtTags.getDouble("maxThreshold"));
+        time = Math.max(0, nbtTags.getInteger("time"));
         collectedEnergy = nbtTags.getDouble("collectedEnergy");
         lastFired = nbtTags.getDouble("lastFired");
         controlType = MekanismUtils.getByIndex(RedstoneControl.values(), nbtTags.getInteger("controlType"), controlType);
@@ -310,18 +372,11 @@ public class TileEntityLaserAmplifier extends TileEntityContainerBlock implement
 
     @Override
     public boolean hasCapability(@Nonnull Capability<?> capability, EnumFacing facing) {
-        return capability == Capabilities.ENERGY_STORAGE_CAPABILITY || capability == Capabilities.ENERGY_OUTPUTTER_CAPABILITY
-                || capability == Capabilities.LASER_RECEPTOR_CAPABILITY || super.hasCapability(capability, facing);
+        return capability == Capabilities.LASER_RECEPTOR_CAPABILITY || super.hasCapability(capability, facing);
     }
 
     @Override
     public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing facing) {
-        if (capability == Capabilities.ENERGY_STORAGE_CAPABILITY) {
-            return Capabilities.ENERGY_STORAGE_CAPABILITY.cast(this);
-        }
-        if (capability == Capabilities.ENERGY_OUTPUTTER_CAPABILITY) {
-            return Capabilities.ENERGY_OUTPUTTER_CAPABILITY.cast(this);
-        }
         if (capability == Capabilities.LASER_RECEPTOR_CAPABILITY) {
             return Capabilities.LASER_RECEPTOR_CAPABILITY.cast(this);
         }

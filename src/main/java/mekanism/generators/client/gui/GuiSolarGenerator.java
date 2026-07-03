@@ -1,52 +1,43 @@
 package mekanism.generators.client.gui;
 
-import mekanism.client.gui.GuiMekanismTile;
-import mekanism.client.gui.element.*;
-import mekanism.client.gui.element.GuiSlot.SlotType;
-import mekanism.client.gui.element.slot.GuiEnergySlot;
-import mekanism.client.gui.element.tab.GuiSecurityTab;
+import mekanism.client.gui.element.GuiInnerScreen;
+import mekanism.client.gui.element.bar.GuiVerticalPowerBar;
+import mekanism.client.gui.element.tab.GuiEnergyTab;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
+import mekanism.generators.client.gui.element.GuiStateTexture;
+import mekanism.generators.common.MekanismGenerators;
 import mekanism.generators.common.inventory.container.ContainerSolarGenerator;
 import mekanism.generators.common.tile.TileEntitySolarGenerator;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraft.util.text.ITextComponent;
 
-import java.util.Collections;
+import java.util.Arrays;
+import java.util.List;
 
-@SideOnly(Side.CLIENT)
-public class GuiSolarGenerator extends GuiMekanismTile<TileEntitySolarGenerator> {
+public class GuiSolarGenerator extends GuiGenerator<TileEntitySolarGenerator, ContainerSolarGenerator> {
 
     public GuiSolarGenerator(InventoryPlayer inventory, TileEntitySolarGenerator tile) {
         super(tile, new ContainerSolarGenerator(inventory, tile));
-        ResourceLocation resource = getGuiLocation();
-        addGuiElement(new GuiRedstoneControl(this, tileEntity, resource));
-        addGuiElement(new GuiSecurityTab(this, tileEntity, resource));
-        addGuiElement(new GuiEnergyInfo(Collections::emptyList, this, resource));
-        addGuiElement(new GuiEnergySlot( this, resource, 142, 34, tileEntity));
-        addGuiElement(new GuiPowerBar(this, tileEntity, resource, 164, 15));
-        addGuiElement(new GuiPlayerSlot(this, resource));
-        addGuiElement(new GuiSlot(SlotType.STATE_HOLDER, this, resource, 18, 35));
-        addGuiElement(new GuiInnerScreen(this, resource, 48, 23, 80, 40));
     }
 
     @Override
-    protected void drawGuiContainerForegroundLayer(int mouseX, int mouseY) {
-        fontRenderer.drawString(tileEntity.getName(), (xSize / 2) - (fontRenderer.getStringWidth(tileEntity.getName()) / 2), 6, 0x404040);
-        fontRenderer.drawString(LangUtils.localize("container.inventory"), 8, (ySize - 96) + 2, 0x404040);
-        fontRenderer.drawString(MekanismUtils.getEnergyDisplay(tileEntity.getEnergy(), tileEntity.getMaxEnergy()), 51, 26, 0xFF3CFE9A);
-        fontRenderer.drawString(LangUtils.localize("gui.power") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getActive() ? tileEntity.getProduction() : 0) + "/t", 51, 35, 0xFF3CFE9A);
-        fontRenderer.drawString(LangUtils.localize("gui.out") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getMaxOutput()) + "/t", 51, 44, 0xFF3CFE9A);
-        super.drawGuiContainerForegroundLayer(mouseX, mouseY);
+    protected void addGuiElements() {
+        super.addGuiElements();
+        addButton(new GuiInnerScreen(this, 40, 23, 96, 40, this::getScreenText));
+        addButton(new GuiEnergyTab(this, () -> getEnergyTabText(tileEntity.getProduction())));
+        addButton(new GuiVerticalPowerBar(this, tileEntity.getEnergyContainer(), 164, 15));
+        addButton(new GuiStateTexture(this, 18, 35, tileEntity::canSeeSun,
+              new ResourceLocation(MekanismGenerators.MODID, "gui/sees_sun.png"),
+              new ResourceLocation(MekanismGenerators.MODID, "gui/no_sun.png")));
     }
 
-    @Override
-    protected void drawGuiContainerBackgroundLayer(int xAxis, int yAxis) {
-        super.drawGuiContainerBackgroundLayer(xAxis, yAxis);
-        mc.getTextureManager().bindTexture(MekanismUtils.getResource(MekanismUtils.ResourceType.SLOT, "Slot_Icon.png"));
-        drawTexturedModalRect(guiLeft + 20, guiTop + 37, tileEntity.canSeeSun() ? 36 : 24, 88, 12, 12);
+    private List<ITextComponent> getScreenText() {
+        return Arrays.asList(
+              energy(tileEntity.getEnergy(), tileEntity.getMaxEnergy()),
+              text(LangUtils.localize("gui.producing") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getProduction()) + "/t"),
+              text(LangUtils.localize("gui.out") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getMaxOutput()) + "/t")
+        );
     }
-
 }

@@ -1,11 +1,12 @@
 package mekanism.common.recipe.outputs;
 
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTank;
+import mekanism.api.gas.IExtendedGasTank;
+import mekanism.api.inventory.IInventorySlot;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.NonNullList;
-import net.minecraftforge.items.ItemHandlerHelper;
 
 public class PressurizedOutput extends MachineOutput<PressurizedOutput> {
 
@@ -26,33 +27,28 @@ public class PressurizedOutput extends MachineOutput<PressurizedOutput> {
         gasOutput = GasStack.readFromNBT(nbtTags.getCompoundTag("gasOutput"));
     }
 
-    public boolean canFillTank(GasTank tank) {
-        return tank.canReceive(gasOutput.getGas()) && tank.getNeeded() >= gasOutput.amount;
+    public boolean canFillTank(IExtendedGasTank tank) {
+        GasStack remainder = tank.insert(gasOutput, Action.SIMULATE, AutomationType.INTERNAL);
+        return remainder == null || remainder.amount <= 0;
     }
 
-    public boolean canAddProducts(NonNullList<ItemStack> inventory, int index) {
-        ItemStack stack = inventory.get(index);
-        return stack.isEmpty() || (ItemHandlerHelper.canItemStacksStack(stack, itemOutput) && stack.getCount() + itemOutput.getCount() <= stack.getMaxStackSize());
+    public boolean canAddProducts(IInventorySlot slot) {
+        return slot.insertItem(itemOutput, Action.SIMULATE, AutomationType.INTERNAL).isEmpty();
     }
 
-    public void fillTank(GasTank tank) {
-        tank.receive(gasOutput, true);
+    public void fillTank(IExtendedGasTank tank) {
+        tank.insert(gasOutput, Action.EXECUTE, AutomationType.INTERNAL);
     }
 
-    public void addProducts(NonNullList<ItemStack> inventory, int index) {
-        ItemStack stack = inventory.get(index);
-        if (stack.isEmpty()) {
-            inventory.set(index, itemOutput.copy());
-        } else if (ItemHandlerHelper.canItemStacksStack(stack, itemOutput)) {
-            stack.grow(itemOutput.getCount());
-        }
+    public void addProducts(IInventorySlot slot) {
+        slot.insertItem(itemOutput, Action.EXECUTE, AutomationType.INTERNAL);
     }
 
-    public boolean applyOutputs(NonNullList<ItemStack> inventory, int index, GasTank tank, boolean doEmit) {
-        if (canFillTank(tank) && canAddProducts(inventory, index)) {
+    public boolean applyOutputs(IInventorySlot slot, IExtendedGasTank tank, boolean doEmit) {
+        if (canFillTank(tank) && canAddProducts(slot)) {
             if (doEmit) {
                 fillTank(tank);
-                addProducts(inventory, index);
+                addProducts(slot);
             }
             return true;
         }

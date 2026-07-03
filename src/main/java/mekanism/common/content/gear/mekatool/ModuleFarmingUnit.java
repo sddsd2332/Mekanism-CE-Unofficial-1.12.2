@@ -1,6 +1,6 @@
 package mekanism.common.content.gear.mekatool;
 
-import mekanism.api.energy.IEnergizedItem;
+import mekanism.api.energy.IEnergyContainer;
 import mekanism.api.gear.ICustomModule;
 import mekanism.api.gear.IModule;
 import mekanism.api.gear.config.IModuleConfigItem;
@@ -95,7 +95,7 @@ public class ModuleFarmingUnit implements ICustomModule<ModuleFarmingUnit> {
             //If we don't have any blocks we are going to want to do, then skip it
             return EnumActionResult.PASS;
         }
-        IEnergizedItem energyContainer = module.getEnergyContainer();
+        IEnergyContainer energyContainer = module.getEnergyContainer();
         if (energyContainer == null) {
             return EnumActionResult.FAIL;
         }

@@ -1,4 +1,4 @@
 {
       "parent": "mekanism:item/standard_item",
-      "textures": {"layer0": "mekanism:items/ThreadUpgrade"}
+      "textures": {"layer0": "mekanism:items/threadupgrade"}
 }

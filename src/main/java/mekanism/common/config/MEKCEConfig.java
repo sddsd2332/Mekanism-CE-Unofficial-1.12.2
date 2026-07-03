@@ -30,8 +30,6 @@ public class MEKCEConfig extends BaseConfig {
 
     public final BooleanOption EmptytoCreateFluidTank = new BooleanOption(this,  "EmptytoCreateFluidTank", false, "Let Configurator clear Create Fluid Tank");
 
-    public final BooleanOption RotaryCondensentratorAuto = new BooleanOption(this,  "RotaryCondensentratorAuto", false, "Turn off automatic change gas and fluid ejection mode in Rotary Condensentrator?");
-
     public final IntOption ItemEjectionDelay = new IntOption(this,  "ItemEjectionDelay", 10, "Every how many ticks pop up an item, the default is 10 ticks", 1, Integer.MAX_VALUE);
 
     public final BooleanOption ItemsEjectWithoutDelay = new BooleanOption(this,  "ItemsEjectWithoutDelay", false, "If true, the Item Ejection Delay is ignored");
@@ -97,7 +95,6 @@ public class MEKCEConfig extends BaseConfig {
     public final FloatOption LowEjectionThreshold = new FloatOption(this,  "LowEjectionThreshold", 0.5F, "Low ejection thresholds for gases and fluids, below which the MaximumEjectionDelay is waited for to be met before output", 0, 1);
     public final FloatOption HighEjectionThreshold = new FloatOption(this,  "HighEjectionThreshold", 0.85F, "High ejection thresholds for gases and fluids, above which they are immediately output", 0, 1);
     public final BooleanOption PlasticWrench = new BooleanOption(this,"PlasticWrench",false,"If true, allow the plastic to fall through the wrench");
-    public final BooleanOption StackingPlacementLimits = new BooleanOption(this,"StackingPlacementLimits",true,"If the number exceeds 1, it is forbidden to place blocks");
     public final FloatOption freeRunnerFallDamageRatio = new FloatOption(this,"fallDamageReductionRatio",1F,"Percent of damage taken from falling that can be absorbed by Free Runners when they have enough power.",0,1);
     public final FloatOption freeRunnerFallEnergyCost = new FloatOption(this,"fallEnergyCost",50,"Energy cost/multiplier in Joules for reducing fall damage with free runners. Energy cost is: FallDamage * freeRunnerFallEnergyCost. (1 FallDamage is 1 half heart)");
     public final BooleanOption EnableTheDefaultConfiguration = new BooleanOption(this,"EnableTheDefaultConfiguration",true,"Allows the machine to use the default configuration surface, which is empty by default if false");

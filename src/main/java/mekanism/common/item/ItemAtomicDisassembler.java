@@ -4,10 +4,8 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Reference2BooleanMaps;
-import mekanism.api.EnumColor;
-import mekanism.api.IDisableableEnum;
-import mekanism.api.NBTConstants;
-import mekanism.api.energy.IEnergizedItem;
+import mekanism.api.*;
+import mekanism.api.energy.IEnergyContainer;
 import mekanism.api.math.MathUtils;
 import mekanism.api.radial.RadialData;
 import mekanism.api.radial.mode.IRadialMode;
@@ -84,24 +82,24 @@ public class ItemAtomicDisassembler extends ItemEnergized implements IItemHUDPro
 
     @Override
     public boolean hitEntity(ItemStack stack, EntityLivingBase target, EntityLivingBase attacker) {
-        IEnergizedItem energyContainer = this;
-        if (energyContainer != null && energyContainer.getEnergy(stack) != 0) {
+        IEnergyContainer energyContainer = StorageUtils.getEnergyContainer(stack, 0);
+        if (energyContainer != null && !energyContainer.isEmpty()) {
             //Try to extract full energy, even if we have a lower damage amount this is fine as that just means
             // we don't have enough energy, but we will remove as much as we can, which is how much corresponds
             // to the amount of damage we will actually do
-            energyContainer.extract(stack, MekanismConfig.current().general.disassemblerEnergyUsageWeapon.val(), true);
+            energyContainer.extract(MekanismConfig.current().general.disassemblerEnergyUsageWeapon.val(), Action.EXECUTE, AutomationType.MANUAL);
         }
         return false;
     }
 
     @Override
     public float getDestroySpeed(ItemStack stack, IBlockState state) {
-        IEnergizedItem energyContainer = this;
+        IEnergyContainer energyContainer = StorageUtils.getEnergyContainer(stack, 0);
         if (energyContainer == null) {
             return 0;
         }
         double energyRequired = getDestroyEnergy(stack, state.getBlock().blockHardness);
-        double energyAvailable = energyContainer.extract(stack, energyRequired, false);
+        double energyAvailable = energyContainer.extract(energyRequired, Action.SIMULATE, AutomationType.MANUAL);
         if (energyAvailable < energyRequired) {
             return DisassemblerMode.NORMAL.getEfficiency() * (float) (energyAvailable / energyRequired);
         }
@@ -110,9 +108,9 @@ public class ItemAtomicDisassembler extends ItemEnergized implements IItemHUDPro
 
     @Override
     public boolean onBlockDestroyed(ItemStack stack, World world, IBlockState state, BlockPos pos, EntityLivingBase entity) {
-        IEnergizedItem energyContainer = this;
+        IEnergyContainer energyContainer = StorageUtils.getEnergyContainer(stack, 0);
         if (energyContainer != null) {
-            energyContainer.extract(stack, getDestroyEnergy(stack, state.getBlockHardness(world, pos)), true);
+            energyContainer.extract(getDestroyEnergy(stack, state.getBlockHardness(world, pos)), Action.EXECUTE, AutomationType.MANUAL);
         }
         return true;
     }
@@ -122,13 +120,13 @@ public class ItemAtomicDisassembler extends ItemEnergized implements IItemHUDPro
         if (player.world.isRemote || player.isCreative()) {
             return super.onBlockStartBreak(itemstack, pos, player);
         }
-        IEnergizedItem energyContainer = this;
+        IEnergyContainer energyContainer = StorageUtils.getEnergyContainer(itemstack, 0);
         if (energyContainer != null && getMode(itemstack) == DisassemblerMode.VEIN) {
             World world = player.world;
             IBlockState state = world.getBlockState(pos);
             double baseDestroyEnergy = getDestroyEnergy(itemstack);
             double energyRequired = getDestroyEnergy(baseDestroyEnergy, state.getBlockHardness(world, pos));
-            if (energyContainer.extract(itemstack, energyRequired, false) >= (energyRequired)) {
+            if (energyContainer.extract(energyRequired, Action.SIMULATE, AutomationType.MANUAL) >= energyRequired) {
                 //Even though we now handle breaking bounding blocks properly, don't allow vein mining them
                 // only allow mining things that are considered an ore
 
@@ -203,8 +201,8 @@ public class ItemAtomicDisassembler extends ItemEnergized implements IItemHUDPro
     @Override
     public Multimap<String, AttributeModifier> getAttributeModifiers(EntityEquipmentSlot slot, ItemStack stack) {
         if (slot == EntityEquipmentSlot.MAINHAND) {
-            IEnergizedItem energyContainer = this;
-            double energy = energyContainer == null ? 0 : energyContainer.getEnergy(stack);
+            IEnergyContainer energyContainer = StorageUtils.getEnergyContainer(stack, 0);
+            double energy = energyContainer == null ? 0 : energyContainer.getEnergy();
             double energyCost = MekanismConfig.current().general.disassemblerEnergyUsageWeapon.val();
             if (energy >= energyCost) {
                 Multimap<String, AttributeModifier> builder = HashMultimap.create();
@@ -243,7 +241,7 @@ public class ItemAtomicDisassembler extends ItemEnergized implements IItemHUDPro
     }
 
     @Override
-    public double getMaxTransfer(ItemStack itemStack) {
+    public double getEnergyTransfer(ItemStack itemStack) {
         return MekanismConfig.current().general.disassemblerChargeRate.val();
     }
 

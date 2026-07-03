@@ -14,7 +14,7 @@ import mekanism.common.integration.MekanismHooks;
 import mekanism.common.integration.computer.IComputerIntegration;
 import mekanism.common.util.InventoryUtils;
 import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.inventory.ISidedInventory;
+import net.minecraft.inventory.IInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
@@ -33,7 +33,7 @@ import javax.annotation.Nonnull;
         @Interface(iface = "cofh.redstoneflux.api.IEnergyReceiver", modid = MekanismHooks.REDSTONEFLUX_MOD_ID),
         @Interface(iface = "ic2.api.energy.tile.IEnergySink", modid = MekanismHooks.IC2_MOD_ID)
 })
-public class TileEntityAdvancedBoundingBlock extends TileEntityBoundingBlock implements ISidedInventory, IEnergySink, IStrictEnergyAcceptor, IStrictEnergyOutputter, IEnergyReceiver,
+public class TileEntityAdvancedBoundingBlock extends TileEntityBoundingBlock implements IInventory, IEnergySink, IStrictEnergyAcceptor, IStrictEnergyOutputter, IEnergyReceiver,
         IEnergyProvider, IComputerIntegration, ISpecialConfigData {
 
     @Override
@@ -182,31 +182,28 @@ public class TileEntityAdvancedBoundingBlock extends TileEntityBoundingBlock imp
     }
 
     @Nonnull
-    @Override
     public int[] getSlotsForFace(@Nonnull EnumFacing side) {
         IAdvancedBoundingBlock inv = getInv();
         if (inv == null) {
             return InventoryUtils.EMPTY;
         }
-        return inv.getSlotsForFace(side);
+        return inv.getSlotsForFace(side, pos.subtract(getMainPos()));
     }
 
-    @Override
     public boolean canInsertItem(int i, @Nonnull ItemStack itemstack, @Nonnull EnumFacing side) {
         IAdvancedBoundingBlock inv = getInv();
         if (inv == null) {
             return false;
         }
-        return inv.canInsertItem(i, itemstack, side);
+        return inv.canInsertItem(i, itemstack, side, pos.subtract(getMainPos()));
     }
 
-    @Override
     public boolean canExtractItem(int i, @Nonnull ItemStack itemstack, @Nonnull EnumFacing side) {
         IAdvancedBoundingBlock inv = getInv();
         if (inv == null) {
             return false;
         }
-        return inv.canExtractItem(i, itemstack, side);
+        return inv.canExtractItem(i, itemstack, side, pos.subtract(getMainPos()));
     }
 
     @Override
@@ -233,7 +230,7 @@ public class TileEntityAdvancedBoundingBlock extends TileEntityBoundingBlock imp
     @Method(modid = MekanismHooks.REDSTONEFLUX_MOD_ID)
     public int extractEnergy(EnumFacing from, int maxExtract, boolean simulate) {
         IAdvancedBoundingBlock inv = getInv();
-        if (inv == null) {
+        if (inv == null || !canOutputEnergy(from)) {
             return 0;
         }
         return inv.extractEnergy(from, maxExtract, simulate);
@@ -242,7 +239,7 @@ public class TileEntityAdvancedBoundingBlock extends TileEntityBoundingBlock imp
     @Override
     @Method(modid = MekanismHooks.REDSTONEFLUX_MOD_ID)
     public boolean canConnectEnergy(EnumFacing from) {
-        return canReceiveEnergy(from);
+        return canReceiveEnergy(from) || canOutputEnergy(from);
     }
 
     @Override
@@ -417,7 +414,7 @@ public class TileEntityAdvancedBoundingBlock extends TileEntityBoundingBlock imp
     @Override
     public double pullEnergy(EnumFacing side, double amount, boolean simulate) {
         IAdvancedBoundingBlock inv = getInv();
-        if (inv == null || !canReceiveEnergy(side)) {
+        if (inv == null || !canOutputEnergy(side)) {
             return 0;
         }
         return inv.pullEnergy(side, amount, simulate);

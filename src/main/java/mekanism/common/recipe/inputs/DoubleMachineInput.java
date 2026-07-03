@@ -1,9 +1,10 @@
 package mekanism.common.recipe.inputs;
 
+import mekanism.api.Action;
+import mekanism.api.inventory.IInventorySlot;
 import mekanism.common.util.StackUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.NonNullList;
 import net.minecraftforge.oredict.OreDictionary;
 
 public class DoubleMachineInput extends MachineInput<DoubleMachineInput> implements IWildInput<DoubleMachineInput> {
@@ -35,22 +36,22 @@ public class DoubleMachineInput extends MachineInput<DoubleMachineInput> impleme
         return !itemStack.isEmpty() && !extraStack.isEmpty();
     }
 
-    protected boolean useItemInternal(ItemStack stack, NonNullList<ItemStack> inventory, int index, boolean deplete) {
-        if (inputContains(inventory.get(index), stack)) {
+    protected boolean useItemInternal(ItemStack stack, IInventorySlot slot, boolean deplete) {
+        if (inputContains(slot.getStack(), stack)) {
             if (deplete) {
-                inventory.set(index, StackUtils.subtract(inventory.get(index), stack));
+                slot.shrinkStack(stack.getCount(), Action.EXECUTE);
             }
             return true;
         }
         return false;
     }
 
-    public boolean useItem(NonNullList<ItemStack> inventory, int index, boolean deplete) {
-        return useItemInternal(itemStack, inventory, index, deplete);
+    public boolean useItem(IInventorySlot slot, boolean deplete) {
+        return useItemInternal(itemStack, slot, deplete);
     }
 
-    public boolean useExtra(NonNullList<ItemStack> inventory, int index, boolean deplete) {
-        return useItemInternal(extraStack, inventory, index, deplete);
+    public boolean useExtra(IInventorySlot slot, boolean deplete) {
+        return useItemInternal(extraStack, slot, deplete);
     }
 
     public boolean matches(DoubleMachineInput input) {

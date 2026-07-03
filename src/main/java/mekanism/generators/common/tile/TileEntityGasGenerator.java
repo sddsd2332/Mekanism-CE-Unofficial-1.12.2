@@ -1,82 +1,90 @@
 package mekanism.generators.common.tile;
 
 import io.netty.buffer.ByteBuf;
-import mekanism.api.TileNetworkList;
-import mekanism.api.gas.*;
+import mekanism.api.*;
+import mekanism.api.gas.GasStack;
 import mekanism.common.base.IComparatorSupport;
-import mekanism.common.base.IMachineSlotTip;
 import mekanism.common.base.ISpecialSelectionWireframeTile;
 import mekanism.common.base.ISustainedData;
-import mekanism.common.capabilities.Capabilities;
+import mekanism.common.capabilities.gas.BasicGasTank;
+import mekanism.common.capabilities.holder.gas.GasTankHelper;
+import mekanism.common.capabilities.holder.gas.IGasTankHolder;
+import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
+import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
 import mekanism.common.config.MekanismConfig;
+import mekanism.common.inventory.container.slot.SlotOverlay;
+import mekanism.common.inventory.slot.EnergyInventorySlot;
+import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.recipe.GasStackFuelToEnergyRecipe;
 import mekanism.common.recipe.RecipeHandler;
 import mekanism.common.recipe.inputs.GasInput;
-import mekanism.common.util.*;
+import mekanism.common.util.ItemDataUtils;
+import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.TileUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.EnumFacing;
-import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
 import javax.annotation.Nonnull;
 
-public class TileEntityGasGenerator extends TileEntityGenerator implements IGasHandler, ISustainedData, IComparatorSupport, IMachineSlotTip, ISpecialSelectionWireframeTile {
+public class TileEntityGasGenerator extends TileEntityGenerator implements ISustainedData, IComparatorSupport, ISpecialSelectionWireframeTile {
 
     private static final String[] methods = new String[]{"getEnergy", "getOutput", "getMaxEnergy", "getEnergyNeeded", "getGas", "getGasNeeded"};
     /**
      * The maximum amount of gas this block can store.
      */
-    public int MAX_GAS = 18000;
+    public static final int MAX_GAS = 18000;
     /**
      * The tank this block is storing fuel in.
      */
-    public GasTank fuelTank;
+    public BasicGasTank fuelTank;
     public int burnTicks = 0;
     public int maxBurnTicks;
     public double generationRate = 0;
     public double clientUsed;
     private int currentRedstoneLevel;
     public GasStackFuelToEnergyRecipe cachedRecipe;
+    private int cachedRecipeVersion = -1;
+    private GasInventorySlot fuelSlot;
+    private EnergyInventorySlot energySlot;
 
     public TileEntityGasGenerator() {
         super("gas", "GasGenerator", MekanismConfig.current().general.FROM_H2.val() * 1000, MekanismConfig.current().general.FROM_H2.val() * 2);
-        inventory = NonNullListSynchronized.withSize(2, ItemStack.EMPTY);
-        fuelTank = new GasTank(MAX_GAS);
+        initializeInventorySlots();
+    }
+
+    @Override
+    protected IGasTankHolder getInitialGasTanks(IContentsListener listener) {
+        GasTankHelper builder = createGasTankHelper();
+        fuelTank = builder.addTank(new FuelTank(listener), RelativeSide.LEFT, RelativeSide.RIGHT, RelativeSide.BACK, RelativeSide.TOP, RelativeSide.BOTTOM);
+        return builder.build();
+    }
+
+    @Override
+    protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
+        InventorySlotHelper builder = createInventorySlotHelper();
+        fuelSlot = builder.addSlot(GasInventorySlot.fill(fuelTank, listener, 17, 35),
+              RelativeSide.FRONT, RelativeSide.LEFT, RelativeSide.BACK, RelativeSide.TOP, RelativeSide.BOTTOM);
+        fuelSlot.setSlotOverlay(SlotOverlay.MINUS);
+        energySlot = builder.addSlot(EnergyInventorySlot.drain(this, listener, 143, 35), RelativeSide.RIGHT);
+        return builder.build();
     }
 
     @Override
     public void onAsyncUpdateServer() {
         super.onAsyncUpdateServer();
-        ChargeUtils.charge(1, this);
-
-
-        if (!inventory.get(0).isEmpty() && fuelTank.getStored() < MAX_GAS) {
-            Gas gasType = null;
-            if (fuelTank.getGas() != null) {
-                gasType = fuelTank.getGas().getGas();
-            } else if (!inventory.get(0).isEmpty() && inventory.get(0).getItem() instanceof IGasItem gasItem) {
-                if (gasItem.getGas(inventory.get(0)) != null) {
-                    gasType = gasItem.getGas(inventory.get(0)).getGas();
-                }
-            }
-            if (gasType != null && RecipeHandler.Recipe.GAS_FUEL_TO_ENERGY_RECIPE.containsRecipe(gasType)) {
-                GasStack removed = GasUtils.removeGas(inventory.get(0), gasType, fuelTank.getNeeded());
-                boolean isTankEmpty = fuelTank.getGas() == null;
-                int fuelReceived = fuelTank.receive(removed, true);
-                if (fuelReceived > 0 && isTankEmpty) {
-                    if (RecipeHandler.getGasStackFuelToEnergyRecipe(fuelTank.getGas()) != null) {
-                        output = RecipeHandler.getGasStackFuelToEnergyRecipe(fuelTank.getGas()).getOutput().energyOutput * 2;
-                    }
-                }
-            }
+        energySlot.drainContainer();
+        boolean wasEmpty = fuelTank.getGas() == null;
+        if (fuelSlot.fillTank() && wasEmpty && RecipeHandler.getGasStackFuelToEnergyRecipe(fuelTank.getGas()) != null) {
+            output = RecipeHandler.getGasStackFuelToEnergyRecipe(fuelTank.getGas()).getOutput().energyOutput * 2;
         }
 
-        boolean operate = canOperate();
         GasStackFuelToEnergyRecipe recipe = getRecipe();
-        if (operate && getEnergy() + generationRate < getMaxEnergy()) {
+        boolean operate = recipe != null && canOperate();
+        if (operate && getEnergyContainer().insert(generationRate, Action.SIMULATE, AutomationType.INTERNAL) == 0) {
             setActive(true);
             if (fuelTank.getStored() != 0) {
                 maxBurnTicks = recipe.getInput().ingredient.amount;
@@ -88,10 +96,10 @@ public class TileEntityGasGenerator extends TileEntityGenerator implements IGasH
 
             int total = burnTicks + fuelTank.getStored() * maxBurnTicks;
             total -= toUse;
-            setEnergy(getEnergy() + generationRate * toUse);
+            getEnergyContainer().insert(generationRate * toUse, Action.EXECUTE, AutomationType.INTERNAL);
 
             if (fuelTank.getStored() > 0) {
-                fuelTank.setGas(new GasStack(fuelTank.getGasType(), total / maxBurnTicks));
+                fuelTank.setStackSize(total / maxBurnTicks, Action.EXECUTE);
             }
             burnTicks = total % maxBurnTicks;
             clientUsed = toUse /(double)  maxBurnTicks;
@@ -129,33 +137,16 @@ public class TileEntityGasGenerator extends TileEntityGenerator implements IGasH
     @Override
     public boolean canExtractItem(int slotID, @Nonnull ItemStack itemstack, @Nonnull EnumFacing side) {
         if (slotID == 1) {
-            return ChargeUtils.canBeOutputted(itemstack, true);
+            return EnergyInventorySlot.drainExtractCheck(this, itemstack);
         } else if (slotID == 0) {
-            return itemstack.getItem() instanceof IGasItem gasItem && gasItem.getGas(itemstack) == null;
+            return GasInventorySlot.fillExtractCheck(fuelTank, itemstack);
         }
         return false;
     }
 
     @Override
-    public boolean isItemValidForSlot(int slotID, @Nonnull ItemStack itemstack) {
-        if (slotID == 0) {
-            return itemstack.getItem() instanceof IGasItem gasItem && gasItem.getGas(itemstack) != null &&
-                    RecipeHandler.Recipe.GAS_FUEL_TO_ENERGY_RECIPE.containsRecipe(gasItem.getGas(itemstack).getGas());
-        } else if (slotID == 1) {
-            return ChargeUtils.canBeCharged(itemstack);
-        }
-        return true;
-    }
-
-    @Nonnull
-    @Override
-    public int[] getSlotsForFace(@Nonnull EnumFacing side) {
-        return side == MekanismUtils.getRight(facing) ? new int[]{1} : new int[]{0};
-    }
-
-    @Override
     public boolean canOperate() {
-        return (fuelTank.getStored() > 0 || burnTicks > 0) && MekanismUtils.canFunction(this);
+        return (fuelTank.getStored() > 0 || burnTicks > 0) && getRecipe() != null && MekanismUtils.canFunction(this);
     }
 
 
@@ -212,31 +203,12 @@ public class TileEntityGasGenerator extends TileEntityGenerator implements IGasH
     }
 
     @Override
-    public int receiveGas(EnumFacing side, GasStack stack, boolean doTransfer) {
-        if (stack == null || stack.getGas() == null) {
-            return 0;
-        }
-        boolean isTankEmpty = fuelTank.getGas() == null;
-        if (canReceiveGas(side, stack.getGas()) && (isTankEmpty || fuelTank.getGas().isGasEqual(stack))) {
-            int fuelReceived = fuelTank.receive(stack, doTransfer);
-            if (doTransfer && isTankEmpty && fuelReceived > 0) {
-                output = RecipeHandler.getGasStackFuelToEnergyRecipe(fuelTank.getGas()).getOutput().energyOutput * 2;
-            }
-            return fuelReceived;
-        }
-        return 0;
-    }
-
-    @Nonnull
-    @Override
-    public GasTankInfo[] getTankInfo() {
-        return new GasTankInfo[]{fuelTank};
-    }
-
-    @Override
     public void readCustomNBT(NBTTagCompound nbtTags) {
         super.readCustomNBT(nbtTags);
-        fuelTank.read(nbtTags.getCompoundTag("fuelTank"));
+        if (!hasStoredGasTanks(nbtTags) && nbtTags.hasKey("fuelTank")) {
+            fuelTank.read(nbtTags.getCompoundTag("fuelTank"));
+        }
+        sanitizeFuelTank();
         boolean isTankEmpty = fuelTank.getGas() == null;
         GasStackFuelToEnergyRecipe recipe = RecipeHandler.getGasStackFuelToEnergyRecipe(fuelTank.getGas());
         if (!isTankEmpty && recipe != null) {
@@ -247,61 +219,20 @@ public class TileEntityGasGenerator extends TileEntityGenerator implements IGasH
     @Override
     public void writeCustomNBT(NBTTagCompound nbtTags) {
         super.writeCustomNBT(nbtTags);
-        nbtTags.setTag("fuelTank", fuelTank.write(new NBTTagCompound()));
-    }
-
-    @Override
-    public boolean canReceiveGas(EnumFacing side, Gas type) {
-        return RecipeHandler.Recipe.GAS_FUEL_TO_ENERGY_RECIPE.containsRecipe(type) && side != facing;
-    }
-
-    @Override
-    public GasStack drawGas(EnumFacing side, int amount, boolean doTransfer) {
-        return null;
-    }
-
-    @Override
-    public boolean canDrawGas(EnumFacing side, Gas type) {
-        return false;
-    }
-
-    @Override
-    public boolean hasCapability(@Nonnull Capability<?> capability, EnumFacing side) {
-        if (isCapabilityDisabled(capability, side)) {
-            return false;
-        }
-        return capability == Capabilities.GAS_HANDLER_CAPABILITY || super.hasCapability(capability, side);
-    }
-
-    @Override
-    public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing side) {
-        if (isCapabilityDisabled(capability, side)) {
-            return null;
-        } else if (capability == Capabilities.GAS_HANDLER_CAPABILITY) {
-            return Capabilities.GAS_HANDLER_CAPABILITY.cast(this);
-        }
-        return super.getCapability(capability, side);
-    }
-
-    @Override
-    public boolean isCapabilityDisabled(@Nonnull Capability<?> capability, EnumFacing side) {
-        if (capability == Capabilities.GAS_HANDLER_CAPABILITY) {
-            return side == facing;
-        }
-        return super.isCapabilityDisabled(capability, side);
     }
 
     @Override
     public void writeSustainedData(ItemStack itemStack) {
-        if (fuelTank != null) {
-            ItemDataUtils.setCompound(itemStack, "fuelTank", fuelTank.write(new NBTTagCompound()));
-        }
+        writeSustainedGasTanks(itemStack);
+        ItemDataUtils.setLegacyGasTank(itemStack, "fuelTank", fuelTank);
     }
 
     @Override
     public void readSustainedData(ItemStack itemStack) {
-        if (ItemDataUtils.hasData(itemStack, "fuelTank")) {
-            fuelTank.read(ItemDataUtils.getCompound(itemStack, "fuelTank"));
+        boolean loadedTank = readSustainedGasTanks(itemStack);
+        loadedTank = loadedTank || ItemDataUtils.readLegacyGasTank(itemStack, "fuelTank", fuelTank);
+        if (loadedTank) {
+            sanitizeFuelTank();
             boolean isTankEmpty = fuelTank.getGas() == null;
             //Update energy output based on any existing fuel in tank
             GasStackFuelToEnergyRecipe recipe = RecipeHandler.getGasStackFuelToEnergyRecipe(fuelTank.getGas());
@@ -311,27 +242,25 @@ public class TileEntityGasGenerator extends TileEntityGenerator implements IGasH
         }
     }
 
+    private void sanitizeFuelTank() {
+        GasStack stored = fuelTank.getGas();
+        if (stored != null && (stored.amount <= 0 || stored.getGas() == null)) {
+            fuelTank.setEmpty();
+        } else if (stored != null) {
+            fuelTank.setStackSize(stored.amount, Action.EXECUTE);
+        }
+    }
+
     @Override
     public int getRedstoneLevel() {
         return MekanismUtils.redstoneLevelFromContents(fuelTank.getStored(), fuelTank.getMaxGas());
     }
-
-    @Override
-    public boolean getEnergySlot() {
-        return inventory.get(1).isEmpty();
-    }
-
-    @Override
-    public boolean getInputSlot() {
-        return false;
-    }
-
-    @Override
-    public boolean getOuputSlot() {
-        return false;
-    }
-
-    public GasStackFuelToEnergyRecipe getRecipe() {
+public GasStackFuelToEnergyRecipe getRecipe() {
+        int recipeVersion = RecipeHandler.Recipe.GAS_FUEL_TO_ENERGY_RECIPE.getRecipeVersion();
+        if (cachedRecipeVersion != recipeVersion) {
+            cachedRecipe = null;
+            cachedRecipeVersion = recipeVersion;
+        }
         GasInput input = getInput();
         if (cachedRecipe == null || !input.testEquality(cachedRecipe.getInput())) {
             cachedRecipe = RecipeHandler.getGasStackFuelToEnergyRecipe(getInput());
@@ -361,5 +290,36 @@ public class TileEntityGasGenerator extends TileEntityGenerator implements IGasH
     @Override
     protected boolean shouldDumpRadiation() {
         return true;
+    }
+
+    private class FuelTank extends BasicGasTank {
+
+        private FuelTank(IContentsListener listener) {
+            super(MAX_GAS, BasicGasTank.notExternal, BasicGasTank.alwaysTrueBi,
+                  gas -> RecipeHandler.Recipe.GAS_FUEL_TO_ENERGY_RECIPE.containsRecipe(gas), listener);
+        }
+
+        @Override
+        public void setStack(GasStack stack) {
+            boolean wasEmpty = isEmpty();
+            super.setStack(stack);
+            recheckOutput(stack, wasEmpty);
+        }
+
+        @Override
+        public void setStackUnchecked(GasStack stack) {
+            boolean wasEmpty = isEmpty();
+            super.setStackUnchecked(stack);
+            recheckOutput(stack, wasEmpty);
+        }
+
+        private void recheckOutput(GasStack stack, boolean wasEmpty) {
+            if (wasEmpty && stack != null && stack.amount > 0) {
+                GasStackFuelToEnergyRecipe recipe = RecipeHandler.getGasStackFuelToEnergyRecipe(stack);
+                if (recipe != null) {
+                    output = recipe.getOutput().energyOutput * 2;
+                }
+            }
+        }
     }
 }

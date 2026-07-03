@@ -1,10 +1,13 @@
 package mekanism.common.recipe.inputs;
 
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
+import mekanism.api.fluid.ExtendedFluidHandlerUtils;
+import mekanism.api.fluid.IExtendedFluidTank;
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTank;
+import mekanism.api.gas.IExtendedGasTank;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.FluidTank;
 
 public class GasAndFluidInput extends MachineInput<GasAndFluidInput> {
 
@@ -35,18 +38,25 @@ public class GasAndFluidInput extends MachineInput<GasAndFluidInput> {
         return ingredientGas != null && ingredientFluid != null;
     }
 
-    public boolean useGas(GasTank gasTank, boolean deplete, int scale) {
-        if (gasTank.getGasType() == ingredientGas.getGas() && gasTank.getStored() >= ingredientGas.amount * scale) {
-            gasTank.draw(ingredientGas.amount * scale, deplete);
-            return true;
+    public boolean useGas(IExtendedGasTank gasTank, boolean deplete, int scale) {
+        int amount = ingredientGas.amount * scale;
+        GasStack gas = gasTank.getGas();
+        if (gas == null || !gas.isGasEqual(ingredientGas) || gas.amount < amount) {
+            return false;
         }
-        return false;
+        GasStack extracted = gasTank.extract(amount, Action.get(deplete), AutomationType.INTERNAL);
+        return extracted != null && extracted.amount == amount;
     }
 
-    public boolean useFluid(FluidTank fluidTank, boolean deplete, int scale) {
-        if (fluidTank.getFluid() != null && fluidTank.getFluid().containsFluid(ingredientFluid)) {
-            fluidTank.drain(ingredientFluid.amount * scale, deplete);
-            return true;
+    public boolean useFluid(IExtendedFluidTank fluidTank, boolean deplete, int scale) {
+        if (ingredientFluid == null || scale <= 0) {
+            return false;
+        }
+        int amount = ingredientFluid.amount * scale;
+        FluidStack stored = fluidTank.getFluid();
+        if (stored != null && stored.containsFluid(new FluidStack(ingredientFluid, amount))) {
+            FluidStack extracted = fluidTank.extract(amount, Action.get(deplete), AutomationType.INTERNAL);
+            return !ExtendedFluidHandlerUtils.isEmpty(extracted) && extracted.amount == amount;
         }
         return false;
     }

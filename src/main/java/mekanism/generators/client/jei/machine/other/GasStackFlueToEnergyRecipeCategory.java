@@ -1,9 +1,7 @@
 package mekanism.generators.client.jei.machine.other;
 
 import mekanism.api.gas.GasStack;
-import mekanism.client.gui.element.GuiProgress;
 import mekanism.client.gui.element.gauge.GuiGasGauge;
-import mekanism.client.gui.element.gauge.GuiGauge;
 import mekanism.client.jei.BaseRecipeCategory;
 import mekanism.client.jei.MekanismJEI;
 import mekanism.common.recipe.GasStackFuelToEnergyRecipe;
@@ -21,13 +19,13 @@ public class GasStackFlueToEnergyRecipeCategory<WRAPPER extends GasStackFlueToEn
 
     public GasStackFlueToEnergyRecipeCategory(IGuiHelper helper) {
         super(helper, "mekanism:gui/Null.png", RecipeHandler.Recipe.GAS_FUEL_TO_ENERGY_RECIPE.getJEICategory(),
-                "conversion.mekanism.gasflue.base", GuiProgress.ProgressBar.LARGE_RIGHT, 20, 12, 132, 62);
+                "conversion.mekanism.gasflue.base", 20, 12, 132, 62);
         this.helper = helper;
     }
 
     @Override
     protected void addGuiElements() {
-        guiElements.add(GuiGasGauge.getDummy(GuiGauge.Type.WIDE, this, guiLocation, 55, 18).withColor(GuiGauge.TypeColor.RED));
+        guiElements.add(dummyGasGauge(GuiGasGauge.Type.WIDE, GuiGasGauge.GaugeColor.RED, 55, 18));
     }
 
     @Override

@@ -3,10 +3,10 @@ package mekanism.common.transmitters.grid;
 import mekanism.api.Coord4D;
 import mekanism.api.transmitters.DynamicNetwork;
 import mekanism.api.transmitters.IGridTransmitter;
-import mekanism.common.content.transporter.TransitRequest;
-import mekanism.common.content.transporter.TransitRequest.TransitResponse;
 import mekanism.common.content.transporter.TransporterManager;
 import mekanism.common.content.transporter.TransporterStack;
+import mekanism.common.lib.inventory.TransitRequest;
+import mekanism.common.lib.inventory.TransitRequest.TransitResponse;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraftforge.fml.common.FMLCommonHandler;
@@ -29,6 +29,10 @@ public class InventoryNetwork extends DynamicNetwork<TileEntity, InventoryNetwor
     }
 
     public List<AcceptorData> calculateAcceptors(TransitRequest request, TransporterStack stack) {
+        return calculateAcceptors(request, stack, Collections.emptyMap());
+    }
+
+    public List<AcceptorData> calculateAcceptors(TransitRequest request, TransporterStack stack, Map<Coord4D, Set<TransporterStack>> additionalFlowingStacks) {
         List<AcceptorData> toReturn = new ArrayList<>();
         for (Coord4D coord : possibleAcceptors) {
             if (coord == null || coord.equals(stack.homeLocation)) {
@@ -46,7 +50,7 @@ public class InventoryNetwork extends DynamicNetwork<TileEntity, InventoryNetwor
             AcceptorData data = null;
             for (EnumFacing side : sides) {
                 EnumFacing opposite = side.getOpposite();
-                TransitResponse response = TransporterManager.getPredictedInsert(acceptor, stack.color, request, opposite);
+                TransitResponse response = TransporterManager.getPredictedInsert(acceptor, stack.color, request, opposite, additionalFlowingStacks);
                 if (!response.isEmpty()) {
                     if (data == null) {
                         toReturn.add(data = new AcceptorData(coord, response, opposite));

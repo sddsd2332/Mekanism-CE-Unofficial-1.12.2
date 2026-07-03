@@ -3,17 +3,15 @@ package mekanism.common.network;
 import io.netty.buffer.ByteBuf;
 import mekanism.api.Coord4D;
 import mekanism.api.TileNetworkList;
-import mekanism.common.Mekanism;
 import mekanism.common.PacketHandler;
+import mekanism.common.content.filter.IFilter;
 import mekanism.common.content.miner.MinerFilter;
 import mekanism.common.content.transporter.TransporterFilter;
 import mekanism.common.network.PacketEditFilter.EditFilterMessage;
-import mekanism.common.network.PacketTileEntity.TileEntityMessage;
-import mekanism.common.tile.TileEntityLogisticalSorter;
-import mekanism.common.tile.machine.TileEntityDigitalMiner;
-import mekanism.common.tile.machine.TileEntityOredictionificator;
+import mekanism.common.tile.interfaces.ITileFilterHolder;
 import mekanism.common.tile.machine.TileEntityOredictionificator.OredictionificatorFilter;
 import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.WorldServer;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
@@ -34,62 +32,11 @@ public class PacketEditFilter implements IMessageHandler<EditFilterMessage, IMes
         }
 
         worldServer.addScheduledTask(() -> {
-            if (message.type == 0 && message.coord4D.getTileEntity(worldServer) instanceof TileEntityLogisticalSorter sorter) {
-                if (!PacketHandler.canAccessTile(player, sorter) || message.tFilter == null || (!message.delete && message.tEdited == null)) {
-                    return;
-                }
-
-                if (!sorter.filters.contains(message.tFilter)) {
-                    return;
-                }
-                int index = sorter.filters.indexOf(message.tFilter);
-                sorter.filters.remove(index);
-                if (!message.delete) {
-                    sorter.filters.add(index, message.tEdited);
-                }
-                sorter.markDirty();
-                TileNetworkList filterPacket = sorter.getFilterPacket(new TileNetworkList());
-                sorter.playersUsing.forEach(iterPlayer -> Mekanism.packetHandler.sendTo(new TileEntityMessage(sorter, filterPacket), (EntityPlayerMP) iterPlayer));
-                if (!sorter.playersUsing.contains(player)) {
-                    Mekanism.packetHandler.sendTo(new TileEntityMessage(sorter, filterPacket), player);
-                }
-            } else if (message.type == 1 && message.coord4D.getTileEntity(worldServer) instanceof TileEntityDigitalMiner miner) {
-                if (!PacketHandler.canAccessTile(player, miner) || message.mFilter == null || (!message.delete && message.mEdited == null)) {
-                    return;
-                }
-
-                if (!miner.filters.contains(message.mFilter)) {
-                    return;
-                }
-                int index = miner.filters.indexOf(message.mFilter);
-                miner.filters.remove(index);
-                if (!message.delete) {
-                    miner.filters.add(index, message.mEdited);
-                }
-                miner.markDirty();
-                TileNetworkList filterPacket = miner.getFilterPacket(new TileNetworkList());
-                miner.playersUsing.forEach(iterPlayer -> Mekanism.packetHandler.sendTo(new TileEntityMessage(miner, filterPacket), (EntityPlayerMP) iterPlayer));
-                if (!miner.playersUsing.contains(player)) {
-                    Mekanism.packetHandler.sendTo(new TileEntityMessage(miner, filterPacket), player);
-                }
-            } else if (message.type == 2 && message.coord4D.getTileEntity(worldServer) instanceof TileEntityOredictionificator oredictionificator) {
-                if (!PacketHandler.canAccessTile(player, oredictionificator) || message.oFilter == null || (!message.delete && message.oEdited == null)) {
-                    return;
-                }
-                if (!oredictionificator.filters.contains(message.oFilter)) {
-                    return;
-                }
-                int index = oredictionificator.filters.indexOf(message.oFilter);
-                oredictionificator.filters.remove(index);
-                if (!message.delete) {
-                    oredictionificator.filters.add(index, message.oEdited);
-                }
-                oredictionificator.markDirty();
-                TileNetworkList filterPacket = oredictionificator.getFilterPacket(new TileNetworkList());
-                oredictionificator.playersUsing.forEach(iterPlayer -> Mekanism.packetHandler.sendTo(new TileEntityMessage(oredictionificator, filterPacket), (EntityPlayerMP) iterPlayer));
-                if (!oredictionificator.playersUsing.contains(player)) {
-                    Mekanism.packetHandler.sendTo(new TileEntityMessage(oredictionificator, filterPacket), player);
-                }
+            TileEntity tile = message.coord4D.getTileEntity(worldServer);
+            IFilter filter = message.getFilter();
+            IFilter edited = message.getEdited();
+            if (tile instanceof ITileFilterHolder<?> filterHolder && PacketHandler.canAccessTile(player, tile) && filter != null && (message.delete || edited != null)) {
+                filterHolder.getFilterManager().tryEditFilter(filter, message.delete ? null : edited);
             }
         });
         return null;
@@ -138,6 +85,28 @@ public class PacketEditFilter implements IMessageHandler<EditFilterMessage, IMes
                 }
                 type = 2;
             }
+        }
+
+        public IFilter getFilter() {
+            if (type == 0) {
+                return tFilter;
+            } else if (type == 1) {
+                return mFilter;
+            } else if (type == 2) {
+                return oFilter;
+            }
+            return null;
+        }
+
+        public IFilter getEdited() {
+            if (type == 0) {
+                return tEdited;
+            } else if (type == 1) {
+                return mEdited;
+            } else if (type == 2) {
+                return oEdited;
+            }
+            return null;
         }
 
         @Override

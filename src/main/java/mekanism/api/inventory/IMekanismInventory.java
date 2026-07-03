@@ -2,6 +2,7 @@ package mekanism.api.inventory;
 
 import mcp.MethodsReturnNonnullByDefault;
 import mekanism.api.Action;
+import mekanism.api.AutomationType;
 import mekanism.api.IContentsListener;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumFacing;
@@ -80,7 +81,7 @@ public interface IMekanismInventory extends ISidedItemHandler, IContentsListener
         if (inventorySlot == null) {
             return stack;
         }
-        return inventorySlot.insertItem(stack, action, side == null ? AutomationType.INTERNAL : AutomationType.EXTERNAL);
+        return inventorySlot.insertItem(stack, action, AutomationType.handler(side));
     }
 
     @Override
@@ -89,7 +90,7 @@ public interface IMekanismInventory extends ISidedItemHandler, IContentsListener
         if (inventorySlot == null) {
             return ItemStack.EMPTY;
         }
-        return inventorySlot.extractItem(amount, action, side == null ? AutomationType.INTERNAL : AutomationType.EXTERNAL);
+        return inventorySlot.extractItem(amount, action, AutomationType.handler(side));
     }
 
     @Override
@@ -102,5 +103,24 @@ public interface IMekanismInventory extends ISidedItemHandler, IContentsListener
     default boolean isItemValid(int slot, ItemStack stack, @Nullable EnumFacing side) {
         IInventorySlot inventorySlot = getInventorySlot(slot, side);
         return inventorySlot != null && inventorySlot.isItemValid(stack);
+    }
+
+    /**
+     * @return true if all slots exposed on the given side are empty.
+     */
+    default boolean isInventoryEmpty(@Nullable EnumFacing side) {
+        for (IInventorySlot slot : getInventorySlots(side)) {
+            if (!slot.isEmpty()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * @return true if all slots exposed on this handler's default side are empty.
+     */
+    default boolean isInventoryEmpty() {
+        return isInventoryEmpty(getInventorySideFor());
     }
 }

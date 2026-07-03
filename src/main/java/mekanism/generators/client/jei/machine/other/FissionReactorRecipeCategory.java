@@ -4,7 +4,6 @@ import mekanism.api.gas.GasStack;
 import mekanism.client.gui.element.GuiInnerScreen;
 import mekanism.client.gui.element.gauge.GuiFluidGauge;
 import mekanism.client.gui.element.gauge.GuiGasGauge;
-import mekanism.client.gui.element.gauge.GuiGauge;
 import mekanism.client.jei.BaseRecipeCategory;
 import mekanism.client.jei.MekanismJEI;
 import mezz.jei.api.IGuiHelper;
@@ -19,16 +18,16 @@ public class FissionReactorRecipeCategory extends BaseRecipeCategory<FissionReac
     public static final String UID = "mekanismgenerators.fission_reactor";
 
     public FissionReactorRecipeCategory(IGuiHelper helper) {
-        super(helper, "mekanism:gui/Null.png", UID, "gui.fissionReactor", null, 6, 13, 184, 60);
+        super(helper, "mekanism:gui/Null.png", UID, "gui.fissionReactor", 6, 13, 184, 60);
     }
 
     @Override
     protected void addGuiElements() {
-        guiElements.add(new GuiInnerScreen(this, guiLocation, 45, 17, 105, 56));
-        guiElements.add(GuiFluidGauge.getDummy(GuiGauge.Type.STANDARD, this, guiLocation, 6, 13).withColor(GuiGauge.TypeColor.BLUE));
-        guiElements.add(GuiGasGauge.getDummy(GuiGauge.Type.STANDARD, this, guiLocation, 25, 13).withColor(GuiGauge.TypeColor.RED));
-        guiElements.add(GuiGasGauge.getDummy(GuiGauge.Type.STANDARD, this, guiLocation, 152, 13).withColor(GuiGauge.TypeColor.ORANGE));
-        guiElements.add(GuiGasGauge.getDummy(GuiGauge.Type.STANDARD, this, guiLocation, 171, 13).withColor(GuiGauge.TypeColor.YELLOW));
+        guiElements.add(new GuiInnerScreen(this, 45, 17, 105, 56));
+        guiElements.add(dummyFluidGauge(GuiFluidGauge.Type.STANDARD, GuiFluidGauge.GaugeColor.BLUE, 6, 13));
+        guiElements.add(dummyGasGauge(GuiGasGauge.Type.STANDARD, GuiGasGauge.GaugeColor.RED, 25, 13));
+        guiElements.add(dummyGasGauge(GuiGasGauge.Type.STANDARD, GuiGasGauge.GaugeColor.ORANGE, 152, 13));
+        guiElements.add(dummyGasGauge(GuiGasGauge.Type.STANDARD, GuiGasGauge.GaugeColor.YELLOW, 171, 13));
     }
 
     @Override

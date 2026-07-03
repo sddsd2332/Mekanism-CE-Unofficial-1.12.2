@@ -3,6 +3,7 @@ package mekanism.common.network;
 import io.netty.buffer.ByteBuf;
 import mekanism.api.Coord4D;
 import mekanism.common.PacketHandler;
+import mekanism.common.entity.EntityRobit;
 import mekanism.common.network.PacketSecurityMode.SecurityModeMessage;
 import mekanism.common.security.ISecurityItem;
 import mekanism.common.security.ISecurityTile;
@@ -40,10 +41,16 @@ public class PacketSecurityMode implements IMessageHandler<SecurityModeMessage, 
                         tileEntity.markDirty();
                     }
                 }
-            } else {
+            } else if (message.packetType == SecurityPacketType.ITEM) {
                 ItemStack stack = player.getHeldItem(message.currentHand);
                 if (!stack.isEmpty() && stack.getItem() instanceof ISecurityItem item && SecurityUtils.canAccess(player, stack)) {
                     item.setSecurity(stack, message.value);
+                }
+            } else if (message.packetType == SecurityPacketType.ENTITY) {
+                if (player.world.getEntityByID(message.entityId) instanceof EntityRobit robit && player.getDistanceSq(robit) <= 64) {
+                    if (player.getUniqueID().equals(robit.getOwnerUUID())) {
+                        robit.setSecurityMode(message.value);
+                    }
                 }
             }
         }, player);
@@ -52,7 +59,8 @@ public class PacketSecurityMode implements IMessageHandler<SecurityModeMessage, 
 
     public enum SecurityPacketType {
         BLOCK,
-        ITEM
+        ITEM,
+        ENTITY
     }
 
     public static class SecurityModeMessage implements IMessage {
@@ -60,6 +68,7 @@ public class PacketSecurityMode implements IMessageHandler<SecurityModeMessage, 
         public SecurityPacketType packetType;
         public Coord4D coord4D;
         public EnumHand currentHand;
+        public int entityId;
         public SecurityMode value;
 
         public SecurityModeMessage() {
@@ -77,13 +86,21 @@ public class PacketSecurityMode implements IMessageHandler<SecurityModeMessage, 
             value = control;
         }
 
+        public SecurityModeMessage(EntityRobit robit, SecurityMode control) {
+            packetType = SecurityPacketType.ENTITY;
+            entityId = robit.getEntityId();
+            value = control;
+        }
+
         @Override
         public void toBytes(ByteBuf dataStream) {
             dataStream.writeInt(packetType.ordinal());
             if (packetType == SecurityPacketType.BLOCK) {
                 coord4D.write(dataStream);
-            } else {
+            } else if (packetType == SecurityPacketType.ITEM) {
                 dataStream.writeInt(currentHand.ordinal());
+            } else if (packetType == SecurityPacketType.ENTITY) {
+                dataStream.writeInt(entityId);
             }
             dataStream.writeInt(value.ordinal());
         }
@@ -93,8 +110,10 @@ public class PacketSecurityMode implements IMessageHandler<SecurityModeMessage, 
             packetType = MekanismUtils.getByIndex(SecurityPacketType.values(), dataStream.readInt(), SecurityPacketType.BLOCK);
             if (packetType == SecurityPacketType.BLOCK) {
                 coord4D = Coord4D.read(dataStream);
-            } else {
+            } else if (packetType == SecurityPacketType.ITEM) {
                 currentHand = MekanismUtils.getByIndex(EnumHand.values(), dataStream.readInt(), EnumHand.MAIN_HAND);
+            } else if (packetType == SecurityPacketType.ENTITY) {
+                entityId = dataStream.readInt();
             }
             value = MekanismUtils.getByIndex(SecurityMode.values(), dataStream.readInt(), SecurityMode.PUBLIC);
         }

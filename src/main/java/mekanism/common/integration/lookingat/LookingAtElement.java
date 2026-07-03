@@ -1,7 +1,7 @@
 package mekanism.common.integration.lookingat;
 
-import mekanism.client.gui.element.GuiUtils;
-import mekanism.client.gui.element.GuiUtils.TilingDirection;
+import mekanism.client.gui.GuiUtils;
+import mekanism.client.gui.GuiUtils.TilingDirection;
 import mekanism.client.render.MekanismRenderer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GlStateManager;

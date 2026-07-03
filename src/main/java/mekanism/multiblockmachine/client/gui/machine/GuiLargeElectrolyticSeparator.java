@@ -2,144 +2,67 @@ package mekanism.multiblockmachine.client.gui.machine;
 
 import mekanism.api.TileNetworkList;
 import mekanism.client.gui.GuiMekanismTile;
-import mekanism.client.gui.IJeiNoShowRecipe;
-import mekanism.client.gui.button.GuiDisableableButton;
-import mekanism.client.gui.element.*;
+import mekanism.client.gui.element.GuiElement;
+import mekanism.client.gui.element.bar.GuiVerticalPowerBar;
+import mekanism.client.gui.element.button.GuiGasMode;
 import mekanism.client.gui.element.gauge.GuiFluidGauge;
 import mekanism.client.gui.element.gauge.GuiGasGauge;
-import mekanism.client.gui.element.gauge.GuiGauge;
-import mekanism.client.gui.element.slot.GuiEnergySlot;
-import mekanism.client.gui.element.slot.GuiInputSlot;
-import mekanism.client.gui.element.slot.GuiOutputSlot;
-import mekanism.client.gui.element.tab.GuiSecurityTab;
-import mekanism.client.gui.element.tab.GuiUpgradeTab;
+import mekanism.client.gui.element.progress.GuiProgress;
+import mekanism.client.gui.element.progress.ProgressType;
+import mekanism.client.gui.element.tab.GuiEnergyTab;
+import mekanism.client.gui.warning.WarningTracker.WarningType;
+import mekanism.client.recipe_viewer.type.RecipeViewerRecipeType;
 import mekanism.client.sound.SoundHandler;
 import mekanism.common.Mekanism;
-import mekanism.common.network.PacketTileEntity;
-import mekanism.common.util.LangUtils;
-import mekanism.common.util.MekanismUtils;
+import mekanism.common.network.PacketTileEntity.TileEntityMessage;
+import mekanism.common.recipe.cache.CachedRecipe.OperationTracker.RecipeError;
 import mekanism.multiblockmachine.common.inventory.container.ContainerLargeElectrolyticSeparator;
 import mekanism.multiblockmachine.common.tile.machine.TileEntityLargeElectrolyticSeparator;
-import net.minecraft.client.gui.GuiButton;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.init.SoundEvents;
-import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.text.TextComponentString;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-
 @SideOnly(Side.CLIENT)
-public class GuiLargeElectrolyticSeparator extends GuiMekanismTile<TileEntityLargeElectrolyticSeparator> implements IJeiNoShowRecipe {
+public class GuiLargeElectrolyticSeparator extends GuiMekanismTile<TileEntityLargeElectrolyticSeparator, ContainerLargeElectrolyticSeparator>
+{
 
-    public GuiDisableableButton LeftMode;
-    public GuiDisableableButton RightMode;
+    private GuiElement fluidGauge;
 
     public GuiLargeElectrolyticSeparator(InventoryPlayer inventory, TileEntityLargeElectrolyticSeparator tile) {
         super(tile, new ContainerLargeElectrolyticSeparator(inventory, tile));
-        ResourceLocation resource = getGuiLocation();
-        addGuiElement(new GuiRedstoneControl(this, tileEntity, resource));
-        addGuiElement(new GuiUpgradeTab(this, tileEntity, resource));
-        addGuiElement(new GuiEnergyInfo(() -> {
-            String usage = MekanismUtils.getEnergyDisplay(tileEntity.clientEnergyUsed);
-            return Arrays.asList(LangUtils.localize("gui.using") + ": " + usage + "/t", LangUtils.localize("gui.needed") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getNeedEnergy()));
-        }, this, resource));
-        addGuiElement(new GuiFluidGauge(() -> tileEntity.fluidTank, GuiGauge.Type.STANDARD, this, resource, 5, 10).withColor(GuiGauge.TypeColor.RED));
-        addGuiElement(new GuiGasGauge(() -> tileEntity.leftTank, GuiGauge.Type.SMALL, this, resource, 58, 18).withColor(GuiGauge.TypeColor.BLUE));
-        addGuiElement(new GuiGasGauge(() -> tileEntity.rightTank, GuiGauge.Type.SMALL, this, resource, 100, 18).withColor(GuiGauge.TypeColor.AQUA));
-        addGuiElement(new GuiPowerBar(this, tileEntity, resource, 164, 15));
-        addGuiElement(new GuiSecurityTab(this, tileEntity, resource));
-        addGuiElement(new GuiInputSlot(this, resource, 25, 34, tileEntity));
-        addGuiElement(new GuiOutputSlot(this, resource, 58, 51, tileEntity));
-        addGuiElement(new GuiSlot(GuiSlot.SlotType.AQUA, this, resource, 100, 51));
-        addGuiElement(new GuiEnergySlot(this, resource, 142, 34, tileEntity));
-        addGuiElement(new GuiProgress(new GuiProgress.IProgressInfoHandler() {
-            @Override
-            public double getProgress() {
-                return tileEntity.getActive() ? 1 : 0;
-            }
-        }, GuiProgress.ProgressBar.BI, this, resource, 78, 29));
-        addGuiElement(new GuiPlayerSlot(this, resource));
+        dynamicSlots = true;
     }
 
     @Override
-    public void initGui() {
-        super.initGui();
-        buttonList.clear();
-        buttonList.add(LeftMode = new GuiDisableableButton(0, guiLeft + 7, guiTop + 72, 10, 10, () -> tileEntity.dumpLeft.ordinal()).with(GuiDisableableButton.ImageOverlay.GAS_MOD));
-        buttonList.add(RightMode = new GuiDisableableButton(1, guiLeft + 159, guiTop + 72, 10, 10, () -> tileEntity.dumpRight.ordinal()).with(GuiDisableableButton.ImageOverlay.GAS_MOD));
+    protected void addGuiElements() {
+        super.addGuiElements();
+        addButton(new GuiEnergyTab(this, tileEntity.getMainEnergyContainer(), () -> tileEntity.clientEnergyUsed));
+        fluidGauge = addButton(new GuiFluidGauge(this, tileEntity.fluidTank, GuiFluidGauge.Type.STANDARD, 5, 10)
+              .warning(WarningType.NO_MATCHING_RECIPE, tileEntity::hasWarningNoMatchingInput));
+        addButton(new GuiGasGauge(this, tileEntity.leftTank, GuiGasGauge.Type.SMALL, 58, 18)
+              .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity::hasWarningNoSpaceLeftOutput));
+        addButton(new GuiGasGauge(this, tileEntity.rightTank, GuiGasGauge.Type.SMALL, 100, 18)
+              .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity::hasWarningNoSpaceRightOutput));
+        addButton(new GuiVerticalPowerBar(this, tileEntity.getMainEnergyContainer(), 164, 15))
+              .warning(WarningType.NOT_ENOUGH_ENERGY, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY))
+              .warning(WarningType.NOT_ENOUGH_ENERGY_REDUCED_RATE, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY_REDUCED_RATE));
+        addButton(new GuiProgress(tileEntity::getActive, ProgressType.BI, this, 80, 30))
+              .recipeViewerCategories(RecipeViewerRecipeType.SEPARATING)
+              .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity::hasWarningInputDoesntProduceOutput);
+        addButton(new GuiGasMode(this, 7, 72, false, () -> tileEntity.dumpLeft, () -> sendModePacket((byte) 0)));
+        addButton(new GuiGasMode(this, 159, 72, true, () -> tileEntity.dumpRight, () -> sendModePacket((byte) 1)));
     }
 
     @Override
-    protected void actionPerformed(GuiButton guibutton) throws IOException {
-        super.actionPerformed(guibutton);
-        if (guibutton.id == LeftMode.id) {
-            TileNetworkList data = TileNetworkList.withContents((byte) 0);
-            Mekanism.packetHandler.sendToServer(new PacketTileEntity.TileEntityMessage(tileEntity, data));
-            SoundHandler.playSound(SoundEvents.UI_BUTTON_CLICK);
-        } else if (guibutton.id == RightMode.id) {
-            TileNetworkList data = TileNetworkList.withContents((byte) 1);
-            Mekanism.packetHandler.sendToServer(new PacketTileEntity.TileEntityMessage(tileEntity, data));
-            SoundHandler.playSound(SoundEvents.UI_BUTTON_CLICK);
-        }
+    protected void drawForegroundText(int mouseX, int mouseY) {
+        drawTitleTextWithOffset(new TextComponentString(tileEntity.getName()), fluidGauge.getRelativeRight(), 4, getXSize());
+        super.drawForegroundText(mouseX, mouseY);
     }
 
-    @Override
-    protected void drawGuiContainerForegroundLayer(int mouseX, int mouseY) {
-        fontRenderer.drawString(tileEntity.getName(), (xSize / 2) - (fontRenderer.getStringWidth(tileEntity.getName()) / 2), 4, 0x404040);
-        String name = LangUtils.localize(tileEntity.dumpLeft.getLangKey());
-        renderScaledText(name, 21, 73, 0x404040, 66);
-        name = LangUtils.localize(tileEntity.dumpRight.getLangKey());
-        renderScaledText(name, 156 - (int) (fontRenderer.getStringWidth(name) * getNeededScale(name, 66)), 73, 0x404040, 66);
-
-        int xAxis = mouseX - guiLeft;
-        int yAxis = mouseY - guiTop;
-        if (xAxis >= -21 && xAxis <= -3 && yAxis >= 116 && yAxis <= 134) {
-            List<String> info = new ArrayList<>();
-            boolean energy = tileEntity.getEnergy() < tileEntity.energyPerTick || tileEntity.getEnergy() == 0;
-            boolean outLeft = tileEntity.leftTank.getStored() == tileEntity.leftTank.getMaxGas();
-            boolean outRight = tileEntity.rightTank.getStored() == tileEntity.rightTank.getMaxGas();
-            if (energy) {
-                info.add(LangUtils.localize("gui.no_energy"));
-            }
-            if (outLeft) {
-                info.add(LangUtils.localize("gui.gas_no_space"));
-            }
-            if (outRight) {
-                info.add(LangUtils.localize("gui.gas_no_space"));
-            }
-            if (outLeft || energy || outRight) {
-                this.displayTooltips(info, xAxis, yAxis);
-            }
-        }
-
-        super.drawGuiContainerForegroundLayer(mouseX, mouseY);
-    }
-
-    @Override
-    protected void drawGuiContainerBackgroundLayer(int xAxis, int yAxis) {
-        super.drawGuiContainerBackgroundLayer(xAxis, yAxis);
-
-        boolean energy = tileEntity.getEnergy() < tileEntity.energyPerTick || tileEntity.getEnergy() == 0;
-        boolean outLeft = tileEntity.leftTank.getStored() == tileEntity.leftTank.getMaxGas();
-        boolean outRight = tileEntity.rightTank.getStored() == tileEntity.rightTank.getMaxGas();
-        if (outLeft) {
-            mc.getTextureManager().bindTexture(MekanismUtils.getResource(MekanismUtils.ResourceType.GUI, "Warning.png"));
-            drawTexturedModalRect(guiLeft + 58 + 10, guiTop + 18 + 1, 0, 0, 7, 28);
-        }
-        if (outRight) {
-            mc.getTextureManager().bindTexture(MekanismUtils.getResource(MekanismUtils.ResourceType.GUI, "Warning.png"));
-            drawTexturedModalRect(guiLeft + 100 + 10, guiTop + 18 + 1, 0, 0, 7, 28);
-        }
-        if (energy || outLeft || outRight) {
-            mc.getTextureManager().bindTexture(MekanismUtils.getResource(MekanismUtils.ResourceType.TAB, "Warning_Info.png"));
-            drawTexturedModalRect(guiLeft - 26, guiTop + 112, 0, 0, 26, 26);
-            addGuiElement(new GuiWarningInfo(this, getGuiLocation(), false));
-        }
-
-
+    private void sendModePacket(byte tank) {
+        Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(tank)));
+        SoundHandler.playSound(SoundEvents.UI_BUTTON_CLICK);
     }
 }

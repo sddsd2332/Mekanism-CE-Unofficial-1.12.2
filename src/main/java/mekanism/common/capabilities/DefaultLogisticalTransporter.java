@@ -6,10 +6,10 @@ import mekanism.api.transmitters.IGridTransmitter;
 import mekanism.api.transmitters.TransmissionType;
 import mekanism.common.base.ILogisticalTransporter;
 import mekanism.common.capabilities.DefaultStorageHelper.NullStorage;
-import mekanism.common.content.transporter.TransitRequest;
-import mekanism.common.content.transporter.TransitRequest.TransitResponse;
 import mekanism.common.content.transporter.TransporterStack;
-import mekanism.common.tile.TileEntityLogisticalSorter;
+import mekanism.common.lib.inventory.IAdvancedTransportEjector;
+import mekanism.common.lib.inventory.TransitRequest;
+import mekanism.common.lib.inventory.TransitRequest.TransitResponse;
 import mekanism.common.transmitters.grid.InventoryNetwork;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
@@ -29,12 +29,26 @@ public class DefaultLogisticalTransporter implements ILogisticalTransporter {
 
     @Override
     public TransitResponse insert(Coord4D original, TransitRequest request, EnumColor color, boolean doEmit, int min) {
-        return TransitResponse.EMPTY;
+        return request.getEmptyResponse();
     }
 
     @Override
-    public TransitResponse insertRR(TileEntityLogisticalSorter outputter, TransitRequest request, EnumColor color, boolean doEmit, int min) {
-        return TransitResponse.EMPTY;
+    public TransitResponse insertMaybeRR(IAdvancedTransportEjector outputter, Coord4D outputterCoord, TransitRequest request, EnumColor color, boolean doEmit, int min) {
+        return request.getEmptyResponse();
+    }
+
+    @Override
+    public TransitResponse insertUnchecked(Coord4D outputterCoord, TransitRequest request, EnumColor color, boolean doEmit, int min) {
+        return request.getEmptyResponse();
+    }
+
+    @Override
+    public TransporterStack createInsertStack(Coord4D outputterCoord, EnumColor color) {
+        TransporterStack stack = new TransporterStack();
+        stack.originalLocation = outputterCoord;
+        stack.homeLocation = outputterCoord;
+        stack.color = color;
+        return stack;
     }
 
     @Override

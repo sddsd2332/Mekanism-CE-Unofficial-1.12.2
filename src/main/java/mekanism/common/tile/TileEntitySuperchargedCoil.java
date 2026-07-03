@@ -2,8 +2,6 @@ package mekanism.common.tile;
 
 import mekanism.common.tile.prefab.TileEntityEffectsBlock;
 import mekanism.common.util.InventoryUtils;
-import mekanism.common.util.NonNullListSynchronized;
-import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumFacing;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.items.CapabilityItemHandler;
@@ -14,7 +12,7 @@ public class TileEntitySuperchargedCoil extends TileEntityEffectsBlock {
 
     public TileEntitySuperchargedCoil() {
         super("machine.laser", "SuperchargedCoil", 1_000_000_000D);
-        inventory = NonNullListSynchronized.withSize(0, ItemStack.EMPTY);
+        initializeInventorySlots();
     }
 
     @Override

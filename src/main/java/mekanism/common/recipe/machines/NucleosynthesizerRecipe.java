@@ -1,12 +1,12 @@
 package mekanism.common.recipe.machines;
 
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTank;
+import mekanism.api.gas.IExtendedGasTank;
+import mekanism.api.inventory.IInventorySlot;
 import mekanism.common.recipe.inputs.NucleosynthesizerInput;
 import mekanism.common.recipe.outputs.ItemStackOutput;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.NonNullList;
 
 public class NucleosynthesizerRecipe extends MachineRecipe<NucleosynthesizerInput, ItemStackOutput, NucleosynthesizerRecipe> {
 
@@ -35,17 +35,8 @@ public class NucleosynthesizerRecipe extends MachineRecipe<NucleosynthesizerInpu
         return new NucleosynthesizerRecipe(getInput().copy(), getOutput().copy(), extraEnergy, ticks);
     }
 
-    public boolean canOperate(NonNullList<ItemStack> inventory, int inputIndex, GasTank inputGasTank, int outputIndex) {
-        return getInput().use(inventory, inputIndex, inputGasTank, false) && getOutput().applyOutputs(inventory, outputIndex, false);
+    public boolean canOperate(IInventorySlot inputSlot, IExtendedGasTank inputGasTank, IInventorySlot outputSlot) {
+        return getInput().use(inputSlot, inputGasTank, false) && getOutput().applyOutputs(outputSlot, false);
     }
 
-    public void operate(NonNullList<ItemStack> inventory, int inputIndex, GasTank inputGasTank, int outputIndex) {
-        operate(inventory,inputIndex,inputGasTank,outputIndex,true);
-    }
-
-    public void operate(NonNullList<ItemStack> inventory, int inputIndex, GasTank inputGasTank, int outputIndex,boolean deplete ) {
-        if (getInput().use(inventory, inputIndex, inputGasTank, deplete)) {
-            getOutput().applyOutputs(inventory, outputIndex, true);
-        }
-    }
 }

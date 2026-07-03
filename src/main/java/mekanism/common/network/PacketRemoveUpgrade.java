@@ -9,7 +9,6 @@ import mekanism.common.network.PacketRemoveUpgrade.RemoveUpgradeMessage;
 import mekanism.common.tile.prefab.TileEntityBasicBlock;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessageHandler;
@@ -34,17 +33,7 @@ public class PacketRemoveUpgrade implements IMessageHandler<RemoveUpgradeMessage
                     return;
                 }
                 if (upgradeTile.getComponent().getUpgrades(upgrade) > 0) {
-                    ItemStack up = upgrade.getStack();
-                    up.setCount(upgradeTile.getComponent().getUpgrades(upgrade));
-                    if (message.removeAll == 1) {
-                        if (player.inventory.addItemStackToInventory(up)) {
-                            upgradeTile.getComponent().removeUpgrade(upgrade, true);
-                        }
-                    } else {
-                        if (player.inventory.addItemStackToInventory(upgrade.getStack())) {
-                            upgradeTile.getComponent().removeUpgrade(upgrade, false);
-                        }
-                    }
+                    upgradeTile.getComponent().removeUpgrade(upgrade, message.removeAll == 1);
                 }
             }
         }, player);

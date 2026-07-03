@@ -4,7 +4,7 @@ import io.netty.buffer.ByteBuf;
 import mekanism.api.TileNetworkList;
 import mekanism.common.PacketHandler;
 import mekanism.common.content.filter.IOreDictFilter;
-import mekanism.common.content.transporter.Finder.OreDictFinder;
+import mekanism.common.lib.inventory.Finder;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 
@@ -14,12 +14,12 @@ public class TOreDictFilter extends TransporterFilter implements IOreDictFilter 
 
     @Override
     public boolean canFilter(ItemStack itemStack, boolean strict) {
-        return super.canFilter(itemStack, strict) && new OreDictFinder(oreDictName).modifies(itemStack);
+        return super.canFilter(itemStack, strict) && getFinder().modifies(itemStack);
     }
 
     @Override
     public Finder getFinder() {
-        return new OreDictFinder(oreDictName);
+        return Finder.oreDict(oreDictName);
     }
 
     @Override
@@ -64,8 +64,7 @@ public class TOreDictFilter extends TransporterFilter implements IOreDictFilter 
     @Override
     public TOreDictFilter clone() {
         TOreDictFilter filter = new TOreDictFilter();
-        filter.allowDefault = allowDefault;
-        filter.color = color;
+        copyBaseData(filter);
         filter.oreDictName = oreDictName;
         return filter;
     }

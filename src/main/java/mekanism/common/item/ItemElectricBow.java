@@ -1,11 +1,13 @@
 package mekanism.common.item;
 
+import mekanism.api.Action;
 import mekanism.api.EnumColor;
 import mekanism.api.NBTConstants;
 import mekanism.common.item.interfaces.IItemHUDProvider;
 import mekanism.common.item.interfaces.IModeItem;
 import mekanism.common.util.ItemDataUtils;
 import mekanism.common.util.LangUtils;
+import mekanism.common.util.StorageUtils;
 import mekanism.common.util.TextComponentGroup;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.enchantment.EnchantmentHelper;
@@ -65,7 +67,7 @@ public class ItemElectricBow extends ItemEnergized implements IModeItem, IItemHU
 
     @Override
     public void onPlayerStoppedUsing(ItemStack itemstack, World world, EntityLivingBase entityLiving, int itemUseCount) {
-        if (entityLiving instanceof EntityPlayer player && getEnergy(itemstack) > 0) {
+        if (entityLiving instanceof EntityPlayer player && StorageUtils.getStoredEnergy(itemstack) > 0) {
             boolean flag = player.capabilities.isCreativeMode || EnchantmentHelper.getEnchantmentLevel(Enchantments.INFINITY, itemstack) > 0;
             ItemStack ammo = findAmmo(player);
 
@@ -93,10 +95,10 @@ public class ItemElectricBow extends ItemEnergized implements IModeItem, IItemHU
                     EntityArrow entityarrow = itemarrow.createArrow(world, itemstack, player);
                     entityarrow.shoot(player, player.rotationPitch, player.rotationYaw, 0.0F, f * 3.0F, 1.0F);
                     if (f == 1.0F) {
-                        entityarrow.setIsCritical(true);
+                    entityarrow.setIsCritical(true);
                     }
                     if (!player.capabilities.isCreativeMode) {
-                        setEnergy(itemstack, getEnergy(itemstack) - (getFireState(itemstack) ? 1200 : 120));
+                        StorageUtils.extractEnergy(itemstack, getFireState(itemstack) ? 1200 : 120, Action.EXECUTE);
                     }
                     if (noConsume) {
                         entityarrow.pickupStatus = EntityArrow.PickupStatus.CREATIVE_ONLY;
@@ -174,7 +176,7 @@ public class ItemElectricBow extends ItemEnergized implements IModeItem, IItemHU
     }
 
     @Override
-    public boolean canSend(ItemStack itemStack) {
+    public boolean canSendEnergy(ItemStack itemStack) {
         return false;
     }
 

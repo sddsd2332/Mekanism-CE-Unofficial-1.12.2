@@ -2,19 +2,18 @@ package mekanism.common.integration.lookingat;
 
 import mekanism.api.energy.IStrictEnergyStorage;
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTankInfo;
 import mekanism.api.gas.IGasHandler;
 import mekanism.common.MekanismLang;
-import mekanism.common.base.FluidHandlerWrapper;
 import mekanism.common.capabilities.Capabilities;
+import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.tile.TileEntityAdvancedBoundingBlock;
 import mekanism.common.tile.base.TileEntitySynchronized;
 import mekanism.common.util.CapabilityUtils;
+import mekanism.common.util.FluidContainerUtils;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.capability.CapabilityFluidHandler;
 import net.minecraftforge.fluids.capability.IFluidHandler;
-import net.minecraftforge.fluids.capability.IFluidTankProperties;
 
 import javax.annotation.Nonnull;
 
@@ -55,18 +54,15 @@ public class LookingAtUtils {
         }
     }
 
-
     private static void displayFluid(LookingAtHelper info, IFluidHandler fluidHandler) {
-        if (fluidHandler instanceof FluidHandlerWrapper mekFluidHandler) {
-            for (IFluidTankProperties fluidTank : mekFluidHandler.getTankProperties()) {
-                addFluidInfo(info, fluidTank.getContents(), fluidTank.getCapacity());
-            }
+        for (int tank = 0, tanks = FluidContainerUtils.getTankCount(fluidHandler); tank < tanks; tank++) {
+            addFluidInfo(info, FluidContainerUtils.getFluidInTank(fluidHandler, tank), FluidContainerUtils.getTankCapacity(fluidHandler, tank));
         }
     }
 
     private static void displayGas(LookingAtHelper info, IGasHandler handler) {
-        for (GasTankInfo tank : handler.getTankInfo()) {
-            addGasInfo(info, tank.getGas(), tank.getMaxGas());
+        for (int tank = 0, tanks = GasInventorySlot.getTankCount(handler); tank < tanks; tank++) {
+            addGasInfo(info, GasInventorySlot.getGasInTank(handler, tank), GasInventorySlot.getTankCapacity(handler, tank));
         }
     }
 

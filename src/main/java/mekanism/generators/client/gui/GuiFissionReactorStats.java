@@ -2,53 +2,48 @@ package mekanism.generators.client.gui;
 
 import mekanism.api.TileNetworkList;
 import mekanism.client.gui.GuiMekanismTile;
-import mekanism.client.gui.button.GuiDisableableButton;
-import mekanism.client.gui.element.GuiInnerScreen;
-import mekanism.client.gui.element.GuiRateBarHorizontal;
-import mekanism.client.gui.element.GuiRateBarHorizontal.IRateInfoHandler;
-import mekanism.client.render.MekanismRenderer;
+import mekanism.client.gui.element.bar.GuiBar.IBarInfoHandler;
+import mekanism.client.gui.element.bar.GuiDynamicHorizontalRateBar;
+import mekanism.client.gui.element.tab.GuiHeatTab;
+import mekanism.client.gui.element.tab.GuiWarningTab;
+import mekanism.client.gui.element.text.GuiTextField;
+import mekanism.client.gui.warning.IWarningTracker;
 import mekanism.common.Mekanism;
+import mekanism.common.config.MekanismConfig;
 import mekanism.common.inventory.container.ContainerNull;
 import mekanism.common.network.PacketTileEntity.TileEntityMessage;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.UnitDisplayUtils;
+import mekanism.common.util.UnitDisplayUtils.TemperatureUnit;
 import mekanism.generators.client.gui.element.GuiFissionReactorTab;
 import mekanism.generators.client.gui.element.GuiFissionReactorTab.FissionReactorTab;
 import mekanism.generators.common.content.fission.SynchronizedFissionData;
 import mekanism.generators.common.tile.fission.TileEntityFissionReactorCasing;
-import net.minecraft.client.gui.GuiButton;
-import net.minecraft.client.gui.GuiTextField;
 import net.minecraft.entity.player.InventoryPlayer;
-import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraft.util.text.ITextComponent;
+import net.minecraft.util.text.TextComponentString;
 import org.lwjgl.input.Keyboard;
 
-import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
-@SideOnly(Side.CLIENT)
-public class GuiFissionReactorStats extends GuiMekanismTile<TileEntityFissionReactorCasing> {
+public class GuiFissionReactorStats extends GuiMekanismTile<TileEntityFissionReactorCasing, ContainerNull> {
 
-    private static final int RATE_WIDGET_X = 105;
-    private static final int RATE_WIDGET_WIDTH = 84;
-    private static final int RATE_FIELD_Y = 128;
-    private static final int RATE_BUTTON_Y = 127;
     private GuiTextField rateLimitField;
-    private GuiDisableableButton setRateButton;
 
     public GuiFissionReactorStats(InventoryPlayer inventory, TileEntityFissionReactorCasing tile) {
         super(tile, new ContainerNull(inventory.player, tile));
-        xSize = 195;
-        ResourceLocation resource = getGuiLocation();
-        addGuiElement(new GuiFissionReactorTab(this, tileEntity, FissionReactorTab.MAIN, resource));
-        addGuiElement(new GuiInnerScreen(this, resource, RATE_WIDGET_X, RATE_BUTTON_Y, RATE_WIDGET_WIDTH, 13));
-        addGuiElement(new GuiRateBarHorizontal(this, new IRateInfoHandler() {
+    }
+
+    @Override
+    protected void addGuiElements() {
+        super.addGuiElements();
+        addButton(new GuiFissionReactorTab(this, tileEntity, FissionReactorTab.MAIN));
+        addButton(new GuiDynamicHorizontalRateBar(this, new IBarInfoHandler() {
             @Override
-            public String getTooltip() {
-                if (tileEntity.structure == null) {
-                    return LangUtils.localize("gui.burnRate") + ": 0 /t";
-                }
-                return LangUtils.localize("gui.burnRate") + ": " + UnitDisplayUtils.roundDecimals(tileEntity.structure.lastBurnRate) + " /t";
+            public ITextComponent getTooltip() {
+                double rate = tileEntity.structure == null ? 0 : tileEntity.structure.lastBurnRate;
+                return new TextComponentString(LangUtils.localize("gui.burnRate") + ": " + UnitDisplayUtils.roundDecimals(rate) + " /t");
             }
 
             @Override
@@ -59,99 +54,73 @@ public class GuiFissionReactorStats extends GuiMekanismTile<TileEntityFissionRea
                 double max = tileEntity.structure.getMaxBurnRate();
                 return max <= 0 ? 0 : Math.min(1, tileEntity.structure.lastBurnRate / max);
             }
-        }, resource, RATE_WIDGET_X, 113));
+        }, 5, 114, xSize - 12));
+        addButton(new GuiHeatTab(this, this::getHeatTabText));
+        rateLimitField = addButton(new GuiTextField(this, 0, 77, 128, 54, 12)
+              .setMaxLength(getRateLimitMaxLength())
+              .setInputValidator(this::isRateInput)
+              .setEnterHandler(this::setRateLimit)
+              .addCheckmarkButton(this::setRateLimit));
     }
 
     @Override
-    public void initGui() {
-        super.initGui();
-        buttonList.clear();
-        String previousRate = rateLimitField != null ? rateLimitField.getText() : "";
-        rateLimitField = new GuiTextField(0, fontRenderer, guiLeft + RATE_WIDGET_X + 2, guiTop + RATE_FIELD_Y, RATE_WIDGET_WIDTH - 3, 11);
-        rateLimitField.setMaxStringLength(6);
-        rateLimitField.setEnableBackgroundDrawing(false);
-        rateLimitField.setText(previousRate);
-        buttonList.add(setRateButton = new GuiDisableableButton(0, guiLeft + RATE_WIDGET_X + RATE_WIDGET_WIDTH - 12, guiTop + RATE_BUTTON_Y + 1, 11, 11)
-                .with(GuiDisableableButton.ImageOverlay.CHECKMARK));
-        updateEnabledButtons();
-    }
-
-    @Override
-    protected void actionPerformed(GuiButton guiButton) throws IOException {
-        super.actionPerformed(guiButton);
-        if (guiButton.id == setRateButton.id) {
-            setRateLimit();
-        }
-    }
-
-    private void updateEnabledButtons() {
-        if (setRateButton != null) {
-            setRateButton.enabled = tileEntity.structure != null && !rateLimitField.getText().isEmpty();
-        }
-    }
-
-    @Override
-    protected void drawGuiContainerForegroundLayer(int mouseX, int mouseY) {
-        String title = LangUtils.localize("gui.fissionReactorStats");
-        fontRenderer.drawString(title, (xSize / 2) - (fontRenderer.getStringWidth(title) / 2), 5, 0x404040);
+    protected void drawForegroundText(int mouseX, int mouseY) {
+        drawTitleText(new TextComponentString(LangUtils.localize("gui.fissionReactorStats")), 5);
         if (tileEntity.structure == null) {
-            fontRenderer.drawString(LangUtils.localize("gui.status") + ": " + LangUtils.localize("gui.incomplete"), 8, 25, 0x404040);
-            super.drawGuiContainerForegroundLayer(mouseX, mouseY);
+            drawScrollingString(new TextComponentString(LangUtils.localize("gui.status") + ": " + LangUtils.localize("gui.incomplete")), 0, 25,
+                  TextAlignment.LEFT, titleTextColor(), 6, false);
+            super.drawForegroundText(mouseX, mouseY);
             return;
         }
 
         SynchronizedFissionData data = tileEntity.structure;
-        fontRenderer.drawString(LangUtils.localize("gui.fissionHeatStatistics"), 8, 21, 0x797979);
-        fontRenderer.drawString(LangUtils.localize("gui.temp") + ": " + UnitDisplayUtils.roundDecimals(data.temperature) + " K", 14, 32, 0x404040);
-        fontRenderer.drawString(LangUtils.localize("gui.surfaceArea") + ": " + data.surfaceArea, 14, 42, 0x404040);
-        fontRenderer.drawString(LangUtils.localize("gui.boilEfficiency") + ": " + UnitDisplayUtils.roundDecimals(data.getBoilEfficiency() * 100) + "%", 14, 52, 0x404040);
+        drawScrollingString(new TextComponentString(LangUtils.localize("gui.fissionHeatStatistics")), 0, 20, TextAlignment.LEFT, headingTextColor(), 6, false);
+        drawScrollingString(new TextComponentString(LangUtils.localize("tooltip.heatCapacity") + ": " + UnitDisplayUtils.roundDecimals(data.casingHeatCapacity)), 0, 32,
+              TextAlignment.LEFT, titleTextColor(), 6, false);
+        drawScrollingString(new TextComponentString(LangUtils.localize("gui.surfaceArea") + ": " + data.surfaceArea), 0, 42,
+              TextAlignment.LEFT, titleTextColor(), 6, false);
+        drawScrollingString(new TextComponentString(LangUtils.localize("gui.boilEfficiency") + ": " + UnitDisplayUtils.roundDecimals(data.getBoilEfficiency() * 100) + "%"),
+              0, 52, TextAlignment.LEFT, titleTextColor(), 6, false);
 
-        fontRenderer.drawString(LangUtils.localize("gui.fissionFuelStatistics"), 8, 68, 0x797979);
-        fontRenderer.drawString(LangUtils.localize("gui.fuelAssemblies") + ": " + data.fuelAssemblies, 14, 79, 0x404040);
-        fontRenderer.drawString(LangUtils.localize("gui.maxBurnRate") + ": " + UnitDisplayUtils.roundDecimals(data.getMaxBurnRate()) + " /t", 14, 89, 0x404040);
-        fontRenderer.drawString(LangUtils.localize("gui.rateLimit") + ": " + UnitDisplayUtils.roundDecimals(data.rateLimit) + " /t", 14, 99, 0x404040);
-        fontRenderer.drawString(LangUtils.localize("gui.currentBurnRate"), 14, 113, 0x404040);
-        fontRenderer.drawString(LangUtils.localize("gui.setRateLimit"), 14, 130, 0x404040);
-        super.drawGuiContainerForegroundLayer(mouseX, mouseY);
+        drawScrollingString(new TextComponentString(LangUtils.localize("gui.fissionFuelStatistics")), 0, 68, TextAlignment.LEFT, headingTextColor(), 6, false);
+        drawScrollingString(new TextComponentString(LangUtils.localize("gui.maxBurnRate") + ": " + UnitDisplayUtils.roundDecimals(data.getMaxBurnRate()) + " /t"), 0, 80,
+              TextAlignment.LEFT, titleTextColor(), 6, false);
+        drawScrollingString(new TextComponentString(LangUtils.localize("gui.rateLimit") + ": " + UnitDisplayUtils.roundDecimals(data.rateLimit) + " /t"), 0, 90,
+              TextAlignment.LEFT, titleTextColor(), 6, false);
+        drawScrollingString(new TextComponentString(LangUtils.localize("gui.currentBurnRate")), 0, 104, TextAlignment.LEFT, titleTextColor(), 6, false);
+        drawScaledScrollingString(new TextComponentString(LangUtils.localize("gui.setRateLimit")), 3, 130, TextAlignment.RIGHT, titleTextColor(),
+              rateLimitField.getRelativeX() - 2, 3, false, 1, getTimeOpened());
+        super.drawForegroundText(mouseX, mouseY);
     }
 
-    @Override
-    protected void drawGuiContainerBackgroundLayer(int xAxis, int yAxis) {
-        super.drawGuiContainerBackgroundLayer(xAxis, yAxis);
-        rateLimitField.drawTextBox();
-        MekanismRenderer.resetColor();
-    }
-
-    @Override
-    public void updateScreen() {
-        super.updateScreen();
-        rateLimitField.updateCursorCounter();
-        updateEnabledButtons();
-    }
-
-    @Override
-    public void mouseClicked(int mouseX, int mouseY, int button) throws IOException {
-        super.mouseClicked(mouseX, mouseY, button);
-        rateLimitField.mouseClicked(mouseX, mouseY, button);
-    }
-
-    @Override
-    public void keyTyped(char c, int i) throws IOException {
-        if (!rateLimitField.isFocused() || i == Keyboard.KEY_ESCAPE) {
-            super.keyTyped(c, i);
+    private List<ITextComponent> getHeatTabText() {
+        if (tileEntity.structure == null) {
+            return Collections.emptyList();
         }
-        if (i == Keyboard.KEY_RETURN && rateLimitField.isFocused()) {
-            setRateLimit();
-            return;
-        }
-        boolean decimalSeparator = c == '.' && !rateLimitField.getText().contains(".");
-        if (Character.isDigit(c) || decimalSeparator || isTextboxKey(c, i)) {
-            rateLimitField.textboxKeyTyped(c, i);
-        }
+        TemperatureUnit unit = TemperatureUnit.values()[MekanismConfig.current().general.tempUnit.val().ordinal()];
+        String environment = UnitDisplayUtils.getDisplayShort(tileEntity.structure.lastEnvironmentLoss * unit.intervalSize, false, unit);
+        return Collections.singletonList(new TextComponentString(LangUtils.localize("gui.dissipated") + ": " + environment + "/t"));
+    }
+
+    @Override
+    protected void addWarningTab(IWarningTracker warningTracker) {
+        addButton(new GuiWarningTab(this, warningTracker, false));
+    }
+
+    private boolean isRateInput(char c, int keyCode) {
+        return Character.isDigit(c) || c == '.' && !rateLimitField.getText().contains(".") || keyCode == Keyboard.KEY_BACK ||
+              keyCode == Keyboard.KEY_DELETE || keyCode == Keyboard.KEY_LEFT || keyCode == Keyboard.KEY_RIGHT ||
+              keyCode == Keyboard.KEY_HOME || keyCode == Keyboard.KEY_END || keyCode == Keyboard.KEY_RETURN || keyCode == Keyboard.KEY_NUMPADENTER;
+    }
+
+    private int getRateLimitMaxLength() {
+        double maxBurnRate = tileEntity.structure == null ? 0 : tileEntity.structure.getMaxBurnRate();
+        long adjustedMaxBurn = Math.max(0, (long) Math.ceil(maxBurnRate) - 1);
+        return Long.toString(adjustedMaxBurn).length() + 3;
     }
 
     private void setRateLimit() {
-        if (tileEntity.structure == null || rateLimitField.getText().isEmpty()) {
+        if (tileEntity.structure == null || rateLimitField == null || rateLimitField.isEmpty()) {
             return;
         }
         try {
@@ -162,9 +131,9 @@ public class GuiFissionReactorStats extends GuiMekanismTile<TileEntityFissionRea
             if (Math.abs(delta) > 0.0001) {
                 Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(1, delta)));
             }
-            rateLimitField.setText("");
+            rateLimitField.clear();
         } catch (NumberFormatException ignored) {
-            rateLimitField.setText("");
+            rateLimitField.clear();
         }
     }
 }

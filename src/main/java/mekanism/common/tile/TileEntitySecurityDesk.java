@@ -2,29 +2,29 @@ package mekanism.common.tile;
 
 import io.netty.buffer.ByteBuf;
 import mekanism.api.Coord4D;
+import mekanism.api.IContentsListener;
 import mekanism.api.TileNetworkList;
 import mekanism.client.render.bloom.BloomRenderSecurityDesk;
 import mekanism.common.Mekanism;
 import mekanism.common.PacketHandler;
 import mekanism.common.base.IBoundingBlock;
 import mekanism.common.base.ISpecialSelectionWireframeTile;
+import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
+import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
 import mekanism.common.config.MekanismConfig;
-import mekanism.common.frequency.Frequency;
-import mekanism.common.frequency.FrequencyManager;
+import mekanism.common.frequency.Frequency.FrequencyIdentity;
+import mekanism.common.frequency.FrequencyType;
 import mekanism.common.frequency.IFrequencyHandler;
+import mekanism.common.inventory.slot.SecurityInventorySlot;
 import mekanism.common.network.PacketSecurityUpdate.SecurityPacket;
 import mekanism.common.network.PacketSecurityUpdate.SecurityUpdateMessage;
-import mekanism.common.security.IOwnerItem;
-import mekanism.common.security.ISecurityItem;
 import mekanism.common.security.ISecurityTile.SecurityMode;
 import mekanism.common.security.SecurityData;
 import mekanism.common.security.SecurityFrequency;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
 import mekanism.common.util.InventoryUtils;
 import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.NonNullListSynchronized;
 import net.minecraft.block.state.IBlockState;
-import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
@@ -40,7 +40,6 @@ import java.util.UUID;
 
 public class TileEntitySecurityDesk extends TileEntityContainerBlock implements IBoundingBlock, IFrequencyHandler, ISpecialSelectionWireframeTile {
 
-    private static final int[] SLOTS = {0, 1};
     private static final ISpecialSelectionWireframeTile.SelectionTransform[] SELECTION_ROTATE_SOUTH = {
             ISpecialSelectionWireframeTile.SelectionTransform.rotateY(180.0D, 0.5D, 0.5D, 0.5D)
     };
@@ -54,52 +53,37 @@ public class TileEntitySecurityDesk extends TileEntityContainerBlock implements 
     public UUID ownerUUID;
     public String clientOwner;
     public SecurityFrequency frequency;
+    private SecurityInventorySlot unlockSlot;
+    private SecurityInventorySlot lockSlot;
 
     public TileEntitySecurityDesk() {
         super("SecurityDesk");
-        inventory = NonNullListSynchronized.withSize(SLOTS.length, ItemStack.EMPTY);
+        frequencyComponent.track(FrequencyType.SECURITY, true, false, true);
+        initializeInventorySlots();
+    }
+
+    @Override
+    protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
+        InventorySlotHelper builder = createInventorySlotHelper();
+        builder.addSlot(unlockSlot = SecurityInventorySlot.unlock(() -> ownerUUID, listener, 146, 18));
+        builder.addSlot(lockSlot = SecurityInventorySlot.lock(listener, 146, 97));
+        return builder.build();
     }
 
     @Override
     public void onUpdateServer() {
         super.onUpdateServer();
+        frequency = getFreq();
         if (ownerUUID != null && frequency != null) {
-            if (!inventory.get(0).isEmpty() && inventory.get(0).getItem() instanceof IOwnerItem ownerItem) {
-                if (ownerItem.hasOwner(inventory.get(0)) && ownerItem.getOwnerUUID(inventory.get(0)) != null) {
-                    if (ownerItem.getOwnerUUID(inventory.get(0)).equals(ownerUUID)) {
-                        ownerItem.setOwnerUUID(inventory.get(0), null);
-                        if (ownerItem instanceof ISecurityItem iSecurityItem && iSecurityItem.hasSecurity(inventory.get(0))) {
-                            iSecurityItem.setSecurity(inventory.get(0), SecurityMode.PUBLIC);
-                        }
-                    }
-                }
+            if (unlockSlot != null) {
+                unlockSlot.unlock(ownerUUID);
             }
-            if (!inventory.get(1).isEmpty() && inventory.get(1).getItem() instanceof IOwnerItem item) {
-                if (item.hasOwner(inventory.get(1))) {
-                    if (item.getOwnerUUID(inventory.get(1)) == null) {
-                        item.setOwnerUUID(inventory.get(1), ownerUUID);
-                    }
-                    if (item.getOwnerUUID(inventory.get(1)).equals(ownerUUID)) {
-                        if (item instanceof ISecurityItem securityItem && securityItem.hasSecurity(inventory.get(1))) {
-                            securityItem.setSecurity(inventory.get(1), frequency.securityMode);
-                        }
-                    }
-                }
+            if (lockSlot != null) {
+                lockSlot.lock(ownerUUID, frequency);
             }
         }
         if (frequency == null && ownerUUID != null) {
             setFrequency(ownerUUID);
-        }
-        FrequencyManager manager = getManager(frequency);
-        if (manager != null) {
-            if (frequency != null && !frequency.valid) {
-                frequency = (SecurityFrequency) manager.validateFrequency(ownerUUID, Coord4D.get(this), frequency);
-            }
-            if (frequency != null) {
-                frequency = (SecurityFrequency) manager.update(Coord4D.get(this), frequency);
-            }
-        } else {
-            frequency = null;
         }
     }
 
@@ -108,30 +92,14 @@ public class TileEntitySecurityDesk extends TileEntityContainerBlock implements 
         return false;
     }
 
-    public FrequencyManager getManager(Frequency freq) {
-        if (ownerUUID == null || freq == null) {
-            return null;
-        }
-        return Mekanism.securityFrequencies;
+    public void setFrequency(UUID owner) {
+        ownerUUID = owner;
+        frequencyComponent.setFrequency(FrequencyType.SECURITY, new FrequencyIdentity(owner, SecurityMode.PUBLIC, owner), owner);
+        frequency = getFreq();
     }
 
-    public void setFrequency(UUID owner) {
-        FrequencyManager manager = Mekanism.securityFrequencies;
-        manager.deactivate(Coord4D.get(this));
-        for (Frequency freq : manager.getFrequencies()) {
-            if (freq.ownerUUID.equals(owner)) {
-                frequency = (SecurityFrequency) freq;
-                frequency.activeCoords.add(Coord4D.get(this));
-                return;
-            }
-        }
-
-        Frequency freq = new SecurityFrequency(owner).setPublic(true);
-        freq.activeCoords.add(Coord4D.get(this));
-        manager.addFrequency(freq);
-        frequency = (SecurityFrequency) freq;
-//        MekanismUtils.saveChunk(this);
-        markNoUpdateSync();
+    public SecurityFrequency getFreq() {
+        return getFrequency(FrequencyType.SECURITY);
     }
 
     @Override
@@ -185,10 +153,7 @@ public class TileEntitySecurityDesk extends TileEntityContainerBlock implements 
         if (nbtTags.hasKey("ownerUUID")) {
             ownerUUID = MekanismUtils.parseUUID(nbtTags.getString("ownerUUID"));
         }
-        if (nbtTags.hasKey("frequency")) {
-            frequency = new SecurityFrequency(nbtTags.getCompoundTag("frequency"));
-            frequency.valid = false;
-        }
+        frequency = getFreq();
     }
 
 
@@ -197,11 +162,6 @@ public class TileEntitySecurityDesk extends TileEntityContainerBlock implements 
         super.writeCustomNBT(nbtTags);
         if (ownerUUID != null) {
             nbtTags.setString("ownerUUID", ownerUUID.toString());
-        }
-        if (frequency != null) {
-            NBTTagCompound frequencyTag = new NBTTagCompound();
-            frequency.write(frequencyTag);
-            nbtTags.setTag("frequency", frequencyTag);
         }
     }
 
@@ -216,6 +176,7 @@ public class TileEntitySecurityDesk extends TileEntityContainerBlock implements 
         } else {
             data.add(false);
         }
+        frequency = getFreq();
         if (frequency != null) {
             data.add(true);
             frequency.write(data);
@@ -228,14 +189,6 @@ public class TileEntitySecurityDesk extends TileEntityContainerBlock implements 
     @Override
     public void invalidate() {
         super.invalidate();
-        if (!isRemote()) {
-            if (frequency != null) {
-                FrequencyManager manager = getManager(frequency);
-                if (manager != null) {
-                    manager.deactivate(Coord4D.get(this));
-                }
-            }
-        }
     }
 
     @Override
@@ -248,15 +201,6 @@ public class TileEntitySecurityDesk extends TileEntityContainerBlock implements 
         world.setBlockToAir(getPos().up());
         world.setBlockToAir(getPos());
     }
-
-    @Override
-    public Frequency getFrequency(FrequencyManager manager) {
-        if (manager == Mekanism.securityFrequencies) {
-            return frequency;
-        }
-        return null;
-    }
-
 
     @Nonnull
     @Override

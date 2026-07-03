@@ -1,0 +1,18 @@
+{
+      "parent": "mekanism:basic_control_circuit",
+      "criteria": {"alarm": {
+            "trigger": "minecraft:inventory_changed",
+            "conditions": {"items": [{
+                  "item": "mekanism:machineblock4",
+                  "data": 9
+            }]}
+      }},
+      "display": {
+            "icon": {
+                  "item": "mekanism:machineblock4",
+                  "data": 9
+            },
+            "description": {"translate": "advancements.mekanism.alarm.description"},
+            "title": {"translate": "advancements.mekanism.alarm.title"}
+      }
+}

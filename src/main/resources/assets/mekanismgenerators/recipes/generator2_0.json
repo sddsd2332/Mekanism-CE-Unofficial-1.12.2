@@ -5,19 +5,19 @@
     "count": 4
   },
   "pattern": [
-    " S ",
-    "SOS",
-    " S "
+    " I ",
+    "IXI",
+    " I "
   ],
   "type": "mekanism:ore_shaped",
   "key": {
-    "S": {
-      "ore": "ingotSteel",
+    "I": {
+      "ore": "ingotLead",
       "type": "forge:ore_dict"
     },
-    "O": {
-      "ore": "ingotOsmium",
-      "type": "forge:ore_dict"
+    "X": {
+      "item": "mekanism:basicblock",
+      "data": 8
     }
   }
 }

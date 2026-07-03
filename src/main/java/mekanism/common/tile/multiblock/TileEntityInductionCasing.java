@@ -4,16 +4,13 @@ import io.netty.buffer.ByteBuf;
 import mekanism.api.TileNetworkList;
 import mekanism.api.energy.IStrictEnergyStorage;
 import mekanism.common.Mekanism;
-import mekanism.common.capabilities.Capabilities;
 import mekanism.common.content.matrix.MatrixCache;
 import mekanism.common.content.matrix.MatrixUpdateProtocol;
 import mekanism.common.content.matrix.SynchronizedMatrixData;
 import mekanism.common.integration.computer.IComputerIntegration;
 import mekanism.common.multiblock.MultiblockManager;
-import mekanism.common.util.ChargeUtils;
 import mekanism.common.util.InventoryUtils;
 import mekanism.common.util.LangUtils;
-import mekanism.common.util.NonNullListSynchronized;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumFacing;
@@ -37,7 +34,6 @@ public class TileEntityInductionCasing extends TileEntityMultiblock<Synchronized
 
     public TileEntityInductionCasing(String name) {
         super(name);
-        inventory = NonNullListSynchronized.withSize(2, ItemStack.EMPTY);
     }
 
     @Override
@@ -45,8 +41,7 @@ public class TileEntityInductionCasing extends TileEntityMultiblock<Synchronized
         super.onUpdateServer();
         if (structure != null && isRendering) {
             structure.tick(world);
-            ChargeUtils.charge(0, this);
-            ChargeUtils.discharge(1, this);
+            structure.manageInventory();
         }
     }
 
@@ -81,7 +76,7 @@ public class TileEntityInductionCasing extends TileEntityMultiblock<Synchronized
 
     @Override
     protected SynchronizedMatrixData getNewStructure() {
-        return new SynchronizedMatrixData();
+        return new SynchronizedMatrixData(this);
     }
 
     @Override
@@ -176,30 +171,21 @@ public class TileEntityInductionCasing extends TileEntityMultiblock<Synchronized
         };
     }
 
-    @Override
-    public boolean hasCapability(@Nonnull Capability<?> capability, net.minecraft.util.EnumFacing facing) {
-        return capability == Capabilities.ENERGY_STORAGE_CAPABILITY || super.hasCapability(capability, facing);
-    }
-
-    @Override
-    public <T> T getCapability(@Nonnull Capability<T> capability, net.minecraft.util.EnumFacing facing) {
-        if (capability == Capabilities.ENERGY_STORAGE_CAPABILITY) {
-            return Capabilities.ENERGY_STORAGE_CAPABILITY.cast(this);
-        }
-        return super.getCapability(capability, facing);
-    }
-
     @Nonnull
     @Override
     public int[] getSlotsForFace(@Nonnull EnumFacing side) {
-        return InventoryUtils.EMPTY;
+        return exposesInventoryToAutomation() ? super.getSlotsForFace(side) : InventoryUtils.EMPTY;
     }
 
     @Override
     public boolean isCapabilityDisabled(@Nonnull Capability<?> capability, EnumFacing side) {
-        if (capability == CapabilityItemHandler.ITEM_HANDLER_CAPABILITY) {
+        if (capability == CapabilityItemHandler.ITEM_HANDLER_CAPABILITY && !exposesInventoryToAutomation()) {
             return true;
         }
         return super.isCapabilityDisabled(capability, side);
+    }
+
+    protected boolean exposesInventoryToAutomation() {
+        return false;
     }
 }

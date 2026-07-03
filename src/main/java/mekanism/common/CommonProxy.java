@@ -5,18 +5,18 @@ import mekanism.api.MekanismAPI;
 import mekanism.api.Pos3D;
 import mekanism.client.SparkleAnimation.INodeChecker;
 import mekanism.common.base.IGuiProvider;
-import mekanism.common.base.IUpgradeTile;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.entity.EntityRobit;
-import mekanism.common.inventory.InventoryPersonalChest;
-import mekanism.common.inventory.ModuleTweakerContainer;
 import mekanism.common.inventory.container.*;
+import mekanism.common.inventory.container.item.DictionaryContainer;
+import mekanism.common.inventory.container.item.PersonalStorageItemContainer;
+import mekanism.common.inventory.container.item.PortableTeleporterContainer;
+import mekanism.common.inventory.container.item.SeismicReaderContainer;
 import mekanism.common.inventory.container.robit.*;
 import mekanism.common.item.ItemDictionary;
 import mekanism.common.item.ItemPortableTeleporter;
 import mekanism.common.item.ItemSeismicReader;
-import mekanism.common.network.PacketPortableTeleporter.PortableTeleporterMessage;
 import mekanism.common.tile.*;
 import mekanism.common.tile.factory.TileEntityFactory;
 import mekanism.common.tile.laser.TileEntityLaserAmplifier;
@@ -62,9 +62,6 @@ public class CommonProxy implements IGuiProvider {
      * Register tile entities that have special models. Overwritten in client to register TESRs.
      */
     public void registerTESRs() {
-    }
-
-    public void handleTeleporterUpdate(PortableTeleporterMessage message) {
     }
 
     /**
@@ -143,31 +140,31 @@ public class CommonProxy implements IGuiProvider {
             //If it is out of bounds don't do anything
             return null;
         }
-        ItemStack stack = player.inventory.getStackInSlot(currentItem);
+        EnumHand hand = EnumHand.values()[handOrdinal];
+        ItemStack stack = player.getHeldItem(hand);
         if (stack.isEmpty()) {
             return null;
         }
-        EnumHand hand = EnumHand.values()[handOrdinal];
         int guiID = pos.getZ();
         switch (guiID) {
             case 0:
                 if (stack.getItem() instanceof ItemDictionary) {
-                    return new ContainerDictionary(player.inventory);
+                    return new DictionaryContainer(player.inventory, hand, stack);
                 }
                 break;
             case 14:
                 if (stack.getItem() instanceof ItemPortableTeleporter) {
-                    return new ContainerNull();
+                    return new PortableTeleporterContainer(player.inventory, hand, stack);
                 }
             case 19:
                 if (MachineType.get(stack) == MachineType.PERSONAL_CHEST) {
                     //Ensure the item didn't change. From testing even if it did things still seemed to work properly but better safe than sorry
-                    return new ContainerPersonalChest(player.inventory, new InventoryPersonalChest(stack, hand));
+                    return new PersonalStorageItemContainer(player.inventory, hand, stack);
                 }
                 break;
             case 38:
                 if (stack.getItem() instanceof ItemSeismicReader) {
-                    return new ContainerNull();
+                    return new SeismicReaderContainer(player.inventory, hand, stack);
                 }
                 break;
         }
@@ -225,7 +222,8 @@ public class CommonProxy implements IGuiProvider {
             case 7 ->
                     new ContainerRotaryCondensentrator(player.inventory, (TileEntityRotaryCondensentrator) tileEntity);
             case 8 -> new ContainerEnergyCube(player.inventory, (TileEntityEnergyCube) tileEntity);
-            case 9, 50, 51, 55, 59 -> new ContainerNull(player, (TileEntityContainerBlock) tileEntity);
+            case 50, 55 -> new ContainerNull(player, (TileEntityContainerBlock) tileEntity);
+            case 59 -> new ContainerFilterHolder(player.inventory, (TileEntityContainerBlock) tileEntity);
             case 10 -> new ContainerGasTank(player.inventory, (TileEntityGasTank) tileEntity);
             case 11 -> new ContainerFactory(player.inventory, (TileEntityFactory) tileEntity);
             case 12 -> new ContainerMetallurgicInfuser(player.inventory, (TileEntityMetallurgicInfuser) tileEntity);
@@ -255,7 +253,6 @@ public class CommonProxy implements IGuiProvider {
             case 40 -> new ContainerPRC(player.inventory, (TileEntityPRC) tileEntity);
             case 41 -> new ContainerFluidTank(player.inventory, (TileEntityFluidTank) tileEntity);
             case 42 -> new ContainerFluidicPlenisher(player.inventory, (TileEntityFluidicPlenisher) tileEntity);
-            case 43 -> new ContainerUpgradeManagement(player.inventory, (IUpgradeTile) tileEntity);
             case 44 -> new ContainerLaserAmplifier(player.inventory, (TileEntityLaserAmplifier) tileEntity);
             case 45 -> new ContainerLaserTractorBeam(player.inventory, (TileEntityLaserTractorBeam) tileEntity);
             case 46 ->
@@ -288,7 +285,7 @@ public class CommonProxy implements IGuiProvider {
             case 75 -> new ContainerModificationStation(player.inventory, (TileEntityModificationStation) tileEntity);
             case 76 -> new ContainerSPS(player.inventory, (TileEntityContainerBlock) tileEntity);
             case 77 -> new ModuleTweakerContainer(player.inventory);
-            case 78 -> new ContainerSPS(player.inventory, (TileEntityContainerBlock) tileEntity);
+            case 78 -> new ContainerSPSMultiblock(player.inventory, (TileEntityContainerBlock) tileEntity);
             case 79 -> new ContainerDimensionalStabilizer(player.inventory, (TileEntityDimensionalStabilizer) tileEntity);
             default -> null;
         };

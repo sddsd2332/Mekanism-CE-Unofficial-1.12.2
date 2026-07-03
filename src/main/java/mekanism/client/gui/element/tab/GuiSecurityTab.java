@@ -1,182 +1,186 @@
 package mekanism.client.gui.element.tab;
 
 import mekanism.api.Coord4D;
-import mekanism.api.EnumColor;
 import mekanism.client.MekanismClient;
+import mekanism.client.SpecialColors;
 import mekanism.client.gui.IGuiWrapper;
-import mekanism.client.gui.element.GuiTileEntityElement;
+import mekanism.client.gui.element.GuiInsetElement;
 import mekanism.client.render.MekanismRenderer;
-import mekanism.client.sound.SoundHandler;
 import mekanism.common.Mekanism;
 import mekanism.common.config.MekanismConfig;
+import mekanism.common.entity.EntityRobit;
 import mekanism.common.network.PacketSecurityMode.SecurityModeMessage;
 import mekanism.common.security.ISecurityItem;
 import mekanism.common.security.ISecurityTile;
 import mekanism.common.security.ISecurityTile.SecurityMode;
 import mekanism.common.security.SecurityData;
-import mekanism.common.security.SecurityFrequency;
-import mekanism.common.util.LangUtils;
+import mekanism.common.tile.component.TileComponentSecurity;
 import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.SecurityUtils;
-import net.minecraft.init.SoundEvents;
 import net.minecraft.item.ItemStack;
-import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumHand;
 import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
 
 import java.util.Arrays;
 import java.util.UUID;
 
-@SideOnly(Side.CLIENT)
-public class GuiSecurityTab extends GuiTileEntityElement<TileEntity> {
+public class GuiSecurityTab<TILE extends net.minecraft.tileentity.TileEntity & ISecurityTile> extends GuiInsetElement<Object> {
 
-    private final int xLocation;
-    private final int yLocation;
+    private static final ResourceLocation PUBLIC = MekanismUtils.getResource(MekanismUtils.ResourceType.GUI, "public.png");
+    private static final ResourceLocation PRIVATE = MekanismUtils.getResource(MekanismUtils.ResourceType.GUI, "private.png");
+    private static final ResourceLocation PROTECTED = MekanismUtils.getResource(MekanismUtils.ResourceType.GUI, "protected.png");
     private final EnumHand currentHand;
-    private boolean isItem;
+    private final boolean isEntity;
 
-    public GuiSecurityTab(IGuiWrapper gui, TileEntity tile, ResourceLocation def, int x, int y) {
-        super(gui, def, tile, 176 + x, 32 + y, 26, 26, 179 + x, 36 + y, 18, 18);
-        this.currentHand = EnumHand.MAIN_HAND;
-        xLocation = x;
-        yLocation = y;
+    public GuiSecurityTab(IGuiWrapper gui, TILE tile) {
+        this(gui, tile, 34);
     }
 
-    public GuiSecurityTab(IGuiWrapper gui, TileEntity tile, ResourceLocation def) {
-        super(gui, def, tile, 176, 32, 26, 26, 179, 36, 18, 18);
-        this.currentHand = EnumHand.MAIN_HAND;
-        xLocation = 0;
-        yLocation = 0;
+    public GuiSecurityTab(IGuiWrapper gui, TILE tile, int y) {
+        super(PUBLIC, gui, tile, gui.getWidth(), y, 26, 18, false);
+        currentHand = null;
+        isEntity = false;
     }
 
-    public GuiSecurityTab(IGuiWrapper gui, TileEntity tile, ResourceLocation def, int y) {
-        super(gui, def, tile, 176, 32 + y, 26, 26, 179, 36 + y, 18, 18);
-        this.currentHand = EnumHand.MAIN_HAND;
-        xLocation = 0;
-        yLocation = y;
+    public GuiSecurityTab(IGuiWrapper gui, EntityRobit robit, int y) {
+        super(PUBLIC, gui, robit, gui.getWidth(), y, 26, 18, false);
+        currentHand = null;
+        isEntity = true;
     }
 
-    public GuiSecurityTab(IGuiWrapper gui, ResourceLocation def, EnumHand hand) {
-        super(gui, def, null, 176, 32, 26, 26, 179, 36, 18, 18);
-        isItem = true;
+    public GuiSecurityTab(IGuiWrapper gui, EnumHand hand) {
+        super(PUBLIC, gui, null, gui.getWidth(), 34, 26, 18, false);
         currentHand = hand;
-        xLocation = 0;
-        yLocation = 0;
+        isEntity = false;
     }
 
+    @Override
+    protected void colorTab() {
+        MekanismRenderer.color(SpecialColors.TAB_SECURITY.argb());
+    }
 
     @Override
-    public void renderBackground(int xAxis, int yAxis, int guiWidth, int guiHeight) {
-        MekanismRenderer.color(0xFFFFA160);
-        super.renderBackground(xAxis, yAxis, guiWidth, guiHeight);
-        MekanismRenderer.resetColor();
-        mc.renderEngine.bindTexture(MekanismUtils.getResource(MekanismUtils.ResourceType.BUTTON_TAB, "Button_Tab_Icon.png"));
-        SecurityMode mode = getSecurity();
-        SecurityData data = MekanismClient.clientSecurityMap.get(getOwner());
-        if (data != null && data.override) {
-            mode = data.mode;
+    protected ResourceLocation getOverlay() {
+        SecurityMode mode = getDisplayedMode();
+        return switch (mode) {
+            case PUBLIC -> super.getOverlay();
+            case PRIVATE -> PRIVATE;
+            case TRUSTED -> PROTECTED;
+        };
+    }
+
+    @Override
+    public void renderToolTip(int mouseX, int mouseY) {
+        super.renderToolTip(mouseX, mouseY);
+        if (isItem() && !isSecurityItem()) {
+            return;
         }
-        int renderX = (18 * mode.ordinal());
-        if (getOwner() != null && getOwner().equals(mc.player.getUniqueID()) && (data == null || !data.override)) {
-            guiObj.drawTexturedRect(guiWidth + 179 + xLocation, guiHeight + 36 + yLocation, renderX, 18, 18, 18);
+        String securityText = isItem() ? SecurityUtils.getSecurityDisplay(getItem(), Side.CLIENT) : isEntity() ? SecurityUtils.getSecurityDisplay(getEntity(), Side.CLIENT) : SecurityUtils.getSecurityDisplay(getTile(), Side.CLIENT);
+        String ownerText = SecurityUtils.getOwnerDisplay(minecraft.player, getOwnerName());
+        if (isItem() ? SecurityUtils.isOverridden(getItem(), Side.CLIENT) : isEntity() ? SecurityUtils.isOverridden(getEntity(), Side.CLIENT) : SecurityUtils.isOverridden(getTile(), Side.CLIENT)) {
+            displayTooltips(Arrays.asList(securityText, ownerText, mekanism.api.EnumColor.RED + "(" + mekanism.common.util.LangUtils.localize("gui.overridden") + ")"), mouseX, mouseY);
         } else {
-            setNull(true);
+            displayTooltips(Arrays.asList(securityText, ownerText), mouseX, mouseY);
         }
-        mc.renderEngine.bindTexture(defaultLocation);
     }
 
     @Override
-    public void renderForeground(int xAxis, int yAxis) {
-        mc.renderEngine.bindTexture(RESOURCE);
-        if (inBounds(xAxis, yAxis)) {
-            String securityDisplay = isItem ? SecurityUtils.getSecurityDisplay(getItem(), Side.CLIENT) : SecurityUtils.getSecurityDisplay(tileEntity, Side.CLIENT);
-            String securityText = EnumColor.GREY + LangUtils.localize("gui.security") + ": " + securityDisplay;
-            String ownerText = SecurityUtils.getOwnerDisplay(mc.player, getOwnerUsername());
-            String overrideText = EnumColor.RED + "(" + LangUtils.localize("gui.overridden") + ")";
-
-            if (isItem ? SecurityUtils.isOverridden(getItem(), Side.CLIENT) : SecurityUtils.isOverridden(tileEntity, Side.CLIENT)) {
-                displayTooltips(Arrays.asList(securityText, ownerText, overrideText), xAxis, yAxis);
-            } else {
-                displayTooltips(Arrays.asList(securityText, ownerText), xAxis, yAxis);
-            }
-        }
-        mc.renderEngine.bindTexture(defaultLocation);
+    public boolean isValidClickButton(int button) {
+        return button == 0 || button == 1;
     }
 
-    private SecurityFrequency getFrequency() {
-        if (isItem) {
-            if (getItem().isEmpty() || !(getItem().getItem() instanceof ISecurityItem)) {
-                mc.player.closeScreen();
-                return null;
-            }
-            return SecurityUtils.getFrequency(getOwner());
-        }
-        return ((ISecurityTile) tileEntity).getSecurity().getFrequency();
+    @Override
+    public void onClick(double mouseX, double mouseY, int button) {
+        sendModeChange(button);
     }
 
-    private SecurityMode getSecurity() {
+    private void sendModeChange(int button) {
+        if (!MekanismConfig.current().general.allowProtection.val()) {
+            return;
+        }
+        UUID owner = getOwner();
+        if (owner == null || !owner.equals(minecraft.player.getUniqueID())) {
+            return;
+        }
+        SecurityMode next = button == 1 ? getSecurityMode().getPrevious() : getSecurityMode().getNext();
+        Mekanism.packetHandler.sendToServer(isItem() ? new SecurityModeMessage(currentHand, next) : isEntity() ? new SecurityModeMessage(getEntity(), next) : new SecurityModeMessage(Coord4D.get(getTile()), next));
+    }
+
+    private SecurityMode getDisplayedMode() {
         if (!MekanismConfig.current().general.allowProtection.val()) {
             return SecurityMode.PUBLIC;
         }
-
-        if (isItem) {
-            if (getItem().isEmpty() || !(getItem().getItem() instanceof ISecurityItem)) {
-                mc.player.closeScreen();
-                return SecurityMode.PUBLIC;
+        UUID owner = getOwner();
+        if (owner != null) {
+            SecurityData data = MekanismClient.clientSecurityMap.get(owner);
+            if (data != null && data.override) {
+                return data.mode;
             }
-            return ((ISecurityItem) getItem().getItem()).getSecurity(getItem());
         }
-        return ((ISecurityTile) tileEntity).getSecurity().getMode();
+        return getSecurityMode();
     }
 
-    private UUID getOwner() {
-        if (isItem) {
-            if (getItem().isEmpty() || !(getItem().getItem() instanceof ISecurityItem)) {
-                mc.player.closeScreen();
-                return null;
-            }
-            return ((ISecurityItem) getItem().getItem()).getOwnerUUID(getItem());
-        }
-        return ((ISecurityTile) tileEntity).getSecurity().getOwnerUUID();
+    private boolean isItem() {
+        return currentHand != null;
     }
 
-    private String getOwnerUsername() {
-        if (isItem) {
-            if (getItem().isEmpty() || !(getItem().getItem() instanceof ISecurityItem)) {
-                mc.player.closeScreen();
-                return null;
-            }
-            return MekanismClient.clientUUIDMap.get(((ISecurityItem) getItem().getItem()).getOwnerUUID(getItem()));
-        }
-        return ((ISecurityTile) tileEntity).getSecurity().getClientOwner();
+    private boolean isEntity() {
+        return isEntity;
     }
 
     private ItemStack getItem() {
-        return mc.player.getHeldItem(currentHand);
+        return minecraft.player.getHeldItem(currentHand);
     }
 
-    @Override
-    public void preMouseClicked(int xAxis, int yAxis, int button) {
+    private boolean isSecurityItem() {
+        ItemStack stack = getItem();
+        return !stack.isEmpty() && stack.getItem() instanceof ISecurityItem;
     }
 
-    @Override
-    public void mouseClicked(int xAxis, int yAxis, int button) {
-        if (button == 0 && MekanismConfig.current().general.allowProtection.val()) {
-            if (getOwner() != null && mc.player.getUniqueID().equals(getOwner())) {
-                if (inBounds(xAxis, yAxis)) {
-                    SecurityMode current = getSecurity();
-                    int ordinalToSet = current.ordinal() < (SecurityMode.values().length - 1) ? current.ordinal() + 1 : 0;
+    @SuppressWarnings("unchecked")
+    private TILE getTile() {
+        return (TILE) dataSource;
+    }
 
-                    SoundHandler.playSound(SoundEvents.UI_BUTTON_CLICK);
-                    if (isItem) {
-                        Mekanism.packetHandler.sendToServer(new SecurityModeMessage(currentHand, SecurityMode.values()[ordinalToSet]));
-                    } else {
-                        Mekanism.packetHandler.sendToServer(new SecurityModeMessage(Coord4D.get(tileEntity), SecurityMode.values()[ordinalToSet]));
-                    }
-                }
-            }
+    private EntityRobit getEntity() {
+        return (EntityRobit) dataSource;
+    }
+
+    private SecurityMode getSecurityMode() {
+        if (isItem()) {
+            ItemStack stack = getItem();
+            return stack.isEmpty() || !(stack.getItem() instanceof ISecurityItem security) ? SecurityMode.PUBLIC : security.getSecurity(stack);
         }
+        if (isEntity()) {
+            return getEntity().getSecurityMode();
+        }
+        return getTile().getSecurity().getMode();
+    }
+
+    private UUID getOwner() {
+        if (isItem()) {
+            ItemStack stack = getItem();
+            return stack.isEmpty() || !(stack.getItem() instanceof ISecurityItem security) ? null : security.getOwnerUUID(stack);
+        }
+        if (isEntity()) {
+            return getEntity().getOwnerUUID();
+        }
+        TileComponentSecurity security = getTile().getSecurity();
+        return security.getOwnerUUID();
+    }
+
+    private String getOwnerName() {
+        if (isItem()) {
+            ItemStack stack = getItem();
+            if (stack.isEmpty() || !(stack.getItem() instanceof ISecurityItem security)) {
+                return null;
+            }
+            return MekanismClient.clientUUIDMap.get(security.getOwnerUUID(stack));
+        }
+        if (isEntity()) {
+            return getEntity().getOwnerName();
+        }
+        return getTile().getSecurity().getClientOwner();
     }
 }

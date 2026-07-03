@@ -1,7 +1,7 @@
 package mekanism.common.integration;
 
-import mekanism.common.Mekanism;
 import mekanism.api.gas.GasStack;
+import mekanism.common.Mekanism;
 import mekanism.common.recipe.RecipeHandler;
 import mekanism.common.recipe.RecipeHandler.Recipe;
 import mekanism.common.recipe.inputs.MachineInput;

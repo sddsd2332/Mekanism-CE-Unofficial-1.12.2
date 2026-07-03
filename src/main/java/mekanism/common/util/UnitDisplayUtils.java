@@ -9,6 +9,18 @@ import mekanism.common.MekanismLang;
  */
 public class UnitDisplayUtils {
 
+    private static final Unit IGNORED_UNIT = new Unit() {
+        @Override
+        public String getSymbol() {
+            return "";
+        }
+
+        @Override
+        public ILangEntry getLabel() {
+            return MekanismLang.ERROR;
+        }
+    };
+
     /**
      * Displays the unit as text. Does handle negative numbers, and will place a negative sign in front of the output string showing this. Use string.replace to remove
      * the negative sign if unwanted
@@ -50,6 +62,10 @@ public class UnitDisplayUtils {
 
     public static String getDisplayShort(double value, ElectricUnit unit, int decimalPlaces) {
         return getDisplay(value, unit, decimalPlaces, true);
+    }
+
+    public static String getDisplay(double value, int decimalPlaces) {
+        return getDisplayBase(value, IGNORED_UNIT, decimalPlaces, false);
     }
 
     public static String getDisplaySimple(double value, ElectricUnit unit, int decimalPlaces) {

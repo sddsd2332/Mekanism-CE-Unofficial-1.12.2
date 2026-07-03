@@ -44,7 +44,7 @@ public class RenderBioGenerator extends TileEntitySpecialRenderer<TileEntityBioG
         GlStateManager.rotate(180, 0, 0, 1);
         model.render(0.0625F);
         GlStateManager.popMatrix();
-        if (tileEntity.bioFuelSlot.fluidStored > 0) {
+        if (tileEntity.bioFuelTank.getFluidAmount() > 0) {
             GlStateManager.pushMatrix();
             GlStateManager.enableCull();
             GlStateManager.disableAlpha();

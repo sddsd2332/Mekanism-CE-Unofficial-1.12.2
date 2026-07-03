@@ -15,19 +15,19 @@ public class BoilerCache extends MultiblockCache<SynchronizedBoilerData> {
 
     @Override
     public void apply(SynchronizedBoilerData data) {
-        data.waterStored = water;
-        data.steamStored = steam;
-        data.InputGas = input;
-        data.OutputGas = output;
+        data.waterStored = water == null ? null : water.copy();
+        data.steamStored = steam == null ? null : steam.copy();
+        data.InputGas = input == null ? null : input.copy();
+        data.OutputGas = output == null ? null : output.copy();
         data.temperature = temperature;
     }
 
     @Override
     public void sync(SynchronizedBoilerData data) {
-        water = data.waterStored;
-        steam = data.steamStored;
-        input = data.InputGas;
-        output = data.OutputGas;
+        water = data.waterStored == null ? null : data.waterStored.copy();
+        steam = data.steamStored == null ? null : data.steamStored.copy();
+        input = data.InputGas == null ? null : data.InputGas.copy();
+        output = data.OutputGas == null ? null : data.OutputGas.copy();
         temperature = data.temperature;
     }
 

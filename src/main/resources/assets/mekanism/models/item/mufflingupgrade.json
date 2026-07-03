@@ -1,4 +1,4 @@
 {
       "parent": "mekanism:item/standard_item",
-      "textures": {"layer0": "mekanism:items/MufflingUpgrade"}
+      "textures": {"layer0": "mekanism:items/mufflingupgrade"}
 }

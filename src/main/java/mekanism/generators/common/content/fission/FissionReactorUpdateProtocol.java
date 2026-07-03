@@ -3,7 +3,6 @@ package mekanism.generators.common.content.fission;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import mekanism.api.Coord4D;
-import mekanism.common.MekanismFluids;
 import mekanism.common.multiblock.MultiblockCache;
 import mekanism.common.multiblock.MultiblockManager;
 import mekanism.common.multiblock.UpdateProtocol;
@@ -17,7 +16,6 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
-import net.minecraftforge.fluids.FluidRegistry;
 
 import java.util.*;
 
@@ -138,39 +136,12 @@ public class FissionReactorUpdateProtocol extends UpdateProtocol<SynchronizedFis
         FissionReactorCache fissionCache = (FissionReactorCache) cache;
         FissionReactorCache mergeCache = (FissionReactorCache) merge;
 
-        if (fissionCache.fuel == null) {
-            fissionCache.fuel = mergeCache.fuel;
-        } else if (mergeCache.fuel != null && fissionCache.fuel.isGasEqual(mergeCache.fuel)) {
-            fissionCache.fuel.amount += mergeCache.fuel.amount;
-        }
-
-        if (fissionCache.waste == null) {
-            fissionCache.waste = mergeCache.waste;
-        } else if (mergeCache.waste != null && fissionCache.waste.isGasEqual(mergeCache.waste)) {
-            fissionCache.waste.amount += mergeCache.waste.amount;
-        }
-        if (fissionCache.gasCoolant == null) {
-            fissionCache.gasCoolant = mergeCache.gasCoolant;
-        } else if (mergeCache.gasCoolant != null && fissionCache.gasCoolant.isGasEqual(mergeCache.gasCoolant)) {
-            fissionCache.gasCoolant.amount += mergeCache.gasCoolant.amount;
-        }
-        if (fissionCache.heatedCoolant == null) {
-            fissionCache.heatedCoolant = mergeCache.heatedCoolant;
-        } else if (mergeCache.heatedCoolant != null && fissionCache.heatedCoolant.isGasEqual(mergeCache.heatedCoolant)) {
-            fissionCache.heatedCoolant.amount += mergeCache.heatedCoolant.amount;
-        }
-
-        if (fissionCache.coolant == null) {
-            fissionCache.coolant = mergeCache.coolant;
-        } else if (mergeCache.coolant != null && fissionCache.coolant.isFluidEqual(mergeCache.coolant)) {
-            fissionCache.coolant.amount += mergeCache.coolant.amount;
-        }
-
-        if (fissionCache.steam == null) {
-            fissionCache.steam = mergeCache.steam;
-        } else if (mergeCache.steam != null && fissionCache.steam.isFluidEqual(mergeCache.steam)) {
-            fissionCache.steam.amount += mergeCache.steam.amount;
-        }
+        fissionCache.fuel = mergeGasStack(fissionCache.fuel, mergeCache.fuel);
+        fissionCache.waste = mergeGasStack(fissionCache.waste, mergeCache.waste);
+        fissionCache.gasCoolant = mergeGasStack(fissionCache.gasCoolant, mergeCache.gasCoolant);
+        fissionCache.heatedCoolant = mergeGasStack(fissionCache.heatedCoolant, mergeCache.heatedCoolant);
+        fissionCache.coolant = mergeFluidStack(fissionCache.coolant, mergeCache.coolant);
+        fissionCache.steam = mergeFluidStack(fissionCache.steam, mergeCache.steam);
 
         fissionCache.rateLimit = Math.max(fissionCache.rateLimit, mergeCache.rateLimit);
         fissionCache.active |= mergeCache.active;
@@ -185,24 +156,7 @@ public class FissionReactorUpdateProtocol extends UpdateProtocol<SynchronizedFis
     protected void onFormed() {
         super.onFormed();
         structureFound.updateCapacities();
-        if (structureFound.fuelTank.getGas() != null && structureFound.fuelTank.getGas().getGas() != MekanismFluids.FissileFuel) {
-            structureFound.fuelTank.setGas(null);
-        }
-        if (structureFound.wasteTank.getGas() != null && structureFound.wasteTank.getGas().getGas() != MekanismFluids.NuclearWaste) {
-            structureFound.wasteTank.setGas(null);
-        }
-        if (structureFound.gasCoolantTank.getGas() != null && structureFound.gasCoolantTank.getGas().getGas() != MekanismFluids.Sodium) {
-            structureFound.gasCoolantTank.setGas(null);
-        }
-        if (structureFound.heatedCoolantTank.getGas() != null && structureFound.heatedCoolantTank.getGas().getGas() != MekanismFluids.SuperheatedSodium) {
-            structureFound.heatedCoolantTank.setGas(null);
-        }
-        if (structureFound.coolantTank.getFluid() != null && structureFound.coolantTank.getFluid().getFluid() != FluidRegistry.WATER) {
-            structureFound.coolantTank.setFluid(null);
-        }
-        if (structureFound.steamTank.getFluid() != null && structureFound.steamTank.getFluid().getFluid() != FluidRegistry.getFluid("steam")) {
-            structureFound.steamTank.setFluid(null);
-        }
+        structureFound.sanitizeStoredContents();
         structureFound.syncPrev();
     }
 

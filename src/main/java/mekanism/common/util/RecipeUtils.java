@@ -1,15 +1,14 @@
 package mekanism.common.util;
 
-import mekanism.api.energy.IEnergizedItem;
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.IGasItem;
 import mekanism.common.Upgrade;
 import mekanism.common.base.IFactory;
 import mekanism.common.base.IFactory.RecipeType;
 import mekanism.common.base.ITierItem;
 import mekanism.common.block.states.BlockStateBasic.BasicBlockType;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
-import mekanism.common.inventory.InventoryBin;
+import mekanism.common.inventory.BinMekanismInventory;
+import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.security.ISecurityItem;
 import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
@@ -17,7 +16,7 @@ import net.minecraft.item.crafting.CraftingManager;
 import net.minecraft.item.crafting.IRecipe;
 import net.minecraft.world.World;
 import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.FluidUtil;
+import net.minecraftforge.fluids.capability.IFluidHandlerItem;
 import net.minecraftforge.oredict.OreDictionary;
 
 import java.util.EnumMap;
@@ -59,45 +58,48 @@ public class RecipeUtils {
 
     public static ItemStack getCraftingResult(InventoryCrafting inv, ItemStack toReturn) {
         int invLength = inv.getSizeInventory();
-        if (toReturn.getItem() instanceof IEnergizedItem toReturnItem) {
+        double outputMaxEnergy = StorageUtils.getMaxEnergy(toReturn);
+        if (outputMaxEnergy > 0) {
             double energyFound = 0;
             for (int i = 0; i < invLength; i++) {
                 ItemStack itemstack = inv.getStackInSlot(i);
-                if (!itemstack.isEmpty() && itemstack.getItem() instanceof IEnergizedItem item) {
-                    energyFound += item.getEnergy(itemstack);
+                if (!itemstack.isEmpty()) {
+                    energyFound += StorageUtils.getStoredEnergy(itemstack);
                 }
             }
-            double energyToSet = Math.min(toReturnItem.getMaxEnergy(toReturn), energyFound);
+            double energyToSet = Math.min(outputMaxEnergy, energyFound);
             if (energyToSet > 0) {
-                toReturnItem.setEnergy(toReturn, energyToSet);
+                StorageUtils.setStoredEnergy(toReturn, energyToSet, outputMaxEnergy);
             }
         }
 
-        if (toReturn.getItem() instanceof IGasItem toReturnItem) {
+        if (GasInventorySlot.isGasContainerItem(toReturn)) {
             GasStack gasFound = null;
             for (int i = 0; i < invLength; i++) {
                 ItemStack itemstack = inv.getStackInSlot(i);
-                if (!itemstack.isEmpty() && itemstack.getItem() instanceof IGasItem item) {
-                    GasStack stored = item.getGas(itemstack);
-                    if (stored != null) {
-                        if (!toReturnItem.canReceiveGas(toReturn, stored.getGas())) {
-                            return ItemStack.EMPTY;
-                        }
+                if (!itemstack.isEmpty()) {
+                    GasInventorySlot.GasTransferResult gasResult = GasInventorySlot.getTransferableGas(itemstack);
+                    if (!gasResult.isValid()) {
+                        return ItemStack.EMPTY;
+                    }
+                    GasStack gas = gasResult.getStack();
+                    if (gas != null && gas.amount > 0) {
                         if (gasFound == null) {
-                            gasFound = stored;
+                            gasFound = gas.copy();
+                        } else if (gasFound.getGas() != gas.getGas()) {
+                            return ItemStack.EMPTY;
                         } else {
-                            if (gasFound.getGas() != stored.getGas()) {
-                                return ItemStack.EMPTY;
-                            }
-                            gasFound.amount += stored.amount;
+                            gasFound = gasFound.copy().withAmount(gasFound.amount + gas.amount);
                         }
                     }
                 }
             }
 
             if (gasFound != null) {
-                gasFound.amount = Math.min(toReturnItem.getMaxGas(toReturn), gasFound.amount);
-                toReturnItem.setGas(toReturn, gasFound);
+                if (GasInventorySlot.insertGas(toReturn, gasFound.copy(), false) != gasFound.amount ||
+                    GasInventorySlot.insertGas(toReturn, gasFound.copy(), true) != gasFound.amount) {
+                    return ItemStack.EMPTY;
+                }
             }
         }
 
@@ -117,25 +119,29 @@ public class RecipeUtils {
             for (int i = 0; i < invLength; i++) {
                 ItemStack itemstack = inv.getStackInSlot(i);
                 if (FluidContainerUtils.isFluidContainer(itemstack)) {
-                    FluidStack stored = FluidUtil.getFluidContained(itemstack);
-                    if (stored != null) {
-                        if (FluidUtil.getFluidHandler(itemstack).fill(stored, false) == 0) {
-                            return ItemStack.EMPTY;
-                        }
+                    FluidContainerUtils.FluidTransferResult fluidResult = FluidContainerUtils.getTransferableFluid(itemstack);
+                    if (!fluidResult.isValid()) {
+                        return ItemStack.EMPTY;
+                    }
+                    FluidStack fluid = fluidResult.getStack();
+                    if (fluid != null && fluid.amount > 0) {
                         if (fluidFound == null) {
-                            fluidFound = stored;
+                            fluidFound = fluid.copy();
+                        } else if (fluidFound.getFluid() != fluid.getFluid()) {
+                            return ItemStack.EMPTY;
                         } else {
-                            if (fluidFound.getFluid() != stored.getFluid()) {
-                                return ItemStack.EMPTY;
-                            }
-                            fluidFound.amount += stored.amount;
+                            fluidFound = FluidContainerUtils.copyWithAmount(fluidFound, fluidFound.amount + fluid.amount);
                         }
                     }
                 }
             }
 
             if (fluidFound != null) {
-                FluidUtil.getFluidHandler(toReturn).fill(fluidFound, true);
+                IFluidHandlerItem fluidHandler = FluidContainerUtils.getFluidHandlerCapability(toReturn);
+                if (fluidHandler == null || fluidHandler.fill(fluidFound.copy(), false) != fluidFound.amount ||
+                    fluidHandler.fill(fluidFound.copy(), true) != fluidFound.amount) {
+                    return ItemStack.EMPTY;
+                }
             }
         }
 
@@ -145,16 +151,20 @@ public class RecipeUtils {
             for (int i = 0; i < invLength; i++) {
                 ItemStack itemstack = inv.getStackInSlot(i);
                 if (!itemstack.isEmpty() && BasicBlockType.get(itemstack) == BasicBlockType.BIN) {
-                    InventoryBin binInv = new InventoryBin(itemstack);
-                    foundCount = binInv.getItemCount();
-                    foundType = binInv.getItemType();
+                    BinMekanismInventory binInv = BinMekanismInventory.create(itemstack);
+                    if (binInv != null) {
+                        foundCount = binInv.getItemCount();
+                        foundType = binInv.getItemType();
+                    }
                 }
             }
 
             if (foundCount > 0 && !foundType.isEmpty()) {
-                InventoryBin binInv = new InventoryBin(toReturn);
-                binInv.setItemCount(foundCount);
-                binInv.setItemType(foundType);
+                BinMekanismInventory binInv = BinMekanismInventory.create(toReturn);
+                if (binInv != null) {
+                    binInv.setItemCount(foundCount);
+                    binInv.setItemType(foundType);
+                }
             }
         }
 
@@ -163,15 +173,15 @@ public class RecipeUtils {
             for (int i = 0; i < invLength; i++) {
                 ItemStack itemstack = inv.getStackInSlot(i);
                 if (!itemstack.isEmpty() && MachineType.get(itemstack) != null && MachineType.get(itemstack).supportsUpgrades) {
-                    Upgrade.buildMap(ItemDataUtils.getDataMapIfPresent(itemstack)).entrySet().forEach(entry -> {
+                    Upgrade.buildComponentMap(ItemDataUtils.getDataMapIfPresent(itemstack)).entrySet().forEach(entry -> {
                         if (entry != null && entry.getKey() != null && entry.getValue() != null) {
                             upgrades.compute(entry.getKey(), (k, val) -> Math.min(entry.getKey().getMaxInstalled(), (val != null ? val : 0) + entry.getValue()));
                         }
                     });
                 }
             }
-            if (ItemDataUtils.hasData(toReturn, "upgrades")) {
-                Upgrade.saveMap(upgrades, ItemDataUtils.getDataMap(toReturn));
+            if (Upgrade.hasUpgradeData(ItemDataUtils.getDataMapIfPresent(toReturn))) {
+                Upgrade.saveComponentMap(upgrades, ItemDataUtils.getDataMap(toReturn));
             }
         }
 

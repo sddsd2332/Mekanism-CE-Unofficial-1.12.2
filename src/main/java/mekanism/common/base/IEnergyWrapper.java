@@ -5,6 +5,7 @@ import cofh.redstoneflux.api.IEnergyReceiver;
 import ic2.api.energy.tile.IEnergySink;
 import ic2.api.energy.tile.IEnergySource;
 import ic2.api.tile.IEnergyStorage;
+import mekanism.api.energy.IEnergyContainer;
 import mekanism.api.energy.IStrictEnergyAcceptor;
 import mekanism.api.energy.IStrictEnergyOutputter;
 import mekanism.api.energy.IStrictEnergyStorage;
@@ -23,11 +24,14 @@ import net.minecraftforge.fml.common.Optional.InterfaceList;
         @Interface(iface = "ic2.api.tile.IEnergyStorage", modid = MekanismHooks.IC2_MOD_ID)
 })
 public interface IEnergyWrapper extends IStrictEnergyStorage, IEnergyReceiver, IEnergyProvider, IEnergySink, IEnergySource, IEnergyStorage, IStrictEnergyAcceptor,
-        IStrictEnergyOutputter, IInventory {
+        IStrictEnergyOutputter, IEnergyContainer, IInventory {
 
     boolean sideIsOutput(EnumFacing side);
 
     boolean sideIsConsumer(EnumFacing side);
 
     double getMaxOutput();
+
+    @Override
+    boolean isEmpty();
 }

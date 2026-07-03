@@ -1,15 +1,19 @@
 package mekanism.common.item;
 
+import mekanism.api.Action;
 import mekanism.api.Chunk3D;
 import mekanism.api.EnumColor;
 import mekanism.client.MekKeyHandler;
 import mekanism.client.MekanismKeyHandler;
 import mekanism.common.Mekanism;
+import mekanism.common.advancements.MekanismCriteriaTriggers;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.StorageUtils;
 import net.minecraft.client.settings.GameSettings;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.item.EnumRarity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ActionResult;
@@ -32,7 +36,7 @@ public class ItemSeismicReader extends ItemEnergized {
     }
 
     @Override
-    public boolean canSend(ItemStack itemStack) {
+    public boolean canSendEnergy(ItemStack itemStack) {
         return false;
     }
 
@@ -57,7 +61,7 @@ public class ItemSeismicReader extends ItemEnergized {
         Chunk3D chunk = new Chunk3D(entityplayer);
         ItemStack itemstack = entityplayer.getHeldItem(hand);
 
-        if (getEnergy(itemstack) < ENERGY_USAGE && !entityplayer.capabilities.isCreativeMode) {
+        if (StorageUtils.getStoredEnergy(itemstack) < ENERGY_USAGE && !entityplayer.capabilities.isCreativeMode) {
             if (!world.isRemote) {
                 entityplayer.sendMessage(new TextComponentString(EnumColor.DARK_BLUE + Mekanism.LOG_TAG + " " + EnumColor.RED +
                         LangUtils.localize("tooltip.seismicReader.needsEnergy")));
@@ -72,7 +76,10 @@ public class ItemSeismicReader extends ItemEnergized {
             return new ActionResult<>(EnumActionResult.SUCCESS, itemstack);
         }
         if (!entityplayer.capabilities.isCreativeMode) {
-            setEnergy(itemstack, getEnergy(itemstack) - ENERGY_USAGE);
+            StorageUtils.extractEnergy(itemstack, ENERGY_USAGE, Action.EXECUTE);
+        }
+        if (!world.isRemote && entityplayer instanceof EntityPlayerMP playerMP) {
+            MekanismCriteriaTriggers.VIEW_VIBRATIONS.trigger(playerMP);
         }
         MekanismUtils.openItemGui(entityplayer, hand, 38);
         return new ActionResult<>(EnumActionResult.PASS, itemstack);

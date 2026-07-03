@@ -1,0 +1,12 @@
+{
+      "parent": "mekanism:sps",
+      "criteria": {"antimatter": {
+            "trigger": "minecraft:inventory_changed",
+            "conditions": {"items": [{"item": "mekanism:antimatterpellet"}]}
+      }},
+      "display": {
+            "icon": {"item": "mekanism:antimatterpellet"},
+            "description": {"translate": "advancements.mekanism.antimatter.description"},
+            "title": {"translate": "advancements.mekanism.antimatter.title"}
+      }
+}

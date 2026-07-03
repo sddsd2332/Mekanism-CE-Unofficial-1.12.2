@@ -1,7 +1,7 @@
 package mekanism.common.recipe.machines;
 
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTank;
+import mekanism.api.gas.IExtendedGasTank;
 import mekanism.common.recipe.inputs.GasInput;
 import mekanism.common.recipe.outputs.GasOutput;
 
@@ -20,13 +20,8 @@ public class GasCentrifugeRecipe extends MachineRecipe<GasInput, GasOutput, GasC
         return new GasCentrifugeRecipe(getInput(), getOutput());
     }
 
-    public boolean canOperate(GasTank inputTank, GasTank outputTank) {
+    public boolean canOperate(IExtendedGasTank inputTank, IExtendedGasTank outputTank) {
         return getInput().useGas(inputTank, false, 1) && getOutput().applyOutputs(outputTank, false, 1);
     }
 
-    public void operate(GasTank inputTank, GasTank outputTank) {
-        if (getInput().useGas(inputTank, true, 1)) {
-            getOutput().applyOutputs(outputTank, true, 1);
-        }
-    }
 }

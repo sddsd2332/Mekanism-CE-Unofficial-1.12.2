@@ -42,6 +42,7 @@ public class MekRecipesCommand extends CraftTweakerCommand {
                 "sawmill",
                 "prc",
                 "purification",
+                "rotarycondensentrator",
                 "solarneutronactivator",
                 "thermalevaporation",
                 "isotopiccentrifuge",
@@ -242,6 +243,29 @@ public class MekRecipesCommand extends CraftTweakerCommand {
                             RecipeInfoHelper.getGasName(recipe.getInput().gasType),
                             RecipeInfoHelper.getItemName(recipe.getOutput().output)
                     ));
+                }
+            }
+            case "rotarycondensentrator" -> {
+                type = Recipe.ROTARY_CONDENSENTRATOR;
+                for (RotaryRecipe recipe : Recipe.ROTARY_CONDENSENTRATOR.get().values()) {
+                    if (recipe.hasFluidToGas() && recipe.hasGasToFluid()) {
+                        CraftTweakerAPI.logCommand(String.format("mods.mekanism.rotarycondensentrator.addRecipe(%s, %s, %s, %s)",
+                                RecipeInfoHelper.getFluidName(recipe.getInput().fluidInput),
+                                RecipeInfoHelper.getGasName(recipe.getInput().gasInput),
+                                RecipeInfoHelper.getGasName(recipe.getOutput().gasOutput),
+                                RecipeInfoHelper.getFluidName(recipe.getOutput().fluidOutput)
+                        ));
+                    } else if (recipe.hasFluidToGas()) {
+                        CraftTweakerAPI.logCommand(String.format("mods.mekanism.rotarycondensentrator.addFluidToGasRecipe(%s, %s)",
+                                RecipeInfoHelper.getFluidName(recipe.getInput().fluidInput),
+                                RecipeInfoHelper.getGasName(recipe.getOutput().gasOutput)
+                        ));
+                    } else if (recipe.hasGasToFluid()) {
+                        CraftTweakerAPI.logCommand(String.format("mods.mekanism.rotarycondensentrator.addGasToFluidRecipe(%s, %s)",
+                                RecipeInfoHelper.getGasName(recipe.getInput().gasInput),
+                                RecipeInfoHelper.getFluidName(recipe.getOutput().fluidOutput)
+                        ));
+                    }
                 }
             }
             case "solarneutronactivator" -> {

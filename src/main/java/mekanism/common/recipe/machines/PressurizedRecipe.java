@@ -1,14 +1,14 @@
 package mekanism.common.recipe.machines;
 
+import mekanism.api.fluid.IExtendedFluidTank;
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTank;
+import mekanism.api.gas.IExtendedGasTank;
+import mekanism.api.inventory.IInventorySlot;
 import mekanism.common.recipe.inputs.PressurizedInput;
 import mekanism.common.recipe.outputs.PressurizedOutput;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.NonNullList;
 import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.FluidTank;
 
 public class PressurizedRecipe extends MachineRecipe<PressurizedInput, PressurizedOutput, PressurizedRecipe> {
 
@@ -32,22 +32,22 @@ public class PressurizedRecipe extends MachineRecipe<PressurizedInput, Pressuriz
         ticks = extraNBT.getInteger("duration");
     }
 
+    public boolean test(ItemStack itemInput, FluidStack fluidInput, GasStack gasInput) {
+        return getInput().meets(new PressurizedInput(itemInput, fluidInput, gasInput));
+    }
+
+    public PressurizedOutput getOutput(ItemStack itemInput, FluidStack fluidInput, GasStack gasInput) {
+        return getOutput().copy();
+    }
+
     @Override
     public PressurizedRecipe copy() {
         return new PressurizedRecipe(getInput().copy(), getOutput().copy(), extraEnergy, ticks);
     }
 
-    public boolean canOperate(NonNullList<ItemStack> inventory, int inputIndex, FluidTank inputFluidTank, GasTank inputGasTank, GasTank outputGasTank, int outputIndex) {
-        return getInput().use(inventory, inputIndex, inputFluidTank, inputGasTank, false) && getOutput().applyOutputs(inventory, outputIndex, outputGasTank, false);
+    public boolean canOperate(IInventorySlot inputSlot, IExtendedFluidTank inputFluidTank, IExtendedGasTank inputGasTank,
+          IExtendedGasTank outputGasTank, IInventorySlot outputSlot) {
+        return getInput().use(inputSlot, inputFluidTank, inputGasTank, false) && getOutput().applyOutputs(outputSlot, outputGasTank, false);
     }
 
-    public void operate(NonNullList<ItemStack> inventory, int inputIndex, FluidTank inputFluidTank, GasTank inputGasTank, GasTank outputGasTank, int outputIndex) {
-        operate(inventory,inputIndex,inputFluidTank,inputGasTank,outputGasTank,outputIndex,true);
-    }
-
-    public void operate(NonNullList<ItemStack> inventory, int inputIndex, FluidTank inputFluidTank, GasTank inputGasTank, GasTank outputGasTank, int outputIndex,boolean deplete) {
-        if (getInput().use(inventory, inputIndex, inputFluidTank, inputGasTank, deplete)) {
-            getOutput().applyOutputs(inventory, outputIndex, outputGasTank, true);
-        }
-    }
 }

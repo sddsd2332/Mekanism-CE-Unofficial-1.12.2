@@ -26,7 +26,8 @@ public class SpecialColors {
     public static final ColorRegistryObject TAB_UPGRADE = GUI_OBJECTS.register();
     public static final ColorRegistryObject TAB_CONFIGURATION = GUI_OBJECTS.register();
     public static final ColorRegistryObject TAB_TRANSPORTER = GUI_OBJECTS.register();
-    public static final ColorRegistryObject TAB_DIGITAL_MINER_VISUAL = GUI_OBJECTS.register();
+    public static final ColorRegistryObject TAB_VISUALS = GUI_OBJECTS.register();
+    public static final ColorRegistryObject TAB_DIGITAL_MINER_VISUAL = TAB_VISUALS;
     public static final ColorRegistryObject TAB_ROBIT_MENU = GUI_OBJECTS.register();
     public static final ColorRegistryObject TAB_FACTORY_SORT = GUI_OBJECTS.register();
     public static final ColorRegistryObject TAB_QIO_FREQUENCY = GUI_OBJECTS.register();
@@ -42,4 +43,6 @@ public class SpecialColors {
     public static final ColorRegistryObject TEXT_HEADING = GUI_TEXT.register(0xFF202020);
     public static final ColorRegistryObject TEXT_SUBHEADING = GUI_TEXT.register(0xFF787878);
     public static final ColorRegistryObject TEXT_SCREEN = GUI_TEXT.register(0xFF3CFE9A);
+    public static final ColorRegistryObject TEXT_ACTIVE_BUTTON = GUI_TEXT.register(0xFFFFFFFF);
+    public static final ColorRegistryObject TEXT_INACTIVE_BUTTON = GUI_TEXT.register(0xFFA0A0A0);
 }

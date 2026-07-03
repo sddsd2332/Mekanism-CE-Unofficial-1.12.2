@@ -4,9 +4,15 @@ import mekanism.common.MekanismItems;
 import mekanism.common.MekanismLang;
 import mekanism.common.Upgrade;
 import mekanism.common.base.IUpgradeTile;
+import mekanism.common.base.IUpgradeableTile;
+import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.config.MekanismConfig;
+import mekanism.common.upgrade.IUpgradeData;
+import net.minecraft.block.state.IBlockState;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.World;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,7 +27,7 @@ public class UpgradeUtils {
     }
 
     public static ItemStack getStack(Upgrade upgrade, int count) {
-        switch (upgrade) {
+        return switch (upgrade) {
             case SPEED -> new ItemStack(MekanismItems.SpeedUpgrade, count);
             case ENERGY -> new ItemStack(MekanismItems.EnergyUpgrade, count);
             case FILTER -> new ItemStack(MekanismItems.FilterUpgrade, count);
@@ -30,8 +36,7 @@ public class UpgradeUtils {
             case ANCHOR -> new ItemStack(MekanismItems.AnchorUpgrade, count);
             case STONE_GENERATOR -> new ItemStack(MekanismItems.StoneGeneratorUpgrade, count);
             case THREAD -> new ItemStack(MekanismItems.ThreadUpgrade, count);
-        }
-        return ItemStack.EMPTY;
+        };
     }
 
     public static List<String> getInfo(TileEntity tile, Upgrade upgrade) {
@@ -61,5 +66,32 @@ public class UpgradeUtils {
             ret.add(MekanismLang.UPGRADES_EFFECT.translate(Math.pow(2, (float) tile.getComponent().getUpgrades(upgrade))).getFormattedText());
         }
         return ret;
+    }
+
+    public static boolean replaceTileForUpgrade(TileEntity sourceTile, IBlockState targetState, IUpgradeData upgradeData) {
+        World world = sourceTile.getWorld();
+        BlockPos pos = sourceTile.getPos();
+        if (world == null || pos == null) {
+            return false;
+        }
+        if (sourceTile instanceof IUpgradeableTile upgradeable) {
+            upgradeable.prepareForUpgrade();
+        }
+        world.setBlockToAir(pos);
+        if (!world.setBlockState(pos, targetState, 3)) {
+            return false;
+        }
+        TileEntity upgradedTile = world.getTileEntity(pos);
+        if (!(upgradedTile instanceof IUpgradeableTile)) {
+            MachineType targetType = MachineType.get(targetState);
+            if (targetType != null) {
+                TileEntity created = targetType.create();
+                if (created instanceof IUpgradeableTile) {
+                    world.setTileEntity(pos, created);
+                    upgradedTile = world.getTileEntity(pos);
+                }
+            }
+        }
+        return upgradedTile instanceof IUpgradeableTile upgradeable && upgradeable.parseUpgradeData(upgradeData);
     }
 }

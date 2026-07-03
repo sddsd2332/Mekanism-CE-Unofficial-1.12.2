@@ -4,36 +4,35 @@ import io.netty.buffer.ByteBuf;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import mekanism.api.Coord4D;
 import mekanism.api.TileNetworkList;
-import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.IGasItem;
 import mekanism.common.Mekanism;
 import mekanism.common.base.IFluidContainerManager;
+import mekanism.common.base.ITankManager;
 import mekanism.common.block.BlockBasic;
+import mekanism.common.capabilities.merged.MergedTank.CurrentType;
 import mekanism.common.content.tank.SynchronizedTankData;
 import mekanism.common.content.tank.SynchronizedTankData.ValveData;
 import mekanism.common.content.tank.TankCache;
 import mekanism.common.content.tank.TankUpdateProtocol;
 import mekanism.common.integration.computer.IComputerIntegration;
 import mekanism.common.multiblock.MultiblockManager;
-import mekanism.common.util.*;
-import mekanism.common.util.FluidContainerUtils.ContainerEditMode;
+import mekanism.common.util.InventoryUtils;
+import mekanism.common.util.TileUtils;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumHand;
 import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.items.CapabilityItemHandler;
-import net.minecraftforge.items.ItemHandlerHelper;
 
 import javax.annotation.Nonnull;
 import java.util.Set;
 
-public class TileEntityDynamicTank extends TileEntityMultiblock<SynchronizedTankData> implements IComputerIntegration, IFluidContainerManager {
+public class TileEntityDynamicTank extends TileEntityMultiblock<SynchronizedTankData> implements IComputerIntegration, IFluidContainerManager, ITankManager {
 
     protected static final int[] SLOTS = {0, 1};
+    private static final Object[] NO_TANKS = new Object[0];
 
     public static final String[] methods = new String[]{"getAmount", "getCapacity", "getLiquidType"};
 
@@ -55,7 +54,6 @@ public class TileEntityDynamicTank extends TileEntityMultiblock<SynchronizedTank
 
     public TileEntityDynamicTank(String name) {
         super(name);
-        inventory = NonNullListSynchronized.withSize(SLOTS.length, ItemStack.EMPTY);
     }
 
     @Override
@@ -107,132 +105,47 @@ public class TileEntityDynamicTank extends TileEntityMultiblock<SynchronizedTank
         }
     }
 
-    //todo
     public void manageInventory() {
         if (structure == null) {
             return;
         }
-        ItemStack input = structure.inventory.get(0);
-        if (input.isEmpty()) {
-            return;
+        ItemStack previousInput = structure.inputSlot.getStack().copy();
+        ItemStack previousOutput = structure.outputSlot.getStack().copy();
+        GasStack previousGas = structure.gasstored == null ? null : structure.gasstored.copy();
+        net.minecraftforge.fluids.FluidStack previousFluid = structure.fluidStored == null ? null : structure.fluidStored.copy();
+        CurrentType currentType = structure.inventoryMergedTank.getCurrentType();
+        if (currentType == CurrentType.EMPTY) {
+            structure.inputSlot.handleTank(structure.outputSlot, structure.editMode);
+            structure.inputSlot.drainGasTank();
+            structure.outputSlot.fillGasTank();
+        } else if (currentType == CurrentType.FLUID) {
+            structure.inputSlot.handleTank(structure.outputSlot, structure.editMode);
+        } else if (currentType.isGas()) {
+            structure.inputSlot.drainGasTank();
+            structure.outputSlot.fillGasTank();
         }
-
-        //Single-medium rules: when gas is present, only process gas items. When fluid is present, only process fluid containers.
-        if ((structure.hasGas() || (input.getItem() instanceof IGasItem && !structure.hasFluid())) && handleGasContainerItem()) {
-            Mekanism.packetHandler.sendUpdatePacket(this);
-            return;
-        }
-
-        if (structure.hasGas()) {
-            return;
-        }
-
-        int neededFluid = (structure.volume * TankUpdateProtocol.FLUID_PER_TANK) - (structure.fluidStored != null ? structure.fluidStored.amount : 0);
-        if (FluidContainerUtils.isFluidContainer(input)) {
-            FluidStack previousFluid = structure.fluidStored == null ? null : structure.fluidStored.copy();
-            ItemStack previousInput = structure.inventory.get(0).copy();
-            ItemStack previousOutput = structure.inventory.get(1).copy();
-            structure.fluidStored = FluidContainerUtils.handleContainerItem(this, structure.inventory, structure.editMode, structure.fluidStored, neededFluid, 0, 1, null);
-            if (structure.fluidStored != null && structure.fluidStored.amount <= 0) {
-                structure.fluidStored = null;
-            }
-            boolean sanitized = structure.sanitizeStoredSubstances();
-            boolean changed = sanitized || !fluidStacksEqual(previousFluid, structure.fluidStored)
-                    || !ItemStack.areItemStacksEqual(previousInput, structure.inventory.get(0))
-                    || !ItemStack.areItemStacksEqual(previousOutput, structure.inventory.get(1));
-            if (changed) {
-                markNoUpdateSync();
-                Mekanism.packetHandler.sendUpdatePacket(this);
-            }
-        }
-    }
-
-    private boolean handleGasContainerItem() {
-        ItemStack input = structure.inventory.get(0);
-        if (input.isEmpty() || !(input.getItem() instanceof IGasItem gasItem)) {
-            return false;
-        }
-        ItemStack singleInputCopy = StackUtils.size(input.copy(), 1);
-        GasStack gasInItem = gasItem.getGas(singleInputCopy);
-        int capacity = structure.volume * TankUpdateProtocol.FLUID_PER_TANK;
-        boolean changed = false;
-
-        if (structure.editMode == ContainerEditMode.FILL || (structure.editMode == ContainerEditMode.BOTH && gasInItem == null)) {
-            if (structure.gasstored == null) {
-                return false;
-            }
-            int added = GasUtils.addGas(singleInputCopy, structure.gasstored);
-            if (added > 0) {
-                if (!canOutput(singleInputCopy)) {
-                    return false;
-                }
-                structure.gasstored.amount -= added;
-                if (structure.gasstored.amount <= 0) {
-                    structure.gasstored = null;
-                }
-                moveInputToOutput(singleInputCopy);
-                changed = true;
-            }
-        } else if (structure.editMode == ContainerEditMode.EMPTY || structure.editMode == ContainerEditMode.BOTH) {
-            if (gasInItem == null || !gasItem.canProvideGas(singleInputCopy, gasInItem.getGas()) || structure.hasFluid()) {
-                return false;
-            }
-            Gas type = gasInItem.getGas();
-            if (type == null) {
-                return false;
-            }
-            if (structure.gasstored != null && !structure.gasstored.isGasEqual(gasInItem)) {
-                return false;
-            }
-            int needed = capacity - (structure.gasstored != null ? structure.gasstored.amount : 0);
-            if (needed <= 0) {
-                return false;
-            }
-            GasStack removed = GasUtils.removeGas(singleInputCopy, type, needed);
-            if (removed == null || removed.amount <= 0) {
-                return false;
-            }
-            if (!canOutput(singleInputCopy)) {
-                return false;
-            }
-            if (structure.gasstored == null) {
-                structure.gasstored = removed;
-            } else {
-                structure.gasstored.amount += removed.amount;
-            }
-            moveInputToOutput(singleInputCopy);
-            changed = true;
-        }
-
+        boolean sanitized = structure.sanitizeStoredSubstances();
+        boolean changed = sanitized || !gasStacksEqual(previousGas, structure.gasstored) || !fluidStacksEqual(previousFluid, structure.fluidStored)
+              || !ItemStack.areItemStacksEqual(previousInput, structure.inputSlot.getStack())
+              || !ItemStack.areItemStacksEqual(previousOutput, structure.outputSlot.getStack());
         if (changed) {
-            if (structure.gasstored != null && structure.gasstored.amount > capacity) {
-                structure.gasstored.amount = capacity;
-            }
-            structure.sanitizeStoredSubstances();
             markNoUpdateSync();
+            Mekanism.packetHandler.sendUpdatePacket(this);
         }
-        return changed;
     }
 
-    private boolean canOutput(ItemStack resultStack) {
-        ItemStack output = structure.inventory.get(1);
-        return output.isEmpty() || (ItemHandlerHelper.canItemStacksStack(output, resultStack) && output.getCount() < output.getMaxStackSize());
-    }
-
-    private void moveInputToOutput(ItemStack resultStack) {
-        if (structure.inventory.get(1).isEmpty()) {
-            structure.inventory.set(1, resultStack);
-        } else {
-            structure.inventory.get(1).grow(1);
-        }
-        structure.inventory.get(0).shrink(1);
-    }
-
-    private static boolean fluidStacksEqual(FluidStack first, FluidStack second) {
+    private static boolean fluidStacksEqual(net.minecraftforge.fluids.FluidStack first, net.minecraftforge.fluids.FluidStack second) {
         if (first == null || second == null) {
             return first == second;
         }
         return first.amount == second.amount && first.isFluidEqual(second);
+    }
+
+    private static boolean gasStacksEqual(GasStack first, GasStack second) {
+        if (first == null || second == null) {
+            return first == second;
+        }
+        return first.amount == second.amount && first.isGasEqual(second);
     }
 
     @Override
@@ -252,7 +165,7 @@ public class TileEntityDynamicTank extends TileEntityMultiblock<SynchronizedTank
 
     @Override
     protected SynchronizedTankData getNewStructure() {
-        return new SynchronizedTankData();
+        return new SynchronizedTankData(this);
     }
 
     @Override
@@ -301,7 +214,7 @@ public class TileEntityDynamicTank extends TileEntityMultiblock<SynchronizedTank
         if (FMLCommonHandler.instance().getEffectiveSide().isClient()) {
             if (clientHasStructure) {
                 clientCapacity = dataStream.readInt();
-                structure.editMode = MekanismUtils.getByIndex(ContainerEditMode.values(), dataStream.readInt(), structure.editMode);
+                structure.editMode = ContainerEditMode.byIndexStatic(dataStream.readInt());
                 structure.fluidStored = TileUtils.readFluidStack(dataStream);
                 structure.gasstored = TileUtils.readGasStack(dataStream);
                 structure.sanitizeStoredSubstances();
@@ -340,24 +253,37 @@ public class TileEntityDynamicTank extends TileEntityMultiblock<SynchronizedTank
 
     @Override
     public void setContainerEditMode(ContainerEditMode mode) {
-        if (structure == null) {
-            return;
+        if (structure != null && structure.editMode != mode) {
+            structure.editMode = mode;
+            markNoUpdateSync();
+            Mekanism.packetHandler.sendUpdatePacket(this);
         }
-        structure.editMode = mode;
     }
 
     @Nonnull
     @Override
     public int[] getSlotsForFace(@Nonnull EnumFacing side) {
-        return InventoryUtils.EMPTY;
+        return exposesInventoryToAutomation() ? super.getSlotsForFace(side) : InventoryUtils.EMPTY;
     }
 
     @Override
     public boolean isCapabilityDisabled(@Nonnull Capability<?> capability, EnumFacing side) {
-        if (capability == CapabilityItemHandler.ITEM_HANDLER_CAPABILITY) {
+        if (capability == CapabilityItemHandler.ITEM_HANDLER_CAPABILITY && !exposesInventoryToAutomation()) {
             return true;
         }
         return super.isCapabilityDisabled(capability, side);
+    }
+
+    protected boolean exposesInventoryToAutomation() {
+        return false;
+    }
+
+    @Override
+    public Object[] getManagedTanks() {
+        if (structure == null) {
+            return NO_TANKS;
+        }
+        return new Object[]{structure.inventoryMergedTank.getFluidTank(), structure.inventoryMergedTank.getGasTank()};
     }
 
     @Override

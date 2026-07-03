@@ -1,21 +1,18 @@
 package mekanism.common.tile.multiblock;
 
 import io.netty.buffer.ByteBuf;
-import mekanism.api.Coord4D;
-import mekanism.api.EnumColor;
-import mekanism.api.IConfigurable;
-import mekanism.api.TileNetworkList;
+import mekanism.api.*;
+import mekanism.api.energy.IEnergyContainer;
 import mekanism.api.energy.IStrictEnergyAcceptor;
 import mekanism.api.energy.IStrictEnergyStorage;
-import mekanism.api.gas.Gas;
-import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTankInfo;
-import mekanism.api.gas.IGasHandler;
+import mekanism.api.gas.IExtendedGasTank;
 import mekanism.common.Mekanism;
-import mekanism.common.MekanismFluids;
 import mekanism.common.base.IActiveState;
-import mekanism.common.capabilities.Capabilities;
 import mekanism.common.capabilities.CapabilityWrapperManager;
+import mekanism.common.capabilities.holder.energy.IEnergyContainerHolder;
+import mekanism.common.capabilities.holder.energy.ProxiedEnergyContainerHolder;
+import mekanism.common.capabilities.holder.gas.IGasTankHolder;
+import mekanism.common.capabilities.holder.gas.ProxiedGasTankHolder;
 import mekanism.common.content.sps.SynchronizedSPSData;
 import mekanism.common.integration.forgeenergy.ForgeEnergyIntegration;
 import mekanism.common.util.GasUtils;
@@ -32,8 +29,10 @@ import net.minecraftforge.energy.IEnergyStorage;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 
 import javax.annotation.Nonnull;
+import java.util.Collections;
+import java.util.List;
 
-public class TileEntitySPSPort extends TileEntitySPSCasing implements IGasHandler, IConfigurable, IActiveState, IStrictEnergyStorage, IStrictEnergyAcceptor {
+public class TileEntitySPSPort extends TileEntitySPSCasing implements IConfigurable, IActiveState, IStrictEnergyStorage, IStrictEnergyAcceptor, IEnergyContainer {
 
     private static final double MAX_PORT_ENERGY = SynchronizedSPSData.ENERGY_PER_INPUT * SynchronizedSPSData.INPUT_CAPACITY;
 
@@ -43,25 +42,50 @@ public class TileEntitySPSPort extends TileEntitySPSCasing implements IGasHandle
 
     public TileEntitySPSPort() {
         super("SpsPort");
+        initializeInventorySlots();
+    }
+
+    @Override
+    protected IGasTankHolder getInitialGasTanks(IContentsListener listener) {
+        return ProxiedGasTankHolder.create(
+              side -> isFormed() && !outputMode,
+              side -> isFormed() && outputMode,
+              this::getSPSGasTanks
+        );
+    }
+
+    @Override
+    protected IEnergyContainerHolder getInitialEnergyContainers(IContentsListener listener) {
+        return ProxiedEnergyContainerHolder.create(
+              side -> side != null,
+              side -> false,
+              side -> Collections.singletonList(this)
+        );
+    }
+
+    private List<IExtendedGasTank> getSPSGasTanks(EnumFacing side) {
+        if (!isFormed()) {
+            return Collections.emptyList();
+        }
+        return outputMode ? Collections.singletonList(structure.outputTank) : Collections.singletonList(structure.inputTank);
+    }
+
+    private boolean isFormed() {
+        return structure != null && structure.isFormed();
     }
 
     @Override
     public void onUpdateServer() {
         super.onUpdateServer();
-        if (structure != null && outputMode && structure.outputTank.getGas() != null && structure.outputTank.getGas().amount > 0) {
-            GasStack toSend = structure.outputTank.getGas().copy();
-            toSend.amount = Math.min(toSend.amount, 16);
-            int sent = GasUtils.emit(toSend, this, java.util.EnumSet.allOf(EnumFacing.class));
-            if (sent > 0) {
-                structure.outputTank.draw(sent, true);
-            }
+        if (structure != null && outputMode) {
+            GasUtils.emit(java.util.EnumSet.allOf(EnumFacing.class), structure.outputTank, this, 16);
         }
         if (structure != null && energy > 0) {
             Coord4D portPos = Coord4D.get(this);
             if (structure.canSupplyPortEnergy(portPos)) {
                 double toSupply = energy;
                 structure.addEnergy(portPos, toSupply);
-                setEnergy(energy - toSupply);
+                extract(toSupply, Action.EXECUTE, AutomationType.INTERNAL);
             }
         }
     }
@@ -87,17 +111,10 @@ public class TileEntitySPSPort extends TileEntitySPSCasing implements IGasHandle
 
     @Override
     public double acceptEnergy(EnumFacing side, double amount, boolean simulate) {
-        if (amount <= 0 || (side != null && !canReceiveEnergy(side))) {
+        if (amount <= 0 || !canReceiveEnergy(side)) {
             return 0;
         }
-        double accepted = Math.min(getMaxEnergy() - energy, amount);
-        if (accepted <= 0) {
-            return 0;
-        }
-        if (!simulate) {
-            setEnergy(energy + accepted);
-        }
-        return accepted;
+        return amount - insert(amount, Action.get(!simulate), AutomationType.handler(side));
     }
 
     @Override
@@ -106,45 +123,8 @@ public class TileEntitySPSPort extends TileEntitySPSCasing implements IGasHandle
     }
 
     @Override
-    public int receiveGas(EnumFacing side, GasStack stack, boolean doTransfer) {
-        if (stack == null || stack.getGas() == null || !canReceiveGas(side, stack.getGas()) || structure == null) {
-            return 0;
-        }
-        return structure.inputTank.receive(stack, doTransfer);
-    }
-
-    @Override
-    public GasStack drawGas(EnumFacing side, int amount, boolean doTransfer) {
-        if (!canDrawGas(side, null) || structure == null) {
-            return null;
-        }
-        return structure.outputTank.draw(amount, doTransfer);
-    }
-
-    @Override
-    public boolean canReceiveGas(EnumFacing side, Gas type) {
-        return structure != null && !outputMode && type == MekanismFluids.Polonium && structure.inputTank.canReceive(type);
-    }
-
-    @Override
-    public boolean canDrawGas(EnumFacing side, Gas type) {
-        return structure != null && outputMode && structure.outputTank.canDraw(type);
-    }
-
-    @Nonnull
-    @Override
-    public GasTankInfo[] getTankInfo() {
-        if (structure == null) {
-            return IGasHandler.NONE;
-        }
-        return new GasTankInfo[]{structure.inputTank, structure.outputTank};
-    }
-
-    @Override
     public boolean hasCapability(@Nonnull Capability<?> capability, EnumFacing side) {
-        if (capability == Capabilities.GAS_HANDLER_CAPABILITY || capability == Capabilities.CONFIGURABLE_CAPABILITY
-                || capability == Capabilities.ENERGY_STORAGE_CAPABILITY || capability == Capabilities.ENERGY_ACCEPTOR_CAPABILITY
-                || capability == CapabilityEnergy.ENERGY) {
+        if (capability == CapabilityEnergy.ENERGY) {
             return true;
         }
         return super.hasCapability(capability, side);
@@ -152,10 +132,6 @@ public class TileEntitySPSPort extends TileEntitySPSCasing implements IGasHandle
 
     @Override
     public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing side) {
-        if (capability == Capabilities.GAS_HANDLER_CAPABILITY || capability == Capabilities.CONFIGURABLE_CAPABILITY
-                || capability == Capabilities.ENERGY_STORAGE_CAPABILITY || capability == Capabilities.ENERGY_ACCEPTOR_CAPABILITY) {
-            return (T) this;
-        }
         if (capability == CapabilityEnergy.ENERGY) {
             return CapabilityEnergy.ENERGY.cast(forgeEnergyManager.getWrapper(this, side));
         }

@@ -1,15 +1,15 @@
 package mekanism.common.content.sps;
 
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
 import mekanism.api.Coord4D;
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTank;
 import mekanism.api.math.MathUtils;
 import mekanism.common.MekanismFluids;
+import mekanism.common.capabilities.tank.ValidatingGasTank;
 import mekanism.common.multiblock.SynchronizedData;
-import mekanism.common.util.NonNullListSynchronized;
 import net.minecraft.entity.Entity;
-import net.minecraft.item.ItemStack;
 import net.minecraft.util.DamageSource;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.AxisAlignedBB;
@@ -24,8 +24,8 @@ public class SynchronizedSPSData extends SynchronizedData<SynchronizedSPSData> {
     public static final int OUTPUT_CAPACITY = 1_000;
     public static final double ENERGY_PER_INPUT = 1_000_000D;
 
-    public final GasTank inputTank = new GasTank(INPUT_CAPACITY);
-    public final GasTank outputTank = new GasTank(OUTPUT_CAPACITY);
+    public final ValidatingGasTank inputTank = new ValidatingGasTank(INPUT_CAPACITY, gas -> gas == MekanismFluids.Polonium);
+    public final ValidatingGasTank outputTank = new ValidatingGasTank(OUTPUT_CAPACITY, gas -> gas == MekanismFluids.Antimatter);
 
     public final Map<Coord4D, Coord4D> portToCoilMap = new Object2ObjectOpenHashMap<>();
     public final Map<Coord4D, Integer> coilLevels = new Object2ObjectOpenHashMap<>();
@@ -43,9 +43,9 @@ public class SynchronizedSPSData extends SynchronizedData<SynchronizedSPSData> {
     private GasStack prevInput;
     private GasStack prevOutput;
 
-    @Override
-    public NonNullListSynchronized<ItemStack> getInventory() {
-        return null;
+    public SynchronizedSPSData() {
+        gasTanks.add(inputTank);
+        gasTanks.add(outputTank);
     }
 
     public void tick(World world) {
@@ -93,11 +93,12 @@ public class SynchronizedSPSData extends SynchronizedData<SynchronizedSPSData> {
         if (operations == 0) {
             return 0;
         }
-        long processed = inputTank.draw(operations, true).amount;
+        GasStack extracted = inputTank.extract(operations, Action.EXECUTE, AutomationType.INTERNAL);
+        long processed = extracted == null ? 0 : extracted.amount;
         inputProcessed += MathUtils.clampToInt(processed);
         if (inputProcessed >= INPUT_PER_ANTIMATTER) {
             GasStack toAdd = new GasStack(MekanismFluids.Antimatter, inputProcessed / INPUT_PER_ANTIMATTER);
-            outputTank.receive(toAdd, true);
+            outputTank.insert(toAdd, Action.EXECUTE, AutomationType.INTERNAL);
             inputProcessed %= INPUT_PER_ANTIMATTER;
         }
         return processed;
@@ -105,6 +106,11 @@ public class SynchronizedSPSData extends SynchronizedData<SynchronizedSPSData> {
 
     public boolean canOperate() {
         return inputTank.getGas() != null && outputTank.getNeeded() > 0;
+    }
+
+    public void clampTanksToCapacity() {
+        clampTank(inputTank);
+        clampTank(outputTank);
     }
 
     public boolean canSupplyCoilEnergy(Coord4D coilPos, Coord4D portPos) {
@@ -148,6 +154,30 @@ public class SynchronizedSPSData extends SynchronizedData<SynchronizedSPSData> {
 
     public double getScaledProgress() {
         return (inputProcessed + progress) / INPUT_PER_ANTIMATTER;
+    }
+
+    public boolean sanitizeStoredGases() {
+        boolean changed = false;
+        changed |= sanitizeTank(inputTank);
+        changed |= sanitizeTank(outputTank);
+        return changed;
+    }
+
+    private static void clampTank(ValidatingGasTank tank) {
+        GasStack gas = tank.getGas();
+        if (gas != null) {
+            tank.setStackSize(gas.amount, Action.EXECUTE);
+        }
+        sanitizeTank(tank);
+    }
+
+    private static boolean sanitizeTank(ValidatingGasTank tank) {
+        GasStack gas = tank.getGas();
+        if (gas != null && (gas.amount <= 0 || !tank.isValid(gas))) {
+            tank.setEmpty();
+            return true;
+        }
+        return false;
     }
 
     public boolean needsRenderUpdate() {

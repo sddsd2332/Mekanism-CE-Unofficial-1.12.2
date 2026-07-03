@@ -1,9 +1,9 @@
 package mekanism.common.recipe.machines;
 
+import mekanism.api.fluid.IExtendedFluidTank;
 import mekanism.common.recipe.inputs.FluidInput;
 import mekanism.common.recipe.outputs.FluidOutput;
 import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.FluidTank;
 
 public class ThermalEvaporationRecipe extends MachineRecipe<FluidInput, FluidOutput, ThermalEvaporationRecipe> {
 
@@ -20,13 +20,8 @@ public class ThermalEvaporationRecipe extends MachineRecipe<FluidInput, FluidOut
         return new ThermalEvaporationRecipe(getInput(), getOutput());
     }
 
-    public boolean canOperate(FluidTank inputTank, FluidTank outputTank) {
+    public boolean canOperate(IExtendedFluidTank inputTank, IExtendedFluidTank outputTank) {
         return getInput().useFluid(inputTank, false, 1) && getOutput().applyOutputs(outputTank, false);
     }
 
-    public void operate(FluidTank inputTank, FluidTank outputTank) {
-        if (getInput().useFluid(inputTank, true, 1)) {
-            getOutput().applyOutputs(outputTank, true);
-        }
-    }
 }

@@ -4,6 +4,7 @@ import mekanism.api.EnumColor;
 import mekanism.client.MekanismClient;
 import mekanism.common.Mekanism;
 import mekanism.common.config.MekanismConfig;
+import mekanism.common.entity.EntityRobit;
 import mekanism.common.frequency.Frequency;
 import mekanism.common.security.*;
 import mekanism.common.security.ISecurityTile.SecurityMode;
@@ -45,6 +46,16 @@ public final class SecurityUtils {
         return canAccess(security.getSecurity().getMode(), player, security.getSecurity().getOwnerUUID());
     }
 
+    public static boolean canAccess(EntityPlayer player, EntityRobit robit) {
+        if (robit == null) {
+            return true;
+        }
+        if (MekanismUtils.isOp(player)) {
+            return true;
+        }
+        return canAccess(robit.getSecurityMode(), player, robit.getOwnerUUID());
+    }
+
     private static boolean canAccess(SecurityMode mode, EntityPlayer player, UUID owner) {
         // If protection is disabled, access is always granted
         if (!MekanismConfig.current().general.allowProtection.val()) {
@@ -70,13 +81,27 @@ public final class SecurityUtils {
 
     public static SecurityFrequency getFrequency(UUID uuid) {
         if (uuid != null) {
-            for (Frequency f : Mekanism.securityFrequencies.getFrequencies()) {
-                if (f instanceof SecurityFrequency frequency && f.ownerUUID.equals(uuid)) {
+            for (SecurityFrequency frequency : Mekanism.securityFrequencies.getFrequencies()) {
+                if (frequency.ownerUUID.equals(uuid)) {
                     return frequency;
                 }
             }
         }
         return null;
+    }
+
+    public static boolean isTrusted(SecurityMode mode, UUID owner, UUID subject) {
+        if (mode != SecurityMode.TRUSTED) {
+            return false;
+        }
+        if (owner == null || subject == null) {
+            return false;
+        }
+        if (owner.equals(subject)) {
+            return true;
+        }
+        SecurityFrequency frequency = getFrequency(owner);
+        return frequency != null && frequency.isTrusted(subject);
     }
 
     public static String getOwnerDisplay(EntityPlayer player, String ownerName) {
@@ -144,6 +169,25 @@ public final class SecurityUtils {
         return mode.getDisplay();
     }
 
+    public static String getSecurityDisplay(EntityRobit robit, Side side) {
+        SecurityMode mode = robit.getSecurityMode();
+        UUID owner = robit.getOwnerUUID();
+        if (owner != null) {
+            if (side == Side.SERVER) {
+                SecurityFrequency freq = getFrequency(owner);
+                if (freq != null && freq.override) {
+                    mode = freq.securityMode;
+                }
+            } else if (side == Side.CLIENT) {
+                SecurityData data = MekanismClient.clientSecurityMap.get(owner);
+                if (data != null && data.override) {
+                    mode = data.mode;
+                }
+            }
+        }
+        return mode.getDisplay();
+    }
+
     public static boolean isOverridden(ItemStack stack, Side side) {
         ISecurityItem security = (ISecurityItem) stack.getItem();
         if (security.getOwnerUUID(stack) == null) {
@@ -167,6 +211,19 @@ public final class SecurityUtils {
             return freq != null && freq.override;
         }
         SecurityData data = MekanismClient.clientSecurityMap.get(security.getSecurity().getOwnerUUID());
+        return data != null && data.override;
+    }
+
+    public static boolean isOverridden(EntityRobit robit, Side side) {
+        UUID owner = robit.getOwnerUUID();
+        if (owner == null) {
+            return false;
+        }
+        if (side == Side.SERVER) {
+            SecurityFrequency freq = getFrequency(owner);
+            return freq != null && freq.override;
+        }
+        SecurityData data = MekanismClient.clientSecurityMap.get(owner);
         return data != null && data.override;
     }
 }

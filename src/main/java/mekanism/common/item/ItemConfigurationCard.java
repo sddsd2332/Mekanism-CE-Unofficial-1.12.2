@@ -3,6 +3,7 @@ package mekanism.common.item;
 import mekanism.api.EnumColor;
 import mekanism.api.IConfigCardAccess.ISpecialConfigData;
 import mekanism.common.Mekanism;
+import mekanism.common.advancements.MekanismCriteriaTriggers;
 import mekanism.common.base.IRedstoneControl;
 import mekanism.common.base.IRedstoneControl.RedstoneControl;
 import mekanism.common.base.ISideConfiguration;
@@ -16,6 +17,7 @@ import mekanism.common.util.SecurityUtils;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.item.EnumRarity;
 import net.minecraft.item.IItemPropertyGetter;
 import net.minecraft.item.ItemStack;
@@ -75,6 +77,9 @@ public class ItemConfigurationCard extends ItemMekanism {
                         data.setString("dataType", getNameFromTile(tileEntity, side));
                         setData(stack, data);
                         player.sendMessage(new TextComponentString(EnumColor.DARK_BLUE + Mekanism.LOG_TAG + " " + EnumColor.GREY + LangUtils.localize("tooltip.configurationCard.got").replaceAll("%s", EnumColor.INDIGO + LangUtils.localize(data.getString("dataType")) + EnumColor.GREY)));
+                        if (player instanceof EntityPlayerMP playerMP) {
+                            MekanismCriteriaTriggers.CONFIGURATION_CARD.trigger(playerMP, true);
+                        }
                     }
                 }
             } else {
@@ -84,13 +89,16 @@ public class ItemConfigurationCard extends ItemMekanism {
                 }
                 if (!world.isRemote) {
                     if (getNameFromTile(tileEntity, side).equals(getDataType(stack))) {
-                        setBaseData(data, tileEntity);
+                        setBaseData(data, tileEntity, player);
                         if (CapabilityUtils.hasCapability(tileEntity, Capabilities.SPECIAL_CONFIG_DATA_CAPABILITY, side)) {
                             ISpecialConfigData special = CapabilityUtils.getCapability(tileEntity, Capabilities.SPECIAL_CONFIG_DATA_CAPABILITY, side);
                             special.setConfigurationData(data);
                         }
                         updateTile(tileEntity);
                         player.sendMessage(new TextComponentString(EnumColor.DARK_BLUE + Mekanism.LOG_TAG + " " + EnumColor.DARK_GREEN + LangUtils.localize("tooltip.configurationCard.set").replaceAll("%s", EnumColor.INDIGO + LangUtils.localize(getDataType(stack)) + EnumColor.DARK_GREEN)));
+                        if (player instanceof EntityPlayerMP playerMP) {
+                            MekanismCriteriaTriggers.CONFIGURATION_CARD.trigger(playerMP, false);
+                        }
                     } else {
                         player.sendMessage(new TextComponentString(EnumColor.DARK_BLUE + Mekanism.LOG_TAG + " " + EnumColor.RED + LangUtils.localize("tooltip.configurationCard.unequal") + "."));
                     }
@@ -136,10 +144,13 @@ public class ItemConfigurationCard extends ItemMekanism {
             configuration.getConfig().write(nbtTags);
             configuration.getEjector().write(nbtTags);
         }
+        if (tile instanceof TileEntityContainerBlock block) {
+            block.getFrequencyComponent().writeConfiguredFrequencies(nbtTags);
+        }
         return nbtTags;
     }
 
-    private void setBaseData(NBTTagCompound nbtTags, TileEntity tile) {
+    private void setBaseData(NBTTagCompound nbtTags, TileEntity tile, EntityPlayer player) {
         if (tile instanceof IRedstoneControl control) {
             int controlType = nbtTags.getInteger("controlType");
             if (controlType >= 0 && controlType < RedstoneControl.values().length) {
@@ -149,6 +160,9 @@ public class ItemConfigurationCard extends ItemMekanism {
         if (tile instanceof ISideConfiguration configuration) {
             configuration.getConfig().read(nbtTags);
             configuration.getEjector().read(nbtTags);
+        }
+        if (tile instanceof TileEntityContainerBlock block) {
+            block.getFrequencyComponent().readConfiguredFrequencies(player.getUniqueID(), nbtTags);
         }
     }
 

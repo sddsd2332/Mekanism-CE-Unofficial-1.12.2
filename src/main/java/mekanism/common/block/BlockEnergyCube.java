@@ -1,7 +1,6 @@
 package mekanism.common.block;
 
 import mekanism.api.IMekWrench;
-import mekanism.api.energy.IEnergizedItem;
 import mekanism.common.Mekanism;
 import mekanism.common.MekanismBlocks;
 import mekanism.common.base.ISideConfiguration;
@@ -19,6 +18,7 @@ import mekanism.common.tile.prefab.TileEntityBasicBlock;
 import mekanism.common.util.ItemDataUtils;
 import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.SecurityUtils;
+import mekanism.common.util.StorageUtils;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.BlockStateContainer;
@@ -137,7 +137,7 @@ public class BlockEnergyCube extends BlockMekanismContainer {
             list.add(discharged);
             ItemStack charged = new ItemStack(this);
             ((ItemBlockEnergyCube) charged.getItem()).setBaseTier(charged, tier.getBaseTier());
-            ((ItemBlockEnergyCube) charged.getItem()).setEnergy(charged, tier.getMaxEnergy());
+            ((ItemBlockEnergyCube) charged.getItem()).setStoredEnergy(charged, tier.getMaxEnergy());
             list.add(charged);
         }
     }
@@ -234,8 +234,7 @@ public class BlockEnergyCube extends BlockMekanismContainer {
         ITierItem tierItem = (ITierItem) itemStack.getItem();
         tierItem.setBaseTier(itemStack, tileEntity.tier.getBaseTier());
 
-        IEnergizedItem energizedItem = (IEnergizedItem) itemStack.getItem();
-        energizedItem.setEnergy(itemStack, tileEntity.electricityStored.get());
+        StorageUtils.setStoredEnergy(itemStack, tileEntity.electricityStored.get(), tileEntity.getMaxEnergy());
 
         ISustainedInventory inventory = (ISustainedInventory) itemStack.getItem();
         inventory.setInventory(tileEntity.getInventory(), itemStack);

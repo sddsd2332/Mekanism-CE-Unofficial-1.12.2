@@ -1,5 +1,6 @@
 package mekanism.common.content.assemblicator;
 
+import mekanism.api.inventory.IInventorySlot;
 import mekanism.common.Mekanism;
 import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.RecipeUtils;
@@ -31,6 +32,17 @@ public class RecipeFormula {
         recipe = RecipeUtils.getRecipeFromGrid(dummy, world);
     }
 
+    public RecipeFormula(World world, List<IInventorySlot> craftingGridSlots) {
+        for (int i = 0; i < craftingGridSlots.size(); i++) {
+            IInventorySlot craftingSlot = craftingGridSlots.get(i);
+            if (!craftingSlot.isEmpty()) {
+                input.set(i, StackUtils.size(craftingSlot.getStack(), 1));
+            }
+        }
+        resetToRecipe();
+        recipe = RecipeUtils.getRecipeFromGrid(dummy, world);
+    }
+
     private void resetToRecipe() {
         for (int i = 0; i < 9; i++) {
             dummy.setInventorySlotContents(i, input.get(i));
@@ -42,6 +54,24 @@ public class RecipeFormula {
             dummy.setInventorySlotContents(i, newInput.get(start + i));
         }
         return recipe.matches(dummy, world);
+    }
+
+    public boolean matches(World world, List<IInventorySlot> craftingGridSlots) {
+        if (recipe == null) {
+            return false;
+        }
+        for (int i = 0; i < craftingGridSlots.size(); i++) {
+            dummy.setInventorySlotContents(i, StackUtils.size(craftingGridSlots.get(i).getStack(), 1));
+        }
+        return recipe.matches(dummy, world);
+    }
+
+    public ItemStack assemble() {
+        return recipe == null ? ItemStack.EMPTY : recipe.getCraftingResult(dummy);
+    }
+
+    public NonNullList<ItemStack> getRemainingItems() {
+        return recipe == null ? NonNullList.create() : recipe.getRemainingItems(dummy);
     }
 
     public boolean isIngredientInPos(World world, ItemStack stack, int i) {

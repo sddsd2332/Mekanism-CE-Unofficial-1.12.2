@@ -1,13 +1,15 @@
 package mekanism.common.recipe.inputs;
 
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
+import mekanism.api.fluid.IExtendedFluidTank;
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTank;
+import mekanism.api.gas.IExtendedGasTank;
+import mekanism.api.inventory.IInventorySlot;
 import mekanism.common.util.StackUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.NonNullList;
 import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.FluidTank;
 import net.minecraftforge.oredict.OreDictionary;
 
 /**
@@ -43,12 +45,12 @@ public class PressurizedInput extends MachineInput<PressurizedInput> implements 
         return !theSolid.isEmpty() && theFluid != null && theGas != null;
     }
 
-    public boolean use(NonNullList<ItemStack> inventory, int index, FluidTank fluidTank, GasTank gasTank, boolean deplete) {
-        if (meets(new PressurizedInput(inventory.get(index), fluidTank.getFluid(), gasTank.getGas()))) {
+    public boolean use(IInventorySlot slot, IExtendedFluidTank fluidTank, IExtendedGasTank gasTank, boolean deplete) {
+        if (meets(new PressurizedInput(slot.getStack(), fluidTank.getFluid(), gasTank.getGas()))) {
             if (deplete) {
-                inventory.set(index, StackUtils.subtract(inventory.get(index), theSolid));
-                fluidTank.drain(theFluid.amount, true);
-                gasTank.draw(theGas.amount, true);
+                slot.shrinkStack(theSolid.getCount(), Action.EXECUTE);
+                fluidTank.extract(theFluid.amount, Action.EXECUTE, AutomationType.INTERNAL);
+                gasTank.extract(theGas.amount, Action.EXECUTE, AutomationType.INTERNAL);
             }
             return true;
         }

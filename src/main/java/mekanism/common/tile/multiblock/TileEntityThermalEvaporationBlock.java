@@ -6,9 +6,7 @@ import mekanism.common.integration.computer.IComputerIntegration;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
 import mekanism.common.util.InventoryUtils;
 import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.NonNullListSynchronized;
 import net.minecraft.block.Block;
-import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
@@ -28,12 +26,11 @@ public class TileEntityThermalEvaporationBlock extends TileEntityContainerBlock 
 
     public TileEntityThermalEvaporationBlock() {
         super("ThermalEvaporationBlock");
-        inventory = NonNullListSynchronized.withSize(0, ItemStack.EMPTY);
+        initializeInventorySlots();
     }
 
     public TileEntityThermalEvaporationBlock(String fullName) {
         super(fullName);
-        inventory = NonNullListSynchronized.withSize(0, ItemStack.EMPTY);
     }
 
 

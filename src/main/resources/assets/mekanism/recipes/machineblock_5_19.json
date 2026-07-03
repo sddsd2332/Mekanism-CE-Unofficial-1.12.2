@@ -26,8 +26,8 @@
                   "type": "forge:ore_dict"
             },
             "O": {
-                  "item": "mekanism:machineblock2",
-                  "data": 6
+                  "item": "mekanism:machineblock3",
+                  "data": 13
             }
       }
 }

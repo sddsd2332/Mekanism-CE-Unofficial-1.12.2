@@ -1,21 +1,23 @@
 package mekanism.common.tile;
 
 import io.netty.buffer.ByteBuf;
-import mekanism.api.Coord4D;
-import mekanism.api.IHeatTransfer;
-import mekanism.api.TileNetworkList;
+import mekanism.api.*;
 import mekanism.common.Mekanism;
 import mekanism.common.base.IActiveState;
 import mekanism.common.capabilities.Capabilities;
+import mekanism.common.capabilities.heat.BasicHeatCapacitor;
+import mekanism.common.capabilities.holder.heat.HeatCapacitorHelper;
+import mekanism.common.capabilities.holder.heat.IHeatCapacitorHolder;
+import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
+import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
 import mekanism.common.config.MekanismConfig;
+import mekanism.common.inventory.slot.FuelInventorySlot;
 import mekanism.common.security.ISecurityTile;
 import mekanism.common.tile.component.TileComponentSecurity;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
 import mekanism.common.util.CapabilityUtils;
 import mekanism.common.util.HeatUtils;
 import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.NonNullListSynchronized;
-import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.tileentity.TileEntityFurnace;
@@ -28,7 +30,6 @@ import javax.annotation.Nonnull;
 public class TileEntityFuelwoodHeater extends TileEntityContainerBlock implements IHeatTransfer, ISecurityTile, IActiveState {
 
     public double temperature;
-    public double heatToAbsorb = 0;
 
     public int burnTime;
     public int maxBurnTime;
@@ -49,12 +50,29 @@ public class TileEntityFuelwoodHeater extends TileEntityContainerBlock implement
     public int updateDelay;
 
     public double lastEnvironmentLoss;
+    public double lastTransferLoss;
 
     public TileComponentSecurity securityComponent = new TileComponentSecurity(this);
+    private FuelInventorySlot fuelSlot;
+    private BasicHeatCapacitor heatCapacitor;
 
     public TileEntityFuelwoodHeater() {
         super("FuelwoodHeater");
-        inventory = NonNullListSynchronized.withSize(1, ItemStack.EMPTY);
+        initializeInventorySlots();
+    }
+
+    @Override
+    protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
+        InventorySlotHelper builder = createInventorySlotHelper();
+        fuelSlot = builder.addSlot(FuelInventorySlot.forFuel(stack -> TileEntityFurnace.getItemBurnTime(stack) / 2, listener, 15, 29), RelativeSide.values());
+        return builder.build();
+    }
+
+    @Override
+    protected IHeatCapacitorHolder getInitialHeatCapacitors(IContentsListener listener) {
+        HeatCapacitorHelper builder = createHeatCapacitorHelper();
+        heatCapacitor = builder.addCapacitor(BasicHeatCapacitor.create(100, 5, 1_000, () -> IHeatTransfer.AMBIENT_TEMP, listener));
+        return builder.build();
     }
 
     @Override
@@ -84,23 +102,15 @@ public class TileEntityFuelwoodHeater extends TileEntityContainerBlock implement
             burnTime--;
             burning = true;
         } else {
-            if (!inventory.get(0).isEmpty()) {
-                maxBurnTime = burnTime = TileEntityFurnace.getItemBurnTime(inventory.get(0)) / 2;
-                if (burnTime > 0) {
-                    ItemStack preShrunk = inventory.get(0).copy();
-                    inventory.get(0).shrink(1);
-                    if (inventory.get(0).getCount() == 0) {
-                        inventory.set(0, preShrunk.getItem().getContainerItem(preShrunk));
-                    }
-                    burning = true;
-                }
-            }
+            maxBurnTime = burnTime = fuelSlot.burn();
+            burning = burnTime > 0;
         }
         if (burning) {
-            heatToAbsorb += MekanismConfig.current().general.heatPerFuelTick.val();
+            transferHeatTo(MekanismConfig.current().general.heatPerFuelTick.val());
         }
         double[] loss = simulateHeat();
         applyTemperatureChange();
+        lastTransferLoss = loss[0];
         lastEnvironmentLoss = loss[1];
         setActive(burning);
     }
@@ -108,7 +118,13 @@ public class TileEntityFuelwoodHeater extends TileEntityContainerBlock implement
     @Override
     public void readCustomNBT(NBTTagCompound nbtTags) {
         super.readCustomNBT(nbtTags);
-        temperature = nbtTags.getDouble("temperature");
+        if (heatCapacitor != null && nbtTags.hasKey("heatStored")) {
+            heatCapacitor.deserializeNBT(nbtTags.getCompoundTag("heatStored"));
+            temperature = getTemp();
+        } else {
+            temperature = nbtTags.getDouble("temperature");
+            syncHeatCapacitorFromTemperature();
+        }
         clientActive = isActive = nbtTags.getBoolean("isActive");
         burnTime = nbtTags.getInteger("burnTime");
         maxBurnTime = nbtTags.getInteger("maxBurnTime");
@@ -117,7 +133,10 @@ public class TileEntityFuelwoodHeater extends TileEntityContainerBlock implement
     @Override
     public void writeCustomNBT(NBTTagCompound nbtTags) {
         super.writeCustomNBT(nbtTags);
-        nbtTags.setDouble("temperature", temperature);
+        nbtTags.setDouble("temperature", getTemp());
+        if (heatCapacitor != null) {
+            nbtTags.setTag("heatStored", heatCapacitor.serializeNBT());
+        }
         nbtTags.setBoolean("isActive", isActive);
         nbtTags.setInteger("burnTime", burnTime);
         nbtTags.setInteger("maxBurnTime", maxBurnTime);
@@ -129,9 +148,11 @@ public class TileEntityFuelwoodHeater extends TileEntityContainerBlock implement
         super.handlePacketData(dataStream);
         if (FMLCommonHandler.instance().getEffectiveSide().isClient()) {
             temperature = dataStream.readDouble();
+            syncHeatCapacitorFromTemperature();
             clientActive = dataStream.readBoolean();
             burnTime = dataStream.readInt();
             maxBurnTime = dataStream.readInt();
+            lastTransferLoss = dataStream.readDouble();
             lastEnvironmentLoss = dataStream.readDouble();
             if (updateDelay == 0 && clientActive != isActive) {
                 updateDelay = MekanismConfig.current().general.UPDATE_DELAY.val();
@@ -148,6 +169,7 @@ public class TileEntityFuelwoodHeater extends TileEntityContainerBlock implement
         data.add(isActive);
         data.add(burnTime);
         data.add(maxBurnTime);
+        data.add(lastTransferLoss);
         data.add(lastEnvironmentLoss);
         return data;
     }
@@ -155,17 +177,6 @@ public class TileEntityFuelwoodHeater extends TileEntityContainerBlock implement
     @Override
     public boolean canSetFacing(@Nonnull EnumFacing facing) {
         return facing != EnumFacing.DOWN && facing != EnumFacing.UP;
-    }
-
-    @Nonnull
-    @Override
-    public int[] getSlotsForFace(@Nonnull EnumFacing side) {
-        return new int[]{0};
-    }
-
-    @Override
-    public boolean isItemValidForSlot(int slotID, @Nonnull ItemStack stack) {
-        return TileEntityFurnace.getItemBurnTime(stack) > 0;
     }
 
     @Override
@@ -195,7 +206,7 @@ public class TileEntityFuelwoodHeater extends TileEntityContainerBlock implement
 
     @Override
     public double getTemp() {
-        return temperature;
+        return heatCapacitor == null ? temperature : heatCapacitor.getTemperature() - IHeatTransfer.AMBIENT_TEMP;
     }
 
     @Override
@@ -210,7 +221,11 @@ public class TileEntityFuelwoodHeater extends TileEntityContainerBlock implement
 
     @Override
     public void transferHeatTo(double heat) {
-        heatToAbsorb += heat;
+        if (heatCapacitor == null) {
+            temperature += heat;
+        } else {
+            heatCapacitor.handleHeat(heat * heatCapacitor.getHeatCapacity());
+        }
     }
 
     @Override
@@ -220,8 +235,10 @@ public class TileEntityFuelwoodHeater extends TileEntityContainerBlock implement
 
     @Override
     public double applyTemperatureChange() {
-        temperature += heatToAbsorb;
-        heatToAbsorb = 0;
+        if (heatCapacitor != null) {
+            heatCapacitor.update();
+            temperature = getTemp();
+        }
         return temperature;
     }
 
@@ -255,5 +272,11 @@ public class TileEntityFuelwoodHeater extends TileEntityContainerBlock implement
     @Override
     public TileComponentSecurity getSecurity() {
         return securityComponent;
+    }
+
+    private void syncHeatCapacitorFromTemperature() {
+        if (heatCapacitor != null) {
+            heatCapacitor.setHeat((temperature + IHeatTransfer.AMBIENT_TEMP) * heatCapacitor.getHeatCapacity());
+        }
     }
 }

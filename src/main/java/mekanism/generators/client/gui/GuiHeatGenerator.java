@@ -1,55 +1,50 @@
 package mekanism.generators.client.gui;
 
-import mekanism.client.gui.GuiMekanismTile;
-import mekanism.client.gui.element.*;
+import mekanism.api.IHeatTransfer;
+import mekanism.client.gui.element.bar.GuiVerticalPowerBar;
 import mekanism.client.gui.element.gauge.GuiFluidGauge;
-import mekanism.client.gui.element.gauge.GuiGauge.Type;
-import mekanism.client.gui.element.slot.GuiEnergySlot;
-import mekanism.client.gui.element.slot.GuiNormalSlot;
-import mekanism.client.gui.element.tab.GuiSecurityTab;
+import mekanism.client.gui.element.tab.GuiEnergyTab;
+import mekanism.client.gui.element.tab.GuiHeatTab;
+import mekanism.client.gui.element.tab.GuiWarningTab;
+import mekanism.client.gui.warning.IWarningTracker;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.util.LangUtils;
-import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.UnitDisplayUtils;
 import mekanism.common.util.UnitDisplayUtils.TemperatureUnit;
 import mekanism.generators.common.inventory.container.ContainerHeatGenerator;
 import mekanism.generators.common.tile.TileEntityHeatGenerator;
 import net.minecraft.entity.player.InventoryPlayer;
-import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraft.util.text.TextComponentString;
 
 import java.util.Arrays;
 
-@SideOnly(Side.CLIENT)
-public class GuiHeatGenerator extends GuiMekanismTile<TileEntityHeatGenerator> {
+public class GuiHeatGenerator extends GuiGenerator<TileEntityHeatGenerator, ContainerHeatGenerator> {
 
     public GuiHeatGenerator(InventoryPlayer inventory, TileEntityHeatGenerator tile) {
         super(tile, new ContainerHeatGenerator(inventory, tile));
-        ResourceLocation resource = getGuiLocation();
-        addGuiElement(new GuiRedstoneControl(this, tileEntity, resource));
-        addGuiElement(new GuiSecurityTab(this, tileEntity, resource));
-        addGuiElement(new GuiEnergyInfo(() -> Arrays.asList(
-                LangUtils.localize("gui.producing") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.producingEnergy) + "/t",
-                LangUtils.localize("gui.maxOutput") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getMaxOutput()) + "/t"), this, resource));
-        addGuiElement(new GuiFluidGauge(() -> tileEntity.lavaTank, Type.WIDE, this, resource, 55, 18));
-        addGuiElement(new GuiPowerBar(this, tileEntity, resource, 164, 15));
-        addGuiElement(new GuiNormalSlot(this, resource, 16, 34));
-        addGuiElement(new GuiEnergySlot( this, resource, 142, 34, tileEntity));
-        addGuiElement(new GuiHeatInfo(() -> {
-            TemperatureUnit unit = TemperatureUnit.values()[MekanismConfig.current().general.tempUnit.val().ordinal()];
-            String transfer = UnitDisplayUtils.getDisplayShort(tileEntity.lastTransferLoss, false, unit);
-            String environment = UnitDisplayUtils.getDisplayShort(tileEntity.lastEnvironmentLoss, false, unit);
-            return Arrays.asList(LangUtils.localize("gui.transferred") + ": " + transfer + "/t", LangUtils.localize("gui.dissipated") + ": " + environment + "/t");
-        }, this, resource));
-        addGuiElement(new GuiPlayerSlot(this, getGuiLocation()));
     }
 
     @Override
-    protected void drawGuiContainerForegroundLayer(int mouseX, int mouseY) {
-        fontRenderer.drawString(tileEntity.getName(), (xSize / 2) - (fontRenderer.getStringWidth(tileEntity.getName()) / 2), 6, 0x404040);
-        fontRenderer.drawString(LangUtils.localize("container.inventory"), 8, (ySize - 96) + 2, 0x404040);
-        super.drawGuiContainerForegroundLayer(mouseX, mouseY);
+    protected void addGuiElements() {
+        super.addGuiElements();
+        addButton(new GuiEnergyTab(this, () -> getEnergyTabText(tileEntity.producingEnergy)));
+        addButton(new GuiFluidGauge(this, tileEntity.lavaTank, GuiFluidGauge.Type.WIDE, 55, 18));
+        addButton(new GuiVerticalPowerBar(this, tileEntity.getEnergyContainer(), 164, 15));
+        addButton(new GuiHeatTab(this, () -> {
+            TemperatureUnit unit = TemperatureUnit.values()[MekanismConfig.current().general.tempUnit.val().ordinal()];
+            String temp = UnitDisplayUtils.getDisplayShort(tileEntity.getTemp() + IHeatTransfer.AMBIENT_TEMP, unit);
+            String transfer = UnitDisplayUtils.getDisplayShort(tileEntity.lastTransferLoss * unit.intervalSize, false, unit);
+            String environment = UnitDisplayUtils.getDisplayShort(tileEntity.lastEnvironmentLoss * unit.intervalSize, false, unit);
+            return Arrays.asList(
+                  new TextComponentString(LangUtils.localize("gui.temp") + ": " + temp),
+                  new TextComponentString(LangUtils.localize("gui.transferred") + ": " + transfer + "/t"),
+                  new TextComponentString(LangUtils.localize("gui.dissipated") + ": " + environment + "/t")
+            );
+        }));
     }
 
+    @Override
+    protected void addWarningTab(IWarningTracker warningTracker) {
+        addButton(new GuiWarningTab(this, warningTracker, false));
+    }
 }

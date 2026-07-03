@@ -90,6 +90,8 @@ public class GeneratorsConfig extends BaseConfig {
 
     public final DoubleOption fissionHeatPerBurn = new DoubleOption(this, "FissionHeatPerBurn", 50D,
             "Temperature increase per 1 mB of fissile fuel burned.");
+    public final DoubleOption fissionCasingHeatCapacity = new DoubleOption(this, "FissionCasingHeatCapacity", 1000D,
+            "Heat capacity contribution of each formed fission reactor casing block.", 1D, 1000000D);
     public final DoubleOption fissionSurfaceAreaTarget = new DoubleOption(this, "FissionSurfaceAreaTarget", 4D,
             "Average fuel assembly surface area required for 100% boiling efficiency.", 1D, Double.MAX_VALUE);
     public final BooleanOption fissionMeltdownsEnabled = new BooleanOption(this, "FissionMeltdownsEnabled", true,

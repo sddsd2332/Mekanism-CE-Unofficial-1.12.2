@@ -1,5 +1,10 @@
 {
       "parent": "mekanism:teleportation_core",
+      "requirements": [
+            ["mekanism_teleporter"],
+            ["mekanism_teleporter_Frame"],
+            ["teleport"]
+      ],
       "criteria": {
             "mekanism_teleporter": {
                   "trigger": "minecraft:inventory_changed",
@@ -14,7 +19,8 @@
                         "item": "mekanism:basicblock",
                         "data": 7
                   }]}
-            }
+            },
+            "teleport": {"trigger": "mekanism:teleport"}
       },
       "display": {
             "icon": {

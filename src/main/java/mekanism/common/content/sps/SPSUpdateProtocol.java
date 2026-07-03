@@ -67,6 +67,9 @@ public class SPSUpdateProtocol extends UpdateProtocol<SynchronizedSPSData> {
                 if (!found.locations.contains(oldCoord)) {
                     TileEntity oldTile = oldCoord.getTileEntity(pointer.getWorld());
                     if (oldTile instanceof TileEntityMultiblock<?> multiblock && multiblock.getManager() == getManager()) {
+                        if (multiblock.structure != null) {
+                            multiblock.structure.setFormed(false);
+                        }
                         multiblock.structure = null;
                     } else if (oldTile instanceof IStructuralMultiblock structural) {
                         structural.setController(null);
@@ -125,6 +128,7 @@ public class SPSUpdateProtocol extends UpdateProtocol<SynchronizedSPSData> {
         }
         cache.apply(found);
         found.inventoryID = idToUse;
+        found.setFormed(true);
         onFormed();
 
         List<IStructuralMultiblock> structures = new ArrayList<>();
@@ -153,10 +157,14 @@ public class SPSUpdateProtocol extends UpdateProtocol<SynchronizedSPSData> {
         if (!current.destroyed) {
             onStructureDestroyed(current);
             current.destroyed = true;
+            current.setFormed(false);
         }
         for (Coord4D coord : current.locations) {
             TileEntity tile = coord.getTileEntity(pointer.getWorld());
             if (tile instanceof TileEntityMultiblock<?> multiblock && multiblock.getManager() == getManager()) {
+                if (multiblock.structure != null) {
+                    multiblock.structure.setFormed(false);
+                }
                 multiblock.structure = null;
             } else if (tile instanceof IStructuralMultiblock structural) {
                 structural.setController(null);
@@ -306,16 +314,8 @@ public class SPSUpdateProtocol extends UpdateProtocol<SynchronizedSPSData> {
     protected void mergeCaches(List<ItemStack> rejectedItems, MultiblockCache<SynchronizedSPSData> cache, MultiblockCache<SynchronizedSPSData> merge) {
         SPSCache spsCache = (SPSCache) cache;
         SPSCache mergeCache = (SPSCache) merge;
-        if (spsCache.inputGas == null) {
-            spsCache.inputGas = mergeCache.inputGas;
-        } else if (mergeCache.inputGas != null && spsCache.inputGas.isGasEqual(mergeCache.inputGas)) {
-            spsCache.inputGas.amount += mergeCache.inputGas.amount;
-        }
-        if (spsCache.outputGas == null) {
-            spsCache.outputGas = mergeCache.outputGas;
-        } else if (mergeCache.outputGas != null && spsCache.outputGas.isGasEqual(mergeCache.outputGas)) {
-            spsCache.outputGas.amount += mergeCache.outputGas.amount;
-        }
+        spsCache.inputGas = mergeGasStack(spsCache.inputGas, mergeCache.inputGas);
+        spsCache.outputGas = mergeGasStack(spsCache.outputGas, mergeCache.outputGas);
         spsCache.progress += mergeCache.progress;
         spsCache.inputProcessed += mergeCache.inputProcessed;
         spsCache.receivedEnergy += mergeCache.receivedEnergy;
@@ -327,11 +327,7 @@ public class SPSUpdateProtocol extends UpdateProtocol<SynchronizedSPSData> {
     @Override
     protected void onFormed() {
         super.onFormed();
-        if (structureFound.outputTank.getGas() != null) {
-            structureFound.outputTank.getGas().amount = Math.min(structureFound.outputTank.getGas().amount, SynchronizedSPSData.OUTPUT_CAPACITY);
-        }
-        if (structureFound.inputTank.getGas() != null) {
-            structureFound.inputTank.getGas().amount = Math.min(structureFound.inputTank.getGas().amount, SynchronizedSPSData.INPUT_CAPACITY);
-        }
+        structureFound.clampTanksToCapacity();
+        structureFound.sanitizeStoredGases();
     }
 }

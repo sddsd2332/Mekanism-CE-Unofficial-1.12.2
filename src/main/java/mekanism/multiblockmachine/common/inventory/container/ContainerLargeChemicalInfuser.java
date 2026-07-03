@@ -1,86 +1,12 @@
 package mekanism.multiblockmachine.common.inventory.container;
 
-import mekanism.api.gas.IGasItem;
-import mekanism.common.inventory.container.ContainerMekanism;
-import mekanism.common.inventory.slot.SlotEnergy;
-import mekanism.common.inventory.slot.SlotStorageTank;
-import mekanism.common.util.ChargeUtils;
+import mekanism.common.inventory.container.MekanismTileContainer;
 import mekanism.multiblockmachine.common.tile.machine.TileEntityLargeChemicalInfuser;
-import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.InventoryPlayer;
-import net.minecraft.inventory.Slot;
-import net.minecraft.item.ItemStack;
 
-import javax.annotation.Nonnull;
-
-public class ContainerLargeChemicalInfuser extends ContainerMekanism<TileEntityLargeChemicalInfuser> {
+public class ContainerLargeChemicalInfuser extends MekanismTileContainer<TileEntityLargeChemicalInfuser> {
 
     public ContainerLargeChemicalInfuser(InventoryPlayer inventory, TileEntityLargeChemicalInfuser tile) {
         super(tile, inventory);
-    }
-
-    @Nonnull
-    @Override
-    public ItemStack transferStackInSlot(EntityPlayer player, int slotID) {
-        ItemStack stack = ItemStack.EMPTY;
-        Slot currentSlot = inventorySlots.get(slotID);
-        if (currentSlot != null && currentSlot.getHasStack()) {
-            ItemStack slotStack = currentSlot.getStack();
-            stack = slotStack.copy();
-            if (ChargeUtils.canBeDischarged(slotStack)) {
-                if (slotID != 3) {
-                    if (!mergeItemStack(slotStack, 3, 4, false)) {
-                        return ItemStack.EMPTY;
-                    }
-                } else if (!mergeItemStack(slotStack, 4, inventorySlots.size(), true)) {
-                    return ItemStack.EMPTY;
-                }
-            } else if (slotStack.getItem() instanceof IGasItem) {
-                if (slotID != 0 && slotID != 1 && slotID != 2) {
-                    if (!mergeItemStack(slotStack, 0, 3, false)) {
-                        return ItemStack.EMPTY;
-                    }
-                } else if (!mergeItemStack(slotStack, 5, inventorySlots.size(), true)) {
-                    return ItemStack.EMPTY;
-                }
-            } else if (slotID >= 4 && slotID <= 30) {
-                if (!mergeItemStack(slotStack, 31, inventorySlots.size(), false)) {
-                    return ItemStack.EMPTY;
-                }
-            } else if (slotID > 30) {
-                if (!mergeItemStack(slotStack, 4, 30, false)) {
-                    return ItemStack.EMPTY;
-                }
-            } else if (!mergeItemStack(slotStack, 4, inventorySlots.size(), true)) {
-                return ItemStack.EMPTY;
-            }
-
-            if (slotStack.getCount() == 0) {
-                currentSlot.putStack(ItemStack.EMPTY);
-            } else {
-                currentSlot.onSlotChanged();
-            }
-
-            if (slotStack.getCount() == stack.getCount()) {
-                return ItemStack.EMPTY;
-            }
-
-            currentSlot.onTake(player, slotStack);
-        }
-
-        return stack;
-    }
-
-    @Override
-    protected int getInventorYOffset() {
-        return 84 + 11;
-    }
-
-    @Override
-    protected void addSlots() {
-        addSlotToContainer(new SlotStorageTank(tileEntity, 0, 5, 56 + 11));
-        addSlotToContainer(new SlotStorageTank(tileEntity, 1, 155, 56 + 11));
-        addSlotToContainer(new SlotStorageTank(tileEntity, 2, 80, 65 + 11));
-        addSlotToContainer(new SlotEnergy.SlotDischarge(tileEntity, 3, 155, 5 + 11));
     }
 }

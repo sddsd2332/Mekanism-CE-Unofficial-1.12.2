@@ -3,99 +3,101 @@ package mekanism.api.energy;
 import net.minecraft.item.ItemStack;
 
 /**
- * Implement this in an item's class if it should be able to store electricity.
+ * Legacy 1.12 item energy API.
  *
- * @author aidancbrady
+ * @deprecated Use the strict energy capability APIs instead.
  */
+@Deprecated
 public interface IEnergizedItem {
 
     /**
-     * Gets and returns the amount of energy stored in this item.
-     *
-     * @param itemStack - the ItemStack to check
-     * @return energy stored
+     * @deprecated Use the strict energy capability APIs instead.
      */
+    @Deprecated
     double getEnergy(ItemStack itemStack);
 
     /**
-     * Sets this item's stored energy value to a new amount.
-     *
-     * @param itemStack - the ItemStack who's energy value is to be change
-     * @param amount    - new amount of energy
+     * @deprecated Use the strict energy capability APIs instead.
      */
+    @Deprecated
     void setEnergy(ItemStack itemStack, double amount);
 
     /**
-     * Gets and returns this item's maximum amount of energy that can be stored.
-     *
-     * @param itemStack - the ItemStack to check
-     * @return maximum energy
+     * @deprecated Use the strict energy capability APIs instead.
      */
+    @Deprecated
     double getMaxEnergy(ItemStack itemStack);
 
     /**
-     * Gets and returns how much energy this item can transfer to and from charging slots.
-     *
-     * @param itemStack - the ItemStack to check
-     * @return transfer amount
+     * @deprecated Use the strict energy capability APIs instead.
      */
+    @Deprecated
     double getMaxTransfer(ItemStack itemStack);
 
     /**
-     * Gets and returns whether or not this item can receive energy from a charging slot.
-     *
-     * @param itemStack - the ItemStack to check
-     * @return if the item can receive energy
+     * @deprecated Use the strict energy capability APIs instead.
      */
+    @Deprecated
     boolean canReceive(ItemStack itemStack);
 
     /**
-     * Gets and returns whether or not this item can send energy to a charging slot.
-     *
-     * @param itemStack - the ItemStack to check
-     * @return if the item can send energy
+     * @deprecated Use the strict energy capability APIs instead.
      */
+    @Deprecated
     boolean canSend(ItemStack itemStack);
 
+    /**
+     * @deprecated Use the strict energy capability APIs instead.
+     */
+    @Deprecated
     default double getEnergyRatio(ItemStack stack) {
-        return getEnergy(stack) / getMaxEnergy(stack);
+        double maxEnergy = getMaxEnergy(stack);
+        return maxEnergy <= 0 ? 0 : getEnergy(stack) / maxEnergy;
     }
 
+    /**
+     * @deprecated Use the strict energy capability APIs instead.
+     */
+    @Deprecated
     default double getNeeded(ItemStack stack) {
-        return getMaxEnergy(stack) - getEnergy(stack);
+        return Math.max(0, getMaxEnergy(stack) - getEnergy(stack));
     }
 
+    /**
+     * Inserts energy and returns the unaccepted remainder.
+     *
+     * @deprecated Use the strict energy capability APIs instead.
+     */
+    @Deprecated
     default double insert(ItemStack stack, double amount, boolean action) {
-        if (amount == 0) {
-            //"Fail quick" if the given amount is empty
+        if (amount <= 0) {
             return amount;
         }
         double needed = getNeeded(stack);
-        if (needed == 0) {
-            //Fail if we are a full container
+        if (needed <= 0) {
             return amount;
         }
         double toAdd = Math.min(amount, needed);
-        if (toAdd != 0 && action) {
-            //If we want to actually insert the energy, then update the current energy
-            // Note: this also will mark that the contents changed
-            setEnergy(stack, getEnergy(stack) + (toAdd));
+        if (toAdd > 0 && action) {
+            setEnergy(stack, getEnergy(stack) + toAdd);
         }
         return amount - toAdd;
     }
 
+    /**
+     * Extracts energy and returns the extracted amount.
+     *
+     * @deprecated Use the strict energy capability APIs instead.
+     */
+    @Deprecated
     default double extract(ItemStack stack, double amount, boolean action) {
-        if (getEnergy(stack) == 0 || amount == 0) {
+        if (amount <= 0 || getEnergy(stack) <= 0) {
             return 0;
         }
-        double ret = Math.min(getEnergy(stack), amount);
-        if (ret != 0 && action) {
-            // Note: this also will mark that the contents changed
-            setEnergy(stack, getEnergy(stack) - (ret));
+        double extracted = Math.min(getEnergy(stack), amount);
+        if (extracted > 0 && action) {
+            setEnergy(stack, getEnergy(stack) - extracted);
         }
-        return ret;
+        return extracted;
     }
-
-
-
 }

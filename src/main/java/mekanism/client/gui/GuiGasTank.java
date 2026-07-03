@@ -3,21 +3,15 @@ package mekanism.client.gui;
 import mekanism.api.EnumColor;
 import mekanism.api.TileNetworkList;
 import mekanism.api.gas.GasStack;
-import mekanism.client.gui.button.GuiDisableableButton;
-import mekanism.client.gui.button.GuiDisableableButton.ImageOverlay;
-import mekanism.client.gui.element.*;
-import mekanism.client.gui.element.GuiSlot.SlotOverlay;
-import mekanism.client.gui.element.bar.GuiBar;
-import mekanism.client.gui.element.slot.GuiInputSlot;
-import mekanism.client.gui.element.slot.GuiOutputSlot;
-import mekanism.client.gui.element.tab.GuiSecurityTab;
-import mekanism.client.gui.element.tab.GuiSideConfigurationTab;
-import mekanism.client.gui.element.tab.GuiTransporterConfigTab;
-import mekanism.client.render.MekanismRenderer;
+import mekanism.client.gui.element.GuiInnerScreen;
+import mekanism.client.gui.element.GuiSideHolder;
+import mekanism.client.gui.element.bar.GuiGasBar;
+import mekanism.client.gui.element.button.GuiGasMode;
+import mekanism.client.gui.element.tab.GuiWarningTab;
+import mekanism.client.gui.warning.IWarningTracker;
 import mekanism.client.sound.SoundHandler;
 import mekanism.common.Mekanism;
 import mekanism.common.inventory.container.ContainerGasTank;
-import mekanism.common.item.ItemGaugeDropper;
 import mekanism.common.network.PacketTileEntity.TileEntityMessage;
 import mekanism.common.recipe.GasStackFuelToEnergyRecipe;
 import mekanism.common.recipe.RecipeHandler;
@@ -25,121 +19,92 @@ import mekanism.common.tile.TileEntityGasTank;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.UnitDisplayUtils;
-import net.minecraft.client.gui.GuiButton;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.init.SoundEvents;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.text.ITextComponent;
+import net.minecraft.util.text.TextComponentString;
 import net.minecraft.util.text.TextFormatting;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
-import org.lwjgl.input.Keyboard;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 @SideOnly(Side.CLIENT)
-public class GuiGasTank extends GuiMekanismTile<TileEntityGasTank> {
-
-    public GuiDisableableButton mode;
+public class GuiGasTank extends GuiConfigurableTile<TileEntityGasTank, ContainerGasTank> {
 
     public GuiGasTank(InventoryPlayer inventory, TileEntityGasTank tile) {
         super(tile, new ContainerGasTank(inventory, tile));
-        ResourceLocation resource = getGuiLocation();
-        addGuiElement(new GuiRedstoneControl(this, tileEntity, resource));
-        addGuiElement(new GuiSecurityTab(this, tileEntity, resource));
-        addGuiElement(new GuiSideConfigurationTab(this, tileEntity, resource));
-        addGuiElement(new GuiTransporterConfigTab(this, tileEntity, resource));
-        addGuiElement(new GuiInputSlot(this, resource, 15, 16, tileEntity).with(SlotOverlay.PLUS));
-        addGuiElement(new GuiOutputSlot(this, resource, 15, 46, tileEntity).with(SlotOverlay.MINUS));
-        addGuiElement(new GuiInnerScreen(this, resource, 42, 37, 118, 27));
-        addGuiElement(new GuiPlayerSlot(this, resource));
-        addGuiElement(new GuiPlayerArmmorSlot(this, resource, -26, 62, true));
-        addGuiElement(new GuiBar(this, getGuiLocation(), 42, 16, 118, 12));
+        dynamicSlots = true;
     }
 
     @Override
-    protected void drawGuiContainerForegroundLayer(int mouseX, int mouseY) {
-        String stored = "" + (tileEntity.gasTank.getStored() == Integer.MAX_VALUE ? LangUtils.localize("gui.infinite") : tileEntity.gasTank.getStored());
-        String capacityInfo = stored + " / " + (tileEntity.tier.getStorage() == Integer.MAX_VALUE ? LangUtils.localize("gui.infinite") : tileEntity.tier.getStorage());
-        fontRenderer.drawString(tileEntity.getName(), (xSize / 2) - (fontRenderer.getStringWidth(tileEntity.getName()) / 2), 4, 0x404040);
+    protected void addGuiElements() {
+        addButton(GuiSideHolder.armorHolder(this));
+        super.addGuiElements();
+        addButton(new GuiGasBar(this, tileEntity.gasTank, 42, 16, this::getGasBarTooltip));
+        addButton(new GuiInnerScreen(this, 42, 37, 118, 28, this::getScreenText));
+        addButton(new GuiGasMode(this, 159, 72, true, () -> tileEntity.dumping, this::sendModePacket));
+    }
 
-        renderScaledText(LangUtils.localize("gui.gas") + ": " + (tileEntity.gasTank.getGas() != null ? tileEntity.gasTank.getGas().getGas().getLocalizedName()
-                : LangUtils.localize("gui.none")), 45, 40, 0x33ff99, 112);
-        fontRenderer.drawString(capacityInfo, 45, 49, 0x33ff99);
-        fontRenderer.drawString(LangUtils.localize("container.inventory"), 8, ySize - 96 + 2, 0x404040);
-        String name = LangUtils.localize(tileEntity.dumping.getLangKey());
-        fontRenderer.drawString(name, 156 - fontRenderer.getStringWidth(name), 73, 0x404040);
-        int xAxis = mouseX - guiLeft;
-        int yAxis = mouseY - guiTop;
-        if (xAxis >= 42 && xAxis <= 42 + 118 && yAxis >= 16 && yAxis <= 16 + 12) {
-            List<String> list = new ArrayList<>();
-            GasStack stack = tileEntity.gasTank.getGas();
-            if (stack != null) {
-                list.add(stack.getGas().getLocalizedName() + ": " + (tileEntity.gasTank.getStored() == Integer.MAX_VALUE ? LangUtils.localize("gui.infinite") : tileEntity.gasTank.getStored()));
-                if (stack.getGas().isRadiation()) {
-                    list.add(EnumColor.GREY + LangUtils.localize("chemical.mekanism.attribute.radiation") + EnumColor.INDIGO + UnitDisplayUtils.getDisplayShort(stack.getGas().getRadioactivity(), UnitDisplayUtils.RadiationUnit.SVH, 2));
-                }
-                if (RecipeHandler.Recipe.GAS_FUEL_TO_ENERGY_RECIPE.containsRecipe(stack.getGas())) {
-                    GasStackFuelToEnergyRecipe recipe = RecipeHandler.getGasStackFuelToEnergyRecipe(stack);
-                    if (recipe != null) {
-                        list.add(LangUtils.localize("chemical.mekanism.attribute.fuel.burn_ticks") + EnumColor.INDIGO + recipe.getInput().ingredient.amount + TextFormatting.RESET + " t");
-                        list.add(LangUtils.localize("chemical.mekanism.attribute.fuel.energy_density") + EnumColor.INDIGO + MekanismUtils.getEnergyDisplay(recipe.getOutput().energyOutput * recipe.getInput().ingredient.amount));
-                    }
-                }
-            } else {
-                list.add(LangUtils.localize("gui.none"));
-            }
-            this.displayTooltips(list, xAxis, yAxis);
+    @Override
+    protected void drawForegroundText(int mouseX, int mouseY) {
+        drawTitleText(new TextComponentString(tileEntity.getName()), 4);
+        renderInventoryText(85);
+        super.drawForegroundText(mouseX, mouseY);
+    }
+
+    @Override
+    protected void addWarningTab(IWarningTracker warningTracker) {
+        addButton(new GuiWarningTab(this, warningTracker, 109, false));
+    }
+
+    private void sendModePacket() {
+        Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(0)));
+        SoundHandler.playSound(SoundEvents.UI_BUTTON_CLICK);
+    }
+
+    private String getGasDisplay() {
+        return LangUtils.localize("gui.gas") + ": " + (tileEntity.gasTank.getGas() != null ? tileEntity.gasTank.getGas().getGas().getLocalizedName() :
+              LangUtils.localize("gui.none"));
+    }
+
+    private String getCapacityDisplay() {
+        return getStoredText(tileEntity.gasTank.getStored()) + " / " + getStoredText(tileEntity.tier.getStorage());
+    }
+
+    private List<ITextComponent> getScreenText() {
+        List<ITextComponent> text = new ArrayList<>();
+        text.add(new TextComponentString(getGasDisplay()));
+        text.add(new TextComponentString(getCapacityDisplay()));
+        return text;
+    }
+
+    private String getStoredText(int amount) {
+        return amount == Integer.MAX_VALUE ? LangUtils.localize("gui.infinite") : Integer.toString(amount);
+    }
+
+    private List<String> getGasBarTooltip() {
+        List<String> tooltip = new ArrayList<>();
+        GasStack stack = tileEntity.gasTank.getGas();
+        if (stack == null) {
+            tooltip.add(LangUtils.localize("gui.none"));
+            return tooltip;
         }
-        super.drawGuiContainerForegroundLayer(mouseX, mouseY);
-    }
-
-
-    @Override
-    public void initGui() {
-        super.initGui();
-        buttonList.clear();
-        buttonList.add(mode = new GuiDisableableButton(0, guiLeft + 159, guiTop + 72, 10, 10, () -> tileEntity.dumping.ordinal()).with(ImageOverlay.GAS_MOD));
-    }
-
-    @Override
-    protected void drawGuiContainerBackgroundLayer(int xAxis, int yAxis) {
-        super.drawGuiContainerBackgroundLayer(xAxis, yAxis);
-        GasStack gas = tileEntity.gasTank.getGas();
-        if (gas != null) {
-            MekanismRenderer.color(gas);
-            int scale = (int) (((double) tileEntity.gasTank.getStored() / tileEntity.tier.getStorage()) * 116);
-            GuiUtils.drawGasBarSprite(guiLeft + 42, guiTop + 16, 118, 12, scale, gas, false);
-            MekanismRenderer.resetColor();
+        tooltip.add(stack.getGas().getLocalizedName() + ": " + getStoredText(tileEntity.gasTank.getStored()));
+        if (stack.getGas().isRadiation()) {
+            tooltip.add(EnumColor.GREY + LangUtils.localize("chemical.mekanism.attribute.radiation") + EnumColor.INDIGO +
+                  UnitDisplayUtils.getDisplayShort(stack.getGas().getRadioactivity(), UnitDisplayUtils.RadiationUnit.SVH, 2));
         }
-    }
-
-
-    @Override
-    protected void actionPerformed(GuiButton guibutton) throws IOException {
-        super.actionPerformed(guibutton);
-        if (guibutton.id == mode.id) {
-            Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(0)));
-            SoundHandler.playSound(SoundEvents.UI_BUTTON_CLICK);
-        }
-    }
-
-    @Override
-    protected void mouseClicked(int x, int y, int button) throws IOException {
-        super.mouseClicked(x, y, button);
-        if (button == 0 || Keyboard.isKeyDown(Keyboard.KEY_LSHIFT)) {
-            int xAxis = x - guiLeft;
-            int yAxis = y - guiTop;
-            if (xAxis >= 42 && xAxis <= 42 + 118 && yAxis >= 16 && yAxis <= 16 + 12) {
-                ItemStack stack = mc.player.inventory.getItemStack();
-                if (!stack.isEmpty() && stack.getItem() instanceof ItemGaugeDropper) {
-                    TileNetworkList data = TileNetworkList.withContents(1);
-                    Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, data));
-                    SoundHandler.playSound(SoundEvents.UI_BUTTON_CLICK);
-                }
+        if (RecipeHandler.Recipe.GAS_FUEL_TO_ENERGY_RECIPE.containsRecipe(stack.getGas())) {
+            GasStackFuelToEnergyRecipe recipe = RecipeHandler.getGasStackFuelToEnergyRecipe(stack);
+            if (recipe != null) {
+                tooltip.add(LangUtils.localize("chemical.mekanism.attribute.fuel.burn_ticks") + EnumColor.INDIGO + recipe.getInput().ingredient.amount +
+                      TextFormatting.RESET + " t");
+                tooltip.add(LangUtils.localize("chemical.mekanism.attribute.fuel.energy_density") + EnumColor.INDIGO +
+                      MekanismUtils.getEnergyDisplay(recipe.getOutput().energyOutput * recipe.getInput().ingredient.amount));
             }
         }
+        return tooltip;
     }
 }

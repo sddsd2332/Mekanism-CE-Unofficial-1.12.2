@@ -1,81 +1,71 @@
 package mekanism.generators.client.gui.element;
 
 import mekanism.api.Coord4D;
+import mekanism.client.SpecialColors;
 import mekanism.client.gui.IGuiWrapper;
 import mekanism.client.gui.element.tab.GuiTabElementType;
 import mekanism.client.gui.element.tab.TabType;
+import mekanism.client.render.lib.ColorAtlas.ColorRegistryObject;
 import mekanism.common.Mekanism;
 import mekanism.common.base.IGuiProvider;
 import mekanism.common.network.PacketSimpleGui;
 import mekanism.common.network.PacketSimpleGui.SimpleGuiMessage;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.MekanismUtils.ResourceType;
 import mekanism.generators.client.gui.element.GuiFissionReactorTab.FissionReactorTab;
 import mekanism.generators.common.MekanismGenerators;
 import mekanism.generators.common.tile.fission.TileEntityFissionReactorCasing;
-import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraft.util.text.ITextComponent;
+import net.minecraft.util.text.TextComponentString;
 
 import java.util.List;
 
-@SideOnly(Side.CLIENT)
 public class GuiFissionReactorTab extends GuiTabElementType<TileEntityFissionReactorCasing, FissionReactorTab> {
 
-    private final FissionReactorTab tab;
+    private static final ResourceLocation RADIOACTIVE = MekanismUtils.getResource(MekanismUtils.ResourceType.GUI, "radioactive.png");
+    private static final ResourceLocation STATS = MekanismUtils.getResource(MekanismUtils.ResourceType.GUI, "stats.png");
 
-    public GuiFissionReactorTab(IGuiWrapper gui, TileEntityFissionReactorCasing tile, FissionReactorTab type, ResourceLocation def) {
-        super(gui, tile, type, def);
-        tab = type;
+    public GuiFissionReactorTab(IGuiWrapper gui, TileEntityFissionReactorCasing tile, FissionReactorTab type) {
+        super(gui, tile, type);
     }
 
-    @Override
-    public void renderBackground(int xAxis, int yAxis, int guiWidth, int guiHeight) {
-        super.renderBackground(xAxis, yAxis, guiWidth, guiHeight);
-        mc.renderEngine.bindTexture(MekanismUtils.getResource(MekanismUtils.ResourceType.BUTTON_TAB, "button_tab_icon.png"));
-        guiObj.drawTexturedRect(guiWidth - 21, guiHeight + tab.getYPos() + 4, tab.xLocation, tab.yLocation, 18, 18);
-    }
+    public enum FissionReactorTab implements TabType<TileEntityFissionReactorCasing> {
+        MAIN(RADIOACTIVE, 16, "gui.main", SpecialColors.TAB_MULTIBLOCK_MAIN),
+        STAT(STATS, 17, "gui.stats", SpecialColors.TAB_MULTIBLOCK_STATS);
 
-    public enum FissionReactorTab implements TabType {
-        MAIN(162, 0, 16, "gui.main", 6),
-        STAT(198, 18, 17, "gui.stats", 34);
-
-        private final String description;
-        public final int xLocation;
-        public final int yLocation;
+        private final ResourceLocation resource;
         private final int guiId;
-        private final int yPos;
+        private final String description;
+        private final ColorRegistryObject color;
 
-        FissionReactorTab(int x, int y, int id, String desc, int yPos) {
-            xLocation = x;
-            yLocation = y;
-            guiId = id;
-            description = desc;
-            this.yPos = yPos;
+        FissionReactorTab(ResourceLocation resource, int guiId, String description, ColorRegistryObject color) {
+            this.resource = resource;
+            this.guiId = guiId;
+            this.description = description;
+            this.color = color;
         }
 
         @Override
         public ResourceLocation getResource() {
-            return MekanismUtils.getResource(ResourceType.GUI, "Null.png");
+            return resource;
         }
 
         @Override
-        public void openGui(TileEntity tile) {
+        public void onClick(TileEntityFissionReactorCasing tile) {
             List<IGuiProvider> handlers = PacketSimpleGui.handlers;
-            int hand = handlers.indexOf(MekanismGenerators.proxy);
-            Mekanism.packetHandler.sendToServer(new SimpleGuiMessage(Coord4D.get(tile), hand, guiId));
+            int handler = handlers.indexOf(MekanismGenerators.proxy);
+            Mekanism.packetHandler.sendToServer(new SimpleGuiMessage(Coord4D.get(tile), handler, guiId));
         }
 
         @Override
-        public String getDesc() {
-            return LangUtils.localize(description);
+        public ITextComponent getDescription() {
+            return new TextComponentString(LangUtils.localize(description));
         }
 
         @Override
-        public int getYPos() {
-            return yPos;
+        public ColorRegistryObject getTabColor() {
+            return color;
         }
     }
 }

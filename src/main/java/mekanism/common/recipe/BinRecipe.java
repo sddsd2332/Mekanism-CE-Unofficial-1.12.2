@@ -2,7 +2,7 @@ package mekanism.common.recipe;
 
 import mekanism.common.MekanismItems;
 import mekanism.common.block.states.BlockStateBasic.BasicBlockType;
-import mekanism.common.inventory.InventoryBin;
+import mekanism.common.inventory.BinMekanismInventory;
 import mekanism.common.item.ItemProxy;
 import mekanism.common.tier.BinTier;
 import mekanism.common.util.ItemDataUtils;
@@ -78,7 +78,10 @@ public class BinRecipe extends IForgeRegistryEntry.Impl<IRecipe> implements IRec
             }
         }
 
-        InventoryBin binInv = new InventoryBin(bin);
+        BinMekanismInventory binInv = BinMekanismInventory.create(bin);
+        if (binInv == null) {
+            return ItemStack.EMPTY;
+        }
 
         if (!addStack.isEmpty()) {
             if (!(addStack.getItem() instanceof ItemProxy)) {
@@ -116,7 +119,10 @@ public class BinRecipe extends IForgeRegistryEntry.Impl<IRecipe> implements IRec
                 for (int i = 0; i < event.craftMatrix.getSizeInventory(); i++) {
                     if (isBin(event.craftMatrix.getStackInSlot(i))) {
                         ItemStack bin = event.craftMatrix.getStackInSlot(i);
-                        InventoryBin inv = new InventoryBin(bin.copy());
+                        BinMekanismInventory inv = BinMekanismInventory.create(bin.copy());
+                        if (inv == null) {
+                            continue;
+                        }
 
                         int size = inv.getItemCount();
                         ItemStack testRemove = inv.removeStack();
@@ -142,7 +148,8 @@ public class BinRecipe extends IForgeRegistryEntry.Impl<IRecipe> implements IRec
                 ItemStack binStack = event.craftMatrix.getStackInSlot(bin);
                 ItemStack otherStack = event.craftMatrix.getStackInSlot(other);
 
-                ItemStack testRemain = new InventoryBin(binStack.copy()).add(otherStack.copy());
+                BinMekanismInventory inventory = BinMekanismInventory.create(binStack.copy());
+                ItemStack testRemain = inventory == null ? otherStack.copy() : inventory.add(otherStack.copy());
                 if (!testRemain.isEmpty() && testRemain.getCount() > 0) {
                     ItemStack proxy = new ItemStack(MekanismItems.ItemProxy);
                     ((ItemProxy) proxy.getItem()).setSavedItem(proxy, testRemain.copy());

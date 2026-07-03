@@ -5,7 +5,8 @@ import mekanism.api.EnumColor;
 import mekanism.client.MekanismClient;
 import mekanism.common.Mekanism;
 import mekanism.common.config.MekanismConfig;
-import mekanism.common.frequency.Frequency;
+import mekanism.common.frequency.FrequencyType;
+import mekanism.common.frequency.IFrequencyItem;
 import mekanism.common.network.PacketSecurityUpdate.SecurityPacket;
 import mekanism.common.network.PacketSecurityUpdate.SecurityUpdateMessage;
 import mekanism.common.security.IOwnerItem;
@@ -31,7 +32,7 @@ import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.UUID;
 
-public class ItemPortableTeleporter extends ItemEnergized implements IOwnerItem {
+public class ItemPortableTeleporter extends ItemEnergized implements IOwnerItem, IFrequencyItem {
 
     public ItemPortableTeleporter() {
         super(1000000);
@@ -58,9 +59,9 @@ public class ItemPortableTeleporter extends ItemEnergized implements IOwnerItem 
     public void addInformation(ItemStack itemstack, World world, List<String> list, ITooltipFlag flag) {
         list.add(SecurityUtils.getOwnerDisplay(Minecraft.getMinecraft().player, MekanismClient.clientUUIDMap.get(getOwnerUUID(itemstack))));
         if (getFrequency(itemstack) != null) {
-            list.add(EnumColor.INDIGO + LangUtils.localize("gui.frequency") + ": " + EnumColor.GREY + getFrequency(itemstack).name);
+            list.add(EnumColor.INDIGO + LangUtils.localize("gui.frequency") + ": " + EnumColor.GREY + getFrequency(itemstack).key);
             list.add(EnumColor.INDIGO + LangUtils.localize("gui.mode") + ": " + EnumColor.GREY +
-                    LangUtils.localize("gui." + (!getFrequency(itemstack).publicFreq ? "private" : "public")));
+                    LangUtils.localize("gui." + getFrequency(itemstack).securityMode.name().toLowerCase(java.util.Locale.ROOT)));
         }
         super.addInformation(itemstack, world, list, flag);
     }
@@ -84,7 +85,7 @@ public class ItemPortableTeleporter extends ItemEnergized implements IOwnerItem 
     }
 
     @Override
-    public boolean canSend(ItemStack itemStack) {
+    public boolean canSendEnergy(ItemStack itemStack) {
         return false;
     }
 
@@ -115,18 +116,8 @@ public class ItemPortableTeleporter extends ItemEnergized implements IOwnerItem 
         return true;
     }
 
-    public Frequency.Identity getFrequency(ItemStack stack) {
-        if (ItemDataUtils.hasData(stack, "frequency")) {
-            return Frequency.Identity.load(ItemDataUtils.getCompound(stack, "frequency"));
-        }
-        return null;
-    }
-
-    public void setFrequency(ItemStack stack, Frequency frequency) {
-        if (frequency == null) {
-            ItemDataUtils.removeData(stack, "frequency");
-            return;
-        }
-        ItemDataUtils.setCompound(stack, "frequency", frequency.getIdentity().serialize());
+    @Override
+    public FrequencyType<?> getFrequencyType() {
+        return FrequencyType.TELEPORTER;
     }
 }

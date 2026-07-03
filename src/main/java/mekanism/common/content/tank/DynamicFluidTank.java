@@ -1,6 +1,9 @@
 package mekanism.common.content.tank;
 
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
 import mekanism.api.Coord4D;
+import mekanism.api.fluid.ExtendedFluidHandlerUtils;
 import mekanism.common.base.MultiblockFluidTank;
 import mekanism.common.content.tank.SynchronizedTankData.ValveData;
 import mekanism.common.tile.multiblock.TileEntityDynamicTank;
@@ -14,6 +17,10 @@ public class DynamicFluidTank extends MultiblockFluidTank<TileEntityDynamicTank>
         super(tileEntity);
     }
 
+    boolean canMutate(SynchronizedTankData data) {
+        return multiblock.structure == data && multiblock.getWorld() != null && !multiblock.getWorld().isRemote;
+    }
+
     @Override
     @Nullable
     public FluidStack getFluid() {
@@ -21,11 +28,21 @@ public class DynamicFluidTank extends MultiblockFluidTank<TileEntityDynamicTank>
     }
 
     @Override
-    public int fill(@Nullable FluidStack resource, boolean doFill) {
+    @Nullable
+    public FluidStack insert(@Nullable FluidStack stack, Action action, AutomationType automationType) {
         if (multiblock.structure != null && multiblock.structure.hasGas()) {
+            return stack;
+        }
+        return super.insert(stack, action, automationType);
+    }
+
+    @Override
+    public int fill(@Nullable FluidStack resource, boolean doFill) {
+        if (ExtendedFluidHandlerUtils.isEmpty(resource)) {
             return 0;
         }
-        return super.fill(resource, doFill);
+        FluidStack remainder = insert(resource, Action.get(doFill), AutomationType.EXTERNAL);
+        return resource.amount - (remainder == null ? 0 : remainder.amount);
     }
 
     @Override

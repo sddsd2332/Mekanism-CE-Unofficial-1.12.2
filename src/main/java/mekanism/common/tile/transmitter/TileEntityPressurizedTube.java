@@ -1,29 +1,35 @@
 package mekanism.common.tile.transmitter;
 
 import io.netty.buffer.ByteBuf;
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
 import mekanism.api.TileNetworkList;
 import mekanism.api.gas.*;
 import mekanism.api.math.MathUtils;
 import mekanism.api.transmitters.TransmissionType;
 import mekanism.common.block.states.BlockStateTransmitter.TransmitterType;
 import mekanism.common.capabilities.Capabilities;
+import mekanism.common.capabilities.gas.DynamicGasHandler;
+import mekanism.common.capabilities.holder.gas.ProxiedGasTankHolder;
+import mekanism.common.capabilities.resolver.manager.GasHandlerManager;
+import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.tier.AlloyTier;
 import mekanism.common.tier.BaseTier;
 import mekanism.common.tier.TubeTier;
 import mekanism.common.transmitters.grid.GasNetwork;
 import mekanism.common.util.CapabilityUtils;
-import mekanism.common.util.GasUtils;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
-import net.minecraftforge.common.capabilities.Capability;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
-public class TileEntityPressurizedTube extends TileEntityTransmitter<IGasHandler, GasNetwork, GasStack> implements IGasHandler {
+public class TileEntityPressurizedTube extends TileEntityTransmitter<IGasHandler, GasNetwork, GasStack> implements IMekanismGasHandler {
 
     public TubeTier tier = TubeTier.BASIC;
 
@@ -34,35 +40,16 @@ public class TileEntityPressurizedTube extends TileEntityTransmitter<IGasHandler
     public GasStack lastWrite;
 
     private int nextTransfer = 0;
+    private final PressurizedTubeGasTank gasTank = new PressurizedTubeGasTank();
+    private final List<IExtendedGasTank> gasTanks = Collections.singletonList(gasTank);
+    private final DynamicGasHandler gasHandler = new DynamicGasHandler(this::getTubeGasTanks, this::canExtractGasTank, this::canInsertGasTank, this);
+    private final GasHandlerManager gasHandlerManager = new GasHandlerManager(ProxiedGasTankHolder.create(
+          this::canInsertGas, this::canExtractGas, this::getTubeGasTanks
+    ), gasHandler);
 
-    //Read only handler for support with TOP and getting network data instead of this tube's data
-    private IGasHandler nullHandler = new IGasHandler() {
-        @Override
-        public int receiveGas(EnumFacing side, GasStack stack, boolean doTransfer) {
-            return 0;
-        }
-
-        @Override
-        public GasStack drawGas(EnumFacing side, int amount, boolean doTransfer) {
-            return null;
-        }
-
-        @Override
-        public boolean canReceiveGas(EnumFacing side, Gas type) {
-            return false;
-        }
-
-        @Override
-        public boolean canDrawGas(EnumFacing side, Gas type) {
-            return false;
-        }
-
-        @Nonnull
-        @Override
-        public GasTankInfo[] getTankInfo() {
-            return TileEntityPressurizedTube.this.getTankInfo();
-        }
-    };
+    public TileEntityPressurizedTube() {
+        addCapabilityResolver(gasHandlerManager);
+    }
 
     @Override
     public BaseTier getBaseTier() {
@@ -80,15 +67,19 @@ public class TileEntityPressurizedTube extends TileEntityTransmitter<IGasHandler
         if (!getWorld().isRemote) {
             updateShare();
             if (nextTransfer <= 0) {
-                IGasHandler[] connectedAcceptors = GasUtils.getConnectedAcceptors(getPos(), getWorld(), getConnections(ConnectionType.PULL));
                 boolean successAtLeaseOnce = false;
                 for (EnumFacing side : getConnections(ConnectionType.PULL)) {
-                    IGasHandler container = connectedAcceptors[side.ordinal()];
+                    IGasHandler container = getConnectedAcceptor(side, true);
                     if (container != null) {
-                        GasStack received = container.drawGas(side.getOpposite(), getAvailablePull(), false);
+                        GasStack bufferWithFallback = getBufferWithFallback();
+                        Gas gasType = bufferWithFallback == null ? null : bufferWithFallback.getGas();
+                        GasStack received = GasInventorySlot.extractGas(container, side.getOpposite(), gasType, getAvailablePull(), false);
                         if (received != null && received.amount != 0 && takeGas(received, false) == received.amount) {
-                            container.drawGas(side.getOpposite(), takeGas(received, true), true);
-                            successAtLeaseOnce = true;
+                            GasStack extracted = GasInventorySlot.extractGas(container, side.getOpposite(), received.getGas(), received.amount, true);
+                            if (extracted != null && extracted.amount != 0) {
+                                takeGas(extracted, true);
+                                successAtLeaseOnce = true;
+                            }
                         }
                     }
                 }
@@ -128,13 +119,16 @@ public class TileEntityPressurizedTube extends TileEntityTransmitter<IGasHandler
     }
 
     private GasStack getSaveShare() {
-        if (getTransmitter().hasTransmitterNetwork() && getTransmitter().getTransmitterNetwork().buffer != null) {
-            int remain = getTransmitter().getTransmitterNetwork().buffer.amount % getTransmitter().getTransmitterNetwork().transmittersSize();
-            int toSave = getTransmitter().getTransmitterNetwork().buffer.amount / getTransmitter().getTransmitterNetwork().transmittersSize();
-            if (getTransmitter().getTransmitterNetwork().firstTransmitter().equals(getTransmitter())) {
+        GasNetwork transmitterNetwork = getTransmitter().getTransmitterNetwork();
+        GasStack networkBuffer = transmitterNetwork.getBuffer();
+        if (getTransmitter().hasTransmitterNetwork() && networkBuffer != null) {
+            int bufferAmount = transmitterNetwork.getBufferAmount();
+            int remain = bufferAmount % transmitterNetwork.transmittersSize();
+            int toSave = bufferAmount / transmitterNetwork.transmittersSize();
+            if (transmitterNetwork.firstTransmitter().equals(getTransmitter())) {
                 toSave += remain;
             }
-            return new GasStack(getTransmitter().getTransmitterNetwork().buffer.getGas(), toSave);
+            return new GasStack(networkBuffer.getGas(), toSave);
         }
         return null;
     }
@@ -142,11 +136,8 @@ public class TileEntityPressurizedTube extends TileEntityTransmitter<IGasHandler
     @Override
     public void onChunkUnload() {
         if (!getWorld().isRemote && getTransmitter().hasTransmitterNetwork()) {
-            if (lastWrite != null && getTransmitter().getTransmitterNetwork().buffer != null) {
-                getTransmitter().getTransmitterNetwork().buffer.amount -= lastWrite.amount;
-                if (getTransmitter().getTransmitterNetwork().buffer.amount <= 0) {
-                    getTransmitter().getTransmitterNetwork().buffer = null;
-                }
+            if (lastWrite != null && getTransmitter().getTransmitterNetwork().getBuffer() != null) {
+                getTransmitter().getTransmitterNetwork().shrinkBuffer(lastWrite.amount);
             }
         }
         super.onChunkUnload();
@@ -164,6 +155,8 @@ public class TileEntityPressurizedTube extends TileEntityTransmitter<IGasHandler
         } else {
             buffer.setGas(null);
         }
+        GasStack stored = buffer.getGas();
+        lastWrite = stored == null ? null : stored.copy();
     }
 
 
@@ -190,7 +183,8 @@ public class TileEntityPressurizedTube extends TileEntityTransmitter<IGasHandler
 
     @Override
     public boolean isValidAcceptor(TileEntity tile, EnumFacing side) {
-        return GasUtils.isValidAcceptorOnSide(tile, side);
+        return tile != null && !CapabilityUtils.hasCapability(tile, Capabilities.GRID_TRANSMITTER_CAPABILITY, side.getOpposite()) &&
+               CapabilityUtils.hasCapability(tile, Capabilities.GAS_HANDLER_CAPABILITY, side.getOpposite());
     }
 
     @Override
@@ -237,62 +231,42 @@ public class TileEntityPressurizedTube extends TileEntityTransmitter<IGasHandler
     }
 
     @Override
+    public void clearBuffer() {
+        buffer.setGas(null);
+        onContentsChanged();
+    }
+
+    @Override
     public void takeShare() {
-        if (getTransmitter().hasTransmitterNetwork() && getTransmitter().getTransmitterNetwork().buffer != null && lastWrite != null) {
-            getTransmitter().getTransmitterNetwork().buffer.amount -= lastWrite.amount;
+        if (getTransmitter().hasTransmitterNetwork() && getTransmitter().getTransmitterNetwork().getBuffer() != null && lastWrite != null) {
+            getTransmitter().getTransmitterNetwork().shrinkBuffer(lastWrite.amount);
             buffer.setGas(lastWrite);
         }
     }
 
-    @Override
-    public int receiveGas(EnumFacing side, GasStack stack, boolean doTransfer) {
-        if (getConnectionType(side) == ConnectionType.NORMAL || getConnectionType(side) == ConnectionType.PULL) {
-            return takeGas(stack, doTransfer);
-        }
-        return 0;
-    }
-
-    @Override
-    public GasStack drawGas(EnumFacing side, int amount, boolean doTransfer) {
-        return null;
-    }
-
-    @Override
-    public boolean canReceiveGas(EnumFacing side, Gas type) {
-        return getConnectionType(side) == ConnectionType.NORMAL || getConnectionType(side) == ConnectionType.PULL;
-    }
-
-    @Override
-    public boolean canDrawGas(EnumFacing side, Gas type) {
-        return false;
-    }
-
     public int takeGas(GasStack gasStack, boolean doEmit) {
-        if (getTransmitter().hasTransmitterNetwork()) {
-            return getTransmitter().getTransmitterNetwork().emit(gasStack, doEmit);
-        }
-        return buffer.receive(gasStack, doEmit);
-    }
-
-    @Nonnull
-    @Override
-    public GasTankInfo[] getTankInfo() {
-        if (getTransmitter().hasTransmitterNetwork()) {
-            GasNetwork network = getTransmitter().getTransmitterNetwork();
-            GasTank networkTank = new GasTank(network.getCapacity());
-            networkTank.setGas(network.getBuffer());
-            return new GasTankInfo[]{networkTank};
-        }
-        return new GasTankInfo[]{buffer};
+        GasStack remainder = gasTank.insert(gasStack, Action.get(doEmit), AutomationType.INTERNAL);
+        return gasStack == null ? 0 : gasStack.amount - (remainder == null ? 0 : remainder.amount);
     }
 
     @Override
     public IGasHandler getCachedAcceptor(EnumFacing side) {
-        TileEntity tile = getCachedTile(side);
-        if (CapabilityUtils.hasCapability(tile, Capabilities.GAS_HANDLER_CAPABILITY, side.getOpposite())) {
-            return CapabilityUtils.getCapability(tile, Capabilities.GAS_HANDLER_CAPABILITY, side.getOpposite());
+        return getConnectedAcceptor(getCachedTile(side), side);
+    }
+
+    @Nullable
+    private IGasHandler getConnectedAcceptor(EnumFacing side, boolean allowPullConnection) {
+        ConnectionType connectionType = getConnectionType(side);
+        if (!allowPullConnection && (connectionType == ConnectionType.PULL || connectionType == ConnectionType.NONE)) {
+            return null;
         }
-        return null;
+        TileEntity tile = MekanismUtils.getTileEntity(world, getPos().offset(side));
+        return getConnectedAcceptor(tile, side);
+    }
+
+    @Nullable
+    private IGasHandler getConnectedAcceptor(@Nullable TileEntity tile, EnumFacing side) {
+        return tile == null ? null : CapabilityUtils.getCapability(tile, Capabilities.GAS_HANDLER_CAPABILITY, side.getOpposite());
     }
 
     @Override
@@ -319,20 +293,76 @@ public class TileEntityPressurizedTube extends TileEntityTransmitter<IGasHandler
         return data;
     }
 
+    private boolean canInsertGasTank(@Nullable EnumFacing side) {
+        if (side == null) {
+            return true;
+        }
+        ConnectionType connectionType = getConnectionType(side);
+        return connectionType == ConnectionType.NORMAL || connectionType == ConnectionType.PULL;
+    }
+
+    private boolean canExtractGasTank(@Nullable EnumFacing side) {
+        if (side == null) {
+            return true;
+        }
+        ConnectionType connectionType = getConnectionType(side);
+        return connectionType == ConnectionType.NORMAL || connectionType == ConnectionType.PUSH;
+    }
+
+    @Nonnull
+    private List<IExtendedGasTank> getTubeGasTanks(@Nullable EnumFacing side) {
+        return isRedstoneActivated() || side != null && !canConnect(side) ? Collections.emptyList() : gasTanks;
+    }
+
+    @Nonnull
     @Override
-    public boolean hasCapability(@Nonnull Capability<?> capability, EnumFacing side) {
-        return capability == Capabilities.GAS_HANDLER_CAPABILITY || super.hasCapability(capability, side);
+    public List<IExtendedGasTank> getGasTanks(@Nullable EnumFacing side) {
+        return gasHandler.getGasTanks(side);
     }
 
     @Override
-    public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing side) {
-        if (capability == Capabilities.GAS_HANDLER_CAPABILITY) {
-            if (side == null) {
-                return Capabilities.GAS_HANDLER_CAPABILITY.cast(nullHandler);
-            }
-            return Capabilities.GAS_HANDLER_CAPABILITY.cast(this);
-        }
-        return super.getCapability(capability, side);
+    public boolean canInsertGas(@Nullable EnumFacing side) {
+        return gasHandler.canInsertGas(side);
+    }
+
+    @Override
+    public boolean canExtractGas(@Nullable EnumFacing side) {
+        return gasHandler.canExtractGas(side);
+    }
+
+    @Nullable
+    @Override
+    public GasStack insertGas(int tank, @Nullable GasStack stack, @Nullable EnumFacing side, Action action) {
+        return gasHandler.insertGas(tank, stack, side, action);
+    }
+
+    @Nullable
+    @Override
+    public GasStack extractGas(int tank, int amount, @Nullable EnumFacing side, Action action) {
+        return gasHandler.extractGas(tank, amount, side, action);
+    }
+
+    @Nullable
+    @Override
+    public GasStack insertGas(@Nullable GasStack stack, @Nullable EnumFacing side, Action action) {
+        return gasHandler.insertGas(stack, side, action);
+    }
+
+    @Nullable
+    @Override
+    public GasStack extractGas(int amount, @Nullable EnumFacing side, Action action) {
+        return gasHandler.extractGas(amount, side, action);
+    }
+
+    @Nullable
+    @Override
+    public GasStack extractGas(@Nullable GasStack stack, @Nullable EnumFacing side, Action action) {
+        return gasHandler.extractGas(stack, side, action);
+    }
+
+    @Override
+    public void onContentsChanged() {
+        markChunkDirty();
     }
 
     @Override
@@ -343,5 +373,141 @@ public class TileEntityPressurizedTube extends TileEntityTransmitter<IGasHandler
     @Override
     protected boolean shouldDumpRadiation() {
         return true;
+    }
+
+    private class PressurizedTubeGasTank implements IExtendedGasTank {
+
+        @Nullable
+        @Override
+        public GasStack getGas() {
+            GasStack stack = getActiveGas();
+            return stack == null || stack.amount <= 0 ? null : stack;
+        }
+
+        @Override
+        public int getGasAmount() {
+            GasStack stack = getGas();
+            return stack == null ? 0 : stack.amount;
+        }
+
+        @Override
+        public int getMaxGas() {
+            return getCapacity();
+        }
+
+        @Override
+        public int getCapacity() {
+            return getTransmitter().hasTransmitterNetwork() ? getTransmitter().getTransmitterNetwork().getCapacity() : TileEntityPressurizedTube.this.getCapacity();
+        }
+
+        @Override
+        public int getNeeded() {
+            return Math.max(0, getCapacity() - getGasAmount());
+        }
+
+        @Override
+        public void setStack(@Nullable GasStack stack) {
+            setStack(stack, true);
+        }
+
+        @Override
+        public void setStackUnchecked(@Nullable GasStack stack) {
+            setStack(stack, false);
+        }
+
+        private void setStack(@Nullable GasStack stack, boolean validateStack) {
+            if (stack == null || stack.amount <= 0) {
+                setActiveGas(null);
+            } else if (!validateStack || isValid(stack)) {
+                setActiveGas(stack.copy().withAmount(Math.min(stack.amount, getCapacity())));
+            } else {
+                throw new RuntimeException("Invalid gas for tank: " + stack.getGas().getName() + " " + stack.amount);
+            }
+        }
+
+        @Override
+        public boolean isValid(@Nullable GasStack stack) {
+            return stack != null && stack.getGas() != null;
+        }
+
+        @Override
+        public boolean canReceive(Gas gas) {
+            GasStack stored = getGas();
+            return getNeeded() > 0 && (stored == null || gas == null || gas == stored.getGas());
+        }
+
+        @Override
+        public boolean canReceiveType(Gas gas) {
+            GasStack stored = getGas();
+            return stored == null || gas == null || gas == stored.getGas();
+        }
+
+        @Override
+        public boolean canDraw(Gas gas) {
+            GasStack stored = getGas();
+            return stored != null && (gas == null || gas == stored.getGas());
+        }
+
+        @Nullable
+        @Override
+        public GasStack insert(@Nullable GasStack stack, Action action, AutomationType automationType) {
+            if (stack == null || stack.amount <= 0 || !isValid(stack)) {
+                return stack;
+            }
+            GasStack stored = getGas();
+            if (stored != null && !stored.isGasEqual(stack)) {
+                return stack;
+            }
+            int toAdd = Math.min(stack.amount, getNeeded());
+            if (toAdd <= 0) {
+                return stack;
+            }
+            if (action.execute()) {
+                if (stored == null) {
+                    setActiveGas(stack.copy().withAmount(toAdd));
+                } else {
+                    setActiveGas(stored.copy().withAmount(stored.amount + toAdd));
+                }
+            }
+            return stack.amount == toAdd ? null : stack.copy().withAmount(stack.amount - toAdd);
+        }
+
+        @Nullable
+        @Override
+        public GasStack extract(int amount, Action action, AutomationType automationType) {
+            GasStack stored = getGas();
+            if (stored == null || amount <= 0) {
+                return null;
+            }
+            int toRemove = Math.min(amount, stored.amount);
+            if (toRemove <= 0) {
+                return null;
+            }
+            GasStack ret = stored.copy().withAmount(toRemove);
+            if (action.execute()) {
+                setActiveGas(stored.amount <= toRemove ? null : stored.copy().withAmount(stored.amount - toRemove));
+            }
+            return ret;
+        }
+
+        @Nullable
+        private GasStack getActiveGas() {
+            return getTransmitter().hasTransmitterNetwork() ? getTransmitter().getTransmitterNetwork().getBuffer() : buffer.getGas();
+        }
+
+        private void setActiveGas(@Nullable GasStack stack) {
+            GasStack stored = stack == null || stack.amount <= 0 ? null : stack.copy().withAmount(Math.min(stack.amount, getCapacity()));
+            if (getTransmitter().hasTransmitterNetwork()) {
+                getTransmitter().getTransmitterNetwork().setBuffer(stored);
+            } else {
+                buffer.setGas(stored);
+            }
+            onContentsChanged();
+        }
+
+        @Override
+        public void onContentsChanged() {
+            TileEntityPressurizedTube.this.onContentsChanged();
+        }
     }
 }

@@ -1,7 +1,9 @@
 package mekanism.common.content.gear.mekatool;
 
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
 import mekanism.api.EnumColor;
-import mekanism.api.energy.IEnergizedItem;
+import mekanism.api.energy.IEnergyContainer;
 import mekanism.api.gear.ICustomModule;
 import mekanism.api.gear.IModule;
 import mekanism.api.gear.config.IModuleConfigItem;
@@ -45,12 +47,12 @@ public class ModuleAttackAmplificationUnit implements ICustomModule<ModuleAttack
     public void hitEntity(IModule<ModuleAttackAmplificationUnit> module, ItemStack stack, EntityLivingBase target, EntityLivingBase attacker) {
         int unitDamage = getDamage();
         if (unitDamage > 0) {
-            IEnergizedItem energyContainer = module.getEnergyContainer();
-            if (energyContainer != null && energyContainer.getEnergy(stack) != 0) {
+            IEnergyContainer energyContainer = module.getEnergyContainer();
+            if (energyContainer != null && !energyContainer.isEmpty()) {
                 //Try to extract full energy, even if we have a lower damage amount this is fine as that just means
                 // we don't have enough energy, but we will remove as much as we can, which is how much corresponds
                 // to the amount of damage we will actually do
-                energyContainer.extract(stack, MekanismConfig.current().meka.mekaToolEnergyUsageWeapon.val() * (unitDamage / 4D), true);
+                energyContainer.extract(MekanismConfig.current().meka.mekaToolEnergyUsageWeapon.val() * (unitDamage / 4D), Action.EXECUTE, AutomationType.MANUAL);
             }
         }
     }

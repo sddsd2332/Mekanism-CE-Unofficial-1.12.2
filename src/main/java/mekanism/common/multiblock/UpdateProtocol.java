@@ -2,12 +2,16 @@ package mekanism.common.multiblock;
 
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import mekanism.api.Coord4D;
+import mekanism.api.gas.GasStack;
 import mekanism.common.tile.multiblock.TileEntityMultiblock;
+import mekanism.common.util.FluidContainerUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
+import net.minecraftforge.fluids.FluidStack;
 
+import javax.annotation.Nullable;
 import java.util.*;
 
 public abstract class UpdateProtocol<T extends SynchronizedData<T>> {
@@ -277,6 +281,26 @@ public abstract class UpdateProtocol<T extends SynchronizedData<T>> {
 
     protected abstract void mergeCaches(List<ItemStack> rejectedItems, MultiblockCache<T> cache, MultiblockCache<T> merge);
 
+    @Nullable
+    protected GasStack mergeGasStack(@Nullable GasStack current, @Nullable GasStack incoming) {
+        if (current == null) {
+            return incoming == null ? null : incoming.copy();
+        } else if (incoming != null && current.isGasEqual(incoming)) {
+            return current.copy().withAmount(current.amount + incoming.amount);
+        }
+        return current;
+    }
+
+    @Nullable
+    protected FluidStack mergeFluidStack(@Nullable FluidStack current, @Nullable FluidStack incoming) {
+        if (current == null) {
+            return incoming == null ? null : incoming.copy();
+        } else if (incoming != null && current.isFluidEqual(incoming)) {
+            return FluidContainerUtils.copyWithAmount(current, current.amount + incoming.amount);
+        }
+        return current;
+    }
+
     protected void onFormed() {
         structureFound.internalLocations.forEach(coord -> {
             TileEntity tile = coord.getTileEntity(pointer.getWorld());
@@ -319,6 +343,9 @@ public abstract class UpdateProtocol<T extends SynchronizedData<T>> {
                     iteratedNodes.forEach(newCoord -> {
                         TileEntity tile = newCoord.getTileEntity(pointer.getWorld());
                         if (tile instanceof TileEntityMultiblock<?> multiblock) {
+                            if (multiblock.structure != null) {
+                                multiblock.structure.setFormed(false);
+                            }
                             multiblock.structure = null;
                         } else if (tile instanceof IStructuralMultiblock block) {
                             block.setController(null);
@@ -387,6 +414,7 @@ public abstract class UpdateProtocol<T extends SynchronizedData<T>> {
 
             cache.apply(structureFound);
             structureFound.inventoryID = idToUse;
+            structureFound.setFormed(true);
 
             onFormed();
 
@@ -418,6 +446,7 @@ public abstract class UpdateProtocol<T extends SynchronizedData<T>> {
                     if (tileEntity.structure != null && !tileEntity.structure.destroyed) {
                         onStructureDestroyed(tileEntity.structure);
                         tileEntity.structure.destroyed = true;
+                        tileEntity.structure.setFormed(false);
                     }
                     tileEntity.structure = null;
                 } else if (tile instanceof IStructuralMultiblock block) {

@@ -5,6 +5,7 @@ import mekanism.common.PacketHandler;
 import mekanism.common.entity.EntityRobit;
 import mekanism.common.network.PacketRobit.RobitMessage;
 import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.SecurityUtils;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessageHandler;
@@ -22,7 +23,7 @@ public class PacketRobit implements IMessageHandler<RobitMessage, IMessage> {
         }
         PacketHandler.handlePacket(() -> {
             if (player.world.getEntityByID(message.entityId) instanceof EntityRobit robit) {
-                if (!player.getUniqueID().equals(robit.getOwnerUUID()) && !MekanismUtils.isOp(player)) {
+                if (!SecurityUtils.canAccess(player, robit)) {
                     return;
                 }
                 // Do not allow remote control packets from arbitrarily far away.
@@ -37,8 +38,8 @@ public class PacketRobit implements IMessageHandler<RobitMessage, IMessage> {
                         robit.setFollowing(!robit.getFollowing());
                         break;
                     case NAME:
-                        if (message.name != null) {
-                            robit.setCustomNameTag(message.name.length() > 64 ? message.name.substring(0, 64) : message.name);
+                        if (RobitMessage.hasContent(message.name)) {
+                            robit.setCustomNameTag(message.name);
                         }
                         break;
                     case GO_HOME:
@@ -63,6 +64,8 @@ public class PacketRobit implements IMessageHandler<RobitMessage, IMessage> {
 
     public static class RobitMessage implements IMessage {
 
+        public static final int MAX_NAME_LENGTH = 50;
+
         public RobitPacketType activeType;
 
         public int entityId;
@@ -80,7 +83,7 @@ public class PacketRobit implements IMessageHandler<RobitMessage, IMessage> {
         public RobitMessage(int entityId, @Nonnull String name) {
             activeType = RobitPacketType.NAME;
             this.entityId = entityId;
-            this.name = name;
+            this.name = trimName(name);
         }
 
         public RobitMessage(int entityId, int guiID) {
@@ -94,7 +97,7 @@ public class PacketRobit implements IMessageHandler<RobitMessage, IMessage> {
             dataStream.writeInt(activeType.ordinal());
             dataStream.writeInt(entityId);
             if (activeType == RobitPacketType.NAME) {
-                PacketHandler.writeString(dataStream, name);
+                PacketHandler.writeString(dataStream, trimName(name));
             } else if (activeType == RobitPacketType.GUI) {
                 dataStream.writeInt(guiID);
             }
@@ -105,10 +108,38 @@ public class PacketRobit implements IMessageHandler<RobitMessage, IMessage> {
             activeType = MekanismUtils.getByIndex(RobitPacketType.values(), dataStream.readInt(), RobitPacketType.GUI);
             entityId = dataStream.readInt();
             if (activeType == RobitPacketType.NAME) {
-                name = PacketHandler.readString(dataStream);
+                name = trimName(PacketHandler.readString(dataStream));
             } else if (activeType == RobitPacketType.GUI) {
                 guiID = dataStream.readInt();
             }
+        }
+
+        private static String trimName(String name) {
+            if (name == null) {
+                return "";
+            }
+            name = name.trim();
+            return name.length() > MAX_NAME_LENGTH ? name.substring(0, MAX_NAME_LENGTH) : name;
+        }
+
+        public static boolean hasContent(String text) {
+            if (text == null) {
+                return false;
+            }
+            text = trimName(text);
+            if (!text.isEmpty()) {
+                boolean wasColorSymbol = false;
+                for (char c : text.toCharArray()) {
+                    if (c == '\u00A7') {
+                        wasColorSymbol = true;
+                    } else if (!wasColorSymbol) {
+                        return true;
+                    } else {
+                        wasColorSymbol = false;
+                    }
+                }
+            }
+            return false;
         }
     }
 }

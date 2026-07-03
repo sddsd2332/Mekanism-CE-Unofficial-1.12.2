@@ -844,3 +844,20 @@ mekanism.configgui.ctgy.tools.tools=工具平衡
 mekanism.configgui.ctgy.tools.general.tooltip=通用機械工具的常規配置設定
 mekanism.configgui.ctgy.tools.armor.tooltip=通用機械護甲的保護值以及平衡的設定
 mekanism.configgui.ctgy.tools.tools.tooltip=通用機械工具的效率值以及平衡的設定
+
+# Migration GUI keys
+gui.trusted=信任
+gui.inputRate=輸入速率
+gui.progress=進度
+gui.processRate=處理速率
+mekanism.gui.visuals.toobig=半徑過大，無法顯示視覺效果
+gui.back=返回
+gui.Blades_damaged=葉片受損
+gui.Blades_damaged_number=受損葉片
+gui.forced_run=強制運行
+gui.forced_run_off=關閉強制運行
+gui.updateRun=更新運行狀態
+gui.protection=保護已啟用
+gui.protection2=二級保護已啟用
+gui.protection.off=保護已關閉
+mekanism.configgui.ctgy.multiblock.multiblock=大型多方塊機器設定

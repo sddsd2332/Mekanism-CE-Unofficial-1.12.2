@@ -1,0 +1,13 @@
+{
+      "parent": "mekanism:enricher",
+      "criteria": {"yellow_cake": {
+            "trigger": "minecraft:inventory_changed",
+            "conditions": {"items": [{"item": "mekanism:yellowcakeuranium"}]}
+      }},
+      "display": {
+            "icon": {"item": "mekanism:yellowcakeuranium"},
+            "description": {"translate": "advancements.mekanism.yellow_cake.description"},
+            "title": {"translate": "advancements.mekanism.yellow_cake.title"},
+            "frame": "goal"
+      }
+}

@@ -1,12 +1,10 @@
 package mekanism.common.tile.machine;
 
 import io.netty.buffer.ByteBuf;
-import mekanism.api.Coord4D;
-import mekanism.api.TileNetworkList;
-import mekanism.api.gas.*;
+import mekanism.api.*;
+import mekanism.api.gas.GasStack;
 import mekanism.api.transmitters.TransmissionType;
 import mekanism.common.Mekanism;
-import mekanism.common.SideData;
 import mekanism.common.Upgrade;
 import mekanism.common.Upgrade.IUpgradeInfoHandler;
 import mekanism.common.base.IBoundingBlock;
@@ -14,9 +12,23 @@ import mekanism.common.base.ISpecialSelectionWireframeTile;
 import mekanism.common.base.ISustainedData;
 import mekanism.common.base.ITankManager;
 import mekanism.common.block.states.BlockStateMachine;
-import mekanism.common.capabilities.Capabilities;
+import mekanism.common.capabilities.energy.MachineEnergyContainer;
+import mekanism.common.capabilities.gas.BasicGasTank;
+import mekanism.common.capabilities.holder.gas.GasTankHelper;
+import mekanism.common.capabilities.holder.gas.IGasTankHolder;
+import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
+import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
 import mekanism.common.config.MekanismConfig;
+import mekanism.common.inventory.container.slot.ContainerSlotType;
+import mekanism.common.inventory.container.slot.SlotOverlay;
+import mekanism.common.inventory.slot.EnergyInventorySlot;
+import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.recipe.RecipeHandler;
+import mekanism.common.recipe.cache.CachedRecipe;
+import mekanism.common.recipe.cache.CachedRecipe.OperationTracker.RecipeError;
+import mekanism.common.recipe.cache.OneInputCachedRecipe;
+import mekanism.common.recipe.cache.inputs.InputHelper;
+import mekanism.common.recipe.cache.outputs.OutputHelper;
 import mekanism.common.recipe.inputs.GasInput;
 import mekanism.common.recipe.machines.IsotopicRecipe;
 import mekanism.common.recipe.outputs.GasOutput;
@@ -24,23 +36,24 @@ import mekanism.common.tile.component.TileComponentConfig;
 import mekanism.common.tile.component.TileComponentEjector;
 import mekanism.common.tile.component.config.DataType;
 import mekanism.common.tile.prefab.TileEntityBasicMachine;
-import mekanism.common.util.*;
+import mekanism.common.util.ItemDataUtils;
+import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.TileUtils;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.IBlockAccess;
-import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
-import javax.annotation.Nonnull;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-public class TileEntityIsotopicCentrifuge extends TileEntityBasicMachine<GasInput, GasOutput, IsotopicRecipe> implements ISustainedData, IBoundingBlock, IGasHandler, IUpgradeInfoHandler, ITankManager, ISpecialSelectionWireframeTile {
+public class TileEntityIsotopicCentrifuge extends TileEntityBasicMachine<GasInput, GasOutput, IsotopicRecipe> implements ISustainedData, IBoundingBlock, IUpgradeInfoHandler, ITankManager, ISpecialSelectionWireframeTile {
     private static final ISpecialSelectionWireframeTile.SelectionTransform[] SELECTION_ROTATE_SOUTH = {
             ISpecialSelectionWireframeTile.SelectionTransform.rotateY(180, 0.5D, 0.5D, 0.5D)
     };
@@ -52,41 +65,76 @@ public class TileEntityIsotopicCentrifuge extends TileEntityBasicMachine<GasInpu
     };
 
     public static final int MAX_GAS = 10000;
-    public GasTank inputTank = new GasTank(MAX_GAS);
-    public GasTank outputTank = new GasTank(MAX_GAS);
+    private static final List<RecipeError> TRACKED_ERROR_TYPES = Arrays.asList(
+          RecipeError.NOT_ENOUGH_ENERGY,
+          RecipeError.NOT_ENOUGH_ENERGY_REDUCED_RATE,
+          RecipeError.NOT_ENOUGH_INPUT,
+          RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
+          RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
+    );
+    public BasicGasTank inputTank;
+    public BasicGasTank outputTank;
     public IsotopicRecipe cachedRecipe;
     public double clientEnergyUsed;
     private int currentRedstoneLevel;
     public float prevScale;
     public int updateDelay;
     public boolean needsPacket;
+    private GasInventorySlot inputSlot;
+    private GasInventorySlot outputSlot;
+    private EnergyInventorySlot energySlot;
 
     public TileEntityIsotopicCentrifuge() {
-        super("washer", BlockStateMachine.MachineType.ISOTOPIC_CENTRIFUGE, 3, 1);
+        super("washer", BlockStateMachine.MachineType.ISOTOPIC_CENTRIFUGE, 3, 1, TRACKED_ERROR_TYPES);
         configComponent = new TileComponentConfig(this, TransmissionType.ITEM, TransmissionType.ENERGY, TransmissionType.GAS);
-
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.NONE, InventoryUtils.EMPTY));
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.INPUT, new int[]{0}));
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.OUTPUT, new int[]{1}));
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.ENERGY, new int[]{2}));
-        configComponent.setConfig(TransmissionType.ITEM, new byte[]{1, -1, 2, 3, 1, 1});
+        initializeInventorySlots();
+        configComponent.setupItemIOConfig(inputSlot, outputSlot, energySlot);
+        configComponent.setConfig(TransmissionType.ITEM, DataType.INPUT, DataType.EMPTY, DataType.OUTPUT, DataType.ENERGY, DataType.INPUT, DataType.INPUT);
         configComponent.setCanEject(TransmissionType.ITEM, false);
-
-        configComponent.addOutput(TransmissionType.GAS, new SideData(DataType.NONE, InventoryUtils.EMPTY));
-        configComponent.addOutput(TransmissionType.GAS, new SideData(DataType.INPUT, new int[]{0}));
-        configComponent.addOutput(TransmissionType.GAS, new SideData(DataType.OUTPUT, new int[]{1}));
-        configComponent.addOutput(TransmissionType.GAS, new SideData(new int[]{0, 1}, new boolean[]{false, true}));
-        configComponent.setConfig(TransmissionType.GAS, new byte[]{1, -1, 2, 1, 1, 1});
-
-        configComponent.addOutput(TransmissionType.ENERGY, new SideData(DataType.NONE, SideData.IOState.OFF));
-        configComponent.addOutput(TransmissionType.ENERGY, new SideData(DataType.INPUT, SideData.IOState.INPUT));
-        configComponent.setConfig(TransmissionType.ENERGY, new byte[]{1, -1, 1, 1, 1, 1});
+        configComponent.setupIOConfig(TransmissionType.GAS, inputTank, outputTank, RelativeSide.FRONT, false, true);
+        configComponent.setConfig(TransmissionType.GAS, DataType.INPUT, DataType.EMPTY, DataType.OUTPUT, DataType.INPUT, DataType.INPUT, DataType.INPUT);
+        configComponent.setupInputConfig(TransmissionType.ENERGY, this);
+        configComponent.setConfig(TransmissionType.ENERGY, DataType.INPUT, DataType.EMPTY, DataType.INPUT, DataType.INPUT, DataType.INPUT, DataType.INPUT);
         configComponent.setCanEject(TransmissionType.ENERGY, false);
 
         ejectorComponent = new TileComponentEjector(this);
-        ejectorComponent.setOutputData(TransmissionType.GAS, configComponent.getOutputs(TransmissionType.GAS).get(2));
-        ejectorComponent.setInputOutputData(TransmissionType.GAS, configComponent.getOutputs(TransmissionType.GAS).get(3));
-        inventory = NonNullListSynchronized.withSize(4, ItemStack.EMPTY);
+        ejectorComponent.setOutputData(configComponent, TransmissionType.ITEM, TransmissionType.GAS)
+              .setCanTankEject(tank -> tank != inputTank);
+    }
+
+    @Override
+    protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
+        InventorySlotHelper builder = createInventorySlotHelper();
+        inputSlot = builder.addSlot(GasInventorySlot.fill(inputTank, listener, 5, 56));
+        outputSlot = builder.addSlot(GasInventorySlot.drain(outputTank, listener, 155, 56));
+        energySlot = builder.addSlot(EnergyInventorySlot.fillOrConvert(getMainEnergyContainer(), this::getWorld, listener, 155, 14));
+        inputSlot.setSlotType(ContainerSlotType.INPUT);
+        inputSlot.setSlotOverlay(SlotOverlay.MINUS);
+        outputSlot.setSlotType(ContainerSlotType.OUTPUT);
+        outputSlot.setSlotOverlay(SlotOverlay.PLUS);
+        return builder.build();
+    }
+
+    @Override
+    protected IGasTankHolder getInitialGasTanks(IContentsListener listener) {
+        GasTankHelper builder = createGasTankHelper();
+        builder.addTank(getOrCreateInputTank());
+        builder.addTank(getOrCreateOutputTank(listener));
+        return builder.build();
+    }
+
+    private BasicGasTank getOrCreateInputTank() {
+        if (inputTank == null) {
+            inputTank = BasicGasTank.input(MAX_GAS, gas -> RecipeHandler.Recipe.ISOTOPIC_CENTRIFUGE.containsRecipe(gas), getRecipeCacheListener());
+        }
+        return inputTank;
+    }
+
+    private BasicGasTank getOrCreateOutputTank(IContentsListener listener) {
+        if (outputTank == null) {
+            outputTank = BasicGasTank.output(MAX_GAS, getRecipeCacheChangeListener(listener));
+        }
+        return outputTank;
     }
 
     @Override
@@ -98,13 +146,10 @@ public class TileEntityIsotopicCentrifuge extends TileEntityBasicMachine<GasInpu
                 needsPacket = true;
             }
         }
-        ChargeUtils.discharge(2, this);
-        if (!inventory.get(0).isEmpty() && inventory.get(0).getItem() instanceof IGasItem gasItem && gasItem.getGas(inventory.get(0)) != null && RecipeHandler.Recipe.ISOTOPIC_CENTRIFUGE.containsRecipe(gasItem.getGas(inventory.get(0)).getGas())) {
-            TileUtils.receiveGasItem(inventory.get(0), inputTank);
-        }
-        TileUtils.drawGas(inventory.get(1), outputTank);
-        IsotopicRecipe recipe = getRecipe();
-        getProcess(recipe, true, energyPerTick, true, false);
+        energySlot.fillContainerOrConvert();
+        inputSlot.fillTank();
+        outputSlot.drainTank();
+        clientEnergyUsed = processRecipe(getMainEnergyContainer());
         prevEnergy = getEnergy();
         int newRedstoneLevel = getRedstoneLevel();
         if (newRedstoneLevel != currentRedstoneLevel) {
@@ -133,16 +178,8 @@ public class TileEntityIsotopicCentrifuge extends TileEntityBasicMachine<GasInpu
 
 
     @Override
-    public void setUpOtherActions() {
-        double prev = getEnergy();
-        if (getRecipe() != null) {
-            setEnergy(getEnergy() - energyPerTick * getUpgradedUsage(getRecipe()));
-        }
-        clientEnergyUsed = prev - getEnergy();
-    }
-
-    @Override
     public IsotopicRecipe getRecipe() {
+        refreshRecipeLookupCache();
         GasInput input = getInput();
         if (cachedRecipe == null || !input.testEquality(cachedRecipe.getInput())) {
             cachedRecipe = RecipeHandler.getIsotopicRecipe(getInput());
@@ -151,18 +188,66 @@ public class TileEntityIsotopicCentrifuge extends TileEntityBasicMachine<GasInpu
     }
 
     @Override
+    protected void clearRecipeLookupCache() {
+        super.clearRecipeLookupCache();
+        cachedRecipe = null;
+    }
+
+    @Override
+    public IsotopicRecipe getRecipe(int cacheIndex) {
+        return getRecipe();
+    }
+
+    @Override
     public GasInput getInput() {
         return new GasInput(inputTank.getGas());
     }
 
-    @Override
-    public boolean canOperate(IsotopicRecipe recipe) {
-        return recipe != null && recipe.canOperate(inputTank, outputTank);
+    public MachineEnergyContainer getEnergyContainer() {
+        return getMainEnergyContainer();
+    }
+
+    public boolean usedEnergy() {
+        return clientEnergyUsed > 0;
+    }
+
+    public double getEnergyUsed() {
+        return clientEnergyUsed;
+    }
+
+    public boolean hasWarningNoMatchingRecipe() {
+        return inputTank.getGas() != null && getRecipe() == null;
+    }
+
+    public boolean hasWarningNoSpaceInOutput() {
+        GasStack output = getCurrentOutput();
+        return output != null && outputTank.canReceiveType(output.getGas()) && outputTank.getNeeded() < output.amount;
+    }
+
+    public boolean hasWarningInputDoesntProduceOutput() {
+        GasStack output = getCurrentOutput();
+        return output != null && !outputTank.canReceiveType(output.getGas());
     }
 
     @Override
-    public void operate(IsotopicRecipe recipe) {
-        recipe.operate(inputTank, outputTank, getUpgradedUsage(recipe));
+    public CachedRecipe<IsotopicRecipe> createNewCachedRecipe(IsotopicRecipe recipe, int cacheIndex) {
+        return new OneInputCachedRecipe<>(recipe, this::shouldRecheckAllRecipeErrors,
+              InputHelper.getGasInputHandler(inputTank, RecipeError.NOT_ENOUGH_INPUT),
+              OutputHelper.getGasOutputHandler(outputTank, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
+              () -> recipe.getInput().ingredient, input -> input != null && input.isGasEqual(recipe.getInput().ingredient),
+              input -> recipe.getOutput().output.copy(), input -> input == null || input.amount <= 0, output -> output == null || output.amount <= 0)
+              .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
+              .setActive(active -> {
+                  if (active || prevEnergy >= getEnergy()) {
+                      setActive(active);
+                  }
+              })
+              .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
+              .setRequiredTicks(() -> ticksRequired)
+              .setBaselineMaxOperations(() -> getUpgradedUsage(recipe))
+              .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
+              .setErrorsChanged(this::onRecipeErrorsChanged)
+              .setOnFinish(this::onCachedRecipeFinish);
     }
 
 
@@ -177,6 +262,14 @@ public class TileEntityIsotopicCentrifuge extends TileEntityBasicMachine<GasInpu
         possibleProcess = Math.min((int) (getEnergy() / energyPerTick), possibleProcess);
         possibleProcess = Math.max(possibleProcess,1);
         return Math.min(inputTank.getStored() / recipe.recipeInput.ingredient.amount, possibleProcess);
+    }
+
+    private GasStack getCurrentOutput() {
+        IsotopicRecipe recipe = getRecipe();
+        if (recipe == null || recipe.getOutput().output == null) {
+            return null;
+        }
+        return recipe.getOutput().output;
     }
 
     @Override
@@ -205,107 +298,48 @@ public class TileEntityIsotopicCentrifuge extends TileEntityBasicMachine<GasInpu
     @Override
     public void readCustomNBT(NBTTagCompound nbtTags) {
         super.readCustomNBT(nbtTags);
-        inputTank.read(nbtTags.getCompoundTag("inputTank"));
-        outputTank.read(nbtTags.getCompoundTag("outputTank"));
+        if (!hasStoredGasTanks(nbtTags) && nbtTags.hasKey("inputTank")) {
+            inputTank.read(nbtTags.getCompoundTag("inputTank"));
+        }
+        if (!hasStoredGasTanks(nbtTags) && nbtTags.hasKey("outputTank")) {
+            outputTank.read(nbtTags.getCompoundTag("outputTank"));
+        }
+        sanitizeAndClampTanks();
     }
 
     @Override
     public void writeCustomNBT(NBTTagCompound nbtTags) {
         super.writeCustomNBT(nbtTags);
-        nbtTags.setTag("inputTank", inputTank.write(new NBTTagCompound()));
-        nbtTags.setTag("outputTank", outputTank.write(new NBTTagCompound()));
-    }
-
-
-    @Override
-    public boolean canReceiveGas(EnumFacing side, Gas type) {
-        return configComponent.getOutput(TransmissionType.GAS, side, facing).hasSlot(0)
-                && inputTank.canReceive(type) && RecipeHandler.Recipe.ISOTOPIC_CENTRIFUGE.containsRecipe(type);
-    }
-
-    @Override
-    public int receiveGas(EnumFacing side, GasStack stack, boolean doTransfer) {
-        if (stack == null || stack.getGas() == null) {
-            return 0;
-        }
-        if (canReceiveGas(side, stack.getGas())) {
-            int recipeAmount = RecipeHandler.Recipe.ISOTOPIC_CENTRIFUGE.get().get(new GasInput(stack)).recipeInput.ingredient.amount;
-            int receivable = inputTank.receive(stack, false);
-            int stored = inputTank.stored != null ? inputTank.stored.amount : 0;
-            int newStored = stored + receivable;
-            int amount = newStored - stored - newStored % recipeAmount;
-            return inputTank.receive(stack.copy().withAmount(amount), doTransfer);
-        }
-        return 0;
-    }
-
-    @Override
-    public GasStack drawGas(EnumFacing side, int amount, boolean doTransfer) {
-        if (canDrawGas(side, null)) {
-            return outputTank.draw(amount, doTransfer);
-        }
-        return null;
-    }
-
-    @Override
-    public boolean canDrawGas(EnumFacing side, Gas type) {
-        return configComponent.getOutput(TransmissionType.GAS, side, facing).hasSlot(1) && outputTank.canDraw(type);
-    }
-
-    @Nonnull
-    @Override
-    public GasTankInfo[] getTankInfo() {
-        return new GasTankInfo[]{inputTank, outputTank};
-    }
-
-    @Override
-    public boolean isItemValidForSlot(int slot, @Nonnull ItemStack stack) {
-        return stack.getItem() instanceof IGasItem;
-    }
-
-    @Override
-    public boolean canExtractItem(int slotID, @Nonnull ItemStack itemstack, @Nonnull EnumFacing side) {
-        if (slotID == 1) {
-            return !itemstack.isEmpty() && itemstack.getItem() instanceof IGasItem gasItem && gasItem.canProvideGas(itemstack, null);
-        } else if (slotID == 2) {
-            return ChargeUtils.canBeOutputted(itemstack, false);
-        }
-        return false;
-    }
-
-
-    @Override
-    public boolean hasCapability(@Nonnull Capability<?> capability, EnumFacing side) {
-        if (isCapabilityDisabled(capability, side)) {
-            return false;
-        }
-        return capability == Capabilities.GAS_HANDLER_CAPABILITY || super.hasCapability(capability, side);
-    }
-
-    @Override
-    public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing side) {
-        if (isCapabilityDisabled(capability, side)) {
-            return null;
-        } else if (capability == Capabilities.GAS_HANDLER_CAPABILITY) {
-            return Capabilities.GAS_HANDLER_CAPABILITY.cast(this);
-        }
-        return super.getCapability(capability, side);
     }
 
     @Override
     public void writeSustainedData(ItemStack itemStack) {
-        if (inputTank.getGas() != null) {
-            ItemDataUtils.setCompound(itemStack, "inputTank", inputTank.getGas().write(new NBTTagCompound()));
-        }
-        if (outputTank.getGas() != null) {
-            ItemDataUtils.setCompound(itemStack, "outputTank", outputTank.getGas().write(new NBTTagCompound()));
-        }
+        writeSustainedGasTanks(itemStack);
+        ItemDataUtils.setLegacyGas(itemStack, "inputTank", inputTank.getGas());
+        ItemDataUtils.setLegacyGas(itemStack, "outputTank", outputTank.getGas());
     }
 
     @Override
     public void readSustainedData(ItemStack itemStack) {
-        inputTank.setGas(GasStack.readFromNBT(ItemDataUtils.getCompound(itemStack, "inputTank")));
-        outputTank.setGas(GasStack.readFromNBT(ItemDataUtils.getCompound(itemStack, "outputTank")));
+        if (!readSustainedGasTanks(itemStack)) {
+            inputTank.setStackUnchecked(ItemDataUtils.getLegacyGas(itemStack, "inputTank"));
+            outputTank.setStackUnchecked(ItemDataUtils.getLegacyGas(itemStack, "outputTank"));
+        }
+        sanitizeAndClampTanks();
+    }
+
+    private void sanitizeAndClampTanks() {
+        sanitizeAndClampTank(inputTank);
+        sanitizeAndClampTank(outputTank);
+    }
+
+    private void sanitizeAndClampTank(BasicGasTank tank) {
+        GasStack stored = tank.getGas();
+        if (stored != null && (stored.amount <= 0 || stored.getGas() == null)) {
+            tank.setEmpty();
+        } else if (stored != null) {
+            tank.setStackSize(stored.amount, Action.EXECUTE);
+        }
     }
 
     @Override
@@ -314,7 +348,7 @@ public class TileEntityIsotopicCentrifuge extends TileEntityBasicMachine<GasInpu
     }
 
     @Override
-    public Object[] getTanks() {
+    public Object[] getManagedTanks() {
         return new Object[]{inputTank, outputTank};
     }
 
@@ -352,23 +386,7 @@ public class TileEntityIsotopicCentrifuge extends TileEntityBasicMachine<GasInpu
             updateDelay = 10;
         }
     }
-
-    @Override
-    public boolean getEnergySlot() {
-        return inventory.get(2).isEmpty();
-    }
-
-    @Override
-    public boolean getInputSlot() {
-        return false;
-    }
-
-    @Override
-    public boolean getOuputSlot() {
-        return false;
-    }
-
-    @Override
+@Override
     protected boolean shouldDumpRadiation() {
         return true;
     }

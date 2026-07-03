@@ -1,66 +1,60 @@
 package mekanism.client.jei.machine;
 
-import mekanism.client.gui.element.GuiPowerBar;
-import mekanism.client.gui.element.GuiPowerBar.IPowerInfoHandler;
-import mekanism.client.gui.element.GuiProgress;
-import mekanism.client.gui.element.GuiProgress.IProgressInfoHandler;
-import mekanism.client.gui.element.GuiProgress.ProgressBar;
-import mekanism.client.gui.element.GuiSlot.SlotType;
-import mekanism.client.gui.element.slot.GuiEnergySlot;
-import mekanism.client.gui.element.slot.GuiExtraSlot;
-import mekanism.client.gui.element.slot.GuiInputSlot;
-import mekanism.client.gui.element.slot.GuiOutputSlot;
+import mekanism.client.gui.element.GuiUpArrow;
+import mekanism.client.gui.element.bar.GuiBar.IBarInfoHandler;
+import mekanism.client.gui.element.bar.GuiVerticalPowerBar;
+import mekanism.client.gui.element.progress.GuiProgress;
+import mekanism.client.gui.element.progress.ProgressType;
+import mekanism.client.gui.element.slot.GuiSlot;
+import mekanism.client.gui.element.slot.SlotType;
 import mekanism.client.jei.BaseRecipeCategory;
 import mekanism.common.recipe.machines.DoubleMachineRecipe;
-import mekanism.common.util.MekanismUtils;
 import mezz.jei.api.IGuiHelper;
 import mezz.jei.api.gui.IGuiItemStackGroup;
 import mezz.jei.api.gui.IRecipeLayout;
 import mezz.jei.api.ingredients.IIngredients;
-import net.minecraft.client.Minecraft;
 
 public class DoubleMachineRecipeCategory<RECIPE extends DoubleMachineRecipe<RECIPE>, WRAPPER extends DoubleMachineRecipeWrapper<RECIPE>> extends BaseRecipeCategory<WRAPPER> {
 
-    public DoubleMachineRecipeCategory(IGuiHelper helper, String name, String unlocalized, ProgressBar progress) {
-        super(helper, "mekanism:gui/Null.png", name, unlocalized, progress, 28, 16, 144, 54);
+    private GuiSlot input;
+    private GuiSlot extra;
+    private GuiSlot output;
+
+    public DoubleMachineRecipeCategory(IGuiHelper helper, String name, String unlocalized, ProgressType progress) {
+        super(helper, DUMMY_GUI_TEXTURE, name, unlocalized, 28, 16, 144, 54, progress);
     }
 
     @Override
     protected void addGuiElements() {
-        guiElements.add(new GuiInputSlot(this, guiLocation, 55, 16));
-        guiElements.add(new GuiEnergySlot(this, guiLocation, 30, 34));
-        guiElements.add(new GuiExtraSlot(this, guiLocation, 55, 52));
-        guiElements.add(new GuiOutputSlot(SlotType.OUTPUT_LARGE, this, guiLocation, 111, 30));
-        guiElements.add(new GuiPowerBar(this, new IPowerInfoHandler() {
+        input = addElement(new GuiSlot(SlotType.INPUT, this, 63, 16).setRenderAboveSlots());
+        guiElements.add(new GuiSlot(SlotType.POWER, this, 38, 34).setRenderAboveSlots());
+        extra = addElement(new GuiSlot(SlotType.EXTRA, this, 63, 52).setRenderAboveSlots());
+        output = addElement(new GuiSlot(SlotType.OUTPUT, this, 115, 34).setRenderAboveSlots());
+        guiElements.add(new GuiVerticalPowerBar(this, new IBarInfoHandler() {
             @Override
             public double getLevel() {
                 return 1F;
             }
-        }, guiLocation, 164, 15));
-        guiElements.add(new GuiProgress(new IProgressInfoHandler() {
+        }, 164, 16));
+        guiElements.add(new GuiUpArrow(this, 60, 38));
+        guiElements.add(new GuiProgress(new mekanism.client.gui.element.progress.IProgressInfoHandler() {
             @Override
             public double getProgress() {
                 return (double) timer.getValue() / 20F;
             }
-        }, progressBar, this, guiLocation, 77, 37,false));
-    }
-
-    @Override
-    public void drawExtras(Minecraft minecraft) {
-        super.drawExtras(minecraft);
-        minecraft.renderEngine.bindTexture(MekanismUtils.getResource(MekanismUtils.ResourceType.GUI, "Other_Icon.png"));
-        drawTexturedRect(60 - xOffset, 38 - yOffset, 22, 0, 8, 10);
+            @Override
+            public boolean isGuiInJei() {
+                return true;
+            }
+        }, progressType, this, 86, 38));
     }
 
     @Override
     public void setRecipe(IRecipeLayout recipeLayout, WRAPPER recipeWrapper, IIngredients ingredients) {
         DoubleMachineRecipe<?> tempRecipe = recipeWrapper.getRecipe();
         IGuiItemStackGroup itemStacks = recipeLayout.getItemStacks();
-        itemStacks.init(0, true, 27, 0);
-        itemStacks.init(1, false, 87, 18);
-        itemStacks.init(2, false, 27, 36);
-        itemStacks.set(0, tempRecipe.recipeInput.itemStack);
-        itemStacks.set(1, tempRecipe.recipeOutput.output);
-        itemStacks.set(2, tempRecipe.recipeInput.extraStack);
+        initItem(itemStacks, 0, true, input, tempRecipe.recipeInput.itemStack);
+        initItem(itemStacks, 1, false, output, tempRecipe.recipeOutput.output);
+        initItem(itemStacks, 2, true, extra, tempRecipe.recipeInput.extraStack);
     }
 }

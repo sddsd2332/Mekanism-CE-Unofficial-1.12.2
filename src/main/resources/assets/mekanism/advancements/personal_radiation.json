@@ -1,0 +1,9 @@
+{
+      "parent": "mekanism:environmental_radiation",
+      "criteria": {"use_dosimeter": {"trigger": "mekanism:use_dosimeter"}},
+      "display": {
+            "icon": {"item": "mekanism:dosimeter"},
+            "description": {"translate": "advancements.mekanism.personal_radiation.description"},
+            "title": {"translate": "advancements.mekanism.personal_radiation.title"}
+      }
+}

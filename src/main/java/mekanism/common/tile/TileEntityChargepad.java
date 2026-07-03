@@ -3,6 +3,8 @@ package mekanism.common.tile;
 import baubles.api.BaublesApi;
 import com.google.common.base.Predicate;
 import io.netty.buffer.ByteBuf;
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
 import mekanism.api.TileNetworkList;
 import mekanism.common.Mekanism;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
@@ -12,7 +14,6 @@ import mekanism.common.tile.prefab.TileEntityEffectsBlock;
 import mekanism.common.util.ChargeUtils;
 import mekanism.common.util.InventoryUtils;
 import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.NonNullListSynchronized;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.SoundEvents;
@@ -44,7 +45,7 @@ public class TileEntityChargepad extends TileEntityEffectsBlock {
 
     public TileEntityChargepad() {
         super("machine.chargepad", "Chargepad", MachineType.CHARGEPAD.getStorage());
-        inventory = NonNullListSynchronized.withSize(0, ItemStack.EMPTY);
+        initializeInventorySlots();
     }
 
     @Override
@@ -57,11 +58,15 @@ public class TileEntityChargepad extends TileEntityEffectsBlock {
             isActive = getEnergy() > 0;
             if (!isActive) {
                 break;
-            }else if (entity instanceof EntityRobit robit){
-                double canGive = Math.min(getEnergy(), 1000);
-                double toGive = Math.min(robit.MAX_ELECTRICITY - robit.getEnergy(), canGive);
-                robit.setEnergy(robit.getEnergy() + toGive);
-                setEnergy(getEnergy() - toGive);
+            } else if (entity instanceof EntityRobit robit) {
+                double energyToGive = 1000;
+                double simulatedRemainder = robit.insert(energyToGive, Action.SIMULATE, AutomationType.INTERNAL);
+                if (simulatedRemainder < energyToGive) {
+                    double extracted = getMainEnergyContainer().extract(energyToGive - simulatedRemainder, Action.EXECUTE, AutomationType.INTERNAL);
+                    if (extracted > 0) {
+                        robit.insert(extracted, Action.EXECUTE, AutomationType.INTERNAL);
+                    }
+                }
             }else if (entity instanceof EntityPlayer player){
                 double prevEnergy = getEnergy();
                 List<ItemStack> stacks = new ArrayList<>();

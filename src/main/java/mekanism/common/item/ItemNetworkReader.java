@@ -1,16 +1,14 @@
 package mekanism.common.item;
 
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
-import mekanism.api.Coord4D;
-import mekanism.api.EnumColor;
-import mekanism.api.IHeatTransfer;
-import mekanism.api.MekanismAPI;
+import mekanism.api.*;
 import mekanism.api.transmitters.DynamicNetwork;
 import mekanism.api.transmitters.IGridTransmitter;
 import mekanism.api.transmitters.TransmitterNetworkRegistry;
 import mekanism.common.Mekanism;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.util.CapabilityUtils;
+import mekanism.common.util.StorageUtils;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.EnumRarity;
 import net.minecraft.item.ItemStack;
@@ -42,10 +40,10 @@ public class ItemNetworkReader extends ItemEnergized {
         if (!world.isRemote) {
             TileEntity tileEntity = world.getTileEntity(pos);
             boolean drain = !player.capabilities.isCreativeMode;
-            if (getEnergy(stack) >= ENERGY_PER_USE && tileEntity != null) {
+            if (StorageUtils.getStoredEnergy(stack) >= ENERGY_PER_USE && tileEntity != null) {
                 if (CapabilityUtils.hasCapability(tileEntity, Capabilities.GRID_TRANSMITTER_CAPABILITY, side.getOpposite())) {
                     if (drain) {
-                        setEnergy(stack, getEnergy(stack) - ENERGY_PER_USE);
+                        StorageUtils.extractEnergy(stack, ENERGY_PER_USE, Action.EXECUTE);
                     }
                     IGridTransmitter transmitter = CapabilityUtils.getCapability(tileEntity, Capabilities.GRID_TRANSMITTER_CAPABILITY, side.getOpposite());
 
@@ -66,7 +64,7 @@ public class ItemNetworkReader extends ItemEnergized {
                     return EnumActionResult.SUCCESS;
                 } else if (CapabilityUtils.hasCapability(tileEntity, Capabilities.HEAT_TRANSFER_CAPABILITY, side.getOpposite())) {
                     if (drain) {
-                        setEnergy(stack, getEnergy(stack) - ENERGY_PER_USE);
+                        StorageUtils.extractEnergy(stack, ENERGY_PER_USE, Action.EXECUTE);
                     }
 
                     IHeatTransfer transfer = CapabilityUtils.getCapability(tileEntity, Capabilities.HEAT_TRANSFER_CAPABILITY, side.getOpposite());
@@ -76,7 +74,7 @@ public class ItemNetworkReader extends ItemEnergized {
                     return EnumActionResult.SUCCESS;
                 } else {
                     if (drain) {
-                        setEnergy(stack, getEnergy(stack) - ENERGY_PER_USE);
+                        StorageUtils.extractEnergy(stack, ENERGY_PER_USE, Action.EXECUTE);
                     }
                     Set<DynamicNetwork> iteratedNetworks = new ObjectOpenHashSet<>();
 
@@ -114,7 +112,7 @@ public class ItemNetworkReader extends ItemEnergized {
     }
 
     @Override
-    public boolean canSend(ItemStack itemstack) {
+    public boolean canSendEnergy(ItemStack itemstack) {
         return false;
     }
 }

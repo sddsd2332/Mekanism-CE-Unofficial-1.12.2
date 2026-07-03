@@ -3,17 +3,12 @@ package mekanism.common.tile.multiblock;
 import io.netty.buffer.ByteBuf;
 import mekanism.api.TileNetworkList;
 import mekanism.api.energy.IStrictEnergyStorage;
-import mekanism.common.capabilities.Capabilities;
 import mekanism.common.tier.InductionCellTier;
 import mekanism.common.tile.prefab.TileEntityBasicBlock;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.EnumFacing;
-import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.fml.common.FMLCommonHandler;
-
-import javax.annotation.Nonnull;
 
 public class TileEntityInductionCell extends TileEntityBasicBlock implements IStrictEnergyStorage {
 
@@ -75,18 +70,5 @@ public class TileEntityInductionCell extends TileEntityBasicBlock implements ISt
     @Override
     public double getMaxEnergy() {
         return tier.getMaxEnergy();
-    }
-
-    @Override
-    public boolean hasCapability(@Nonnull net.minecraftforge.common.capabilities.Capability<?> capability, EnumFacing facing) {
-        return capability == Capabilities.ENERGY_STORAGE_CAPABILITY || super.hasCapability(capability, facing);
-    }
-
-    @Override
-    public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing facing) {
-        if (capability == Capabilities.ENERGY_STORAGE_CAPABILITY) {
-            return Capabilities.ENERGY_STORAGE_CAPABILITY.cast(this);
-        }
-        return super.getCapability(capability, facing);
     }
 }

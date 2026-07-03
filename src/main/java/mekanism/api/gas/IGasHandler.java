@@ -3,6 +3,7 @@ package mekanism.api.gas;
 import net.minecraft.util.EnumFacing;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Implement this if your tile entity accepts gas from an external source.
@@ -48,10 +49,39 @@ public interface IGasHandler {
     boolean canDrawGas(EnumFacing side, Gas type);
 
     /**
-     * Gets the tanks present on this handler. READ ONLY. DO NOT MODIFY.
+     * Read-only legacy tank count bridge for plain {@link IGasHandler} callers.
+     * Prefer the richer extended/mekanism handler interfaces when available.
+     */
+    default int getLegacyTankCount() {
+        return getTankInfo().length;
+    }
+
+    /**
+     * Read-only legacy tank contents bridge for plain {@link IGasHandler} callers.
+     * Prefer the richer extended/mekanism handler interfaces when available.
+     */
+    @Nullable
+    default GasStack getLegacyGasInTank(int tank) {
+        GasTankInfo[] tankInfo = getTankInfo();
+        return tank >= 0 && tank < tankInfo.length ? tankInfo[tank].getGas() : null;
+    }
+
+    /**
+     * Read-only legacy tank capacity bridge for plain {@link IGasHandler} callers.
+     * Prefer the richer extended/mekanism handler interfaces when available.
+     */
+    default int getLegacyTankCapacity(int tank) {
+        GasTankInfo[] tankInfo = getTankInfo();
+        return tank >= 0 && tank < tankInfo.length ? tankInfo[tank].getMaxGas() : 0;
+    }
+
+    /**
+     * Legacy compat view of the tanks present on this handler. READ ONLY. DO NOT MODIFY.
+     * Prefer direct handler/tank accessors when possible instead of materializing this snapshot bridge.
      *
      * @return an array of GasTankInfo elements corresponding to all tanks.
      */
+    @Deprecated
     @Nonnull
     default GasTankInfo[] getTankInfo() {
         return NONE;

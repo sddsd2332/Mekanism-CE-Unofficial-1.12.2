@@ -1,55 +1,59 @@
 package mekanism.client.gui.element.tab;
 
 import mekanism.api.TileNetworkList;
+import mekanism.client.SpecialColors;
 import mekanism.client.gui.IGuiWrapper;
-import mekanism.client.gui.element.GuiTileEntityElement;
-import mekanism.client.sound.SoundHandler;
+import mekanism.client.gui.element.GuiInsetElement;
+import mekanism.client.render.MekanismRenderer;
 import mekanism.common.Mekanism;
 import mekanism.common.network.PacketTileEntity.TileEntityMessage;
 import mekanism.common.tile.laser.TileEntityLaserAmplifier;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.MekanismUtils.ResourceType;
-import net.minecraft.init.SoundEvents;
 import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraft.util.text.TextComponentString;
 
-@SideOnly(Side.CLIENT)
-public class GuiAmplifierTab extends GuiTileEntityElement<TileEntityLaserAmplifier> {
+public class GuiAmplifierTab extends GuiInsetElement<TileEntityLaserAmplifier> {
 
-    public GuiAmplifierTab(IGuiWrapper gui, TileEntityLaserAmplifier tile, ResourceLocation def) {
-        super(gui, def, tile, -26, 138, 26, 26, -21, 142, 18, 18);
-    }
+    private static final ResourceLocation OFF = MekanismUtils.getResource(MekanismUtils.ResourceType.GUI, "amplifier_off.png");
+    private static final ResourceLocation ENTITY = MekanismUtils.getResource(MekanismUtils.ResourceType.GUI, "amplifier_entity.png");
+    private static final ResourceLocation CONTENTS = MekanismUtils.getResource(MekanismUtils.ResourceType.GUI, "amplifier_contents.png");
 
-
-    @Override
-    public void renderBackground(int xAxis, int yAxis, int guiWidth, int guiHeight) {
-        super.renderBackground(xAxis, yAxis, guiWidth, guiHeight);
-        int outputOrdinal = tileEntity.outputMode.ordinal();
-        mc.renderEngine.bindTexture(MekanismUtils.getResource(ResourceType.BUTTON_TAB, "button_tab_icon.png"));
-        guiObj.drawTexturedRect(guiWidth - 21, guiHeight + 142, 18 * outputOrdinal, 0, 18, 18);
-        mc.renderEngine.bindTexture(defaultLocation);
+    public GuiAmplifierTab(IGuiWrapper gui, TileEntityLaserAmplifier tile) {
+        super(OFF, gui, tile, gui.getWidth(), 109, 26, 18, false);
     }
 
     @Override
-    public void renderForeground(int xAxis, int yAxis) {
-        mc.renderEngine.bindTexture(RESOURCE);
-        if (inBounds(xAxis, yAxis)) {
-            displayTooltip(LangUtils.localize("gui.redstoneOutput") + ": " + tileEntity.outputMode.getName(), xAxis, yAxis);
-        }
-        mc.renderEngine.bindTexture(defaultLocation);
+    protected void colorTab() {
+        MekanismRenderer.color(SpecialColors.TAB_LASER_AMPLIFIER.argb());
     }
 
     @Override
-    public void preMouseClicked(int xAxis, int yAxis, int button) {
+    protected ResourceLocation getOverlay() {
+        return switch (dataSource.getOutputMode()) {
+            case ENTITY_DETECTION -> ENTITY;
+            case ENERGY_CONTENTS -> CONTENTS;
+            default -> super.getOverlay();
+        };
     }
 
     @Override
-    public void mouseClicked(int xAxis, int yAxis, int button) {
-        if (button == 0 && inBounds(xAxis, yAxis)) {
-            Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(3)));
-            SoundHandler.playSound(SoundEvents.UI_BUTTON_CLICK);
-        }
+    public void renderToolTip(int mouseX, int mouseY) {
+        super.renderToolTip(mouseX, mouseY);
+        displayTooltip(new TextComponentString(LangUtils.localize("gui.redstoneOutput") + ": " + dataSource.getOutputMode().getName()), mouseX, mouseY);
+    }
+
+    @Override
+    public boolean isValidClickButton(int button) {
+        return button == 0 || button == 1;
+    }
+
+    @Override
+    public void onClick(double mouseX, double mouseY, int button) {
+        sendModeChange(button);
+    }
+
+    private void sendModeChange(int button) {
+        Mekanism.packetHandler.sendToServer(new TileEntityMessage(dataSource, TileNetworkList.withContents(button == 1 ? 4 : 3)));
     }
 }

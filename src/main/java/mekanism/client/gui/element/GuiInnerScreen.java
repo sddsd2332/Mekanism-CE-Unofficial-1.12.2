@@ -1,66 +1,68 @@
 package mekanism.client.gui.element;
 
-import mekanism.client.SpecialColors;
 import mekanism.client.gui.IGuiWrapper;
-import mekanism.client.render.MekanismRenderer;
+import mekanism.client.recipe_viewer.RecipeViewerUtils;
+import mekanism.client.recipe_viewer.interfaces.IRecipeViewerRecipeArea;
+import mekanism.client.recipe_viewer.type.IRecipeViewerRecipeType;
 import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.MekanismUtils.ResourceType;
-import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.text.ITextComponent;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
-@SideOnly(Side.CLIENT)
-public class GuiInnerScreen extends GuiElement {
+public class GuiInnerScreen extends GuiScalableElement implements IRecipeViewerRecipeArea<GuiInnerScreen> {
 
-    private final int xPosition;
-    private final int yPosition;
-    private final int xSize;
-    private final int ySize;
+    public static final ResourceLocation SCREEN = MekanismUtils.getResource(MekanismUtils.ResourceType.GUI, "inner_screen.png");
+    public static int SCREEN_SIZE = 32;
 
-    private boolean overlay;
-    private Supplier<List<String>> renderStrings;
+    private Supplier<List<ITextComponent>> renderStrings;
+    private Supplier<List<ITextComponent>> tooltipStrings;
+
+    private IRecipeViewerRecipeType<?>[] recipeCategories;
     private boolean centerY;
     private int spacing = 1;
     private int padding = 3;
     private float textScale = 1.0F;
 
-    public GuiInnerScreen(IGuiWrapper gui, ResourceLocation def, int x, int y, int sizeX, int sizeY) {
-        super(MekanismUtils.getResource(ResourceType.GUI, "Inner_Screen.png"), gui, def);
-        xPosition = x;
-        yPosition = y;
-        xSize = sizeX;
-        ySize = sizeY;
+    public GuiInnerScreen(IGuiWrapper gui, int x, int y, int width, int height) {
+        super(SCREEN, gui, x, y, width, height, SCREEN_SIZE, SCREEN_SIZE);
     }
 
-    public GuiInnerScreen(IGuiWrapper gui,  ResourceLocation def, int x, int y, int width, int height, Supplier<List<String>> renderStrings) {
-        this(gui,def,x,y,width,height);
+    public GuiInnerScreen(IGuiWrapper gui, int x, int y, int width, int height, Supplier<List<ITextComponent>> renderStrings) {
+        this(gui, x, y, width, height);
         this.renderStrings = renderStrings;
         defaultFormat();
     }
 
-    @Override
-    public Rectangle4i getBounds(int guiWidth, int guiHeight) {
-        return new Rectangle4i(guiWidth + xPosition, guiHeight + yPosition, xSize, ySize);
+    public GuiInnerScreen tooltip(Supplier<List<ITextComponent>> tooltipStrings) {
+        this.tooltipStrings = tooltipStrings;
+        active = true;
+        return this;
     }
 
     @Override
-    protected boolean inBounds(int xAxis, int yAxis) {
-        return xAxis >= xPosition && xAxis <= xPosition + xSize && yAxis >= yPosition && yAxis <= yPosition + ySize;
+    public GuiInnerScreen recipeViewerCategories(IRecipeViewerRecipeType<?>... recipeCategories) {
+        this.recipeCategories = recipeCategories;
+        return this;
     }
 
     @Override
-    public void renderBackground(int xAxis, int yAxis, int guiWidth, int guiHeight) {
-        mc.renderEngine.bindTexture(RESOURCE);
-        drawBlack(guiWidth, guiHeight);
-        if (overlay) {
-            mc.renderEngine.bindTexture(MekanismUtils.getResource(ResourceType.SLOT, "Slot_Icon.png"));
-            guiObj.drawTexturedRect(guiWidth + xPosition + xSize - 18, guiHeight + yPosition, 0, 54, 18, 18);
-        }
-        mc.renderEngine.bindTexture(defaultLocation);
+    public IRecipeViewerRecipeType<?>[] getRecipeCategories() {
+        return recipeCategories;
+    }
+
+    @Override
+    public boolean isMouseOverRecipeViewerArea(double mouseX, double mouseY) {
+        return visible && mouseX >= x && mouseY >= y && mouseX < x + width && mouseY < y + height;
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        return RecipeViewerUtils.openRecipeViewerRecipes(this, mouseX, mouseY, button) || super.mouseClicked(mouseX, mouseY, button);
     }
 
     public GuiInnerScreen spacing(int spacing) {
@@ -68,9 +70,17 @@ public class GuiInnerScreen extends GuiElement {
         return this;
     }
 
+    public GuiInnerScreen clearSpacing() {
+        return spacing(0);
+    }
+
     public GuiInnerScreen padding(int padding) {
         this.padding = padding;
         return this;
+    }
+
+    public GuiInnerScreen clearScale() {
+        return textScale(1);
     }
 
     public GuiInnerScreen textScale(float textScale) {
@@ -89,61 +99,55 @@ public class GuiInnerScreen extends GuiElement {
     }
 
     public GuiInnerScreen defaultFormat() {
-        return padding(5).spacing(3).textScale(0.8F).centerY();
+        return padding(5).spacing(2).textScale(0.8F).centerY();
+    }
+
+    protected List<ITextComponent> getRenderStrings() {
+        return renderStrings == null ? Collections.emptyList() : renderStrings.get();
     }
 
     @Override
-    public void renderForeground(int xAxis, int yAxis) {
-        if (renderStrings != null) {
-            List<String> list = renderStrings.get();
-            int startY = yPosition + padding;
-            int lineHeight = Math.max(1, Math.round(getFontRenderer().FONT_HEIGHT * textScale));
+    public void renderForeground(int mouseX, int mouseY) {
+        super.renderForeground(mouseX, mouseY);
+        List<ITextComponent> list = getRenderStrings();
+        if (!list.isEmpty()) {
+            int lineHeight = getFont().FONT_HEIGHT;
+            int minY = relativeY + padding;
+            int maxY = minY + lineHeight;
+            int heightToNextLine = lineHeight + spacing;
             if (centerY) {
-                int listSize = list.size();
-                int totalHeight = listSize * lineHeight + spacing * (listSize - 1);
-                startY = yPosition + (ySize - totalHeight) / 2;
+                int totalHeight = heightToNextLine * list.size() - spacing;
+                float center = (getHeight() - totalHeight) / 2F;
+                minY = relativeY + MathHelper.floor(center);
+                maxY = relativeY + lineHeight + MathHelper.ceil(center);
             }
-            for (String text : list) {
-                if (textScale == 1.0F) {
-                    getFontRenderer().drawString(text, xPosition + padding, startY, SpecialColors.TEXT_SCREEN.argb());
-                } else {
-                    float reverse = 1F / textScale;
-                    GlStateManager.pushMatrix();
-                    GlStateManager.scale(textScale, textScale, textScale);
-                    int scaledX = Math.round((xPosition + padding) * reverse);
-                    int scaledY = Math.round(startY * reverse);
-                    getFontRenderer().drawString(text, scaledX, scaledY, SpecialColors.TEXT_SCREEN.argb());
-                    GlStateManager.popMatrix();
-                }
-                startY += lineHeight + spacing;
+            int minX = relativeX + padding;
+            int screenTextColor = screenTextColor();
+            for (int i = 0, size = list.size(); i < size; i++) {
+                ITextComponent text = list.get(i);
+                int maxX = relativeX + getMaxTextWidth(i) - padding;
+                drawScaledScrollingString(text, minX, minY, maxX, maxY, TextAlignment.LEFT, screenTextColor, false, textScale, getTimeOpened());
+                minY += heightToNextLine;
+                maxY += heightToNextLine;
             }
         }
     }
 
     @Override
-    public void preMouseClicked(int xAxis, int yAxis, int button) {
+    public void renderToolTip(int mouseX, int mouseY) {
+        super.renderToolTip(mouseX, mouseY);
+        if (tooltipStrings != null) {
+            List<ITextComponent> list = tooltipStrings.get();
+            List<String> list1 = new ArrayList<>();
+            list.forEach(s -> list1.add(s.getFormattedText()));
+            if (list1 != null && !list1.isEmpty()) {
+                displayTooltips(list1, mouseX, mouseY);
+            }
+        }
     }
 
-    @Override
-    public void mouseClicked(int xAxis, int yAxis, int button) {
+    protected int getMaxTextWidth(int row) {
+        return getWidth();
     }
-
-    public GuiInnerScreen with(boolean overlay) {
-        this.overlay = overlay;
-        return this;
-    }
-
-    public void drawBlack(int guiWidth, int guiHeight) {
-        int halfWidthLeft = xSize / 2;
-        int halfWidthRight = xSize % 2 == 0 ? halfWidthLeft : halfWidthLeft + 1;
-        int halfHeightTop = ySize / 2;
-        int halfHeight = ySize % 2 == 0 ? halfHeightTop : halfHeightTop + 1;
-        MekanismRenderer.resetColor();
-        guiObj.drawTexturedRect(guiWidth + xPosition, guiHeight + yPosition, 0, 0, halfWidthLeft, halfHeightTop);
-        guiObj.drawTexturedRect(guiWidth + xPosition, guiHeight + yPosition + halfHeightTop, 0, 256 - halfHeight, halfWidthLeft, halfHeight);
-        guiObj.drawTexturedRect(guiWidth + xPosition + halfWidthLeft, guiHeight + yPosition, 256 - halfWidthRight, 0, halfWidthRight, halfHeightTop);
-        guiObj.drawTexturedRect(guiWidth + xPosition + halfWidthLeft, guiHeight + yPosition + halfHeightTop, 256 - halfWidthRight, 256 - halfHeight, halfWidthRight, halfHeight);
-    }
-
 
 }

@@ -1,32 +1,46 @@
 package mekanism.common.tile.machine;
 
 import io.netty.buffer.ByteBuf;
+import mekanism.api.Action;
 import mekanism.api.IConfigCardAccess.ISpecialConfigData;
+import mekanism.api.IContentsListener;
+import mekanism.api.NBTConstants;
 import mekanism.api.TileNetworkList;
 import mekanism.api.transmitters.TransmissionType;
-import mekanism.common.*;
-import mekanism.common.base.IMachineSlotTip;
+import mekanism.common.Mekanism;
+import mekanism.common.OreDictCache;
+import mekanism.common.PacketHandler;
 import mekanism.common.base.IRedstoneControl;
 import mekanism.common.base.ISideConfiguration;
 import mekanism.common.base.ISustainedData;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.capabilities.Capabilities;
+import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
+import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
 import mekanism.common.config.MekanismConfig;
+import mekanism.common.content.filter.FilterManager;
 import mekanism.common.content.filter.IFilter;
+import mekanism.common.inventory.container.MekanismContainer;
+import mekanism.common.inventory.container.sync.SyncableBoolean;
+import mekanism.common.inventory.slot.InputInventorySlot;
+import mekanism.common.inventory.slot.OutputInventorySlot;
 import mekanism.common.network.PacketTileEntity.TileEntityMessage;
+import mekanism.common.network.to_client.container.property.FilterListPropertyData.FilterListType;
 import mekanism.common.security.ISecurityTile;
 import mekanism.common.tile.component.TileComponentConfig;
 import mekanism.common.tile.component.TileComponentEjector;
 import mekanism.common.tile.component.TileComponentSecurity;
 import mekanism.common.tile.component.config.DataType;
+import mekanism.common.tile.interfaces.ITileFilterHolder;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
-import mekanism.common.util.*;
+import mekanism.common.util.ItemDataUtils;
+import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.StackUtils;
 import net.minecraft.block.Block;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.nbt.NBTTagList;
 import net.minecraft.util.EnumFacing;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.util.Constants.NBT;
@@ -35,14 +49,16 @@ import net.minecraftforge.items.ItemHandlerHelper;
 import net.minecraftforge.oredict.OreDictionary;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
-public class TileEntityOredictionificator extends TileEntityContainerBlock implements IRedstoneControl, ISpecialConfigData, ISustainedData, ISecurityTile, ISideConfiguration, IMachineSlotTip {
+public class TileEntityOredictionificator extends TileEntityContainerBlock implements IRedstoneControl, ISpecialConfigData, ISustainedData, ISecurityTile, ISideConfiguration, ITileFilterHolder<TileEntityOredictionificator.OredictionificatorFilter> {
 
 
     public static List<String> possibleFilters = Arrays.asList(MekanismConfig.current().general.validOredictionificatorFilters.get());
-    public HashList<OredictionificatorFilter> filters = new HashList<>();
+    private final FilterManager<OredictionificatorFilter> filterManager = new FilterManager<>(OredictionificatorFilter.class, this::onFilterManagerChanged);
     public RedstoneControl controlType = RedstoneControl.DISABLED;
 
     public TileComponentEjector ejectorComponent;
@@ -51,39 +67,29 @@ public class TileEntityOredictionificator extends TileEntityContainerBlock imple
     public boolean didProcess;
 
     public TileComponentSecurity securityComponent = new TileComponentSecurity(this);
+    private InputInventorySlot inputSlot;
+    private OutputInventorySlot outputSlot;
 
     public TileEntityOredictionificator() {
         super(MachineType.OREDICTIONIFICATOR.getBlockName());
         configComponent = new TileComponentConfig(this, TransmissionType.ITEM);
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.NONE, InventoryUtils.EMPTY));
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.INPUT, new int[]{0}));
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(DataType.OUTPUT, new int[]{1}));
-        configComponent.addOutput(TransmissionType.ITEM, new SideData(new int[]{0, 1}, new boolean[]{false, true}));
-        configComponent.setConfig(TransmissionType.ITEM, new byte[]{1, 1, 1, 1, 1, 2});
-        inventory = NonNullListSynchronized.withSize(2, ItemStack.EMPTY);
+        initializeInventorySlots();
+        configComponent.setupItemIOConfig(inputSlot, outputSlot);
+        configComponent.setConfig(TransmissionType.ITEM, DataType.INPUT, DataType.INPUT, DataType.INPUT, DataType.INPUT, DataType.INPUT, DataType.OUTPUT);
 
         ejectorComponent = new TileComponentEjector(this);
-        ejectorComponent.setOutputData(TransmissionType.ITEM, configComponent.getOutputs(TransmissionType.ITEM).get(2));
-        ejectorComponent.setInputOutputData(TransmissionType.ITEM, configComponent.getOutputs(TransmissionType.ITEM).get(3));
+        ejectorComponent.setOutputData(configComponent, TransmissionType.ITEM);
         doAutoSync = false;
     }
 
     @Override
-    public boolean getEnergySlot() {
-        return false;
+    protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
+        InventorySlotHelper builder = createInventorySlotHelper();
+        inputSlot = builder.addSlot(InputInventorySlot.at(stack -> !getResult(stack).isEmpty(), stack -> getValidName(stack) != null, listener, 56, 115));
+        outputSlot = builder.addSlot(OutputInventorySlot.at(listener, 164, 115));
+        return builder.build();
     }
-
-    @Override
-    public boolean getInputSlot() {
-        return inventory.get(0).isEmpty();
-    }
-
-    @Override
-    public boolean getOuputSlot() {
-        return inventory.get(1).isEmpty();
-    }
-
-    @Override
+@Override
     public void onUpdateServer() {
         super.onUpdateServer();
         if (!playersUsing.isEmpty()) {
@@ -95,24 +101,18 @@ public class TileEntityOredictionificator extends TileEntityContainerBlock imple
     public void onAsyncUpdateServer() {
         super.onAsyncUpdateServer();
         didProcess = false;
-        ItemStack inputStack = inventory.get(0);
+        ItemStack inputStack = inputSlot.getStack();
         if (MekanismUtils.canFunction(this) && !inputStack.isEmpty() && getValidName(inputStack) != null) {
             ItemStack result = getResult(inputStack);
             if (!result.isEmpty()) {
-                ItemStack outputStack = inventory.get(1);
+                ItemStack outputStack = outputSlot.getStack();
                 if (outputStack.isEmpty()) {
-                    inputStack.shrink(1);
-                    if (inputStack.getCount() <= 0) {
-                        inventory.set(0, ItemStack.EMPTY);
-                    }
-                    inventory.set(1, result);
+                    inputSlot.shrinkStack(1, Action.EXECUTE);
+                    outputSlot.setStack(result);
                     didProcess = true;
-                } else if (ItemHandlerHelper.canItemStacksStack(outputStack, result) && outputStack.getCount() < outputStack.getMaxStackSize()) {
-                    inputStack.shrink(1);
-                    if (inputStack.getCount() <= 0) {
-                        inventory.set(0, ItemStack.EMPTY);
-                    }
-                    outputStack.grow(1);
+                } else if (ItemHandlerHelper.canItemStacksStack(outputStack, result) && outputStack.getCount() < outputSlot.getLimit(outputStack)) {
+                    inputSlot.shrinkStack(1, Action.EXECUTE);
+                    outputSlot.growStack(1, Action.EXECUTE);
                     didProcess = true;
                 }
                 markNoUpdateSync();
@@ -138,7 +138,7 @@ public class TileEntityOredictionificator extends TileEntityContainerBlock imple
             return ItemStack.EMPTY;
         }
         List<ItemStack> ores = OreDictionary.getOres(s, false);
-        for (OredictionificatorFilter filter : filters) {
+        for (OredictionificatorFilter filter : filterManager.getEnabledFilters()) {
             if (filter.filter.equals(s)) {
                 if (ores.size() - 1 >= filter.index) {
                     return StackUtils.size(ores.get(filter.index), 1);
@@ -149,41 +149,11 @@ public class TileEntityOredictionificator extends TileEntityContainerBlock imple
         return ItemStack.EMPTY;
     }
 
-    @Nonnull
-    @Override
-    public int[] getSlotsForFace(@Nonnull EnumFacing side) {
-        return configComponent.getOutput(TransmissionType.ITEM, side, facing).availableSlots;
-    }
-
-    @Override
-    public boolean canExtractItem(int slotID, @Nonnull ItemStack itemstack, @Nonnull EnumFacing side) {
-        return slotID == 1;
-    }
-
-    @Override
-    public boolean isItemValidForSlot(int slotID, @Nonnull ItemStack itemstack) {
-        if (slotID == 1) {
-            return false;
-        } else if (slotID == 0) {
-            return !getResult(itemstack).isEmpty();
-        }
-        return false;
-    }
-
-
     @Override
     public void writeCustomNBT(NBTTagCompound nbtTags) {
         super.writeCustomNBT(nbtTags);
         nbtTags.setInteger("controlType", controlType.ordinal());
-        NBTTagList filterTags = new NBTTagList();
-        filters.forEach(filter -> {
-            NBTTagCompound tagCompound = new NBTTagCompound();
-            filter.write(tagCompound);
-            filterTags.appendTag(tagCompound);
-        });
-        if (filterTags.tagCount() != 0) {
-            nbtTags.setTag("filters", filterTags);
-        }
+        filterManager.writeToNBT(nbtTags, OredictionificatorFilter::write);
 
     }
 
@@ -191,13 +161,7 @@ public class TileEntityOredictionificator extends TileEntityContainerBlock imple
     public void readCustomNBT(NBTTagCompound nbtTags) {
         super.readCustomNBT(nbtTags);
         controlType = MekanismUtils.getByIndex(RedstoneControl.values(), nbtTags.getInteger("controlType"), controlType);
-        filters.clear();
-        if (nbtTags.hasKey("filters")) {
-            NBTTagList tagList = nbtTags.getTagList("filters", NBT.TAG_COMPOUND);
-            for (int i = 0; i < tagList.tagCount(); i++) {
-                filters.add(OredictionificatorFilter.readFromNBT(tagList.getCompoundTagAt(i)));
-            }
-        }
+        filterManager.readFromNBT(nbtTags, OredictionificatorFilter::readFromNBT);
 
         //to fix any badly placed blocks in the world
         if (facing.getAxis() == EnumFacing.Axis.Y) {
@@ -207,27 +171,26 @@ public class TileEntityOredictionificator extends TileEntityContainerBlock imple
 
     @Override
     public void handlePacketData(ByteBuf dataStream) {
+        if (FMLCommonHandler.instance().getEffectiveSide().isServer()) {
+            int type = dataStream.readInt();
+            if (type == 0) {
+                filterManager.toggleState(dataStream.readInt());
+                sendFilterUpdate(null);
+            }
+            return;
+        }
         super.handlePacketData(dataStream);
         if (FMLCommonHandler.instance().getEffectiveSide().isClient()) {
             int type = dataStream.readInt();
             if (type == 0) {
                 controlType = MekanismUtils.getByIndex(RedstoneControl.values(), dataStream.readInt(), controlType);
                 didProcess = dataStream.readBoolean();
-                filters.clear();
-
-                int amount = dataStream.readInt();
-                for (int i = 0; i < amount; i++) {
-                    filters.add(OredictionificatorFilter.readFromPacket(dataStream));
-                }
+                filterManager.readFromPacket(dataStream, OredictionificatorFilter::readFromPacket);
             } else if (type == 1) {
                 controlType = MekanismUtils.getByIndex(RedstoneControl.values(), dataStream.readInt(), controlType);
                 didProcess = dataStream.readBoolean();
             } else if (type == 2) {
-                filters.clear();
-                int amount = dataStream.readInt();
-                for (int i = 0; i < amount; i++) {
-                    filters.add(OredictionificatorFilter.readFromPacket(dataStream));
-                }
+                filterManager.readFromPacket(dataStream, OredictionificatorFilter::readFromPacket);
             }
         }
     }
@@ -238,8 +201,7 @@ public class TileEntityOredictionificator extends TileEntityContainerBlock imple
         data.add(0);
         data.add(controlType.ordinal());
         data.add(didProcess);
-        data.add(filters.size());
-        filters.forEach(filter -> filter.write(data));
+        filterManager.writeToPacket(data, OredictionificatorFilter::write);
         return data;
     }
 
@@ -254,8 +216,7 @@ public class TileEntityOredictionificator extends TileEntityContainerBlock imple
     public TileNetworkList getFilterPacket(TileNetworkList data) {
         super.getNetworkedData(data);
         data.add(2);
-        data.add(filters.size());
-        filters.forEach(filter -> filter.write(data));
+        filterManager.writeToPacket(data, OredictionificatorFilter::write);
         return data;
     }
 
@@ -268,27 +229,13 @@ public class TileEntityOredictionificator extends TileEntityContainerBlock imple
 
     @Override
     public NBTTagCompound getConfigurationData(NBTTagCompound nbtTags) {
-        NBTTagList filterTags = new NBTTagList();
-        filters.forEach(filter -> {
-            NBTTagCompound tagCompound = new NBTTagCompound();
-            filter.write(tagCompound);
-            filterTags.appendTag(tagCompound);
-        });
-        if (filterTags.tagCount() != 0) {
-            nbtTags.setTag("filters", filterTags);
-        }
+        filterManager.writeToNBT(nbtTags, OredictionificatorFilter::write);
         return nbtTags;
     }
 
     @Override
     public void setConfigurationData(NBTTagCompound nbtTags) {
-        filters.clear();
-        if (nbtTags.hasKey("filters")) {
-            NBTTagList tagList = nbtTags.getTagList("filters", NBT.TAG_COMPOUND);
-            for (int i = 0; i < tagList.tagCount(); i++) {
-                filters.add(OredictionificatorFilter.readFromNBT(tagList.getCompoundTagAt(i)));
-            }
-        }
+        filterManager.readFromNBT(nbtTags, OredictionificatorFilter::readFromNBT);
     }
 
     @Override
@@ -299,27 +246,46 @@ public class TileEntityOredictionificator extends TileEntityContainerBlock imple
     @Override
     public void writeSustainedData(ItemStack itemStack) {
         ItemDataUtils.setBoolean(itemStack, "hasOredictionificatorConfig", true);
-        NBTTagList filterTags = new NBTTagList();
-        filters.forEach(filter -> {
-            NBTTagCompound tagCompound = new NBTTagCompound();
-            filter.write(tagCompound);
-            filterTags.appendTag(tagCompound);
-        });
-        if (filterTags.tagCount() != 0) {
-            ItemDataUtils.setList(itemStack, "filters", filterTags);
+        NBTTagCompound filterData = new NBTTagCompound();
+        filterManager.writeToNBT(filterData, OredictionificatorFilter::write);
+        if (filterData.hasKey(NBTConstants.FILTERS)) {
+            ItemDataUtils.setList(itemStack, NBTConstants.FILTERS, filterData.getTagList(NBTConstants.FILTERS, NBT.TAG_COMPOUND));
         }
     }
 
     @Override
     public void readSustainedData(ItemStack itemStack) {
         if (ItemDataUtils.hasData(itemStack, "hasOredictionificatorConfig")) {
-            filters.clear();
             if (ItemDataUtils.hasData(itemStack, "filters")) {
-                NBTTagList tagList = ItemDataUtils.getList(itemStack, "filters");
-                for (int i = 0; i < tagList.tagCount(); i++) {
-                    filters.add(OredictionificatorFilter.readFromNBT(tagList.getCompoundTagAt(i)));
-                }
+                filterManager.readFromNBTList(ItemDataUtils.getList(itemStack, "filters"), OredictionificatorFilter::readFromNBT);
+            } else {
+                filterManager.clear();
             }
+        }
+    }
+
+    private void onFilterManagerChanged() {
+        markDirty();
+    }
+
+    @Override
+    public FilterManager<OredictionificatorFilter> getFilterManager() {
+        return filterManager;
+    }
+
+    @Override
+    public void addContainerTrackers(MekanismContainer container) {
+        super.addContainerTrackers(container);
+        container.track(SyncableBoolean.create(() -> didProcess, value -> didProcess = value));
+        filterManager.addContainerTrackers(container, FilterListType.OREDICTIONIFICATOR, OredictionificatorFilter::write);
+    }
+
+    @Override
+    public void sendFilterUpdate(@Nullable EntityPlayerMP player) {
+        TileNetworkList filterPacket = getFilterPacket(new TileNetworkList());
+        playersUsing.forEach(iterPlayer -> Mekanism.packetHandler.sendTo(new TileEntityMessage(this, filterPacket), (EntityPlayerMP) iterPlayer));
+        if (player != null && !playersUsing.contains(player)) {
+            Mekanism.packetHandler.sendTo(new TileEntityMessage(this, filterPacket), player);
         }
     }
 
@@ -377,6 +343,7 @@ public class TileEntityOredictionificator extends TileEntityContainerBlock imple
 
         public String filter;
         public int index;
+        private boolean enabled = true;
 
         public static OredictionificatorFilter readFromNBT(NBTTagCompound nbtTags) {
             OredictionificatorFilter filter = new OredictionificatorFilter();
@@ -391,23 +358,37 @@ public class TileEntityOredictionificator extends TileEntityContainerBlock imple
         }
 
         public void write(NBTTagCompound nbtTags) {
+            nbtTags.setBoolean(NBTConstants.ENABLED, enabled);
             nbtTags.setString("filter", filter);
             nbtTags.setInteger("index", index);
         }
 
         protected void read(NBTTagCompound nbtTags) {
+            enabled = !nbtTags.hasKey(NBTConstants.ENABLED) || nbtTags.getBoolean(NBTConstants.ENABLED);
             filter = nbtTags.getString("filter");
             index = nbtTags.getInteger("index");
         }
 
         public void write(TileNetworkList data) {
+            data.add(enabled);
             data.add(filter);
             data.add(index);
         }
 
         protected void read(ByteBuf dataStream) {
+            enabled = dataStream.readBoolean();
             filter = PacketHandler.readString(dataStream);
             index = dataStream.readInt();
+        }
+
+        @Override
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        @Override
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
         }
 
         @Override
@@ -415,19 +396,22 @@ public class TileEntityOredictionificator extends TileEntityContainerBlock imple
             OredictionificatorFilter newFilter = new OredictionificatorFilter();
             newFilter.filter = filter;
             newFilter.index = index;
+            newFilter.enabled = enabled;
             return newFilter;
         }
 
         @Override
         public int hashCode() {
             int code = 1;
-            code = 31 * code + filter.hashCode();
+            code = 31 * code + (enabled ? 1 : 0);
+            code = 31 * code + Objects.hashCode(filter);
+            code = 31 * code + index;
             return code;
         }
 
         @Override
         public boolean equals(Object obj) {
-            return obj instanceof OredictionificatorFilter ore && ore.filter.equals(filter);
+            return obj instanceof OredictionificatorFilter ore && ore.enabled == enabled && ore.index == index && Objects.equals(ore.filter, filter);
         }
     }
 

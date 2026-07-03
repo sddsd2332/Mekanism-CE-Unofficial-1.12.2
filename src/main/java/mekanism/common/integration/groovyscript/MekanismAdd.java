@@ -20,6 +20,7 @@ public class MekanismAdd extends Mekanism {
 
     public final AmbientAccumulator ambient = new AmbientAccumulator();
     public final FusionCooling fusionCooling = new FusionCooling();
+    public final RotaryCondensentrator rotaryCondensentrator = new RotaryCondensentrator();
     public final Washer washer = new Washer();
     public final ItemToEnergy itemToEnergy = new ItemToEnergy();
     public final GasToEnergy gasToEnergy = new GasToEnergy();

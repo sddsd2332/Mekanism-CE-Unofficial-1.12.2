@@ -38,12 +38,17 @@ public abstract class TileEntityMachine extends TileEntityEffectsBlock implement
     public TileEntityMachine(String sound, String name, double energyStorge,double energUsage,int upgradeSlot) {
         super(sound, name, energyStorge);
         energyPerTick = BASE_ENERGY_PER_TICK = energUsage;
-        upgradeComponent = new TileComponentUpgrade(this, upgradeSlot);
+        upgradeComponent = new TileComponentUpgrade(this);
         upgradeComponent.setSupported(Upgrade.MUFFLING);
     }
 
     public TileEntityMachine(String sound, MachineType type, int upgradeSlot) {
         this(sound, type.getBlockName(), type.getStorage(),type.getUsage(),upgradeSlot);
+    }
+
+    @Override
+    protected double getMainEnergyPerTick() {
+        return energyPerTick;
     }
 
     @Override

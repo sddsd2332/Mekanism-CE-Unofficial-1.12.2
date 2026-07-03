@@ -22,6 +22,7 @@ import java.util.Random;
 public class CommonWorldTickHandler {
 
     private static final long maximumDeltaTimeNanoSecs = 16000000; // 16 milliseconds
+    public static boolean flushTagAndRecipeCaches;
 
     private Int2ObjectMap<Queue<ChunkPos>> chunkRegenMap;
 
@@ -72,6 +73,9 @@ public class CommonWorldTickHandler {
             MultiblockManager.tick(world);
             FrequencyManager.tick(world);
             RadiationManager.INSTANCE.tickServerWorld(world);
+            if (flushTagAndRecipeCaches) {
+                flushTagAndRecipeCaches = false;
+            }
             if (chunkRegenMap == null) {
                 return;
             }

@@ -6,10 +6,12 @@ import mekanism.api.Coord4D;
 import mekanism.common.base.ILogisticalTransporter;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.content.transporter.PathfinderCache.PathData;
-import mekanism.common.content.transporter.TransitRequest.TransitResponse;
 import mekanism.common.content.transporter.TransporterPathfinder.Pathfinder.DestChecker;
 import mekanism.common.content.transporter.TransporterStack.Path;
-import mekanism.common.tile.TileEntityLogisticalSorter;
+import mekanism.common.lib.SidedBlockPos;
+import mekanism.common.lib.inventory.IAdvancedTransportEjector;
+import mekanism.common.lib.inventory.TransitRequest;
+import mekanism.common.lib.inventory.TransitRequest.TransitResponse;
 import mekanism.common.transmitters.grid.InventoryNetwork;
 import mekanism.common.transmitters.grid.InventoryNetwork.AcceptorData;
 import mekanism.common.util.CapabilityUtils;
@@ -26,11 +28,16 @@ import java.util.stream.Collectors;
 public final class TransporterPathfinder {
 
     public static List<Destination> getPaths(ILogisticalTransporter start, TransporterStack stack, TransitRequest request, int min) {
+        return getPaths(start, stack, request, min, Collections.emptyMap());
+    }
+
+    public static List<Destination> getPaths(ILogisticalTransporter start, TransporterStack stack, TransitRequest request, int min,
+          Map<Coord4D, Set<TransporterStack>> additionalFlowingStacks) {
         InventoryNetwork network = start.getTransmitterNetwork();
         if (network == null) {
             return Collections.emptyList();
         }
-        List<AcceptorData> acceptors = network.calculateAcceptors(request, stack);
+        List<AcceptorData> acceptors = network.calculateAcceptors(request, stack, additionalFlowingStacks);
         return acceptors.stream().map(data -> getPath(data, start, stack, min)).filter(Objects::nonNull).sorted().collect(Collectors.toList());
     }
 
@@ -69,41 +76,52 @@ public final class TransporterPathfinder {
     }
 
     public static Destination getNewBasePath(ILogisticalTransporter start, TransporterStack stack, TransitRequest request, int min) {
-        List<Destination> paths = getPaths(start, stack, request, min);
+        return getNewBasePath(start, stack, request, min, Collections.emptyMap());
+    }
+
+    public static Destination getNewBasePath(ILogisticalTransporter start, TransporterStack stack, TransitRequest request, int min,
+          Map<Coord4D, Set<TransporterStack>> additionalFlowingStacks) {
+        List<Destination> paths = getPaths(start, stack, request, min, additionalFlowingStacks);
         if (paths.isEmpty()) {
             return null;
         }
         return paths.get(0);
     }
 
-    public static Destination getNewRRPath(ILogisticalTransporter start, TransporterStack stack, TransitRequest request, TileEntityLogisticalSorter outputter, int min) {
-        List<Destination> paths = getPaths(start, stack, request, min);
-        Map<Coord4D, Destination> destPaths = new Object2ObjectOpenHashMap<>();
-        for (Destination d : paths) {
-            Coord4D dest = d.getPath().get(0);
-            Destination destination = destPaths.get(dest);
-            if (destination == null || destination.getPath().size() < d.getPath().size()) {
-                destPaths.put(dest, d);
-            }
+    public static Destination getNewRRPath(ILogisticalTransporter start, TransporterStack stack, TransitRequest request, IAdvancedTransportEjector outputter, int min) {
+        List<Destination> destinations = getPaths(start, stack, request, min);
+        int destinationCount = destinations.size();
+        if (destinationCount == 0) {
+            return null;
         }
-
-        List<Destination> dests = new ArrayList<>(destPaths.values());
-        Collections.sort(dests);
-        Destination closest = null;
-        if (!dests.isEmpty()) {
-            if (outputter.rrIndex <= dests.size() - 1) {
-                closest = dests.get(outputter.rrIndex);
-                if (outputter.rrIndex == dests.size() - 1) {
-                    outputter.rrIndex = 0;
-                } else if (outputter.rrIndex < dests.size() - 1) {
-                    outputter.rrIndex++;
+        if (destinationCount > 1) {
+            SidedBlockPos rrTarget = outputter.getRoundRobinTarget();
+            if (rrTarget != null) {
+                for (int i = 0; i < destinationCount; i++) {
+                    Destination destination = destinations.get(i);
+                    List<Coord4D> path = destination.getPath();
+                    Coord4D pos = path.get(0);
+                    if (rrTarget.pos().equals(pos)) {
+                        EnumFacing sideOfDest = path.get(1).sideDifference(pos);
+                        if (rrTarget.side() == sideOfDest) {
+                            if (i == destinationCount - 1) {
+                                outputter.setRoundRobinTarget(destinations.get(0));
+                            } else {
+                                outputter.setRoundRobinTarget(destinations.get(i + 1));
+                            }
+                            return destination;
+                        }
+                    }
                 }
-            } else {
-                closest = dests.get(dests.size() - 1);
-                outputter.rrIndex = 0;
             }
         }
-        return closest;
+        Destination destination = destinations.get(0);
+        if (destinationCount > 1) {
+            outputter.setRoundRobinTarget(destinations.get(1));
+        } else {
+            outputter.setRoundRobinTarget(destination);
+        }
+        return destination;
     }
 
     public static Pair<List<Coord4D>, Path> getIdlePath(ILogisticalTransporter start, TransporterStack stack) {

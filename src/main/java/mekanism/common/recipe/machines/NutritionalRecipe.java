@@ -1,11 +1,11 @@
 package mekanism.common.recipe.machines;
 
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTank;
+import mekanism.api.gas.IExtendedGasTank;
+import mekanism.api.inventory.IInventorySlot;
 import mekanism.common.recipe.inputs.ItemStackInput;
 import mekanism.common.recipe.outputs.GasOutput;
 import net.minecraft.item.ItemStack;
-import net.minecraft.util.NonNullList;
 
 public class NutritionalRecipe extends MachineRecipe<ItemStackInput, GasOutput, NutritionalRecipe> {
 
@@ -22,22 +22,8 @@ public class NutritionalRecipe extends MachineRecipe<ItemStackInput, GasOutput, 
         return new NutritionalRecipe(getInput().copy(), getOutput().copy());
     }
 
-    public boolean canOperate(NonNullList<ItemStack> inventory, GasTank outputTank) {
-        return canOperate(inventory, 0, outputTank);
-    }
-
-    public boolean canOperate(NonNullList<ItemStack> inventory, int inputIndex, GasTank outputTank) {
-        return getInput().useItemStackFromInventory(inventory, inputIndex, false) && getOutput().applyOutputs(outputTank, false, 1);
-    }
-
-    public void operate(NonNullList<ItemStack> inventory, GasTank outputTank) {
-        operate(inventory, 0, outputTank);
-    }
-
-    public void operate(NonNullList<ItemStack> inventory, int inputIndex, GasTank outputTank) {
-        if (getInput().useItemStackFromInventory(inventory, inputIndex, true)) {
-            getOutput().applyOutputs(outputTank, true, 1);
-        }
+    public boolean canOperate(IInventorySlot inputSlot, IExtendedGasTank outputTank) {
+        return getInput().useItemStackFromSlot(inputSlot, false) && getOutput().applyOutputs(outputTank, false, 1);
     }
 
 }

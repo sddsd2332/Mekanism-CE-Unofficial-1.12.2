@@ -1,19 +1,20 @@
 package mekanism.common.inventory.container;
 
-import org.apache.commons.lang3.tuple.Pair;
+import mekanism.common.Mekanism;
+import mekanism.common.config.BaseConfig;
+import mekanism.common.config.MekanismConfig;
+import mekanism.common.config.options.BooleanOption;
+import mekanism.common.config.options.IntOption;
+import net.minecraftforge.common.config.Configuration;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 public class SelectedWindowData {
-
-    private static final Map<String, Pair<Integer, Integer>> LAST_POSITIONS = new HashMap<>();
 
     public static final SelectedWindowData UNSPECIFIED = new SelectedWindowData(WindowType.UNSPECIFIED);
 
@@ -46,51 +47,118 @@ public class SelectedWindowData {
         return Objects.hash(type, extraData);
     }
 
-    public void updateLastPosition(int x, int y) {
+    public void updateLastPosition(int x, int y, boolean pinned) {
         String saveName = type.getSaveName(extraData);
         if (saveName != null) {
-            LAST_POSITIONS.put(saveName, Pair.of(x, y));
+            CachedWindowPosition cachedPosition = MekanismConfig.local().client.lastWindowPositions.get(saveName);
+            if (cachedPosition != null && cachedPosition.update(x, y, type.canPin() && pinned)) {
+                cachedPosition.save(Mekanism.configuration);
+            }
         }
     }
 
-    public Pair<Integer, Integer> getLastPosition() {
+    public boolean wasPinned() {
+        return getLastPosition().pinned;
+    }
+
+    public WindowPosition getLastPosition() {
         String saveName = type.getSaveName(extraData);
         if (saveName != null) {
-            Pair<Integer, Integer> cachedPosition = LAST_POSITIONS.get(saveName);
+            CachedWindowPosition cachedPosition = MekanismConfig.local().client.lastWindowPositions.get(saveName);
             if (cachedPosition != null) {
-                return cachedPosition;
+                return cachedPosition.asWindowPosition();
             }
         }
-        return Pair.of(Integer.MAX_VALUE, Integer.MAX_VALUE);
+        return new WindowPosition(Integer.MAX_VALUE, Integer.MAX_VALUE, false);
+    }
+
+    public static class CachedWindowPosition {
+
+        private final IntOption x;
+        private final IntOption y;
+        @Nullable
+        private final BooleanOption pinned;
+
+        public CachedWindowPosition(BaseConfig owner, String savePath, boolean canPin) {
+            String category = owner.getCategory() + ".window." + savePath;
+            this.x = new IntOption(owner, category, "x", Integer.MAX_VALUE, "The last x position the " + savePath + " window was in when it was closed.");
+            this.y = new IntOption(owner, category, "y", Integer.MAX_VALUE, "The last y position the " + savePath + " window was in when it was closed.");
+            this.pinned = canPin ? new BooleanOption(owner, category, "pinned", false, "Whether the " + savePath + " window was pinned when it was closed.") : null;
+        }
+
+        private boolean update(int x, int y, boolean pinned) {
+            boolean changed = false;
+            if (this.x.val() != x) {
+                this.x.set(x);
+                changed = true;
+            }
+            if (this.y.val() != y) {
+                this.y.set(y);
+                changed = true;
+            }
+            if (this.pinned != null && this.pinned.val() != pinned) {
+                this.pinned.set(pinned);
+                changed = true;
+            }
+            return changed;
+        }
+
+        private WindowPosition asWindowPosition() {
+            return new WindowPosition(x.val(), y.val(), pinned != null && pinned.val());
+        }
+
+        private void save(Configuration config) {
+            config.get(x.category(), x.key(), Integer.MAX_VALUE, x.comment()).set(x.val());
+            config.get(y.category(), y.key(), Integer.MAX_VALUE, y.comment()).set(y.val());
+            if (pinned != null) {
+                config.get(pinned.category(), pinned.key(), false, pinned.comment()).set(pinned.val());
+            }
+            config.save();
+        }
+    }
+
+    public static class WindowPosition {
+
+        public final int x;
+        public final int y;
+        public final boolean pinned;
+
+        public WindowPosition(int x, int y, boolean pinned) {
+            this.x = x;
+            this.y = y;
+            this.pinned = pinned;
+        }
     }
 
     public enum WindowType {
-        COLOR("color"),
-        CONFIRMATION("confirmation"),
-        MEKA_SUIT_HELMET("mekaSuitHelmet"),
-        RENAME("rename"),
-        SKIN_SELECT("skinSelect"),
-        SIDE_CONFIG("sideConfig"),
-        TRANSPORTER_CONFIG("transporterConfig"),
-        UPGRADE("upgrade"),
-        UNSPECIFIED(null);
+        COLOR("color", false),
+        CONFIRMATION("confirmation", false),
+        MEKA_SUIT_HELMET("mekasuit_helmet", false),
+        RENAME("rename", false),
+        SKIN_SELECT("skin_select", false),
+        SIDE_CONFIG("side_config", true),
+        TRANSPORTER_CONFIG("transporter_config", true),
+        UPGRADE("upgrade", true),
+        UNSPECIFIED(null, false);
 
         @Nullable
         private final String saveName;
+        private final boolean canPin;
         private final byte maxData;
 
-        WindowType(@Nullable String saveName) {
-            this(saveName, (byte) 1);
+        WindowType(@Nullable String saveName, boolean canPin) {
+            this(saveName, canPin, (byte) 1);
         }
 
-        WindowType(@Nullable String saveName, byte maxData) {
+        WindowType(@Nullable String saveName, boolean canPin, byte maxData) {
             this.saveName = saveName;
+            this.canPin = canPin;
             this.maxData = maxData;
         }
 
         @Nullable
         String getSaveName(byte extraData) {
-            return maxData == 1 || saveName == null ? saveName : saveName + extraData;
+            return maxData == 1 ? saveName : saveName + extraData;
         }
 
         public List<String> getSavePaths() {
@@ -108,6 +176,10 @@ public class SelectedWindowData {
 
         public boolean isValid(byte extraData) {
             return extraData >= 0 && extraData < maxData;
+        }
+
+        public boolean canPin() {
+            return canPin;
         }
     }
 }

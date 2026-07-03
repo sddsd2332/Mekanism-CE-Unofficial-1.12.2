@@ -15,21 +15,23 @@ import mezz.jei.api.ingredients.IIngredients;
 
 public class AmbientGasCategory<WRAPPER extends AmbientGasRecipeWrapper<AmbientGasRecipe>> extends BaseRecipeCategory<WRAPPER> {
 
+    private GuiGauge<?> output;
+
     public AmbientGasCategory(IGuiHelper helper) {
         super(helper, "mekanism:gui/Null.png", RecipeHandler.Recipe.AMBIENT_ACCUMULATOR.getJEICategory(),
-                "tile.MachineBlock3.AmbientAccumulator.name", null, 6, 17, 103 + 17, 82 - 17);
+                "tile.MachineBlock3.AmbientAccumulator.name", 6, 12, 139, 72);
     }
 
     @Override
     protected void addGuiElements() {
-        guiElements.add(new GuiInnerScreen(this,guiLocation,7,18,80,60));
-        guiElements.add(GuiGasGauge.getDummy(GuiGauge.Type.STANDARD, this, guiLocation, 103, 18).withColor(GuiGauge.TypeColor.ORANGE));
+        guiElements.add(new GuiInnerScreen(this, 7, 13, 80, 65).clearFormat().padding(2).spacing(1).textScale(0.8F));
+        output = addElement(dummyGasGauge(GuiGasGauge.Type.STANDARD, GuiGasGauge.GaugeColor.ORANGE, 103,18));
     }
 
     @Override
     public void setRecipe(IRecipeLayout recipeLayout, WRAPPER recipeWrapper, IIngredients ingredients) {
         AmbientGasRecipe tempRecipe = recipeWrapper.getRecipe();
         IGuiIngredientGroup<GasStack> gasStacks = recipeLayout.getIngredientsGroup(MekanismJEI.TYPE_GAS);
-        initGas(gasStacks, 0, false, 104 - xOffset, 19 - yOffset, 16, 58, tempRecipe.recipeOutput.output, true);
+        initGas(gasStacks, 0, false, output, tempRecipe.recipeOutput.output);
     }
 }

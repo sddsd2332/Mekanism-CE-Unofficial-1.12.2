@@ -42,18 +42,18 @@ public abstract class TileEntityRestrictedTick extends TileEntitySynchronized im
     public void invalidate() {
         super.invalidate();
         if (!isRemote() && MekanismAPI.getRadiationManager().isRadiationEnabled() && shouldDumpRadiation()) {
-            if (this instanceof IGasHandler handler && handler.getTankInfo() != IGasHandler.NONE) {
+            if (this instanceof IGasHandler handler) {
                 //If we are on a server and radiation is enabled dump all gas tanks with radioactive materials
                 // Note: we handle clearing radioactive contents later in drop calculation due to when things are written to NBT
-                MekanismAPI.getRadiationManager().dumpRadiation(new Coord4D(pos, world), handler.getTankInfo(), false);
+                MekanismAPI.getRadiationManager().dumpRadiation(new Coord4D(pos, world), handler, false);
             }
         }
     }
 
     private void updateRadiationScale() {
         if (shouldDumpRadiation()) {
-            if (this instanceof IGasHandler handler && handler.getTankInfo() != IGasHandler.NONE) {
-                float scale = ITileRadioactive.calculateRadiationScale(handler.getTankInfo(), this, getPos());
+            if (this instanceof IGasHandler handler) {
+                float scale = ITileRadioactive.calculateRadiationScale(handler, this, getPos());
                 if (Math.abs(scale - radiationScale) > 0.05F) {
                     radiationScale = scale;
                     markNoUpdateSync();

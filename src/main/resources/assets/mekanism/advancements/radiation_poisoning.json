@@ -1,0 +1,18 @@
+{
+      "parent": "mekanism:personal_radiation",
+      "criteria": {"poisoned": {
+            "trigger": "mekanism:damage",
+            "conditions": {
+                  "damage": "mekanism:radiation",
+                  "killed": false
+            }
+      }},
+      "display": {
+            "icon": {
+                  "item": "mekanism:machineblock4",
+                  "data": 12
+            },
+            "description": {"translate": "advancements.mekanism.radiation_poisoning.description"},
+            "title": {"translate": "advancements.mekanism.radiation_poisoning.title"}
+      }
+}

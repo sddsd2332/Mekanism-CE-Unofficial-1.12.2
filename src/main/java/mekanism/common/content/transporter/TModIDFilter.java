@@ -4,7 +4,7 @@ import io.netty.buffer.ByteBuf;
 import mekanism.api.TileNetworkList;
 import mekanism.common.PacketHandler;
 import mekanism.common.content.filter.IModIDFilter;
-import mekanism.common.content.transporter.Finder.ModIDFinder;
+import mekanism.common.lib.inventory.Finder;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 
@@ -14,12 +14,12 @@ public class TModIDFilter extends TransporterFilter implements IModIDFilter {
 
     @Override
     public boolean canFilter(ItemStack itemStack, boolean strict) {
-        return super.canFilter(itemStack, strict) && new ModIDFinder(modID).modifies(itemStack);
+        return super.canFilter(itemStack, strict) && getFinder().modifies(itemStack);
     }
 
     @Override
     public Finder getFinder() {
-        return new ModIDFinder(modID);
+        return Finder.modID(modID);
     }
 
     @Override
@@ -64,8 +64,7 @@ public class TModIDFilter extends TransporterFilter implements IModIDFilter {
     @Override
     public TModIDFilter clone() {
         TModIDFilter filter = new TModIDFilter();
-        filter.allowDefault = allowDefault;
-        filter.color = color;
+        copyBaseData(filter);
         filter.modID = modID;
         return filter;
     }

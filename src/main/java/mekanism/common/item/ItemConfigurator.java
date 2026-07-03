@@ -11,7 +11,6 @@ import mekanism.api.radial.mode.IRadialMode;
 import mekanism.api.text.IHasTextComponent;
 import mekanism.api.transmitters.TransmissionType;
 import mekanism.common.Mekanism;
-import mekanism.common.SideData;
 import mekanism.common.base.ISideConfiguration;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.config.MekanismConfig;
@@ -26,7 +25,7 @@ import mekanism.common.tier.GasTankTier;
 import mekanism.common.tile.TileEntityBin;
 import mekanism.common.tile.TileEntityFluidTank;
 import mekanism.common.tile.TileEntityGasTank;
-import mekanism.common.tile.component.TileComponentConfig;
+import mekanism.common.tile.component.config.DataType;
 import mekanism.common.tile.prefab.TileEntityBasicBlock;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
 import mekanism.common.util.*;
@@ -120,20 +119,20 @@ public class ItemConfigurator extends ItemEnergized implements IMekWrench, ITool
             if (getMode(stack).isConfigurating()) { //Configurate
                 TransmissionType transmissionType = Objects.requireNonNull(getMode(stack).getTransmission(), "Configurating state requires transmission type");
                 if (tile instanceof ISideConfiguration configuration && configuration.getConfig().supports(transmissionType)) {
-                    SideData initial = configuration.getConfig().getOutput(transmissionType, side, configuration.getOrientation());
-                    if (initial != TileComponentConfig.EMPTY) {
+                    DataType initial = configuration.getConfig().getDataType(transmissionType, side, configuration.getOrientation());
+                    if (initial != DataType.EMPTY) {
                         if (!player.isSneaking()) {
                             player.sendMessage(new TextComponentString(EnumColor.DARK_BLUE + Mekanism.LOG_TAG + EnumColor.GREY + " " + getViewModeText(
-                                    transmissionType) + ": " + initial.color + initial.localize() + " (" + initial.color.getColoredName() + ")"));
+                                    transmissionType) + ": " + initial.getColor() + initial.localize() + " (" + initial.getColor().getColoredName() + ")"));
                         } else {
-                            if (getEnergy(stack) >= ENERGY_PER_CONFIGURE) {
+                            if (StorageUtils.getStoredEnergy(stack) >= ENERGY_PER_CONFIGURE) {
                                 if (SecurityUtils.canAccess(player, tile)) {
-                                    setEnergy(stack, getEnergy(stack) - ENERGY_PER_CONFIGURE);
+                                    StorageUtils.extractEnergy(stack, ENERGY_PER_CONFIGURE, Action.EXECUTE);
                                     MekanismUtils.incrementOutput(configuration, transmissionType, MekanismUtils.getBaseOrientation(side, configuration.getOrientation()));
-                                    SideData data = configuration.getConfig().getOutput(transmissionType, side, configuration.getOrientation());
+                                    DataType data = configuration.getConfig().getDataType(transmissionType, side, configuration.getOrientation());
                                     player.sendMessage(new TextComponentString(EnumColor.DARK_BLUE + Mekanism.LOG_TAG + EnumColor.GREY + " "
-                                            + getToggleModeText(transmissionType) + ": " + data.color + data.localize() + " (" +
-                                            data.color.getColoredName() + ")"));
+                                            + getToggleModeText(transmissionType) + ": " + data.getColor() + data.localize() + " (" +
+                                            data.getColor().getColoredName() + ")"));
                                     if (configuration instanceof TileEntityBasicBlock basicBlock) {
                                         Mekanism.packetHandler.sendUpdatePacket(basicBlock);
                                     }
@@ -161,9 +160,9 @@ public class ItemConfigurator extends ItemEnergized implements IMekWrench, ITool
                 if (tile instanceof TileEntityFluidTank tank) {
                     if (MekanismConfig.current().mekce.EmptytoCreateFluidTank.val()) {
                         if (SecurityUtils.canAccess(player, tile)) {
-                            if (tank.tier == FluidTankTier.CREATIVE && tank.fluidTank.getFluid() != null && getEnergy(stack) >= ENERGY_PER_CONFIGURE) {
-                                setEnergy(stack, getEnergy(stack) - ENERGY_PER_CONFIGURE);
-                                tank.fluidTank.setFluid(null);
+                            if (tank.tier == FluidTankTier.CREATIVE && tank.fluidTank.getFluid() != null && StorageUtils.getStoredEnergy(stack) >= ENERGY_PER_CONFIGURE) {
+                                StorageUtils.extractEnergy(stack, ENERGY_PER_CONFIGURE, Action.EXECUTE);
+                                tank.fluidTank.setEmpty();
                             }
                             return EnumActionResult.SUCCESS;
                         } else {
@@ -174,9 +173,9 @@ public class ItemConfigurator extends ItemEnergized implements IMekWrench, ITool
                 } else if (tile instanceof TileEntityGasTank tank) {
                     if (MekanismConfig.current().mekce.EmptyToCreateGasTank.val()) {
                         if (SecurityUtils.canAccess(player, tile)) {
-                            if (tank.tier == GasTankTier.CREATIVE && tank.gasTank.getGas() != null && getEnergy(stack) >= ENERGY_PER_CONFIGURE) {
-                                setEnergy(stack, getEnergy(stack) - ENERGY_PER_CONFIGURE);
-                                tank.gasTank.setGas(null);
+                            if (tank.tier == GasTankTier.CREATIVE && tank.gasTank.getGas() != null && StorageUtils.getStoredEnergy(stack) >= ENERGY_PER_CONFIGURE) {
+                                StorageUtils.extractEnergy(stack, ENERGY_PER_CONFIGURE, Action.EXECUTE);
+                                tank.gasTank.setEmpty();
                             }
                             return EnumActionResult.SUCCESS;
                         } else {
@@ -191,12 +190,12 @@ public class ItemConfigurator extends ItemEnergized implements IMekWrench, ITool
                         for (int i = 0; i < inv.getSizeInventory(); i++) {
                             ItemStack slotStack = inv.getStackInSlot(i);
                             if (!slotStack.isEmpty()) {
-                                if (getEnergy(stack) < ENERGY_PER_ITEM_DUMP) {
+                                if (StorageUtils.getStoredEnergy(stack) < ENERGY_PER_ITEM_DUMP) {
                                     break;
                                 }
                                 Block.spawnAsEntity(world, pos, slotStack.copy());
                                 inv.setInventorySlotContents(i, ItemStack.EMPTY);
-                                setEnergy(stack, getEnergy(stack) - ENERGY_PER_ITEM_DUMP);
+                                StorageUtils.extractEnergy(stack, ENERGY_PER_ITEM_DUMP, Action.EXECUTE);
                             }
                         }
                         return EnumActionResult.SUCCESS;
@@ -212,13 +211,13 @@ public class ItemConfigurator extends ItemEnergized implements IMekWrench, ITool
                                 for (int i = 0; i < inv.getSizeInventory(); i++) {
                                     ItemStack slotStack = inv.getStackInSlot(i);
                                     if (!slotStack.isEmpty()) {
-                                        if (getEnergy(stack) < ENERGY_PER_ITEM_DUMP) {
+                                        if (StorageUtils.getStoredEnergy(stack) < ENERGY_PER_ITEM_DUMP) {
                                             break;
                                         }
                                         Block.spawnAsEntity(world, pos, bin.bottomStack.copy());
                                         inv.setInventorySlotContents(i, ItemStack.EMPTY);
                                         bin.setItemCount(0);
-                                        setEnergy(stack, getEnergy(stack) - ENERGY_PER_ITEM_DUMP);
+                                        StorageUtils.extractEnergy(stack, ENERGY_PER_ITEM_DUMP, Action.EXECUTE);
                                     }
                                 }
                             }
@@ -291,7 +290,7 @@ public class ItemConfigurator extends ItemEnergized implements IMekWrench, ITool
     }
 
     @Override
-    public boolean canSend(ItemStack itemStack) {
+    public boolean canSendEnergy(ItemStack itemStack) {
         return false;
     }
 

@@ -1,24 +1,26 @@
 package mekanism.common.util;
 
-import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
 import mekanism.api.EnumColor;
+import mekanism.api.inventory.IInventorySlot;
 import mekanism.common.Mekanism;
 import mekanism.common.base.ISideConfiguration;
-import mekanism.common.content.transporter.HashedItem;
-import mekanism.common.content.transporter.InvStack;
-import mekanism.common.content.transporter.TransitRequest;
-import mekanism.common.content.transporter.TransitRequest.TransitResponse;
 import mekanism.common.content.transporter.TransporterManager;
-import mekanism.common.tile.TileEntityLogisticalSorter;
+import mekanism.common.lib.inventory.HandlerTransitRequest;
+import mekanism.common.lib.inventory.IAdvancedTransportEjector;
+import mekanism.common.lib.inventory.TransitRequest;
+import mekanism.common.lib.inventory.TransitRequest.TransitResponse;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.ItemHandlerHelper;
-import org.apache.commons.lang3.tuple.Pair;
 
-import java.util.Map.Entry;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.function.Consumer;
 
 public final class InventoryUtils {
@@ -34,33 +36,7 @@ public final class InventoryUtils {
     }
 
     public static TransitResponse putStackInInventory(TileEntity tile, TransitRequest request, EnumFacing side, boolean force) {
-        if (force && tile instanceof TileEntityLogisticalSorter sorter) {
-            return sorter.sendHome(request.getSingleStack());
-        }
-        for (Entry<HashedItem, Pair<Integer, Int2IntOpenHashMap>> requestEntry : request.getItemMap().entrySet()) {
-            ItemStack origInsert = StackUtils.size(requestEntry.getKey().getStack(), requestEntry.getValue().getLeft());
-            ItemStack toInsert = origInsert.copy();
-            if (!isItemHandler(tile, side.getOpposite())) {
-                return TransitResponse.EMPTY;
-            }
-            IItemHandler inventory = getItemHandler(tile, side.getOpposite());
-            for (int i = 0; i < inventory.getSlots(); i++) {
-                // Check validation
-                if (inventory.isItemValid(i, toInsert)) {
-                    // Do insert
-                    toInsert = inventory.insertItem(i, toInsert, false);
-
-                    // If empty, end
-                    if (toInsert.isEmpty()) {
-                        return new TransitResponse(origInsert, requestEntry.getValue().getRight());
-                    }
-                }
-            }
-            if (TransporterManager.didEmit(origInsert, toInsert)) {
-                return new TransitResponse(TransporterManager.getToUse(origInsert, toInsert), requestEntry.getValue().getRight());
-            }
-        }
-        return TransitResponse.EMPTY;
+        return request.addToInventory(tile, side, 0, force);
     }
 
     /**
@@ -77,61 +53,9 @@ public final class InventoryUtils {
         return ItemHandlerHelper.canItemStacksStack(inSlot, toInsert);
     }
 
-    public static InvStack takeDefinedItem(TileEntity tile, EnumFacing side, ItemStack type, int min, int max) {
-        InvStack ret = new InvStack(tile, side.getOpposite());
-        if (!isItemHandler(tile, side.getOpposite())) {
-            return null;
-        }
-
-        IItemHandler inventory = getItemHandler(tile, side.getOpposite());
-        for (int i = inventory.getSlots() - 1; i >= 0; i--) {
-            ItemStack stack = inventory.extractItem(i, max, true);
-            if (!stack.isEmpty() && StackUtils.equalsWildcardWithNBT(stack, type)) {
-                int current = ret.getStack().getCount();
-                if (current + stack.getCount() <= max) {
-                    ret.appendStack(i, stack.copy());
-                } else {
-                    ItemStack copy = stack.copy();
-                    copy.setCount(max - current);
-                    ret.appendStack(i, copy);
-                }
-                if (!ret.getStack().isEmpty() && ret.getStack().getCount() == max) {
-                    return ret;
-                }
-            }
-        }
-        if (!ret.getStack().isEmpty() && ret.getStack().getCount() >= min) {
-            return ret;
-        }
-        return null;
-    }
-
-    public static ItemStack takeDefinedItem(TileEntity tile, EnumFacing side) {
-        InvStack ret = new InvStack(tile, side.getOpposite());
-        if (!isItemHandler(tile, side.getOpposite())) {
-            return ItemStack.EMPTY;
-        }
-        IItemHandler inventory = getItemHandler(tile, side.getOpposite());
-        for (int i = inventory.getSlots() - 1; i >= 0; i--) {
-            ItemStack stack = inventory.extractItem(i, inventory.getStackInSlot(i).getCount(), true);
-            int current = ret.getStack().getCount();
-            if (current + stack.getCount() <= stack.getMaxStackSize()) {
-                ret.appendStack(i, stack.copy());
-            }else {
-                ItemStack copy = stack.copy();
-                copy.setCount(stack.getMaxStackSize() - current);
-                ret.appendStack(i, copy);
-            }
-            if (!ret.getStack().isEmpty()) {
-                return ret.getStack();
-            }
-        }
-        return ItemStack.EMPTY;
-    }
-
     public static boolean canInsert(TileEntity tileEntity, EnumColor color, ItemStack itemStack, EnumFacing side, boolean force) {
-        if (force && tileEntity instanceof TileEntityLogisticalSorter sorter) {
-            return sorter.canSendHome(itemStack);
+        if (force && tileEntity instanceof IAdvancedTransportEjector ejector) {
+            return ejector.canSendHome(itemStack);
         }
         if (!force && tileEntity instanceof ISideConfiguration config) {
             if (config.getEjector().hasStrictInput()) {
@@ -181,11 +105,52 @@ public final class InventoryUtils {
         return CapabilityUtils.getCapability(tile, CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, side);
     }
 
+    public static HandlerTransitRequest getEjectItemMap(IItemHandler handler, List<IInventorySlot> slots) {
+        return getEjectItemMap(new HandlerTransitRequest(handler), slots);
+    }
+
+    public static <REQUEST extends HandlerTransitRequest> REQUEST getEjectItemMap(REQUEST request, List<IInventorySlot> slots) {
+        List<IInventorySlot> shuffled = new ArrayList<>(slots);
+        Collections.shuffle(shuffled);
+        for (IInventorySlot slot : shuffled) {
+            ItemStack simulatedExtraction = slot.extractItem(slot.getCount(), Action.SIMULATE, AutomationType.EXTERNAL);
+            if (!simulatedExtraction.isEmpty()) {
+                request.addItem(simulatedExtraction, slots.indexOf(slot));
+            }
+        }
+        return request;
+    }
+
     //TODO: Check what the difference between this method and areItemsStackable is
     public static boolean canStack(ItemStack stack1, ItemStack stack2) {
         return stack1.isEmpty() || stack2.isEmpty() ||
                 stack1.getItem() == stack2.getItem() && (!stack2.getHasSubtypes() || stack2.getItemDamage() == stack1.getItemDamage())
                         && ItemStack.areItemStackTagsEqual(stack2, stack1) && stack1.isStackable();
+    }
+
+    /**
+     * First inserts into matching non-empty slots, then into empty slots, matching high-version inventory helper behavior.
+     */
+    public static ItemStack insertItem(List<? extends IInventorySlot> slots, ItemStack stack, Action action, AutomationType automationType) {
+        stack = insertItem(slots, stack, true, false, action, automationType);
+        return insertItem(slots, stack, false, false, action, automationType);
+    }
+
+    public static ItemStack insertItem(List<? extends IInventorySlot> slots, ItemStack stack, boolean ignoreEmpty, boolean checkAll, Action action,
+          AutomationType automationType) {
+        if (stack.isEmpty()) {
+            return stack;
+        }
+        for (IInventorySlot slot : slots) {
+            if (!checkAll && ignoreEmpty == slot.isEmpty()) {
+                continue;
+            }
+            stack = slot.insertItem(stack, action, automationType);
+            if (stack.isEmpty()) {
+                break;
+            }
+        }
+        return stack;
     }
 
     public static void dropStack(ItemStack stack, Consumer<ItemStack> dropper) {

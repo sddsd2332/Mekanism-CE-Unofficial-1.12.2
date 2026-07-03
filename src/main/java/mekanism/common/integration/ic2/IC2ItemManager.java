@@ -1,32 +1,33 @@
 package mekanism.common.integration.ic2;
 
 import ic2.api.item.IElectricItemManager;
-import mekanism.api.energy.IEnergizedItem;
+import mekanism.api.Action;
+import mekanism.api.energy.IStrictEnergyHandler;
+import mekanism.common.util.StorageUtils;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.item.ItemStack;
 
 public class IC2ItemManager implements IElectricItemManager {
 
-    public IEnergizedItem energizedItem;
+    public static final IC2ItemManager INSTANCE = new IC2ItemManager();
 
-    public static IC2ItemManager getManager(IEnergizedItem item) {
-        IC2ItemManager manager = new IC2ItemManager();
-        manager.energizedItem = item;
-        return manager;
+    public static IC2ItemManager getManager() {
+        return INSTANCE;
     }
 
     @Override
     public double charge(ItemStack itemStack, double amount, int tier, boolean ignoreTransferLimit, boolean simulate) {
-        if (itemStack.getCount() >1){
+        if (itemStack.getCount() > 1 || tier < getTier(itemStack)) {
             return 0;
         }
-        if (energizedItem.canReceive(itemStack)) {
-            double energyNeeded = energizedItem.getMaxEnergy(itemStack) - energizedItem.getEnergy(itemStack);
-            double energyToStore = Math.min(Math.min(IC2Integration.fromEU(amount), energizedItem.getMaxEnergy(itemStack) * 0.01), energyNeeded);
-            if (!simulate) {
-                energizedItem.setEnergy(itemStack, energizedItem.getEnergy(itemStack) + energyToStore);
+        IStrictEnergyHandler energyHandler = StorageUtils.getEnergyHandler(itemStack);
+        if (energyHandler != null) {
+            if (!ignoreTransferLimit) {
+                amount = Math.min(amount, IC2Integration.toEU(StorageUtils.getMaxTransfer(itemStack)));
             }
-            return IC2Integration.toEU(energyToStore);
+            double energyToStore = IC2Integration.fromEU(amount);
+            double remainder = energyHandler.insertEnergy(energyToStore, Action.get(!simulate));
+            return IC2Integration.toEU(energyToStore - remainder);
         }
         return 0;
     }
@@ -34,28 +35,27 @@ public class IC2ItemManager implements IElectricItemManager {
     @Override
     public double discharge(ItemStack itemStack, double amount, int tier, boolean ignoreTransferLimit, boolean external,
                             boolean simulate) {
-        if (itemStack.getCount() >1){
+        if (itemStack.getCount() > 1 || tier < getTier(itemStack)) {
             return 0;
         }
-        if (energizedItem.canSend(itemStack)) {
-            double energyWanted = IC2Integration.fromEU(amount);
-            double energyToGive = Math.min(Math.min(energyWanted, energizedItem.getMaxEnergy(itemStack) * 0.01), energizedItem.getEnergy(itemStack));
-            if (!simulate) {
-                energizedItem.setEnergy(itemStack, energizedItem.getEnergy(itemStack) - energyToGive);
+        IStrictEnergyHandler energyHandler = StorageUtils.getEnergyHandler(itemStack);
+        if (energyHandler != null) {
+            if (!ignoreTransferLimit) {
+                amount = Math.min(amount, IC2Integration.toEU(StorageUtils.getMaxTransfer(itemStack)));
             }
-            return IC2Integration.toEU(energyToGive);
+            return IC2Integration.toEU(energyHandler.extractEnergy(IC2Integration.fromEU(amount), Action.get(!simulate)));
         }
         return 0;
     }
 
     @Override
     public boolean canUse(ItemStack itemStack, double amount) {
-        return energizedItem.getEnergy(itemStack) >= IC2Integration.fromEU(amount);
+        return StorageUtils.getStoredEnergy(itemStack) >= IC2Integration.fromEU(amount);
     }
 
     @Override
     public double getCharge(ItemStack itemStack) {
-        return IC2Integration.toEU(energizedItem.getEnergy(itemStack));
+        return IC2Integration.toEU(StorageUtils.getStoredEnergy(itemStack));
     }
 
     @Override
@@ -74,11 +74,11 @@ public class IC2ItemManager implements IElectricItemManager {
 
     @Override
     public double getMaxCharge(ItemStack stack) {
-        return 0;
+        return IC2Integration.toEU(StorageUtils.getMaxEnergy(stack));
     }
 
     @Override
     public int getTier(ItemStack stack) {
-        return 4;
+        return IC2Integration.getMekanismItemTier(stack);
     }
 }

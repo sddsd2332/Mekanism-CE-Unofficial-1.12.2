@@ -1,34 +1,24 @@
 package mekanism.client.gui;
 
-import mekanism.client.gui.element.GuiPlayerSlot;
-import mekanism.client.gui.element.slot.GuiNormalSlot;
-import mekanism.client.gui.element.tab.GuiSecurityTab;
 import mekanism.common.inventory.container.ContainerLaserTractorBeam;
 import mekanism.common.tile.laser.TileEntityLaserTractorBeam;
-import mekanism.common.util.LangUtils;
 import net.minecraft.entity.player.InventoryPlayer;
+import net.minecraft.util.text.TextComponentString;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
 @SideOnly(Side.CLIENT)
-public class GuiLaserTractorBeam extends GuiMekanismTile<TileEntityLaserTractorBeam> {
+public class GuiLaserTractorBeam extends GuiMekanismTile<TileEntityLaserTractorBeam, ContainerLaserTractorBeam> {
 
     public GuiLaserTractorBeam(InventoryPlayer inventory, TileEntityLaserTractorBeam tile) {
         super(tile, new ContainerLaserTractorBeam(inventory, tile));
-        addGuiElement(new GuiSecurityTab(this, tileEntity, getGuiLocation()));
-        addGuiElement(new GuiPlayerSlot(this, getGuiLocation()));
-        for (int y = 0; y < 3; y++) {
-            for (int x = 0; x < 9; x++) {
-                addGuiElement(new GuiNormalSlot(this, getGuiLocation(), 7 + x * 18, 15 + y * 18));
-            }
-        }
+        dynamicSlots = true;
     }
 
     @Override
-    protected void drawGuiContainerForegroundLayer(int mouseX, int mouseY) {
-        fontRenderer.drawString(tileEntity.getName(), (xSize / 2) - (fontRenderer.getStringWidth(tileEntity.getName()) / 2), 4, 0x404040);
-        fontRenderer.drawString(LangUtils.localize("container.inventory"), 8, (ySize - 96) + 2, 0x404040);
-        super.drawGuiContainerForegroundLayer(mouseX, mouseY);
+    protected void drawForegroundText(int mouseX, int mouseY) {
+        drawTitleText(new TextComponentString(tileEntity.getName()), 4);
+        renderInventoryText();
+        super.drawForegroundText(mouseX, mouseY);
     }
-
 }

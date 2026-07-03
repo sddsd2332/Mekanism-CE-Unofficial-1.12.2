@@ -1,9 +1,8 @@
 package mekanism.generators.client.jei.machine.other;
 
-import mekanism.client.gui.element.GuiProgress;
-import mekanism.client.gui.element.GuiProgress.ProgressBar;
 import mekanism.client.gui.element.gauge.GuiFluidGauge;
-import mekanism.client.gui.element.gauge.GuiGauge;
+import mekanism.client.gui.element.progress.GuiProgress;
+import mekanism.client.gui.element.progress.ProgressType;
 import mekanism.client.jei.BaseRecipeCategory;
 import mekanism.common.recipe.RecipeHandler.Recipe;
 import mekanism.common.recipe.machines.FusionCoolingRecipe;
@@ -16,19 +15,23 @@ public class FusionCoolingRecipeCategory<WRAPPER extends FusionCoolingRecipeWrap
 
     public FusionCoolingRecipeCategory(IGuiHelper helper) {
         super(helper, "mekanism:gui/Null.png",
-                Recipe.FUSION_COOLING.getJEICategory(), "gui.FusionCooling", ProgressBar.LARGE_RIGHT, 24, 12, 130, 63);
+                Recipe.FUSION_COOLING.getJEICategory(), "gui.FusionCooling", 24, 12, 130, 63, ProgressType.LARGE_RIGHT);
     }
 
     @Override
     protected void addGuiElements() {
-        guiElements.add(GuiFluidGauge.getDummy(GuiGauge.Type.STANDARD, this, guiLocation, 25, 13).withColor(GuiGauge.TypeColor.RED));
-        guiElements.add(GuiFluidGauge.getDummy(GuiGauge.Type.STANDARD, this, guiLocation, 133, 13).withColor(GuiGauge.TypeColor.BLUE));
-        guiElements.add(new GuiProgress(new GuiProgress.IProgressInfoHandler() {
+        guiElements.add(dummyFluidGauge(GuiFluidGauge.Type.STANDARD, GuiFluidGauge.GaugeColor.RED, 25, 13));
+        guiElements.add(dummyFluidGauge(GuiFluidGauge.Type.STANDARD, GuiFluidGauge.GaugeColor.BLUE, 133, 13));
+        guiElements.add(new GuiProgress(new mekanism.client.gui.element.progress.IProgressInfoHandler() {
             @Override
             public double getProgress() {
                 return (float) timer.getValue() / 20F;
             }
-        }, progressBar, this, guiLocation, 62, 38,false));
+            @Override
+            public boolean isGuiInJei() {
+                return true;
+            }
+        }, progressType, this, 62, 38));
     }
 
     @Override

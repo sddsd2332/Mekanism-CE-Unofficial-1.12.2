@@ -9,7 +9,10 @@ import mekanism.client.render.ModelCustomArmor;
 import mekanism.client.render.ModelCustomArmor.ArmorModel;
 import mekanism.common.Mekanism;
 import mekanism.common.MekanismFluids;
+import mekanism.common.capabilities.ItemCapabilityWrapper;
+import mekanism.common.capabilities.gas.item.RateLimitGasHandler;
 import mekanism.common.config.MekanismConfig;
+import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.item.interfaces.IItemHUDProvider;
 import mekanism.common.item.interfaces.IModeItem;
 import mekanism.common.util.ItemDataUtils;
@@ -30,6 +33,7 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.NonNullList;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.world.World;
+import net.minecraftforge.common.capabilities.ICapabilityProvider;
 import net.minecraftforge.common.util.EnumHelper;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
@@ -67,7 +71,8 @@ public class ItemScubaTank extends ItemArmor implements IGasItem, IItemHUDProvid
 
     @Override
     public double getDurabilityForDisplay(ItemStack stack) {
-        return 1D - ((getGas(stack) != null ? (double) getGas(stack).amount : 0D) / (double) getMaxGas(stack));
+        GasStack gas = getGas(stack);
+        return 1D - ((gas != null ? (double) gas.amount : 0D) / (double) getMaxGas(stack));
     }
 
     @Override
@@ -100,21 +105,21 @@ public class ItemScubaTank extends ItemArmor implements IGasItem, IItemHUDProvid
     }
 
     public void useGas(ItemStack itemstack) {
-        GasStack gas = getGas(itemstack);
-        if (gas != null) {
-            setGas(itemstack, new GasStack(gas.getGas(), gas.amount - 1));
-        }
+        useGas(itemstack, 1);
     }
 
     public GasStack useGas(ItemStack itemstack, int amount) {
-        GasStack gas = getGas(itemstack);
-        if (gas == null) {
-            return null;
-        }
-        Gas type = gas.getGas();
-        int gasToUse = Math.min(gas.amount, Math.min(getRate(itemstack), amount));
-        setGas(itemstack, new GasStack(type, gas.amount - gasToUse));
-        return new GasStack(type, gasToUse);
+        return GasInventorySlot.useGas(itemstack, MekanismFluids.Oxygen, amount);
+    }
+
+    public boolean hasGas(ItemStack itemstack) {
+        GasStack stored = getContainedGas(itemstack);
+        return stored != null && stored.amount > 0;
+    }
+
+    public GasStack getContainedGas(ItemStack itemstack) {
+        GasStack stored = getGas(itemstack);
+        return stored != null && stored.getGas() == MekanismFluids.Oxygen ? stored : null;
     }
 
     @Override
@@ -129,24 +134,37 @@ public class ItemScubaTank extends ItemArmor implements IGasItem, IItemHUDProvid
 
     @Override
     public int addGas(ItemStack itemstack, GasStack stack) {
-        if (getGas(itemstack) != null && getGas(itemstack).getGas() != stack.getGas()) {
+        GasStack storedGas = getGas(itemstack);
+        if (storedGas != null && storedGas.getGas() != stack.getGas()) {
             return 0;
         }
         if (stack.getGas() != MekanismFluids.Oxygen) {
             return 0;
         }
-        int toUse = Math.min(getMaxGas(itemstack) - getStored(itemstack), Math.min(getRate(itemstack), stack.amount));
-        setGas(itemstack, new GasStack(stack.getGas(), getStored(itemstack) + toUse));
+        int stored = storedGas == null ? 0 : storedGas.amount;
+        int toUse = Math.min(getMaxGas(itemstack) - stored, Math.min(getRate(itemstack), stack.amount));
+        setGas(itemstack, new GasStack(stack.getGas(), stored + toUse));
         return toUse;
     }
 
     @Override
     public GasStack removeGas(ItemStack itemstack, int amount) {
-        return null;
+        GasStack gas = getGas(itemstack);
+        if (gas == null || gas.getGas() != MekanismFluids.Oxygen || amount <= 0) {
+            return null;
+        }
+        int gasToUse = Math.min(gas.amount, Math.min(getRate(itemstack), amount));
+        if (gasToUse <= 0) {
+            return null;
+        }
+        int remaining = gas.amount - gasToUse;
+        setGas(itemstack, remaining <= 0 ? null : new GasStack(gas.getGas(), remaining));
+        return new GasStack(gas.getGas(), gasToUse);
     }
 
     public int getStored(ItemStack itemstack) {
-        return getGas(itemstack) != null ? getGas(itemstack).amount : 0;
+        GasStack gas = getGas(itemstack);
+        return gas == null ? 0 : gas.amount;
     }
 
     public void toggleFlowing(ItemStack stack) {
@@ -173,25 +191,28 @@ public class ItemScubaTank extends ItemArmor implements IGasItem, IItemHUDProvid
 
     @Override
     public boolean canProvideGas(ItemStack itemstack, Gas type) {
-        return false;
+        GasStack gas = getGas(itemstack);
+        return gas != null && gas.amount > 0 && (type == null || gas.getGas() == type);
     }
 
     @Override
     public GasStack getGas(ItemStack itemstack) {
-        return GasStack.readFromNBT(ItemDataUtils.getCompound(itemstack, "stored"));
+        return GasInventorySlot.getStoredGas(itemstack, "stored");
     }
 
     @Override
     public void setGas(ItemStack itemstack, GasStack stack) {
-        if (stack == null || stack.amount <= 0) {
-            ItemDataUtils.removeData(itemstack, "stored");
-        } else if (stack.getGas() != MekanismFluids.Oxygen) {
+        if (stack != null && stack.getGas() != null && stack.getGas() != MekanismFluids.Oxygen) {
             return;
-        } else {
-            int amount = Math.max(0, Math.min(stack.amount, getMaxGas(itemstack)));
-            GasStack gasStack = new GasStack(stack.getGas(), amount);
-            ItemDataUtils.setCompound(itemstack, "stored", gasStack.write(new NBTTagCompound()));
         }
+        GasInventorySlot.setStoredGas(itemstack, stack, "stored", getMaxGas(itemstack));
+    }
+
+    @Override
+    public ICapabilityProvider initCapabilities(ItemStack stack, NBTTagCompound nbt) {
+        return new ItemCapabilityWrapper(stack, RateLimitGasHandler.create(() -> getRate(stack), () -> getMaxGas(stack),
+              mekanism.api.functions.ConstantPredicates.notExternal(), mekanism.api.functions.ConstantPredicates.alwaysTrueBi(),
+              gasStack -> gasStack != null && gasStack.getGas() == MekanismFluids.Oxygen, "stored"));
     }
 
 
@@ -204,16 +225,18 @@ public class ItemScubaTank extends ItemArmor implements IGasItem, IItemHUDProvid
         setGas(empty, null);
         list.add(empty);
         ItemStack filled = new ItemStack(this);
-        setGas(filled, new GasStack(MekanismFluids.Oxygen, ((IGasItem) filled.getItem()).getMaxGas(filled)));
+        setGas(filled, new GasStack(MekanismFluids.Oxygen, getMaxGas(filled)));
         list.add(filled);
     }
 
     @Override
     public void addHUDStrings(List<String> list, EntityPlayer player, ItemStack stack, EntityEquipmentSlot slotType) {
         if (slotType == getEquipmentSlot()) {
+            GasStack gas = getGas(stack);
+            int stored = gas == null ? 0 : gas.amount;
             String state = getFlowing(stack) ? EnumColor.DARK_GREEN + LangUtils.localize("gui.on") : EnumColor.DARK_RED + LangUtils.localize("gui.off");
             list.add(LangUtils.localize("tooltip.scuba_tank.mode") + " " + state);
-            list.add(getStored(stack) == 0 ? (LangUtils.localize("tooltip.noGas") + ".") : (getGas(stack).getGas().getLocalizedName() + ": " + getStored(stack)));
+            list.add(stored == 0 ? (LangUtils.localize("tooltip.noGas") + ".") : (gas.getGas().getLocalizedName() + ": " + stored));
         }
 
     }

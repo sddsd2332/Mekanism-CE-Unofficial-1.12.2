@@ -1,72 +1,52 @@
 package mekanism.client.gui.robit;
 
-import mekanism.client.gui.element.GuiProgress;
-import mekanism.client.gui.element.GuiSlot;
-import mekanism.client.gui.element.GuiSlot.ISlotInfoHandler;
-import mekanism.client.gui.element.GuiSlot.SlotType;
-import mekanism.client.gui.element.slot.GuiExtraSlot;
-import mekanism.client.gui.element.slot.GuiInputSlot;
-import mekanism.client.gui.element.slot.GuiOutputSlot;
+import mekanism.client.gui.element.progress.GuiFlame;
+import mekanism.client.gui.element.progress.GuiProgress;
+import mekanism.client.gui.element.progress.IProgressInfoHandler;
+import mekanism.client.gui.element.progress.ProgressType;
 import mekanism.common.entity.EntityRobit;
 import mekanism.common.inventory.container.robit.ContainerRobitSmelting;
 import mekanism.common.util.LangUtils;
-import mekanism.common.util.MekanismUtils;
 import net.minecraft.entity.player.InventoryPlayer;
+import net.minecraft.util.text.TextComponentString;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
 @SideOnly(Side.CLIENT)
-public class GuiRobitSmelting extends GuiRobit {
+public class GuiRobitSmelting extends GuiRobit<ContainerRobitSmelting> {
 
     public GuiRobitSmelting(InventoryPlayer inventory, EntityRobit entity) {
-        super(entity, new ContainerRobitSmelting(inventory, entity));
-        addGuiElement(new GuiInputSlot(this, getGuiLocation(), 55, 16, new ISlotInfoHandler() {
-            @Override
-            public boolean getSlotCanTip() {
-                return robit.inventory.get(28).isEmpty();
-            }
-        }));
-        addGuiElement(new GuiExtraSlot(this, getGuiLocation(), 55, 52, new ISlotInfoHandler() {
-            @Override
-            public boolean getSlotCanTip() {
-                return robit.inventory.get(29).isEmpty();
-            }
-        }));
-        addGuiElement(new GuiOutputSlot(SlotType.OUTPUT_LARGE, this, getGuiLocation(), 111, 30, new GuiSlot.ISlotInfoHandler() {
-            @Override
-            public boolean getSlotCanTip() {
-                return robit.inventory.get(30).isEmpty();
-            }
-        }));
-        addGuiElement(new GuiProgress(new GuiProgress.IProgressInfoHandler() {
+        super(new ContainerRobitSmelting(inventory, entity), entity);
+        inventoryLabelY += 1;
+        dynamicSlots = true;
+    }
+
+    @Override
+    protected void addGuiElements() {
+        super.addGuiElements();
+        addButton(new GuiFlame(new IProgressInfoHandler() {
             @Override
             public double getProgress() {
-                return Math.max(Math.min((double) robit.furnaceCookTime / 200, 1.0D), 0.0D);
+                return robit.currentItemBurnTime == 0 ? 0 : robit.furnaceBurnTime / (double) robit.currentItemBurnTime;
             }
-        }, GuiProgress.ProgressBar.TALL_RIGHT, this, getGuiLocation(), 78, 34, true, false));
+
+            @Override
+            public boolean isActive() {
+                return robit.furnaceBurnTime > 0;
+            }
+        }, this, 56, 37));
+        addButton(new GuiProgress(() -> Math.max(Math.min(robit.furnaceCookTime / 200D, 1), 0), ProgressType.BAR, this, 78, 38));
     }
 
     @Override
-    protected void drawGuiContainerForegroundLayer(int mouseX, int mouseY) {
-        fontRenderer.drawString(LangUtils.localize("gui.robit.smelting"), 8, 6, 0x404040);
-        fontRenderer.drawString(LangUtils.localize("container.inventory"), 8, ySize - 93, 0x404040);
-        super.drawGuiContainerForegroundLayer(mouseX, mouseY);
+    protected void drawForegroundText(int mouseX, int mouseY) {
+        drawTitleText(new TextComponentString(LangUtils.localize("gui.robit.smelting")), 6);
+        renderInventoryText();
+        super.drawForegroundText(mouseX, mouseY);
     }
 
     @Override
-    protected void drawGuiContainerBackgroundLayer(int xAxis, int yAxis) {
-        super.drawGuiContainerBackgroundLayer(xAxis, yAxis);
-        mc.getTextureManager().bindTexture(MekanismUtils.getResource(MekanismUtils.ResourceType.PROGRESS, "Progress_Icon.png"));
-        drawTexturedModalRect(guiLeft + 57, guiTop + 37, 1, 14, 14, 14);
-        if (robit.furnaceBurnTime > 0) {
-            int displayInt = robit.furnaceBurnTime * 13 / robit.currentItemBurnTime;
-            drawTexturedModalRect(guiLeft + 56, guiTop + 37 + 12 - displayInt, 18, 26 - displayInt, 14, displayInt + 1);
-        }
+    protected boolean shouldOpenGui(int guiId) {
+        return guiId != GUI_SMELTING;
     }
-
-    @Override
-    protected boolean shouldOpenGui(int id) {
-        return id != 3;
-    }
-
 }

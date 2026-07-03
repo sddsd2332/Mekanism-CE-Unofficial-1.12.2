@@ -4,11 +4,11 @@ import mekanism.api.Coord4D;
 import mekanism.api.EnumColor;
 import mekanism.common.base.ILogisticalTransporter;
 import mekanism.common.capabilities.Capabilities;
-import mekanism.common.content.transporter.TransitRequest;
-import mekanism.common.content.transporter.TransitRequest.TransitResponse;
 import mekanism.common.content.transporter.TransporterManager;
 import mekanism.common.content.transporter.TransporterStack;
-import mekanism.common.tile.TileEntityLogisticalSorter;
+import mekanism.common.lib.inventory.IAdvancedTransportEjector;
+import mekanism.common.lib.inventory.TransitRequest;
+import mekanism.common.lib.inventory.TransitRequest.TransitResponse;
 import net.minecraft.block.Block;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
@@ -33,8 +33,9 @@ public final class TransporterUtils {
         return transporter.insert(Coord4D.get(outputter), request, color, doEmit, min);
     }
 
-    public static TransitResponse insertRR(TileEntityLogisticalSorter outputter, ILogisticalTransporter transporter, TransitRequest request, EnumColor color, boolean doEmit, int min) {
-        return transporter.insertRR(outputter, request, color, doEmit, min);
+    public static TransitResponse insertMaybeRR(IAdvancedTransportEjector outputter, TileEntity outputterTile, ILogisticalTransporter transporter, TransitRequest request,
+          EnumColor color, boolean doEmit, int min) {
+        return transporter.insertMaybeRR(outputter, Coord4D.get(outputterTile), request, color, doEmit, min);
     }
 
     public static EnumColor increment(EnumColor color) {

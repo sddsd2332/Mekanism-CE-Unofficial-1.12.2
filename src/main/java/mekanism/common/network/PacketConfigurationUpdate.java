@@ -2,7 +2,6 @@ package mekanism.common.network;
 
 import io.netty.buffer.ByteBuf;
 import mekanism.api.Coord4D;
-import mekanism.api.RelativeSide;
 import mekanism.api.transmitters.TransmissionType;
 import mekanism.common.Mekanism;
 import mekanism.common.PacketHandler;
@@ -58,20 +57,11 @@ public class PacketConfigurationUpdate implements IMessageHandler<ConfigurationU
                     } else if (message.clickType == 1) {
                         MekanismUtils.decrementOutput(config, message.transmission, message.configIndex);
                     } else if (message.clickType == 2) {
-                        if (config.getConfig().getConfig(message.transmission).get(message.configIndex) == -1) {
+                        if (!config.getConfig().clearOutput(message.transmission, message.configIndex)) {
                             return;
-                        } else {
-                            config.getConfig().getConfig(message.transmission).set(message.configIndex, (byte) 0);
                         }
                     }
-
                     updated = true;
-                    //Notify the neighbor on that side our state changed
-                    EnumFacing worldSide = message.configIndex;
-                    if (tile instanceof TileEntityBasicBlock basicTile) {
-                        worldSide = RelativeSide.bydex(message.configIndex.ordinal()).getDirection(basicTile.facing);
-                    }
-                    MekanismUtils.notifyNeighborOfChange(tile.getWorld(), worldSide, tile.getPos());
                 } else if (message.packetType == ConfigurationPacket.EJECT_COLOR) {
                     TileComponentEjector ejector = config.getEjector();
                     if (message.clickType == 0) {

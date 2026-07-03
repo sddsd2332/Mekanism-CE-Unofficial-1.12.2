@@ -2,7 +2,6 @@ package mekanism.client;
 
 import baubles.api.BaublesApi;
 import mekanism.api.Coord4D;
-import mekanism.api.gas.IGasItem;
 import mekanism.client.sound.SoundHandler;
 import mekanism.common.KeySync;
 import mekanism.common.Mekanism;
@@ -10,7 +9,8 @@ import mekanism.common.MekanismLang;
 import mekanism.common.MekanismSounds;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.integration.MekanismHooks;
-import mekanism.common.inventory.ModuleTweakerContainer;
+import mekanism.common.inventory.container.ModuleTweakerContainer;
+import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.item.interfaces.IModeItem;
 import mekanism.common.network.PacketBaublesModeChange.BaublesModeChangMessage;
 import mekanism.common.network.PacketModeChange.ModeChangMessage;
@@ -133,7 +133,7 @@ public class MekanismKeyHandler extends MekKeyHandler {
         for (int i = 0; i < baubles.getSlots(); i++) {
             ItemStack stack = baubles.getStackInSlot(i);
             if (stack.getItem().isValidArmor(stack, slot, player) && IModeItem.isModeItem(stack, slot)) {
-                if (!(stack.getItem() instanceof IGasItem item) || item.getGas(stack) != null) {
+                if (!GasInventorySlot.isGasContainerItem(stack) || GasInventorySlot.getContainedGas(stack) != null) {
                     Mekanism.packetHandler.sendToServer(new BaublesModeChangMessage(i, player.isSneaking()));
                     SoundHandler.playSound(MekanismSounds.HYDRAULIC);
                 }

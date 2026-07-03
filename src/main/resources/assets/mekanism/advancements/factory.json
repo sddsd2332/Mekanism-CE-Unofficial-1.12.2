@@ -5,7 +5,7 @@
             "mekanism_factory_Advanced",
             "mekanism_factory_Elite",
             "mekanism_factory_Ultimate",
-            "mekanism_factory_Creative"
+            "tier_installer"
       ]],
       "criteria": {
             "mekanism_factory_Advanced": {
@@ -36,12 +36,8 @@
                         "data": 5
                   }]}
             },
-            "mekanism_factory_Creative": {
-                  "trigger": "minecraft:inventory_changed",
-                  "conditions": {"items": [{
-                        "item": "mekanism:machineblock3",
-                        "data": 8
-                  }]}
+            "tier_installer": {
+                  "trigger": "mekanism:use_tier_installer"
             }
       },
       "display": {

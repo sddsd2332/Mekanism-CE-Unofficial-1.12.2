@@ -1,0 +1,30 @@
+package mekanism.common.capabilities.holder.slot;
+
+import mekanism.api.inventory.IInventorySlot;
+import mekanism.api.transmitters.TransmissionType;
+import mekanism.common.capabilities.holder.QuantumEntangloporterConfigHolder;
+import mekanism.common.tile.TileEntityQuantumEntangloporter;
+import net.minecraft.util.EnumFacing;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.Collections;
+import java.util.List;
+
+public class QuantumEntangloporterInventorySlotHolder extends QuantumEntangloporterConfigHolder<IInventorySlot> implements IInventorySlotHolder {
+
+    public QuantumEntangloporterInventorySlotHolder(TileEntityQuantumEntangloporter entangloporter) {
+        super(entangloporter);
+    }
+
+    @Override
+    protected TransmissionType getTransmissionType() {
+        return TransmissionType.ITEM;
+    }
+
+    @Nonnull
+    @Override
+    public List<IInventorySlot> getInventorySlots(@Nullable EnumFacing side) {
+        return entangloporter.hasFrequency() ? entangloporter.getFreq().getInventorySlots(side) : Collections.emptyList();
+    }
+}

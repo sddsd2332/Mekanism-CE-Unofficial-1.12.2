@@ -5,7 +5,7 @@ import mekanism.api.EnumColor;
 import mekanism.api.transmitters.TransmissionType;
 import mekanism.client.MekKeyHandler;
 import mekanism.client.MekanismKeyHandler;
-import mekanism.client.gui.element.GuiUtils;
+import mekanism.client.gui.GuiUtils;
 import mekanism.common.Mekanism;
 import mekanism.common.base.ITierItem;
 import mekanism.common.block.states.BlockStateTransmitter.TransmitterType;
@@ -209,16 +209,21 @@ public class ItemBlockTransmitter extends ItemBlockMultipartAble implements ITie
             TransmissionType transmission = stackType.getTransmission();
             if (transmission == TransmissionType.GAS || transmission == TransmissionType.HEAT || transmission == TransmissionType.ENERGY) {
                 GlStateManager.pushMatrix();
-                GlStateManager.translate(0, 0, 200);
-                TransmitterType type = stackType;
-                String name = type.getTranslationKey();
-                if (type.hasTiers()) {
-                    BaseTier tier = transmitter.getBaseTier(stack);
-                    name = tier.getSimpleName() + name;
+                try {
+                    GlStateManager.translate(0, 0, 200);
+                    GlStateManager.disableDepth();
+                    TransmitterType type = stackType;
+                    String name = type.getTranslationKey();
+                    if (type.hasTiers()) {
+                        BaseTier tier = transmitter.getBaseTier(stack);
+                        name = tier.getSimpleName() + name;
+                    }
+                    Minecraft.getMinecraft().renderEngine.bindTexture(MekanismUtils.getResource(MekanismUtils.ResourceType.GUI_ICONS, name.toLowerCase(Locale.ROOT) + ".png"));
+                    GuiUtils.blit(xPosition, yPosition, 0, 0, 16, 16, 16, 16);
+                } finally {
+                    GlStateManager.enableDepth();
+                    GlStateManager.popMatrix();
                 }
-                Minecraft.getMinecraft().renderEngine.bindTexture(MekanismUtils.getResource(MekanismUtils.ResourceType.GUI_ICONS, name.toLowerCase(Locale.ROOT) + ".png"));
-                GuiUtils.blit(xPosition, yPosition, 0, 0, 16, 16, 16, 16);
-                GlStateManager.popMatrix();
                 return true;
             }
         }

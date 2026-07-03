@@ -1,9 +1,11 @@
 package mekanism.client.gui;
 
 import mekanism.client.gui.element.GuiGraph;
-import mekanism.client.gui.element.GuiHeatInfo;
 import mekanism.client.gui.element.tab.GuiBoilerTab;
 import mekanism.client.gui.element.tab.GuiBoilerTab.BoilerTab;
+import mekanism.client.gui.element.tab.GuiHeatTab;
+import mekanism.client.gui.element.tab.GuiWarningTab;
+import mekanism.client.gui.warning.IWarningTracker;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.content.boiler.SynchronizedBoilerData;
 import mekanism.common.inventory.container.ContainerNull;
@@ -12,52 +14,67 @@ import mekanism.common.util.LangUtils;
 import mekanism.common.util.UnitDisplayUtils;
 import mekanism.common.util.UnitDisplayUtils.TemperatureUnit;
 import net.minecraft.entity.player.InventoryPlayer;
-import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.text.TextComponentString;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
 import java.util.Collections;
 
 @SideOnly(Side.CLIENT)
-public class GuiBoilerStats extends GuiMekanismTile<TileEntityBoilerCasing> {
+public class GuiBoilerStats extends GuiMekanismTile<TileEntityBoilerCasing, ContainerNull> {
 
-    private final GuiGraph boilGraph;
-    private final GuiGraph maxGraph;
+    private GuiGraph boilGraph;
+    private GuiGraph maxGraph;
 
     public GuiBoilerStats(InventoryPlayer inventory, TileEntityBoilerCasing tile) {
         super(tile, new ContainerNull(inventory.player, tile));
-        ResourceLocation resource = getGuiLocation();
-        addGuiElement(new GuiBoilerTab(this, tileEntity, BoilerTab.MAIN, resource));
-        addGuiElement(new GuiHeatInfo(() -> {
-            TemperatureUnit unit = TemperatureUnit.values()[MekanismConfig.current().general.tempUnit.val().ordinal()];
-            String environment = UnitDisplayUtils.getDisplayShort(tileEntity.getLastEnvironmentLoss() * unit.intervalSize, false, unit);
-            return Collections.singletonList(LangUtils.localize("gui.dissipated") + ": " + environment + "/t");
-        }, this, resource));
-        addGuiElement(boilGraph = new GuiGraph(this, resource, 7, 82, 162, 36, data -> LangUtils.localize("gui.boilRate") + ": " + data + " mB/t"));
-        addGuiElement(maxGraph = new GuiGraph(this, resource, 7, 121, 162, 36, data -> LangUtils.localize("gui.maxBoil") + ": " + data + " mB/t"));
-        maxGraph.enableFixedScale((int) ((tileEntity.getSuperheatingElements() * MekanismConfig.current().general.superheatingHeatTransfer.val()) /
-                SynchronizedBoilerData.getHeatEnthalpy()));
     }
 
     @Override
-    protected void drawGuiContainerForegroundLayer(int mouseX, int mouseY) {
-        String stats = LangUtils.localize("gui.boilerStats");
-        fontRenderer.drawString(stats, (xSize / 2) - (fontRenderer.getStringWidth(stats) / 2), 4, 0x404040);
-        fontRenderer.drawString(LangUtils.localize("gui.maxWater") + ": " + tileEntity.clientWaterCapacity + " mB", 8, 26, 0x404040);
-        fontRenderer.drawString(LangUtils.localize("gui.maxSteam") + ": " + tileEntity.clientSteamCapacity + " mB", 8, 35, 0x404040);
-        fontRenderer.drawString(LangUtils.localize("gui.heatTransfer"), 8, 49, 0x797979);
-        fontRenderer.drawString(LangUtils.localize("gui.superheaters") + ": " + tileEntity.getSuperheatingElements(), 14, 58, 0x404040);
-        int boilCapacity = (int) (tileEntity.getSuperheatingElements() * MekanismConfig.current().general.superheatingHeatTransfer.val() / SynchronizedBoilerData.getHeatEnthalpy());
-        fontRenderer.drawString(LangUtils.localize("gui.boilCapacity") + ": " + boilCapacity + " mB/t", 8, 72, 0x404040);
-        super.drawGuiContainerForegroundLayer(mouseX, mouseY);
+    protected void addGuiElements() {
+        super.addGuiElements();
+        addButton(new GuiBoilerTab(this, tileEntity, BoilerTab.MAIN));
+        addButton(new GuiHeatTab(this, () -> Collections.singletonList(new TextComponentString(LangUtils.localize("gui.dissipated") + ": " +
+              getEnvironmentLoss() + "/t"))));
+        boilGraph = addButton(new GuiGraph(this, 7, 82, 162, 38, data -> LangUtils.localize("gui.boilRate") + ": " + data + " mB/t"));
+        maxGraph = addButton(new GuiGraph(this, 7, 121, 162, 38, data -> LangUtils.localize("gui.maxBoil") + ": " + data + " mB/t"));
+        maxGraph.enableFixedScale(getBoilCapacity());
+    }
+
+    @Override
+    protected void addWarningTab(IWarningTracker warningTracker) {
+        addButton(new GuiWarningTab(this, warningTracker, 109, false));
     }
 
     @Override
     public void updateScreen() {
         super.updateScreen();
-        boilGraph.addData(tileEntity.getLastBoilRate());
-        maxGraph.addData(tileEntity.getLastMaxBoil());
+        if (boilGraph != null) {
+            boilGraph.addData(tileEntity.getLastBoilRate());
+        }
+        if (maxGraph != null) {
+            maxGraph.addData(tileEntity.getLastMaxBoil());
+        }
     }
 
+    @Override
+    protected void drawForegroundText(int mouseX, int mouseY) {
+        drawTitleText(new TextComponentString(LangUtils.localize("gui.boilerStats")), 4);
+        drawString(new TextComponentString(LangUtils.localize("gui.maxWater") + ": " + tileEntity.clientWaterCapacity + " mB"), 8, 26, titleTextColor());
+        drawString(new TextComponentString(LangUtils.localize("gui.maxSteam") + ": " + tileEntity.clientSteamCapacity + " mB"), 8, 35, titleTextColor());
+        drawString(new TextComponentString(LangUtils.localize("gui.heatTransfer")), 8, 49, subheadingTextColor());
+        drawString(new TextComponentString(LangUtils.localize("gui.superheaters") + ": " + tileEntity.getSuperheatingElements()), 14, 58, titleTextColor());
+        drawString(new TextComponentString(LangUtils.localize("gui.boilCapacity") + ": " + getBoilCapacity() + " mB/t"), 8, 72, titleTextColor());
+        super.drawForegroundText(mouseX, mouseY);
+    }
 
+    private String getEnvironmentLoss() {
+        TemperatureUnit unit = TemperatureUnit.values()[MekanismConfig.current().general.tempUnit.val().ordinal()];
+        return UnitDisplayUtils.getDisplayShort(tileEntity.getLastEnvironmentLoss() * unit.intervalSize, false, unit);
+    }
+
+    private int getBoilCapacity() {
+        return (int) (tileEntity.getSuperheatingElements() * MekanismConfig.current().general.superheatingHeatTransfer.val() /
+              SynchronizedBoilerData.getHeatEnthalpy());
+    }
 }

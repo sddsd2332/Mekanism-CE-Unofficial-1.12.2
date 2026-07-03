@@ -1,7 +1,7 @@
 package mekanism.common.item;
 
 import mekanism.api.EnumColor;
-import mekanism.api.energy.IEnergizedItem;
+import mekanism.api.NBTConstants;
 import mekanism.api.energy.IStrictEnergyStorage;
 import mekanism.client.MekKeyHandler;
 import mekanism.client.MekanismKeyHandler;
@@ -9,7 +9,9 @@ import mekanism.common.Mekanism;
 import mekanism.common.MekanismBlocks;
 import mekanism.common.base.ITierItem;
 import mekanism.common.block.states.BlockStateBasic.BasicBlockType;
-import mekanism.common.inventory.InventoryBin;
+import mekanism.common.inventory.BinMekanismInventory;
+import mekanism.common.inventory.slot.BinInventorySlot;
+import mekanism.common.item.interfaces.IItemSustainedInventory;
 import mekanism.common.tier.BaseTier;
 import mekanism.common.tier.BinTier;
 import mekanism.common.tier.InductionCellTier;
@@ -18,9 +20,7 @@ import mekanism.common.tile.TileEntityBin;
 import mekanism.common.tile.multiblock.TileEntityInductionCell;
 import mekanism.common.tile.multiblock.TileEntityInductionProvider;
 import mekanism.common.tile.multiblock.TileEntityMultiblock;
-import mekanism.common.util.ItemDataUtils;
-import mekanism.common.util.LangUtils;
-import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.*;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.settings.GameSettings;
@@ -29,6 +29,7 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.nbt.NBTTagList;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
@@ -47,7 +48,7 @@ import java.util.List;
  *
  * @author AidanBrady
  */
-public class ItemBlockBasic extends ItemBlock implements IEnergizedItem, ITierItem {
+public class ItemBlockBasic extends ItemBlock implements ITierItem, IItemSustainedInventory {
 
     public Block metaBlock;
 
@@ -109,13 +110,17 @@ public class ItemBlockBasic extends ItemBlock implements IEnergizedItem, ITierIt
         if (type != null && type.hasDescription) {
             if (!MekKeyHandler.getIsKeyPressed(MekanismKeyHandler.sneakKey)) {
                 if (type == BasicBlockType.BIN) {
-                    InventoryBin inv = new InventoryBin(itemstack);
-                    if (inv.getItemCount() > 0) {
-                        list.add(EnumColor.BRIGHT_GREEN + inv.getItemType().getDisplayName());
-                        String amountStr = inv.getItemCount() == Integer.MAX_VALUE ? LangUtils.localize("gui.infinite") : "" + inv.getItemCount();
+                    BinMekanismInventory inventory = BinMekanismInventory.create(itemstack);
+                    BinInventorySlot slot = inventory == null ? null : inventory.getBinSlot();
+                    if (slot != null && !slot.isEmpty()) {
+                        list.add(EnumColor.BRIGHT_GREEN + slot.getStack().getDisplayName());
+                        String amountStr = slot.getCount() == Integer.MAX_VALUE ? LangUtils.localize("gui.infinite") : "" + slot.getCount();
                         list.add(EnumColor.PURPLE + LangUtils.localize("tooltip.itemAmount") + ": " + EnumColor.GREY + amountStr);
                     } else {
                         list.add(EnumColor.DARK_RED + LangUtils.localize("gui.empty"));
+                    }
+                    if (slot != null && slot.isLocked()) {
+                        list.add(EnumColor.PINK + LangUtils.localize("tooltip.locked") + ": " + EnumColor.GREY + slot.getLockStack().getDisplayName());
                     }
                     int cap = BinTier.values()[getBaseTier(itemstack).ordinal()].getStorage();
                     list.add(EnumColor.INDIGO + LangUtils.localize("tooltip.capacity") + ": " + EnumColor.GREY +
@@ -128,8 +133,8 @@ public class ItemBlockBasic extends ItemBlock implements IEnergizedItem, ITierIt
                     list.add(tier.getBaseTier().getColor() + LangUtils.localize("tooltip.outputRate") + ": " + EnumColor.GREY + MekanismUtils.getEnergyDisplay(tier.getOutput()));
                 }
 
-                if (getMaxEnergy(itemstack) > 0) {
-                    list.add(EnumColor.BRIGHT_GREEN + LangUtils.localize("tooltip.storedEnergy") + ": " + EnumColor.GREY + MekanismUtils.getEnergyDisplay(getEnergy(itemstack)));
+                if (getEnergyCapacity(itemstack) > 0) {
+                    list.add(EnumColor.BRIGHT_GREEN + LangUtils.localize("tooltip.storedEnergy") + ": " + EnumColor.GREY + MekanismUtils.getEnergyDisplay(StorageUtils.getStoredEnergy(itemstack)));
                 }
                 list.add(LangUtils.localize("tooltip.hold") + " " + EnumColor.INDIGO + GameSettings.getKeyDisplayString(MekanismKeyHandler.sneakKey.getKeyCode()) +
                         EnumColor.GREY + " " + LangUtils.localize("tooltip.forDetails") + ".");
@@ -154,7 +159,16 @@ public class ItemBlockBasic extends ItemBlock implements IEnergizedItem, ITierIt
             int newCount = ItemDataUtils.getInt(stack, "newCount");
             ItemDataUtils.removeData(stack, "newCount");
             ItemStack ret = stack.copy();
-            ItemDataUtils.setInt(ret, "itemCount", newCount);
+            BinMekanismInventory inventory = BinMekanismInventory.create(ret);
+            if (inventory != null) {
+                BinInventorySlot slot = inventory.getBinSlot();
+                if (newCount <= 0 || slot.isEmpty()) {
+                    slot.setEmpty();
+                } else {
+                    slot.setStackUnchecked(StackUtils.size(slot.getStack(), Math.min(newCount, slot.getLimit(slot.getStack()))));
+                }
+                inventory.onContentsChanged();
+            }
             return ret;
         }
         return ItemStack.EMPTY;
@@ -175,12 +189,16 @@ public class ItemBlockBasic extends ItemBlock implements IEnergizedItem, ITierIt
         if (place && super.placeBlockAt(stack, player, world, pos, side, hitX, hitY, hitZ, state)) {
             if (type == BasicBlockType.BIN && stack.getTagCompound() != null) {
                 TileEntityBin tileEntity = (TileEntityBin) world.getTileEntity(pos);
-                InventoryBin inv = new InventoryBin(stack);
+                BinMekanismInventory inventory = BinMekanismInventory.create(stack);
                 tileEntity.tier = BinTier.values()[getBaseTier(stack).ordinal()];
-                if (!inv.getItemType().isEmpty()) {
-                    tileEntity.setItemType(inv.getItemType());
+                if (inventory != null) {
+                    BinInventorySlot slot = inventory.getBinSlot();
+                    if (!slot.isEmpty()) {
+                        tileEntity.setItemType(slot.getStack());
+                    }
+                    tileEntity.setItemCount(slot.getCount());
+                    tileEntity.getBinSlot().setLockStack(slot.getLockStack());
                 }
-                tileEntity.setItemCount(inv.getItemCount());
             } else if (type == BasicBlockType.INDUCTION_CELL) {
                 TileEntityInductionCell tileEntity = (TileEntityInductionCell) world.getTileEntity(pos);
                 tileEntity.tier = InductionCellTier.values()[getBaseTier(stack).ordinal()];
@@ -196,7 +214,7 @@ public class ItemBlockBasic extends ItemBlock implements IEnergizedItem, ITierIt
             }
             TileEntity tileEntity = world.getTileEntity(pos);
             if (tileEntity instanceof IStrictEnergyStorage storage && !(tileEntity instanceof TileEntityMultiblock<?>)) {
-                storage.setEnergy(getEnergy(stack));
+                storage.setEnergy(StorageUtils.getStoredEnergyFromItemData(stack));
             }
         }
         return place;
@@ -216,50 +234,17 @@ public class ItemBlockBasic extends ItemBlock implements IEnergizedItem, ITierIt
         return "Invalid Basic Block";
     }
 
-    @Override
-    public double getEnergy(ItemStack itemStack) {
+    public void setStoredEnergy(ItemStack itemStack, double amount) {
         if (BasicBlockType.get(itemStack) == BasicBlockType.INDUCTION_CELL) {
-            return ItemDataUtils.getDouble(itemStack, "energyStored");
-        }
-        return 0;
-    }
-
-    @Override
-    public void setEnergy(ItemStack itemStack, double amount) {
-        if (BasicBlockType.get(itemStack) == BasicBlockType.INDUCTION_CELL) {
-           if (amount == 0) {
-            NBTTagCompound dataMap = ItemDataUtils.getDataMap(itemStack);
-            dataMap.removeTag("energyStored");
-               if (dataMap.isEmpty() && itemStack.getTagCompound()!=null) {
-                   itemStack.getTagCompound().removeTag(ItemDataUtils.DATA_ID);
-               }
-        } else {
-            ItemDataUtils.setDouble(itemStack, "energyStored", Math.max(Math.min(amount, getMaxEnergy(itemStack)), 0));
-        }
+            StorageUtils.setStoredEnergy(itemStack, amount, getEnergyCapacity(itemStack));
         }
     }
 
-    @Override
-    public double getMaxEnergy(ItemStack itemStack) {
+    public double getEnergyCapacity(ItemStack itemStack) {
         if (BasicBlockType.get(itemStack) == BasicBlockType.INDUCTION_CELL) {
             return InductionCellTier.values()[getBaseTier(itemStack).ordinal()].getMaxEnergy();
         }
         return 0;
-    }
-
-    @Override
-    public double getMaxTransfer(ItemStack itemStack) {
-        return 0;
-    }
-
-    @Override
-    public boolean canReceive(ItemStack itemStack) {
-        return false;
-    }
-
-    @Override
-    public boolean canSend(ItemStack itemStack) {
-        return false;
     }
 
     @Override
@@ -280,5 +265,39 @@ public class ItemBlockBasic extends ItemBlock implements IEnergizedItem, ITierIt
             return tier.getBaseTier().getColor() + LangUtils.localize("tile.BasicBlock.Bin" + tier.getBaseTier().getSimpleName() + ".name");
         }
         return super.getItemStackDisplayName(itemstack);
+    }
+
+    @Override
+    public void setInventory(NBTTagList nbtTags, Object... data) {
+        if (data.length > 0 && data[0] instanceof ItemStack stack) {
+            setSustainedInventory(nbtTags, stack);
+        }
+    }
+
+    @Override
+    public void setSustainedInventory(NBTTagList nbtTags, ItemStack stack) {
+        if (BasicBlockType.get(stack) == BasicBlockType.BIN) {
+            if (nbtTags == null || nbtTags.tagCount() == 0) {
+                ItemDataUtils.removeData(stack, NBTConstants.ITEMS);
+            } else {
+                ItemDataUtils.setList(stack, NBTConstants.ITEMS, nbtTags);
+            }
+        }
+    }
+
+    @Override
+    public NBTTagList getInventory(Object... data) {
+        if (data.length > 0 && data[0] instanceof ItemStack stack) {
+            return getSustainedInventory(stack);
+        }
+        return new NBTTagList();
+    }
+
+    @Override
+    public NBTTagList getSustainedInventory(ItemStack stack) {
+        if (BasicBlockType.get(stack) == BasicBlockType.BIN) {
+            return ItemDataUtils.getList(stack, NBTConstants.ITEMS);
+        }
+        return new NBTTagList();
     }
 }

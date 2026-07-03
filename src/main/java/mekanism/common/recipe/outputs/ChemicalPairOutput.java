@@ -1,7 +1,9 @@
 package mekanism.common.recipe.outputs;
 
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.GasTank;
+import mekanism.api.gas.IExtendedGasTank;
 import net.minecraft.nbt.NBTTagCompound;
 
 /**
@@ -67,21 +69,31 @@ public class ChemicalPairOutput extends MachineOutput<ChemicalPairOutput> {
         return new ChemicalPairOutput(rightGas, leftGas);
     }
 
-    public boolean applyOutputs(GasTank leftTank, GasTank rightTank, boolean doEmit, int scale) {
-        if (leftTank.canReceive(leftGas.getGas()) && rightTank.canReceive(rightGas.getGas())) {
-            if (leftTank.getNeeded() >= leftGas.amount * scale && rightTank.getNeeded() >= rightGas.amount * scale) {
-                leftTank.receive(leftGas.copy().withAmount(leftGas.amount * scale), doEmit);
-                rightTank.receive(rightGas.copy().withAmount(rightGas.amount * scale), doEmit);
-                return true;
-            }
-        } else if (leftTank.canReceive(rightGas.getGas()) && rightTank.canReceive(leftGas.getGas())) {
-            if (leftTank.getNeeded() >= rightGas.amount * scale && rightTank.getNeeded() >= leftGas.amount * scale) {
-                leftTank.receive(rightGas.copy().withAmount(rightGas.amount * scale), doEmit);
-                rightTank.receive(leftGas.copy().withAmount(leftGas.amount * scale), doEmit);
-                return true;
-            }
+    public boolean applyOutputs(IExtendedGasTank leftTank, IExtendedGasTank rightTank, boolean doEmit, int scale) {
+        if (insertPair(leftTank, rightTank, leftGas, rightGas, doEmit, scale)) {
+            return true;
+        } else if (insertPair(leftTank, rightTank, rightGas, leftGas, doEmit, scale)) {
+            return true;
         }
         return false;
+    }
+
+    private boolean insertPair(IExtendedGasTank leftTank, IExtendedGasTank rightTank, GasStack leftOutput, GasStack rightOutput, boolean doEmit, int scale) {
+        GasStack leftInsert = leftOutput.copy().withAmount(leftOutput.amount * scale);
+        GasStack rightInsert = rightOutput.copy().withAmount(rightOutput.amount * scale);
+        if (!canInsertAll(leftTank, leftInsert) || !canInsertAll(rightTank, rightInsert)) {
+            return false;
+        }
+        if (doEmit) {
+            leftTank.insert(leftInsert, Action.EXECUTE, AutomationType.INTERNAL);
+            rightTank.insert(rightInsert, Action.EXECUTE, AutomationType.INTERNAL);
+        }
+        return true;
+    }
+
+    private boolean canInsertAll(IExtendedGasTank tank, GasStack stack) {
+        GasStack remainder = tank.insert(stack, Action.SIMULATE, AutomationType.INTERNAL);
+        return remainder == null || remainder.amount <= 0;
     }
 
     /**
@@ -90,13 +102,13 @@ public class ChemicalPairOutput extends MachineOutput<ChemicalPairOutput> {
      * @param leftTank  - left tank to draw from
      * @param rightTank - right tank to draw from
      */
-    public void draw(GasTank leftTank, GasTank rightTank) {
+    public void draw(IExtendedGasTank leftTank, IExtendedGasTank rightTank) {
         if (meets(new ChemicalPairOutput(leftTank.getGas(), rightTank.getGas()))) {
-            leftTank.draw(leftGas.amount, true);
-            rightTank.draw(rightGas.amount, true);
+            leftTank.extract(leftGas.amount, Action.EXECUTE, AutomationType.INTERNAL);
+            rightTank.extract(rightGas.amount, Action.EXECUTE, AutomationType.INTERNAL);
         } else if (meets(new ChemicalPairOutput(rightTank.getGas(), leftTank.getGas()))) {
-            leftTank.draw(rightGas.amount, true);
-            rightTank.draw(leftGas.amount, true);
+            leftTank.extract(rightGas.amount, Action.EXECUTE, AutomationType.INTERNAL);
+            rightTank.extract(leftGas.amount, Action.EXECUTE, AutomationType.INTERNAL);
         }
     }
 

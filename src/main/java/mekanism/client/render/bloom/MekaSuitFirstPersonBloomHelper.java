@@ -1,8 +1,8 @@
 package mekanism.client.render.bloom;
 
 import mekanism.client.model.mekasuitarmour.IMekaSuitBloomModel;
-import mekanism.common.Mekanism;
 import mekanism.client.model.mekasuitarmour.ModelMekAsuitBodyArm;
+import mekanism.common.Mekanism;
 import mekanism.common.item.armor.ItemMekaSuitArmor;
 import mekanism.common.item.armor.ItemMekaSuitBodyArmor;
 import mekanism.common.lib.Color;
@@ -16,10 +16,10 @@ import net.minecraft.item.ItemStack;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 
-import java.nio.FloatBuffer;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.nio.FloatBuffer;
 import java.util.function.Consumer;
 
 public final class MekaSuitFirstPersonBloomHelper {

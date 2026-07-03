@@ -1,7 +1,7 @@
 package mekanism.common.content.gear.mekasuit;
 
 import mekanism.api.annotations.ParametersAreNotNullByDefault;
-import mekanism.api.energy.IEnergizedItem;
+import mekanism.api.energy.IEnergyContainer;
 import mekanism.api.gear.ICustomModule;
 import mekanism.api.gear.IModule;
 import mekanism.api.gear.config.IModuleConfigItem;
@@ -64,8 +64,8 @@ public class ModuleInhalationPurificationUnit implements ICustomModule<ModuleInh
     public void tickServer(IModule<ModuleInhalationPurificationUnit> module, EntityPlayer player) {
         double usage = MekanismConfig.current().meka.mekaSuitEnergyUsagePotionTick.val();
         boolean free = usage == 0 || player.isCreative();
-        IEnergizedItem energyContainer = free ? null : module.getEnergyContainer();
-        if (free || (energyContainer != null && energyContainer.getEnergy(module.getContainer()) >= (usage))) {
+        IEnergyContainer energyContainer = free ? null : module.getEnergyContainer();
+        if (free || (energyContainer != null && energyContainer.getEnergy() >= usage)) {
             //Gather all the active effects that we can handle, so that we have them in their own list and
             // don't run into any issues related to CMEs
             List<PotionEffect> effects = player.getActivePotionEffects().stream().filter(this::canHandle).collect(Collectors.toList());
@@ -77,7 +77,7 @@ public class ModuleInhalationPurificationUnit implements ICustomModule<ModuleInh
                     break;
                 } else {
                     speedupEffect(player, effect);
-                    if (energyContainer.getEnergy(module.getContainer()) < (usage)) {
+                    if (energyContainer.getEnergy() < usage) {
                         //If after using energy, our remaining energy is now smaller than how much we need to use, exit
                         break;
                     }

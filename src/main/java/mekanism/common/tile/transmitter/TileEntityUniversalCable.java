@@ -6,15 +6,18 @@ import ic2.api.energy.EnergyNet;
 import ic2.api.energy.tile.IEnergySource;
 import ic2.api.energy.tile.IEnergyTile;
 import io.netty.buffer.ByteBuf;
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
 import mekanism.api.TileNetworkList;
-import mekanism.api.energy.EnergyStack;
-import mekanism.api.energy.IStrictEnergyAcceptor;
-import mekanism.api.energy.IStrictEnergyStorage;
+import mekanism.api.energy.*;
 import mekanism.api.transmitters.TransmissionType;
 import mekanism.common.base.EnergyAcceptorWrapper;
 import mekanism.common.block.states.BlockStateTransmitter.TransmitterType;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.capabilities.CapabilityWrapperManager;
+import mekanism.common.capabilities.energy.DynamicStrictEnergyHandler;
+import mekanism.common.capabilities.holder.energy.ProxiedEnergyContainerHolder;
+import mekanism.common.capabilities.resolver.manager.EnergyHandlerManager;
 import mekanism.common.integration.MekanismHooks;
 import mekanism.common.integration.forgeenergy.ForgeEnergyCableIntegration;
 import mekanism.common.integration.forgeenergy.ForgeEnergyIntegration;
@@ -39,14 +42,15 @@ import net.minecraftforge.energy.IEnergyStorage;
 import net.minecraftforge.fml.common.Optional;
 
 import javax.annotation.Nonnull;
-import java.util.Collection;
-import java.util.List;
+import javax.annotation.Nullable;
+import java.util.*;
 
-@Optional.InterfaceList(
-        @Optional.Interface(iface = "cofh.redstoneflux.api.IEnergyReceiver", modid = MekanismHooks.REDSTONEFLUX_MOD_ID)
-)
+@Optional.InterfaceList({
+        @Optional.Interface(iface = "cofh.redstoneflux.api.IEnergyReceiver", modid = MekanismHooks.REDSTONEFLUX_MOD_ID),
+        @Optional.Interface(iface = "cofh.redstoneflux.api.IEnergyProvider", modid = MekanismHooks.REDSTONEFLUX_MOD_ID)
+})
 public class TileEntityUniversalCable extends TileEntityTransmitter<EnergyAcceptorWrapper, EnergyNetwork, EnergyStack> implements IStrictEnergyAcceptor,
-        IStrictEnergyStorage, IEnergyReceiver {
+        IStrictEnergyStorage, IStrictEnergyOutputter, IEnergyReceiver, IEnergyProvider {
 
     public CableTier tier = CableTier.BASIC;
 
@@ -58,6 +62,15 @@ public class TileEntityUniversalCable extends TileEntityTransmitter<EnergyAccept
     public EnergyStack buffer = new EnergyStack(0);
     private CapabilityWrapperManager teslaManager = new CapabilityWrapperManager<>(getClass(), TeslaCableIntegration.class);
     private CapabilityWrapperManager forgeEnergyManager = new CapabilityWrapperManager<>(getClass(), ForgeEnergyCableIntegration.class);
+    private final Map<EnumFacing, UniversalCableEnergyHandler> energyHandlers = new EnumMap<>(EnumFacing.class);
+    private UniversalCableEnergyHandler readOnlyEnergyHandler;
+    private final EnergyHandlerManager energyHandlerManager;
+
+    public TileEntityUniversalCable() {
+        addCapabilityResolver(energyHandlerManager = new EnergyHandlerManager(ProxiedEnergyContainerHolder.create(
+              this::canInsertEnergyContainer, this::canExtractEnergyContainer, this::getEnergyContainers
+        ), new DynamicStrictEnergyHandler(this::getEnergyContainers, this::canExtractEnergyContainer, this::canInsertEnergyContainer, null)));
+    }
 
     @Override
     public BaseTier getBaseTier() {
@@ -108,22 +121,24 @@ public class TileEntityUniversalCable extends TileEntityTransmitter<EnergyAccept
             }
 
             //pre declare some variables for inline assignment & checks
-            IStrictEnergyStorage strictStorage;
+            IStrictEnergyOutputter strictOutputter;
             ITeslaProducer teslaProducer;//do not assign anything to this here, or classloader issues may happen
             IEnergyStorage forgeStorage;
-            if ((strictStorage = CapabilityUtils.getCapability(outputter, Capabilities.ENERGY_STORAGE_CAPABILITY, side.getOpposite())) != null) {
-                double received = draw(Math.min(strictStorage.getEnergy(), maxDraw));
+            EnumFacing accessSide = side.getOpposite();
+            if ((strictOutputter = CapabilityUtils.getCapability(outputter, Capabilities.ENERGY_OUTPUTTER_CAPABILITY, accessSide)) != null &&
+                strictOutputter.canOutputEnergy(accessSide)) {
+                double received = draw(strictOutputter.pullEnergy(accessSide, maxDraw, true));
                 if (received > 0) {
-                    strictStorage.setEnergy(strictStorage.getEnergy() - received);
+                    strictOutputter.pullEnergy(accessSide, received, false);
                     successAtLeastOnce = true;
                 }
-            } else if (MekanismUtils.useTesla() && (teslaProducer = CapabilityUtils.getCapability(outputter, Capabilities.TESLA_PRODUCER_CAPABILITY, side.getOpposite())) != null) {
+            } else if (MekanismUtils.useTesla() && (teslaProducer = CapabilityUtils.getCapability(outputter, Capabilities.TESLA_PRODUCER_CAPABILITY, accessSide)) != null) {
                 double received = draw(TeslaIntegration.fromTesla(teslaProducer.takePower(TeslaIntegration.toTesla(maxDraw), true)));
                 if (received > 0) {
                     teslaProducer.takePower(TeslaIntegration.toTesla(received), false);
                     successAtLeastOnce = true;
                 }
-            } else if (MekanismUtils.useForge() && (forgeStorage = CapabilityUtils.getCapability(outputter, CapabilityEnergy.ENERGY, side.getOpposite())) != null) {
+            } else if (MekanismUtils.useForge() && (forgeStorage = CapabilityUtils.getCapability(outputter, CapabilityEnergy.ENERGY, accessSide)) != null) {
                 double received = draw(ForgeEnergyIntegration.fromForge(forgeStorage.extractEnergy(ForgeEnergyIntegration.toForge(maxDraw), true)));
                 if (received > 0) {
                     forgeStorage.extractEnergy(ForgeEnergyIntegration.toForge(received), false);
@@ -180,7 +195,8 @@ public class TileEntityUniversalCable extends TileEntityTransmitter<EnergyAccept
 
     private double getSaveShare() {
         if (getTransmitter().hasTransmitterNetwork()) {
-            return EnergyNetwork.round(getTransmitter().getTransmitterNetwork().buffer.amount * (1F / getTransmitter().getTransmitterNetwork().transmittersSize()));
+            EnergyNetwork transmitterNetwork = getTransmitter().getTransmitterNetwork();
+            return EnergyNetwork.round(transmitterNetwork.getBufferAmount() * (1F / transmitterNetwork.transmittersSize()));
         }
         return buffer.amount;
     }
@@ -193,13 +209,11 @@ public class TileEntityUniversalCable extends TileEntityTransmitter<EnergyAccept
     @Override
     public void readCustomNBT(NBTTagCompound nbtTags) {
         super.readCustomNBT(nbtTags);
-        buffer.amount = nbtTags.getDouble("cacheEnergy");
-        if (buffer.amount < 0) {
-            buffer.amount = 0;
-        }
         if (nbtTags.hasKey("tier")) {
             tier = MekanismUtils.getByIndex(CableTier.values(), nbtTags.getInteger("tier"), tier);
         }
+        setLocalBufferAmount(nbtTags.getDouble("cacheEnergy"));
+        lastWrite = buffer.amount;
     }
 
     @Override
@@ -235,23 +249,34 @@ public class TileEntityUniversalCable extends TileEntityTransmitter<EnergyAccept
     }
 
     @Override
+    public void clearBuffer() {
+        setLocalBufferAmount(0);
+    }
+
+    @Override
     public void takeShare() {
         if (getTransmitter().hasTransmitterNetwork()) {
-            getTransmitter().getTransmitterNetwork().buffer.amount -= lastWrite;
-            buffer.amount = lastWrite;
+            getTransmitter().getTransmitterNetwork().shrinkBuffer(lastWrite);
+            setLocalBufferAmount(lastWrite);
         }
     }
 
     @Override
     @Optional.Method(modid = MekanismHooks.REDSTONEFLUX_MOD_ID)
     public int receiveEnergy(EnumFacing from, int maxReceive, boolean simulate) {
-        return maxReceive - RFIntegration.toRF(takeEnergy(RFIntegration.fromRF(maxReceive), !simulate));
+        return RFIntegration.toRF(acceptEnergy(from, RFIntegration.fromRF(maxReceive), simulate));
+    }
+
+    @Override
+    @Optional.Method(modid = MekanismHooks.REDSTONEFLUX_MOD_ID)
+    public int extractEnergy(EnumFacing from, int maxExtract, boolean simulate) {
+        return RFIntegration.toRF(pullEnergy(from, RFIntegration.fromRF(maxExtract), simulate));
     }
 
     @Override
     @Optional.Method(modid = MekanismHooks.REDSTONEFLUX_MOD_ID)
     public boolean canConnectEnergy(EnumFacing from) {
-        return canConnect(from);
+        return hasEnergyContainer(from) && (canReceiveEnergy(from) || canOutputEnergy(from));
     }
 
     @Override
@@ -273,22 +298,34 @@ public class TileEntityUniversalCable extends TileEntityTransmitter<EnergyAccept
 
     @Override
     public double acceptEnergy(EnumFacing side, double amount, boolean simulate) {
-        double toUse = Math.min(getMaxEnergy() - getEnergy(), amount);
-        if (toUse < 0.0001 || (side != null && !canReceiveEnergy(side))) {
-            return 0;
-        }
-        if (!simulate) {
-            setEnergy(getEnergy() + toUse);
-        }
-        return toUse;
+        return amount - insertEnergyToBuffer(amount, side, Action.get(!simulate));
     }
 
     @Override
     public boolean canReceiveEnergy(EnumFacing side) {
         if (side == null) {
-            return true;
+            return !isRedstoneActivated();
         }
-        return getConnectionType(side) == ConnectionType.NORMAL;
+        ConnectionType connectionType = getConnectionType(side);
+        return !isRedstoneActivated() && (connectionType == ConnectionType.NORMAL || connectionType == ConnectionType.PULL);
+    }
+
+    @Override
+    public double pullEnergy(EnumFacing side, double amount, boolean simulate) {
+        return extractEnergyFromBuffer(amount, side, Action.get(!simulate));
+    }
+
+    @Override
+    public boolean canOutputEnergy(EnumFacing side) {
+        if (side == null) {
+            return !isRedstoneActivated();
+        }
+        ConnectionType connectionType = getConnectionType(side);
+        return !isRedstoneActivated() && (connectionType == ConnectionType.NORMAL || connectionType == ConnectionType.PUSH);
+    }
+
+    public double getMaxOutput() {
+        return tier.getCableCapacity();
     }
 
     @Override
@@ -302,7 +339,7 @@ public class TileEntityUniversalCable extends TileEntityTransmitter<EnergyAccept
     @Override
     public double getEnergy() {
         if (getTransmitter().hasTransmitterNetwork()) {
-            return getTransmitter().getTransmitterNetwork().buffer.amount;
+            return getTransmitter().getTransmitterNetwork().getBufferAmount();
         }
         return buffer.amount;
     }
@@ -310,9 +347,9 @@ public class TileEntityUniversalCable extends TileEntityTransmitter<EnergyAccept
     @Override
     public void setEnergy(double energy) {
         if (getTransmitter().hasTransmitterNetwork()) {
-            getTransmitter().getTransmitterNetwork().buffer.amount = energy;
+            getTransmitter().getTransmitterNetwork().setBufferAmount(energy);
         } else {
-            buffer.amount = energy;
+            setLocalBufferAmount(energy);
         }
     }
 
@@ -320,14 +357,41 @@ public class TileEntityUniversalCable extends TileEntityTransmitter<EnergyAccept
      * @return Amount of left over energy
      */
     public double takeEnergy(double energy, boolean doEmit) {
-        if (getTransmitter().hasTransmitterNetwork()) {
-            return getTransmitter().getTransmitterNetwork().emit(energy, doEmit);
+        return insertEnergyToBuffer(energy, null, Action.get(doEmit));
+    }
+
+    private double insertEnergyToBuffer(double amount, @Nullable EnumFacing side, Action action) {
+        double toUse = Math.min(getMaxEnergy() - getEnergy(), amount);
+        if (toUse < 0.0001 || side != null && !canReceiveEnergy(side)) {
+            return amount;
         }
-        double used = Math.min(getCapacity() - buffer.amount, energy);
-        if (doEmit) {
-            buffer.amount += used;
+        if (action.execute()) {
+            if (getTransmitter().hasTransmitterNetwork()) {
+                getTransmitter().getTransmitterNetwork().growBuffer(toUse);
+            } else {
+                setLocalBufferAmount(buffer.amount + toUse);
+            }
         }
-        return energy - used;
+        return amount - toUse;
+    }
+
+    private double extractEnergyFromBuffer(double amount, @Nullable EnumFacing side, Action action) {
+        double toGive = Math.min(Math.min(getEnergy(), amount), getMaxOutput());
+        if (toGive < 0.0001 || side != null && !canOutputEnergy(side)) {
+            return 0;
+        }
+        if (action.execute()) {
+            if (getTransmitter().hasTransmitterNetwork()) {
+                getTransmitter().getTransmitterNetwork().shrinkBuffer(toGive);
+            } else {
+                setLocalBufferAmount(buffer.amount - toGive);
+            }
+        }
+        return toGive;
+    }
+
+    private void setLocalBufferAmount(double energy) {
+        buffer.setAmountClamped(energy, getCapacity());
     }
 
     @Override
@@ -360,20 +424,150 @@ public class TileEntityUniversalCable extends TileEntityTransmitter<EnergyAccept
     }
 
     @Override
+    public void refreshConnections() {
+        invalidateEnergyCapabilities(null);
+        super.refreshConnections();
+    }
+
+    @Override
+    public void refreshConnections(EnumFacing side) {
+        invalidateEnergyCapabilities(side);
+        super.refreshConnections(side);
+    }
+
+    @Override
+    protected void onModeChange(EnumFacing side) {
+        invalidateEnergyCapabilities(side);
+        super.onModeChange(side);
+    }
+
+    @Override
     public boolean hasCapability(@Nonnull Capability<?> capability, EnumFacing facing) {
-        return capability == Capabilities.ENERGY_STORAGE_CAPABILITY || capability == Capabilities.ENERGY_ACCEPTOR_CAPABILITY
-                || capability == Capabilities.TESLA_CONSUMER_CAPABILITY || capability == CapabilityEnergy.ENERGY || super.hasCapability(capability, facing);
+        return canResolveTesla(capability, facing) || capability == CapabilityEnergy.ENERGY && hasEnergyContainer(facing) ||
+              super.hasCapability(capability, facing);
     }
 
     @Override
     public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing facing) {
-        if (capability == Capabilities.ENERGY_STORAGE_CAPABILITY || capability == Capabilities.ENERGY_ACCEPTOR_CAPABILITY) {
-            return (T) this;
-        } else if (capability == Capabilities.TESLA_CONSUMER_CAPABILITY) {
+        if (canResolveTesla(capability, facing)) {
             return (T) teslaManager.getWrapper(this, facing);
         } else if (capability == CapabilityEnergy.ENERGY) {
-            return (T) forgeEnergyManager.getWrapper(this, facing);
+            return hasEnergyContainer(facing) ? (T) forgeEnergyManager.getWrapper(this, facing) : null;
         }
         return super.getCapability(capability, facing);
+    }
+
+    private boolean hasEnergyContainer(@Nullable EnumFacing side) {
+        return !isRedstoneActivated() && (side == null || canConnect(side));
+    }
+
+    private boolean canResolveTesla(@Nonnull Capability<?> capability, @Nullable EnumFacing side) {
+        return MekanismUtils.useTesla() && (capability == Capabilities.TESLA_HOLDER_CAPABILITY && hasEnergyContainer(side) ||
+               capability == Capabilities.TESLA_CONSUMER_CAPABILITY && side != null && canReceiveEnergy(side) ||
+               capability == Capabilities.TESLA_PRODUCER_CAPABILITY && side != null && canOutputEnergy(side));
+    }
+
+    private boolean canInsertEnergyContainer(@Nullable EnumFacing side) {
+        return side == null || canReceiveEnergy(side);
+    }
+
+    private boolean canExtractEnergyContainer(@Nullable EnumFacing side) {
+        return side == null || canOutputEnergy(side);
+    }
+
+    @Nonnull
+    private List<IEnergyContainer> getEnergyContainers(@Nullable EnumFacing side) {
+        return hasEnergyContainer(side) ? Collections.singletonList(getEnergyContainer(side)) : Collections.emptyList();
+    }
+
+    private UniversalCableEnergyHandler getEnergyContainer(@Nullable EnumFacing side) {
+        if (side == null) {
+            if (readOnlyEnergyHandler == null) {
+                readOnlyEnergyHandler = new UniversalCableEnergyHandler(null);
+            }
+            return readOnlyEnergyHandler;
+        }
+        UniversalCableEnergyHandler handler = energyHandlers.get(side);
+        if (handler == null) {
+            handler = new UniversalCableEnergyHandler(side);
+            energyHandlers.put(side, handler);
+        }
+        return handler;
+    }
+
+    private void invalidateEnergyCapabilities(@Nullable EnumFacing side) {
+        invalidateCapability(Capabilities.STRICT_ENERGY_CAPABILITY, side);
+        invalidateCapability(Capabilities.ENERGY_STORAGE_CAPABILITY, side);
+        invalidateCapability(Capabilities.ENERGY_ACCEPTOR_CAPABILITY, side);
+        invalidateCapability(Capabilities.ENERGY_OUTPUTTER_CAPABILITY, side);
+    }
+
+    private class UniversalCableEnergyHandler implements IEnergyContainer {
+
+        @Nullable
+        private final EnumFacing side;
+
+        private UniversalCableEnergyHandler(@Nullable EnumFacing side) {
+            this.side = side;
+        }
+
+        private EnumFacing sideFor(@Nullable EnumFacing requestedSide) {
+            return side == null ? requestedSide : side;
+        }
+
+        @Override
+        public double getEnergy() {
+            return TileEntityUniversalCable.this.getEnergy();
+        }
+
+        @Override
+        public void setEnergy(double energy) {
+            TileEntityUniversalCable.this.setEnergy(energy);
+        }
+
+        @Override
+        public double getMaxEnergy() {
+            return TileEntityUniversalCable.this.getMaxEnergy();
+        }
+
+        @Override
+        public double acceptEnergy(EnumFacing side, double amount, boolean simulate) {
+            return TileEntityUniversalCable.this.acceptEnergy(sideFor(side), amount, simulate);
+        }
+
+        @Override
+        public double insert(double amount, Action action, AutomationType automationType) {
+            return TileEntityUniversalCable.this.insertEnergyToBuffer(amount, side, action);
+        }
+
+        @Override
+        public double insert(double amount, @Nullable EnumFacing side, Action action, AutomationType automationType) {
+            return TileEntityUniversalCable.this.insertEnergyToBuffer(amount, sideFor(side), action);
+        }
+
+        @Override
+        public boolean canReceiveEnergy(EnumFacing side) {
+            return TileEntityUniversalCable.this.canReceiveEnergy(sideFor(side));
+        }
+
+        @Override
+        public double pullEnergy(EnumFacing side, double amount, boolean simulate) {
+            return TileEntityUniversalCable.this.pullEnergy(sideFor(side), amount, simulate);
+        }
+
+        @Override
+        public double extract(double amount, Action action, AutomationType automationType) {
+            return TileEntityUniversalCable.this.extractEnergyFromBuffer(amount, side, action);
+        }
+
+        @Override
+        public double extract(double amount, @Nullable EnumFacing side, Action action, AutomationType automationType) {
+            return TileEntityUniversalCable.this.extractEnergyFromBuffer(amount, sideFor(side), action);
+        }
+
+        @Override
+        public boolean canOutputEnergy(EnumFacing side) {
+            return TileEntityUniversalCable.this.canOutputEnergy(sideFor(side));
+        }
     }
 }

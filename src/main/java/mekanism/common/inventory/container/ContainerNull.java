@@ -4,7 +4,7 @@ import mekanism.common.tile.prefab.TileEntityContainerBlock;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.InventoryPlayer;
 
-public class ContainerNull extends ContainerMekanism<TileEntityContainerBlock> {
+public class ContainerNull extends MekanismTileContainer<TileEntityContainerBlock> implements IEmptyContainer {
 
     public ContainerNull(EntityPlayer player, TileEntityContainerBlock tile) {
         super(tile, player == null ? null : player.inventory);
@@ -20,6 +20,8 @@ public class ContainerNull extends ContainerMekanism<TileEntityContainerBlock> {
 
     @Override
     protected void addSlots() {
+        super.addSlots();
+        addUpgradeSlots();
     }
 
     @Override

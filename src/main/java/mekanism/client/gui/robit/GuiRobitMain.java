@@ -1,14 +1,15 @@
 package mekanism.client.gui.robit;
 
+import mekanism.api.text.TextComponentGroup;
+import mekanism.client.SpecialColors;
 import mekanism.client.gui.GuiMekanism;
-import mekanism.client.gui.button.GuiDisableableButton;
 import mekanism.client.gui.element.GuiInnerScreen;
-import mekanism.client.gui.element.GuiPlayerSlot;
-import mekanism.client.gui.element.GuiSlot;
-import mekanism.client.gui.element.bar.GuiBar;
-import mekanism.client.gui.element.slot.GuiEnergySlot;
-import mekanism.client.gui.element.tab.GuiSideHolder;
-import mekanism.client.render.MekanismRenderer;
+import mekanism.client.gui.element.GuiSideHolder;
+import mekanism.client.gui.element.bar.GuiHorizontalPowerBar;
+import mekanism.client.gui.element.button.MekanismButton;
+import mekanism.client.gui.element.button.MekanismImageButton;
+import mekanism.client.gui.element.tab.GuiSecurityTab;
+import mekanism.client.gui.element.window.GuiRobitRename;
 import mekanism.common.Mekanism;
 import mekanism.common.entity.EntityRobit;
 import mekanism.common.inventory.container.robit.ContainerRobitMain;
@@ -16,190 +17,88 @@ import mekanism.common.network.PacketRobit.RobitMessage;
 import mekanism.common.network.PacketRobit.RobitPacketType;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.MekanismUtils.ResourceType;
-import net.minecraft.client.gui.GuiButton;
-import net.minecraft.client.gui.GuiTextField;
 import net.minecraft.entity.player.InventoryPlayer;
+import net.minecraft.util.text.ITextComponent;
+import net.minecraft.util.text.TextComponentString;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
-import org.lwjgl.input.Keyboard;
 
-import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 @SideOnly(Side.CLIENT)
-public class GuiRobitMain extends GuiMekanism {
+public class GuiRobitMain extends GuiMekanism<ContainerRobitMain> {
 
     private final EntityRobit robit;
-
-    private boolean displayNameChange;
-    private GuiTextField nameChangeField;
-    private GuiDisableableButton confirmName;
-    private GuiDisableableButton teleportHomeButton;
-    private GuiDisableableButton pickupButton;
-    private GuiDisableableButton renameButton;
-    private GuiDisableableButton followButton;
-    private GuiDisableableButton mainButton;
-    private GuiDisableableButton craftingButton;
-    private GuiDisableableButton inventoryButton;
-    private GuiDisableableButton smeltingButton;
-    private GuiDisableableButton repairButton;
+    private MekanismButton renameButton;
 
     public GuiRobitMain(InventoryPlayer inventory, EntityRobit entity) {
         super(new ContainerRobitMain(inventory, entity));
         robit = entity;
-        addGuiElement(new GuiEnergySlot(this, getGuiLocation(), 152, 16, new GuiSlot.ISlotInfoHandler() {
-            @Override
-            public boolean getSlotCanTip() {
-                return robit.inventory.get(27).isEmpty();
-            }
-        }));
-        addGuiElement(new GuiPlayerSlot(this, getGuiLocation()));
-        addGuiElement(new GuiInnerScreen(this, getGuiLocation(), 27, 16, 122, 56));
-        addGuiElement(new GuiSideHolder(this, getGuiLocation(), 176, 6, 25, 106));
-        addGuiElement(new GuiBar(this, getGuiLocation(), 27, 74, 122, 6));
-    }
-
-    private void toggleNameChange() {
-        displayNameChange = !displayNameChange;
-        confirmName.visible = displayNameChange;
-        nameChangeField.setFocused(displayNameChange);
-    }
-
-    private void changeName() {
-        if (!nameChangeField.getText().isEmpty()) {
-            Mekanism.packetHandler.sendToServer(new RobitMessage(robit.getEntityId(), nameChangeField.getText()));
-            toggleNameChange();
-            nameChangeField.setText("");
-        }
+        dynamicSlots = true;
     }
 
     @Override
-    protected void actionPerformed(GuiButton guibutton) {
-        if (guibutton.id == confirmName.id) {
-            changeName();
-        } else if (guibutton.id == teleportHomeButton.id) {
-            Mekanism.packetHandler.sendToServer(new RobitMessage(RobitPacketType.GO_HOME, robit.getEntityId()));
-            mc.displayGuiScreen(null);
-        } else if (guibutton.id == pickupButton.id) {
-            Mekanism.packetHandler.sendToServer(new RobitMessage(RobitPacketType.DROP_PICKUP, robit.getEntityId()));
-        } else if (guibutton.id == renameButton.id) {
-            toggleNameChange();
-        } else if (guibutton.id == followButton.id) {
-            Mekanism.packetHandler.sendToServer(new RobitMessage(RobitPacketType.FOLLOW, robit.getEntityId()));
-        } else if (guibutton.id == mainButton.id) {
-            //Clicking main button doesn't do anything while already on the main GUI
-        } else if (guibutton.id == craftingButton.id) {
-            Mekanism.packetHandler.sendToServer(new RobitMessage(robit.getEntityId(), 22));
-        } else if (guibutton.id == inventoryButton.id) {
-            Mekanism.packetHandler.sendToServer(new RobitMessage(robit.getEntityId(), 23));
-        } else if (guibutton.id == smeltingButton.id) {
-            Mekanism.packetHandler.sendToServer(new RobitMessage(robit.getEntityId(), 24));
-        } else if (guibutton.id == repairButton.id) {
-            Mekanism.packetHandler.sendToServer(new RobitMessage(robit.getEntityId(), 25));
-        }
+    protected void addGuiElements() {
+        super.addGuiElements();
+        addButton(new GuiSecurityTab<>(this, robit, 120));
+        addButton(GuiSideHolder.create(this, xSize, 6, 106, false, false, SpecialColors.TAB_ROBIT_MENU));
+        addButton(new GuiInnerScreen(this, 27, 16, 122, 56, this::getInfoText).clearFormat().clearSpacing().clearScale().padding(2));
+        addButton(new GuiHorizontalPowerBar(this, robit, 27, 74, 120));
+        addButton(new MekanismImageButton(this, 6, 16, 18, getButtonLocation("home"),
+              () -> {
+                  Mekanism.packetHandler.sendToServer(new RobitMessage(RobitPacketType.GO_HOME, robit.getEntityId()));
+                  mc.displayGuiScreen(null);
+              }, getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.teleport")))));
+        renameButton = addButton(new MekanismImageButton(this, 6, 35, 18, getButtonLocation("rename"),
+              this::openRenameWindow, getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.rename")))));
+        addButton(new MekanismImageButton(this, 152, 35, 18, getButtonLocation("drop"),
+              () -> Mekanism.packetHandler.sendToServer(new RobitMessage(RobitPacketType.DROP_PICKUP, robit.getEntityId())),
+              getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.togglePickup")))));
+        addButton(new MekanismImageButton(this, 152, 54, 18, getButtonLocation("follow"),
+              () -> Mekanism.packetHandler.sendToServer(new RobitMessage(RobitPacketType.FOLLOW, robit.getEntityId())),
+              getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.toggleFollow")))));
+        addRobitNavigation();
+    }
+
+    private void openRenameWindow() {
+        renameButton.active = false;
+        GuiRobitRename window = new GuiRobitRename(this, 27, 16, robit);
+        window.setTabListeners(ignored -> renameButton.active = true, ignored -> renameButton.active = false);
+        addWindow(window);
+    }
+
+    private void addRobitNavigation() {
+        addButton(new MekanismImageButton(this, xSize + 3, 10, 18, getButtonLocation("main"),
+              () -> { }, getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit")))));
+        addButton(new MekanismImageButton(this, xSize + 3, 30, 18, getButtonLocation("crafting"),
+              () -> openGui(GuiRobit.GUI_CRAFTING), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.crafting")))));
+        addButton(new MekanismImageButton(this, xSize + 3, 50, 18, getButtonLocation("inventory"),
+              () -> openGui(GuiRobit.GUI_INVENTORY), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.inventory")))));
+        addButton(new MekanismImageButton(this, xSize + 3, 70, 18, getButtonLocation("smelting"),
+              () -> openGui(GuiRobit.GUI_SMELTING), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.smelting")))));
+        addButton(new MekanismImageButton(this, xSize + 3, 90, 18, getButtonLocation("repair"),
+              () -> openGui(GuiRobit.GUI_REPAIR), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.repair")))));
+    }
+
+    private void openGui(int guiId) {
+        Mekanism.packetHandler.sendToServer(new RobitMessage(robit.getEntityId(), guiId));
+    }
+
+    private List<ITextComponent> getInfoText() {
+        List<ITextComponent> text = new ArrayList<>();
+        text.add(new TextComponentString(LangUtils.localize("gui.robit.greeting") + robit.getName() + LangUtils.localize("!")));
+        text.add(new TextComponentGroup());
+        text.add(new TextComponentString(LangUtils.localize("gui.energy") + ": " + MekanismUtils.getEnergyDisplay(robit.getEnergy(), robit.MAX_ELECTRICITY)));
+        text.add(new TextComponentString(LangUtils.localize("gui.robit.following") + " : " + robit.getFollowing()));
+        text.add(new TextComponentString(LangUtils.localize("gui.robit.dropPickup") + " : " + robit.getDropPickup()));
+        text.add(new TextComponentString(LangUtils.localize("gui.robit.owner") + " : " + robit.getOwnerName()));
+        return text;
     }
 
     @Override
-    public void initGui() {
-        super.initGui();
-        buttonList.clear();
-        buttonList.add(confirmName = new GuiDisableableButton(0, guiLeft + 58, guiTop + 47, 60, 20, LangUtils.localize("gui.confirm")));
-        confirmName.visible = displayNameChange;
-
-        nameChangeField = new GuiTextField(1, fontRenderer, guiLeft + 48, guiTop + 21, 80, 12);
-        nameChangeField.setMaxStringLength(12);
-        nameChangeField.setFocused(true);
-
-        buttonList.add(teleportHomeButton = new GuiDisableableButton(2, guiLeft + 6, guiTop + 16, 18, 18).with(GuiDisableableButton.ImageOverlay.HOME));
-        buttonList.add(pickupButton = new GuiDisableableButton(3, guiLeft + 6, guiTop + 35, 18, 18).with(GuiDisableableButton.ImageOverlay.DROP));
-        buttonList.add(renameButton = new GuiDisableableButton(4, guiLeft + 6, guiTop + 54, 18, 18).with(GuiDisableableButton.ImageOverlay.RENAME));
-        buttonList.add(followButton = new GuiDisableableButton(5, guiLeft + 152, guiTop + 54, 18, 18).with(GuiDisableableButton.ImageOverlay.FOLLOW));
-        buttonList.add(mainButton = new GuiDisableableButton(6, guiLeft + 179, guiTop + 10, 18, 18).with(GuiDisableableButton.ImageOverlay.MAIN));
-        buttonList.add(craftingButton = new GuiDisableableButton(7, guiLeft + 179, guiTop + 30, 18, 18).with(GuiDisableableButton.ImageOverlay.CRAFTING));
-        buttonList.add(inventoryButton = new GuiDisableableButton(8, guiLeft + 179, guiTop + 50, 18, 18).with(GuiDisableableButton.ImageOverlay.INVENTORY));
-        buttonList.add(smeltingButton = new GuiDisableableButton(9, guiLeft + 179, guiTop + 70, 18, 18).with(GuiDisableableButton.ImageOverlay.SMELTING));
-        buttonList.add(repairButton = new GuiDisableableButton(10, guiLeft + 179, guiTop + 90, 18, 18).with(GuiDisableableButton.ImageOverlay.REPAIR));
+    protected void drawForegroundText(int mouseX, int mouseY) {
+        drawTitleText(new TextComponentString(LangUtils.localize("gui.robit")), 6);
+        super.drawForegroundText(mouseX, mouseY);
     }
-
-    @Override
-    public void keyTyped(char c, int i) throws IOException {
-        if (!displayNameChange) {
-            super.keyTyped(c, i);
-        } else {
-            if (i == Keyboard.KEY_RETURN) {
-                changeName();
-            } else if (i == Keyboard.KEY_ESCAPE) {
-                mc.player.closeScreen();
-            }
-            nameChangeField.textboxKeyTyped(c, i);
-        }
-    }
-
-    @Override
-    protected void drawGuiContainerForegroundLayer(int mouseX, int mouseY) {
-        fontRenderer.drawString(LangUtils.localize("gui.robit"), 76, 6, 0x404040);
-
-        if (!displayNameChange) {
-            CharSequence owner = robit.getOwnerName().length() > 14 ? robit.getOwnerName().subSequence(0, 14) : robit.getOwnerName();
-            fontRenderer.drawString(LangUtils.localize("gui.robit.greeting") + robit.getName() + LangUtils.localize("!"), 29, 18, 0xFF3CFE9A);
-            fontRenderer.drawString(LangUtils.localize("gui.energy") + ": " + MekanismUtils.getEnergyDisplay(robit.getEnergy(), robit.MAX_ELECTRICITY), 29, 36 - 4, 0xFF3CFE9A);
-            fontRenderer.drawString(LangUtils.localize("gui.robit.following") + " : " + robit.getFollowing(), 29, 45 - 4, 0xFF3CFE9A);
-            fontRenderer.drawString(LangUtils.localize("gui.robit.dropPickup") + " : " + robit.getDropPickup(), 29, 54 - 4, 0xFF3CFE9A);
-            fontRenderer.drawString(LangUtils.localize("gui.robit.owner") + " : " + owner, 29, 63 - 4, 0xFF3CFE9A);
-        }
-
-        int xAxis = mouseX - guiLeft;
-        int yAxis = mouseY - guiTop;
-        if (followButton.isMouseOver()) {
-            this.displayTooltip(LangUtils.localize("gui.robit.toggleFollow"), xAxis, yAxis);
-        } else if (renameButton.isMouseOver()) {
-            this.displayTooltip(LangUtils.localize("gui.robit.rename"), xAxis, yAxis);
-        } else if (teleportHomeButton.isMouseOver()) {
-            this.displayTooltip(LangUtils.localize("gui.robit.teleport"), xAxis, yAxis);
-        } else if (pickupButton.isMouseOver()) {
-            this.displayTooltip(LangUtils.localize("gui.robit.togglePickup"), xAxis, yAxis);
-        } else if (mainButton.isMouseOver()) {
-            this.displayTooltip(LangUtils.localize("gui.robit"), xAxis, yAxis);
-        } else if (craftingButton.isMouseOver()) {
-            this.displayTooltip(LangUtils.localize("gui.robit.crafting"), xAxis, yAxis);
-        } else if (inventoryButton.isMouseOver()) {
-            this.displayTooltip(LangUtils.localize("gui.robit.inventory"), xAxis, yAxis);
-        } else if (smeltingButton.isMouseOver()) {
-            this.displayTooltip(LangUtils.localize("gui.robit.smelting"), xAxis, yAxis);
-        } else if (repairButton.isMouseOver()) {
-            this.displayTooltip(LangUtils.localize("gui.robit.repair"), xAxis, yAxis);
-        } else if (xAxis >= 27 && xAxis <= 27 + 112 && yAxis >= 74 && yAxis <= 74 + 6) {
-            this.displayTooltip(MekanismUtils.getEnergyDisplay(robit.getEnergy(), robit.MAX_ELECTRICITY), xAxis, yAxis);
-        }
-        super.drawGuiContainerForegroundLayer(mouseX, mouseY);
-    }
-
-    @Override
-    protected void drawGuiContainerBackgroundLayer(int xAxis, int yAxis) {
-        super.drawGuiContainerBackgroundLayer(xAxis, yAxis);
-        mc.getTextureManager().bindTexture(MekanismUtils.getResource(ResourceType.GUI, "Robit_Icon.png"));
-        drawTexturedModalRect(guiLeft + 28, guiTop + 75, 0, 110, getScaledEnergyLevel(120), 4);
-        if (displayNameChange) {
-            drawTexturedModalRect(guiLeft + 28, guiTop + 17, 0, 114, 120, 54);
-            nameChangeField.drawTextBox();
-            MekanismRenderer.resetColor();
-        }
-    }
-
-    private int getScaledEnergyLevel(int i) {
-        return (int) (robit.getEnergy() * i / robit.MAX_ELECTRICITY);
-    }
-
-    @Override
-    public void updateScreen() {
-        super.updateScreen();
-        nameChangeField.updateCursorCounter();
-    }
-
-    @Override
-    protected void mouseClicked(int mouseX, int mouseY, int button) throws IOException {
-        super.mouseClicked(mouseX, mouseY, button);
-        nameChangeField.mouseClicked(mouseX, mouseY, button);
-    }
-
 }

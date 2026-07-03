@@ -4,7 +4,7 @@ import io.netty.buffer.ByteBuf;
 import mekanism.api.TileNetworkList;
 import mekanism.common.PacketHandler;
 import mekanism.common.content.filter.IModIDFilter;
-import mekanism.common.content.transporter.Finder.ModIDFinder;
+import mekanism.common.lib.inventory.Finder;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -18,7 +18,12 @@ public class MModIDFilter extends MinerFilter implements IModIDFilter {
         if (itemStack.isEmpty() || !(itemStack.getItem() instanceof ItemBlock)) {
             return false;
         }
-        return new ModIDFinder(modID).modifies(itemStack);
+        return Finder.modID(modID).modifies(itemStack);
+    }
+
+    @Override
+    public boolean hasBlacklistedElement() {
+        return MinerBlacklistHelper.hasBlacklistedModID(modID);
     }
 
     @Override
@@ -50,7 +55,7 @@ public class MModIDFilter extends MinerFilter implements IModIDFilter {
 
     @Override
     public int hashCode() {
-        int code = 1;
+        int code = super.hashCode();
         code = 31 * code + modID.hashCode();
         return code;
     }
@@ -63,8 +68,7 @@ public class MModIDFilter extends MinerFilter implements IModIDFilter {
     @Override
     public MModIDFilter clone() {
         MModIDFilter filter = new MModIDFilter();
-        filter.replaceStack = replaceStack;
-        filter.requireStack = requireStack;
+        copyBaseData(filter);
         filter.modID = modID;
         return filter;
     }
