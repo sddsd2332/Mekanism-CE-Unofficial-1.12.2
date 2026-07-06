@@ -496,7 +496,7 @@ public abstract class BlockMachine extends BlockMekanismContainer {
             }
         }
         if (tileEntity instanceof IUpgradeTile upgradeTile) {
-            upgradeTile.getComponent().write(ItemDataUtils.getDataMap(itemStack));
+            upgradeTile.writeUpgrades(ItemDataUtils.getDataMap(itemStack));
         }
         if (tileEntity instanceof ISideConfiguration config) {
             config.getConfig().write(ItemDataUtils.getDataMap(itemStack));

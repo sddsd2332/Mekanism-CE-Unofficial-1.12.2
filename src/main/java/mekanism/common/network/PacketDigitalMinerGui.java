@@ -3,6 +3,7 @@ package mekanism.common.network;
 import io.netty.buffer.ByteBuf;
 import mekanism.api.Coord4D;
 import mekanism.api.TileNetworkList;
+import mekanism.common.CommonProxy;
 import mekanism.common.Mekanism;
 import mekanism.common.PacketHandler;
 import mekanism.common.inventory.container.ContainerDigitalMiner;
@@ -103,8 +104,11 @@ public class PacketDigitalMinerGui implements IMessageHandler<DigitalMinerGuiMes
 
         public static void openServerGui(MinerGuiPacket t, int guiType, World world, EntityPlayerMP playerMP, Coord4D obj, int i) {
             Container container;
-            playerMP.closeContainer();
             TileEntityDigitalMiner tile = (TileEntityDigitalMiner) obj.getTileEntity(world);
+            if (!CommonProxy.canOpenServerGui(playerMP, tile)) {
+                return;
+            }
+            playerMP.closeContainer();
             container = guiType == 4 ? new ContainerDigitalMiner(playerMP.inventory, tile) : new ContainerDigitalMinerConfig(playerMP.inventory, tile);
 
             playerMP.getNextWindowId();

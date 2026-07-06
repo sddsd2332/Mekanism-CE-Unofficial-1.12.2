@@ -57,6 +57,10 @@ public class RateLimitGasHandler extends ItemStackMekanismGasHandler {
         tank = tankProvider.apply(this);
     }
 
+    public int getTransferRate() {
+        return tank instanceof RateLimitGasTank rateLimitGasTank ? rateLimitGasTank.getRate() : Integer.MAX_VALUE;
+    }
+
     @Override
     protected List<IExtendedGasTank> getInitialTanks() {
         return Collections.singletonList(tank);
@@ -74,6 +78,10 @@ public class RateLimitGasHandler extends ItemStackMekanismGasHandler {
               BiPredicate<GasStack, AutomationType> canInsert, Predicate<GasStack> isValid, @Nullable IContentsListener listener) {
             super(capacity, canExtract, canInsert, isValid, listener, null);
             this.rate = rate;
+        }
+
+        public int getRate() {
+            return rate.getAsInt();
         }
 
         @Override

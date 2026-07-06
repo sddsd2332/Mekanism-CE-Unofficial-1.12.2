@@ -295,7 +295,11 @@ public final class MekanismUtils {
     }
 
     public static float fractionUpgrades(IUpgradeTile mgmt, Upgrade type) {
-        return (float) mgmt.getComponent().getUpgrades(type) / (float) type.getMaxInstalled();
+        if (mgmt == null || type == null) {
+            return 0;
+        }
+        int maxInstalled = type.getMaxInstalled();
+        return maxInstalled <= 0 ? 0 : (float) mgmt.getInstalledUpgrades(type) / (float) maxInstalled;
     }
 
     /**
@@ -369,8 +373,8 @@ public final class MekanismUtils {
         if (tile.supportsUpgrades()) {
             //getGasPerTickMean * required ticks (not rounded)
             if (tile.supportsUpgrade(Upgrade.GAS)) {
-                // def * (upgradeMultiplier ^ ((2 * speed - gas) / 8)) * (upgradeMultiplier ^ (-speed / 8)) =
-                // def * upgradeMultiplier ^ ((speed - gas) / 8)
+                // def * (upgradeMultiplier ^ (2 * speed - gas)) * (upgradeMultiplier ^ -speed) =
+                // def * upgradeMultiplier ^ (speed - gas)
                 //TODO: We may want to validate this provides the numbers we desire if we ever end up with any machines
                 // that use this that are not statistical and have gas upgrades so would go through this code path
                 return Math.round(def * Math.pow(MekanismConfig.current().general.maxUpgradeMultiplier.val(),   fractionUpgrades(tile, Upgrade.SPEED) - fractionUpgrades(tile, Upgrade.GAS)));
@@ -405,7 +409,8 @@ public final class MekanismUtils {
     public static double getMaxEnergy(ItemStack itemStack, double def) {
         Map<Upgrade, Integer> upgrades = Upgrade.buildComponentMap(ItemDataUtils.getDataMapIfPresent(itemStack));
         float numUpgrades = upgrades.get(Upgrade.ENERGY) == null ? 0 : (float) upgrades.get(Upgrade.ENERGY);
-        return def * Math.pow(MekanismConfig.current().general.maxUpgradeMultiplier.val(), numUpgrades / (float) Upgrade.ENERGY.getMaxInstalled());
+        int maxInstalled = Upgrade.ENERGY.getMaxInstalled();
+        return def * Math.pow(MekanismConfig.current().general.maxUpgradeMultiplier.val(), maxInstalled <= 0 ? 0 : numUpgrades / (float) maxInstalled);
     }
 
 
@@ -1161,17 +1166,17 @@ public final class MekanismUtils {
     }
 
     public static double time(IUpgradeTile tile) {
-        return Math.pow(MekanismConfig.current().general.maxUpgradeMultiplier.val(), tile.getComponent().getUpgrades(Upgrade.SPEED) / -8D);
+        return Math.pow(MekanismConfig.current().general.maxUpgradeMultiplier.val(), -fractionUpgrades(tile, Upgrade.SPEED));
     }
 
     public static double electricity(IUpgradeTile tile) {
-        int speed = tile.getComponent().getUpgrades(Upgrade.SPEED);
-        int energy = tile.getComponent().getUpgrades(Upgrade.ENERGY);
-        return Math.pow(MekanismConfig.current().general.maxUpgradeMultiplier.val(), (2 * speed - Math.min(energy, Math.max(8, speed))) / 8D);
+        double speed = fractionUpgrades(tile, Upgrade.SPEED);
+        double energy = fractionUpgrades(tile, Upgrade.ENERGY);
+        return Math.pow(MekanismConfig.current().general.maxUpgradeMultiplier.val(), 2 * speed - Math.min(energy, Math.max(1D, speed)));
     }
 
     public static double capacity(IUpgradeTile tile) {
-        return Math.pow(MekanismConfig.current().general.maxUpgradeMultiplier.val(), tile.getComponent().getUpgrades(Upgrade.ENERGY) / 8D);
+        return Math.pow(MekanismConfig.current().general.maxUpgradeMultiplier.val(), fractionUpgrades(tile, Upgrade.ENERGY));
     }
 
     public static String exponential(double d) {

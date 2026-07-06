@@ -1,6 +1,7 @@
 package mekanism.common;
 
 import mekanism.api.Coord4D;
+import mekanism.api.EnumColor;
 import mekanism.api.MekanismAPI;
 import mekanism.api.Pos3D;
 import mekanism.client.SparkleAnimation.INodeChecker;
@@ -38,6 +39,7 @@ import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumHand;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.RayTraceResult;
+import net.minecraft.util.text.TextComponentString;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldServer;
 import net.minecraftforge.common.MinecraftForge;
@@ -210,6 +212,9 @@ public class CommonProxy implements IGuiProvider {
             return getServerEntityGui(player, world, pos);
         }
         TileEntity tileEntity = world.getTileEntity(pos);
+        if (ID != 77 && !canOpenServerGui(player, tileEntity)) {
+            return null;
+        }
         return switch (ID) {
             //0, 1 USED BEFORE SWITCH
             case 2 -> new ContainerDigitalMiner(player.inventory, (TileEntityDigitalMiner) tileEntity);
@@ -289,6 +294,15 @@ public class CommonProxy implements IGuiProvider {
             case 79 -> new ContainerDimensionalStabilizer(player.inventory, (TileEntityDimensionalStabilizer) tileEntity);
             default -> null;
         };
+    }
+
+    public static boolean canOpenServerGui(EntityPlayer player, TileEntity tileEntity) {
+        if (tileEntity instanceof TileEntityBasicBlock basicBlock && !basicBlock.canPlayerOpenGui(player)) {
+            player.sendMessage(new TextComponentString(EnumColor.DARK_BLUE + Mekanism.LOG_TAG + " " + EnumColor.RED +
+                  "This machine GUI is already open by another player."));
+            return false;
+        }
+        return true;
     }
 
     public void preInit() {

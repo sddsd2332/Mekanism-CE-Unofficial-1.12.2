@@ -24,6 +24,7 @@ import mekanism.common.util.*;
 import mekanism.generators.common.tile.TileEntityGenerator;
 import mekanism.multiblockmachine.client.render.block.generator.bloom.BloomRendererLargeGasGenerator;
 import mekanism.multiblockmachine.common.MekanismMultiblockMachine;
+import mekanism.multiblockmachine.common.MultiblockMachineUpgrades;
 import net.minecraft.block.Block;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -69,7 +70,7 @@ public class TileEntityLargeGasGenerator extends TileEntityGenerator implements 
     public TileEntityLargeGasGenerator() {
         super("gas", "LargeGasGenerator", 0, 0);
         upgradeComponent = new TileComponentUpgrade(this, Upgrade.ENERGY);
-        upgradeComponent.setSupported(Upgrade.THREAD);
+        setSupportedUpgrade(MultiblockMachineUpgrades.THREAD);
         initializeInventorySlots();
     }
 
@@ -145,8 +146,8 @@ public class TileEntityLargeGasGenerator extends TileEntityGenerator implements 
 
     public int getThread() {
         int thread = 1;
-        if (upgradeComponent.isUpgradeInstalled(Upgrade.THREAD)) {
-            thread += upgradeComponent.getUpgrades(Upgrade.THREAD);
+        if (isUpgradeInstalled(MultiblockMachineUpgrades.THREAD)) {
+            thread += getInstalledUpgrades(MultiblockMachineUpgrades.THREAD);
         }
         return thread;
     }
@@ -520,12 +521,12 @@ public GasStackFuelToEnergyRecipe getRecipe() {
 
     @Override
     public double getMaxOutput() {
-        return (upgradeComponent.isUpgradeInstalled(Upgrade.ENERGY) ? MekanismUtils.getMaxEnergy(this, getTierEnergy()) : getTierEnergy()) * 2;
+        return (isUpgradeInstalled(Upgrade.ENERGY) ? MekanismUtils.getMaxEnergy(this, getTierEnergy()) : getTierEnergy()) * 2;
     }
 
     @Override
     public double getMaxEnergy() {
-        return upgradeComponent.isUpgradeInstalled(Upgrade.ENERGY) ? MekanismUtils.getMaxEnergy(this, getTierEnergy()) : getTierEnergy();
+        return isUpgradeInstalled(Upgrade.ENERGY) ? MekanismUtils.getMaxEnergy(this, getTierEnergy()) : getTierEnergy();
     }
 
     public double getTierEnergy() {

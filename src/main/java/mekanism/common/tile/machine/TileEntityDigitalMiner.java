@@ -165,8 +165,8 @@ public class TileEntityDigitalMiner extends TileEntityElectricBlock implements I
         super("DigitalMiner", MachineType.DIGITAL_MINER.getStorage());
         initializeInventorySlots();
         radius = 10;
-        upgradeComponent.setSupported(Upgrade.ANCHOR);
-        upgradeComponent.setSupported(Upgrade.STONE_GENERATOR);
+        setSupportedUpgrade(Upgrade.ANCHOR);
+        setSupportedUpgrade(Upgrade.STONE_GENERATOR);
     }
 
     @Override
@@ -492,7 +492,7 @@ public class TileEntityDigitalMiner extends TileEntityElectricBlock implements I
             }
         }
 
-        if (upgradeComponent.isUpgradeInstalled(Upgrade.STONE_GENERATOR)) {
+        if (isUpgradeInstalled(Upgrade.STONE_GENERATOR)) {
             if (replaceStack.getItem() == Item.getItemFromBlock(Blocks.STONE) || replaceStack.getItem() == Item.getItemFromBlock(Blocks.COBBLESTONE)) {
                 return StackUtils.size(replaceStack, 1);
             }
@@ -1251,15 +1251,13 @@ public class TileEntityDigitalMiner extends TileEntityElectricBlock implements I
     @Override
     public void recalculateUpgradables(Upgrade upgrade) {
         super.recalculateUpgradables(upgrade);
-        switch (upgrade) {
-            case SPEED:
-                delayLength = MekanismUtils.getTicks(this, BASE_DELAY);
-            case ENERGY:
-                energyUsage = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_USAGE);
-                maxEnergy = MekanismUtils.getMaxEnergy(this, BASE_MAX_ENERGY);
-                setEnergy(Math.min(getMaxEnergy(), getEnergy()));
-            default:
-                break;
+        if (upgrade == Upgrade.SPEED) {
+            delayLength = MekanismUtils.getTicks(this, BASE_DELAY);
+        }
+        if (upgrade == Upgrade.SPEED || upgrade == Upgrade.ENERGY) {
+            energyUsage = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_USAGE);
+            maxEnergy = MekanismUtils.getMaxEnergy(this, BASE_MAX_ENERGY);
+            setEnergy(Math.min(getMaxEnergy(), getEnergy()));
         }
     }
 

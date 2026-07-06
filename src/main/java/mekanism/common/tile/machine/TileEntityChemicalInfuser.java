@@ -53,12 +53,12 @@ public class TileEntityChemicalInfuser extends TileEntityBasicMachine<ChemicalPa
 
     public static final int MAX_GAS = 10000;
     private static final List<RecipeError> TRACKED_ERROR_TYPES = Arrays.asList(
-          RecipeError.NOT_ENOUGH_ENERGY,
-          RecipeError.NOT_ENOUGH_ENERGY_REDUCED_RATE,
-          RecipeError.NOT_ENOUGH_LEFT_INPUT,
-          RecipeError.NOT_ENOUGH_RIGHT_INPUT,
-          RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
-          RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
+            RecipeError.NOT_ENOUGH_ENERGY,
+            RecipeError.NOT_ENOUGH_ENERGY_REDUCED_RATE,
+            RecipeError.NOT_ENOUGH_LEFT_INPUT,
+            RecipeError.NOT_ENOUGH_RIGHT_INPUT,
+            RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
+            RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
     );
     public BasicGasTank leftTank;
     public BasicGasTank rightTank;
@@ -144,8 +144,9 @@ public class TileEntityChemicalInfuser extends TileEntityBasicMachine<ChemicalPa
         prevEnergy = getEnergy();
     }
 
+
     public int getUpgradedUsage(ChemicalInfuserRecipe recipe) {
-        int possibleProcess = Math.min((int) Math.pow(2, upgradeComponent.getUpgrades(Upgrade.SPEED)), MekanismConfig.current().mekce.MAXspeedmachines.val());
+        int possibleProcess = Math.min((int) Math.pow(2, getInstalledUpgrades(Upgrade.SPEED)), MekanismConfig.current().mekce.MAXspeedmachines.val());
         if (leftTank.getGasType() == recipe.recipeInput.leftGas.getGas()) {
             possibleProcess = Math.min(leftTank.getStored() / recipe.recipeInput.leftGas.amount, possibleProcess);
             possibleProcess = Math.min(rightTank.getStored() / recipe.recipeInput.rightGas.amount, possibleProcess);
@@ -235,21 +236,21 @@ public class TileEntityChemicalInfuser extends TileEntityBasicMachine<ChemicalPa
     @Override
     public CachedRecipe<ChemicalInfuserRecipe> createNewCachedRecipe(ChemicalInfuserRecipe recipe, int cacheIndex) {
         return new ChemicalPairCachedRecipe<>(recipe, this::shouldRecheckAllRecipeErrors,
-              InputHelper.getGasInputHandler(leftTank, CachedRecipe.OperationTracker.RecipeError.NOT_ENOUGH_LEFT_INPUT),
-              InputHelper.getGasInputHandler(rightTank, CachedRecipe.OperationTracker.RecipeError.NOT_ENOUGH_RIGHT_INPUT),
-              OutputHelper.getGasOutputHandler(centerTank, CachedRecipe.OperationTracker.RecipeError.NOT_ENOUGH_OUTPUT_SPACE), recipe.getInput(), recipe.getOutput())
-              .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
-              .setActive(active -> {
-                  if (active || prevEnergy >= getEnergy()) {
-                      setActive(active);
-                  }
-              })
-              .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
-              .setRequiredTicks(() -> ticksRequired)
-              .setBaselineMaxOperations(() -> getUpgradedUsage(recipe))
-              .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
-              .setErrorsChanged(this::onRecipeErrorsChanged)
-              .setOnFinish(this::onCachedRecipeFinish);
+                InputHelper.getGasInputHandler(leftTank, CachedRecipe.OperationTracker.RecipeError.NOT_ENOUGH_LEFT_INPUT),
+                InputHelper.getGasInputHandler(rightTank, CachedRecipe.OperationTracker.RecipeError.NOT_ENOUGH_RIGHT_INPUT),
+                OutputHelper.getGasOutputHandler(centerTank, CachedRecipe.OperationTracker.RecipeError.NOT_ENOUGH_OUTPUT_SPACE), recipe.getInput(), recipe.getOutput())
+                .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
+                .setActive(active -> {
+                    if (active || prevEnergy >= getEnergy()) {
+                        setActive(active);
+                    }
+                })
+                .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
+                .setRequiredTicks(() -> ticksRequired)
+                .setBaselineMaxOperations(() -> getUpgradedUsage(recipe))
+                .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
+                .setErrorsChanged(this::onRecipeErrorsChanged)
+                .setOnFinish(this::onCachedRecipeFinish);
     }
 
     @Override
@@ -274,7 +275,7 @@ public class TileEntityChemicalInfuser extends TileEntityBasicMachine<ChemicalPa
             if (otherGas == null && (input.leftGas.getGas() == gas || input.rightGas.getGas() == gas)) {
                 return true;
             } else if (otherGas != null && ((input.leftGas.getGas() == gas && input.rightGas.getGas() == otherGas) ||
-                  (input.rightGas.getGas() == gas && input.leftGas.getGas() == otherGas))) {
+                    (input.rightGas.getGas() == gas && input.leftGas.getGas() == otherGas))) {
                 return true;
             }
         }
@@ -358,6 +359,12 @@ public class TileEntityChemicalInfuser extends TileEntityBasicMachine<ChemicalPa
         super.writeCustomNBT(nbtTags);
     }
 
+
+    @Override
+    public void onRecipeCacheInvalidated(int cacheIndex) {
+        super.onRecipeCacheInvalidated(cacheIndex);
+    }
+
     @Override
     public void writeSustainedData(ItemStack itemStack) {
         writeSustainedGasTanks(itemStack);
@@ -412,7 +419,8 @@ public class TileEntityChemicalInfuser extends TileEntityBasicMachine<ChemicalPa
     public Object[] invoke(int method, Object[] args) throws NoSuchMethodException {
         return new Object[0];
     }
-@Override
+
+    @Override
     protected boolean shouldDumpRadiation() {
         return true;
     }

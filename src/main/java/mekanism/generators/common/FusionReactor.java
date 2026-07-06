@@ -484,7 +484,7 @@ public class FusionReactor {
     }
 
     public IInventorySlot getHohlraumSlot() {
-        return controller != null && isFormed() ? controller.getInventorySlot(0) : null;
+        return controller != null && isFormed() ? controller.getHohlraumSlot() : null;
     }
 
     public boolean hasRecipe(Fluid fluid) {

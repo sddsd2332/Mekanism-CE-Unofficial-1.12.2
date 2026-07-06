@@ -558,6 +558,7 @@ gui.upgrades.noSelection=Nevybráno
 gui.upgrades.amount=Množství
 gui.upgrades.max=Max
 gui.upgrades.effect=Efekt
+gui.mekanism.upgrades.effect=Efekt: %1$sx
 
 gui.chemicalInfuser.short=Ch. Infúzer
 gui.chemicalDissolutionChamber.short=Ch. Rozkládací Komora

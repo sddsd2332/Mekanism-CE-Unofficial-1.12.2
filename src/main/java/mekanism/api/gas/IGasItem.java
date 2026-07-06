@@ -3,10 +3,12 @@ package mekanism.api.gas;
 import net.minecraft.item.ItemStack;
 
 /**
- * Implement this in your item class if it can store or transfer certain gasses.
+ * Legacy item gas API. Prefer exposing {@link mekanism.common.capabilities.Capabilities#GAS_HANDLER_CAPABILITY}
+ * from item capabilities.
  *
  * @author AidanBrady
  */
+@Deprecated
 public interface IGasItem {
 
     /**

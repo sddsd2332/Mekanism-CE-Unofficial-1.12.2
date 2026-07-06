@@ -587,6 +587,7 @@ gui.upgrades.noSelection=Brak wyboru
 gui.upgrades.amount=Ilość
 gui.upgrades.max=Maks.
 gui.upgrades.effect=Efekt
+gui.mekanism.upgrades.effect=Efekt: %1$sx
 
 gui.chemicalInfuser.short=Infuzer chem.
 gui.chemicalDissolutionChamber.short=Komora rozpadu chem.

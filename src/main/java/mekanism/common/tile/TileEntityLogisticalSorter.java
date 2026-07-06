@@ -72,8 +72,8 @@ public class TileEntityLogisticalSorter extends TileEntityEffectsBlock implement
         initializeInventorySlots();
         doAutoSync = false;
         upgradeComponent = new TileComponentUpgrade(this);
-        upgradeComponent.clearSupportedTypes();
-        upgradeComponent.setSupported(Upgrade.MUFFLING);
+        clearSupportedUpgrades();
+        setSupportedUpgrade(Upgrade.MUFFLING);
     }
 
     @Override

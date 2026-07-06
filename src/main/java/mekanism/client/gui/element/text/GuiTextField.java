@@ -39,9 +39,12 @@ public class GuiTextField extends GuiElement {
     private MekanismImageButton checkmarkButton;
     private int offsetX;
     private int offsetY;
+    private int textColor = SCREEN_COLOR;
+    private int disabledTextColor = 0xFFE0E0E0;
     private float textScale = 1.0F;
     private boolean allowColoredText;
     private boolean canLoseFocus = true;
+    private boolean textCenteredWhenUnfocused;
 
     public GuiTextField(IGuiWrapper gui, int x, int y, int width, int height) {
         this(gui, 0, x, y, width, height);
@@ -117,6 +120,11 @@ public class GuiTextField extends GuiElement {
         return this;
     }
 
+    public GuiTextField setTextCenteredWhenUnfocused(boolean textCenteredWhenUnfocused) {
+        this.textCenteredWhenUnfocused = textCenteredWhenUnfocused;
+        return this;
+    }
+
     public GuiTextField setBackgroundDrawing(boolean backgroundDrawing) {
         return setBackground(backgroundDrawing ? BackgroundType.DEFAULT : BackgroundType.NONE);
     }
@@ -167,11 +175,13 @@ public class GuiTextField extends GuiElement {
     }
 
     public GuiTextField setTextColor(int color) {
+        textColor = color;
         textField.setTextColor(color);
         return this;
     }
 
     public GuiTextField setDisabledTextColor(int color) {
+        disabledTextColor = color;
         textField.setDisabledTextColour(color);
         return this;
     }
@@ -291,7 +301,9 @@ public class GuiTextField extends GuiElement {
         GlStateManager.disableLighting();
         GlStateManager.disableDepth();
         MekanismRenderer.resetColor();
-        if (textScale == 1.0F) {
+        if (textCenteredWhenUnfocused && !textField.isFocused()) {
+            drawCenteredTextBox();
+        } else if (textScale == 1.0F) {
             textField.drawTextBox();
         } else {
             float reverse = (1 - textScale) / textScale;
@@ -302,6 +314,17 @@ public class GuiTextField extends GuiElement {
         MekanismRenderer.resetColor();
         GlStateManager.enableDepth();
         GlStateManager.popMatrix();
+    }
+
+    private void drawCenteredTextBox() {
+        String text = textField.getText();
+        if (text.isEmpty()) {
+            return;
+        }
+        int color = active ? textColor : disabledTextColor;
+        int textWidth = getFont().getStringWidth(text);
+        int x = textField.x + Math.max(0, (textField.width - textWidth) / 2);
+        getFont().drawString(text, x, textField.y, color);
     }
 
     @Override

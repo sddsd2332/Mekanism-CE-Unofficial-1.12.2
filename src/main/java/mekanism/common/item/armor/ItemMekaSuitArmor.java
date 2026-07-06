@@ -581,6 +581,7 @@ public abstract class ItemMekaSuitArmor extends ItemArmor implements IModuleCont
     @Override
     public ICapabilityProvider initCapabilities(ItemStack stack, NBTTagCompound nbt) {
         List<ItemCapabilityWrapper.ItemCapability> capabilities = new ArrayList<>();
+
         capabilities.add(new TeslaItemWrapper());
         capabilities.add(new ForgeEnergyItemWrapper());
         capabilities.add(RateLimitEnergyHandler.create(() -> getEnergyTransfer(stack), () -> getEnergyCapacity(stack), ConstantPredicates.alwaysFalse(), ConstantPredicates.alwaysTrue()));

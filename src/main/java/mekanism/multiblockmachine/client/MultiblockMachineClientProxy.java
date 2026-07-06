@@ -72,6 +72,7 @@ public class MultiblockMachineClientProxy extends MultiblockMachineCommonProxy {
         registerItemRender(MultiblockMachineItems.high_frequency_fusion_molding_module);
         registerItemRender(MultiblockMachineItems.LaserLenses);
         registerItemRender(MultiblockMachineItems.advanced_electrolysis_core);
+        registerItemRender(MultiblockMachineItems.ThreadUpgrade);
         Item.getItemFromBlock(MultiblockMachineBlocks.LargeElectrolyticSeparator).setTileEntityItemStackRenderer(new RenderLargeElectrolyticSeparatorItem());
         Item.getItemFromBlock(MultiblockMachineBlocks.LargeChemicalInfuser).setTileEntityItemStackRenderer(new RenderLargeChemicalInfuserItem());
         Item.getItemFromBlock(MultiblockMachineBlocks.LargeChemicalWasher).setTileEntityItemStackRenderer(new RenderLargeChemicalWasherItem());

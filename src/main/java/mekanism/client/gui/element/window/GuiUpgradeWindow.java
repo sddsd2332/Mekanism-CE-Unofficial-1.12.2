@@ -29,14 +29,14 @@ import mekanism.common.util.UpgradeUtils;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.util.text.TextComponentString;
 
-import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class GuiUpgradeWindow extends GuiWindow {
 
     private static final int WIDTH = 198;
 
-    private final Map<Upgrade, WrappedTextRenderer> upgradeTypeData = new EnumMap<>(Upgrade.class);
+    private final Map<Upgrade, WrappedTextRenderer> upgradeTypeData = new LinkedHashMap<>();
     private final WrappedTextRenderer noSelection = new WrappedTextRenderer(this, LangUtils.localize("gui.upgrades.noSelection"));
     private final TileEntityContainerBlock tile;
     private final IUpgradeTile upgradeTile;
@@ -58,9 +58,9 @@ public class GuiUpgradeWindow extends GuiWindow {
             updateEnabledButtons();
             msSelected = GuiElement.getMillis();
         }));
-        addChild(new  GuiSupportedUpgrades(gui, relativeX + 6, relativeY + 68, upgradeTile.getComponent().getSupportedTypes()));
+        addChild(new  GuiSupportedUpgrades(gui, relativeX + 6, relativeY + 68, upgradeTile.getSupportedUpgradeTypes()));
         rightScreen = addChild(new GuiInnerScreen(gui, scrollList.getRelativeRight(), relativeY + 18, 59, 50));
-        addChild(new GuiProgress(() -> this.upgradeTile.getComponent().getScaledUpgradeProgress(), ProgressType.INSTALLING, gui, rightScreen.getRelativeRight() + 3, relativeY + 37));
+        addChild(new GuiProgress(() -> this.upgradeTile.getScaledUpgradeProgress(), ProgressType.INSTALLING, gui, rightScreen.getRelativeRight() + 3, relativeY + 37));
         addChild(new GuiProgress(() -> 0, ProgressType.UNINSTALLING, gui, rightScreen.getRelativeRight() + 3, relativeY + 58));
         removeButton = addChild(new DigitalButton(gui, scrollList.getRelativeRight() + 1, relativeY + 54, 56, 12, MekanismLang.UPGRADE_UNINSTALL,
               (element, mouseX, mouseY) -> {
@@ -97,6 +97,12 @@ public class GuiUpgradeWindow extends GuiWindow {
         }
     }
 
+    @Override
+    public void tick() {
+        super.tick();
+        updateEnabledButtons();
+    }
+
     private void updateEnabledButtons() {
         removeButton.active = scrollList.hasSelection();
     }
@@ -104,7 +110,7 @@ public class GuiUpgradeWindow extends GuiWindow {
     private void removeSelectedUpgrade() {
         Upgrade selected = scrollList.getSelection();
         if (selected != null) {
-            Mekanism.packetHandler.sendToServer(new RemoveUpgradeMessage(Coord4D.get(tile), selected.ordinal(), GuiScreen.isShiftKeyDown() ? 1 : 0));
+            Mekanism.packetHandler.sendToServer(new RemoveUpgradeMessage(Coord4D.get(tile), selected, GuiScreen.isShiftKeyDown()));
         }
     }
 
@@ -117,7 +123,7 @@ public class GuiUpgradeWindow extends GuiWindow {
             if (selectedType == null) {
                 return;
             }
-            int amount = upgradeTile.getComponent().getUpgrades(selectedType);
+            int amount = upgradeTile.getInstalledUpgrades(selectedType);
             WrappedTextRenderer textRenderer = upgradeTypeData.computeIfAbsent(selectedType,
                   type -> new WrappedTextRenderer(this, LangUtils.localize("gui.upgrade") + ": " + type.getName()));
             int screenWidth = rightScreen.getWidth() - 2;

@@ -589,6 +589,7 @@ gui.upgrades.noSelection=Не выбрано
 gui.upgrades.amount=Количество
 gui.upgrades.max=Макс.
 gui.upgrades.effect=Эффект
+gui.mekanism.upgrades.effect=Эффект: %1$sх
 
 gui.chemicalInfuser.short=Хим. наполнитель
 gui.chemicalDissolutionChamber.short=Хим. камера растворения

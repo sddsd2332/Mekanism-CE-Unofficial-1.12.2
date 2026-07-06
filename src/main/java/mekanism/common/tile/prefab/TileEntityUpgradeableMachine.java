@@ -115,7 +115,7 @@ public abstract class TileEntityUpgradeableMachine<INPUT extends MachineInput<IN
     @Nonnull
     private NBTTagCompound writeUpgradeComponentData() {
         NBTTagCompound componentData = new NBTTagCompound();
-        upgradeComponent.write(componentData);
+        writeUpgrades(componentData);
         configComponent.write(componentData);
         ejectorComponent.write(componentData);
         securityComponent.write(componentData);

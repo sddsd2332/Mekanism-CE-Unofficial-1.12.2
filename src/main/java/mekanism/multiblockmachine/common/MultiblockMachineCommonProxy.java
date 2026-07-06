@@ -1,6 +1,7 @@
 package mekanism.multiblockmachine.common;
 
 import mekanism.common.Mekanism;
+import mekanism.common.CommonProxy;
 import mekanism.common.base.IGuiProvider;
 import mekanism.common.config.MekanismConfig;
 import mekanism.multiblockmachine.common.inventory.container.*;
@@ -63,6 +64,9 @@ public class MultiblockMachineCommonProxy implements IGuiProvider {
     @Override
     public Container getServerGui(int ID, EntityPlayer player, World world, BlockPos pos) {
         TileEntity tileEntity = world.getTileEntity(pos);
+        if (!CommonProxy.canOpenServerGui(player, tileEntity)) {
+            return null;
+        }
         return switch (ID) {
             case 0 -> new ContainerLargeElectrolyticSeparator(player.inventory, (TileEntityLargeElectrolyticSeparator) tileEntity);
             case 1 -> new ContainerLargeChemicalInfuser(player.inventory, (TileEntityLargeChemicalInfuser) tileEntity);

@@ -19,6 +19,7 @@ import mekanism.common.util.ItemDataUtils;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.StorageUtils;
+import mekanism.multiblockmachine.common.MultiblockMachineUpgrades;
 import net.minecraft.block.Block;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.item.ItemStack;
@@ -82,8 +83,8 @@ public abstract class ItemBlockLargeBaseEnergy extends ItemBlockLargeBase implem
     private int getThread(ItemStack stack) {
         int thread = 1;
         Map<Upgrade, Integer> upgrades = Upgrade.buildComponentMap(ItemDataUtils.getDataMapIfPresent(stack));
-        if (upgrades.get(Upgrade.THREAD) != null) {
-            thread += upgrades.get(Upgrade.THREAD);
+        if (upgrades.get(MultiblockMachineUpgrades.THREAD) != null) {
+            thread += upgrades.get(MultiblockMachineUpgrades.THREAD);
         }
         NBTTagCompound dataMap = ItemDataUtils.getDataMap(stack);
         if (dataMap.isEmpty() && stack.getTagCompound() != null) {

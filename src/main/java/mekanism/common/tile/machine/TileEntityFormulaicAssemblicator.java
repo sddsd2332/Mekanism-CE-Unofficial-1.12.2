@@ -789,18 +789,13 @@ public class TileEntityFormulaicAssemblicator extends TileEntityElectricBlock im
     @Override
     public void recalculateUpgradables(Upgrade upgrade) {
         super.recalculateUpgradables(upgrade);
-        switch (upgrade) {
-            case SPEED -> {
-                ticksRequired = MekanismUtils.getTicks(this, BASE_TICKS_REQUIRED);
-                energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK);
-            }
-            case ENERGY -> {
-                energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK);
-                maxEnergy = MekanismUtils.getMaxEnergy(this, BASE_MAX_ENERGY);
-                setEnergy(Math.min(getMaxEnergy(), getEnergy()));
-            }
-            default -> {
-            }
+        if (upgrade == Upgrade.SPEED) {
+            ticksRequired = MekanismUtils.getTicks(this, BASE_TICKS_REQUIRED);
+            energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK);
+        } else if (upgrade == Upgrade.ENERGY) {
+            energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK);
+            maxEnergy = MekanismUtils.getMaxEnergy(this, BASE_MAX_ENERGY);
+            setEnergy(Math.min(getMaxEnergy(), getEnergy()));
         }
     }
 

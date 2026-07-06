@@ -2376,18 +2376,12 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
     @Override
     public void recalculateUpgradables(Upgrade upgrade) {
         super.recalculateUpgradables(upgrade);
-        switch (upgrade) {
-            case ENERGY -> {
-                recalculateEnergyUpgrade();
-            }
-            case GAS -> {
-                recalculateGasUpgrade();
-            }
-            case SPEED -> {
-                recalculateSpeedUpgrade();
-            }
-            default -> {
-            }
+        if (upgrade == Upgrade.ENERGY) {
+            recalculateEnergyUpgrade();
+        } else if (upgrade == Upgrade.GAS) {
+            recalculateGasUpgrade();
+        } else if (upgrade == Upgrade.SPEED) {
+            recalculateSpeedUpgrade();
         }
     }
 

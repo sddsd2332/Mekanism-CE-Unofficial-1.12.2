@@ -6,6 +6,11 @@ import mekanism.common.config.options.IntOption;
 
 public class MultiblockMachineConfig extends BaseConfig {
 
+    public final IntOption MAXThreadUpgrade = new IntOption(this, "MAXThreadUpgrade", 8,
+            "The maximum number of thread upgrades that can be installed", 1, Integer.MAX_VALUE).setRequiresGameRestart();
+    public final IntOption MAXThreadUpgradeSize = new IntOption(this, "MAXThreadUpgradeSize", 8,
+            "The maximum number of stacks that can be stacked for thread upgrades", 1, 64).setRequiresGameRestart();
+
     public final IntOption LargeElectrolyticSeparatorProcesses = new IntOption(this, "LargeElectrolyticSeparatorProcesses", 256, "The number of threads in a large electrolytic separator affects the machine's maximum energy, energy usage, and how quickly it can operate per use.", 10, 102400).setRequiresGameRestart();
     public final IntOption LargeChemicalInfuserProcesses = new IntOption(this,"LargeChemicalInfuserProcesses",256,"The number of threads in a large chemical infuser affects the machine's maximum energy, energy usage, and how quickly it can operate per use.", 10, 102400).setRequiresGameRestart();
     public final IntOption LargeChemicalWasherProcesses = new IntOption(this,"LargeChemicalWasherProcesses",256,"The number of threads in a large chemical washer affects the machine's maximum energy, energy usage, and how quickly it can operate per use.", 10, 102400).setRequiresGameRestart();

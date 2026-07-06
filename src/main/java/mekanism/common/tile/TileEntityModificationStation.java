@@ -38,9 +38,9 @@ public class TileEntityModificationStation extends TileEntityOperationalMachine 
 
     public TileEntityModificationStation() {
         super("null", MachineType.MODIFICATION_STATION, 0, 40);
-        upgradeComponent.removeSupported(Upgrade.MUFFLING);
-        upgradeComponent.removeSupported(Upgrade.SPEED);
-        upgradeComponent.removeSupported(Upgrade.ENERGY);
+        removeSupportedUpgrade(Upgrade.MUFFLING);
+        removeSupportedUpgrade(Upgrade.SPEED);
+        removeSupportedUpgrade(Upgrade.ENERGY);
         initializeInventorySlots();
     }
 

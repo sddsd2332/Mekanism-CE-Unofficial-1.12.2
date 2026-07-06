@@ -88,8 +88,8 @@ public class TileEntityTeleporter extends TileEntityElectricBlock implements ICo
         securityComponent = new TileComponentSecurity(this);
         chunkLoaderComponent = new TileComponentChunkLoader(this);
         upgradeComponent = new TileComponentUpgrade(this);
-        upgradeComponent.clearSupportedTypes();
-        upgradeComponent.setSupported(Upgrade.ANCHOR);
+        clearSupportedUpgrades();
+        setSupportedUpgrade(Upgrade.ANCHOR);
         frequencyComponent.track(FrequencyType.TELEPORTER, true, true, false);
         initializeInventorySlots();
     }

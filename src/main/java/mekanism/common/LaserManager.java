@@ -197,7 +197,7 @@ public class LaserManager {
             int durabilityNeeded = 1 + MathHelper.floor(effectiveDamage);
             int activeDurability = activeStack.getMaxDamage() - activeStack.getItemDamage();
             EnumHand hand = livingEntity.getActiveHand();
-            livingEntity.activeItemStack.damageItem(durabilityNeeded, livingEntity);
+            activeStack.damageItem(durabilityNeeded, livingEntity);
             if (livingEntity instanceof EntityPlayer player) {
                 net.minecraftforge.event.ForgeEventFactory.onPlayerDestroyItem(player, activeStack, hand);
             }

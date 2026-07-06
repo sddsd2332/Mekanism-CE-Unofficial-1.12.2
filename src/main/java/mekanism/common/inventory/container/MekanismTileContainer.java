@@ -83,8 +83,8 @@ public class MekanismTileContainer<TILE extends TileEntityContainerBlock> extend
 
     protected void addUpgradeSlots() {
         if (tile instanceof IUpgradeTile upgradeTile && upgradeTile.supportsUpgrades()) {
-            addSlot(upgradeSlot = upgradeTile.getComponent().getUpgradeSlot().createContainerSlot());
-            addSlot(upgradeOutputSlot = upgradeTile.getComponent().getUpgradeOutputSlot().createContainerSlot());
+            addSlot(upgradeSlot = upgradeTile.getUpgradeSlot().createContainerSlot());
+            addSlot(upgradeOutputSlot = upgradeTile.getUpgradeOutputSlot().createContainerSlot());
         }
     }
 

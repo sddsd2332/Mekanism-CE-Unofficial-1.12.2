@@ -20,6 +20,7 @@ import mekanism.common.util.MekanismUtils;
 import mekanism.generators.common.tile.TileEntityGenerator;
 import mekanism.multiblockmachine.client.render.block.generator.bloom.BloomRenderLargeWindGenerator;
 import mekanism.multiblockmachine.common.MekanismMultiblockMachine;
+import mekanism.multiblockmachine.common.MultiblockMachineUpgrades;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
@@ -67,7 +68,7 @@ public class TileEntityLargeWindGenerator extends TileEntityGenerator implements
     public TileEntityLargeWindGenerator() {
         super("wind", "LargeWindGenerator", 0, 0);
         upgradeComponent = new TileComponentUpgrade(this, Upgrade.ENERGY);
-        upgradeComponent.setSupported(Upgrade.THREAD);
+        setSupportedUpgrade(MultiblockMachineUpgrades.THREAD);
         initializeInventorySlots();
     }
 
@@ -81,8 +82,8 @@ public class TileEntityLargeWindGenerator extends TileEntityGenerator implements
 
     public int getThread() {
         int thread = 1;
-        if (upgradeComponent.isUpgradeInstalled(Upgrade.THREAD)) {
-            thread += upgradeComponent.getUpgrades(Upgrade.THREAD);
+        if (isUpgradeInstalled(MultiblockMachineUpgrades.THREAD)) {
+            thread += getInstalledUpgrades(MultiblockMachineUpgrades.THREAD);
         }
         return thread;
     }
@@ -460,12 +461,12 @@ public class TileEntityLargeWindGenerator extends TileEntityGenerator implements
 
     @Override
     public double getMaxOutput() {
-        return (upgradeComponent.isUpgradeInstalled(Upgrade.ENERGY) ? MekanismUtils.getMaxEnergy(this, getTierEnergy()) : getTierEnergy()) * 2;
+        return (isUpgradeInstalled(Upgrade.ENERGY) ? MekanismUtils.getMaxEnergy(this, getTierEnergy()) : getTierEnergy()) * 2;
     }
 
     @Override
     public double getMaxEnergy() {
-        return upgradeComponent.isUpgradeInstalled(Upgrade.ENERGY) ? MekanismUtils.getMaxEnergy(this, getTierEnergy()) : getTierEnergy();
+        return isUpgradeInstalled(Upgrade.ENERGY) ? MekanismUtils.getMaxEnergy(this, getTierEnergy()) : getTierEnergy();
     }
 
     public double getTierEnergy() {

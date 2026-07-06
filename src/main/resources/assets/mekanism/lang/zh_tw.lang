@@ -425,6 +425,7 @@ gui.upgrades.noSelection=未選擇
 gui.upgrades.amount=數量
 gui.upgrades.max=最大
 gui.upgrades.effect=效果
+gui.mekanism.upgrades.effect=效果：%1$sx
 
 gui.chemicalInfuser.short=化學灌注器
 gui.chemicalDissolutionChamber.short=化學溶解室

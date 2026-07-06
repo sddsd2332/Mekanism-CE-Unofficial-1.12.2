@@ -2,15 +2,14 @@ package mekanism.generators.common.item;
 
 import mekanism.api.EnumColor;
 import mekanism.api.functions.ConstantPredicates;
-import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.IGasItem;
 import mekanism.client.render.MekanismRenderer;
 import mekanism.common.MekanismFluids;
 import mekanism.common.capabilities.ItemCapabilityWrapper;
 import mekanism.common.capabilities.gas.item.RateLimitGasHandler;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.inventory.slot.gas.GasInventorySlot;
+import mekanism.common.item.interfaces.ILegacyGasItem;
 import mekanism.common.util.LangUtils;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.creativetab.CreativeTabs;
@@ -27,7 +26,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.List;
 
-public class ItemHohlraum extends ItemMekanismGenerators implements IGasItem {
+public class ItemHohlraum extends ItemMekanismGenerators implements ILegacyGasItem {
 
     public static final int TRANSFER_RATE = 1;
 
@@ -42,7 +41,7 @@ public class ItemHohlraum extends ItemMekanismGenerators implements IGasItem {
 
     @Nullable
     public GasStack getContainedGas(ItemStack stack) {
-        GasStack stored = getGas(stack);
+        GasStack stored = getStoredGas(stack);
         return stored != null && stored.getGas() == MekanismFluids.FusionFuel ? stored.copy() : null;
     }
 
@@ -69,49 +68,17 @@ public class ItemHohlraum extends ItemMekanismGenerators implements IGasItem {
         }
     }
 
-    @Override
-    public int getMaxGas(ItemStack itemstack) {
+    private int getGasCapacity(ItemStack itemstack) {
         return getMaxGasCapacity();
     }
 
-    @Override
-    public int getRate(ItemStack itemstack) {
+    private int getGasTransferRate(ItemStack itemstack) {
         return TRANSFER_RATE;
     }
 
-    @Override
-    public int addGas(ItemStack itemstack, GasStack stack) {
-        GasStack storedGas = getGas(itemstack);
-        if (storedGas != null && storedGas.getGas() != stack.getGas()) {
-            return 0;
-        }
-        if (stack.getGas() != MekanismFluids.FusionFuel) {
-            return 0;
-        }
-        int stored = getStored(itemstack);
-        int toUse = Math.min(getMaxGas(itemstack) - stored, Math.min(getRate(itemstack), stack.amount));
-        setGas(itemstack, new GasStack(stack.getGas(), stored + toUse));
-        return toUse;
-    }
-
-    @Override
-    public GasStack removeGas(ItemStack itemstack, int amount) {
-        return null;
-    }
-
     public int getStored(ItemStack itemstack) {
-        GasStack stored = getGas(itemstack);
+        GasStack stored = getStoredGas(itemstack);
         return stored == null ? 0 : stored.amount;
-    }
-
-    @Override
-    public boolean canReceiveGas(ItemStack itemstack, Gas type) {
-        return type == MekanismFluids.FusionFuel;
-    }
-
-    @Override
-    public boolean canProvideGas(ItemStack itemstack, Gas type) {
-        return false;
     }
 
     @Override
@@ -130,7 +97,7 @@ public class ItemHohlraum extends ItemMekanismGenerators implements IGasItem {
 
     @Override
     public int getRGBDurabilityForDisplay(@Nonnull ItemStack stack) {
-        GasStack gas = getGas(stack);
+        GasStack gas = getStoredGas(stack);
         if (gas != null) {
             MekanismRenderer.color(gas);
             return gas.getGas().getTint();
@@ -139,29 +106,27 @@ public class ItemHohlraum extends ItemMekanismGenerators implements IGasItem {
         }
     }
 
-    @Override
-    public GasStack getGas(ItemStack itemstack) {
+    private GasStack getStoredGas(ItemStack itemstack) {
         return GasInventorySlot.getStoredGas(itemstack, "stored");
     }
 
-    @Override
-    public void setGas(ItemStack itemstack, GasStack stack) {
+    private void setStoredGas(ItemStack itemstack, GasStack stack) {
         if (stack != null && stack.getGas() != null && stack.getGas() != MekanismFluids.FusionFuel) {
             return;
         }
-        GasInventorySlot.setStoredGas(itemstack, stack, "stored", getMaxGas(itemstack));
+        GasInventorySlot.setStoredGas(itemstack, stack, "stored", getGasCapacity(itemstack));
     }
 
     @Override
     public ICapabilityProvider initCapabilities(ItemStack stack, NBTTagCompound nbt) {
-        return new ItemCapabilityWrapper(stack, RateLimitGasHandler.create(() -> getRate(stack), () -> getMaxGas(stack),
+        return new ItemCapabilityWrapper(stack, RateLimitGasHandler.create(() -> getGasTransferRate(stack), () -> getGasCapacity(stack),
               ConstantPredicates.alwaysFalseBi(), ConstantPredicates.alwaysTrueBi(),
               gasStack -> gasStack != null && gasStack.getGas() == MekanismFluids.FusionFuel, "stored"));
     }
 
     public ItemStack getEmptyItem() {
         ItemStack stack = new ItemStack(this);
-        setGas(stack, null);
+        setStoredGas(stack, null);
         return stack;
     }
 
@@ -172,7 +137,7 @@ public class ItemHohlraum extends ItemMekanismGenerators implements IGasItem {
         }
         list.add(getEmptyItem());
         ItemStack filled = new ItemStack(this);
-        setGas(filled, new GasStack(MekanismFluids.FusionFuel, getMaxGas(filled)));
+        setStoredGas(filled, new GasStack(MekanismFluids.FusionFuel, getGasCapacity(filled)));
         list.add(filled);
     }
 }

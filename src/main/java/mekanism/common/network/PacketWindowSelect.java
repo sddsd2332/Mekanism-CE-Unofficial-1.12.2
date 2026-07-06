@@ -6,7 +6,6 @@ import mekanism.common.inventory.container.MekanismContainer;
 import mekanism.common.inventory.container.SelectedWindowData;
 import mekanism.common.inventory.container.SelectedWindowData.WindowType;
 import mekanism.common.network.PacketWindowSelect.WindowSelectMessage;
-import mekanism.common.util.MekanismUtils;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessageHandler;
@@ -48,7 +47,7 @@ public class PacketWindowSelect implements IMessageHandler<WindowSelectMessage, 
                 dataStream.writeByte(-1);
             } else {
                 dataStream.writeByte(selectedWindow.extraData);
-                dataStream.writeInt(selectedWindow.type.ordinal());
+                PacketHandler.writeString(dataStream, selectedWindow.type.getRegistryNameString());
             }
         }
 
@@ -59,7 +58,10 @@ public class PacketWindowSelect implements IMessageHandler<WindowSelectMessage, 
                 selectedWindow = null;
                 return;
             }
-            WindowType windowType = MekanismUtils.getByIndex(WindowType.values(), dataStream.readInt(), WindowType.UNSPECIFIED);
+            WindowType windowType = WindowType.byName(PacketHandler.readString(dataStream));
+            if (windowType == null) {
+                windowType = WindowType.UNSPECIFIED;
+            }
             selectedWindow = windowType == WindowType.UNSPECIFIED ? SelectedWindowData.UNSPECIFIED : new SelectedWindowData(windowType, extraData);
         }
     }

@@ -1,9 +1,7 @@
 package mekanism.common.item.armor;
 
 
-import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.IGasItem;
 import mekanism.api.gear.IModule;
 import mekanism.api.gear.ModuleData;
 import mekanism.api.mixninapi.ElytraMixinHelp;
@@ -20,6 +18,7 @@ import mekanism.common.content.gear.mekasuit.ModuleJetpackUnit;
 import mekanism.common.interfaces.IOverlayRenderAware;
 import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.item.interfaces.IJetpackItem;
+import mekanism.common.item.interfaces.ILegacyGasItem;
 import mekanism.common.util.LangUtils;
 import net.minecraft.client.model.ModelBiped;
 import net.minecraft.client.renderer.BufferBuilder;
@@ -37,7 +36,7 @@ import org.jetbrains.annotations.NotNull;
 import javax.annotation.Nonnull;
 import java.util.List;
 
-public class ItemMekaSuitBodyArmor extends ItemMekaSuitArmor implements IGasItem, IJetpackItem, ElytraMixinHelp, IOverlayRenderAware {
+public class ItemMekaSuitBodyArmor extends ItemMekaSuitArmor implements ILegacyGasItem, IJetpackItem, ElytraMixinHelp, IOverlayRenderAware {
 
     public ItemMekaSuitBodyArmor() {
         super(1, EntityEquipmentSlot.CHEST);
@@ -48,7 +47,7 @@ public class ItemMekaSuitBodyArmor extends ItemMekaSuitArmor implements IGasItem
     @Override
     public void addInformation(ItemStack stack, World world, List<String> tooltip) {
         if (hasModule(stack, MekanismModules.JETPACK_UNIT)) {
-            GasStack gasStack = getGas(stack);
+            GasStack gasStack = getStoredGas(stack);
             if (gasStack == null) {
                 tooltip.add(LangUtils.localize("tooltip.noGas") + ".");
             } else {
@@ -90,81 +89,33 @@ public class ItemMekaSuitBodyArmor extends ItemMekaSuitArmor implements IGasItem
     }
 
 
-    @Override
-    public int getRate(ItemStack itemstack) {
+    private int getJetpackTransferRate(ItemStack itemstack) {
         return MekanismConfig.current().meka.mekaSuitJetpackTransferRate.val();
     }
 
-    @Override
-    public int addGas(ItemStack itemstack, GasStack stack) {
-        if (!hasModule(itemstack, MekanismModules.JETPACK_UNIT)) {
-            return 0;
-        }
-        GasStack storedGas = getGas(itemstack);
-        if (storedGas != null && storedGas.getGas() != stack.getGas()) {
-            return 0;
-        }
-        if (stack.getGas() != MekanismFluids.Hydrogen) {
-            return 0;
-        }
-        int stored = storedGas == null ? 0 : storedGas.amount;
-        int toUse = Math.min(getMaxGas(itemstack) - stored, Math.min(getRate(itemstack), stack.amount));
-        setGas(itemstack, new GasStack(stack.getGas(), stored + toUse));
-        return toUse;
-    }
-
     public int getStored(ItemStack itemstack) {
-        GasStack gas = getGas(itemstack);
+        GasStack gas = getStoredGas(itemstack);
         return gas == null ? 0 : gas.amount;
     }
 
-    @Override
-    public GasStack removeGas(ItemStack itemstack, int amount) {
-        GasStack gas = getGas(itemstack);
-        if (gas == null || gas.getGas() != MekanismFluids.Hydrogen || amount <= 0) {
-            return null;
-        }
-        int gasToUse = Math.min(gas.amount, Math.min(getRate(itemstack), amount));
-        if (gasToUse <= 0) {
-            return null;
-        }
-        int remaining = gas.amount - gasToUse;
-        setGas(itemstack, remaining <= 0 ? null : new GasStack(gas.getGas(), remaining));
-        return new GasStack(gas.getGas(), gasToUse);
-    }
-
-    @Override
-    public boolean canReceiveGas(ItemStack itemstack, Gas type) {
-        return hasModule(itemstack, MekanismModules.JETPACK_UNIT) && type == MekanismFluids.Hydrogen;
-    }
-
-    @Override
-    public boolean canProvideGas(ItemStack itemstack, Gas type) {
-        GasStack gas = getGas(itemstack);
-        return gas != null && gas.amount > 0 && (type == null || gas.getGas() == type);
-    }
-
-    @Override
-    public GasStack getGas(ItemStack itemstack) {
+    private GasStack getStoredGas(ItemStack itemstack) {
         if (!hasModule(itemstack, MekanismModules.JETPACK_UNIT)) {
             return null;
         }
         return GasInventorySlot.getStoredGas(itemstack, "stored");
     }
 
-    @Override
-    public void setGas(ItemStack itemstack, GasStack stack) {
+    private void setStoredGas(ItemStack itemstack, GasStack stack) {
         if (!hasModule(itemstack, MekanismModules.JETPACK_UNIT)) {
             return;
         }
         if (stack != null && stack.getGas() != null && stack.getGas() != MekanismFluids.Hydrogen) {
             return;
         }
-        GasInventorySlot.setStoredGas(itemstack, stack, "stored", getMaxGas(itemstack));
+        GasInventorySlot.setStoredGas(itemstack, stack, "stored", getJetpackGasCapacity(itemstack));
     }
 
-    @Override
-    public int getMaxGas(ItemStack stack) {
+    private int getJetpackGasCapacity(ItemStack stack) {
         IModule<ModuleJetpackUnit> module = getModule(stack, MekanismModules.JETPACK_UNIT);
         return module != null ? MekanismConfig.current().meka.mekaSuitJetpackMaxStorage.val() * module.getInstalledCount() : 0;
     }
@@ -181,12 +132,12 @@ public class ItemMekaSuitBodyArmor extends ItemMekaSuitArmor implements IGasItem
 
     @Override
     protected int getGasCapabilityRate(ItemStack stack) {
-        return getRate(stack);
+        return getJetpackTransferRate(stack);
     }
 
     @Override
     protected int getGasCapabilityCapacity(ItemStack stack) {
-        return getMaxGas(stack);
+        return getJetpackGasCapacity(stack);
     }
 
     @Override
@@ -309,13 +260,13 @@ public class ItemMekaSuitBodyArmor extends ItemMekaSuitArmor implements IGasItem
     }
 
     private double getDurabilityForDisplayGas(ItemStack stack) {
-        GasStack gas = getGas(stack);
-        return 1D - ((gas != null ? (double) gas.amount : 0D) / (double) getMaxGas(stack));
+        GasStack gas = getStoredGas(stack);
+        return 1D - ((gas != null ? (double) gas.amount : 0D) / (double) getJetpackGasCapacity(stack));
     }
 
 
     public int getGASRGBDurabilityForDisplay(@Nonnull ItemStack stack) {
-        GasStack gas = getGas(stack);
+        GasStack gas = getStoredGas(stack);
         if (gas != null) {
             MekanismRenderer.color(gas);
             return gas.getGas().getTint();

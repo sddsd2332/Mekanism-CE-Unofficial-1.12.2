@@ -189,7 +189,7 @@ public class TileEntityAmbientAccumulatorEnergy extends TileEntityMachine implem
     }
 
     public int getUpgradedUsage() {
-        int possibleProcess = (int) Math.pow(2, upgradeComponent.getUpgrades(Upgrade.SPEED));
+        int possibleProcess = (int) Math.pow(2, getInstalledUpgrades(Upgrade.SPEED));
         possibleProcess = Math.min(outputTank.getNeeded(), possibleProcess);
         possibleProcess = Math.min((int) (getEnergy() / energyPerTick), possibleProcess);
         possibleProcess = Math.max(possibleProcess, 1);

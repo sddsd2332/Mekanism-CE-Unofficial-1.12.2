@@ -481,6 +481,7 @@ gui.upgrades.noSelection=Non selez.
 gui.upgrades.amount=Quantità
 gui.upgrades.max=Max
 gui.upgrades.effect=Effetto
+gui.mekanism.upgrades.effect=Effetto: %1$sx
 
 gui.chemicalInfuser.short=Infusore c.
 gui.chemicalDissolutionChamber.short=C. di dissoluz. chimica

@@ -144,10 +144,14 @@ public class ClientConfig extends BaseConfig {
             "How many client ticks to wait before issuing a new OpenGL occlusion query for the same tile. Higher values reduce GPU query overhead.", 1, 20);
 
     public ClientConfig() {
-        for (WindowType windowType : WindowType.values()) {
-            for (String savePath : windowType.getSavePaths()) {
-                lastWindowPositions.put(savePath, new CachedWindowPosition(this, savePath, windowType.canPin()));
-            }
+        for (WindowType windowType : WindowType.getRegisteredWindowTypes()) {
+            registerWindowType(windowType);
+        }
+    }
+
+    public void registerWindowType(WindowType windowType) {
+        for (String savePath : windowType.getSavePaths()) {
+            lastWindowPositions.computeIfAbsent(savePath, path -> new CachedWindowPosition(this, path, windowType.canPin()));
         }
     }
 

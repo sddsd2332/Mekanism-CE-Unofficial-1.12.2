@@ -78,12 +78,6 @@ public class MEKCEConfig extends BaseConfig {
     public final BooleanOption EnableUpgradeConfigure = new BooleanOption(this,  "EnableUpgradeConfigure", false, "Enable an upgrade similar to IC2");
 
 
-    public final IntOption MAXThreadUpgrade = new IntOption(this,  "MAXThreadUpgrade", 8,
-            "The maximum number of thread upgrades that can be installed", 1, Integer.MAX_VALUE).setRequiresGameRestart();
-
-    public final IntOption MAXThreadUpgradeSize = new IntOption(this,  "MAXThreadUpgradeSize", 8,
-            "The maximum number of stacks that can be stacked for thread upgrades", 1, 64).setRequiresGameRestart();
-
     public final BooleanOption BinRecipeClosed = new BooleanOption(this,  "BinRecipeClosed", false, "Turn off the BIN synthesis recipe").setRequiresGameRestart();
 
     public final BooleanOption EnableSuperFumoRecipe = new BooleanOption(this, "EnableSuperFumoRecipe", true, "Enable the Super FuMo crafting recipe.").setRequiresGameRestart();
@@ -100,6 +94,8 @@ public class MEKCEConfig extends BaseConfig {
     public final BooleanOption EnableTheDefaultConfiguration = new BooleanOption(this,"EnableTheDefaultConfiguration",true,"Allows the machine to use the default configuration surface, which is empty by default if false");
     public final BooleanOption EnableAddArrItemRecyclerRecipe = new BooleanOption(this,"EnableAddArrItemRecyclerRecipe",true,"If true, all items are iterated through and added to the Recycler recipe").setRequiresGameRestart();
     public final BooleanOption EnableRecyclerRecipeInJei = new BooleanOption(this,"EnableRecyclerRecipeInJei",true,"If true, the Recycler recipe is allowed to be displayed within the jei").setRequiresGameRestart();
+    public final BooleanOption AllowMultiplePlayersOpenSameMachineGui = new BooleanOption(this, "AllowMultiplePlayersOpenSameMachineGui", true,
+            "If true, multiple players may open the same machine GUI at the same time.");
 
     public final IntOption DigitalMinerMinY = new IntOption(this,"DigitalMinerMinY",0,"The minimum Y value of DigitalMiner");
     public final IntOption DigitalMinerMaxY = new IntOption(this,"DigitalMinerMaxY",255,"The maximum Y value of DigitalMiner");

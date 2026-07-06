@@ -43,6 +43,7 @@ import mekanism.common.util.ItemDataUtils;
 import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.StatUtils;
 import mekanism.common.util.TileUtils;
+import net.minecraft.block.Block;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.fml.common.FMLCommonHandler;
@@ -53,7 +54,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-public class TileEntityChemicalDissolutionChamber extends TileEntityBasicMachine<ItemStackInput, GasOutput, DissolutionRecipe> implements ISustainedData, ITankManager, IComparatorSupport, ISpecialSelectionWireframeTile, ConstantUsageRecipeLookupHandler {
+public class TileEntityChemicalDissolutionChamber extends TileEntityBasicMachine<ItemStackInput, GasOutput, DissolutionRecipe> implements ISustainedData, ITankManager,
+      IComparatorSupport, ISpecialSelectionWireframeTile, ConstantUsageRecipeLookupHandler {
 
     public static final int MAX_GAS = 10000;
     public static final int BASE_INJECT_USAGE = 1;
@@ -87,7 +89,7 @@ public class TileEntityChemicalDissolutionChamber extends TileEntityBasicMachine
 
     public TileEntityChemicalDissolutionChamber() {
         super("dissolution", MachineType.CHEMICAL_DISSOLUTION_CHAMBER, 4, 100, TRACKED_ERROR_TYPES);
-        upgradeComponent.setSupported(Upgrade.GAS);
+        setSupportedUpgrade(Upgrade.GAS);
 
         configComponent = new TileComponentConfig(this, TransmissionType.ITEM, TransmissionType.GAS, TransmissionType.ENERGY);
         initializeInventorySlots();
@@ -184,11 +186,6 @@ public class TileEntityChemicalDissolutionChamber extends TileEntityBasicMachine
         }
     }
 
-
-    @Override
-    public void addTileSyncTask() {
-    }
-
     public double getScaledProgress() {
         return Math.max(Math.min((double) operatingTicks / (double) ticksRequired, 1.0D),0.0D);
     }
@@ -245,7 +242,7 @@ public class TileEntityChemicalDissolutionChamber extends TileEntityBasicMachine
     }
 
     private boolean canAutoPullInput(ItemStack stack) {
-        DissolutionRecipe recipe = RecipeHandler.getDissolutionRecipe(new ItemStackInput(getSimulatedStackWithInsert(1, stack)));
+        DissolutionRecipe recipe = RecipeHandler.getDissolutionRecipe(new ItemStackInput(getSimulatedStackWithInsert(0, stack)));
         return recipe != null && recipe.getOutput().applyOutputs(outputTank, false, 1);
     }
 
@@ -314,6 +311,17 @@ public class TileEntityChemicalDissolutionChamber extends TileEntityBasicMachine
     }
 
 
+
+    @Override
+    public void onRecipeCacheInvalidated(int cacheIndex) {
+        super.onRecipeCacheInvalidated(cacheIndex);
+    }
+
+    private int getAEGasUsagePerOperation() {
+        return Math.max(1, MathUtils.clampToInt(baseTotalUsage));
+    }
+
+
     private boolean isValidGas(Gas gas) {
         //TODO: Replace with commented version once this becomes an AdvancedMachine
         return gas == MekanismFluids.SulfuricAcid;//Recipe.CHEMICAL_DISSOLUTION_CHAMBER.containsRecipe(gas);
@@ -361,19 +369,16 @@ public class TileEntityChemicalDissolutionChamber extends TileEntityBasicMachine
     @Override
     public void recalculateUpgradables(Upgrade upgrade) {
         super.recalculateUpgradables(upgrade);
-        switch (upgrade) {
-            case ENERGY ->
-                    energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK); // incorporate speed upgrades
-            case GAS -> injectUsage = MekanismUtils.getSecondaryEnergyPerTickMean(this, BASE_INJECT_USAGE);
-            case SPEED -> {
-                ticksRequired = MekanismUtils.getTicks(this, BASE_TICKS_REQUIRED);
-                energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_USAGE);
-                injectUsage = MekanismUtils.getSecondaryEnergyPerTickMean(this, BASE_INJECT_USAGE);
-                gasPerTickMeanMultiplier = MekanismUtils.getGasPerTickMeanMultiplier(this);
-                baseTotalUsage = MekanismUtils.getBaseUsage(this, BASE_INJECT_USAGE);
-            }
-            default -> {
-            }
+        if (upgrade == Upgrade.SPEED) {
+            ticksRequired = MekanismUtils.getTicks(this, BASE_TICKS_REQUIRED);
+            energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_USAGE);
+            injectUsage = MekanismUtils.getSecondaryEnergyPerTickMean(this, BASE_INJECT_USAGE);
+            gasPerTickMeanMultiplier = MekanismUtils.getGasPerTickMeanMultiplier(this);
+            baseTotalUsage = MekanismUtils.getBaseUsage(this, BASE_INJECT_USAGE);
+        } else if (upgrade == Upgrade.ENERGY) {
+            energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK); // incorporate speed upgrades
+        } else if (upgrade == Upgrade.GAS) {
+            injectUsage = MekanismUtils.getSecondaryEnergyPerTickMean(this, BASE_INJECT_USAGE);
         }
         if (upgrade == Upgrade.GAS) {
             gasPerTickMeanMultiplier = MekanismUtils.getGasPerTickMeanMultiplier(this);

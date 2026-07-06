@@ -74,6 +74,7 @@ public class TileEntityReactorController extends TileEntityReactorBlock implemen
     private static final double REACTOR_CORE_PROBE_RADIUS = 1.25D;
     @SideOnly(Side.CLIENT)
     private static final double REACTOR_CORE_PROBE_VERTICAL_RADIUS = 1.05D;
+    private ReactorInventorySlot hohlraumSlot;
 
     public TileEntityReactorController() {
         super("ReactorController", MekanismConfig.current().generators.reactorGeneratorStorage.val());
@@ -100,12 +101,16 @@ public class TileEntityReactorController extends TileEntityReactorBlock implemen
     @Override
     protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
         InventorySlotHelper builder = createInventorySlotHelper();
-        ReactorInventorySlot hohlraumSlot = ReactorInventorySlot.at(stack -> stack.getItem() instanceof ItemHohlraum, listener, 80, 39);
+        hohlraumSlot = ReactorInventorySlot.at(stack -> stack.getItem() instanceof ItemHohlraum, listener, 80, 39);
         hohlraumSlot.setEnabledSupplier(this::isFormed);
         builder.addSlot(hohlraumSlot);
         IInventorySlotHolder slotHolder = builder.build();
         return ProxiedInventorySlotHolder.create(side -> isFormed() && slotHolder.canInsert(side), side -> isFormed() && slotHolder.canExtract(side),
               side -> side == null || isFormed() ? slotHolder.getInventorySlots(side) : Collections.emptyList());
+    }
+
+    public ReactorInventorySlot getHohlraumSlot() {
+        return hohlraumSlot;
     }
 
     @Override

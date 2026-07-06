@@ -49,9 +49,9 @@ public class TileEntitySPS extends TileEntityMachine implements ISideConfigurati
 
     public TileEntitySPS() {
         super("machine.sps", BlockStateMachine.MachineType.SPS, 0);
-        upgradeComponent.removeSupported(Upgrade.SPEED);
-        upgradeComponent.removeSupported(Upgrade.ENERGY);
-        upgradeComponent.removeSupported(Upgrade.MUFFLING);
+        removeSupportedUpgrade(Upgrade.SPEED);
+        removeSupportedUpgrade(Upgrade.ENERGY);
+        removeSupportedUpgrade(Upgrade.MUFFLING);
 
         configComponent = new TileComponentConfig(this, TransmissionType.ENERGY, TransmissionType.GAS);
         initializeInventorySlots();

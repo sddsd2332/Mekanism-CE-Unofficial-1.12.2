@@ -53,7 +53,7 @@ public class TileEntityReactorPort extends TileEntityReactorBlock implements IHe
               side -> getReactor() != null && getReactor().isFormed(),
               side -> getReactor() != null && getReactor().isFormed(),
               side -> {
-                  IInventorySlot slot = getReactorInventorySlot(0);
+                  IInventorySlot slot = getHohlraumSlot();
                   return slot == null ? Collections.emptyList() : Collections.singletonList(slot);
               }
         );
@@ -342,7 +342,7 @@ public class TileEntityReactorPort extends TileEntityReactorBlock implements IHe
     }
 
     @Nullable
-    private IInventorySlot getReactorInventorySlot(int slotID) {
-        return slotID == 0 && getReactor() != null ? getReactor().getHohlraumSlot() : null;
+    private IInventorySlot getHohlraumSlot() {
+        return getReactor() == null ? null : getReactor().getHohlraumSlot();
     }
 }

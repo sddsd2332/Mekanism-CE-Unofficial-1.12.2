@@ -14,6 +14,7 @@ import mekanism.common.config.MekanismConfig;
 import mekanism.common.integration.MekanismHooks;
 import mekanism.common.inventory.container.ITrackableContainer;
 import mekanism.common.inventory.container.MekanismContainer;
+import mekanism.common.inventory.container.MekanismTileContainer;
 import mekanism.common.network.PacketDataRequest.DataRequestMessage;
 import mekanism.common.network.PacketTileEntity.TileEntityMessage;
 import mekanism.common.tile.base.TileEntityRestrictedTick;
@@ -147,6 +148,22 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
 
     public void close(EntityPlayer player) {
         playersUsing.remove(player);
+    }
+
+    public boolean canPlayerOpenGui(EntityPlayer player) {
+        if (MekanismConfig.current().mekce.AllowMultiplePlayersOpenSameMachineGui.val()) {
+            return true;
+        }
+        playersUsing.removeIf(this::isStaleGuiUser);
+        return playersUsing.isEmpty() || playersUsing.contains(player);
+    }
+
+    private boolean isStaleGuiUser(EntityPlayer player) {
+        if (player == null || player.isDead || player.world != world || !(player.openContainer instanceof MekanismTileContainer)) {
+            return true;
+        }
+        MekanismTileContainer<?> container = (MekanismTileContainer<?>) player.openContainer;
+        return container.getTileEntity() != this;
     }
 
     @Override

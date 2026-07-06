@@ -57,8 +57,8 @@ public class TileEntityDimensionalStabilizer extends TileEntityMachine implement
 
     public TileEntityDimensionalStabilizer() {
         super("null", BlockStateMachine.MachineType.DIMENSIONAL_STABILIZER, 1);
-        upgradeComponent.removeSupported(Upgrade.SPEED);
-        upgradeComponent.removeSupported(Upgrade.MUFFLING);
+        removeSupportedUpgrade(Upgrade.SPEED);
+        removeSupportedUpgrade(Upgrade.MUFFLING);
         initializeInventorySlots();
         loadingChunks[MAX_LOAD_RADIUS][MAX_LOAD_RADIUS] = true;
         chunkLoaderComponent = new TileComponentChunkLoader(this) {

@@ -3,7 +3,6 @@ package mekanism.common.inventory.slot;
 import mekanism.api.AutomationType;
 import mekanism.api.IContentsListener;
 import mekanism.common.Upgrade;
-import mekanism.common.base.IUpgradeItem;
 import mekanism.common.base.IUpgradeTile;
 import mekanism.common.inventory.container.SelectedWindowData;
 import mekanism.common.inventory.container.SelectedWindowData.WindowType;
@@ -21,7 +20,7 @@ public class UpgradeInventorySlot extends BasicInventorySlot {
 
     public static UpgradeInventorySlot input(IUpgradeTile tile, @Nullable IContentsListener listener, int x, int y) {
         Objects.requireNonNull(tile, "Upgrade tile cannot be null");
-        return input(tile.getComponent().getSupportedTypes(), listener);
+        return input(tile.getSupportedUpgradeTypes(), listener);
     }
 
     public static UpgradeInventorySlot input(@Nullable IContentsListener listener, Set<Upgrade> supportedTypes) {
@@ -50,19 +49,16 @@ public class UpgradeInventorySlot extends BasicInventorySlot {
     }
 
     public static UpgradeInventorySlot any(@Nullable IContentsListener listener) {
-        return new UpgradeInventorySlot(listener, (stack, automationType) -> stack.getItem() instanceof IUpgradeItem);
+        return new UpgradeInventorySlot(listener, (stack, automationType) -> Upgrade.isUpgrade(stack));
     }
 
     private static boolean isSupportedUpgrade(ItemStack stack, Set<Upgrade> supportedTypes) {
-        if (stack.getItem() instanceof IUpgradeItem upgradeItem) {
-            Upgrade upgradeType = upgradeItem.getUpgradeType(stack);
-            return supportedTypes.contains(upgradeType);
-        }
-        return false;
+        Upgrade upgradeType = Upgrade.byStack(stack);
+        return upgradeType != null && supportedTypes.contains(upgradeType);
     }
 
     private UpgradeInventorySlot(@Nullable IContentsListener listener, BiPredicate<ItemStack, AutomationType> canInsert) {
-        super(manualOnly, canInsert, stack -> stack.getItem() instanceof IUpgradeItem, listener, 0, 0);
+        super(manualOnly, canInsert, Upgrade::isUpgrade, listener, 0, 0);
         setSlotOverlay(SlotOverlay.UPGRADE);
     }
 

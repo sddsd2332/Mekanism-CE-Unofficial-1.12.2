@@ -297,8 +297,12 @@ public class SoundHandler {
             // percentage of the original volume should be muted
             TileEntity te = mc.world.getTileEntity(new BlockPos(original.getXPosF(), original.getYPosF(), original.getZPosF()));
             if (te instanceof IUpgradeTile tile && tile.supportsUpgrade(Upgrade.MUFFLING)) {
-                int mufflerCount = tile.getComponent().getUpgrades(Upgrade.MUFFLING);
-                return 1.0f - (mufflerCount / (float) Upgrade.MUFFLING.getMaxInstalled());
+                int maxInstalled = Upgrade.MUFFLING.getMaxInstalled();
+                if (maxInstalled <= 0) {
+                    return 1.0f;
+                }
+                int mufflerCount = tile.getInstalledUpgrades(Upgrade.MUFFLING);
+                return 1.0f - (mufflerCount / (float) maxInstalled);
             }
             return 1.0f;
         }

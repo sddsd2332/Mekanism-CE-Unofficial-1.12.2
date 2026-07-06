@@ -62,6 +62,7 @@ public abstract class GuiMekanism<CONTAINER extends Container> extends VirtualSl
     //TODO: Look into defaulting this to true
     protected boolean dynamicSlots;
     protected final LRU<GuiWindow> windows = new LRU<>();
+    private final List<GuiWindow> queuedWindowCloses = new ArrayList<>();
     protected final List<GuiElement> focusListeners = new ArrayList<>();
     protected final List<Widget> buttons = new ArrayList<>();
     public boolean switchingToJEI;
@@ -198,6 +199,26 @@ public abstract class GuiMekanism<CONTAINER extends Container> extends VirtualSl
         super.updateScreen();
         buttons.stream().filter(child -> child instanceof GuiElement).map(child -> (GuiElement) child).forEach(GuiElement::tick);
         windows.forEach(GuiElement::tick);
+        closeQueuedWindows();
+    }
+
+    public void queueWindowClose(GuiWindow window) {
+        if (window != null && windows.contains(window) && !queuedWindowCloses.contains(window)) {
+            queuedWindowCloses.add(window);
+        }
+    }
+
+    private void closeQueuedWindows() {
+        if (queuedWindowCloses.isEmpty()) {
+            return;
+        }
+        List<GuiWindow> toClose = new ArrayList<>(queuedWindowCloses);
+        queuedWindowCloses.clear();
+        for (GuiWindow window : toClose) {
+            if (windows.contains(window)) {
+                window.close();
+            }
+        }
     }
 
     protected IHoverable getOnHover(ILangEntry translationHelper) {
@@ -230,7 +251,7 @@ public abstract class GuiMekanism<CONTAINER extends Container> extends VirtualSl
 
     @Override
     public void focusChange(GuiElement changed) {
-        focusListeners.stream().filter(e -> e != changed).forEach(e -> e.setFocused(false));
+        focusListeners.stream().filter(e -> e != changed && !changed.containsElement(child -> child == e)).forEach(e -> e.setFocused(false));
     }
 
     @Override
@@ -385,10 +406,13 @@ public abstract class GuiMekanism<CONTAINER extends Container> extends VirtualSl
             // ensure that there is no clipping
             zOffset = maxZOffset + 150;
             GlStateManager.pushMatrix();
+            MekanismRenderer.resetGuiRenderState();
             overlay.onRenderForeground(mouseX, mouseY, zOffset, zOffset);
+            MekanismRenderer.resetGuiRenderState();
             if (iter.hasNext()) {
                 // if this isn't the focused window, render a 'blur' effect over it
                 overlay.renderBlur();
+                MekanismRenderer.resetGuiRenderState();
             }
             GlStateManager.popMatrix();
         }

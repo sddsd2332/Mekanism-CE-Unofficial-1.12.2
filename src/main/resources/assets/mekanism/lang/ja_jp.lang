@@ -594,6 +594,7 @@ gui.upgrades.noSelection=未選択
 gui.upgrades.amount=数
 gui.upgrades.max=最大
 gui.upgrades.effect=効果
+gui.mekanism.upgrades.effect=効果: %1$sx
 
 gui.chemicalInfuser.short=化学混成機
 gui.chemicalDissolutionChamber.short=化学溶解機

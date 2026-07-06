@@ -1,6 +1,7 @@
 package mekanism.generators.common;
 
 import mekanism.common.Mekanism;
+import mekanism.common.CommonProxy;
 import mekanism.common.base.IGuiProvider;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.inventory.container.ContainerNull;
@@ -104,6 +105,9 @@ public class GeneratorsCommonProxy implements IGuiProvider {
     @Override
     public Container getServerGui(int ID, EntityPlayer player, World world, BlockPos pos) {
         TileEntity tileEntity = world.getTileEntity(pos);
+        if (!CommonProxy.canOpenServerGui(player, tileEntity)) {
+            return null;
+        }
         return switch (ID) {
             case 0 -> new ContainerHeatGenerator(player.inventory, (TileEntityHeatGenerator) tileEntity);
             case 1 -> new ContainerSolarGenerator(player.inventory, (TileEntitySolarGenerator) tileEntity);

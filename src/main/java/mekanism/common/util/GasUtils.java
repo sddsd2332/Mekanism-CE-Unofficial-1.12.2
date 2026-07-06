@@ -26,23 +26,23 @@ public final class GasUtils {
     }
 
     /**
-     * Removes a specified amount of gas from an IGasItem.
+     * Removes a specified amount of gas from a gas container item.
      *
-     * @param itemStack - ItemStack of the IGasItem
-     * @param type      - type of gas to remove from the IGasItem, null if it doesn't matter
+     * @param itemStack - ItemStack of the gas container
+     * @param type      - type of gas to remove from the container, null if it doesn't matter
      * @param amount    - amount of gas to remove from the ItemStack
-     * @return the GasStack removed by the IGasItem
+     * @return the GasStack removed by the container
      */
     public static GasStack removeGas(ItemStack itemStack, Gas type, int amount) {
         return GasInventorySlot.useGas(itemStack, type, amount);
     }
 
     /**
-     * Adds a specified amount of gas to an IGasItem.
+     * Adds a specified amount of gas to a gas container item.
      *
-     * @param itemStack - ItemStack of the IGasItem
-     * @param stack     - stack to add to the IGasItem
-     * @return amount of gas accepted by the IGasItem
+     * @param itemStack - ItemStack of the gas container
+     * @param stack     - stack to add to the container
+     * @return amount of gas accepted by the container
      */
     public static int addGas(ItemStack itemStack, GasStack stack) {
         return GasInventorySlot.insertGas(itemStack, stack, true);

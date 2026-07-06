@@ -1,0 +1,3 @@
+item.ThreadUpgrade.name=Gewinde-Upgrade
+upgrade.thread=Zusätzliche Threads
+upgrade.thread.desc=Parallele Verarbeitung bestehender Arbeitsrezepte für Maschinen

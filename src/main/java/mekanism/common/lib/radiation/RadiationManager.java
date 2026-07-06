@@ -512,7 +512,11 @@ public class RadiationManager implements IRadiationManager {
                         int dimension = Integer.parseInt(dim);
                         //It should be a valid dimension, but validate it just in case
                         NBTTagList meltdowns = meltdownNBT.getTagList(dim, Constants.NBT.TAG_COMPOUND);
-                        savedMeltdowns.put(dimension, meltdowns.tagList.stream().map(nbt -> Meltdown.load((NBTTagCompound) nbt)).collect(Collectors.toList()));
+                        List<Meltdown> dimensionMeltdowns = new ArrayList<>(meltdowns.tagCount());
+                        for (int i = 0; i < meltdowns.tagCount(); i++) {
+                            dimensionMeltdowns.add(Meltdown.load(meltdowns.getCompoundTagAt(i)));
+                        }
+                        savedMeltdowns.put(dimension, dimensionMeltdowns);
                     }
                 }
             } else {

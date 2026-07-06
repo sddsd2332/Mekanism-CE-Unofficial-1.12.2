@@ -331,7 +331,7 @@ public class ItemBlockMachine extends ItemBlock implements ILegacyEnergizedItem,
 
             if (tileEntity instanceof IUpgradeTile upgradeTile) {
                 if (Upgrade.hasUpgradeData(ItemDataUtils.getDataMapIfPresent(stack))) {
-                    upgradeTile.getComponent().read(ItemDataUtils.getDataMap(stack));
+                    upgradeTile.readUpgrades(ItemDataUtils.getDataMap(stack));
                 }
             }
 

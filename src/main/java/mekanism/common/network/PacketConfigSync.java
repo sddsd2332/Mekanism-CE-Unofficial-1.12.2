@@ -37,6 +37,7 @@ public class PacketConfigSync implements IMessageHandler<ConfigSyncMessage, IMes
         @Override
         public void toBytes(ByteBuf dataStream) {
             config.general.write(dataStream);
+            config.mekce.write(dataStream);
             config.usage.write(dataStream);
             config.storage.write(dataStream);
             try {
@@ -49,6 +50,7 @@ public class PacketConfigSync implements IMessageHandler<ConfigSyncMessage, IMes
         @Override
         public void fromBytes(ByteBuf dataStream) {
             config.general.read(dataStream);
+            config.mekce.read(dataStream);
             config.usage.read(dataStream);
             config.storage.read(dataStream);
             try {

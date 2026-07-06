@@ -33,6 +33,7 @@ import mekanism.common.tile.prefab.TileEntityBasicMachine;
 import mekanism.common.util.*;
 import mekanism.multiblockmachine.client.render.block.machine.bloom.BloomRenderLargeChemicalInfuser;
 import mekanism.multiblockmachine.common.MekanismMultiblockMachine;
+import mekanism.multiblockmachine.common.MultiblockMachineUpgrades;
 import net.minecraft.block.Block;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -84,7 +85,7 @@ public class TileEntityLargeChemicalInfuser extends TileEntityBasicMachine<Chemi
         super("cheminfuser", MachineType.CHEMICAL_INFUSER, 4, 1, TRACKED_ERROR_TYPES);
         fullName = "LargeChemicalInfuser";
         initializeInventorySlots();
-        upgradeComponent.setSupported(Upgrade.THREAD);
+        upgradeComponent.setSupported(MultiblockMachineUpgrades.THREAD);
     }
 
     @Override
@@ -204,8 +205,8 @@ public class TileEntityLargeChemicalInfuser extends TileEntityBasicMachine<Chemi
 
     public int getThread() {
         int thread = 1;
-        if (upgradeComponent.isUpgradeInstalled(Upgrade.THREAD)) {
-            thread += upgradeComponent.getUpgrades(Upgrade.THREAD);
+        if (upgradeComponent.isUpgradeInstalled(MultiblockMachineUpgrades.THREAD)) {
+            thread += upgradeComponent.getUpgrades(MultiblockMachineUpgrades.THREAD);
         }
         return thread;
     }

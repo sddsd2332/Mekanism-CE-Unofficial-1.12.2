@@ -15,7 +15,6 @@ item.MufflingUpgrade.name=Schalldämpfer-Upgrade
 item.GasUpgrade.name=Gas-Upgrade
 item.AnchorUpgrade.name=Anker-Upgrade
 item.StoneGeneratorUpgrade.name=Steingenerator-Upgrade
-item.ThreadUpgrade.name=Gewinde-Upgrade
 item.Robit.name=Robit
 item.AtomicDisassembler.name=Atomarer Disassembler
 item.ElectricBow.name=Elektrischer Bogen
@@ -515,8 +514,6 @@ upgrade.anchor=Anker
 upgrade.anchor.desc=Hält eine Maschine Chunk geladen.
 upgrade.stonegenerator=Steingenerator
 upgrade.stonegenerator.desc=Erzeugt Stein oder Pflasterstein, wenn er benötigt wird
-upgrade.thread=Zusätzliche Threads
-upgrade.thread.desc=Parallele Verarbeitung bestehender Arbeitsrezepte für Maschinen
 
 # Key description text
 mekanism.key.mode=Item Modus wechsel
@@ -720,6 +717,7 @@ gui.upgrades.noSelection=Keine Auswahl
 gui.upgrades.amount=Menge
 ggui.upgrades.max=Max
 gui.upgrades.effect=Effekt
+gui.mekanism.upgrades.effect=Effekt: %1$sx
 gui.upgrades.unistall=Deinstallieren
 gui.upgrades.uninstall=Deinstalliert ein einzelnes Upgrade, Shift gedrückt halten, um alle zu deinstallieren
 

@@ -37,6 +37,7 @@ import mekanism.common.tile.prefab.TileEntityContainerBlock;
 import mekanism.common.util.*;
 import mekanism.multiblockmachine.client.render.block.machine.bloom.BloomRenderLargeSolarNeutronActivator;
 import mekanism.multiblockmachine.common.MekanismMultiblockMachine;
+import mekanism.multiblockmachine.common.MultiblockMachineUpgrades;
 import net.minecraft.block.Block;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -101,7 +102,7 @@ public class TileEntityLargeSolarNeutronActivator extends TileEntityContainerBlo
         ticksRequired = BASE_TICKS_REQUIRED = baseTicksRequired;
         upgradeComponent = new TileComponentUpgrade(this);
         upgradeComponent.setSupported(Upgrade.ENERGY, false);
-        upgradeComponent.setSupported(Upgrade.THREAD);
+        upgradeComponent.setSupported(MultiblockMachineUpgrades.THREAD);
         initializeInventorySlots();
     }
 
@@ -236,8 +237,8 @@ public class TileEntityLargeSolarNeutronActivator extends TileEntityContainerBlo
 
     public int getThread() {
         int thread = 1;
-        if (upgradeComponent.isUpgradeInstalled(Upgrade.THREAD)) {
-            thread += upgradeComponent.getUpgrades(Upgrade.THREAD);
+        if (upgradeComponent.isUpgradeInstalled(MultiblockMachineUpgrades.THREAD)) {
+            thread += upgradeComponent.getUpgrades(MultiblockMachineUpgrades.THREAD);
         }
         return thread;
     }

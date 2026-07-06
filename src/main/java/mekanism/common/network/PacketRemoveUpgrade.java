@@ -7,7 +7,6 @@ import mekanism.common.Upgrade;
 import mekanism.common.base.IUpgradeTile;
 import mekanism.common.network.PacketRemoveUpgrade.RemoveUpgradeMessage;
 import mekanism.common.tile.prefab.TileEntityBasicBlock;
-import mekanism.common.util.MekanismUtils;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
@@ -28,12 +27,12 @@ public class PacketRemoveUpgrade implements IMessageHandler<RemoveUpgradeMessage
                 return;
             }
             if (tileEntity instanceof IUpgradeTile upgradeTile && tileEntity instanceof TileEntityBasicBlock) {
-                Upgrade upgrade = MekanismUtils.getByIndex(Upgrade.values(), message.upgradeType, null);
+                Upgrade upgrade = Upgrade.byName(message.upgradeType);
                 if (upgrade == null) {
                     return;
                 }
-                if (upgradeTile.getComponent().getUpgrades(upgrade) > 0) {
-                    upgradeTile.getComponent().removeUpgrade(upgrade, message.removeAll == 1);
+                if (upgradeTile.isUpgradeInstalled(upgrade)) {
+                    upgradeTile.removeInstalledUpgrade(upgrade, message.removeAll);
                 }
             }
         }, player);
@@ -43,30 +42,30 @@ public class PacketRemoveUpgrade implements IMessageHandler<RemoveUpgradeMessage
 
     public static class RemoveUpgradeMessage implements IMessage {
         public Coord4D coord4D;
-        public int upgradeType;
-        public int removeAll;
+        public String upgradeType;
+        public boolean removeAll;
 
         public RemoveUpgradeMessage() {
         }
 
-        public RemoveUpgradeMessage(Coord4D coord, int type, int remove) {
+        public RemoveUpgradeMessage(Coord4D coord, Upgrade type, boolean remove) {
             coord4D = coord;
-            upgradeType = type;
+            upgradeType = type.getRegistryNameString();
             removeAll = remove;
         }
 
         @Override
         public void toBytes(ByteBuf dataStream) {
             coord4D.write(dataStream);
-            dataStream.writeInt(upgradeType);
-            dataStream.writeInt(removeAll);
+            PacketHandler.writeString(dataStream, upgradeType);
+            dataStream.writeBoolean(removeAll);
         }
 
         @Override
         public void fromBytes(ByteBuf dataStream) {
             coord4D = Coord4D.read(dataStream);
-            upgradeType = dataStream.readInt();
-            removeAll = dataStream.readInt();
+            upgradeType = PacketHandler.readString(dataStream);
+            removeAll = dataStream.readBoolean();
         }
     }
 }

@@ -24,7 +24,6 @@ public class GuiSupportedUpgrades extends GuiElement {
     private static final int PADDED_ELEMENT_WIDTH = ELEMENT_WIDTH - 2;
     private static final int ELEMENT_SIZE = 12;
     private static final int ROW_ROOM = PADDED_ELEMENT_WIDTH / ELEMENT_SIZE;
-    private static final List<Upgrade> UPGRADES = Arrays.asList(Upgrade.values());
 
     private static int getFirstRowStart(IGuiWrapper gui) {
         return Math.min(gui.getFont().getStringWidth(SUPPORTED.getFormattedText()) + 1, PADDED_ELEMENT_WIDTH);
@@ -39,7 +38,7 @@ public class GuiSupportedUpgrades extends GuiElement {
     private final int firstRowStart;
 
     public static int calculateNeededRows(IGuiWrapper gui) {
-        int count = UPGRADES.size();
+        int count = upgrades().size();
         int firstRowRoom = getFirstRowRoom(getFirstRowStart(gui));
         if (count <= firstRowRoom) {
             return 1;
@@ -61,8 +60,9 @@ public class GuiSupportedUpgrades extends GuiElement {
         super.drawBackground(mouseX, mouseY, partialTicks);
         renderBackgroundTexture(GuiElementHolder.HOLDER, GuiElementHolder.HOLDER_SIZE, GuiElementHolder.HOLDER_SIZE);
         int backgroundColor = (GuiElementHolder.getBackgroundColor() & 0x00FFFFFF) | 0x80000000;
-        for (int i = 0; i < UPGRADES.size(); i++) {
-            Upgrade upgrade = UPGRADES.get(i);
+        List<Upgrade> upgrades = upgrades();
+        for (int i = 0; i < upgrades.size(); i++) {
+            Upgrade upgrade = upgrades.get(i);
             UpgradePos pos = getUpgradePos(i);
             int xPos = relativeX + 1 + pos.x;
             int yPos = relativeY + 1 + pos.y;
@@ -98,13 +98,14 @@ public class GuiSupportedUpgrades extends GuiElement {
     @Override
     public void renderToolTip(int mouseX, int mouseY) {
         super.renderToolTip(mouseX, mouseY);
-        for (int i = 0; i < UPGRADES.size(); i++) {
+        List<Upgrade> upgrades = upgrades();
+        for (int i = 0; i < upgrades.size(); i++) {
             UpgradePos pos = getUpgradePos(i);
             int xPos = x + 1 + pos.x;
             int yPos = y + 1 + pos.y;
             if (mouseX >= xPos && mouseX < xPos + ELEMENT_SIZE &&
                 mouseY >= yPos && mouseY < yPos + ELEMENT_SIZE) {
-                Upgrade upgrade = UPGRADES.get(i);
+                Upgrade upgrade = upgrades.get(i);
                 if (supportedUpgrades.contains(upgrade)) {
                     displayTooltips(Arrays.asList(upgrade.getName(), upgrade.getDescription()), mouseX, mouseY);
                 } else {
@@ -122,6 +123,10 @@ public class GuiSupportedUpgrades extends GuiElement {
         }
         index -= firstRowRoom;
         return new UpgradePos((index % ROW_ROOM) * ELEMENT_SIZE, row * ELEMENT_SIZE);
+    }
+
+    private static List<Upgrade> upgrades() {
+        return Upgrade.getRegisteredUpgrades();
     }
 
     private static class UpgradePos {

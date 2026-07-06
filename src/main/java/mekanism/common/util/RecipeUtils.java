@@ -19,7 +19,7 @@ import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.capability.IFluidHandlerItem;
 import net.minecraftforge.oredict.OreDictionary;
 
-import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class RecipeUtils {
@@ -169,7 +169,7 @@ public class RecipeUtils {
         }
 
         if (MachineType.get(toReturn) != null && MachineType.get(toReturn).supportsUpgrades) {
-            Map<Upgrade, Integer> upgrades = new EnumMap<>(Upgrade.class);
+            Map<Upgrade, Integer> upgrades = new LinkedHashMap<>();
             for (int i = 0; i < invLength; i++) {
                 ItemStack itemstack = inv.getStackInSlot(i);
                 if (!itemstack.isEmpty() && MachineType.get(itemstack) != null && MachineType.get(itemstack).supportsUpgrades) {
@@ -180,7 +180,7 @@ public class RecipeUtils {
                     });
                 }
             }
-            if (Upgrade.hasUpgradeData(ItemDataUtils.getDataMapIfPresent(toReturn))) {
+            if (!upgrades.isEmpty() || Upgrade.hasUpgradeData(ItemDataUtils.getDataMapIfPresent(toReturn))) {
                 Upgrade.saveComponentMap(upgrades, ItemDataUtils.getDataMap(toReturn));
             }
         }

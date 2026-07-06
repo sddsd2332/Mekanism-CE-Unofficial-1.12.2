@@ -1,6 +1,7 @@
 package mekanism.common.item;
 
 import mekanism.api.EnumColor;
+import mekanism.api.Action;
 import mekanism.common.Upgrade;
 import mekanism.common.base.IUpgradeItem;
 import mekanism.common.base.IUpgradeTile;
@@ -24,16 +25,22 @@ import org.lwjgl.input.Keyboard;
 
 import javax.annotation.Nonnull;
 import java.util.List;
+import java.util.Objects;
 
 public class ItemUpgrade extends ItemMekanism implements IUpgradeItem {
 
-    private Upgrade upgrade;
+    private final Upgrade upgrade;
 
     public ItemUpgrade(Upgrade type) {
         super();
-        upgrade = type;
+        upgrade = Objects.requireNonNull(type, "Upgrade type cannot be null");
         setMaxStackSize(type.getMaxItemStackSize());
         setRarity(EnumRarity.UNCOMMON);
+    }
+
+    @Override
+    public int getItemStackLimit(ItemStack stack) {
+        return upgrade.getMaxItemStackSize();
     }
 
     @Override
@@ -70,11 +77,8 @@ public class ItemUpgrade extends ItemMekanism implements IUpgradeItem {
             if (tile instanceof IUpgradeTile upgradeTile && upgradeTile.supportsUpgrades()) {
                 if (upgradeTile.supportsUpgrade(type)) {
                     TileComponentUpgrade component = upgradeTile.getComponent();
-                    if (!world.isRemote && component.getUpgrades(type) < type.getMaxInstalled()) {
-                        int added = component.addUpgrades(type, stack.getCount());
-                        if (added > 0) {
-                            stack.shrink(added);
-                        }
+                    if (!world.isRemote) {
+                        component.installUpgrade(stack, Action.EXECUTE);
                     }
                 }
                 return EnumActionResult.SUCCESS;

@@ -88,7 +88,7 @@ public class TileComponentChunkLoader implements ITileComponent {
     }
 
     public boolean canOperate() {
-        return MekanismConfig.current().general.allowChunkloading.val() && ((IUpgradeTile) tileEntity).getComponent().getInstalledTypes().contains(Upgrade.ANCHOR);
+        return MekanismConfig.current().general.allowChunkloading.val() && ((IUpgradeTile) tileEntity).isUpgradeInstalled(Upgrade.ANCHOR);
     }
 
     @Override

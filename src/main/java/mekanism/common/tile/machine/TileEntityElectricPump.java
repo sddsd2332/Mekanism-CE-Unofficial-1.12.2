@@ -101,7 +101,7 @@ public class TileEntityElectricPump extends TileEntityElectricBlock implements I
     public TileEntityElectricPump() {
         super("ElectricPump", MachineType.ELECTRIC_PUMP.getStorage());
         initializeInventorySlots();
-        upgradeComponent.setSupported(Upgrade.FILTER);
+        setSupportedUpgrade(Upgrade.FILTER);
     }
 
     @Override
@@ -160,7 +160,7 @@ public class TileEntityElectricPump extends TileEntityElectricBlock implements I
 
         if (fluidTank.getFluid() != null) {
             FluidUtils.emit(Collections.singleton(EnumFacing.UP), fluidTank, this,
-                  Math.min(256 * (upgradeComponent.getUpgrades(Upgrade.SPEED) + 1), fluidTank.getFluidAmount()));
+                  Math.min(256 * (getInstalledUpgrades(Upgrade.SPEED) + 1), fluidTank.getFluidAmount()));
         }
         int newRedstoneLevel = getRedstoneLevel();
         if (newRedstoneLevel != currentRedstoneLevel) {
@@ -176,7 +176,7 @@ public class TileEntityElectricPump extends TileEntityElectricBlock implements I
     }
 
     public boolean hasFilter() {
-        return upgradeComponent.getInstalledTypes().contains(Upgrade.FILTER);
+        return isUpgradeInstalled(Upgrade.FILTER);
     }
 
     private boolean suck() {
@@ -440,15 +440,13 @@ public class TileEntityElectricPump extends TileEntityElectricBlock implements I
     @Override
     public void recalculateUpgradables(Upgrade upgrade) {
         super.recalculateUpgradables(upgrade);
-        switch (upgrade) {
-            case SPEED:
-                ticksRequired = MekanismUtils.getTicks(this, BASE_TICKS_REQUIRED);
-            case ENERGY:
-                energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK);
-                maxEnergy = MekanismUtils.getMaxEnergy(this, BASE_MAX_ENERGY);
-                setEnergy(Math.min(getMaxEnergy(), getEnergy()));
-            default:
-                break;
+        if (upgrade == Upgrade.SPEED) {
+            ticksRequired = MekanismUtils.getTicks(this, BASE_TICKS_REQUIRED);
+        }
+        if (upgrade == Upgrade.SPEED || upgrade == Upgrade.ENERGY) {
+            energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK);
+            maxEnergy = MekanismUtils.getMaxEnergy(this, BASE_MAX_ENERGY);
+            setEnergy(Math.min(getMaxEnergy(), getEnergy()));
         }
     }
 

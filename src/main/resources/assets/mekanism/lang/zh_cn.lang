@@ -38,7 +38,6 @@ item.MufflingUpgrade.name=降噪升级
 item.GasUpgrade.name=气体升级
 item.AnchorUpgrade.name=锚升级
 item.StoneGeneratorUpgrade.name=造石机升级
-item.ThreadUpgrade.name=堆叠升级
 item.Robit.name=机器人
 item.AtomicDisassembler.name=原子分解机
 item.ElectricBow.name=电动弓

@@ -20,13 +20,13 @@ public class TileEntityCombiner extends TileEntityDoubleElectricMachine<Combiner
 
     public TileEntityCombiner() {
         super("combiner", MachineType.COMBINER, 200);
-        upgradeComponent.setSupported(Upgrade.STONE_GENERATOR);
+        setSupportedUpgrade(Upgrade.STONE_GENERATOR);
     }
 
     @Override
     public void onAsyncUpdateServer() {
         super.onAsyncUpdateServer();
-        if (upgradeComponent.isUpgradeInstalled(Upgrade.STONE_GENERATOR) && extraSlot.isEmpty()) {
+        if (isUpgradeInstalled(Upgrade.STONE_GENERATOR) && extraSlot.isEmpty()) {
             generateSecondaryInput();
         }
     }

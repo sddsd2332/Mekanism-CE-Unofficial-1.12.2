@@ -119,7 +119,7 @@ public abstract class ItemBlockLargeBase extends ItemBlock implements IItemSusta
                 }
                 if (tileEntity instanceof IUpgradeTile upgradeTile) {
                     if (Upgrade.hasUpgradeData(ItemDataUtils.getDataMapIfPresent(stack))) {
-                        upgradeTile.getComponent().read(ItemDataUtils.getDataMap(stack));
+                        upgradeTile.readUpgrades(ItemDataUtils.getDataMap(stack));
                     }
                 }
                 if (tileEntity instanceof ISideConfiguration config) {

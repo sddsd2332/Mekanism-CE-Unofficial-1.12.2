@@ -382,6 +382,7 @@ gui.upgrades.noSelection=Ingen valgt
 gui.upgrades.amount=Mengde
 gui.upgrades.max=Maks
 gui.upgrades.effect=Effekt
+gui.mekanism.upgrades.effect=Effekt: %1$sx
 
 gui.chemicalInfuser.short=C. Infuser
 gui.chemicalDissolutionChamber.short=C. Oppløsnings Kammer
