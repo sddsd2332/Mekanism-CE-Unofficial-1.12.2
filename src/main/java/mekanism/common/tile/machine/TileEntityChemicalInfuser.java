@@ -359,12 +359,6 @@ public class TileEntityChemicalInfuser extends TileEntityBasicMachine<ChemicalPa
         super.writeCustomNBT(nbtTags);
     }
 
-
-    @Override
-    public void onRecipeCacheInvalidated(int cacheIndex) {
-        super.onRecipeCacheInvalidated(cacheIndex);
-    }
-
     @Override
     public void writeSustainedData(ItemStack itemStack) {
         writeSustainedGasTanks(itemStack);

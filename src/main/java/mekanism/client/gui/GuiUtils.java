@@ -32,6 +32,7 @@ import java.util.function.Predicate;
 public class GuiUtils {
 
     public static final float GUI_ITEM_Z = 100;
+    public static final float GUI_ELEMENT_ITEM_Z = -100;
 
     public static void renderExtendedTexture(ResourceLocation resource, int sideWidth, int sideHeight, int left, int top, int width, int height) {
         int textureWidth = 2 * sideWidth + 1;
@@ -484,6 +485,16 @@ public class GuiUtils {
     }
 
     public static void renderItem(RenderItem renderer, @Nonnull ItemStack stack, int xAxis, int yAxis, float scale, FontRenderer font, @Nullable String text, boolean overlay) {
+        renderItem(renderer, stack, xAxis, yAxis, scale, font, text, overlay, GUI_ITEM_Z);
+    }
+
+    public static void renderGuiElementItem(RenderItem renderer, @Nonnull ItemStack stack, int xAxis, int yAxis, float scale, FontRenderer font,
+          @Nullable String text, boolean overlay) {
+        renderItem(renderer, stack, xAxis, yAxis, scale, font, text, overlay, GUI_ELEMENT_ITEM_Z);
+    }
+
+    private static void renderItem(RenderItem renderer, @Nonnull ItemStack stack, int xAxis, int yAxis, float scale, FontRenderer font, @Nullable String text,
+          boolean overlay, float itemZLevel) {
         if (!stack.isEmpty()) {
             float previousZLevel = renderer.zLevel;
             try {
@@ -491,7 +502,7 @@ public class GuiUtils {
                 RenderHelper.enableGUIStandardItemLighting();
                 GlStateManager.enableDepth();
                 GlStateManager.depthMask(true);
-                renderer.zLevel = GUI_ITEM_Z;
+                renderer.zLevel = itemZLevel;
                 if (scale != 1) {
                     //Translate before scaling, and then set xAxis and yAxis to zero so that we don't translate a second time
                     GlStateManager.translate(xAxis, yAxis, 0);
@@ -514,7 +525,6 @@ public class GuiUtils {
                 GlStateManager.popMatrix();
             }
         }
-
     }
 
     public static void resetGuiItemRenderState() {

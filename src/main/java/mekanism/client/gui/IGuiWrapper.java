@@ -122,7 +122,7 @@ public interface IGuiWrapper {
     }
 
     default void renderItem(@Nonnull ItemStack stack, int xAxis, int yAxis, float scale) {
-        GuiUtils.renderItem(getItemRenderer(), stack, xAxis, yAxis, scale, getFont(), null, false);
+        GuiUtils.renderGuiElementItem(getItemRenderer(), stack, xAxis, yAxis, scale, getFont(), null, false);
     }
 
     RenderItem getItemRenderer();
@@ -140,7 +140,7 @@ public interface IGuiWrapper {
     }
 
     default void renderItemWithOverlay(@Nonnull ItemStack stack, int xAxis, int yAxis, float scale, @Nullable String text) {
-        GuiUtils.renderItem(getItemRenderer(), stack, xAxis, yAxis, scale, getFont(), text, true);
+        GuiUtils.renderGuiElementItem(getItemRenderer(), stack, xAxis, yAxis, scale, getFont(), text, true);
     }
 
     default void setSelectedWindow(SelectedWindowData selectedWindow) {

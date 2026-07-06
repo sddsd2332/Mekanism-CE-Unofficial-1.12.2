@@ -310,18 +310,6 @@ public class TileEntityChemicalDissolutionChamber extends TileEntityBasicMachine
         nbtTags.setLong(NBTConstants.USED_SO_FAR, usedSoFar);
     }
 
-
-
-    @Override
-    public void onRecipeCacheInvalidated(int cacheIndex) {
-        super.onRecipeCacheInvalidated(cacheIndex);
-    }
-
-    private int getAEGasUsagePerOperation() {
-        return Math.max(1, MathUtils.clampToInt(baseTotalUsage));
-    }
-
-
     private boolean isValidGas(Gas gas) {
         //TODO: Replace with commented version once this becomes an AdvancedMachine
         return gas == MekanismFluids.SulfuricAcid;//Recipe.CHEMICAL_DISSOLUTION_CHAMBER.containsRecipe(gas);
