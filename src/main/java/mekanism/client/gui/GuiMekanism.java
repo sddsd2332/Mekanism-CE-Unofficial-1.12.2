@@ -481,14 +481,9 @@ public abstract class GuiMekanism<CONTAINER extends Container> extends VirtualSl
         GuiWindow focused = windows.stream().filter(overlay -> overlay.mouseClicked(mouseX, mouseY, button)).findFirst().orElse(null);
         if (focused != null) {
             if (windows.contains(focused)) {
-                setFocused(focused);
+                focusWindow(focused, top);
                 if (button == 0) {
                     setDragging(true);
-                }
-                if (top != null && top != focused) {
-                    top.onFocusLost();
-                    windows.moveUp(focused);
-                    focused.onFocused();
                 }
             }
             return;
@@ -548,8 +543,18 @@ public abstract class GuiMekanism<CONTAINER extends Container> extends VirtualSl
         if (delta != 0) {
             int mouseX = Mouse.getEventX() * width / mc.displayWidth;
             int mouseY = height - Mouse.getEventY() * height / mc.displayHeight - 1;
-            if (!windows.isEmpty()) {
-                GuiWindow top = windows.iterator().next();
+            GuiWindow top = windows.isEmpty() ? null : windows.iterator().next();
+            GuiWindow hovered = getWindowHovering(mouseX, mouseY);
+            if (hovered != null) {
+                boolean windowScroll = hovered.mouseScrolled(mouseX, mouseY, delta);
+                if (windowScroll) {
+                    focusWindow(hovered, top);
+                    return;
+                } else if (!hovered.getInteractionStrategy().allowAll()) {
+                    return;
+                }
+            }
+            if (top != null && top != hovered) {
                 boolean windowScroll = top.mouseScrolled(mouseX, mouseY, delta);
                 if (windowScroll || !top.getInteractionStrategy().allowAll()) {
                     return;
@@ -561,6 +566,15 @@ public abstract class GuiMekanism<CONTAINER extends Container> extends VirtualSl
                     break;
                 }
             }
+        }
+    }
+
+    private void focusWindow(GuiWindow focused, @Nullable GuiWindow top) {
+        setFocused(focused);
+        if (top != null && top != focused) {
+            top.onFocusLost();
+            windows.moveUp(focused);
+            focused.onFocused();
         }
     }
 

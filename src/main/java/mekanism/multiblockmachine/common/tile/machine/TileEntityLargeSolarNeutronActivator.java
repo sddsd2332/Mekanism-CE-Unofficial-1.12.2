@@ -231,8 +231,7 @@ public class TileEntityLargeSolarNeutronActivator extends TileEntityContainerBlo
         int possibleProcess = Math.min((int) Math.pow(2, upgradeComponent.getUpgrades(Upgrade.SPEED)), MekanismConfig.current().mekce.MAXspeedmachines.val());
         possibleProcess *= processes;
         possibleProcess *= getThread();
-        possibleProcess = Math.min(Math.min(inputTank.getStored(), outputTank.getNeeded()), possibleProcess);
-        return Math.min(inputTank.getStored() / recipe.recipeInput.ingredient.amount, possibleProcess);
+        return Math.max(possibleProcess, 1);
     }
 
     public int getThread() {

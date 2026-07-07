@@ -195,9 +195,7 @@ public class TileEntitySolarNeutronActivator extends TileEntityContainerBlock im
     }
 
     public int getUpgradedUsage(SolarNeutronRecipe recipe) {
-        int possibleProcess = Math.min((int) Math.pow(2, upgradeComponent.getUpgrades(Upgrade.SPEED)), MekanismConfig.current().mekce.MAXspeedmachines.val());
-        possibleProcess = Math.min(Math.min(inputTank.getStored(), outputTank.getNeeded()), possibleProcess);
-        return Math.min(inputTank.getStored() / recipe.recipeInput.ingredient.amount, possibleProcess);
+        return Math.max(1, Math.min((int) Math.pow(2, upgradeComponent.getUpgrades(Upgrade.SPEED)), MekanismConfig.current().mekce.MAXspeedmachines.val()));
     }
 
     public SolarNeutronRecipe getRecipe() {

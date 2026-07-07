@@ -356,7 +356,30 @@ public class GasInventorySlot extends GasHandlerInventorySlot {
 
     @Nullable
     public static GasStack getContainedGas(ItemStack stack, @Nullable Gas type, @Nullable String legacyKey) {
-        GasStack stored = getStoredGas(stack, legacyKey);
+        IGasHandler gasHandler = getUnstackedCapability(stack);
+        if (gasHandler != null) {
+            GasStack contained = null;
+            for (int tank = 0, tanks = getTankCount(gasHandler); tank < tanks; tank++) {
+                GasStack stored = getGasInTank(gasHandler, tank);
+                if (stored != null && stored.amount > 0 && (type == null || stored.getGas() == type)) {
+                    if (contained == null) {
+                        contained = stored.copy();
+                    } else if (contained.isGasEqual(stored)) {
+                        contained = contained.copy().withAmount(contained.amount + stored.amount);
+                    } else {
+                        return contained;
+                    }
+                }
+            }
+            return contained;
+        }
+        GasStack stored = legacyKey == null ? null : getStoredGas(stack, legacyKey);
+        if (stored == null) {
+            IGasItem gasItem = getLegacyGasItem(stack);
+            if (gasItem != null) {
+                stored = getLegacyGas(gasItem, getLegacySingleStack(stack));
+            }
+        }
         if (stored != null && stored.amount > 0 && (type == null || stored.getGas() == type)) {
             return stored.copy();
         }
@@ -365,11 +388,7 @@ public class GasInventorySlot extends GasHandlerInventorySlot {
 
     @Nullable
     public static GasStack getContainedGas(ItemStack stack, @Nullable Gas type) {
-        GasStack stored = getContainedGas(stack);
-        if (stored != null && stored.amount > 0 && (type == null || stored.getGas() == type)) {
-            return stored.copy();
-        }
-        return null;
+        return getContainedGas(stack, type, null);
     }
 
     @Nullable

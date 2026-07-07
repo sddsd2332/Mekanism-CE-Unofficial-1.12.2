@@ -188,18 +188,7 @@ public class TileEntityLargeChemicalInfuser extends TileEntityBasicMachine<Chemi
         int possibleProcess = Math.min((int) Math.pow(2, upgradeComponent.getUpgrades(Upgrade.SPEED)), MekanismConfig.current().mekce.MAXspeedmachines.val());
         possibleProcess *= processes;
         possibleProcess *= getThread();
-        if (leftTank.getGasType() == recipe.recipeInput.leftGas.getGas()) {
-            possibleProcess = Math.min(leftTank.getStored() / recipe.recipeInput.leftGas.amount, possibleProcess);
-            possibleProcess = Math.min(rightTank.getStored() / recipe.recipeInput.rightGas.amount, possibleProcess);
-        } else {
-            possibleProcess = Math.min(leftTank.getStored() / recipe.recipeInput.rightGas.amount, possibleProcess);
-            possibleProcess = Math.min(rightTank.getStored() / recipe.recipeInput.leftGas.amount, possibleProcess);
-        }
-        possibleProcess = Math.min(centerTank.getNeeded() / recipe.recipeOutput.output.amount, possibleProcess);
-        possibleProcess = Math.min((int) (getEnergy() / energyPerTick), possibleProcess);
-        //不能为0
-        possibleProcess = Math.max(possibleProcess, 1);
-        return possibleProcess;
+        return Math.max(possibleProcess, 1);
     }
 
 

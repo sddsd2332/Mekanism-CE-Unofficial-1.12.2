@@ -8,10 +8,13 @@ import ic2.api.item.ISpecialElectricItem;
 import mekanism.api.Action;
 import mekanism.api.AutomationType;
 import mekanism.api.EnumColor;
+import mekanism.api.IContentsListener;
 import mekanism.api.energy.IEnergyContainer;
 import mekanism.api.functions.ConstantPredicates;
 import mekanism.api.functions.FloatSupplier;
 import mekanism.api.gas.Gas;
+import mekanism.api.gas.IExtendedGasTank;
+import mekanism.api.gas.IMekanismGasHandler;
 import mekanism.api.gas.GasStack;
 import mekanism.api.gear.ICustomModule;
 import mekanism.api.gear.ICustomModule.ModuleDamageAbsorbInfo;
@@ -26,6 +29,7 @@ import mekanism.common.MekanismModules;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.capabilities.ItemCapabilityWrapper;
 import mekanism.common.capabilities.energy.item.RateLimitEnergyHandler;
+import mekanism.common.capabilities.gas.item.ItemStackMekanismGasHandler;
 import mekanism.common.capabilities.gas.item.RateLimitGasHandler;
 import mekanism.common.capabilities.laser.item.LaserDissipationHandler;
 import mekanism.common.capabilities.radiation.item.NCRadiationShieldingHandler;
@@ -45,6 +49,7 @@ import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.item.interfaces.ILegacyEnergizedItem;
 import mekanism.common.item.interfaces.IModeItem;
 import mekanism.common.lib.Color;
+import mekanism.common.util.ItemOverlayUtils;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.StorageUtils;
@@ -551,13 +556,36 @@ public abstract class ItemMekaSuitArmor extends ItemArmor implements IModuleCont
         return 0;
     }
 
-    @Nullable
-    protected String getGasCapabilityLegacyKey() {
-        return null;
-    }
-
     protected Predicate<GasStack> getGasCapabilityValidator(ItemStack stack) {
         return gasStack -> false;
+    }
+
+    protected IExtendedGasTank createGasCapabilityTank(ItemStack stack, IContentsListener listener) {
+        return new RateLimitGasHandler.RateLimitGasTank(() -> getGasCapabilityRate(stack), () -> getGasCapabilityCapacity(stack),
+              ConstantPredicates.notExternal(), (gasStack, automationType) -> isGasCapabilityEnabled(stack),
+              getGasCapabilityValidator(stack), listener);
+    }
+
+    protected void collectGasCapabilityTanks(ItemStack stack, IContentsListener listener, List<IExtendedGasTank> tanks) {
+        tanks.add(createGasCapabilityTank(stack, listener));
+    }
+
+    protected List<IExtendedGasTank> getGasCapabilityTanks(ItemStack stack, IContentsListener listener) {
+        List<IExtendedGasTank> tanks = new ArrayList<>();
+        collectGasCapabilityTanks(stack, listener, tanks);
+        return tanks;
+    }
+
+    protected boolean isGasCapabilityAvailable(ItemStack stack) {
+        if (!hasGasCapabilitySupport()) {
+            return false;
+        }
+        for (IExtendedGasTank tank : getGasCapabilityTanks(stack, null)) {
+            if (tank.getCapacity() > 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public int insertGas(ItemStack stack, GasStack gasStack) {
@@ -571,10 +599,68 @@ public abstract class ItemMekaSuitArmor extends ItemArmor implements IModuleCont
 
     @Nullable
     public GasStack getContainedGas(ItemStack stack, Gas type) {
-        if (stack.isEmpty() || !hasGasCapabilitySupport() || !isGasCapabilityEnabled(stack)) {
+        if (stack.isEmpty() || !isGasCapabilityAvailable(stack)) {
             return null;
         }
-        return GasInventorySlot.getContainedGas(stack, type, getGasCapabilityLegacyKey());
+        return GasInventorySlot.getContainedGas(stack, type, null);
+    }
+
+    @SideOnly(Side.CLIENT)
+    protected boolean renderGasCapabilityItemOverlayIntoGUI(@NotNull ItemStack stack, int xPosition, int yPosition) {
+        if (stack.isEmpty() || !hasGasCapabilitySupport()) {
+            return false;
+        }
+        IMekanismGasHandler gasHandler = GasInventorySlot.getUnstackedMekanismCapability(stack);
+        if (gasHandler == null) {
+            return false;
+        }
+        List<GasOverlayTank> tanks = getGasOverlayTanks(stack, gasHandler);
+        if (tanks.isEmpty()) {
+            return false;
+        }
+        List<ItemOverlayUtils.BarSegment> segments = new ArrayList<>(tanks.size());
+        for (GasOverlayTank overlayTank : tanks) {
+            GasStack gas = overlayTank.tank.getGas();
+            int stored = gas == null ? 0 : gas.amount;
+            segments.add(ItemOverlayUtils.BarSegment.fromAmount(stored, overlayTank.tank.getCapacity(),
+                  getGasOverlayColor(stack, overlayTank.tank, overlayTank.tankIndex)));
+        }
+        return ItemOverlayUtils.renderItemBarOverlayIntoGUI(xPosition, yPosition, segments);
+    }
+
+    @SideOnly(Side.CLIENT)
+    private List<GasOverlayTank> getGasOverlayTanks(ItemStack stack, IMekanismGasHandler gasHandler) {
+        List<GasOverlayTank> tanks = new ArrayList<>();
+        for (int tank = 0, count = gasHandler.getCountGasTanks(null); tank < count; tank++) {
+            IExtendedGasTank gasTank = gasHandler.getGasTank(tank, null);
+            if (gasTank != null && shouldRenderGasCapabilityTank(stack, gasTank, tank)) {
+                tanks.add(new GasOverlayTank(gasTank, tank));
+            }
+        }
+        tanks.sort(Comparator.comparingInt(tank -> getGasOverlaySortOrder(stack, tank.tank, tank.tankIndex)));
+        return tanks;
+    }
+
+    @SideOnly(Side.CLIENT)
+    protected boolean shouldRenderGasCapabilityTank(ItemStack stack, IExtendedGasTank tank, int tankIndex) {
+        return tank.getCapacity() > 0;
+    }
+
+    @SideOnly(Side.CLIENT)
+    protected int getGasOverlaySortOrder(ItemStack stack, IExtendedGasTank tank, int tankIndex) {
+        return tankIndex;
+    }
+
+    @SideOnly(Side.CLIENT)
+    protected boolean gasOverlayTankSupportsGas(IExtendedGasTank tank, Gas gas) {
+        GasStack stored = tank.getGas();
+        return stored != null && stored.getGas() == gas || tank.isValid(new GasStack(gas, 1));
+    }
+
+    @SideOnly(Side.CLIENT)
+    protected int getGasOverlayColor(ItemStack stack, IExtendedGasTank tank, int tankIndex) {
+        GasStack gas = tank.getGas();
+        return gas == null || gas.getGas() == null ? MathHelper.hsvToRGB(Math.max(0.0F, (float) (1 - getDurabilityForDisplay(stack))) / 3.0F, 1.0F, 1.0F) : gas.getGas().getTint();
     }
 
     //TODO
@@ -591,16 +677,19 @@ public abstract class ItemMekaSuitArmor extends ItemArmor implements IModuleCont
             capabilities.add(NCRadiationShieldingHandler.create(item -> isModuleEnabled(item, MekanismModules.RADIATION_SHIELDING_UNIT) ? ItemHazmatSuitArmor.getShieldingByArmor(armorType) * 100 : 0, item -> isModuleEnabled(item, MekanismModules.RADIATION_SHIELDING_UNIT) ? ItemHazmatSuitArmor.getShieldingByArmor(armorType) * 100 : 0, false));
         }
         if (hasGasCapabilitySupport()) {
-            capabilities.add(RateLimitGasHandler.create(() -> getGasCapabilityRate(stack), () -> getGasCapabilityCapacity(stack),
-                  mekanism.api.functions.ConstantPredicates.notExternal(),
-                  (gasStack, automationType) -> isGasCapabilityEnabled(stack),
-                  getGasCapabilityValidator(stack), getGasCapabilityLegacyKey()));
+            capabilities.add(new ItemStackMekanismGasHandler() {
+
+                @Override
+                protected List<IExtendedGasTank> getInitialTanks() {
+                    return ItemMekaSuitArmor.this.getGasCapabilityTanks(stack, this);
+                }
+            });
         }
         return new ItemCapabilityWrapper(stack, capabilities.toArray(new ItemCapabilityWrapper.ItemCapability[0])) {
             @Override
             public boolean hasCapability(@Nonnull net.minecraftforge.common.capabilities.Capability<?> capability, EnumFacing facing) {
                 if (capability == Capabilities.GAS_HANDLER_CAPABILITY && ItemMekaSuitArmor.this.hasGasCapabilitySupport()) {
-                    return ItemMekaSuitArmor.this.isGasCapabilityEnabled(itemStack);
+                    return ItemMekaSuitArmor.this.isGasCapabilityAvailable(itemStack);
                 }
                 return super.hasCapability(capability, facing);
             }
@@ -608,12 +697,23 @@ public abstract class ItemMekaSuitArmor extends ItemArmor implements IModuleCont
             @Override
             public <T> T getCapability(@Nonnull net.minecraftforge.common.capabilities.Capability<T> capability, EnumFacing facing) {
                 if (capability == Capabilities.GAS_HANDLER_CAPABILITY &&
-                    (!ItemMekaSuitArmor.this.hasGasCapabilitySupport() || !ItemMekaSuitArmor.this.isGasCapabilityEnabled(itemStack))) {
+                    !ItemMekaSuitArmor.this.isGasCapabilityAvailable(itemStack)) {
                     return null;
                 }
                 return super.getCapability(capability, facing);
             }
         };
+    }
+
+    private static class GasOverlayTank {
+
+        private final IExtendedGasTank tank;
+        private final int tankIndex;
+
+        private GasOverlayTank(IExtendedGasTank tank, int tankIndex) {
+            this.tank = tank;
+            this.tankIndex = tankIndex;
+        }
     }
 
     @Override

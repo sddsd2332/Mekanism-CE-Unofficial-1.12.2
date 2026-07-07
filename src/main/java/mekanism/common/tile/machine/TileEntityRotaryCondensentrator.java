@@ -14,6 +14,7 @@ import mekanism.common.capabilities.Capabilities;
 import mekanism.common.capabilities.energy.MachineEnergyContainer;
 import mekanism.common.capabilities.fluid.BasicFluidTank;
 import mekanism.common.capabilities.gas.BasicGasTank;
+import mekanism.common.capabilities.holder.energy.IEnergyContainerHolder;
 import mekanism.common.capabilities.holder.fluid.FluidTankHelper;
 import mekanism.common.capabilities.holder.fluid.IFluidTankHolder;
 import mekanism.common.capabilities.holder.gas.GasTankHelper;
@@ -156,6 +157,14 @@ public class TileEntityRotaryCondensentrator extends TileEntityMachine implement
         return builder.build();
     }
 
+    @Override
+    protected IEnergyContainerHolder getInitialEnergyContainers(IContentsListener listener) {
+        return super.getInitialEnergyContainers(() -> {
+            listener.onContentsChanged();
+            recipeCacheLookupMonitor.unpause();
+        });
+    }
+
     private BasicGasTank getOrCreateGasTank(IContentsListener listener) {
         if (gasTank == null) {
             gasTank = BasicGasTank.create(MAX_FLUID,
@@ -227,6 +236,15 @@ public class TileEntityRotaryCondensentrator extends TileEntityMachine implement
 
     public MachineEnergyContainer getEnergyContainer() {
         return getMainEnergyContainer();
+    }
+
+    @Override
+    public void setEnergy(double energy) {
+        double previous = getEnergy();
+        super.setEnergy(energy);
+        if (recipeCacheLookupMonitor != null && world != null && !world.isRemote && Double.compare(previous, getEnergy()) != 0) {
+            recipeCacheLookupMonitor.unpause();
+        }
     }
 
     public boolean usedEnergy() {
@@ -381,6 +399,7 @@ public class TileEntityRotaryCondensentrator extends TileEntityMachine implement
                 mode = mode == 0 ? 1 : 0;
                 cachedRecipe = null;
                 recipeCacheLookupMonitor.onChange();
+                markDirty();
             }
             playersUsing.forEach(player -> Mekanism.packetHandler.sendTo(new TileEntityMessage(this), (EntityPlayerMP) player));
             return;

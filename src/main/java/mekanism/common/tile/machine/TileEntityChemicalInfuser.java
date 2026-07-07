@@ -146,19 +146,7 @@ public class TileEntityChemicalInfuser extends TileEntityBasicMachine<ChemicalPa
 
 
     public int getUpgradedUsage(ChemicalInfuserRecipe recipe) {
-        int possibleProcess = Math.min((int) Math.pow(2, getInstalledUpgrades(Upgrade.SPEED)), MekanismConfig.current().mekce.MAXspeedmachines.val());
-        if (leftTank.getGasType() == recipe.recipeInput.leftGas.getGas()) {
-            possibleProcess = Math.min(leftTank.getStored() / recipe.recipeInput.leftGas.amount, possibleProcess);
-            possibleProcess = Math.min(rightTank.getStored() / recipe.recipeInput.rightGas.amount, possibleProcess);
-        } else {
-            possibleProcess = Math.min(leftTank.getStored() / recipe.recipeInput.rightGas.amount, possibleProcess);
-            possibleProcess = Math.min(rightTank.getStored() / recipe.recipeInput.leftGas.amount, possibleProcess);
-        }
-        possibleProcess = Math.min(centerTank.getNeeded() / recipe.recipeOutput.output.amount, possibleProcess);
-        possibleProcess = Math.min((int) (getEnergy() / energyPerTick), possibleProcess);
-        //不能为0
-        possibleProcess = Math.max(possibleProcess, 1);
-        return possibleProcess;
+        return Math.max(1, Math.min((int) Math.pow(2, getInstalledUpgrades(Upgrade.SPEED)), MekanismConfig.current().mekce.MAXspeedmachines.val()));
     }
 
     @Override

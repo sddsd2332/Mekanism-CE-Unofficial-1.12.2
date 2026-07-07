@@ -93,7 +93,7 @@ public class GuiSlotScroll extends GuiElement implements IJEIIngredientHelper {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        return scrollBar.adjustScroll(delta) || super.mouseScrolled(mouseX, mouseY, delta);
+        return isMouseOver(mouseX, mouseY) && scrollBar.adjustScroll(delta) || super.mouseScrolled(mouseX, mouseY, delta);
     }
 
     @Override

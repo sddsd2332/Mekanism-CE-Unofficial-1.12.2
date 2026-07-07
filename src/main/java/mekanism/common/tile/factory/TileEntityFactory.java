@@ -332,6 +332,19 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
     }
 
     @Override
+    public void setEnergy(double energy) {
+        double previous = getEnergy();
+        super.setEnergy(energy);
+        if (recipeCacheLookupMonitors != null && world != null && !world.isRemote && Double.compare(previous, getEnergy()) != 0) {
+            for (RecipeCacheLookupMonitor<MachineRecipe<?, ?, ?>> monitor : recipeCacheLookupMonitors) {
+                if (monitor != null) {
+                    monitor.unpause();
+                }
+            }
+        }
+    }
+
+    @Override
     protected boolean persistFluidTanks() {
         return false;
     }

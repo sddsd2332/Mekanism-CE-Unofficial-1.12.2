@@ -243,18 +243,7 @@ public class TileEntityElectrolyticSeparator extends TileEntityBasicMachine<Flui
     }
 
     public int getUpgradedUsage(SeparatorRecipe recipe) {
-        int possibleProcess;
-        if (leftTank.getGasType() == recipe.recipeOutput.leftGas.getGas()) {
-            possibleProcess = leftTank.getNeeded() / recipe.recipeOutput.leftGas.amount;
-            possibleProcess = Math.min(rightTank.getNeeded() / recipe.recipeOutput.rightGas.amount, possibleProcess);
-        } else {
-            possibleProcess = leftTank.getNeeded() / recipe.recipeOutput.rightGas.amount;
-            possibleProcess = Math.min(rightTank.getNeeded() / recipe.recipeOutput.leftGas.amount, possibleProcess);
-        }
-        possibleProcess = Math.min(Math.min((int) Math.pow(2, upgradeComponent.getUpgrades(Upgrade.SPEED)), MekanismConfig.current().mekce.MAXspeedmachines.val()), possibleProcess);
-        possibleProcess = Math.min((int) (getEnergy() / energyPerTick), possibleProcess);
-        possibleProcess = Math.max(possibleProcess,1);
-        return Math.min(fluidTank.getFluidAmount() / recipe.recipeInput.ingredient.amount, possibleProcess);
+        return Math.max(1, Math.min((int) Math.pow(2, upgradeComponent.getUpgrades(Upgrade.SPEED)), MekanismConfig.current().mekce.MAXspeedmachines.val()));
     }
 
     public SeparatorRecipe getRecipe() {

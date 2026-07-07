@@ -317,10 +317,7 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
         int possibleProcess = Math.min((int) Math.pow(2, upgradeComponent.getUpgrades(Upgrade.SPEED)), MekanismConfig.current().mekce.MAXspeedmachines.val());
         possibleProcess *= processes;
         possibleProcess *= getThread();
-        possibleProcess = Math.min(Math.min(inputTank.getStored(), outputTank.getNeeded()), possibleProcess);
-        possibleProcess = Math.min((int) (getEnergy() / energyPerTick), possibleProcess);
-        possibleProcess = Math.max(possibleProcess, 1);
-        return Math.min(fluidTank.getFluidAmount() / recipe.getInput().ingredientFluid.amount, possibleProcess);
+        return Math.max(possibleProcess, 1);
     }
 
     @Override
