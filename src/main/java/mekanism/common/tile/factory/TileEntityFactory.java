@@ -4273,9 +4273,31 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
                 if (state.numberPerSlot() == state.maxStackSize()) {
                     continue;
                 }
-                changed |= applyDistributionPlan(buildDistributionPlan(recipeProcessInfo, state, processCount));
+                List<DistributionPlan> plan = buildDistributionPlan(recipeProcessInfo, state, processCount);
+                if (isDistributionPlanValid(recipeProcessInfo, plan)) {
+                    changed |= applyDistributionPlan(plan);
+                }
             }
             return changed;
+        }
+
+        private boolean isDistributionPlanValid(RecipeProcessInfo recipeProcessInfo, List<DistributionPlan> plan) {
+            int totalCount = 0;
+            for (DistributionPlan target : plan) {
+                int sizeForSlot = target.sizeForSlot();
+                if (sizeForSlot < 0) {
+                    return false;
+                }
+                if (sizeForSlot > 0) {
+                    FactoryInputInventorySlot inputSlot = target.inputSlot();
+                    ItemStack stack = target.item().createStack(sizeForSlot);
+                    if (sizeForSlot > inputSlot.getLimit(stack) || !inputSlot.isItemValid(stack)) {
+                        return false;
+                    }
+                }
+                totalCount += sizeForSlot;
+            }
+            return totalCount == recipeProcessInfo.totalCount;
         }
 
         private List<DistributionPlan> buildDistributionPlan(RecipeProcessInfo recipeProcessInfo, DistributionState state, int processCount) {
@@ -4307,7 +4329,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
             } else if (sizeForSlot == 0) {
                 inputSlot.setEmpty();
                 return true;
-            } else if (inputSlot.getCount() != sizeForSlot) {
+            } else if (ItemHandlerHelper.canItemStacksStack(inputSlot.getStack(), item.getInternalStack()) && inputSlot.getCount() != sizeForSlot) {
                 MekanismUtils.logMismatchedStackSize(sizeForSlot, inputSlot.setStackSize(sizeForSlot, Action.EXECUTE));
                 return true;
             }
