@@ -65,7 +65,7 @@ dependencies {
     compileOnly "org.jetbrains:annotations:17.0.0"
 
     implementation 'curse.maven:mcmultipart-239431:2615930'
-    implementation rfg.deobf('curse.maven:had-enough-items-557549:4543375')
+    implementation rfg.deobf('curse.maven:had-enough-items-557549:8081514')
     implementation 'curse.maven:tesla-244651:2487959'
     implementation 'curse.maven:inventory-tweaks-API-223094:2923461'
     implementation 'curse.maven:opencomputers-223008:4526246'
