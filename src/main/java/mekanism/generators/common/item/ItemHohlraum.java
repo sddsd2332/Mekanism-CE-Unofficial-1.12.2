@@ -83,7 +83,8 @@ public class ItemHohlraum extends ItemMekanismGenerators implements ILegacyGasIt
 
     @Override
     public boolean showDurabilityBar(ItemStack stack) {
-        return true;
+        GasStack stored = getStoredGas(stack);
+        return stored != null && stored.getGas() != null && stored.amount > 0;
     }
 
     @Override

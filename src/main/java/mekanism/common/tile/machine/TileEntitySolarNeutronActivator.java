@@ -198,6 +198,14 @@ public class TileEntitySolarNeutronActivator extends TileEntityContainerBlock im
         return Math.max(1, Math.min((int) Math.pow(2, upgradeComponent.getUpgrades(Upgrade.SPEED)), MekanismConfig.current().mekce.MAXspeedmachines.val()));
     }
 
+    @Override
+    public void recalculateUpgradables(Upgrade upgrade) {
+        super.recalculateUpgradables(upgrade);
+        if (recipeCacheLookupMonitor != null && world != null && !world.isRemote) {
+            recipeCacheLookupMonitor.unpause();
+        }
+    }
+
     public SolarNeutronRecipe getRecipe() {
         refreshRecipeLookupCache();
         GasInput input = getInput();

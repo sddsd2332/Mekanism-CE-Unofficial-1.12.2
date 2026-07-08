@@ -247,6 +247,14 @@ public class TileEntityRotaryCondensentrator extends TileEntityMachine implement
         }
     }
 
+    @Override
+    public void recalculateUpgradables(Upgrade upgrade) {
+        super.recalculateUpgradables(upgrade);
+        if (recipeCacheLookupMonitor != null && world != null && !world.isRemote) {
+            recipeCacheLookupMonitor.unpause();
+        }
+    }
+
     public boolean usedEnergy() {
         return clientEnergyUsed > 0;
     }

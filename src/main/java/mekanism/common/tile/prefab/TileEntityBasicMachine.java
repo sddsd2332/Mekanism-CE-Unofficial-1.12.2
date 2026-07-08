@@ -12,6 +12,7 @@ import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.capabilities.holder.energy.IEnergyContainerHolder;
 import mekanism.common.config.MekanismConfig;
+import mekanism.common.Upgrade;
 import mekanism.common.integration.computer.IComputerIntegration;
 import mekanism.common.inventory.container.MekanismContainer;
 import mekanism.common.recipe.RecipeHandler;
@@ -245,7 +246,19 @@ public abstract class TileEntityBasicMachine<INPUT extends MachineInput<INPUT>, 
     public void setEnergy(double energy) {
         double previous = getEnergy();
         super.setEnergy(energy);
-        if (recipeCacheLookupMonitor != null && world != null && !world.isRemote && Double.compare(previous, getEnergy()) != 0) {
+        if (Double.compare(previous, getEnergy()) != 0) {
+            unpauseRecipeCache();
+        }
+    }
+
+    @Override
+    public void recalculateUpgradables(Upgrade upgrade) {
+        super.recalculateUpgradables(upgrade);
+        unpauseRecipeCache();
+    }
+
+    protected void unpauseRecipeCache() {
+        if (recipeCacheLookupMonitor != null && world != null && !world.isRemote) {
             recipeCacheLookupMonitor.unpause();
         }
     }

@@ -336,11 +336,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
         double previous = getEnergy();
         super.setEnergy(energy);
         if (recipeCacheLookupMonitors != null && world != null && !world.isRemote && Double.compare(previous, getEnergy()) != 0) {
-            for (RecipeCacheLookupMonitor<MachineRecipe<?, ?, ?>> monitor : recipeCacheLookupMonitors) {
-                if (monitor != null) {
-                    monitor.unpause();
-                }
-            }
+            unpauseRecipeCaches();
         }
     }
 
@@ -470,10 +466,18 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
     private IContentsListener markAllMonitorsUnpaused(IContentsListener listener) {
         return () -> {
             listener.onContentsChanged();
-            for (RecipeCacheLookupMonitor<MachineRecipe<?, ?, ?>> monitor : recipeCacheLookupMonitors) {
-                monitor.unpause();
-            }
+            unpauseRecipeCaches();
         };
+    }
+
+    private void unpauseRecipeCaches() {
+        if (recipeCacheLookupMonitors != null) {
+            for (RecipeCacheLookupMonitor<MachineRecipe<?, ?, ?>> monitor : recipeCacheLookupMonitors) {
+                if (monitor != null) {
+                    monitor.unpause();
+                }
+            }
+        }
     }
 
     private FactoryRecipeCacheLookupMonitor<MachineRecipe<?, ?, ?>> getRecipeCacheLookupMonitor(int process) {
@@ -2396,6 +2400,9 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
         } else if (upgrade == Upgrade.SPEED) {
             recalculateSpeedUpgrade();
         }
+        if (world != null && !world.isRemote) {
+            unpauseRecipeCaches();
+        }
     }
 
     private void recalculateEnergyUpgrade() {
@@ -2423,6 +2430,11 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
 
     private void setSavedUsedSoFar(ProcessInfo processInfo, long used) {
         setSavedUsedSoFar(processInfo.process(), used);
+    }
+
+    private boolean isProcessInputLockedForSorting(ProcessInfo processInfo) {
+        int process = processInfo.process();
+        return progress[process] > 0 || usedSoFar[process] > 0;
     }
 
     public void setSavedUsedSoFar(int cacheIndex, long used) {
@@ -4169,6 +4181,9 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
         private void collectProcesses() {
             for (ProcessInfo processInfo : factory.processInfoSlots) {
                 if (processInfo == null) {
+                    continue;
+                }
+                if (factory.isProcessInputLockedForSorting(processInfo)) {
                     continue;
                 }
                 FactoryInputInventorySlot inputSlot = processInfo.inputSlot();
