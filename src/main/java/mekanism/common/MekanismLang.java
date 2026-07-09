@@ -425,6 +425,8 @@ public enum MekanismLang implements ILangEntry {
     UPGRADE_COUNT("gui", "upgrades.amount"),
     UPGRADE_TYPE("gui", "upgrade"),
     UPGRADE_NOT_SUPPORTED("gui", "upgrade.not_supported"),
+    UPGRADE_UNAVAILABLE("gui", "upgrade.unavailable"),
+    UPGRADE_CONFLICTING("gui", "upgrade.conflicting"),
     UPGRADE_UNINSTALL("gui", "upgrade.uninstall"),
     UPGRADE_UNINSTALL_TOOLTIP("gui", "upgrade.uninstall.tooltip"),
     //Filter

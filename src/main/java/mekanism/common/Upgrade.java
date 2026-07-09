@@ -83,6 +83,7 @@ public final class Upgrade {
     private final IntFunction<ItemStack> stackCreator;
     private final InfoProvider infoProvider;
     private final ChangeHandler changeHandler;
+    private final Set<Upgrade> conflictingUpgrades;
 
     private Upgrade(Builder builder) {
         registryName = builder.registryName;
@@ -93,6 +94,7 @@ public final class Upgrade {
         stackCreator = builder.stackCreator;
         infoProvider = builder.infoProvider;
         changeHandler = builder.changeHandler;
+        conflictingUpgrades = Collections.unmodifiableSet(new LinkedHashSet<>(builder.conflictingUpgrades));
     }
 
     public static Builder builder(String name) {
@@ -282,6 +284,18 @@ public final class Upgrade {
         return tile != null && tile.isUpgradeInstalled(this);
     }
 
+    public Set<Upgrade> getConflictingUpgrades() {
+        return conflictingUpgrades;
+    }
+
+    public boolean conflictsWith(@Nullable Upgrade upgrade) {
+        return upgrade != null && conflictingUpgrades.contains(upgrade);
+    }
+
+    public boolean isCompatibleWith(@Nullable Upgrade upgrade) {
+        return upgrade == null || upgrade == this || !conflictsWith(upgrade) && !upgrade.conflictsWith(this);
+    }
+
     public ItemStack getStack() {
         return getStack(1);
     }
@@ -357,6 +371,7 @@ public final class Upgrade {
         private IntFunction<ItemStack> stackCreator = count -> ItemStack.EMPTY;
         private InfoProvider infoProvider = DEFAULT_INFO_PROVIDER;
         private ChangeHandler changeHandler = NOOP_CHANGE_HANDLER;
+        private final Set<Upgrade> conflictingUpgrades = new LinkedHashSet<>();
 
         private Builder(ResourceLocation registryName, String translationKey) {
             this.registryName = Objects.requireNonNull(registryName, "Upgrade registry name cannot be null");
@@ -412,6 +427,26 @@ public final class Upgrade {
         public Builder onChanged(@Nonnull ChangeHandler changeHandler) {
             this.changeHandler = Objects.requireNonNull(changeHandler, "Upgrade change handler cannot be null");
             return this;
+        }
+
+        public Builder conflictsWith(@Nonnull Upgrade... upgrades) {
+            Objects.requireNonNull(upgrades, "Conflicting upgrades cannot be null");
+            Arrays.stream(upgrades).filter(Objects::nonNull).forEach(conflictingUpgrades::add);
+            return this;
+        }
+
+        public Builder conflictsWith(@Nonnull Collection<Upgrade> upgrades) {
+            Objects.requireNonNull(upgrades, "Conflicting upgrades cannot be null");
+            upgrades.stream().filter(Objects::nonNull).forEach(conflictingUpgrades::add);
+            return this;
+        }
+
+        public Builder incompatibleWith(@Nonnull Upgrade... upgrades) {
+            return conflictsWith(upgrades);
+        }
+
+        public Builder incompatibleWith(@Nonnull Collection<Upgrade> upgrades) {
+            return conflictsWith(upgrades);
         }
 
         public Upgrade register() {

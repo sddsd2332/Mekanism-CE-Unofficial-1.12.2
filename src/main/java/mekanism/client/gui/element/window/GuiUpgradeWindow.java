@@ -55,10 +55,10 @@ public class GuiUpgradeWindow extends GuiWindow {
         this.upgradeTile = upgradeTile;
         interactionStrategy = InteractionStrategy.ALL;
         scrollList = addChild(new GuiUpgradeScrollList(gui, relativeX + 6, relativeY + 18, 50, upgradeTile.getComponent(), () -> {
-            updateEnabledButtons();
-            msSelected = GuiElement.getMillis();
+              updateEnabledButtons();
+              msSelected = GuiElement.getMillis();
         }));
-        addChild(new  GuiSupportedUpgrades(gui, relativeX + 6, relativeY + 68, upgradeTile.getSupportedUpgradeTypes()));
+        addChild(new GuiSupportedUpgrades(gui, relativeX + 6, relativeY + 68, upgradeTile.getComponent()));
         rightScreen = addChild(new GuiInnerScreen(gui, scrollList.getRelativeRight(), relativeY + 18, 59, 50));
         addChild(new GuiProgress(() -> this.upgradeTile.getScaledUpgradeProgress(), ProgressType.INSTALLING, gui, rightScreen.getRelativeRight() + 3, relativeY + 37));
         addChild(new GuiProgress(() -> 0, ProgressType.UNINSTALLING, gui, rightScreen.getRelativeRight() + 3, relativeY + 58));

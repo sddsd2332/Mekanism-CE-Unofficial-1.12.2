@@ -775,6 +775,8 @@ gui.upgrades.uninstall=Uninstalls a single upgrade, hold shift to uninstall all
 gui.mekanism.upgrade.uninstall=Uninstall
 gui.mekanism.upgrade.uninstall.tooltip=Uninstalls a single upgrade, hold shift to uninstall all
 gui.mekanism.upgrade.not_supported=%s (Not Supported)
+gui.mekanism.upgrade.unavailable=%s (Unavailable)
+gui.mekanism.upgrade.conflicting=Conflicts with:
 
 gui.chemicalInfuser.short=C. Infuser
 gui.chemicalDissolutionChamber.short=C. Dissolution Chamber

@@ -15,6 +15,7 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiPredicate;
+import java.util.function.Predicate;
 
 public class UpgradeInventorySlot extends BasicInventorySlot {
 
@@ -34,6 +35,11 @@ public class UpgradeInventorySlot extends BasicInventorySlot {
     public static UpgradeInventorySlot input(Set<Upgrade> supportedTypes, @Nullable IContentsListener listener) {
         Objects.requireNonNull(supportedTypes, "Supported upgrade types cannot be null");
         return new UpgradeInventorySlot(listener, (stack, automationType) -> isSupportedUpgrade(stack, supportedTypes));
+    }
+
+    public static UpgradeInventorySlot input(Predicate<ItemStack> upgradeValidator, @Nullable IContentsListener listener) {
+        Objects.requireNonNull(upgradeValidator, "Upgrade validator cannot be null");
+        return new UpgradeInventorySlot(listener, (stack, automationType) -> upgradeValidator.test(stack));
     }
 
     public static UpgradeInventorySlot output(@Nullable IContentsListener listener, int x, int y) {

@@ -45,7 +45,7 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
         tileEntity = tile;
         setSupported(Upgrade.SPEED);
         setSupported(Upgrade.ENERGY);
-        upgradeSlot = UpgradeInventorySlot.input(supported, this::onUpgradeSlotContentsChanged);
+        upgradeSlot = UpgradeInventorySlot.input(this::canInsertUpgrade, this::onUpgradeSlotContentsChanged);
         upgradeOutputSlot = UpgradeInventorySlot.output(tile);
         tile.components.add(this);
     }
@@ -53,7 +53,7 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
     public TileComponentUpgrade(TileEntityContainerBlock tile, Upgrade upgrade) {
         tileEntity = tile;
         setSupported(upgrade);
-        upgradeSlot = UpgradeInventorySlot.input(supported, this::onUpgradeSlotContentsChanged);
+        upgradeSlot = UpgradeInventorySlot.input(this::canInsertUpgrade, this::onUpgradeSlotContentsChanged);
         upgradeOutputSlot = UpgradeInventorySlot.output(tile);
         tile.components.add(this);
     }
@@ -123,11 +123,29 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
     }
 
     public int getInstallRoom(Upgrade upgrade) {
-        return upgrade == null || !supports(upgrade) ? 0 : Math.max(0, upgrade.getMaxInstalled() - getUpgrades(upgrade));
+        return canInstallIgnoringRoom(upgrade) ? Math.max(0, upgrade.getMaxInstalled() - getUpgrades(upgrade)) : 0;
     }
 
     public boolean canInstall(Upgrade upgrade) {
         return getInstallRoom(upgrade) > 0;
+    }
+
+    private boolean canInsertUpgrade(ItemStack stack) {
+        Upgrade upgrade = Upgrade.byStack(stack);
+        return upgrade != null && canInstall(upgrade);
+    }
+
+    private boolean canInstallIgnoringRoom(Upgrade upgrade) {
+        return upgrade != null && supports(upgrade) && !hasConflictingUpgrade(upgrade);
+    }
+
+    private boolean hasConflictingUpgrade(Upgrade upgrade) {
+        for (Upgrade installed : upgrades.keySet()) {
+            if (getUpgrades(installed) > 0 && installed != upgrade && !upgrade.isCompatibleWith(installed)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public int installUpgrade(ItemStack stack, Action action) {
@@ -157,7 +175,7 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
             return 0;
         }
         int installed = Math.max(0, Math.min(amount, upgrade.getMaxInstalled()));
-        if (installed > 0 && !supports(upgrade)) {
+        if (installed > 0 && !canInstallIgnoringRoom(upgrade)) {
             return getUpgrades(upgrade);
         }
         int previous = getUpgrades(upgrade);
@@ -178,14 +196,14 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
     }
 
     public int addUpgrades(Upgrade upgrade, int maxAvailable) {
-        if (upgrade == null || maxAvailable <= 0 || !supports(upgrade)) {
+        if (upgrade == null || maxAvailable <= 0 || !canInstallIgnoringRoom(upgrade)) {
             return 0;
         }
         return addUpgrades(upgrade, getUpgrades(upgrade), maxAvailable);
     }
 
     private int addUpgrades(Upgrade upgrade, int installed, int maxAvailable) {
-        if (supports(upgrade) && installed < upgrade.getMaxInstalled()) {
+        if (canInstallIgnoringRoom(upgrade) && installed < upgrade.getMaxInstalled()) {
             int toAdd = Math.min(upgrade.getMaxInstalled() - installed, maxAvailable);
             if (toAdd > 0) {
                 return setUpgrades(upgrade, installed + toAdd) - installed;

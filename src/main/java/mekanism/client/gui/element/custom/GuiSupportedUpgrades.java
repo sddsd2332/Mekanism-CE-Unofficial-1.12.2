@@ -8,12 +8,17 @@ import mekanism.client.gui.element.GuiElementHolder;
 import mekanism.client.render.MekanismRenderer;
 import mekanism.common.MekanismLang;
 import mekanism.common.Upgrade;
+import mekanism.common.tile.component.TileComponentUpgrade;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.UpgradeUtils;
 import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.item.ItemStack;
 import net.minecraft.util.text.TextComponentString;
 
-import java.util.Arrays;
+import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -34,6 +39,8 @@ public class GuiSupportedUpgrades extends GuiElement {
     }
 
     private final Set<Upgrade> supportedUpgrades;
+    @Nullable
+    private final TileComponentUpgrade component;
     private final int firstRowRoom;
     private final int firstRowStart;
 
@@ -48,8 +55,17 @@ public class GuiSupportedUpgrades extends GuiElement {
     }
 
     public GuiSupportedUpgrades(IGuiWrapper gui, int x, int y, Set<Upgrade> supportedUpgrades) {
+        this(gui, x, y, supportedUpgrades, null);
+    }
+
+    public GuiSupportedUpgrades(IGuiWrapper gui, int x, int y, TileComponentUpgrade component) {
+        this(gui, x, y, component.getSupportedTypes(), component);
+    }
+
+    private GuiSupportedUpgrades(IGuiWrapper gui, int x, int y, Set<Upgrade> supportedUpgrades, @Nullable TileComponentUpgrade component) {
         super(gui, x, y, ELEMENT_WIDTH, ELEMENT_SIZE * calculateNeededRows(gui) + 2);
         this.supportedUpgrades = supportedUpgrades;
+        this.component = component;
         this.firstRowStart = getFirstRowStart(gui);
         this.firstRowRoom = getFirstRowRoom(firstRowStart);
         active = true;
@@ -67,7 +83,7 @@ public class GuiSupportedUpgrades extends GuiElement {
             int xPos = relativeX + 1 + pos.x;
             int yPos = relativeY + 1 + pos.y;
             gui().renderItem(UpgradeUtils.getStack(upgrade), xPos, yPos, 0.75F);
-            if (!supportedUpgrades.contains(upgrade)) {
+            if (shouldRenderUnavailable(upgrade)) {
                 renderUnsupportedOverlay(xPos, yPos, backgroundColor);
             }
         }
@@ -106,14 +122,69 @@ public class GuiSupportedUpgrades extends GuiElement {
             if (mouseX >= xPos && mouseX < xPos + ELEMENT_SIZE &&
                 mouseY >= yPos && mouseY < yPos + ELEMENT_SIZE) {
                 Upgrade upgrade = upgrades.get(i);
-                if (supportedUpgrades.contains(upgrade)) {
-                    displayTooltips(Arrays.asList(upgrade.getName(), upgrade.getDescription()), mouseX, mouseY);
-                } else {
-                    displayTooltips(Arrays.asList(MekanismLang.UPGRADE_NOT_SUPPORTED.translateColored(EnumColor.RED, upgrade.getName()).getFormattedText(), upgrade.getDescription()), mouseX, mouseY);
-                }
+                displayTooltips(getUpgradeTooltip(upgrade), mouseX, mouseY);
                 return;
             }
         }
+    }
+
+    private List<String> getUpgradeTooltip(Upgrade upgrade) {
+        List<String> tooltip = new ArrayList<>();
+        Set<Upgrade> installedConflicts = getInstalledConflicts(upgrade);
+        if (!isSupported(upgrade)) {
+            tooltip.add(MekanismLang.UPGRADE_NOT_SUPPORTED.translateColored(EnumColor.RED, upgrade.getName()).getFormattedText());
+        } else if (!installedConflicts.isEmpty()) {
+            tooltip.add(MekanismLang.UPGRADE_UNAVAILABLE.translateColored(EnumColor.RED, upgrade.getName()).getFormattedText());
+        } else {
+            tooltip.add(upgrade.getName());
+        }
+
+        Set<Upgrade> conflicts = installedConflicts.isEmpty() ? getDeclaredConflicts(upgrade) : installedConflicts;
+        if (!conflicts.isEmpty()) {
+            tooltip.add(MekanismLang.UPGRADE_CONFLICTING.translateColored(EnumColor.RED).getFormattedText());
+            for (Upgrade conflict : conflicts) {
+                tooltip.add(MekanismLang.GENERIC_LIST.translate().getFormattedText() + " " + conflict.getColor() + getTooltipUpgradeName(conflict));
+            }
+        }
+        tooltip.add(upgrade.getDescription());
+        return tooltip;
+    }
+
+    private boolean shouldRenderUnavailable(Upgrade upgrade) {
+        return !isSupported(upgrade) || !getInstalledConflicts(upgrade).isEmpty();
+    }
+
+    private boolean isSupported(Upgrade upgrade) {
+        return supportedUpgrades.contains(upgrade);
+    }
+
+    private Set<Upgrade> getInstalledConflicts(Upgrade upgrade) {
+        if (component == null) {
+            return Collections.emptySet();
+        }
+        Set<Upgrade> conflicts = new LinkedHashSet<>();
+        for (Upgrade installed : component.getInstalledTypes()) {
+            if (component.getUpgrades(installed) > 0 && installed != upgrade && !upgrade.isCompatibleWith(installed)) {
+                conflicts.add(installed);
+            }
+        }
+        return conflicts;
+    }
+
+    private Set<Upgrade> getDeclaredConflicts(Upgrade upgrade) {
+        Set<Upgrade> conflicts = new LinkedHashSet<>(upgrade.getConflictingUpgrades());
+        for (Upgrade other : Upgrade.getRegisteredUpgrades()) {
+            if (other != upgrade && other.conflictsWith(upgrade)) {
+                conflicts.add(other);
+            }
+        }
+        conflicts.remove(upgrade);
+        return conflicts;
+    }
+
+    private String getTooltipUpgradeName(Upgrade upgrade) {
+        ItemStack stack = UpgradeUtils.getStack(upgrade);
+        return stack.isEmpty() ? upgrade.getName() : stack.getDisplayName();
     }
 
     private UpgradePos getUpgradePos(int index) {

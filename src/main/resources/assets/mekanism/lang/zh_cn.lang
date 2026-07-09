@@ -780,6 +780,8 @@ gui.upgrades.uninstall=卸载单个升级，按住Shift以卸载所有。
 gui.mekanism.upgrade.uninstall=卸载
 gui.mekanism.upgrade.uninstall.tooltip=卸载单个升级，按住Shift以卸载所有。
 gui.mekanism.upgrade.not_supported=%s（不可用）
+gui.mekanism.upgrade.unavailable=%s（不可用）
+gui.mekanism.upgrade.conflicting=和以下升级冲突：
 
 gui.chemicalInfuser.short=化学灌注器
 gui.chemicalDissolutionChamber.short=化学溶解室
