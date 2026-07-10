@@ -109,6 +109,10 @@ public interface IUpgradeTile extends IGetBackMachine {
         return getComponent().canInstall(upgradeType);
     }
 
+    default boolean canInstallUpgrade(ItemStack stack) {
+        return getComponent().canInstall(stack);
+    }
+
     default int installUpgrade(ItemStack stack, Action action) {
         return getComponent().installUpgrade(stack, action);
     }

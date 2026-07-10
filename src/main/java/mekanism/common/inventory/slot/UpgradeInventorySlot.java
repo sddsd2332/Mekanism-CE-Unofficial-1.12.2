@@ -21,7 +21,7 @@ public class UpgradeInventorySlot extends BasicInventorySlot {
 
     public static UpgradeInventorySlot input(IUpgradeTile tile, @Nullable IContentsListener listener, int x, int y) {
         Objects.requireNonNull(tile, "Upgrade tile cannot be null");
-        return input(tile.getSupportedUpgradeTypes(), listener);
+        return input(stack -> tile.supportsUpgrades() && tile.canInstallUpgrade(stack), listener);
     }
 
     public static UpgradeInventorySlot input(@Nullable IContentsListener listener, Set<Upgrade> supportedTypes) {

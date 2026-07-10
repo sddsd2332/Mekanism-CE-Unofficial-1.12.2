@@ -2,6 +2,8 @@ package mekanism.common.capabilities.fluid;
 
 import mekanism.api.Action;
 import mekanism.api.AutomationType;
+import mekanism.api.IContentsListener;
+import mekanism.api.IContentsListenerRegistry;
 import mekanism.api.fluid.IExtendedFluidTank;
 import mekanism.common.capabilities.merged.MergedTank;
 import net.minecraft.nbt.NBTTagCompound;
@@ -10,7 +12,7 @@ import net.minecraftforge.fluids.FluidStack;
 import javax.annotation.Nullable;
 import java.util.function.BooleanSupplier;
 
-public class FluidTankWrapper implements IExtendedFluidTank {
+public class FluidTankWrapper implements IExtendedFluidTank, IContentsListenerRegistry {
 
     private final IExtendedFluidTank internal;
     private final BooleanSupplier insertCheck;
@@ -55,6 +57,16 @@ public class FluidTankWrapper implements IExtendedFluidTank {
     @Override
     public void onContentsChanged() {
         internal.onContentsChanged();
+    }
+
+    @Override
+    public boolean addContentsListener(IContentsListener listener) {
+        return listener != this && internal instanceof IContentsListenerRegistry registry && registry.addContentsListener(listener);
+    }
+
+    @Override
+    public boolean removeContentsListener(IContentsListener listener) {
+        return internal instanceof IContentsListenerRegistry registry && registry.removeContentsListener(listener);
     }
 
     @Override

@@ -2,6 +2,8 @@ package mekanism.common.capabilities.merged;
 
 import mekanism.api.Action;
 import mekanism.api.AutomationType;
+import mekanism.api.IContentsListener;
+import mekanism.api.IContentsListenerRegistry;
 import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasStack;
 import mekanism.api.gas.GasTankInfo;
@@ -14,7 +16,7 @@ import java.util.function.BooleanSupplier;
 /**
  * Gas-only wrapper for merged tank behavior. Only one side of a merged fluid/gas tank can accept contents at a time.
  */
-public class GasTankWrapper implements IExtendedGasTank {
+public class GasTankWrapper implements IExtendedGasTank, IContentsListenerRegistry {
 
     private final IExtendedGasTank internal;
     private final BooleanSupplier insertCheck;
@@ -85,6 +87,16 @@ public class GasTankWrapper implements IExtendedGasTank {
     @Override
     public void onContentsChanged() {
         internal.onContentsChanged();
+    }
+
+    @Override
+    public boolean addContentsListener(IContentsListener listener) {
+        return listener != this && internal instanceof IContentsListenerRegistry registry && registry.addContentsListener(listener);
+    }
+
+    @Override
+    public boolean removeContentsListener(IContentsListener listener) {
+        return internal instanceof IContentsListenerRegistry registry && registry.removeContentsListener(listener);
     }
 
     @Override

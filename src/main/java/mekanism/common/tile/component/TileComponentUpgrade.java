@@ -6,6 +6,8 @@ import mekanism.api.inventory.IInventorySlot;
 import mekanism.common.Mekanism;
 import mekanism.common.PacketHandler;
 import mekanism.common.Upgrade;
+import mekanism.common.base.IUpgradeItem;
+import mekanism.common.base.IUpgradeTile;
 import mekanism.common.base.ITileComponent;
 import mekanism.common.inventory.container.MekanismContainer.ISpecificContainerTracker;
 import mekanism.common.inventory.container.sync.ISyncableData;
@@ -81,7 +83,7 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
             Upgrade type = Upgrade.byStack(stack);
             if (type != null) {
                 int installed = getUpgrades(type);
-                if (canInstall(type)) {
+                if (canInstall(stack)) {
                     if (upgradeTicks < UPGRADE_TICKS_REQUIRED) {
                         upgradeTicks++;
                         return;
@@ -89,6 +91,7 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
                         upgradeTicks = 0;
                         int added = addUpgrades(type, installed, upgradeSlot.getCount());
                         if (added > 0) {
+                            onUpgradeInstalled(upgradeSlot.getStack(), added);
                             upgradeSlot.shrinkStack(added, Action.EXECUTE);
                         }
                         Mekanism.packetHandler.sendUpdatePacket(tileEntity);
@@ -130,9 +133,17 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
         return getInstallRoom(upgrade) > 0;
     }
 
-    private boolean canInsertUpgrade(ItemStack stack) {
+    public boolean canInstall(ItemStack stack) {
         Upgrade upgrade = Upgrade.byStack(stack);
-        return upgrade != null && canInstall(upgrade);
+        return upgrade != null && getInstallRoom(upgrade) > 0 && canInstallStack(stack);
+    }
+
+    private boolean canInsertUpgrade(ItemStack stack) {
+        return canInstall(stack);
+    }
+
+    private boolean canInstallStack(ItemStack stack) {
+        return stack.getItem() instanceof IUpgradeItem upgradeItem && tileEntity instanceof IUpgradeTile upgradeTile && upgradeItem.canInstallUpgrade(stack, upgradeTile);
     }
 
     private boolean canInstallIgnoringRoom(Upgrade upgrade) {
@@ -150,16 +161,25 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
 
     public int installUpgrade(ItemStack stack, Action action) {
         Upgrade upgrade = Upgrade.byStack(stack);
-        if (upgrade == null || stack.isEmpty()) {
+        if (upgrade == null || stack.isEmpty() || !canInstallStack(stack)) {
             return 0;
         }
         int toInstall = Math.min(stack.getCount(), getInstallRoom(upgrade));
         if (toInstall > 0 && action.execute()) {
             int installed = addUpgrades(upgrade, toInstall);
+            if (installed > 0) {
+                onUpgradeInstalled(stack, installed);
+            }
             stack.shrink(installed);
             return installed;
         }
         return toInstall;
+    }
+
+    private void onUpgradeInstalled(ItemStack stack, int amount) {
+        if (amount > 0 && stack.getItem() instanceof IUpgradeItem upgradeItem && tileEntity instanceof IUpgradeTile upgradeTile) {
+            upgradeItem.onInstalled(stack, upgradeTile, amount);
+        }
     }
 
     public Map<Upgrade, Integer> getInstalledUpgrades() {
@@ -216,14 +236,29 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
         int installed = getUpgrades(upgrade);
         if (installed > 0) {
             int toRemove = removeAll ? installed : 1;
-            ItemStack simulatedRemainder = upgradeOutputSlot.insertItem(UpgradeUtils.getStack(upgrade, toRemove), Action.SIMULATE, AutomationType.INTERNAL);
+            ItemStack stackToReturn = getUninstalledStack(upgrade, toRemove);
+            if (stackToReturn.isEmpty()) {
+                return;
+            }
+            toRemove = Math.min(toRemove, stackToReturn.getCount());
+            ItemStack simulatedRemainder = upgradeOutputSlot.insertItem(stackToReturn, Action.SIMULATE, AutomationType.INTERNAL);
             if (simulatedRemainder.getCount() < toRemove) {
                 toRemove -= simulatedRemainder.getCount();
                 setUpgrades(upgrade, installed - toRemove);
-                upgradeOutputSlot.insertItem(UpgradeUtils.getStack(upgrade, toRemove), Action.EXECUTE, AutomationType.INTERNAL);
+                ItemStack stackToInsert = stackToReturn.copy();
+                stackToInsert.setCount(toRemove);
+                upgradeOutputSlot.insertItem(stackToInsert, Action.EXECUTE, AutomationType.INTERNAL);
                 canCheckUpgrades = !upgradeSlot.isEmpty();
             }
         }
+    }
+
+    private ItemStack getUninstalledStack(Upgrade upgrade, int amount) {
+        ItemStack stackToReturn = UpgradeUtils.getStack(upgrade, amount);
+        if (!stackToReturn.isEmpty() && stackToReturn.getItem() instanceof IUpgradeItem upgradeItem && tileEntity instanceof IUpgradeTile upgradeTile) {
+            stackToReturn = upgradeItem.getUninstalledStack(upgradeTile, upgrade, amount, stackToReturn);
+        }
+        return stackToReturn == null ? ItemStack.EMPTY : stackToReturn;
     }
 
     private void onUpgradeChanged(Upgrade upgrade, int previousAmount, int amount) {
