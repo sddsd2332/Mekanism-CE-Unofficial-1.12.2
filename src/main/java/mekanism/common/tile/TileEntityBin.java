@@ -220,6 +220,11 @@ public class TileEntityBin extends TileEntityContainerBlock implements IActiveSt
         }
     }
 
+    @Override
+    protected boolean hasCrossMachineAsyncOperations() {
+        return true;
+    }
+
 
     @Override
     public void writeCustomNBT(NBTTagCompound nbtTags) {

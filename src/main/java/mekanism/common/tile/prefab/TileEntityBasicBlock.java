@@ -3,6 +3,7 @@ package mekanism.common.tile.prefab;
 import io.netty.buffer.ByteBuf;
 import it.unimi.dsi.fastutil.objects.ReferenceOpenHashSet;
 import mekanism.api.Coord4D;
+import mekanism.api.IContainerTransaction;
 import mekanism.api.TileNetworkList;
 import mekanism.common.Mekanism;
 import mekanism.common.base.IBoundingBlock;
@@ -35,13 +36,18 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Supplier;
 
 /**
  * 基本方块类型
  */
 @Interface(iface = "ic2.api.tile.IWrenchable", modid = MekanismHooks.IC2_MOD_ID)
-public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick implements ITileNetwork, ITrackableContainer {
+public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick implements ITileNetwork, ITrackableContainer, IContainerTransaction {
+
+    private final ReentrantLock containerTransactionLock = new ReentrantLock();
 
     /**
      * The direction this block is facing.
@@ -86,7 +92,7 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
         if (!isRemote()) {
             onUpdateServer(); //服务端更新
             if (supportsAsync()) { //如果支持异步
-                Mekanism.EXECUTE_MANAGER.addTask(this::onAsyncUpdateServer); //进行服务端异步更新
+                Mekanism.EXECUTE_MANAGER.addTask(this::runAsyncUpdateServer); //进行服务端异步更新
             }
         } else {
             onUpdateClient(); //进行客户端更新
@@ -204,6 +210,78 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
 
     public boolean supportsAsync() {
         return true;
+    }
+
+    private void runAsyncUpdateServer() {
+        if (hasCrossMachineAsyncOperations()) {
+            onAsyncUpdateServer();
+        } else {
+            runContainerTransaction(this::onAsyncUpdateServer);
+        }
+    }
+
+    /**
+     * Marks legacy async updates which perform cross-machine or network calls and therefore cannot hold the local
+     * container transaction around the entire update. These updates are intentionally excluded from the automatic
+     * whole-update transaction until they can be split into local and cross-machine phases.
+     */
+    protected boolean hasCrossMachineAsyncOperations() {
+        return false;
+    }
+
+    @Override
+    public final void runContainerTransaction(Runnable action) {
+        Objects.requireNonNull(action, "Container transaction action cannot be null");
+        containerTransactionLock.lock();
+        try {
+            action.run();
+        } finally {
+            containerTransactionLock.unlock();
+        }
+    }
+
+    @Override
+    public final <T> T callContainerTransaction(Supplier<T> action) {
+        Objects.requireNonNull(action, "Container transaction action cannot be null");
+        containerTransactionLock.lock();
+        try {
+            return action.get();
+        } finally {
+            containerTransactionLock.unlock();
+        }
+    }
+
+    /**
+     * Attempts a local container operation without waiting for another machine transaction. This is used by external
+     * handlers so that two machines transferring to each other cannot deadlock while both are asynchronously updating.
+     */
+    protected final boolean tryRunContainerTransaction(Runnable action) {
+        Objects.requireNonNull(action, "Container transaction action cannot be null");
+        if (!containerTransactionLock.tryLock()) {
+            return false;
+        }
+        try {
+            action.run();
+            return true;
+        } finally {
+            containerTransactionLock.unlock();
+        }
+    }
+
+    /**
+     * Attempts a local container operation and returns the supplied busy value if another thread owns the transaction.
+     */
+    protected final <T> T tryCallContainerTransaction(Supplier<T> action, Supplier<T> busyValue) {
+        Objects.requireNonNull(action, "Container transaction action cannot be null");
+        Objects.requireNonNull(busyValue, "Container transaction busy value cannot be null");
+        if (!containerTransactionLock.tryLock()) {
+            return busyValue.get();
+        }
+        try {
+            return action.get();
+        } finally {
+            containerTransactionLock.unlock();
+        }
     }
 
     /**

@@ -326,21 +326,25 @@ public class TileEntityEnergyCube extends TileEntityElectricBlock implements ICo
 
     @Override
     public double acceptEnergy(EnumFacing side, double amount, boolean simulate) {
-        if (side != null && !canInsertExternalEnergy(side)) {
-            return 0;
-        }
-        Action action = Action.get(!simulate);
-        double remainder = getEnergyContainer().insert(amount, side, action, mekanism.api.AutomationType.handler(side));
-        trackEnergyInput(amount, action, remainder);
-        return amount - remainder;
+        return tryCallContainerTransaction(() -> {
+            if (side != null && !canInsertExternalEnergy(side)) {
+                return 0D;
+            }
+            Action action = Action.get(!simulate);
+            double remainder = getEnergyContainer().insert(amount, side, action, mekanism.api.AutomationType.handler(side));
+            trackEnergyInput(amount, action, remainder);
+            return amount - remainder;
+        }, () -> 0D);
     }
 
     @Override
     public double pullEnergy(EnumFacing side, double amount, boolean simulate) {
-        if (side != null && !canExtractExternalEnergy(side)) {
-            return 0;
-        }
-        return getEnergyContainer().extract(amount, side, Action.get(!simulate), mekanism.api.AutomationType.handler(side));
+        return tryCallContainerTransaction(() -> {
+            if (side != null && !canExtractExternalEnergy(side)) {
+                return 0D;
+            }
+            return getEnergyContainer().extract(amount, side, Action.get(!simulate), mekanism.api.AutomationType.handler(side));
+        }, () -> 0D);
     }
 
     @Override

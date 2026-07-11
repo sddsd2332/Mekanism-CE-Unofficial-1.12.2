@@ -265,7 +265,29 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
 
     @Override
     public boolean isEmpty() {
-        return ISlotBackedInventory.super.isEmpty();
+        return tryCallContainerTransaction(ISlotBackedInventory.super::isEmpty, () -> true);
+    }
+
+    @Nonnull
+    @Override
+    public ItemStack decrStackSize(int index, int count) {
+        return tryCallContainerTransaction(() -> ISlotBackedInventory.super.decrStackSize(index, count), () -> ItemStack.EMPTY);
+    }
+
+    @Nonnull
+    @Override
+    public ItemStack removeStackFromSlot(int index) {
+        return tryCallContainerTransaction(() -> ISlotBackedInventory.super.removeStackFromSlot(index), () -> ItemStack.EMPTY);
+    }
+
+    @Override
+    public void setInventorySlotContents(int index, @Nonnull ItemStack stack) {
+        runContainerTransaction(() -> ISlotBackedInventory.super.setInventorySlotContents(index, stack));
+    }
+
+    @Override
+    public void clear() {
+        runContainerTransaction(ISlotBackedInventory.super::clear);
     }
 
     @Override
@@ -333,9 +355,11 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
     }
 
     public boolean canInsertItem(int slotID, @Nonnull ItemStack itemstack, @Nonnull EnumFacing side) {
-        IInventorySlot slot = getInventorySlot(slotID);
-        return slot != null && canInsertItem(slot, itemstack, side) &&
-              slot.insertItem(itemstack, Action.SIMULATE, AutomationType.EXTERNAL).getCount() < itemstack.getCount();
+        return tryCallContainerTransaction(() -> {
+            IInventorySlot slot = getInventorySlot(slotID);
+            return slot != null && canInsertItem(slot, itemstack, side) &&
+                  slot.insertItem(itemstack, Action.SIMULATE, AutomationType.EXTERNAL).getCount() < itemstack.getCount();
+        }, () -> false);
     }
 
     @Nonnull
@@ -355,25 +379,26 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
     }
 
     public boolean canExtractItem(int slotID, @Nonnull ItemStack itemstack, @Nonnull EnumFacing side) {
-        IInventorySlot slot = getInventorySlot(slotID);
-        return slot != null && canExtractItem(slot, itemstack, side) &&
-              !slot.extractItem(itemstack.getCount(), Action.SIMULATE, AutomationType.EXTERNAL).isEmpty();
+        return tryCallContainerTransaction(() -> {
+            IInventorySlot slot = getInventorySlot(slotID);
+            return slot != null && canExtractItem(slot, itemstack, side) &&
+                  !slot.extractItem(itemstack.getCount(), Action.SIMULATE, AutomationType.EXTERNAL).isEmpty();
+        }, () -> false);
     }
 
     @Override
     public void setInventory(NBTTagList nbtTags, Object... data) {
-        if (nbtTags == null || nbtTags.tagCount() == 0 || !hasInventory() || !persistInventory()) {
-            return;
-        }
-        DataHandlerUtils.readContainers(getInventorySlots(null), nbtTags);
+        runContainerTransaction(() -> {
+            if (nbtTags != null && nbtTags.tagCount() > 0 && hasInventory() && persistInventory()) {
+                DataHandlerUtils.readContainers(getInventorySlots(null), nbtTags);
+            }
+        });
     }
 
     @Override
     public NBTTagList getInventory(Object... data) {
-        if (hasInventory() && persistInventory()) {
-            return DataHandlerUtils.writeContainers(getInventorySlots(null));
-        }
-        return new NBTTagList();
+        return callContainerTransaction(() -> hasInventory() && persistInventory() ?
+              DataHandlerUtils.writeContainers(getInventorySlots(null)) : new NBTTagList());
     }
 
     public boolean persistInventory() {
@@ -389,27 +414,31 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
     }
 
     protected void writeSustainedFluidTanks(ItemStack itemStack) {
-        ItemDataUtils.writeContainers(itemStack, NBTConstants.FLUID_TANKS, getFluidTanks(null));
+        runContainerTransaction(() -> ItemDataUtils.writeContainers(itemStack, NBTConstants.FLUID_TANKS, getFluidTanks(null)));
     }
 
     protected boolean readSustainedFluidTanks(ItemStack itemStack) {
-        if (ItemDataUtils.hasData(itemStack, NBTConstants.FLUID_TANKS, NBT.TAG_LIST)) {
-            ItemDataUtils.readContainers(itemStack, NBTConstants.FLUID_TANKS, getFluidTanks(null));
-            return true;
-        }
-        return false;
+        return callContainerTransaction(() -> {
+            if (ItemDataUtils.hasData(itemStack, NBTConstants.FLUID_TANKS, NBT.TAG_LIST)) {
+                ItemDataUtils.readContainers(itemStack, NBTConstants.FLUID_TANKS, getFluidTanks(null));
+                return true;
+            }
+            return false;
+        });
     }
 
     protected void writeSustainedGasTanks(ItemStack itemStack) {
-        ItemDataUtils.writeContainers(itemStack, NBTConstants.GAS_TANKS, getGasTanks(null));
+        runContainerTransaction(() -> ItemDataUtils.writeContainers(itemStack, NBTConstants.GAS_TANKS, getGasTanks(null)));
     }
 
     protected boolean readSustainedGasTanks(ItemStack itemStack) {
-        if (ItemDataUtils.hasData(itemStack, NBTConstants.GAS_TANKS, NBT.TAG_LIST)) {
-            ItemDataUtils.readContainers(itemStack, NBTConstants.GAS_TANKS, getGasTanks(null));
-            return true;
-        }
-        return false;
+        return callContainerTransaction(() -> {
+            if (ItemDataUtils.hasData(itemStack, NBTConstants.GAS_TANKS, NBT.TAG_LIST)) {
+                ItemDataUtils.readContainers(itemStack, NBTConstants.GAS_TANKS, getGasTanks(null));
+                return true;
+            }
+            return false;
+        });
     }
 
     public void recalculateUpgradables(Upgrade upgradeType) {
@@ -491,24 +520,38 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
         return inventorySlotHolder == null ? noSlots : inventorySlotHolder.getInventorySlots(side);
     }
 
+    @Override
+    public void setStackInSlot(int slot, @Nonnull ItemStack stack, @Nullable EnumFacing side) {
+        runContainerTransaction(() -> {
+            IInventorySlot inventorySlot = getInventorySlot(slot, side);
+            if (inventorySlot != null) {
+                inventorySlot.setStack(stack);
+            }
+        });
+    }
+
     @Nonnull
     @Override
     public ItemStack insertItem(int slot, @Nonnull ItemStack stack, @Nullable EnumFacing side, @Nonnull Action action) {
-        IInventorySlot inventorySlot = getInventorySlot(slot, side);
-        if (inventorySlot == null || !canInsertItem(inventorySlot, stack, side)) {
-            return stack;
-        }
-        return inventorySlot.insertItem(stack, action, AutomationType.handler(side));
+        return tryCallContainerTransaction(() -> {
+            IInventorySlot inventorySlot = getInventorySlot(slot, side);
+            if (inventorySlot == null || !canInsertItem(inventorySlot, stack, side)) {
+                return stack;
+            }
+            return inventorySlot.insertItem(stack, action, AutomationType.handler(side));
+        }, () -> stack);
     }
 
     @Nonnull
     @Override
     public ItemStack extractItem(int slot, int amount, @Nullable EnumFacing side, @Nonnull Action action) {
-        IInventorySlot inventorySlot = getInventorySlot(slot, side);
-        if (inventorySlot == null || !canExtractItem(inventorySlot, ItemStack.EMPTY, side)) {
-            return ItemStack.EMPTY;
-        }
-        return inventorySlot.extractItem(amount, action, AutomationType.handler(side));
+        return tryCallContainerTransaction(() -> {
+            IInventorySlot inventorySlot = getInventorySlot(slot, side);
+            if (inventorySlot == null || !canExtractItem(inventorySlot, ItemStack.EMPTY, side)) {
+                return ItemStack.EMPTY;
+            }
+            return inventorySlot.extractItem(amount, action, AutomationType.handler(side));
+        }, () -> ItemStack.EMPTY);
     }
 
     @Override
@@ -537,6 +580,16 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
         return canHandleFluid() ? fluidTankHolder.getTanks(side) : noFluidTanks;
     }
 
+    @Override
+    public void setFluidInTank(int tank, @Nullable FluidStack stack, @Nullable EnumFacing side) {
+        runContainerTransaction(() -> {
+            IExtendedFluidTank fluidTank = getFluidTank(tank, side);
+            if (fluidTank != null) {
+                fluidTank.setStack(stack);
+            }
+        });
+    }
+
     public boolean canInsertFluid(@Nullable EnumFacing side) {
         if (side == null) {
             return false;
@@ -562,60 +615,70 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
     @Override
     @Nullable
     public FluidStack insertFluid(int tank, @Nullable FluidStack stack, @Nullable EnumFacing side, Action action) {
-        IExtendedFluidTank fluidTank = getFluidTank(tank, side);
-        if (fluidTank == null || !canInsertFluid(fluidTank, side)) {
-            return stack;
-        }
-        return fluidTank.insert(stack, action, AutomationType.handler(side));
+        return tryCallContainerTransaction(() -> {
+            IExtendedFluidTank fluidTank = getFluidTank(tank, side);
+            if (fluidTank == null || !canInsertFluid(fluidTank, side)) {
+                return stack;
+            }
+            return fluidTank.insert(stack, action, AutomationType.handler(side));
+        }, () -> stack);
     }
 
     @Override
     @Nullable
     public FluidStack insertFluid(@Nullable FluidStack stack, @Nullable EnumFacing side, Action action) {
-        if (side != null && !canInsertFluid(side)) {
-            return stack;
-        }
-        if (side == null || fluidTankHolder == null) {
-            return IMekanismFluidHandler.super.insertFluid(stack, side, action);
-        }
-        List<IExtendedFluidTank> fluidTanks = fluidTankHolder.getTanksForInsert(side);
-        return ExtendedFluidHandlerUtils.insert(stack, action, AutomationType.handler(side), fluidTanks.size(), fluidTanks);
+        return tryCallContainerTransaction(() -> {
+            if (side != null && !canInsertFluid(side)) {
+                return stack;
+            }
+            if (side == null || fluidTankHolder == null) {
+                return IMekanismFluidHandler.super.insertFluid(stack, side, action);
+            }
+            List<IExtendedFluidTank> fluidTanks = fluidTankHolder.getTanksForInsert(side);
+            return ExtendedFluidHandlerUtils.insert(stack, action, AutomationType.handler(side), fluidTanks.size(), fluidTanks);
+        }, () -> stack);
     }
 
     @Override
     @Nullable
     public FluidStack extractFluid(int tank, int amount, @Nullable EnumFacing side, Action action) {
-        IExtendedFluidTank fluidTank = getFluidTank(tank, side);
-        if (fluidTank == null || !canExtractFluid(fluidTank, side)) {
-            return null;
-        }
-        return fluidTank.extract(amount, action, AutomationType.handler(side));
+        return tryCallContainerTransaction(() -> {
+            IExtendedFluidTank fluidTank = getFluidTank(tank, side);
+            if (fluidTank == null || !canExtractFluid(fluidTank, side)) {
+                return null;
+            }
+            return fluidTank.extract(amount, action, AutomationType.handler(side));
+        }, () -> null);
     }
 
     @Override
     @Nullable
     public FluidStack extractFluid(int amount, @Nullable EnumFacing side, Action action) {
-        if (side != null && !canExtractFluid(side)) {
-            return null;
-        }
-        if (side == null || fluidTankHolder == null) {
-            return IMekanismFluidHandler.super.extractFluid(amount, side, action);
-        }
-        List<IExtendedFluidTank> fluidTanks = fluidTankHolder.getTanksForExtract(side);
-        return ExtendedFluidHandlerUtils.extract(amount, action, AutomationType.handler(side), fluidTanks.size(), fluidTanks);
+        return tryCallContainerTransaction(() -> {
+            if (side != null && !canExtractFluid(side)) {
+                return null;
+            }
+            if (side == null || fluidTankHolder == null) {
+                return IMekanismFluidHandler.super.extractFluid(amount, side, action);
+            }
+            List<IExtendedFluidTank> fluidTanks = fluidTankHolder.getTanksForExtract(side);
+            return ExtendedFluidHandlerUtils.extract(amount, action, AutomationType.handler(side), fluidTanks.size(), fluidTanks);
+        }, () -> null);
     }
 
     @Override
     @Nullable
     public FluidStack extractFluid(@Nullable FluidStack stack, @Nullable EnumFacing side, Action action) {
-        if (side != null && !canExtractFluid(side)) {
-            return null;
-        }
-        if (side == null || fluidTankHolder == null) {
-            return IMekanismFluidHandler.super.extractFluid(stack, side, action);
-        }
-        List<IExtendedFluidTank> fluidTanks = fluidTankHolder.getTanksForExtract(side);
-        return ExtendedFluidHandlerUtils.extract(stack, action, AutomationType.handler(side), fluidTanks.size(), fluidTanks);
+        return tryCallContainerTransaction(() -> {
+            if (side != null && !canExtractFluid(side)) {
+                return null;
+            }
+            if (side == null || fluidTankHolder == null) {
+                return IMekanismFluidHandler.super.extractFluid(stack, side, action);
+            }
+            List<IExtendedFluidTank> fluidTanks = fluidTankHolder.getTanksForExtract(side);
+            return ExtendedFluidHandlerUtils.extract(stack, action, AutomationType.handler(side), fluidTanks.size(), fluidTanks);
+        }, () -> null);
     }
 
     public boolean hasGasTanks() {
@@ -631,6 +694,16 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
     @Override
     public List<IExtendedGasTank> getGasTanks(@Nullable EnumFacing side) {
         return canHandleGas() ? gasTankHolder.getTanks(side) : noGasTanks;
+    }
+
+    @Override
+    public void setGasInTank(int tank, @Nullable GasStack stack, @Nullable EnumFacing side) {
+        runContainerTransaction(() -> {
+            IExtendedGasTank gasTank = getGasTank(tank, side);
+            if (gasTank != null) {
+                gasTank.setStack(stack);
+            }
+        });
     }
 
     public boolean canInsertGas(@Nullable EnumFacing side) {
@@ -658,60 +731,70 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
     @Override
     @Nullable
     public GasStack insertGas(int tank, @Nullable GasStack stack, @Nullable EnumFacing side, Action action) {
-        IExtendedGasTank gasTank = getGasTank(tank, side);
-        if (gasTank == null || !canInsertGas(gasTank, side)) {
-            return stack;
-        }
-        return gasTank.insert(stack, action, AutomationType.handler(side));
+        return tryCallContainerTransaction(() -> {
+            IExtendedGasTank gasTank = getGasTank(tank, side);
+            if (gasTank == null || !canInsertGas(gasTank, side)) {
+                return stack;
+            }
+            return gasTank.insert(stack, action, AutomationType.handler(side));
+        }, () -> stack);
     }
 
     @Override
     @Nullable
     public GasStack insertGas(@Nullable GasStack stack, @Nullable EnumFacing side, Action action) {
-        if (side != null && !canInsertGas(side)) {
-            return stack;
-        }
-        if (side == null || gasTankHolder == null) {
-            return IMekanismGasHandler.super.insertGas(stack, side, action);
-        }
-        List<IExtendedGasTank> gasTanks = gasTankHolder.getTanksForInsert(side);
-        return ExtendedGasHandlerUtils.insert(stack, action, AutomationType.handler(side), gasTanks.size(), gasTanks);
+        return tryCallContainerTransaction(() -> {
+            if (side != null && !canInsertGas(side)) {
+                return stack;
+            }
+            if (side == null || gasTankHolder == null) {
+                return IMekanismGasHandler.super.insertGas(stack, side, action);
+            }
+            List<IExtendedGasTank> gasTanks = gasTankHolder.getTanksForInsert(side);
+            return ExtendedGasHandlerUtils.insert(stack, action, AutomationType.handler(side), gasTanks.size(), gasTanks);
+        }, () -> stack);
     }
 
     @Override
     @Nullable
     public GasStack extractGas(int tank, int amount, @Nullable EnumFacing side, Action action) {
-        IExtendedGasTank gasTank = getGasTank(tank, side);
-        if (gasTank == null || !canExtractGas(gasTank, side)) {
-            return null;
-        }
-        return gasTank.extract(amount, action, AutomationType.handler(side));
+        return tryCallContainerTransaction(() -> {
+            IExtendedGasTank gasTank = getGasTank(tank, side);
+            if (gasTank == null || !canExtractGas(gasTank, side)) {
+                return null;
+            }
+            return gasTank.extract(amount, action, AutomationType.handler(side));
+        }, () -> null);
     }
 
     @Override
     @Nullable
     public GasStack extractGas(int amount, @Nullable EnumFacing side, Action action) {
-        if (side != null && !canExtractGas(side)) {
-            return null;
-        }
-        if (side == null || gasTankHolder == null) {
-            return IMekanismGasHandler.super.extractGas(amount, side, action);
-        }
-        List<IExtendedGasTank> gasTanks = gasTankHolder.getTanksForExtract(side);
-        return ExtendedGasHandlerUtils.extract(amount, action, AutomationType.handler(side), gasTanks.size(), gasTanks);
+        return tryCallContainerTransaction(() -> {
+            if (side != null && !canExtractGas(side)) {
+                return null;
+            }
+            if (side == null || gasTankHolder == null) {
+                return IMekanismGasHandler.super.extractGas(amount, side, action);
+            }
+            List<IExtendedGasTank> gasTanks = gasTankHolder.getTanksForExtract(side);
+            return ExtendedGasHandlerUtils.extract(amount, action, AutomationType.handler(side), gasTanks.size(), gasTanks);
+        }, () -> null);
     }
 
     @Override
     @Nullable
     public GasStack extractGas(@Nullable GasStack stack, @Nullable EnumFacing side, Action action) {
-        if (side != null && !canExtractGas(side)) {
-            return null;
-        }
-        if (side == null || gasTankHolder == null) {
-            return IMekanismGasHandler.super.extractGas(stack, side, action);
-        }
-        List<IExtendedGasTank> gasTanks = gasTankHolder.getTanksForExtract(side);
-        return ExtendedGasHandlerUtils.extract(stack, action, AutomationType.handler(side), gasTanks.size(), gasTanks);
+        return tryCallContainerTransaction(() -> {
+            if (side != null && !canExtractGas(side)) {
+                return null;
+            }
+            if (side == null || gasTankHolder == null) {
+                return IMekanismGasHandler.super.extractGas(stack, side, action);
+            }
+            List<IExtendedGasTank> gasTanks = gasTankHolder.getTanksForExtract(side);
+            return ExtendedGasHandlerUtils.extract(stack, action, AutomationType.handler(side), gasTanks.size(), gasTanks);
+        }, () -> null);
     }
 
     public boolean hasEnergyContainers() {
@@ -727,6 +810,16 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
     @Override
     public List<IEnergyContainer> getEnergyContainers(@Nullable EnumFacing side) {
         return canHandleEnergy() ? energyContainerHolder.getEnergyContainers(side) : noEnergyContainers;
+    }
+
+    @Override
+    public void setEnergy(int container, double energy, @Nullable EnumFacing side) {
+        runContainerTransaction(() -> {
+            IEnergyContainer energyContainer = getEnergyContainer(container, side);
+            if (energyContainer != null) {
+                energyContainer.setEnergy(Math.max(0, energy));
+            }
+        });
     }
 
     public boolean canInsertEnergy(@Nullable EnumFacing side) {
@@ -745,22 +838,26 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
 
     @Override
     public double insertEnergy(int container, double amount, @Nullable EnumFacing side, Action action) {
-        return side != null && !canInsertEnergy(side) ? amount : IMekanismStrictEnergyHandler.super.insertEnergy(container, amount, side, action);
+        return tryCallContainerTransaction(() -> side != null && !canInsertEnergy(side) ? amount :
+              IMekanismStrictEnergyHandler.super.insertEnergy(container, amount, side, action), () -> amount);
     }
 
     @Override
     public double insertEnergy(double amount, @Nullable EnumFacing side, Action action) {
-        return side != null && !canInsertEnergy(side) ? amount : IMekanismStrictEnergyHandler.super.insertEnergy(amount, side, action);
+        return tryCallContainerTransaction(() -> side != null && !canInsertEnergy(side) ? amount :
+              IMekanismStrictEnergyHandler.super.insertEnergy(amount, side, action), () -> amount);
     }
 
     @Override
     public double extractEnergy(int container, double amount, @Nullable EnumFacing side, Action action) {
-        return side != null && !canExtractEnergy(side) ? 0 : IMekanismStrictEnergyHandler.super.extractEnergy(container, amount, side, action);
+        return tryCallContainerTransaction(() -> side != null && !canExtractEnergy(side) ? 0 :
+              IMekanismStrictEnergyHandler.super.extractEnergy(container, amount, side, action), () -> 0D);
     }
 
     @Override
     public double extractEnergy(double amount, @Nullable EnumFacing side, Action action) {
-        return side != null && !canExtractEnergy(side) ? 0 : IMekanismStrictEnergyHandler.super.extractEnergy(amount, side, action);
+        return tryCallContainerTransaction(() -> side != null && !canExtractEnergy(side) ? 0 :
+              IMekanismStrictEnergyHandler.super.extractEnergy(amount, side, action), () -> 0D);
     }
 
     public boolean hasHeatTransfers() {

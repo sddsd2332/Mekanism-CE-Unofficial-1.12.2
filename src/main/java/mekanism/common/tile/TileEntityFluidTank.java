@@ -366,13 +366,15 @@ public class TileEntityFluidTank extends TileEntityContainerBlock implements IAc
     @Override
     @Nullable
     public FluidStack insertFluid(int tank, @Nullable FluidStack stack, @Nullable EnumFacing side, Action action) {
-        return insertExcess(stack, side, action, super.insertFluid(tank, stack, side, action));
+        return tryCallContainerTransaction(() ->
+              insertExcess(stack, side, action, super.insertFluid(tank, stack, side, action)), () -> stack);
     }
 
     @Override
     @Nullable
     public FluidStack insertFluid(@Nullable FluidStack stack, @Nullable EnumFacing side, Action action) {
-        return insertExcess(stack, side, action, super.insertFluid(stack, side, action));
+        return tryCallContainerTransaction(() ->
+              insertExcess(stack, side, action, super.insertFluid(stack, side, action)), () -> stack);
     }
 
     @Nullable

@@ -132,6 +132,11 @@ public class TileEntityResistiveHeater extends TileEntityEffectsBlock implements
     }
 
     @Override
+    protected boolean hasCrossMachineAsyncOperations() {
+        return true;
+    }
+
+    @Override
     public boolean sideIsConsumer(EnumFacing side) {
         return side == MekanismUtils.getLeft(facing) || side == MekanismUtils.getRight(facing);
     }

@@ -4149,6 +4149,10 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
         }
 
         public void sort() {
+            factory.runContainerTransaction(this::sortInTransaction);
+        }
+
+        private void sortInTransaction() {
             if (!factory.isSorting()) {
                 return;
             }

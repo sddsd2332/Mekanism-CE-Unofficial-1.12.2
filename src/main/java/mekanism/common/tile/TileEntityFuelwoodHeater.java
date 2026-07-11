@@ -116,6 +116,11 @@ public class TileEntityFuelwoodHeater extends TileEntityContainerBlock implement
     }
 
     @Override
+    protected boolean hasCrossMachineAsyncOperations() {
+        return true;
+    }
+
+    @Override
     public void readCustomNBT(NBTTagCompound nbtTags) {
         super.readCustomNBT(nbtTags);
         if (heatCapacitor != null && nbtTags.hasKey("heatStored")) {

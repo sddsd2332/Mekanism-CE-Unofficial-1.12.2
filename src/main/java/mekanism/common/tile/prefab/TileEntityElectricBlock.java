@@ -195,8 +195,10 @@ public abstract class TileEntityElectricBlock extends TileEntityContainerBlock i
 
     @Override
     public void setEnergy(double energy) {
-        electricityStored.set(Math.max(Math.min(energy, getMaxEnergy()), 0));
-        MekanismUtils.saveChunk(this);
+        runContainerTransaction(() -> {
+            electricityStored.set(Math.max(Math.min(energy, getMaxEnergy()), 0));
+            MekanismUtils.saveChunk(this);
+        });
     }
 
     @Override
@@ -315,8 +317,10 @@ public abstract class TileEntityElectricBlock extends TileEntityContainerBlock i
     @Method(modid = MekanismHooks.IC2_MOD_ID)
     public int addEnergy(int amount) {
         if (!MekanismConfig.current().general.blacklistIC2.val()) {
-            setEnergy(getEnergy() + IC2Integration.fromEU(amount));
-            return IC2Integration.toEUAsInt(getEnergy());
+            return tryCallContainerTransaction(() -> {
+                setEnergy(getEnergy() + IC2Integration.fromEU(amount));
+                return IC2Integration.toEUAsInt(getEnergy());
+            }, () -> IC2Integration.toEUAsInt(getEnergy()));
         }
         return 0;
     }
@@ -407,46 +411,54 @@ public abstract class TileEntityElectricBlock extends TileEntityContainerBlock i
     @Override
     @Method(modid = MekanismHooks.IC2_MOD_ID)
     public void drawEnergy(double amount) {
-        setEnergy(Math.max(getEnergy() - IC2Integration.fromEU(amount), 0));
+        runContainerTransaction(() -> setEnergy(Math.max(getEnergy() - IC2Integration.fromEU(amount), 0)));
     }
 
     @Override
     public double acceptEnergy(EnumFacing side, double amount, boolean simulate) {
-        double toUse = Math.min(getMaxEnergy() - getEnergy(), amount);
-        if (toUse < 0.0001 || (side != null && !canInsertExternalEnergy(side))) {
-            return 0;
-        }
-        if (!simulate) {
-            setEnergy(getEnergy() + toUse);
-            lastEnergyTracker.received(world == null ? 0 : world.getTotalWorldTime(), toUse);
-        }
-        return toUse;
+        return tryCallContainerTransaction(() -> {
+            double toUse = Math.min(getMaxEnergy() - getEnergy(), amount);
+            if (toUse < 0.0001 || (side != null && !canInsertExternalEnergy(side))) {
+                return 0D;
+            }
+            if (!simulate) {
+                setEnergy(getEnergy() + toUse);
+                lastEnergyTracker.received(world == null ? 0 : world.getTotalWorldTime(), toUse);
+            }
+            return toUse;
+        }, () -> 0D);
     }
 
     @Override
     public double insertEnergy(int container, double amount, @Nullable EnumFacing side, Action action) {
-        double remainder = super.insertEnergy(container, amount, side, action);
-        trackEnergyInput(amount, action, remainder);
-        return remainder;
+        return tryCallContainerTransaction(() -> {
+            double remainder = super.insertEnergy(container, amount, side, action);
+            trackEnergyInput(amount, action, remainder);
+            return remainder;
+        }, () -> amount);
     }
 
     @Override
     public double insertEnergy(double amount, @Nullable EnumFacing side, Action action) {
-        double remainder = super.insertEnergy(amount, side, action);
-        trackEnergyInput(amount, action, remainder);
-        return remainder;
+        return tryCallContainerTransaction(() -> {
+            double remainder = super.insertEnergy(amount, side, action);
+            trackEnergyInput(amount, action, remainder);
+            return remainder;
+        }, () -> amount);
     }
 
     @Override
     public double pullEnergy(EnumFacing side, double amount, boolean simulate) {
-        double toGive = Math.min(getEnergy(), amount);
-        if (toGive < 0.0001 || (side != null && !canExtractExternalEnergy(side))) {
-            return 0;
-        }
-        if (!simulate) {
-            setEnergy(getEnergy() - toGive);
-        }
-        return toGive;
+        return tryCallContainerTransaction(() -> {
+            double toGive = Math.min(getEnergy(), amount);
+            if (toGive < 0.0001 || (side != null && !canExtractExternalEnergy(side))) {
+                return 0D;
+            }
+            if (!simulate) {
+                setEnergy(getEnergy() - toGive);
+            }
+            return toGive;
+        }, () -> 0D);
     }
 
     @Override
