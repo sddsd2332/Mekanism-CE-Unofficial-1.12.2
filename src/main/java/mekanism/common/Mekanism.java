@@ -44,6 +44,7 @@ import mekanism.common.frequency.FrequencyManager;
 import mekanism.common.frequency.FrequencyType;
 import mekanism.common.integration.IMCHandler;
 import mekanism.common.integration.MekanismHooks;
+import mekanism.common.integration.crafttweaker.CrafttweakerIntegration;
 import mekanism.common.integration.multipart.MultipartMekanism;
 import mekanism.common.lib.radiation.RadiationManager;
 import mekanism.common.multiblock.MultiblockManager;
@@ -273,6 +274,9 @@ public class Mekanism {
 
     @SubscribeEvent
     public static void registerRecipes(RegistryEvent.Register<IRecipe> event) {
+        if (hooks.CraftTweakerLoaded) {
+            CrafttweakerIntegration.finishRegistryRegistration();
+        }
         if (!MekanismConfig.current().mekce.BinRecipeClosed.val()) {
             event.getRegistry().register(new BinRecipe());
         }
@@ -585,6 +589,9 @@ public class Mekanism {
 
         Capabilities.registerCapabilities();
         hooks.hookPreInit();
+        if (hooks.CraftTweakerLoaded) {
+            CrafttweakerIntegration.loadRegistryScripts();
+        }
         MinecraftForge.EVENT_BUS.register(Mekanism.EXECUTE_MANAGER);
         Mekanism.EXECUTE_MANAGER.init();
         Mekanism.logger.info(String.format("Parallel executor is ready (%s Threads), Let's get started!!!", TaskExecutor.THREAD_COUNT));

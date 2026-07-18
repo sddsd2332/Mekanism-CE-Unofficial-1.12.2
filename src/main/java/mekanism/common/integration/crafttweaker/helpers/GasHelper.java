@@ -19,13 +19,31 @@ public class GasHelper {
             return true;
         }
         if (ingredient instanceof IGasStack stack) {
-            return toGas(stack).isGasEqual(toGas(gasStack));
+            GasStack expected = toGas(stack);
+            GasStack actual = toGas(gasStack);
+            return expected != null && expected.isGasEqual(actual);
+        }
+        Object internal = ingredient.getInternal();
+        if (internal instanceof IIngredient[] ingredients) {
+            for (IIngredient alternative : ingredients) {
+                if (matches(alternative, gasStack)) {
+                    return true;
+                }
+            }
         }
         return false;
     }
 
     public static GasStack toGas(IGasStack iStack) {
-        return iStack == null ? null : new GasStack(GasRegistry.getGas(iStack.getName()), iStack.getAmount());
+        if (iStack == null) {
+            return null;
+        }
+        Object internal = iStack.getInternal();
+        if (internal instanceof GasStack stack) {
+            return stack.copy();
+        }
+        String name = iStack.getName();
+        return name == null || GasRegistry.getGas(name) == null ? null : new GasStack(GasRegistry.getGas(name), iStack.getAmount());
     }
 
     public static GasStack[] toGases(IGasStack[] iStack) {

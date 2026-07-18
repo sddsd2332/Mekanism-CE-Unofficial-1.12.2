@@ -33,6 +33,7 @@ public class GrSMekanismAdd implements GroovyPlugin {
 
     @Override
     public void onCompatLoaded(GroovyContainer<?> groovyContainer) {
+        DeferredGasFluidMappings.registerEventHandler();
     }
 
     @Override

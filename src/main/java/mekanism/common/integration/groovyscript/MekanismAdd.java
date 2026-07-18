@@ -5,6 +5,8 @@ import mekanism.common.integration.groovyscript.machinerecipe.*;
 
 public class MekanismAdd extends Mekanism {
 
+    public final GasRegistration gas = new GasRegistration();
+
     public final IsotopicCentrifuge isotopicCentrifuge = new IsotopicCentrifuge();
     public final NutritionalLiquifier nutritionalLiquifier = new NutritionalLiquifier();
     public final OrganicFarm organicFarm = new OrganicFarm();

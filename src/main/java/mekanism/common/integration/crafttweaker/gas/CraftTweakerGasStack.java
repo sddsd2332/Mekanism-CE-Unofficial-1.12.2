@@ -4,7 +4,9 @@ import crafttweaker.api.item.*;
 import crafttweaker.api.liquid.ILiquidStack;
 import crafttweaker.api.player.IPlayer;
 import mekanism.api.gas.GasStack;
+import mekanism.common.integration.crafttweaker.helpers.GasHelper;
 
+import java.util.Collections;
 import java.util.List;
 
 public class CraftTweakerGasStack implements IGasStack {
@@ -42,7 +44,7 @@ public class CraftTweakerGasStack implements IGasStack {
 
     @Override
     public List<IItemStack> getItems() {
-        return null;
+        return Collections.emptyList();
     }
 
     @Override
@@ -52,7 +54,7 @@ public class CraftTweakerGasStack implements IGasStack {
 
     @Override
     public List<ILiquidStack> getLiquids() {
-        return null;
+        return Collections.emptyList();
     }
 
     @Override
@@ -62,27 +64,27 @@ public class CraftTweakerGasStack implements IGasStack {
 
     @Override
     public IIngredient or(IIngredient iIngredient) {
-        return null;
+        return new IngredientOr(this, iIngredient);
     }
 
     @Override
     public IIngredient transformNew(IItemTransformerNew transformer) {
-        return null;
+        throw new UnsupportedOperationException("Gas stacks cannot have item transformers");
     }
 
     @Override
     public IIngredient transform(IItemTransformer iItemTransformer) {
-        return null;
+        throw new UnsupportedOperationException("Gas stacks cannot have item transformers");
     }
 
     @Override
     public IIngredient only(IItemCondition iItemCondition) {
-        return null;
+        throw new UnsupportedOperationException("Gas stacks cannot have item conditions");
     }
 
     @Override
     public IIngredient marked(String s) {
-        return null;
+        throw new UnsupportedOperationException("Gas stacks cannot be marked");
     }
 
     @Override
@@ -102,17 +104,21 @@ public class CraftTweakerGasStack implements IGasStack {
 
     @Override
     public boolean contains(IIngredient iIngredient) {
-        return false;
+        if (!(iIngredient instanceof IGasStack gasStack)) {
+            return false;
+        }
+        GasStack other = GasHelper.toGas(gasStack);
+        return other != null && stack.isGasEqual(other) && stack.amount <= other.amount;
     }
 
     @Override
     public IItemStack applyTransform(IItemStack iItemStack, IPlayer iPlayer) {
-        return null;
+        return iItemStack;
     }
 
     @Override
     public IItemStack applyNewTransform(IItemStack item) {
-        return null;
+        return item;
     }
 
     @Override
