@@ -15,6 +15,7 @@ import java.util.UUID;
 public abstract class Frequency {
 
     public static final String TELEPORTER = "Teleporter";
+    public static final String QIO = "QIO";
 
     protected boolean dirty;
     private boolean removed;
@@ -26,7 +27,7 @@ public abstract class Frequency {
     private SecurityMode securityMode = SecurityMode.PUBLIC;
 
     protected Frequency(FrequencyType<?> frequencyType, String name, @Nullable UUID ownerUUID, SecurityMode securityMode) {
-        this(frequencyType, name, ownerUUID, MekanismUtils.getLastKnownUsername(ownerUUID), securityMode);
+        this(frequencyType, name, ownerUUID, ownerUUID == null ? "" : MekanismUtils.getLastKnownUsername(ownerUUID), securityMode);
     }
 
     protected Frequency(FrequencyType<?> frequencyType, String name, @Nullable UUID ownerUUID, String ownerName, SecurityMode securityMode) {
@@ -163,7 +164,7 @@ public abstract class Frequency {
         }
         name = nbtTags.getString(NBTConstants.NAME);
         ownerUUID = nbtTags.hasKey(NBTConstants.OWNER_UUID) ? MekanismUtils.parseUUID(nbtTags.getString(NBTConstants.OWNER_UUID)) : null;
-        clientOwner = MekanismUtils.getLastKnownUsername(ownerUUID);
+        clientOwner = ownerUUID == null ? "" : MekanismUtils.getLastKnownUsername(ownerUUID);
         securityMode = SecurityMode.byIndexStatic(nbtTags.getInteger(NBTConstants.SECURITY_MODE));
     }
 

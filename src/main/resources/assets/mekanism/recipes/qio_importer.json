@@ -1,0 +1,30 @@
+{
+  "result": {
+    "item": "mekanism:qio_importer"
+  },
+  "pattern": [
+    "ITI",
+    "ACA",
+    " P "
+  ],
+  "type": "forge:ore_shaped",
+  "key": {
+    "I": {
+      "ore": "ingotLead",
+      "type": "forge:ore_dict"
+    },
+    "T": {
+      "item": "mekanism:teleportationcore"
+    },
+    "A": {
+      "item": "minecraft:ender_pearl"
+    },
+    "C": {
+      "item": "mekanism:controlcircuit",
+      "data": 3
+    },
+    "P": {
+      "item": "minecraft:sticky_piston"
+    }
+  }
+}

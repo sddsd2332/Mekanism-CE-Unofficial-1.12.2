@@ -7,6 +7,7 @@ import mekanism.common.HashList;
 import mekanism.common.PacketHandler;
 import mekanism.common.content.filter.IFilter;
 import mekanism.common.content.miner.MinerFilter;
+import mekanism.common.content.qio.filter.QIOFilter;
 import mekanism.common.content.transporter.TransporterFilter;
 import mekanism.common.inventory.container.MekanismContainer;
 import mekanism.common.tile.machine.TileEntityOredictionificator.OredictionificatorFilter;
@@ -81,6 +82,12 @@ public class FilterListPropertyData<FILTER extends IFilter> extends PropertyData
             @Override
             public IFilter readFilter(ByteBuf buffer) {
                 return OredictionificatorFilter.readFromPacket(buffer);
+            }
+        },
+        QIO {
+            @Override
+            public IFilter readFilter(ByteBuf buffer) {
+                return QIOFilter.readFromPacket(buffer);
             }
         };
 

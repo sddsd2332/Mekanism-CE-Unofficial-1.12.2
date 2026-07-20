@@ -322,6 +322,11 @@ public abstract class GuiElement extends Widget implements IFancyFontRenderer {
                 .forEach(child -> child.renderToolTip(mouseX, mouseY));
     }
 
+    /** Whether this element rendered the tooltip for the real container slot beneath it. */
+    public boolean rendersSlotTooltip() {
+        return false;
+    }
+
     public boolean isMouseOverTooltip(double mouseX, double mouseY) {
         return isMouseOver(mouseX, mouseY);
     }

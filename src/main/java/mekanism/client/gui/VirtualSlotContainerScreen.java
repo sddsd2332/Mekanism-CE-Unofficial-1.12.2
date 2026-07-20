@@ -15,6 +15,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.util.text.TextFormatting;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
+import org.lwjgl.opengl.GL11;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -82,6 +83,10 @@ public abstract class VirtualSlotContainerScreen<T extends Container> extends Gu
                 x = this.touchUpX + (int) (xOffset * f);
                 y = this.touchUpY + (int) (yOffset * f);
             }
+            // GuiMekanism paints top-level windows in order while reusing a bounded Z range. Clear
+            // their depth before the vanilla carried/returning stack so it is always the final layer.
+            GlStateManager.depthMask(true);
+            GlStateManager.clear(GL11.GL_DEPTH_BUFFER_BIT);
             renderContainerItemStack(stack, x, y, altText, draggedStack.isEmpty() ? 0 : 8, FLOATING_ITEM_Z);
         }
     }

@@ -1,0 +1,24 @@
+{
+  "result": {
+    "item": "mekanism:qio_drive_hyper_dense"
+  },
+  "pattern": [
+    "ACA",
+    "CDC",
+    "ACA"
+  ],
+  "type": "mekanism:ore_shaped",
+  "key": {
+    "A": {
+      "ore": "alloyUltimate",
+      "type": "forge:ore_dict"
+    },
+    "C": {
+      "item": "mekanism:controlcircuit",
+      "data": 3
+    },
+    "D": {
+      "item": "mekanism:qio_drive_base"
+    }
+  }
+}

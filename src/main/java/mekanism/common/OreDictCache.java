@@ -1,8 +1,11 @@
 package mekanism.common;
 
 import mekanism.api.util.ItemInfo;
+import mekanism.common.lib.WildcardMatcher;
 import mekanism.common.util.ItemRegistryUtils;
+import mekanism.common.util.MekanismUtils;
 import net.minecraft.item.ItemBlock;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.oredict.OreDictionary;
 
@@ -18,6 +21,7 @@ public final class OreDictCache {
     public static Map<String, List<ItemStack>> oreDictBlockStacks = new ConcurrentHashMap<>();
     public static Map<String, List<ItemStack>> modIDStacks = new ConcurrentHashMap<>();
     public static Map<String, List<ItemStack>> modIDBlockStacks = new ConcurrentHashMap<>();
+    private static final Map<String, List<ItemStack>> qioModIDStacks = new ConcurrentHashMap<>();
 
     public static List<String> getOreDictName(ItemStack check) {
         if (check.isEmpty()) {
@@ -110,5 +114,19 @@ public final class OreDictCache {
         }
         stackCache.put(modName, stacks);
         return stacks;
+    }
+
+    /** QIO follows modern Mekanism and matches the registry namespace, not the localized mod name. */
+    public static List<ItemStack> getQIOModIDStacks(String modID) {
+        return qioModIDStacks.computeIfAbsent(modID, id -> {
+            List<ItemStack> stacks = new ArrayList<>();
+            for (Item item : Item.REGISTRY) {
+                ItemStack stack = new ItemStack(item);
+                if (!stack.isEmpty() && WildcardMatcher.matches(id, MekanismUtils.getModId(stack))) {
+                    stacks.add(stack);
+                }
+            }
+            return stacks;
+        });
     }
 }

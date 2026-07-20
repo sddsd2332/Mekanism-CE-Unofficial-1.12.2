@@ -1,0 +1,60 @@
+{
+  "forge_marker": 1,
+  "variants": {
+    "active=false,facing=up": {
+      "model": "mekanism:qio_dashboard_offline"
+    },
+    "active=false,facing=down": {
+      "model": "mekanism:qio_dashboard_offline",
+      "x": 180
+    },
+    "active=false,facing=north": {
+      "model": "mekanism:qio_dashboard_offline",
+      "x": 90
+    },
+    "active=false,facing=south": {
+      "model": "mekanism:qio_dashboard_offline",
+      "x": 90,
+      "y": 180
+    },
+    "active=false,facing=east": {
+      "model": "mekanism:qio_dashboard_offline",
+      "x": 90,
+      "y": 90
+    },
+    "active=false,facing=west": {
+      "model": "mekanism:qio_dashboard_offline",
+      "x": 90,
+      "y": -90
+    },
+    "active=true,facing=up": {
+      "model": "mekanism:qio_dashboard"
+    },
+    "active=true,facing=down": {
+      "model": "mekanism:qio_dashboard",
+      "x": 180
+    },
+    "active=true,facing=north": {
+      "model": "mekanism:qio_dashboard",
+      "x": 90
+    },
+    "active=true,facing=south": {
+      "model": "mekanism:qio_dashboard",
+      "x": 90,
+      "y": 180
+    },
+    "active=true,facing=east": {
+      "model": "mekanism:qio_dashboard",
+      "x": 90,
+      "y": 90
+    },
+    "active=true,facing=west": {
+      "model": "mekanism:qio_dashboard",
+      "x": 90,
+      "y": -90
+    },
+    "inventory": [{
+      "model": "mekanism:qio_dashboard"
+    }]
+  }
+}

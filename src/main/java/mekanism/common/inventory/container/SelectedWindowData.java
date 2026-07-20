@@ -146,8 +146,10 @@ public class SelectedWindowData {
         private static final Map<ResourceLocation, WindowType> REGISTRY = new LinkedHashMap<>();
 
         public static final WindowType COLOR = register("color", "color", false);
+        public static final WindowType CRAFTING = register(new ResourceLocation("mekanism", "crafting"), "crafting", true, (byte) 3);
         public static final WindowType CONFIRMATION = register("confirmation", "confirmation", false);
         public static final WindowType MEKA_SUIT_HELMET = register("mekasuit_helmet", "mekasuit_helmet", false);
+        public static final WindowType QIO_FREQUENCY = register("qio_frequency", "qio_frequency", true);
         public static final WindowType RENAME = register("rename", "rename", false);
         public static final WindowType SKIN_SELECT = register("skin_select", "skin_select", false);
         public static final WindowType SIDE_CONFIG = register("side_config", "side_config", true);

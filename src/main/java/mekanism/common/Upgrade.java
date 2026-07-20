@@ -83,7 +83,7 @@ public final class Upgrade {
     private final IntFunction<ItemStack> stackCreator;
     private final InfoProvider infoProvider;
     private final ChangeHandler changeHandler;
-    private final Set<Upgrade> conflictingUpgrades;
+    private final Set<ResourceLocation> conflictingUpgradeNames;
 
     private Upgrade(Builder builder) {
         registryName = builder.registryName;
@@ -94,7 +94,7 @@ public final class Upgrade {
         stackCreator = builder.stackCreator;
         infoProvider = builder.infoProvider;
         changeHandler = builder.changeHandler;
-        conflictingUpgrades = Collections.unmodifiableSet(new LinkedHashSet<>(builder.conflictingUpgrades));
+        conflictingUpgradeNames = Collections.unmodifiableSet(new LinkedHashSet<>(builder.conflictingUpgradeNames));
     }
 
     public static Builder builder(String name) {
@@ -285,11 +285,18 @@ public final class Upgrade {
     }
 
     public Set<Upgrade> getConflictingUpgrades() {
-        return conflictingUpgrades;
+        Set<Upgrade> conflicts = new LinkedHashSet<>();
+        for (ResourceLocation conflictingUpgradeName : conflictingUpgradeNames) {
+            Upgrade conflictingUpgrade = byName(conflictingUpgradeName);
+            if (conflictingUpgrade != null) {
+                conflicts.add(conflictingUpgrade);
+            }
+        }
+        return Collections.unmodifiableSet(conflicts);
     }
 
     public boolean conflictsWith(@Nullable Upgrade upgrade) {
-        return upgrade != null && conflictingUpgrades.contains(upgrade);
+        return upgrade != null && conflictingUpgradeNames.contains(upgrade.registryName);
     }
 
     public boolean isCompatibleWith(@Nullable Upgrade upgrade) {
@@ -371,7 +378,7 @@ public final class Upgrade {
         private IntFunction<ItemStack> stackCreator = count -> ItemStack.EMPTY;
         private InfoProvider infoProvider = DEFAULT_INFO_PROVIDER;
         private ChangeHandler changeHandler = NOOP_CHANGE_HANDLER;
-        private final Set<Upgrade> conflictingUpgrades = new LinkedHashSet<>();
+        private final Set<ResourceLocation> conflictingUpgradeNames = new LinkedHashSet<>();
 
         private Builder(ResourceLocation registryName, String translationKey) {
             this.registryName = Objects.requireNonNull(registryName, "Upgrade registry name cannot be null");
@@ -431,13 +438,43 @@ public final class Upgrade {
 
         public Builder conflictsWith(@Nonnull Upgrade... upgrades) {
             Objects.requireNonNull(upgrades, "Conflicting upgrades cannot be null");
-            Arrays.stream(upgrades).filter(Objects::nonNull).forEach(conflictingUpgrades::add);
+            Arrays.stream(upgrades).filter(Objects::nonNull).map(Upgrade::getRegistryName).forEach(conflictingUpgradeNames::add);
             return this;
         }
 
         public Builder conflictsWith(@Nonnull Collection<Upgrade> upgrades) {
             Objects.requireNonNull(upgrades, "Conflicting upgrades cannot be null");
-            upgrades.stream().filter(Objects::nonNull).forEach(conflictingUpgrades::add);
+            upgrades.stream().filter(Objects::nonNull).map(Upgrade::getRegistryName).forEach(conflictingUpgradeNames::add);
+            return this;
+        }
+
+        /**
+         * Declares a conflict using the target upgrade's registry name. The target upgrade does not need to be
+         * registered yet, or even be supplied by an installed mod.
+         */
+        public Builder conflictsWith(@Nonnull ResourceLocation registryName) {
+            conflictingUpgradeNames.add(Objects.requireNonNull(registryName, "Conflicting upgrade registry name cannot be null"));
+            return this;
+        }
+
+        /**
+         * Declares a conflict using a target mod id and upgrade name without linking against the target mod.
+         */
+        public Builder conflictsWith(@Nonnull String modid, @Nonnull String name) {
+            return conflictsWith(new ResourceLocation(
+                  Objects.requireNonNull(modid, "Conflicting upgrade mod id cannot be null"),
+                  Objects.requireNonNull(name, "Conflicting upgrade name cannot be null")));
+        }
+
+        public Builder conflictsWithIds(@Nonnull ResourceLocation... registryNames) {
+            Objects.requireNonNull(registryNames, "Conflicting upgrade registry names cannot be null");
+            Arrays.stream(registryNames).filter(Objects::nonNull).forEach(conflictingUpgradeNames::add);
+            return this;
+        }
+
+        public Builder conflictsWithIds(@Nonnull Collection<ResourceLocation> registryNames) {
+            Objects.requireNonNull(registryNames, "Conflicting upgrade registry names cannot be null");
+            registryNames.stream().filter(Objects::nonNull).forEach(conflictingUpgradeNames::add);
             return this;
         }
 
@@ -447,6 +484,22 @@ public final class Upgrade {
 
         public Builder incompatibleWith(@Nonnull Collection<Upgrade> upgrades) {
             return conflictsWith(upgrades);
+        }
+
+        public Builder incompatibleWith(@Nonnull ResourceLocation registryName) {
+            return conflictsWith(registryName);
+        }
+
+        public Builder incompatibleWith(@Nonnull String modid, @Nonnull String name) {
+            return conflictsWith(modid, name);
+        }
+
+        public Builder incompatibleWithIds(@Nonnull ResourceLocation... registryNames) {
+            return conflictsWithIds(registryNames);
+        }
+
+        public Builder incompatibleWithIds(@Nonnull Collection<ResourceLocation> registryNames) {
+            return conflictsWithIds(registryNames);
         }
 
         public Upgrade register() {

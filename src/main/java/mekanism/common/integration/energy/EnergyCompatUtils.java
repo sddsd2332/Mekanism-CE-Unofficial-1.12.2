@@ -287,7 +287,7 @@ public final class EnergyCompatUtils {
             if (toInsert <= 0) {
                 return amount;
             }
-            double inserted = ElectricItem.manager.charge(stack, toInsert, IC2Integration.getItemOutputTier(stack), true, action.simulate());
+            double inserted = IC2Integration.chargeItem(stack, toInsert, true, action.simulate());
             return Math.max(0, amount - IC2Integration.fromEU(inserted));
         }
 
@@ -300,7 +300,7 @@ public final class EnergyCompatUtils {
             if (toExtract <= 0) {
                 return 0;
             }
-            return IC2Integration.fromEU(ElectricItem.manager.discharge(stack, toExtract, IC2Integration.getConfiguredInputTier(), true, true, action.simulate()));
+            return IC2Integration.fromEU(IC2Integration.dischargeItemToMekanism(stack, toExtract, true, action.simulate()));
         }
     }
 }

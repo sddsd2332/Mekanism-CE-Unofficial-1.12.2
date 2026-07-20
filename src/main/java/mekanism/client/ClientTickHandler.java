@@ -7,6 +7,7 @@ import mekanism.api.gear.IModule;
 import mekanism.api.gear.SwiftSneakHelp;
 import mekanism.api.radial.RadialData;
 import mekanism.client.gui.GuiRadialSelector;
+import mekanism.client.jei.MekanismJEI;
 import mekanism.client.render.hud.MekanismStatusOverlay;
 import mekanism.client.render.lib.ScrollIncrementer;
 import mekanism.client.sound.GeigerSound;
@@ -70,6 +71,7 @@ public class ClientTickHandler {
     public static Map<EntityPlayer, TeleportData> portableTeleports = new Object2ObjectOpenHashMap<>();
     private static final ScrollIncrementer scrollIncrementer = new ScrollIncrementer(true);
     public static boolean visionEnhancement = false;
+    private static boolean qioRecipeViewerRefreshPending;
 
     public boolean initHoliday = false;
     public boolean shouldReset = false;
@@ -135,6 +137,10 @@ public class ClientTickHandler {
         }
     }
 
+    public static void requestQIORecipeViewerRefresh() {
+        qioRecipeViewerRefreshPending = true;
+    }
+
     @SubscribeEvent
     public void onTick(ClientTickEvent event) {
         if (event.phase == Phase.START) {
@@ -144,6 +150,11 @@ public class ClientTickHandler {
 
     public void tickStart() {
         MekanismClient.ticksPassed++;
+
+        if (qioRecipeViewerRefreshPending) {
+            qioRecipeViewerRefreshPending = false;
+            MekanismJEI.refreshRecipeTransferButtons();
+        }
 
         if (!Mekanism.proxy.isPaused()) {
             for (Iterator<IClientTicker> iter = tickingSet.iterator(); iter.hasNext(); ) {

@@ -1,9 +1,11 @@
 package mekanism.common;
 
 import mekanism.api.EnumColor;
+import mekanism.common.content.qio.QIODriveType;
 import mekanism.common.item.*;
 import mekanism.common.item.armor.*;
 import mekanism.common.tier.AlloyTier;
+import mekanism.common.tier.QIODriveTier;
 import net.minecraft.inventory.EntityEquipmentSlot;
 import net.minecraft.item.EnumRarity;
 import net.minecraft.item.Item;
@@ -55,6 +57,28 @@ public class MekanismItems {
     public static final ItemJetpack ArmoredJetpack = new ItemJetpack();
     public static final ItemFreeRunners FreeRunners = new ItemFreeRunners();
     public static final Item Balloon = new ItemBalloon();
+
+    // QIO drives keep their contents in world-scoped external storage.
+    public static final ItemQIODrive BASE_QIO_DRIVE = new ItemQIODrive(QIODriveTier.BASE);
+    public static final ItemQIODrive HYPER_DENSE_QIO_DRIVE = new ItemQIODrive(QIODriveTier.HYPER_DENSE);
+    public static final ItemQIODrive TIME_DILATING_QIO_DRIVE = new ItemQIODrive(QIODriveTier.TIME_DILATING);
+    public static final ItemQIODrive SUPERMASSIVE_QIO_DRIVE = new ItemQIODrive(QIODriveTier.SUPERMASSIVE);
+
+    public static final ItemQIODrive BASE_ITEM_QIO_DRIVE = new ItemQIODrive(QIODriveTier.BASE, QIODriveType.ITEM);
+    public static final ItemQIODrive HYPER_DENSE_ITEM_QIO_DRIVE = new ItemQIODrive(QIODriveTier.HYPER_DENSE, QIODriveType.ITEM);
+    public static final ItemQIODrive TIME_DILATING_ITEM_QIO_DRIVE = new ItemQIODrive(QIODriveTier.TIME_DILATING, QIODriveType.ITEM);
+    public static final ItemQIODrive SUPERMASSIVE_ITEM_QIO_DRIVE = new ItemQIODrive(QIODriveTier.SUPERMASSIVE, QIODriveType.ITEM);
+
+    public static final ItemQIODrive BASE_FLUID_QIO_DRIVE = new ItemQIODrive(QIODriveTier.BASE, QIODriveType.FLUID);
+    public static final ItemQIODrive HYPER_DENSE_FLUID_QIO_DRIVE = new ItemQIODrive(QIODriveTier.HYPER_DENSE, QIODriveType.FLUID);
+    public static final ItemQIODrive TIME_DILATING_FLUID_QIO_DRIVE = new ItemQIODrive(QIODriveTier.TIME_DILATING, QIODriveType.FLUID);
+    public static final ItemQIODrive SUPERMASSIVE_FLUID_QIO_DRIVE = new ItemQIODrive(QIODriveTier.SUPERMASSIVE, QIODriveType.FLUID);
+
+    public static final ItemQIODrive BASE_GAS_QIO_DRIVE = new ItemQIODrive(QIODriveTier.BASE, QIODriveType.GAS);
+    public static final ItemQIODrive HYPER_DENSE_GAS_QIO_DRIVE = new ItemQIODrive(QIODriveTier.HYPER_DENSE, QIODriveType.GAS);
+    public static final ItemQIODrive TIME_DILATING_GAS_QIO_DRIVE = new ItemQIODrive(QIODriveTier.TIME_DILATING, QIODriveType.GAS);
+    public static final ItemQIODrive SUPERMASSIVE_GAS_QIO_DRIVE = new ItemQIODrive(QIODriveTier.SUPERMASSIVE, QIODriveType.GAS);
+    public static final ItemPortableQIODashboard PORTABLE_QIO_DASHBOARD = new ItemPortableQIODashboard();
 
     //Multi-ID Items
     public static final Item OtherDust = new ItemOtherDust();
@@ -209,6 +233,23 @@ public class MekanismItems {
         registry.register(init(GasMask, "GasMask"));
         registry.register(init(ScubaTank, "ScubaTank"));
         registry.register(init(Balloon, "Balloon"));
+        registry.register(init(BASE_QIO_DRIVE, "qio_drive_base"));
+        registry.register(init(HYPER_DENSE_QIO_DRIVE, "qio_drive_hyper_dense"));
+        registry.register(init(TIME_DILATING_QIO_DRIVE, "qio_drive_time_dilating"));
+        registry.register(init(SUPERMASSIVE_QIO_DRIVE, "qio_drive_supermassive"));
+        registry.register(init(BASE_ITEM_QIO_DRIVE, "qio_drive_base_item"));
+        registry.register(init(HYPER_DENSE_ITEM_QIO_DRIVE, "qio_drive_hyper_dense_item"));
+        registry.register(init(TIME_DILATING_ITEM_QIO_DRIVE, "qio_drive_time_dilating_item"));
+        registry.register(init(SUPERMASSIVE_ITEM_QIO_DRIVE, "qio_drive_supermassive_item"));
+        registry.register(init(BASE_FLUID_QIO_DRIVE, "qio_drive_base_fluid"));
+        registry.register(init(HYPER_DENSE_FLUID_QIO_DRIVE, "qio_drive_hyper_dense_fluid"));
+        registry.register(init(TIME_DILATING_FLUID_QIO_DRIVE, "qio_drive_time_dilating_fluid"));
+        registry.register(init(SUPERMASSIVE_FLUID_QIO_DRIVE, "qio_drive_supermassive_fluid"));
+        registry.register(init(BASE_GAS_QIO_DRIVE, "qio_drive_base_gas"));
+        registry.register(init(HYPER_DENSE_GAS_QIO_DRIVE, "qio_drive_hyper_dense_gas"));
+        registry.register(init(TIME_DILATING_GAS_QIO_DRIVE, "qio_drive_time_dilating_gas"));
+        registry.register(init(SUPERMASSIVE_GAS_QIO_DRIVE, "qio_drive_supermassive_gas"));
+        registry.register(init(PORTABLE_QIO_DASHBOARD, "portable_qio_dashboard"));
         registry.register(init(Shard, "Shard"));
         registry.register(init(ElectrolyticCore, "ElectrolyticCore"));
         registry.register(init(Sawdust, "Sawdust"));

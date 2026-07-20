@@ -60,7 +60,13 @@ public class MekanismTileContainer<TILE extends TileEntityContainerBlock> extend
 
     @Override
     public boolean canInteractWith(@Nonnull EntityPlayer player) {
-        return tile != null && tile.isUsableByPlayer(player) && SecurityUtils.canAccess(player, tile);
+        // GuiContainer calls this on the client immediately after the screen
+        // is constructed. Security data for a tile can arrive one packet
+        // later, so only enforce it on the authoritative server; all server
+        // packet handlers still call this method and therefore retain the
+        // permission check.
+        return tile != null && tile.isUsableByPlayer(player) &&
+              (player.world.isRemote || SecurityUtils.canAccess(player, tile));
     }
 
     @Override

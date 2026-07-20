@@ -1,0 +1,22 @@
+{
+  "result": {
+    "item": "mekanism:portable_qio_dashboard"
+  },
+  "pattern": [
+    "AAA",
+    "A#A",
+    "ATA"
+  ],
+  "type": "forge:ore_shaped",
+  "key": {
+    "A": {
+      "item": "mekanism:hdpe_pellet"
+    },
+    "#": {
+      "item": "mekanism:qio_dashboard"
+    },
+    "T": {
+      "item": "mekanism:teleportationcore"
+    }
+  }
+}

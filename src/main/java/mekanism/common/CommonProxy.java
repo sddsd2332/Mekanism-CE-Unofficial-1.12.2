@@ -17,6 +17,7 @@ import mekanism.common.inventory.container.item.SeismicReaderContainer;
 import mekanism.common.inventory.container.robit.*;
 import mekanism.common.item.ItemDictionary;
 import mekanism.common.item.ItemPortableTeleporter;
+import mekanism.common.item.ItemPortableQIODashboard;
 import mekanism.common.item.ItemSeismicReader;
 import mekanism.common.tile.*;
 import mekanism.common.tile.factory.TileEntityFactory;
@@ -26,6 +27,12 @@ import mekanism.common.tile.machine.*;
 import mekanism.common.tile.multiblock.TileEntityDynamicTank;
 import mekanism.common.tile.multiblock.TileEntityInductionCasing;
 import mekanism.common.tile.multiblock.TileEntityThermalEvaporationController;
+import mekanism.common.tile.qio.TileEntityQIODriveArray;
+import mekanism.common.tile.qio.TileEntityQIODashboard;
+import mekanism.common.tile.qio.TileEntityQIOComponent;
+import mekanism.common.tile.qio.TileEntityQIOImporter;
+import mekanism.common.tile.qio.TileEntityQIOExporter;
+import mekanism.common.tile.qio.TileEntityQIORedstoneAdapter;
 import mekanism.common.tile.prefab.*;
 import mekanism.common.voice.VoiceServerManager;
 import net.minecraft.entity.Entity;
@@ -76,6 +83,10 @@ public class CommonProxy implements IGuiProvider {
      * Register and load client-only block render information.
      */
     public void registerBlockRenders() {
+    }
+
+    /** Client hook used to refresh recipe-viewer transfer availability. */
+    public void onQIOViewerResourcesChanged() {
     }
 
     /**
@@ -158,6 +169,17 @@ public class CommonProxy implements IGuiProvider {
                 if (stack.getItem() instanceof ItemPortableTeleporter) {
                     return new PortableTeleporterContainer(player.inventory, hand, stack);
                 }
+                break;
+            case QIOGuiConstants.PORTABLE_DASHBOARD:
+                if (stack.getItem() instanceof ItemPortableQIODashboard) {
+                    return new PortableQIODashboardContainer(player.inventory, hand, stack);
+                }
+                break;
+            case QIOGuiConstants.PORTABLE_FREQUENCY:
+                if (stack.getItem() instanceof ItemPortableQIODashboard) {
+                    return new QIOItemFrequencySelectContainer(player.inventory, hand, stack);
+                }
+                break;
             case 19:
                 if (MachineType.get(stack) == MachineType.PERSONAL_CHEST) {
                     //Ensure the item didn't change. From testing even if it did things still seemed to work properly but better safe than sorry
@@ -292,6 +314,13 @@ public class CommonProxy implements IGuiProvider {
             case 77 -> new ModuleTweakerContainer(player.inventory);
             case 78 -> new ContainerSPSMultiblock(player.inventory, (TileEntityContainerBlock) tileEntity);
             case 79 -> new ContainerDimensionalStabilizer(player.inventory, (TileEntityDimensionalStabilizer) tileEntity);
+            case QIOGuiConstants.DRIVE_ARRAY -> new ContainerQIODriveArray(player.inventory, (TileEntityQIODriveArray) tileEntity);
+            case QIOGuiConstants.DRIVE_ARRAY_FREQUENCY -> new ContainerQIOFrequencySelect(player.inventory, (TileEntityQIODriveArray) tileEntity);
+            case QIOGuiConstants.DASHBOARD -> new ContainerQIODashboard(player.inventory, (TileEntityQIODashboard) tileEntity);
+            case QIOGuiConstants.IMPORTER -> new ContainerQIOImporter(player.inventory, (TileEntityQIOImporter) tileEntity);
+            case QIOGuiConstants.EXPORTER -> new ContainerQIOExporter(player.inventory, (TileEntityQIOExporter) tileEntity);
+            case QIOGuiConstants.REDSTONE_ADAPTER -> new ContainerQIORedstoneAdapter(player.inventory, (TileEntityQIORedstoneAdapter) tileEntity);
+            case QIOGuiConstants.COMPONENT_FREQUENCY -> new ContainerQIOFrequencySelect(player.inventory, (TileEntityQIOComponent) tileEntity);
             default -> null;
         };
     }

@@ -1,0 +1,27 @@
+{
+  "result": {
+    "item": "mekanism:qio_dashboard"
+  },
+  "pattern": [
+    "IAI",
+    "AGA",
+    "ITI"
+  ],
+  "type": "forge:ore_shaped",
+  "key": {
+    "I": {
+      "ore": "ingotLead",
+      "type": "forge:ore_dict"
+    },
+    "A": {
+      "item": "minecraft:ender_pearl"
+    },
+    "G": {
+      "ore": "paneGlass",
+      "type": "forge:ore_dict"
+    },
+    "T": {
+      "item": "mekanism:teleportationcore"
+    }
+  }
+}

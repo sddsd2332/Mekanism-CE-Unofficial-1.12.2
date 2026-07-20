@@ -17,7 +17,7 @@ public interface ILangEntry extends IHasTranslationKey {
      */
 
     default ITextComponent translate(Object... args) {
-        return new TextComponentGroup().translation(getTranslationKey(), args);
+        return TextComponentUtil.smartTranslate(getTranslationKey(), args);
     }
 
     /**
@@ -35,6 +35,6 @@ public interface ILangEntry extends IHasTranslationKey {
      */
 
     default ITextComponent translateColored(TextFormatting color, Object... args) {
-        return new TextComponentGroup(color).translation(getTranslationKey(), args);
+        return new TextComponentGroup(color).component(translate(args));
     }
 }

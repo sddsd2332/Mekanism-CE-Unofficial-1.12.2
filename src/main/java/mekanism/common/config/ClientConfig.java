@@ -14,6 +14,11 @@ import java.util.Map;
  */
 public class ClientConfig extends BaseConfig {
 
+    public static final int QIO_VIEWER_SLOTS_X_MIN = 8;
+    public static final int QIO_VIEWER_SLOTS_X_MAX = 16;
+    public static final int QIO_VIEWER_SLOTS_Y_MIN = 2;
+    public static final int QIO_VIEWER_SLOTS_Y_MAX = 48;
+
     public final Map<String, CachedWindowPosition> lastWindowPositions = new HashMap<>();
 
     public final BooleanOption enablePlayerSounds = new BooleanOption(this,  "EnablePlayerSounds", true,
@@ -60,6 +65,24 @@ public class ClientConfig extends BaseConfig {
 
     public final BooleanOption enableSlotTypeTooltips = new BooleanOption(this, "EnableSlotTypeTooltips", true,
             "Show helper tooltips for empty Mekanism GUI input/output/extra/energy slots.");
+
+    public final IntOption qioItemViewerSortType = new IntOption(this, "QIOViewerSortType", 0,
+            "QIO viewer sort mode. 0 = name, 1 = count, 2 = resource kind, 3 = registry name.", 0, 3);
+
+    public final BooleanOption qioItemViewerSortDescending = new BooleanOption(this, "QIOViewerSortDescending", false,
+            "Sort QIO viewer resources in descending order.");
+
+    public final IntOption qioItemViewerSlotsX = new IntOption(this, "QIOViewerSlotsWide", 8,
+            "Number of resource columns in the QIO viewer.", QIO_VIEWER_SLOTS_X_MIN, QIO_VIEWER_SLOTS_X_MAX);
+
+    public final IntOption qioItemViewerSlotsY = new IntOption(this, "QIOViewerSlotsTall", 4,
+            "Number of resource rows in the QIO viewer.", QIO_VIEWER_SLOTS_Y_MIN, QIO_VIEWER_SLOTS_Y_MAX);
+
+    public final BooleanOption qioAutoFocusSearchBar = new BooleanOption(this, "QIOViewerAutoFocusSearch", true,
+            "Automatically focus the QIO viewer search field when opening it.");
+
+    public final BooleanOption qioRejectsToInventory = new BooleanOption(this, "QIOViewerRejectsToInventory", false,
+            "Return rejected recipe-transfer items to the player inventory instead of the QIO frequency.");
 
     public final IntOption AllMekGuiBg = new IntOption(this,  "AllMekGuiBg", 0xFFFFFFFF,
             "All mekanism GUI background colors");

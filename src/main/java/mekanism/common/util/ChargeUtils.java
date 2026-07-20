@@ -23,11 +23,11 @@ import net.minecraftforge.energy.IEnergyStorage;
 public final class ChargeUtils {
 
     public static boolean isIC2Chargeable(ItemStack itemStack) {
-        return ElectricItem.manager.getMaxCharge(itemStack) > 0 && ElectricItem.manager.charge(itemStack, Integer.MAX_VALUE, IC2Integration.getItemOutputTier(itemStack), true, true) > 0;
+        return ElectricItem.manager.getMaxCharge(itemStack) > 0 && IC2Integration.chargeItem(itemStack, Integer.MAX_VALUE, true, true) > 0;
     }
 
     public static boolean isIC2Dischargeable(ItemStack itemStack) {
-        return ElectricItem.manager.getMaxCharge(itemStack) > 0 && ElectricItem.manager.discharge(itemStack, Integer.MAX_VALUE, IC2Integration.getConfiguredInputTier(), true, true, true) > 0;
+        return ElectricItem.manager.getMaxCharge(itemStack) > 0 && IC2Integration.dischargeItemToMekanism(itemStack, Integer.MAX_VALUE, true, true) > 0;
     }
 
     /**
@@ -74,7 +74,7 @@ public final class ChargeUtils {
                 int needed = RFIntegration.toRF(storer.getMaxEnergy() - storer.getEnergy());
                 storer.setEnergy(storer.getEnergy() + RFIntegration.fromRF(item.extractEnergy(stack, needed, false)));
             } else if (MekanismUtils.useIC2() && isIC2Dischargeable(stack)) {
-                double gain = IC2Integration.fromEU(ElectricItem.manager.discharge(stack, IC2Integration.toEU(storer.getMaxEnergy() - storer.getEnergy()), IC2Integration.getConfiguredInputTier(), true, true, false));
+                double gain = IC2Integration.fromEU(IC2Integration.dischargeItemToMekanism(stack, IC2Integration.toEU(storer.getMaxEnergy() - storer.getEnergy()), true, false));
                 storer.setEnergy(storer.getEnergy() + gain);
             } /*else if (stack.getItem() == Items.REDSTONE && storer.getEnergy() + MekanismConfig.current().general.ENERGY_PER_REDSTONE.val() <= storer.getMaxEnergy()) {
                 storer.setEnergy(storer.getEnergy() + MekanismConfig.current().general.ENERGY_PER_REDSTONE.val());
@@ -138,7 +138,7 @@ public final class ChargeUtils {
                 int toTransfer = RFIntegration.toRF(storer.getEnergy());
                 storer.setEnergy(storer.getEnergy() - RFIntegration.fromRF(item.receiveEnergy(stack, toTransfer, false)));
             } else if (MekanismUtils.useIC2() && isIC2Chargeable(stack)) {
-                double sent = IC2Integration.fromEU(ElectricItem.manager.charge(stack, IC2Integration.toEU(storer.getEnergy()), IC2Integration.getItemOutputTier(stack), true, false));
+                double sent = IC2Integration.fromEU(IC2Integration.chargeItem(stack, IC2Integration.toEU(storer.getEnergy()), true, false));
                 storer.setEnergy(storer.getEnergy() - sent);
             }
         }
@@ -189,7 +189,7 @@ public final class ChargeUtils {
             }
         }
         if (MekanismUtils.useIC2()) {
-            if (ElectricItem.manager.getMaxCharge(itemstack) > 0 && ElectricItem.manager.discharge(itemstack, 1, IC2Integration.getConfiguredInputTier(), true, true, true) > 0) {
+            if (ElectricItem.manager.getMaxCharge(itemstack) > 0 && IC2Integration.dischargeItemToMekanism(itemstack, 1, true, true) > 0) {
                 return true;
             }
         }
@@ -280,9 +280,9 @@ public final class ChargeUtils {
             IElectricItemManager manager = ElectricItem.manager;
             if (manager != null) {
                 if (chargeSlot) {
-                    return manager.charge(itemstack, 1, IC2Integration.getItemOutputTier(itemstack), true, true) == 0;
+                    return IC2Integration.chargeItem(itemstack, 1, true, true) == 0;
                 }
-                return manager.discharge(itemstack, 1, IC2Integration.getConfiguredInputTier(), true, true, true) == 0;
+                return IC2Integration.dischargeItemToMekanism(itemstack, 1, true, true) == 0;
             }
         }
         return true;

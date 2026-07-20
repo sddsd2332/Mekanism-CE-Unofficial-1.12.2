@@ -32,6 +32,8 @@ public class SpecialColors {
     public static final ColorRegistryObject TAB_FACTORY_SORT = GUI_OBJECTS.register();
     public static final ColorRegistryObject TAB_QIO_FREQUENCY = GUI_OBJECTS.register();
     public static final ColorRegistryObject TAB_RESIZE_CONTROLS = GUI_OBJECTS.register();
+    public static final ColorRegistryObject TAB_TARGET_DIRECTION = GUI_OBJECTS.register();
+    public static final ColorRegistryObject TAB_JEI_REJECTS_TARGET = GUI_OBJECTS.register();
     public static final ColorRegistryObject TAB_LASER_AMPLIFIER = GUI_OBJECTS.register();
     public static final ColorRegistryObject TAB_CHEMICAL_WASHER = GUI_OBJECTS.register();
     public static final ColorRegistryObject TAB_MULTIBLOCK_MAIN = GUI_OBJECTS.register();

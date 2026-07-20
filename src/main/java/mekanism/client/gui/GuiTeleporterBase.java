@@ -5,10 +5,12 @@ import mekanism.client.gui.element.GuiElement;
 import mekanism.client.gui.element.GuiElementHolder;
 import mekanism.client.gui.element.GuiInnerScreen;
 import mekanism.client.gui.element.button.MekanismButton;
+import mekanism.client.gui.element.button.MekanismImageButton;
 import mekanism.client.gui.element.custom.GuiTeleporterStatus;
 import mekanism.client.gui.element.scroll.GuiTextScrollList;
 import mekanism.client.gui.element.text.BackgroundType;
 import mekanism.client.gui.element.text.GuiTextField;
+import mekanism.common.MekanismLang;
 import mekanism.common.frequency.Frequency;
 import mekanism.common.frequency.Frequency.FrequencyIdentity;
 import mekanism.common.frequency.FrequencyManager;
@@ -33,6 +35,10 @@ public abstract class GuiTeleporterBase<CONTAINER extends MekanismContainer> ext
     protected GuiTextField frequencyField;
     protected GuiTeleporterStatus status;
     protected SecurityMode selectedMode = SecurityMode.PUBLIC;
+    // Frequency data and the selected tile/item state are synchronized after
+    // the screen is constructed. Keep the initial mode pending until that
+    // data arrives, while still honoring an explicit user selection.
+    private boolean modeInitialized;
 
     protected GuiTeleporterBase(CONTAINER container) {
         super(container);
@@ -40,22 +46,38 @@ public abstract class GuiTeleporterBase<CONTAINER extends MekanismContainer> ext
 
     @Override
     protected void addGuiElements() {
-        addButton(new GuiElementHolder(this, 27, 36, 122, 42));
-        addButton(new GuiInnerScreen(this, 48, 111, 101, 13));
+        int yOffset = getSelectorYOffset();
+        addButton(new GuiElementHolder(this, 27, 36 + yOffset, 122, 42));
+        addButton(new GuiInnerScreen(this, 48, 111 + yOffset, 101, 13));
         super.addGuiElements();
-        status = addButton(new GuiTeleporterStatus(this, () -> getFrequency() != null, this::getStatus));
-        scrollList = addButton(new GuiTextScrollList(this, 28, 37, 120, 42));
-        publicButton = addButton(new MekanismButton(this, 27, 14, 39, 20, new TextComponentString(LangUtils.localize("gui.public")),
-              () -> setMode(SecurityMode.PUBLIC), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.publicMode")))));
-        privateButton = addButton(new MekanismButton(this, 68, 14, 39, 20, new TextComponentString(LangUtils.localize("gui.private")),
-              () -> setMode(SecurityMode.PRIVATE), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.privateMode")))));
-        trustedButton = addButton(new MekanismButton(this, 109, 14, 40, 20, new TextComponentString(LangUtils.localize("gui.trusted")),
-              () -> setMode(SecurityMode.TRUSTED), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.trustedMode")))));
-        setButton = addButton(new MekanismButton(this, 27, 127, getActionButtonWidth(), 18, new TextComponentString(LangUtils.localize("gui.set")),
+        if (showStatusIndicator()) {
+            status = addButton(new GuiTeleporterStatus(this, () -> getFrequency() != null, this::getStatus));
+        }
+        // The QIO selector uses the 26.2 shared selector dimensions (the
+        // legacy portable teleporter keeps its original one-pixel inset).
+        boolean qioLayout = useIconSecurityButtons();
+        scrollList = addButton(new GuiTextScrollList(this, qioLayout ? 27 : 28,
+              (qioLayout ? 36 : 37) + yOffset, qioLayout ? 122 : 120, 42));
+        if (useIconSecurityButtons()) {
+            publicButton = addButton(new MekanismImageButton(this, 27, 14 + yOffset, 38, 20, 40, 16,
+                  getButtonLocation("public"), () -> setMode(SecurityMode.PUBLIC)).setTooltip(MekanismLang.PUBLIC_MODE.translate()));
+            trustedButton = addButton(new MekanismImageButton(this, 69, 14 + yOffset, 38, 20, 40, 16,
+                  getButtonLocation("trusted"), () -> setMode(SecurityMode.TRUSTED)).setTooltip(MekanismLang.TRUSTED_MODE.translate()));
+            privateButton = addButton(new MekanismImageButton(this, 111, 14 + yOffset, 38, 20, 40, 16,
+                  getButtonLocation("private"), () -> setMode(SecurityMode.PRIVATE)).setTooltip(MekanismLang.PRIVATE_MODE.translate()));
+        } else {
+            publicButton = addButton(new MekanismButton(this, 27, 14 + yOffset, 39, 20, new TextComponentString(LangUtils.localize("gui.public")),
+                  () -> setMode(SecurityMode.PUBLIC), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.publicMode")))));
+            privateButton = addButton(new MekanismButton(this, 68, 14 + yOffset, 39, 20, new TextComponentString(LangUtils.localize("gui.private")),
+                  () -> setMode(SecurityMode.PRIVATE), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.privateMode")))));
+            trustedButton = addButton(new MekanismButton(this, 109, 14 + yOffset, 40, 20, new TextComponentString(LangUtils.localize("gui.trusted")),
+                  () -> setMode(SecurityMode.TRUSTED), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.trustedMode")))));
+        }
+        setButton = addButton(new MekanismButton(this, 27, 127 + yOffset, getActionButtonWidth(), 18, new TextComponentString(LangUtils.localize("gui.set")),
               this::setSelectedFrequency, null));
-        deleteButton = addButton(new MekanismButton(this, 29 + getActionButtonWidth(), 127, getActionButtonWidth(), 18,
+        deleteButton = addButton(new MekanismButton(this, 29 + getActionButtonWidth(), 127 + yOffset, getActionButtonWidth(), 18,
               new TextComponentString(LangUtils.localize("gui.delete")), this::deleteSelectedFrequency, null));
-        frequencyField = addButton(new GuiTextField(this, 4, 50, 113, 98, 11)
+        frequencyField = addButton(new GuiTextField(this, 4, 50, 113 + yOffset, 98, 11)
               .setMaxLength(FrequencyManager.MAX_FREQ_LENGTH)
               .setBackground(BackgroundType.INNER_SCREEN)
               .setInputValidator(this::isValidFrequencyInput)
@@ -64,11 +86,24 @@ public abstract class GuiTeleporterBase<CONTAINER extends MekanismContainer> ext
         updateFrequencyButtons();
     }
 
+    protected int getSelectorYOffset() {
+        return 0;
+    }
+
+    protected boolean useIconSecurityButtons() {
+        return false;
+    }
+
+    protected boolean showStatusIndicator() {
+        return true;
+    }
+
     protected int getActionButtonWidth() {
         return 60;
     }
 
     protected void setMode(SecurityMode mode) {
+        modeInitialized = true;
         selectedMode = mode;
         scrollList.clearSelection();
         updateFrequencyButtons();
@@ -82,7 +117,8 @@ public abstract class GuiTeleporterBase<CONTAINER extends MekanismContainer> ext
     protected void setTypedFrequency() {
         String name = frequencyField.getText();
         if (!name.isEmpty()) {
-            setFrequency(new FrequencyIdentity(name, selectedMode, getOwnerUUID()));
+            UUID owner = mc.player == null ? getOwnerUUID() : mc.player.getUniqueID();
+            setFrequency(new FrequencyIdentity(name, selectedMode, owner));
         }
         frequencyField.clear();
         scrollList.clearSelection();
@@ -112,8 +148,15 @@ public abstract class GuiTeleporterBase<CONTAINER extends MekanismContainer> ext
     }
 
     protected void updateFrequencyButtons() {
-        if (scrollList == null || getOwnerUUID() == null) {
+        if (scrollList == null) {
             return;
+        }
+        if (!modeInitialized) {
+            Frequency current = getFrequency();
+            if (current != null) {
+                selectedMode = current.getSecurity();
+                modeInitialized = true;
+            }
         }
         List<String> text = new ArrayList<>();
         getVisibleFrequencies().forEach(freq -> text.add(getFrequencyListText(freq)));
@@ -128,7 +171,7 @@ public abstract class GuiTeleporterBase<CONTAINER extends MekanismContainer> ext
             deleteButton.active = false;
         } else {
             setButton.active = current == null || !current.equals(selected);
-            deleteButton.active = getOwnerUUID().equals(selected.ownerUUID);
+            deleteButton.active = mc.player != null && selected.ownerMatches(mc.player.getUniqueID());
         }
     }
 
@@ -149,9 +192,14 @@ public abstract class GuiTeleporterBase<CONTAINER extends MekanismContainer> ext
             return EnumColor.DARK_RED + LangUtils.localize("gui.none");
         }
         if (selectedMode == SecurityMode.PRIVATE) {
-            return EnumColor.BRIGHT_GREEN + getSelfOwnerName();
+            String owner = frequency.clientOwner;
+            if (owner == null || owner.isEmpty()) {
+                owner = getSelfOwnerName();
+            }
+            return EnumColor.BRIGHT_GREEN + (owner == null ? "" : owner);
         }
-        return (Objects.equals(getSelfOwnerName(), frequency.clientOwner) ? EnumColor.BRIGHT_GREEN : EnumColor.DARK_RED) + frequency.clientOwner;
+        String owner = frequency.clientOwner == null ? "" : frequency.clientOwner;
+        return (Objects.equals(getSelfOwnerName(), owner) ? EnumColor.BRIGHT_GREEN : EnumColor.DARK_RED) + owner;
     }
 
     @Override
@@ -168,6 +216,7 @@ public abstract class GuiTeleporterBase<CONTAINER extends MekanismContainer> ext
 
     @Override
     protected void drawForegroundText(int mouseX, int mouseY) {
+        int yOffset = getSelectorYOffset();
         int titleOffset = getTitleOffset();
         if (titleOffset > 0) {
             drawTitleTextWithOffset(new TextComponentString(getGuiTitle()), titleOffset, 4, getXSize());
@@ -176,15 +225,15 @@ public abstract class GuiTeleporterBase<CONTAINER extends MekanismContainer> ext
         }
         Frequency frequency = getFrequency();
         String none = EnumColor.DARK_RED + LangUtils.localize("gui.none");
-        drawTextExact(new TextComponentString(LangUtils.localize("gui.freq") + ":"), 27, 81, titleTextColor());
+        drawTextExact(new TextComponentString(LangUtils.localize("gui.freq") + ":"), 27, 81 + yOffset, titleTextColor());
         drawTextExact(new TextComponentString(" " + (frequency != null ? frequency.name : none)), 27 + fontRenderer.getStringWidth(LangUtils.localize("gui.freq") + ":"),
-              81, subheadingTextColor());
+              81 + yOffset, subheadingTextColor());
         drawTextExact(new TextComponentString((isPortable() ? LangUtils.localize("gui.itemowner") : LangUtils.localize("gui.owner")) + ": " +
-              (frequency != null ? getOwnerUsername(frequency) : none)), 27, 91, titleTextColor());
-        drawTextExact(new TextComponentString(LangUtils.localize("gui.security") + ":"), 27, 101, titleTextColor());
+              (frequency != null ? getOwnerUsername(frequency) : none)), 27, 91 + yOffset, titleTextColor());
+        drawTextExact(new TextComponentString(LangUtils.localize("gui.security") + ":"), 27, 101 + yOffset, titleTextColor());
         drawTextExact(new TextComponentString(" " + (frequency != null ? getSecurity(frequency) : none)),
-              27 + fontRenderer.getStringWidth(LangUtils.localize("gui.security") + ":"), 101, subheadingTextColor());
-        drawScaledScrollingString(new TextComponentString(LangUtils.localize("gui.set") + ":"), 0, 114, TextAlignment.RIGHT, titleTextColor(),
+              27 + fontRenderer.getStringWidth(LangUtils.localize("gui.security") + ":"), 101 + yOffset, subheadingTextColor());
+        drawScaledScrollingString(new TextComponentString(LangUtils.localize("gui.set") + ":"), 0, 114 + yOffset, TextAlignment.RIGHT, titleTextColor(),
               frequencyField.getRelativeX(), 5, false, 1, GuiElement.getMillis());
         super.drawForegroundText(mouseX, mouseY);
     }

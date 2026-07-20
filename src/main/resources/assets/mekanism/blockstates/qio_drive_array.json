@@ -1,0 +1,50 @@
+{
+  "forge_marker": 1,
+  "variants": {
+    "active=false,facing=down": {
+      "model": "mekanism:qio_drive_array_offline"
+    },
+    "active=false,facing=up": {
+      "model": "mekanism:qio_drive_array_offline"
+    },
+    "active=false,facing=north": {
+      "model": "mekanism:qio_drive_array_offline"
+    },
+    "active=false,facing=south": {
+      "model": "mekanism:qio_drive_array_offline",
+      "y": 180
+    },
+    "active=false,facing=east": {
+      "model": "mekanism:qio_drive_array_offline",
+      "y": 90
+    },
+    "active=false,facing=west": {
+      "model": "mekanism:qio_drive_array_offline",
+      "y": -90
+    },
+    "active=true,facing=down": {
+      "model": "mekanism:qio_drive_array"
+    },
+    "active=true,facing=up": {
+      "model": "mekanism:qio_drive_array"
+    },
+    "active=true,facing=north": {
+      "model": "mekanism:qio_drive_array"
+    },
+    "active=true,facing=south": {
+      "model": "mekanism:qio_drive_array",
+      "y": 180
+    },
+    "active=true,facing=east": {
+      "model": "mekanism:qio_drive_array",
+      "y": 90
+    },
+    "active=true,facing=west": {
+      "model": "mekanism:qio_drive_array",
+      "y": -90
+    },
+    "inventory": [{
+      "model": "mekanism:qio_drive_array"
+    }]
+  }
+}

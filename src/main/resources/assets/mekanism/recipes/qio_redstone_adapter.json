@@ -1,0 +1,30 @@
+{
+  "result": {
+    "item": "mekanism:qio_redstone_adapter"
+  },
+  "pattern": [
+    "IRI",
+    "ACA",
+    "ITI"
+  ],
+  "type": "forge:ore_shaped",
+  "key": {
+    "I": {
+      "ore": "ingotLead",
+      "type": "forge:ore_dict"
+    },
+    "R": {
+      "item": "minecraft:redstone"
+    },
+    "A": {
+      "item": "minecraft:ender_pearl"
+    },
+    "C": {
+      "item": "mekanism:controlcircuit",
+      "data": 3
+    },
+    "T": {
+      "item": "mekanism:teleportationcore"
+    }
+  }
+}

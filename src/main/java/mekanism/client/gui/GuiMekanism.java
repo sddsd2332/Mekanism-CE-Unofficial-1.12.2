@@ -42,6 +42,7 @@ import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
+import org.lwjgl.opengl.GL11;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -59,6 +60,11 @@ public abstract class GuiMekanism<CONTAINER extends Container> extends VirtualSl
     public static final ResourceLocation BASE_BACKGROUND = MekanismUtils.getResource(MekanismUtils.ResourceType.GUI, "base.png");
     public static final ResourceLocation SHADOW = MekanismUtils.getResource(MekanismUtils.ResourceType.GUI, "shadow.png");
     public static final ResourceLocation BLUR = MekanismUtils.getResource(MekanismUtils.ResourceType.GUI, "blur.png");
+    // Keep the leaked foreground offset well inside 1.12.2's GUI depth range.
+    // Vanilla tooltip/item rendering adds another 300-350 units; 500 leaves
+    // room even when a caller does not apply GuiMekanism.drawScreen's -500
+    // model-view offset first.
+    private static final int MAX_TOOLTIP_Z_OFFSET = 500;
     //TODO: Look into defaulting this to true
     protected boolean dynamicSlots;
     protected final LRU<GuiWindow> windows = new LRU<>();
@@ -396,17 +402,17 @@ public abstract class GuiMekanism<CONTAINER extends Container> extends VirtualSl
             }
         }
 
-        // now render overlays in reverse-order (i.e. back to front)
+        // Top-level windows are painted back to front. Reuse one bounded Z range for each window;
+        // clearing depth makes paint order authoritative without pushing every later window closer
+        // to 1.12.2's near clipping plane.
+        int windowZOffset = maxZOffset + 150;
         for (LRU<GuiWindow>.LRUIterator iter = getWindowsDescendingIterator(); iter.hasNext(); ) {
             GuiWindow overlay = iter.next();
-            //Max z offset is incremented based on what is the deepest level offset we go to
-            // if our gui isn't flagged as visible we won't increment it as nothing is drawn
-            // we need to do this based on what the max is after having rendered the previous
-            // window as while the windows don't necessarily overlap, if they do we want to
-            // ensure that there is no clipping
-            zOffset = maxZOffset + 150;
+            zOffset = windowZOffset;
             GlStateManager.pushMatrix();
             MekanismRenderer.resetGuiRenderState();
+            GlStateManager.depthMask(true);
+            GlStateManager.clear(GL11.GL_DEPTH_BUFFER_BIT);
             overlay.onRenderForeground(mouseX, mouseY, zOffset, zOffset);
             MekanismRenderer.resetGuiRenderState();
             if (iter.hasNext()) {
@@ -418,7 +424,7 @@ public abstract class GuiMekanism<CONTAINER extends Container> extends VirtualSl
         }
         GlStateManager.popMatrix();
         //Additionally hacky offset to make it so that we render above items in higher z-levels for things like tooltips and held items
-        maxZOffset += 200;
+        maxZOffset = getTooltipZOffset(maxZOffset + 200);
         // then render tooltips, translating above max z offset to prevent clashing
         // It is IMPORTANT that we do this to ensure any delayed rendering we do the for the tooltip happens above the other things
         // and so that we let the translation leak out into the super method so that the carried item renders at the correct z level
@@ -426,6 +432,10 @@ public abstract class GuiMekanism<CONTAINER extends Container> extends VirtualSl
 
         MekanismRenderer.resetGuiRenderState();
         GlStateManager.pushMatrix();
+        // Tooltips are painted after all windows. Discard their depth so the bounded top layer can
+        // stay in front without inheriting an unbounded window offset.
+        GlStateManager.depthMask(true);
+        GlStateManager.clear(GL11.GL_DEPTH_BUFFER_BIT);
         //Note: Because we are doing this from drawGuiContainerForegroundLayer instead of as part of a drawScreen override,
         // we need to unshift back to the position the other methods expect to be called from
         GlStateManager.translate(-guiLeft, -guiTop, 0);
@@ -442,8 +452,14 @@ public abstract class GuiMekanism<CONTAINER extends Container> extends VirtualSl
         if (tooltipElement != null) {
             tooltipElement.renderToolTip(mouseX, mouseY);
         }
-        renderHoveredToolTip(mouseX, mouseY);
+        if (tooltipElement == null || !tooltipElement.rendersSlotTooltip()) {
+            renderHoveredToolTip(mouseX, mouseY);
+        }
         GlStateManager.popMatrix();
+    }
+
+    static int getTooltipZOffset(int zOffset) {
+        return Math.min(zOffset, MAX_TOOLTIP_Z_OFFSET);
     }
 
     protected void drawForegroundText(int mouseX, int mouseY) {
@@ -510,7 +526,15 @@ public abstract class GuiMekanism<CONTAINER extends Container> extends VirtualSl
             if (!windows.isEmpty()) {
                 windows.forEach(window -> window.onRelease(mouseX, mouseY));
             }
+            // Custom 1.12 widgets are kept in our own list rather than
+            // vanilla's buttonList, so GuiScreen never forwards release
+            // events to them. Forward it explicitly to clear drag state for
+            // scroll bars, resize controls, text fields, and nested elements.
+            for (int i = buttons.size() - 1; i >= 0; i--) {
+                buttons.get(i).mouseReleased(mouseX, mouseY, button);
+            }
             setDragging(false);
+            hasClicked = false;
             super.mouseReleased(mouseX, mouseY, button);
         }
     }
@@ -684,6 +708,13 @@ public abstract class GuiMekanism<CONTAINER extends Container> extends VirtualSl
         int size = inventorySlots.inventorySlots.size();
         for (int i = 0; i < size; i++) {
             Slot slot = inventorySlots.inventorySlots.get(i);
+            // Virtual slots are positioned and rendered by their owning
+            // GuiWindow (crafting/upgrade windows). They intentionally start
+            // at a placeholder position and must not create a stray slot at
+            // the top-left of the base GUI.
+            if (slot instanceof IVirtualSlot) {
+                continue;
+            }
             if (slot instanceof InventoryContainerSlot) {
                 InventoryContainerSlot containerSlot = (InventoryContainerSlot) slot;
                 ContainerSlotType slotType = containerSlot.getSlotType();
@@ -797,13 +828,19 @@ public abstract class GuiMekanism<CONTAINER extends Container> extends VirtualSl
 
     @Override
     public void renderItemTooltipWithExtra(@Nonnull ItemStack stack, int xAxis, int yAxis, List<String> toAppend) {
-        if (toAppend.isEmpty()) {
+        renderItemTooltipWithExtra(stack, xAxis, yAxis, toAppend, Integer.MAX_VALUE);
+    }
+
+    @Override
+    public void renderItemTooltipWithExtra(@Nonnull ItemStack stack, int xAxis, int yAxis, List<String> toInsert, int insertionIndex) {
+        if (toInsert.isEmpty()) {
             renderItemTooltip(stack, xAxis, yAxis);
         } else {
             FontRenderer font = stack.getItem().getFontRenderer(stack);
             net.minecraftforge.fml.client.config.GuiUtils.preItemToolTip(stack);
             List<String> tooltip = new ArrayList<>(getItemToolTip(stack));
-            tooltip.addAll(toAppend);
+            int boundedInsertionIndex = Math.max(0, Math.min(insertionIndex, tooltip.size()));
+            tooltip.addAll(boundedInsertionIndex, toInsert);
             drawHoveringText(tooltip, xAxis, yAxis, (font == null ? this.fontRenderer : font));
             net.minecraftforge.fml.client.config.GuiUtils.postItemToolTip();
         }

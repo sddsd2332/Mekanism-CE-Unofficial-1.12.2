@@ -139,6 +139,10 @@ public interface IGuiWrapper {
         }
     }
 
+    default void renderItemTooltipWithExtra(@Nonnull ItemStack stack, int xAxis, int yAxis, List<String> toInsert, int insertionIndex) {
+        renderItemTooltipWithExtra(stack, xAxis, yAxis, toInsert);
+    }
+
     default void renderItemWithOverlay(@Nonnull ItemStack stack, int xAxis, int yAxis, float scale, @Nullable String text) {
         GuiUtils.renderGuiElementItem(getItemRenderer(), stack, xAxis, yAxis, scale, getFont(), text, true);
     }

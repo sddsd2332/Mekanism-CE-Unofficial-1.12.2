@@ -122,6 +122,10 @@ public abstract class GuiScrollableElement extends GuiTexturedElement {
         return false;
     }
 
+    public void resetScroll() {
+        scroll = 0;
+    }
+
     protected void clampScroll() {
         if (needsScrollBars()) {
             scroll = Math.min(Math.max(scroll, 0), 1);

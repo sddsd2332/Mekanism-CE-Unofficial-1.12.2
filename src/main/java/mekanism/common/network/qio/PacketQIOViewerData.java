@@ -1,0 +1,274 @@
+package mekanism.common.network.qio;
+
+import io.netty.buffer.ByteBuf;
+import mekanism.common.Mekanism;
+import mekanism.common.PacketHandler;
+import mekanism.common.content.qio.QIOResourceEntry;
+import mekanism.common.inventory.container.QIOItemViewerContainer;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.inventory.Container;
+import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
+import net.minecraftforge.fml.common.network.simpleimpl.IMessageHandler;
+import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+/**
+ * Authoritative server-to-client snapshot for the QIO resource viewer.
+ * Resource templates are included for rendering only; interaction packets
+ * identify a resource by UUID and are resolved again on the server.
+ */
+public class PacketQIOViewerData implements IMessageHandler<PacketQIOViewerData.Message, IMessage> {
+
+    public static final int MAX_ENTRIES = 4096;
+
+    @Override
+    @Nullable
+    public IMessage onMessage(Message message, MessageContext context) {
+        EntityPlayer player = PacketHandler.getPlayer(context);
+        if (player == null || !player.world.isRemote) {
+            return null;
+        }
+        PacketHandler.handlePacket(() -> {
+            if (player.openContainer instanceof QIOItemViewerContainer) {
+                QIOItemViewerContainer container = (QIOItemViewerContainer) player.openContainer;
+                if (!message.valid || container.windowId != message.windowId) {
+                    return;
+                }
+                switch (message.mode) {
+                    case BATCH:
+                        container.applyBatchChunk(message.entries, message.totalCountCapacity, message.totalTypeCapacity, message.firstBatchChunk);
+                        break;
+                    case UPDATE:
+                        container.applyUpdate(message.entries, message.totalCountCapacity, message.totalTypeCapacity);
+                        break;
+                    case KILL:
+                        container.applyKill();
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }, player);
+        return null;
+    }
+
+    public static void sendBatch(EntityPlayerMP player, int windowId, List<QIOResourceEntry> entries, long totalCountCapacity,
+          int totalTypeCapacity) {
+        if (player == null || windowId < 0) {
+            return;
+        }
+        for (Message message : createBatchMessages(windowId, entries, totalCountCapacity, totalTypeCapacity)) {
+            Mekanism.packetHandler.sendTo(message, player);
+        }
+    }
+
+    /** Builds bounded packets for tests and alternative transports. */
+    public static List<Message> createBatchMessages(int windowId, List<QIOResourceEntry> entries, long totalCountCapacity,
+          int totalTypeCapacity) {
+        List<QIOResourceEntry> snapshot = entries == null ? Collections.emptyList() : entries;
+        if (snapshot.isEmpty()) {
+            return Collections.singletonList(Message.batch(windowId, Collections.emptyList(), totalCountCapacity, totalTypeCapacity, true));
+        }
+        List<Message> messages = new ArrayList<>((snapshot.size() + MAX_ENTRIES - 1) / MAX_ENTRIES);
+        for (int start = 0; start < snapshot.size(); start += MAX_ENTRIES) {
+            int end = Math.min(snapshot.size(), start + MAX_ENTRIES);
+            messages.add(Message.batch(windowId, snapshot.subList(start, end), totalCountCapacity, totalTypeCapacity, start == 0));
+        }
+        return Collections.unmodifiableList(messages);
+    }
+
+    public static void sendUpdate(EntityPlayerMP player, int windowId, List<QIOResourceEntry> entries, long totalCountCapacity,
+          int totalTypeCapacity) {
+        if (player == null || windowId < 0) {
+            return;
+        }
+        for (Message message : createUpdateMessages(windowId, entries, totalCountCapacity, totalTypeCapacity)) {
+            Mekanism.packetHandler.sendTo(message, player);
+        }
+    }
+
+    public static List<Message> createUpdateMessages(int windowId, List<QIOResourceEntry> entries, long totalCountCapacity,
+          int totalTypeCapacity) {
+        List<QIOResourceEntry> updates = entries == null ? Collections.emptyList() : entries;
+        if (updates.isEmpty()) {
+            return Collections.singletonList(Message.update(windowId, Collections.emptyList(), totalCountCapacity, totalTypeCapacity));
+        }
+        List<Message> messages = new ArrayList<>((updates.size() + MAX_ENTRIES - 1) / MAX_ENTRIES);
+        for (int start = 0; start < updates.size(); start += MAX_ENTRIES) {
+            int end = Math.min(updates.size(), start + MAX_ENTRIES);
+            messages.add(Message.update(windowId, updates.subList(start, end), totalCountCapacity, totalTypeCapacity));
+        }
+        return Collections.unmodifiableList(messages);
+    }
+
+    public static void sendKill(EntityPlayerMP player, int windowId) {
+        if (player != null && windowId >= 0) {
+            Mekanism.packetHandler.sendTo(Message.kill(windowId), player);
+        }
+    }
+
+    /** Returns the current QIO viewer window or {@code -1} when the player is not viewing QIO. */
+    public static int getViewerWindowId(@Nullable EntityPlayerMP player) {
+        if (player == null) {
+            return -1;
+        }
+        Container open = player.openContainer;
+        return open instanceof QIOItemViewerContainer ? open.windowId : -1;
+    }
+
+    public enum Mode {
+        BATCH,
+        UPDATE,
+        KILL;
+
+        @Nullable
+        private static Mode byOrdinal(int ordinal) {
+            return ordinal >= 0 && ordinal < values().length ? values()[ordinal] : null;
+        }
+    }
+
+    public static class Message implements IMessage {
+
+        private Mode mode = Mode.KILL;
+        private int windowId = -1;
+        private List<QIOResourceEntry> entries = Collections.emptyList();
+        private long totalCountCapacity;
+        private int totalTypeCapacity;
+        private boolean firstBatchChunk;
+        private boolean valid;
+
+        public Message() {
+        }
+
+        private Message(int windowId, Mode mode, @Nonnull List<QIOResourceEntry> entries, long totalCountCapacity, int totalTypeCapacity,
+              boolean firstBatchChunk) {
+            this.windowId = windowId;
+            this.mode = mode;
+            this.entries = new ArrayList<>(entries.size());
+            for (QIOResourceEntry entry : entries) {
+                if (entry != null && this.entries.size() < MAX_ENTRIES) {
+                    this.entries.add(entry);
+                }
+            }
+            this.totalCountCapacity = Math.max(0, totalCountCapacity);
+            this.totalTypeCapacity = Math.max(0, totalTypeCapacity);
+            this.firstBatchChunk = firstBatchChunk;
+            valid = windowId >= 0 && mode != null;
+        }
+
+        public static Message batch(int windowId, List<QIOResourceEntry> entries, long totalCountCapacity, int totalTypeCapacity) {
+            return batch(windowId, entries, totalCountCapacity, totalTypeCapacity, true);
+        }
+
+        private static Message batch(int windowId, List<QIOResourceEntry> entries, long totalCountCapacity, int totalTypeCapacity,
+              boolean firstBatchChunk) {
+            return new Message(windowId, Mode.BATCH, entries == null ? Collections.emptyList() : entries,
+                  totalCountCapacity, totalTypeCapacity, firstBatchChunk);
+        }
+
+        public static Message update(int windowId, List<QIOResourceEntry> entries, long totalCountCapacity, int totalTypeCapacity) {
+            return new Message(windowId, Mode.UPDATE, entries == null ? Collections.emptyList() : entries,
+                  totalCountCapacity, totalTypeCapacity, false);
+        }
+
+        public static Message kill(int windowId) {
+            return new Message(windowId, Mode.KILL, Collections.emptyList(), 0, 0, false);
+        }
+
+        @Override
+        public void toBytes(ByteBuf buffer) {
+            buffer.writeInt(windowId);
+            buffer.writeByte(mode.ordinal());
+            if (mode == Mode.KILL) {
+                return;
+            }
+            if (mode == Mode.BATCH) {
+                buffer.writeBoolean(firstBatchChunk);
+            }
+            buffer.writeLong(totalCountCapacity);
+            buffer.writeInt(totalTypeCapacity);
+            buffer.writeShort(Math.min(MAX_ENTRIES, entries.size()));
+            for (int i = 0; i < entries.size() && i < MAX_ENTRIES; i++) {
+                entries.get(i).write(buffer);
+            }
+        }
+
+        @Override
+        public void fromBytes(ByteBuf buffer) {
+            valid = false;
+            entries = Collections.emptyList();
+            try {
+                windowId = buffer.readInt();
+                Mode decoded = Mode.byOrdinal(buffer.readUnsignedByte());
+                if (windowId < 0 || decoded == null) {
+                    throw new IllegalArgumentException("Invalid QIO viewer synchronization header");
+                }
+                mode = decoded;
+                if (mode == Mode.KILL) {
+                    valid = true;
+                    return;
+                }
+                firstBatchChunk = mode == Mode.BATCH && buffer.readBoolean();
+                totalCountCapacity = Math.max(0, buffer.readLong());
+                totalTypeCapacity = Math.max(0, buffer.readInt());
+                int count = buffer.readUnsignedShort();
+                if (count > MAX_ENTRIES) {
+                    throw new IllegalArgumentException("QIO viewer synchronization exceeds the entry limit");
+                }
+                List<QIOResourceEntry> decodedEntries = new ArrayList<>(count);
+                for (int i = 0; i < count; i++) {
+                    QIOResourceEntry entry = QIOResourceEntry.read(buffer);
+                    if (entry == null) {
+                        throw new IllegalArgumentException("Invalid QIO viewer resource entry");
+                    }
+                    decodedEntries.add(entry);
+                }
+                entries = decodedEntries;
+                valid = true;
+            } catch (RuntimeException ex) {
+                windowId = -1;
+                mode = Mode.KILL;
+                totalCountCapacity = 0;
+                totalTypeCapacity = 0;
+                firstBatchChunk = false;
+                entries = Collections.emptyList();
+            }
+        }
+
+        public int getWindowId() {
+            return windowId;
+        }
+
+        public boolean isValid() {
+            return valid;
+        }
+
+        public Mode getMode() {
+            return mode;
+        }
+
+        public List<QIOResourceEntry> getEntries() {
+            return entries;
+        }
+
+        public long getTotalCountCapacity() {
+            return totalCountCapacity;
+        }
+
+        public int getTotalTypeCapacity() {
+            return totalTypeCapacity;
+        }
+
+        public boolean isFirstBatchChunk() {
+            return firstBatchChunk;
+        }
+    }
+}

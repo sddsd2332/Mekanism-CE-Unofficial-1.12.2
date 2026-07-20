@@ -7,6 +7,7 @@ import mekanism.api.Pos3D;
 import mekanism.client.SparkleAnimation.INodeChecker;
 import mekanism.client.entity.ParticleLaser;
 import mekanism.client.gui.GuiModuleTweaker;
+import mekanism.client.model.QIODriveArrayModel;
 import mekanism.client.gui.robit.*;
 import mekanism.client.render.*;
 import mekanism.client.render.bloom.MekaSuitBloomRenderer;
@@ -52,8 +53,10 @@ import mekanism.common.entity.EntityObsidianTNT;
 import mekanism.common.entity.EntityRobit;
 import mekanism.common.entity.baby.*;
 import mekanism.common.inventory.InventoryPersonalChest;
+import mekanism.common.inventory.container.PortableQIODashboardContainer;
 import mekanism.common.item.*;
 import mekanism.common.item.armor.ItemMekaSuitArmor;
+import mekanism.common.item.interfaces.IColoredItem;
 import mekanism.common.recipe.machines.*;
 import mekanism.common.tier.BaseTier;
 import mekanism.common.tier.GasTankTier;
@@ -67,6 +70,21 @@ import mekanism.common.tile.prefab.TileEntityAdvancedElectricMachine;
 import mekanism.common.tile.prefab.TileEntityDoubleElectricMachine;
 import mekanism.common.tile.prefab.TileEntityElectricMachine;
 import mekanism.common.tile.transmitter.*;
+import mekanism.common.tile.qio.TileEntityQIODriveArray;
+import mekanism.common.tile.qio.TileEntityQIODashboard;
+import mekanism.common.tile.qio.TileEntityQIOComponent;
+import mekanism.common.tile.qio.TileEntityQIOImporter;
+import mekanism.common.tile.qio.TileEntityQIOExporter;
+import mekanism.common.tile.qio.TileEntityQIORedstoneAdapter;
+import mekanism.client.gui.qio.GuiQIODriveArray;
+import mekanism.client.gui.qio.GuiQIOFrequencySelect;
+import mekanism.client.gui.qio.GuiQIODashboard;
+import mekanism.client.gui.qio.GuiPortableQIODashboard;
+import mekanism.client.gui.qio.GuiQIOImporter;
+import mekanism.client.gui.qio.GuiQIOExporter;
+import mekanism.client.gui.qio.GuiQIORedstoneAdapter;
+import mekanism.client.gui.qio.GuiQIOItemFrequencySelect;
+import mekanism.common.QIOGuiConstants;
 import mekanism.common.util.TextComponentGroup;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
@@ -81,6 +99,7 @@ import net.minecraft.client.renderer.entity.RenderLivingBase;
 import net.minecraft.client.renderer.entity.RenderSkeleton;
 import net.minecraft.client.renderer.entity.RenderStray;
 import net.minecraft.client.renderer.entity.RenderWitherSkeleton;
+import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.EnumDyeColor;
@@ -256,6 +275,28 @@ public class ClientProxy extends CommonProxy {
         registerItemRender(MekanismItems.GasMask);
         registerItemRender(MekanismItems.ScubaTank);
         registerItemRender(MekanismItems.Balloon);
+        registerItemRender(MekanismItems.BASE_QIO_DRIVE);
+        registerItemRender(MekanismItems.HYPER_DENSE_QIO_DRIVE);
+        registerItemRender(MekanismItems.TIME_DILATING_QIO_DRIVE);
+        registerItemRender(MekanismItems.SUPERMASSIVE_QIO_DRIVE);
+        registerQIODriveRender(MekanismItems.BASE_ITEM_QIO_DRIVE, "qio_drive_base");
+        registerQIODriveRender(MekanismItems.HYPER_DENSE_ITEM_QIO_DRIVE, "qio_drive_hyper_dense");
+        registerQIODriveRender(MekanismItems.TIME_DILATING_ITEM_QIO_DRIVE, "qio_drive_time_dilating");
+        registerQIODriveRender(MekanismItems.SUPERMASSIVE_ITEM_QIO_DRIVE, "qio_drive_supermassive");
+        registerQIODriveRender(MekanismItems.BASE_FLUID_QIO_DRIVE, "qio_drive_base");
+        registerQIODriveRender(MekanismItems.HYPER_DENSE_FLUID_QIO_DRIVE, "qio_drive_hyper_dense");
+        registerQIODriveRender(MekanismItems.TIME_DILATING_FLUID_QIO_DRIVE, "qio_drive_time_dilating");
+        registerQIODriveRender(MekanismItems.SUPERMASSIVE_FLUID_QIO_DRIVE, "qio_drive_supermassive");
+        registerQIODriveRender(MekanismItems.BASE_GAS_QIO_DRIVE, "qio_drive_base");
+        registerQIODriveRender(MekanismItems.HYPER_DENSE_GAS_QIO_DRIVE, "qio_drive_hyper_dense");
+        registerQIODriveRender(MekanismItems.TIME_DILATING_GAS_QIO_DRIVE, "qio_drive_time_dilating");
+        registerQIODriveRender(MekanismItems.SUPERMASSIVE_GAS_QIO_DRIVE, "qio_drive_supermassive");
+        registerItemRender(MekanismItems.PORTABLE_QIO_DASHBOARD);
+        registerItemRender(Item.getItemFromBlock(MekanismBlocks.QIO_DRIVE_ARRAY));
+        registerItemRender(Item.getItemFromBlock(MekanismBlocks.QIO_DASHBOARD));
+        registerItemRender(Item.getItemFromBlock(MekanismBlocks.QIO_IMPORTER));
+        registerItemRender(Item.getItemFromBlock(MekanismBlocks.QIO_EXPORTER));
+        registerItemRender(Item.getItemFromBlock(MekanismBlocks.QIO_REDSTONE_ADAPTER));
         registerItemRender(MekanismItems.Shard);
         registerItemRender(MekanismItems.ElectrolyticCore);
         registerItemRender(MekanismItems.Sawdust);
@@ -428,6 +469,12 @@ public class ClientProxy extends CommonProxy {
         ModelLoader.setCustomModelResourceLocation(Item.getItemFromBlock(MekanismBlocks.CardboardBox), 0, new ModelResourceLocation(new ResourceLocation(Mekanism.MODID, "CardboardBox"), "storage=false"));
         ModelLoader.setCustomModelResourceLocation(Item.getItemFromBlock(MekanismBlocks.CardboardBox), 1, new ModelResourceLocation(new ResourceLocation(Mekanism.MODID, "CardboardBox"), "storage=true"));
         ModelLoader.setCustomModelResourceLocation(Item.getItemFromBlock(MekanismBlocks.EnergyCube), 0, getInventoryMRL("EnergyCube"));
+        ModelLoader.setCustomModelResourceLocation(Item.getItemFromBlock(MekanismBlocks.QIO_DRIVE_ARRAY), 0, getInventoryMRL("qio_drive_array"));
+        ModelLoader.setCustomModelResourceLocation(Item.getItemFromBlock(MekanismBlocks.QIO_DASHBOARD), 0, getInventoryMRL("qio_dashboard"));
+        ModelLoader.setCustomModelResourceLocation(Item.getItemFromBlock(MekanismBlocks.QIO_IMPORTER), 0, getInventoryMRL("qio_importer"));
+        ModelLoader.setCustomModelResourceLocation(Item.getItemFromBlock(MekanismBlocks.QIO_EXPORTER), 0, getInventoryMRL("qio_exporter"));
+        ModelLoader.setCustomModelResourceLocation(Item.getItemFromBlock(MekanismBlocks.QIO_REDSTONE_ADAPTER), 0, getInventoryMRL("qio_redstone_adapter"));
+        ModelLoader.setCustomModelResourceLocation(MekanismItems.PORTABLE_QIO_DASHBOARD, 0, getInventoryMRL("portable_qio_dashboard"));
 
         ModelLoader.setCustomModelResourceLocation(Item.getItemFromBlock(MekanismBlocks.MachineBlock), 4, getInventoryMRL("digital_miner"));
         ModelLoader.setCustomModelResourceLocation(Item.getItemFromBlock(MekanismBlocks.MachineBlock), 13, getInventoryMRL("personal_chest"));
@@ -674,8 +721,17 @@ public class ClientProxy extends CommonProxy {
         OBJLoader.INSTANCE.addDomain(Mekanism.MODID);
     }
 
+    @Override
+    public void onQIOViewerResourcesChanged() {
+        ClientTickHandler.requestQIORecipeViewerRefresh();
+    }
+
     public void registerItemRender(Item item) {
         MekanismRenderer.registerItemRender(Mekanism.MODID, item);
+    }
+
+    private void registerQIODriveRender(Item item, String model) {
+        ModelLoader.setCustomModelResourceLocation(item, 0, getInventoryMRL(model));
     }
 
     private String getProperties(List<String> entries) {
@@ -712,6 +768,14 @@ public class ClientProxy extends CommonProxy {
                 if (stack.getItem() instanceof ItemPortableTeleporter) {
                     return new mekanism.client.gui.item.GuiPortableTeleporter(player, hand, stack);
                 }
+            }
+            case QIOGuiConstants.PORTABLE_DASHBOARD -> {
+                return stack.getItem() instanceof ItemPortableQIODashboard ?
+                      new GuiPortableQIODashboard(player.inventory, new PortableQIODashboardContainer(player.inventory, hand, stack)) : null;
+            }
+            case QIOGuiConstants.PORTABLE_FREQUENCY -> {
+                return stack.getItem() instanceof ItemPortableQIODashboard ?
+                      new GuiQIOItemFrequencySelect(player.inventory, hand, stack) : null;
             }
             case 19 -> {
                 if (MachineType.get(stack) == MachineType.PERSONAL_CHEST) {
@@ -856,6 +920,16 @@ public class ClientProxy extends CommonProxy {
             case 77 -> new GuiModuleTweaker(player.inventory);
             case 78 -> new mekanism.client.gui.GuiSPSMultiblock(player.inventory, (TileEntitySPSCasing) tileEntity);
             case 79 -> new mekanism.client.gui.GuiDimensionalStabilizer(player.inventory, (TileEntityDimensionalStabilizer) tileEntity);
+            case QIOGuiConstants.DRIVE_ARRAY -> new GuiQIODriveArray(player.inventory, (TileEntityQIODriveArray) tileEntity);
+            case QIOGuiConstants.DRIVE_ARRAY_FREQUENCY -> new GuiQIOFrequencySelect(player.inventory, (TileEntityQIODriveArray) tileEntity);
+            case QIOGuiConstants.DASHBOARD -> new GuiQIODashboard(player.inventory, (TileEntityQIODashboard) tileEntity);
+            case QIOGuiConstants.IMPORTER -> new GuiQIOImporter(player.inventory, (TileEntityQIOImporter) tileEntity);
+            case QIOGuiConstants.EXPORTER -> new GuiQIOExporter(player.inventory, (TileEntityQIOExporter) tileEntity);
+            case QIOGuiConstants.REDSTONE_ADAPTER -> new GuiQIORedstoneAdapter(player.inventory, (TileEntityQIORedstoneAdapter) tileEntity);
+            case QIOGuiConstants.COMPONENT_FREQUENCY -> new GuiQIOFrequencySelect(player.inventory, (TileEntityQIOComponent) tileEntity,
+                  tileEntity instanceof TileEntityQIOImporter ? QIOGuiConstants.IMPORTER :
+                        tileEntity instanceof TileEntityQIOExporter ? QIOGuiConstants.EXPORTER :
+                              tileEntity instanceof TileEntityQIORedstoneAdapter ? QIOGuiConstants.REDSTONE_ADAPTER : QIOGuiConstants.DASHBOARD);
             default -> null;
         };
     }
@@ -907,6 +981,20 @@ public class ClientProxy extends CommonProxy {
                     return (int) (dye.getColor(0) * 255) << 16 | (int) (dye.getColor(1) * 255) << 8 | (int) (dye.getColor(2) * 255);
                 }, MekanismBlocks.PlasticBlock, MekanismBlocks.GlowPlasticBlock, MekanismBlocks.RoadPlasticBlock, MekanismBlocks.ReinforcedPlasticBlock,
                 MekanismBlocks.SlickPlasticBlock, MekanismBlocks.PlasticFence);
+        Minecraft.getMinecraft().getBlockColors().registerBlockColorHandler((state, worldIn, pos, tintIndex) -> {
+            if (tintIndex != 1 || worldIn == null || pos == null) {
+                return -1;
+            }
+            TileEntity tile = worldIn.getTileEntity(pos);
+            if (tile instanceof TileEntityQIOComponent qio) {
+                EnumColor color = qio.getQIOColor();
+                if (color != null) {
+                    return color.rgbCode[0] << 16 | color.rgbCode[1] << 8 | color.rgbCode[2];
+                }
+            }
+            return -1;
+        }, MekanismBlocks.QIO_DRIVE_ARRAY, MekanismBlocks.QIO_DASHBOARD, MekanismBlocks.QIO_IMPORTER,
+              MekanismBlocks.QIO_EXPORTER, MekanismBlocks.QIO_REDSTONE_ADAPTER);
         Minecraft.getMinecraft().getItemColors().registerItemColorHandler((stack, tintIndex) -> {
             if (MachineType.get(stack) == MachineType.FLUID_TANK) {
                 EnumColor color = ((ItemBlockMachine) stack.getItem()).getBaseTier(stack).getColor();
@@ -930,6 +1018,16 @@ public class ClientProxy extends CommonProxy {
             }
             return -1;
         }, MekanismItems.MEKASUIT_HELMET, MekanismItems.MEKASUIT_BODYARMOR, MekanismItems.MEKASUIT_PANTS, MekanismItems.MEKASUIT_BOOTS);
+        Minecraft.getMinecraft().getItemColors().registerItemColorHandler((stack, tintIndex) -> {
+            if (tintIndex == 1 && stack.getItem() instanceof IColoredItem coloredItem) {
+                EnumColor color = coloredItem.getColor(stack);
+                return color == null ? IColoredItem.DEFAULT_TINT : color.rgbCode[0] << 16 | color.rgbCode[1] << 8 | color.rgbCode[2];
+            }
+            return -1;
+        }, MekanismItems.PORTABLE_QIO_DASHBOARD,
+              Item.getItemFromBlock(MekanismBlocks.QIO_DRIVE_ARRAY), Item.getItemFromBlock(MekanismBlocks.QIO_DASHBOARD),
+              Item.getItemFromBlock(MekanismBlocks.QIO_IMPORTER), Item.getItemFromBlock(MekanismBlocks.QIO_EXPORTER),
+              Item.getItemFromBlock(MekanismBlocks.QIO_REDSTONE_ADAPTER));
 
         MinecraftForge.EVENT_BUS.register(new ClientConnectionHandler());
         //  MinecraftForge.EVENT_BUS.register(new ClientPlayerTracker());
@@ -969,6 +1067,7 @@ public class ClientProxy extends CommonProxy {
     @SubscribeEvent
     public void onModelBake(ModelBakeEvent event) {
         IRegistry<ModelResourceLocation, IBakedModel> modelRegistry = event.getModelRegistry();
+        qioDriveArrayModelBake(modelRegistry);
         ModelResourceLocation ERL = getInventoryMRL("EnergyCube");
         modelRegistry.putObject(ERL, RenderEnergyCubeItem.model = new ItemLayerWrapper(modelRegistry.getObject(ERL)));
 
@@ -1029,6 +1128,27 @@ public class ClientProxy extends CommonProxy {
 
         //basicBlockModelBake(modelRegistry, "bin", BasicBlockType.BIN);
         basicBlockModelBake(modelRegistry, "security_desk", BasicBlockType.SECURITY_DESK);
+    }
+
+    private void qioDriveArrayModelBake(IRegistry<ModelResourceLocation, IBakedModel> modelRegistry) {
+        IBakedModel[] blockDriveModels = QIODriveArrayModel.bakeDriveModels(DefaultVertexFormats.BLOCK);
+        IBakedModel[] itemDriveModels = QIODriveArrayModel.bakeDriveModels(DefaultVertexFormats.ITEM);
+        ResourceLocation driveArray = new ResourceLocation(Mekanism.MODID, "qio_drive_array");
+        for (EnumFacing facing : EnumFacing.values()) {
+            for (boolean active : new boolean[]{false, true}) {
+                ModelResourceLocation location = new ModelResourceLocation(driveArray,
+                      "active=" + active + ",facing=" + facing.getName());
+                IBakedModel base = modelRegistry.getObject(location);
+                if (base != null) {
+                    modelRegistry.putObject(location, new QIODriveArrayModel(base, blockDriveModels));
+                }
+            }
+        }
+        ModelResourceLocation inventory = getInventoryMRL("qio_drive_array");
+        IBakedModel base = modelRegistry.getObject(inventory);
+        if (base != null) {
+            modelRegistry.putObject(inventory, new QIODriveArrayModel(base, itemDriveModels));
+        }
     }
 
     private void machineModelBake(IRegistry<ModelResourceLocation, IBakedModel> modelRegistry, String type, MachineType machineType) {

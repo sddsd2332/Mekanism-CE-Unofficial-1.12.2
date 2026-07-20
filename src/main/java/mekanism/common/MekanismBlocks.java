@@ -41,6 +41,11 @@ public class MekanismBlocks {
     public static Block BasicBlock3 = BlockBasic.getBlockBasic(BASIC_BLOCK_3);
 
     public static Block SuperFumo = new BlockSuperFumo();
+    public static BlockQIODriveArray QIO_DRIVE_ARRAY = new BlockQIODriveArray();
+    public static BlockQIODashboard QIO_DASHBOARD = new BlockQIODashboard();
+    public static BlockQIOImporter QIO_IMPORTER = new BlockQIOImporter();
+    public static BlockQIOExporter QIO_EXPORTER = new BlockQIOExporter();
+    public static BlockQIORedstoneAdapter QIO_REDSTONE_ADAPTER = new BlockQIORedstoneAdapter();
 
     /**
      * Adds and registers all blocks.
@@ -72,6 +77,11 @@ public class MekanismBlocks {
 
         registry.register(init(BasicBlock3, "BasicBlock3"));
         registry.register(init(SuperFumo,"SuperFumo"));
+        registry.register(init(QIO_DRIVE_ARRAY, "qio_drive_array"));
+        registry.register(init(QIO_DASHBOARD, "qio_dashboard"));
+        registry.register(init(QIO_IMPORTER, "qio_importer"));
+        registry.register(init(QIO_EXPORTER, "qio_exporter"));
+        registry.register(init(QIO_REDSTONE_ADAPTER, "qio_redstone_adapter"));
     }
 
     /**
@@ -104,6 +114,11 @@ public class MekanismBlocks {
         registry.register(MekanismItems.init(new ItemBlockBasic(BasicBlock3), "BasicBlock3"));
         registry.register(MekanismItems.init(new ItemBlockMachine(MachineBlock4), "MachineBlock4"));
         registry.register(MekanismItems.init(new ItemBlockSuperFumo(SuperFumo),"SuperFumo"));
+        registry.register(MekanismItems.init(new ItemBlockQIOComponent(QIO_DRIVE_ARRAY), "qio_drive_array"));
+        registry.register(MekanismItems.init(new ItemBlockQIOComponent(QIO_DASHBOARD), "qio_dashboard"));
+        registry.register(MekanismItems.init(new ItemBlockQIOComponent(QIO_IMPORTER), "qio_importer"));
+        registry.register(MekanismItems.init(new ItemBlockQIOComponent(QIO_EXPORTER), "qio_exporter"));
+        registry.register(MekanismItems.init(new ItemBlockQIOComponent(QIO_REDSTONE_ADAPTER), "qio_redstone_adapter"));
     }
 
     public static Block init(Block block, String name) {

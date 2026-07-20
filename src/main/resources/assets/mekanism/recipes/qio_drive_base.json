@@ -1,0 +1,24 @@
+{
+  "result": {
+    "item": "mekanism:qio_drive_base"
+  },
+  "pattern": [
+    "ICI",
+    "C#C",
+    "ICI"
+  ],
+  "type": "mekanism:ore_shaped",
+  "key": {
+    "I": {
+      "ore": "ingotLead",
+      "type": "forge:ore_dict"
+    },
+    "C": {
+      "item": "mekanism:controlcircuit",
+      "data": 3
+    },
+    "#": {
+      "item": "minecraft:ender_pearl"
+    }
+  }
+}

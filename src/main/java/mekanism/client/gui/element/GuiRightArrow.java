@@ -31,6 +31,14 @@ public class GuiRightArrow extends GuiTextureOnlyElement implements IRecipeViewe
     }
 
     @Override
+    public boolean isMouseOverRecipeViewerArea(double mouseX, double mouseY) {
+        // GuiTextureOnlyElement is intentionally inactive so it does not
+        // render a vanilla button state. Recipe-viewer hit testing still
+        // needs the raw bounds, however, for the crafting-window arrow.
+        return visible && mouseX >= x && mouseY >= y && mouseX < x + width && mouseY < y + height;
+    }
+
+    @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         return RecipeViewerUtils.openRecipeViewerRecipes(this, mouseX, mouseY, button) || super.mouseClicked(mouseX, mouseY, button);
     }

@@ -3,6 +3,9 @@ package mekanism.client.jei;
 import mekanism.client.gui.GuiMekanism;
 import mekanism.client.gui.element.GuiElement;
 import mekanism.client.gui.element.Widget;
+import mekanism.client.gui.element.text.GuiTextField;
+import mekanism.client.gui.element.window.GuiWindow;
+import mekanism.client.jei.interfaces.IJEIIngredientHelper;
 import mezz.jei.api.gui.IAdvancedGuiHandler;
 import net.minecraft.client.gui.inventory.GuiContainer;
 
@@ -63,6 +66,74 @@ public class GuiElementHandler implements IAdvancedGuiHandler {
 
     @Override
     public Object getIngredientUnderMouse(GuiContainer guiContainer, int mouseX, int mouseY) {
-        return null;
+        if (!(guiContainer instanceof GuiMekanism<?> guiMek) || hasFocusedTextField(guiMek.getFocused())) {
+            return null;
+        }
+        GuiWindow window = guiMek.getWindowHovering(mouseX, mouseY);
+        if (window != null) {
+            // A hovered window owns this mouse position. Never expose an
+            // ingredient from the screen behind it.
+            return findIngredient(window.children(), mouseX, mouseY).ingredient;
+        }
+        return findIngredient(guiMek.children(), mouseX, mouseY).ingredient;
+    }
+
+    private static boolean hasFocusedTextField(Object focused) {
+        if (focused instanceof GuiTextField) {
+            return true;
+        }
+        if (focused instanceof GuiElement element) {
+            if (element instanceof GuiTextField && element.isFocused()) {
+                return true;
+            }
+            for (GuiElement child : element.children()) {
+                if (child.isFocused() && hasFocusedTextField(child)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static IngredientLookup findIngredient(List<? extends Widget> children, double mouseX, double mouseY) {
+        // GuiElement click and tooltip dispatch both visit later-added
+        // children first, so use the same order for JEI hit testing.
+        for (int i = children.size() - 1; i >= 0; i--) {
+            Widget child = children.get(i);
+            if (!child.visible) {
+                continue;
+            }
+            if (child instanceof GuiElement element) {
+                IngredientLookup nested = findIngredient(element.children(), mouseX, mouseY);
+                if (nested.handled) {
+                    return nested;
+                }
+            }
+            if (child instanceof IJEIIngredientHelper helper && child.isMouseOver(mouseX, mouseY)) {
+                return new IngredientLookup(true, helper.getIngredient(mouseX, mouseY));
+            }
+            // A visible interactive element above a resource slot owns this
+            // position even when it is not itself an ingredient helper (for
+            // example an expanded sort dropdown). Do not fall through to a
+            // helper rendered behind it.
+            if (child.isMouseOver(mouseX, mouseY)) {
+                return IngredientLookup.BLOCKED;
+            }
+        }
+        return IngredientLookup.NOT_FOUND;
+    }
+
+    private static final class IngredientLookup {
+
+        private static final IngredientLookup NOT_FOUND = new IngredientLookup(false, null);
+        private static final IngredientLookup BLOCKED = new IngredientLookup(true, null);
+
+        private final boolean handled;
+        private final Object ingredient;
+
+        private IngredientLookup(boolean handled, Object ingredient) {
+            this.handled = handled;
+            this.ingredient = ingredient;
+        }
     }
 }

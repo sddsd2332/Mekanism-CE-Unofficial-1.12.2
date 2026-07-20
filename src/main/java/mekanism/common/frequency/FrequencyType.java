@@ -4,6 +4,7 @@ import io.netty.buffer.ByteBuf;
 import mekanism.common.Mekanism;
 import mekanism.common.content.entangloporter.InventoryFrequency;
 import mekanism.common.content.teleporter.TeleporterFrequency;
+import mekanism.common.content.qio.QIOFrequency;
 import mekanism.common.frequency.Frequency.FrequencyIdentity;
 import mekanism.common.security.ISecurityTile.SecurityMode;
 import mekanism.common.security.SecurityFrequency;
@@ -23,6 +24,10 @@ public class FrequencyType<FREQ extends Frequency> {
           FrequencyManagerWrapper.Type.PUBLIC_PRIVATE_TRUSTED, IdentitySerializer.NAME);
     public static final FrequencyType<InventoryFrequency> INVENTORY = register("Inventory",
           (key, uuid, securityMode) -> new InventoryFrequency(String.valueOf(key), uuid, securityMode), InventoryFrequency::new, InventoryFrequency::new,
+          FrequencyManagerWrapper.Type.PUBLIC_PRIVATE_TRUSTED, IdentitySerializer.NAME);
+    public static final FrequencyType<QIOFrequency> QIO = register(Frequency.QIO,
+          (key, uuid, securityMode) -> new QIOFrequency(String.valueOf(key), uuid, securityMode),
+          QIOFrequency::new, QIOFrequency::new,
           FrequencyManagerWrapper.Type.PUBLIC_PRIVATE_TRUSTED, IdentitySerializer.NAME);
     public static final FrequencyType<SecurityFrequency> SECURITY = register(SecurityFrequency.SECURITY,
           (key, uuid, securityMode) -> new SecurityFrequency(uuid, securityMode),

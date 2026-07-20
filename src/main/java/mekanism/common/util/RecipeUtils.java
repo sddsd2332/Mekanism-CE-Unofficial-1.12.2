@@ -9,6 +9,7 @@ import mekanism.common.block.states.BlockStateBasic.BasicBlockType;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.inventory.BinMekanismInventory;
 import mekanism.common.inventory.slot.gas.GasInventorySlot;
+import mekanism.common.content.qio.IQIODriveItem;
 import mekanism.common.security.ISecurityItem;
 import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
@@ -182,6 +183,23 @@ public class RecipeUtils {
             }
             if (!upgrades.isEmpty() || Upgrade.hasUpgradeData(ItemDataUtils.getDataMapIfPresent(toReturn))) {
                 Upgrade.saveComponentMap(upgrades, ItemDataUtils.getDataMap(toReturn));
+            }
+        }
+
+        if (toReturn.getItem() instanceof IQIODriveItem outputDrive) {
+            for (int i = 0; i < invLength; i++) {
+                ItemStack input = inv.getStackInSlot(i);
+                if (!input.isEmpty() && input.getItem() instanceof IQIODriveItem inputDrive &&
+                      inputDrive.getDriveType() == outputDrive.getDriveType() &&
+                      inputDrive.getDriveTier().ordinal() < outputDrive.getDriveTier().ordinal()) {
+                    java.util.UUID driveId = inputDrive.getDriveId(input);
+                    if (driveId != null) {
+                        outputDrive.setDriveId(toReturn, driveId);
+                        IQIODriveItem.DriveMetadata metadata = inputDrive.getDriveMetadata(input);
+                        outputDrive.setDriveMetadata(toReturn, metadata.getCount(), metadata.getTypes(), metadata.getStorageUnits());
+                    }
+                    break;
+                }
             }
         }
 

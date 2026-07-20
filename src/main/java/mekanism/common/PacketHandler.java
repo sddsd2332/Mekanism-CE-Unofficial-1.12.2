@@ -48,6 +48,14 @@ import mekanism.common.network.PacketUpdateModuleSettings.UpdateModuleSettingsMe
 import mekanism.common.network.PacketWindowSelect.WindowSelectMessage;
 import mekanism.common.network.to_client.container.PacketUpdateContainer;
 import mekanism.common.network.to_client.container.PacketUpdateContainer.UpdateContainerMessage;
+import mekanism.common.network.qio.PacketQIOViewerData;
+import mekanism.common.network.qio.PacketQIOViewerAction;
+import mekanism.common.network.qio.PacketQIOComponentConfig;
+import mekanism.common.network.qio.PacketQIOPortableGui;
+import mekanism.common.network.qio.PacketQIOClearCraftingWindow;
+import mekanism.common.network.qio.PacketQIOFillCraftingWindow;
+import mekanism.common.network.qio.PacketQIOItemViewerGuiSync;
+import mekanism.common.network.qio.PacketQIOItemViewerSlotInteract;
 import mekanism.common.tile.prefab.TileEntityBasicBlock;
 import mekanism.common.util.SecurityUtils;
 import net.minecraft.entity.Entity;
@@ -250,6 +258,14 @@ public class PacketHandler {
         netHandler.registerMessage(PacketMekaFishHook.class, PacketMekaFishHookMessage.class, 47, Side.CLIENT);
         netHandler.registerMessage(PacketWindowSelect.class, WindowSelectMessage.class, 48, Side.SERVER);
         netHandler.registerMessage(PacketGuiInteract.class, GuiInteractMessage.class, 49, Side.SERVER);
+        netHandler.registerMessage(PacketQIOViewerData.class, PacketQIOViewerData.Message.class, 50, Side.CLIENT);
+        netHandler.registerMessage(PacketQIOViewerAction.class, PacketQIOViewerAction.Message.class, 51, Side.SERVER);
+        netHandler.registerMessage(PacketQIOComponentConfig.class, PacketQIOComponentConfig.Message.class, 52, Side.SERVER);
+        netHandler.registerMessage(PacketQIOPortableGui.class, PacketQIOPortableGui.Message.class, 53, Side.SERVER);
+        netHandler.registerMessage(PacketQIOItemViewerSlotInteract.class, PacketQIOItemViewerSlotInteract.Message.class, 54, Side.SERVER);
+        netHandler.registerMessage(PacketQIOItemViewerGuiSync.class, PacketQIOItemViewerGuiSync.Message.class, 55, Side.CLIENT);
+        netHandler.registerMessage(PacketQIOClearCraftingWindow.class, PacketQIOClearCraftingWindow.Message.class, 56, Side.SERVER);
+        netHandler.registerMessage(PacketQIOFillCraftingWindow.class, PacketQIOFillCraftingWindow.Message.class, 57, Side.SERVER);
     }
 
     @Optional.Method(modid = MekanismHooks.Baubles_MOD_ID)

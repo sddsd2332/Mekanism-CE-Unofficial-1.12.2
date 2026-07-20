@@ -152,14 +152,8 @@ public abstract class EnergyAcceptorWrapper implements IStrictEnergyAcceptor {
 
         @Override
         public double acceptEnergy(EnumFacing side, double amount, boolean simulate) {
-            double sinkVoltage = IC2Integration.getPowerFromTier(acceptor.getSinkTier());
-            double toTransfer = Math.min(Math.min(acceptor.getDemandedEnergy(), IC2Integration.toEU(amount)), sinkVoltage);
-            if (simulate) {
-                //IC2 has no built in way to simulate, so we have to calculate it ourselves
-                return IC2Integration.fromEU(toTransfer);
-            }
-            double rejects = acceptor.injectEnergy(side, toTransfer, sinkVoltage);
-            return IC2Integration.fromEU(toTransfer - rejects);
+            double accepted = IC2Integration.transferToSink(acceptor, side, IC2Integration.toEU(amount), simulate);
+            return IC2Integration.fromEU(accepted);
         }
 
         @Override

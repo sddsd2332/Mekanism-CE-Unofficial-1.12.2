@@ -78,11 +78,8 @@ public class GeneralConfig extends BaseConfig {
     public final DoubleOption TO_IC2 = new DoubleOption(this, "EUToJoules", .1D,
             "Conversion multiplier from Joules to EU (Joules * EUToJoules = EU)");
 
-    public final BooleanOption dynamicIC2OutputTier = new BooleanOption(this, "DynamicIC2OutputTier", true,
-            "If enabled, Mekanism energy sources expose an IC2 source tier based on their output rate.");
-
     public final IntOption ic2InputTier = new IntOption(this, "IC2InputTier", 4,
-            "Fixed IC2 sink tier Mekanism exposes when accepting IC2 energy. Also used as the source tier when dynamic IC2 output tiers are disabled.", 0, 30);
+            "Fixed IC2 sink tier Mekanism exposes when accepting IC2 energy.", 0, 30);
 
     public final DoubleOption FROM_RF = new DoubleOption(this, "JoulesToRF", 2.5D,
             "Conversion multiplier from RF to Joules (RF * JoulesToRF = Joules)");

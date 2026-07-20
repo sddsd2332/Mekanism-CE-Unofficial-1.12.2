@@ -5,6 +5,7 @@ import ic2.api.energy.tile.IEnergySink;
 import ic2.api.energy.tile.IEnergySource;
 import ic2.api.energy.tile.IEnergyTile;
 import ic2.api.item.ElectricItem;
+import mekanism.common.Mekanism;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.integration.MekanismHooks;
 import mekanism.common.util.MekanismUtils;
@@ -18,6 +19,7 @@ public class IC2Integration {
 
     private static final int MIN_TIER = 0;
     private static final int MAX_TIER = 30;
+    private static final int MAX_PACKETS_PER_TRANSFER = 65_536;
 
     public static double toEU(double joules) {
         return joules * MekanismConfig.current().general.TO_IC2.val();
@@ -36,9 +38,8 @@ public class IC2Integration {
     }
 
     public static int getOutputTierForJoules(double joulesPerTick) {
-        if (!MekanismConfig.current().general.dynamicIC2OutputTier.val()) {
-            return getConfiguredInputTier();
-        }
+        // IEnergySource does not expose the receiver. Advertise the lowest tier that can carry
+        // the fixed Mekanism output without allowing a configured tier to throttle the amount.
         return getTierFromPower(toEU(joulesPerTick));
     }
 
@@ -48,13 +49,97 @@ public class IC2Integration {
 
     @Method(modid = MekanismHooks.IC2_MOD_ID)
     public static int getItemOutputTier(ItemStack stack) {
-        if (!MekanismConfig.current().general.dynamicIC2OutputTier.val()) {
-            return getConfiguredInputTier();
-        }
         if (stack.isEmpty() || ElectricItem.manager == null) {
             return getConfiguredInputTier();
         }
         return clampTier(ElectricItem.manager.getTier(stack));
+    }
+
+    /**
+     * Charges an IC2 item using the item's own tier as the target voltage tier.
+     */
+    @Method(modid = MekanismHooks.IC2_MOD_ID)
+    public static double chargeItem(ItemStack stack, double amount, boolean ignoreTransferLimit, boolean simulate) {
+        if (stack.isEmpty() || ElectricItem.manager == null || !(amount > 0)) {
+            return 0;
+        }
+        double transferred = ElectricItem.manager.charge(stack, amount, getItemOutputTier(stack), ignoreTransferLimit, simulate);
+        return clampTransfer(amount, transferred);
+    }
+
+    /**
+     * Discharges an IC2 item into a target using that target's voltage tier.
+     */
+    @Method(modid = MekanismHooks.IC2_MOD_ID)
+    public static double dischargeItem(ItemStack stack, double amount, int targetTier, boolean ignoreTransferLimit, boolean simulate) {
+        if (stack.isEmpty() || ElectricItem.manager == null || !(amount > 0)) {
+            return 0;
+        }
+        double transferred = ElectricItem.manager.discharge(stack, amount, clampTier(targetTier), ignoreTransferLimit, true, simulate);
+        return clampTransfer(amount, transferred);
+    }
+
+    /**
+     * Discharges an IC2 item into Mekanism using the tier Mekanism exposes as an IC2 sink.
+     */
+    @Method(modid = MekanismHooks.IC2_MOD_ID)
+    public static double dischargeItemToMekanism(ItemStack stack, double amount, boolean ignoreTransferLimit, boolean simulate) {
+        return dischargeItem(stack, amount, getConfiguredInputTier(), ignoreTransferLimit, simulate);
+    }
+
+    /**
+     * Transfers a fixed EU amount to an IC2 sink as one or more packets at the sink's own voltage tier.
+     * IC2 Classic silently drops direct injections larger than its tier packet limit, so the tier must
+     * determine the packet size without also limiting the total amount transferred this tick.
+     *
+     * @return amount of EU accepted by the sink
+     */
+    @Method(modid = MekanismHooks.IC2_MOD_ID)
+    public static double transferToSink(IEnergySink sink, EnumFacing side, double amount, boolean simulate) {
+        if (sink == null || !(amount > 0)) {
+            return 0;
+        }
+        double demand = sink.getDemandedEnergy();
+        if (!(demand > 0)) {
+            return 0;
+        }
+        double toTransfer = Math.min(amount, demand);
+        if (Mekanism.hooks.IC2CLoaded) {
+            //IC2 Classic stores machine energy as whole EU and otherwise reports fractional EU as accepted.
+            toTransfer = Math.floor(toTransfer);
+            if (!(toTransfer > 0)) {
+                return 0;
+            }
+        }
+
+        double packetVoltage = getPowerFromTier(sink.getSinkTier());
+        if (!(packetVoltage > 0) || Double.isNaN(packetVoltage)) {
+            packetVoltage = toTransfer;
+        }
+        double packetTransferLimit = packetVoltage * MAX_PACKETS_PER_TRANSFER;
+        if (Double.isFinite(packetTransferLimit)) {
+            toTransfer = Math.min(toTransfer, packetTransferLimit);
+        }
+        if (simulate) {
+            //IC2 has no built in way to simulate, so calculate the accepted amount ourselves.
+            return toTransfer;
+        }
+
+        double accepted = 0;
+        double remaining = toTransfer;
+        for (int packets = 0; remaining > 0 && packets < MAX_PACKETS_PER_TRANSFER; packets++) {
+            double packetAmount = Math.min(remaining, packetVoltage);
+            double rejected = sink.injectEnergy(side, packetAmount, packetVoltage);
+            double acceptedPacket = clampTransfer(packetAmount, packetAmount - rejected);
+            accepted += acceptedPacket;
+
+            // A partial or full rejection normally means the sink filled up or stopped accepting energy.
+            if (acceptedPacket < packetAmount) {
+                break;
+            }
+            remaining = Math.max(0, remaining - packetAmount);
+        }
+        return clampTransfer(toTransfer, accepted);
     }
 
     @Method(modid = MekanismHooks.IC2_MOD_ID)
@@ -85,6 +170,13 @@ public class IC2Integration {
 
     private static int clampTier(int tier) {
         return Math.max(MIN_TIER, Math.min(MAX_TIER, tier));
+    }
+
+    private static double clampTransfer(double requested, double transferred) {
+        if (Double.isNaN(transferred) || transferred <= 0) {
+            return 0;
+        }
+        return Math.min(requested, transferred);
     }
 
     @Method(modid = MekanismHooks.IC2_MOD_ID)

@@ -43,6 +43,8 @@ import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.content.gear.ModuleHelper;
 import mekanism.common.inventory.container.robit.ContainerRobitInventory;
+import mekanism.common.inventory.container.ContainerQIODashboard;
+import mekanism.common.inventory.container.PortableQIODashboardContainer;
 import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.recipe.RecipeHandler.Recipe;
 import mekanism.common.util.LangUtils;
@@ -60,12 +62,14 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.crafting.IRecipe;
 import net.minecraft.item.crafting.Ingredient;
+import net.minecraft.client.Minecraft;
 import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.fluids.Fluid;
 import net.minecraftforge.fml.common.registry.ForgeRegistries;
 import net.minecraftforge.registries.IForgeRegistryModifiable;
 
 import java.util.*;
+import java.lang.reflect.Method;
 import java.util.stream.Collectors;
 
 @JEIPlugin
@@ -76,6 +80,8 @@ public class MekanismJEI implements IModPlugin {
     public static final mekanism.client.recipe_viewer.jei.ChemicalStackHelper CHEMICAL_STACK_HELPER = new mekanism.client.recipe_viewer.jei.ChemicalStackHelper();
     public static final GasStackHelper GAS_STACK_HELPER = CHEMICAL_STACK_HELPER;
     public static IJeiRuntime jeiRuntime;
+    private static Method recipeGuiRefreshMethod;
+    private static boolean recipeGuiRefreshUnavailable;
     private static final String NC_MOD_ID = "nuclearcraft";
     private static final String NC_SHIELDING_RECIPE_CLASS = "nc.recipe.vanilla.recipe.ShapelessArmorRadShieldingRecipe";
     private static final String NC_RAD_SHIELDING_ITEM = "rad_shielding";
@@ -249,6 +255,10 @@ public class MekanismJEI implements IModPlugin {
         mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerSmelter(registry);
         mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerFormulaicAssemblicator(registry);
         registry.getRecipeTransferRegistry().addRecipeTransferHandler(ContainerRobitInventory.class, VanillaRecipeCategoryUid.CRAFTING, 1, 9, 10, 36);
+        registry.getRecipeTransferRegistry().addRecipeTransferHandler(new QIOCraftingTransferHandler<>(ContainerQIODashboard.class,
+              registry.getJeiHelpers().recipeTransferHandlerHelper(), registry.getJeiHelpers().getStackHelper()), VanillaRecipeCategoryUid.CRAFTING);
+        registry.getRecipeTransferRegistry().addRecipeTransferHandler(new QIOCraftingTransferHandler<>(PortableQIODashboardContainer.class,
+              registry.getJeiHelpers().recipeTransferHandlerHelper(), registry.getJeiHelpers().getStackHelper()), VanillaRecipeCategoryUid.CRAFTING);
 
         /**
          *  ADD START
@@ -305,6 +315,9 @@ public class MekanismJEI implements IModPlugin {
     @Override
     public void onRuntimeAvailable(IJeiRuntime jeiRuntime) {
         MekanismJEI.jeiRuntime = jeiRuntime;
+        QIORecipeViewerGuiHandler.register();
+        recipeGuiRefreshMethod = null;
+        recipeGuiRefreshUnavailable = false;
         if (!Mekanism.hooks.NuclearCraft || jeiRuntime == null || NC_SHIELDING_RECIPES_FOR_JEI.isEmpty()) {
             return;
         }
@@ -318,6 +331,30 @@ public class MekanismJEI implements IModPlugin {
             Mekanism.logger.info("Removed {} NC shielding recipes for Mek armor from JEI runtime.", removed);
         }
         NC_SHIELDING_RECIPES_FOR_JEI.clear();
+    }
+
+    /** Rebuilds transfer buttons after the non-slot QIO inventory snapshot changes. */
+    public static void refreshRecipeTransferButtons() {
+        IJeiRuntime runtime = jeiRuntime;
+        if (runtime == null || recipeGuiRefreshUnavailable) {
+            return;
+        }
+        IRecipesGui recipesGui = runtime.getRecipesGui();
+        if (recipesGui == null || Minecraft.getMinecraft().currentScreen != recipesGui) {
+            return;
+        }
+        try {
+            if (recipeGuiRefreshMethod == null) {
+                // JEI/HEI 4.x exposes this on the runtime GUI implementation,
+                // but not through IRecipesGui's public API.
+                recipeGuiRefreshMethod = recipesGui.getClass().getMethod("onStateChange");
+            }
+            recipeGuiRefreshMethod.invoke(recipesGui);
+        } catch (ReflectiveOperationException | SecurityException ex) {
+            recipeGuiRefreshUnavailable = true;
+            Mekanism.logger.warn("Unable to refresh QIO recipe transfer availability for {}",
+                  recipesGui.getClass().getName(), ex);
+        }
     }
 
     private static void cacheAndRemoveNuclearCraftShieldingRecipes() {

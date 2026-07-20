@@ -29,6 +29,7 @@ import mekanism.common.content.gear.MekaSuitDispenseBehavior;
 import mekanism.common.content.gear.ModuleDispenseBehavior;
 import mekanism.common.content.gear.ModuleHelper;
 import mekanism.common.content.matrix.SynchronizedMatrixData;
+import mekanism.common.content.qio.QIOStorageManager;
 import mekanism.common.content.sps.SynchronizedSPSData;
 import mekanism.common.content.tank.SynchronizedTankData;
 import mekanism.common.content.transporter.PathfinderCache;
@@ -67,6 +68,11 @@ import mekanism.common.tile.laser.TileEntityLaserAmplifier;
 import mekanism.common.tile.laser.TileEntityLaserTractorBeam;
 import mekanism.common.tile.machine.*;
 import mekanism.common.tile.multiblock.*;
+import mekanism.common.tile.qio.TileEntityQIODriveArray;
+import mekanism.common.tile.qio.TileEntityQIODashboard;
+import mekanism.common.tile.qio.TileEntityQIOImporter;
+import mekanism.common.tile.qio.TileEntityQIOExporter;
+import mekanism.common.tile.qio.TileEntityQIORedstoneAdapter;
 import mekanism.common.tile.transmitter.*;
 import mekanism.common.transmitters.grid.EnergyNetwork.EnergyTransferEvent;
 import mekanism.common.transmitters.grid.FluidNetwork.FluidTransferEvent;
@@ -481,6 +487,11 @@ public class Mekanism {
         registerTileEntity(TileEntityRadioactiveWasteBarrel.class, "radioactive_waste_barrel");
         registerTileEntity(TileEntitySPS.class, "sps");
         registerTileEntity(TileEntityDimensionalStabilizer.class, "dimensional_stabilizer");
+        registerTileEntity(TileEntityQIODriveArray.class, "qio_drive_array");
+        registerTileEntity(TileEntityQIODashboard.class, "qio_dashboard");
+        registerTileEntity(TileEntityQIOImporter.class, "qio_importer");
+        registerTileEntity(TileEntityQIOExporter.class, "qio_exporter");
+        registerTileEntity(TileEntityQIORedstoneAdapter.class, "qio_redstone_adapter");
         /**
          * End of adding machine
          */
@@ -518,6 +529,7 @@ public class Mekanism {
      //   ModuleHelper.get().resetSupportedContainers();
 
         RadiationManager.INSTANCE.reset();
+        QIOStorageManager.shutdown();
     }
 
     @EventHandler
@@ -894,6 +906,16 @@ public class Mekanism {
     @SubscribeEvent
     public void onWorldLoad(WorldEvent.Load event) {
         playerState.init(event.getWorld());
+        if (!event.getWorld().isRemote) {
+            QIOStorageManager.load(event.getWorld());
+        }
+    }
+
+    @SubscribeEvent
+    public void onWorldSave(WorldEvent.Save event) {
+        if (!event.getWorld().isRemote && event.getWorld().provider.getDimension() == 0) {
+            QIOStorageManager.flush();
+        }
     }
 
     @SubscribeEvent

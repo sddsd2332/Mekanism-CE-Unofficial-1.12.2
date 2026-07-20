@@ -17,17 +17,24 @@ public class IC2ItemManager implements IElectricItemManager {
 
     @Override
     public double charge(ItemStack itemStack, double amount, int tier, boolean ignoreTransferLimit, boolean simulate) {
-        if (itemStack.getCount() > 1 || tier < getTier(itemStack)) {
+        if (itemStack.getCount() > 1) {
             return 0;
         }
         IStrictEnergyHandler energyHandler = StorageUtils.getEnergyHandler(itemStack);
         if (energyHandler != null) {
-            if (!ignoreTransferLimit) {
-                amount = Math.min(amount, IC2Integration.toEU(StorageUtils.getMaxTransfer(itemStack)));
-            }
+            // IC2's charge-slot probe uses positive infinity. Clamp the request in joules before
+            // passing it to the handler so that an accepted amount never becomes Infinity - Infinity.
             double energyToStore = IC2Integration.fromEU(amount);
+            if (!ignoreTransferLimit) {
+                energyToStore = Math.min(energyToStore, StorageUtils.getMaxTransfer(itemStack));
+            }
+            energyToStore = Math.min(energyToStore, StorageUtils.getNeededEnergy(itemStack));
+            if (!(energyToStore > 0) || Double.isNaN(energyToStore)) {
+                return 0;
+            }
             double remainder = energyHandler.insertEnergy(energyToStore, Action.get(!simulate));
-            return IC2Integration.toEU(energyToStore - remainder);
+            double accepted = energyToStore - remainder;
+            return accepted > 0 && !Double.isNaN(accepted) ? IC2Integration.toEU(accepted) : 0;
         }
         return 0;
     }
@@ -35,15 +42,21 @@ public class IC2ItemManager implements IElectricItemManager {
     @Override
     public double discharge(ItemStack itemStack, double amount, int tier, boolean ignoreTransferLimit, boolean external,
                             boolean simulate) {
-        if (itemStack.getCount() > 1 || tier < getTier(itemStack)) {
+        if (itemStack.getCount() > 1) {
             return 0;
         }
         IStrictEnergyHandler energyHandler = StorageUtils.getEnergyHandler(itemStack);
         if (energyHandler != null) {
+            double energyToExtract = IC2Integration.fromEU(amount);
             if (!ignoreTransferLimit) {
-                amount = Math.min(amount, IC2Integration.toEU(StorageUtils.getMaxTransfer(itemStack)));
+                energyToExtract = Math.min(energyToExtract, StorageUtils.getMaxTransfer(itemStack));
             }
-            return IC2Integration.toEU(energyHandler.extractEnergy(IC2Integration.fromEU(amount), Action.get(!simulate)));
+            energyToExtract = Math.min(energyToExtract, StorageUtils.getStoredEnergy(itemStack));
+            if (!(energyToExtract > 0) || Double.isNaN(energyToExtract)) {
+                return 0;
+            }
+            double extracted = energyHandler.extractEnergy(energyToExtract, Action.get(!simulate));
+            return extracted > 0 && !Double.isNaN(extracted) ? IC2Integration.toEU(extracted) : 0;
         }
         return 0;
     }

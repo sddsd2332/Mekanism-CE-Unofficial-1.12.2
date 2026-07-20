@@ -3,9 +3,12 @@ package mekanism.common;
 import it.unimi.dsi.fastutil.ints.Int2ObjectArrayMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import mekanism.common.frequency.FrequencyManager;
+import mekanism.common.content.qio.QIOStorageManager;
+import mekanism.common.inventory.container.PortableQIODashboardContainer;
 import mekanism.common.lib.radiation.RadiationManager;
 import mekanism.common.multiblock.MultiblockManager;
 import net.minecraft.util.math.ChunkPos;
+import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldServer;
 import net.minecraft.world.gen.ChunkProviderServer;
@@ -59,6 +62,7 @@ public class CommonWorldTickHandler {
 
     public void tickStart(World world) {
         if (!world.isRemote) {
+            QIOStorageManager.load(world);
             if (!FrequencyManager.loaded) {
                 FrequencyManager.load(world);
             }
@@ -70,10 +74,18 @@ public class CommonWorldTickHandler {
 
     public void tickEnd(World world) {
         if (!world.isRemote) {
+            QIOStorageManager.tick(world);
             MultiblockManager.tick(world);
             FrequencyManager.tick(world);
             RadiationManager.INSTANCE.tickServerWorld(world);
             if (flushTagAndRecipeCaches) {
+                // Item-backed windows do not tick on their own, so refresh
+                // every open portable dashboard before consuming the flag.
+                for (EntityPlayer player : world.playerEntities) {
+                    if (player.openContainer instanceof PortableQIODashboardContainer) {
+                        ((PortableQIODashboardContainer) player.openContainer).getCraftingInventory().invalidateRecipes();
+                    }
+                }
                 flushTagAndRecipeCaches = false;
             }
             if (chunkRegenMap == null) {
