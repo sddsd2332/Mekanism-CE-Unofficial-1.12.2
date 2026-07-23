@@ -21,6 +21,7 @@ import mekanism.common.integration.ic2.IC2ItemManager;
 import mekanism.common.integration.redstoneflux.RFIntegration;
 import mekanism.common.integration.tesla.TeslaItemWrapper;
 import mekanism.common.item.interfaces.IItemSustainedInventory;
+import mekanism.common.item.interfaces.IItemBlockPlacementData;
 import mekanism.common.item.interfaces.ILegacyEnergizedItem;
 import mekanism.common.security.ISecurityItem;
 import mekanism.common.security.ISecurityTile;
@@ -36,10 +37,12 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.settings.GameSettings;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
@@ -59,7 +62,8 @@ import java.util.UUID;
         @Interface(iface = "cofh.redstoneflux.api.IEnergyContainerItem", modid = MekanismHooks.REDSTONEFLUX_MOD_ID),
         @Interface(iface = "ic2.api.item.ISpecialElectricItem", modid = MekanismHooks.IC2_MOD_ID)
 })
-public class ItemBlockEnergyCube extends ItemBlock implements ILegacyEnergizedItem, ISpecialElectricItem, IItemSustainedInventory, IEnergyContainerItem, ISecurityItem, ITierItem {
+public class ItemBlockEnergyCube extends ItemBlock implements ILegacyEnergizedItem, ISpecialElectricItem, IItemSustainedInventory, IEnergyContainerItem, ISecurityItem,
+      ITierItem, IItemBlockPlacementData {
 
     public Block metaBlock;
 
@@ -110,35 +114,18 @@ public class ItemBlockEnergyCube extends ItemBlock implements ILegacyEnergizedIt
     }
 
     @Override
-    public boolean placeBlockAt(@Nonnull ItemStack stack, @Nonnull EntityPlayer player, World world, @Nonnull BlockPos pos, EnumFacing side, float hitX, float hitY,
-                                float hitZ, @Nonnull IBlockState state) {
-        boolean place = super.placeBlockAt(stack, player, world, pos, side, hitX, hitY, hitZ, state);
-        if (place) {
-            TileEntityEnergyCube tileEntity = (TileEntityEnergyCube) world.getTileEntity(pos);
-            tileEntity.tier = EnergyCubeTier.values()[getBaseTier(stack).ordinal()];
-            tileEntity.setEnergy(StorageUtils.getStoredEnergyFromItemData(stack));
-            ((ISecurityTile) tileEntity).getSecurity().setOwnerUUID(getOwnerUUID(stack));
-            if (hasSecurity(stack)) {
-                ((ISecurityTile) tileEntity).getSecurity().setMode(getSecurity(stack));
-            }
-            if (getOwnerUUID(stack) == null) {
-                ((ISecurityTile) tileEntity).getSecurity().setOwnerUUID(player.getUniqueID());
-            }
-            if (ItemDataUtils.hasData(stack, "sideDataStored")) {
-                ((ISideConfiguration) tileEntity).getConfig().read(ItemDataUtils.getDataMap(stack));
-                ((ISideConfiguration) tileEntity).getEjector().read(ItemDataUtils.getDataMap(stack));
-            }
-            if (tileEntity.tier == EnergyCubeTier.CREATIVE) {
-                boolean filled = tileEntity.getEnergy() > 0;
-                tileEntity.configComponent.fillConfig(TransmissionType.ENERGY, filled ? DataType.OUTPUT : DataType.INPUT);
-                tileEntity.configComponent.setEjecting(TransmissionType.ENERGY, filled);
-            }
-            ((ISustainedInventory) tileEntity).setInventory(getInventory(stack));
-            if (!world.isRemote) {
-                Mekanism.packetHandler.sendUpdatePacket(tileEntity);
-            }
+    public void restorePlacementData(@Nonnull ItemStack stack, @Nonnull EntityLivingBase placer, @Nonnull World world, @Nonnull BlockPos pos,
+          @Nonnull TileEntity tileEntity) {
+        if (!(tileEntity instanceof TileEntityEnergyCube energyCube)) {
+            return;
         }
-        return place;
+        energyCube.tier = EnergyCubeTier.values()[getBaseTier(stack).ordinal()];
+        MekanismPlacementData.restoreCommon(stack, placer, energyCube);
+        if (energyCube.tier == EnergyCubeTier.CREATIVE) {
+            boolean filled = energyCube.getEnergy() > 0;
+            energyCube.configComponent.fillConfig(TransmissionType.ENERGY, filled ? DataType.OUTPUT : DataType.INPUT);
+            energyCube.configComponent.setEjecting(TransmissionType.ENERGY, filled);
+        }
     }
 
     @Override

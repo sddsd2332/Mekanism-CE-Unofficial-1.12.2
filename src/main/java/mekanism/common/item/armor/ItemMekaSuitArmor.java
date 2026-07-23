@@ -28,6 +28,7 @@ import mekanism.common.MekanismItems;
 import mekanism.common.MekanismModules;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.capabilities.ItemCapabilityWrapper;
+import mekanism.common.capabilities.energy.BasicEnergyContainer;
 import mekanism.common.capabilities.energy.item.RateLimitEnergyHandler;
 import mekanism.common.capabilities.gas.item.ItemStackMekanismGasHandler;
 import mekanism.common.capabilities.gas.item.RateLimitGasHandler;
@@ -670,7 +671,7 @@ public abstract class ItemMekaSuitArmor extends ItemArmor implements IModuleCont
 
         capabilities.add(new TeslaItemWrapper());
         capabilities.add(new ForgeEnergyItemWrapper());
-        capabilities.add(RateLimitEnergyHandler.create(() -> getEnergyTransfer(stack), () -> getEnergyCapacity(stack), ConstantPredicates.alwaysFalse(), ConstantPredicates.alwaysTrue()));
+        capabilities.add(RateLimitEnergyHandler.create(() -> getEnergyTransfer(stack), () -> getEnergyCapacity(stack), BasicEnergyContainer.manualOnly, ConstantPredicates.alwaysTrue()));
         capabilities.add(LaserDissipationHandler.create(item -> isModuleEnabled(item, MekanismModules.LASER_DISSIPATION_UNIT) ? laserDissipation : 0, item -> isModuleEnabled(item, MekanismModules.LASER_DISSIPATION_UNIT) ? laserRefraction : 0));
         capabilities.add(RadiationShieldingHandler.create(item -> isModuleEnabled(item, MekanismModules.RADIATION_SHIELDING_UNIT) ? ItemHazmatSuitArmor.getShieldingByArmor(armorType) : 0));
         if (mekanism.common.capabilities.Capabilities.NC_CAPABILITY_RADIATION_RESISTANCE != null) {

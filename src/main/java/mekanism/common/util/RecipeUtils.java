@@ -9,7 +9,10 @@ import mekanism.common.block.states.BlockStateBasic.BasicBlockType;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.inventory.BinMekanismInventory;
 import mekanism.common.inventory.slot.gas.GasInventorySlot;
+import mekanism.common.content.qio.QIODriveDefinition;
+import mekanism.common.content.qio.QIODriveType;
 import mekanism.common.content.qio.IQIODriveItem;
+import mekanism.common.content.qio.QIOAmount;
 import mekanism.common.security.ISecurityItem;
 import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
@@ -22,6 +25,7 @@ import net.minecraftforge.oredict.OreDictionary;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 
 public class RecipeUtils {
 
@@ -187,23 +191,61 @@ public class RecipeUtils {
         }
 
         if (toReturn.getItem() instanceof IQIODriveItem outputDrive) {
+            IQIODriveItem sourceDrive = null;
+            ItemStack sourceStack = ItemStack.EMPTY;
+            UUID sourceId = null;
             for (int i = 0; i < invLength; i++) {
                 ItemStack input = inv.getStackInSlot(i);
-                if (!input.isEmpty() && input.getItem() instanceof IQIODriveItem inputDrive &&
-                      inputDrive.getDriveType() == outputDrive.getDriveType() &&
-                      inputDrive.getDriveTier().ordinal() < outputDrive.getDriveTier().ordinal()) {
-                    java.util.UUID driveId = inputDrive.getDriveId(input);
-                    if (driveId != null) {
-                        outputDrive.setDriveId(toReturn, driveId);
-                        IQIODriveItem.DriveMetadata metadata = inputDrive.getDriveMetadata(input);
-                        outputDrive.setDriveMetadata(toReturn, metadata.getCount(), metadata.getTypes(), metadata.getStorageUnits());
-                    }
-                    break;
+                if (input.isEmpty() || !(input.getItem() instanceof IQIODriveItem inputDrive)) {
+                    continue;
                 }
+                UUID driveId = inputDrive.getDriveId(input);
+                if (driveId == null) {
+                    continue;
+                }
+                // Consuming more than one UUID-bearing source would orphan at
+                // least one external record. A stacked source would leave a
+                // second physical item carrying the inherited UUID behind.
+                if (sourceId != null || input.getCount() != 1) {
+                    return ItemStack.EMPTY;
+                }
+                sourceDrive = inputDrive;
+                sourceStack = input;
+                sourceId = driveId;
+            }
+            if (sourceId != null) {
+                if (toReturn.getCount() != 1 || sourceDrive == null ||
+                      !isQIODriveUpgrade(sourceDrive, sourceStack, outputDrive, toReturn)) {
+                    return ItemStack.EMPTY;
+                }
+                outputDrive.setDriveId(toReturn, sourceId);
+                IQIODriveItem.DriveMetadata metadata = sourceDrive.getDriveMetadata(sourceStack);
+                outputDrive.setDriveMetadata(toReturn, metadata.getCount(), metadata.getTypes(), metadata.getStorageUnits());
             }
         }
 
         return toReturn;
+    }
+
+    private static boolean isQIODriveUpgrade(IQIODriveItem inputDrive, ItemStack input,
+          IQIODriveItem outputDrive, ItemStack output) {
+        QIODriveType inputType = inputDrive.getDriveType(input);
+        QIODriveType outputType = outputDrive.getDriveType(output);
+        if (inputType == null || inputType != outputType ||
+              !QIODriveDefinition.isRegistered(inputDrive.getDriveDefinition(input)) ||
+              !QIODriveDefinition.isRegistered(outputDrive.getDriveDefinition(output))) {
+            return false;
+        }
+        QIOAmount inputCountCapacity = inputDrive.getExactCountCapacity(input);
+        QIOAmount outputCountCapacity = outputDrive.getExactCountCapacity(output);
+        QIOAmount inputStorageCapacity = inputDrive.getExactStorageCapacity(input);
+        QIOAmount outputStorageCapacity = outputDrive.getExactStorageCapacity(output);
+        int inputTypeCapacity = inputDrive.getTypeCapacity(input);
+        int outputTypeCapacity = outputDrive.getTypeCapacity(output);
+        return outputCountCapacity.compareTo(inputCountCapacity) >= 0 &&
+              outputStorageCapacity.compareTo(inputStorageCapacity) >= 0 && outputTypeCapacity >= inputTypeCapacity &&
+              (outputCountCapacity.compareTo(inputCountCapacity) > 0 ||
+                    outputStorageCapacity.compareTo(inputStorageCapacity) > 0 || outputTypeCapacity > inputTypeCapacity);
     }
 
     public static IRecipe getRecipeFromGrid(InventoryCrafting inv, World world) {

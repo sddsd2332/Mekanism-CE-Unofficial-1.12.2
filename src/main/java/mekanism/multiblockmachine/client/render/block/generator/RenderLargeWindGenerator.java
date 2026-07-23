@@ -30,17 +30,20 @@ public class RenderLargeWindGenerator extends RenderTileEntityTime<TileEntityLar
         int fanRenderDistance = MekanismConfig.current().client.largeWindGeneratorFanRenderDistance.val();
         boolean renderFans = fanRenderDistance <= 0 || tileEntity.getDistanceSq(rendererDispatcher.entityX, rendererDispatcher.entityY, rendererDispatcher.entityZ) <= (double) fanRenderDistance * fanRenderDistance;
         GlStateManager.pushMatrix();
-        GlStateManager.color(1F, 1F, 1F, 1F);
-        GlStateManager.enableCull();
-        GlStateManager.enableRescaleNormal();
-        GlStateManager.translate((float) x + 0.5F, (float) y + 1.5F, (float) z + 0.5F);
-        bindTexture(MAIN_TEXTURE);
-        MekanismRenderer.rotate(tileEntity.facing, 0, 180, 90, 270);
-        GlStateManager.rotate(180, 0, 0, 1);
-        model.renderBlock(getTime(), MODEL_SCALE, angle, active, rendererDispatcher.renderEngine, true, renderFans);
-        GlStateManager.disableRescaleNormal();
-        GlStateManager.disableCull();
-        GlStateManager.popMatrix();
+        GlStateManager.pushAttrib();
+        try {
+            GlStateManager.color(1F, 1F, 1F, 1F);
+            GlStateManager.enableCull();
+            GlStateManager.enableRescaleNormal();
+            GlStateManager.translate((float) x + 0.5F, (float) y + 1.5F, (float) z + 0.5F);
+            bindTexture(MAIN_TEXTURE);
+            MekanismRenderer.rotate(tileEntity.facing, 0, 180, 90, 270);
+            GlStateManager.rotate(180, 0, 0, 1);
+            model.renderBlock(getTime(), MODEL_SCALE, angle, active, rendererDispatcher.renderEngine, true, renderFans);
+        } finally {
+            GlStateManager.popAttrib();
+            GlStateManager.popMatrix();
+        }
     }
 
     public double angle(TileEntityLargeWindGenerator tileEntity, float partialTick) {

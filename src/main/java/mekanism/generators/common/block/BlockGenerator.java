@@ -14,6 +14,7 @@ import mekanism.common.tile.prefab.TileEntityBasicBlock;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
 import mekanism.common.tile.prefab.TileEntityElectricBlock;
 import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.MekanismPlacementData;
 import mekanism.common.util.SecurityUtils;
 import mekanism.common.util.StorageUtils;
 import mekanism.generators.common.GeneratorsItems;
@@ -157,6 +158,7 @@ public abstract class BlockGenerator extends BlockMekanismContainer {
         if (tileEntity instanceof IBoundingBlock block) {
             block.onPlace();
         }
+        MekanismPlacementData.apply(world, pos, entityliving, itemstack);
         if (!world.isRemote && tileEntity instanceof IMultiblock<?> multiblock) {
             multiblock.doUpdate();
         }

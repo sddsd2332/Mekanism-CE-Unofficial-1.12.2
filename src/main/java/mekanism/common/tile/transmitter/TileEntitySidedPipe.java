@@ -540,6 +540,10 @@ public abstract class TileEntitySidedPipe extends TileEntityRestrictedTick imple
         return getConnectionType(side, getAllCurrentConnections(), currentTransmitterConnections, connectionTypes);
     }
 
+    public ConnectionType getConnectionTypeRaw(EnumFacing side) {
+        return connectionTypes[side.ordinal()];
+    }
+
     public List<EnumFacing> getConnections(ConnectionType type) {
         List<EnumFacing> sides = new ArrayList<>(EnumFacing.VALUES.length + 1);
         for (EnumFacing side : EnumFacing.VALUES) {

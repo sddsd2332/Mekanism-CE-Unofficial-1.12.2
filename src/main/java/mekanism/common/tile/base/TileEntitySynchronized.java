@@ -242,7 +242,11 @@ public class TileEntitySynchronized extends TileEntity implements IOcclusionCull
     @SideOnly(Side.CLIENT)
     public boolean shouldCullForOcclusion() {
         if (!MekanismConfig.current().client.GazeCullingTracking.val()) {
+            cullingDiscardOpenGlQuery();
             return false;
+        }
+        if (!MekanismConfig.current().client.GazeCullingOpenGLTracking.val()) {
+            cullingDiscardOpenGlQuery();
         }
         return IOcclusionCulling.super.shouldCullForOcclusion();
     }

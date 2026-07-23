@@ -182,6 +182,7 @@ public abstract class BlockMachine extends BlockMekanismContainer {
         if (tileEntity instanceof IBoundingBlock block) {
             block.onPlace();
         }
+        MekanismPlacementData.apply(world, pos, placer, stack);
     }
 
     @Override

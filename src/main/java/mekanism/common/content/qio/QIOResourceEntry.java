@@ -17,18 +17,18 @@ public final class QIOResourceEntry {
 
     private final UUID uuid;
     private final QIOResourceKind kind;
-    private final long amount;
+    private final QIOAmount amount;
     private final ItemStack item;
     @Nullable
     private final FluidStack fluid;
     @Nullable
     private final GasStack gas;
 
-    private QIOResourceEntry(UUID uuid, QIOResourceKind kind, long amount, ItemStack item,
+    private QIOResourceEntry(UUID uuid, QIOResourceKind kind, QIOAmount amount, ItemStack item,
           @Nullable FluidStack fluid, @Nullable GasStack gas) {
         this.uuid = Objects.requireNonNull(uuid, "uuid");
         this.kind = Objects.requireNonNull(kind, "kind");
-        this.amount = Math.max(0, amount);
+        this.amount = amount == null ? QIOAmount.ZERO : amount;
         this.item = item == null ? ItemStack.EMPTY : item.copy();
         if (!this.item.isEmpty()) {
             this.item.setCount(1);
@@ -39,6 +39,11 @@ public final class QIOResourceEntry {
 
     @Nullable
     public static QIOResourceEntry create(UUID uuid, long amount) {
+        return create(uuid, QIOAmount.of(amount));
+    }
+
+    @Nullable
+    public static QIOResourceEntry create(UUID uuid, QIOAmount amount) {
         QIOResourceType type = QIOResourceTypeRegistry.INSTANCE.getTypeByUUID(uuid);
         if (type == null) {
             return null;
@@ -59,10 +64,19 @@ public final class QIOResourceEntry {
     }
 
     public long getAmount() {
+        return amount.longValueClamped();
+    }
+
+    @Nonnull
+    public QIOAmount getExactAmount() {
         return amount;
     }
 
     public QIOResourceEntry withAmount(long amount) {
+        return withAmount(QIOAmount.of(amount));
+    }
+
+    public QIOResourceEntry withAmount(QIOAmount amount) {
         return new QIOResourceEntry(uuid, kind, amount, item, fluid, gas);
     }
 
@@ -116,7 +130,7 @@ public final class QIOResourceEntry {
             return false;
         }
         QIOResourceEntry other = (QIOResourceEntry) obj;
-        if (!uuid.equals(other.uuid) || kind != other.kind || amount != other.amount) {
+        if (!uuid.equals(other.uuid) || kind != other.kind || !amount.equals(other.amount)) {
             return false;
         }
         switch (kind) {
@@ -134,7 +148,7 @@ public final class QIOResourceEntry {
     @Override
     public int hashCode() {
         int result = 31 * uuid.hashCode() + kind.hashCode();
-        result = 31 * result + Long.hashCode(amount);
+        result = 31 * result + amount.hashCode();
         switch (kind) {
             case ITEM:
                 return 31 * result + item.hashCode();
@@ -151,7 +165,7 @@ public final class QIOResourceEntry {
         buffer.writeLong(uuid.getMostSignificantBits());
         buffer.writeLong(uuid.getLeastSignificantBits());
         buffer.writeByte(kind.ordinal());
-        buffer.writeLong(amount);
+        amount.write(buffer);
         NBTTagCompound payload = new NBTTagCompound();
         switch (kind) {
             case ITEM:
@@ -176,9 +190,9 @@ public final class QIOResourceEntry {
         try {
             UUID uuid = new UUID(buffer.readLong(), buffer.readLong());
             QIOResourceKind kind = QIOResourceKind.byOrdinal(buffer.readUnsignedByte());
-            long amount = buffer.readLong();
+            QIOAmount amount = QIOAmount.read(buffer);
             NBTTagCompound payload = PacketHandler.readNBT(buffer);
-            if (kind == null || payload == null || amount < 0) {
+            if (kind == null || payload == null) {
                 return null;
             }
             return switch (kind) {

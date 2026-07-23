@@ -15,6 +15,7 @@ import mekanism.common.tier.BaseTier;
 import mekanism.common.tile.transmitter.*;
 import mekanism.common.tile.transmitter.TileEntitySidedPipe.ConnectionType;
 import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.MekanismPlacementData;
 import mekanism.common.util.MultipartUtils;
 import mekanism.common.util.MultipartUtils.AdvancedRayTraceResult;
 import net.minecraft.block.Block;
@@ -275,6 +276,7 @@ public class    BlockTransmitter extends BlockTileDrops implements ITileEntityPr
     public void onBlockPlacedBy(World world, BlockPos pos, IBlockState state, EntityLivingBase placer, ItemStack stack) {
         TileEntitySidedPipe tile = getTileEntitySidedPipe(world, pos);
         if (tile != null) {
+            MekanismPlacementData.apply(world, pos, placer, stack);
             tile.onAdded();
         }
     }

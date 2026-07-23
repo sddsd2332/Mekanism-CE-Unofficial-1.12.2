@@ -291,17 +291,7 @@ public class CommonPlayerTickHandler {
 
     private boolean handleDamage(LivingHurtEvent event, EntityLivingBase base, IEnergyContainer energyContainer, FloatSupplier absorptionRatio, double energyCost) {
         if (energyContainer != null) {
-            float absorption = absorptionRatio.getAsFloat();
-            float amount = event.getAmount() * absorption;
-            double energyRequirement = energyCost * amount;
-            float ratioAbsorbed;
-            if (energyRequirement == 0) {
-                //No energy is actually needed to absorb the damage, either because of the config
-                // or how small the amount to absorb is
-                ratioAbsorbed = absorption;
-            } else {
-                ratioAbsorbed = (float) (absorption * energyContainer.extract(energyRequirement, Action.EXECUTE, AutomationType.MANUAL) / amount);
-            }
+            float ratioAbsorbed = calculateFallDamageAbsorption(energyContainer, event.getAmount(), absorptionRatio.getAsFloat(), energyCost);
 
             if (ratioAbsorbed > 0) {
                 float damageRemaining = event.getAmount() * Math.max(0, 1 - ratioAbsorbed);
@@ -314,6 +304,25 @@ public class CommonPlayerTickHandler {
             }
         }
         return false;
+    }
+
+    static float calculateFallDamageAbsorption(IEnergyContainer energyContainer, float damage, float absorption, double energyCost) {
+        absorption = Math.max(0, Math.min(1, absorption));
+        if (energyContainer == null || !Float.isFinite(damage) || damage <= 0 || !Double.isFinite(energyCost) || energyCost < 0 || absorption <= 0) {
+            return 0;
+        }
+        double energyRequirement = energyCost * damage * absorption;
+        if (energyRequirement == 0) {
+            return absorption;
+        }
+        if (!Double.isFinite(energyRequirement)) {
+            return 0;
+        }
+        double extracted = energyContainer.extract(energyRequirement, Action.EXECUTE, AutomationType.MANUAL);
+        if (!Double.isFinite(extracted) || extracted <= 0) {
+            return 0;
+        }
+        return (float) (absorption * Math.min(extracted, energyRequirement) / energyRequirement);
     }
 
     @SubscribeEvent

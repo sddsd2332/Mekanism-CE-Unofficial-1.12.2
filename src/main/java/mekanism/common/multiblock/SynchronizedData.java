@@ -3,10 +3,10 @@ package mekanism.common.multiblock;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import mekanism.api.AutomationType;
 import mekanism.api.Coord4D;
-import mekanism.api.IHeatTransfer;
 import mekanism.api.energy.IEnergyContainer;
 import mekanism.api.fluid.IExtendedFluidTank;
 import mekanism.api.gas.IExtendedGasTank;
+import mekanism.api.heat.IHeatHandler;
 import mekanism.api.inventory.IInventorySlot;
 import mekanism.api.inventory.IMekanismInventory;
 import net.minecraft.util.EnumFacing;
@@ -37,6 +37,8 @@ public abstract class SynchronizedData<T extends SynchronizedData<T>> implements
 
     public boolean hasRenderer;
 
+    private long lastServerTick = Long.MIN_VALUE;
+
     @Nullable//may be null if structure has not been fully sent
     public Coord4D renderLocation;
 
@@ -52,7 +54,7 @@ public abstract class SynchronizedData<T extends SynchronizedData<T>> implements
     protected final List<IExtendedFluidTank> fluidTanks = new ArrayList<>();
     protected final List<IExtendedGasTank> gasTanks = new ArrayList<>();
     protected final List<IEnergyContainer> energyContainers = new ArrayList<>();
-    protected final List<IHeatTransfer> heatTransfers = new ArrayList<>();
+    protected final List<IHeatHandler> heatHandlers = new ArrayList<>();
 
     private final BiPredicate<Object, AutomationType> formedBiPred = (stack, automationType) -> isFormed();
     private final BiPredicate<Object, AutomationType> notExternalFormedBiPred = (stack, automationType) -> automationType != AutomationType.EXTERNAL && isFormed();
@@ -89,8 +91,8 @@ public abstract class SynchronizedData<T extends SynchronizedData<T>> implements
     }
 
     @Nonnull
-    public List<IHeatTransfer> getHeatTransfers(@Nullable EnumFacing side) {
-        return isFormed() ? heatTransfers : Collections.emptyList();
+    public List<IHeatHandler> getHeatHandlers(@Nullable EnumFacing side) {
+        return isFormed() ? heatHandlers : Collections.emptyList();
     }
 
     @Override
@@ -112,6 +114,15 @@ public abstract class SynchronizedData<T extends SynchronizedData<T>> implements
 
     public void setFormed(boolean formed) {
         this.formed = formed;
+    }
+
+    /** Claims ownership of structure-wide processing for the given server tick. */
+    public boolean tryClaimServerTick(long gameTime) {
+        if (lastServerTick == gameTime) {
+            return false;
+        }
+        lastServerTick = gameTime;
+        return true;
     }
 
     @Override

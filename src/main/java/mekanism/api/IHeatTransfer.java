@@ -4,6 +4,10 @@ import mekanism.api.heat.HeatAPI;
 import mekanism.api.heat.IHeatCapacitor;
 import net.minecraft.util.EnumFacing;
 
+/**
+ * @deprecated Use {@link mekanism.api.heat.IHeatHandler} and {@link IHeatCapacitor}. This compatibility API will be removed.
+ */
+@Deprecated
 public interface IHeatTransfer extends IHeatCapacitor {
 
     /**
@@ -34,17 +38,17 @@ public interface IHeatTransfer extends IHeatCapacitor {
 
     @Override
     default double getTemperature() {
-        return getTemp() + HeatAPI.AMBIENT_TEMP;
+        return HeatAPI.sanitizeTemperature(getTemp() + HeatAPI.AMBIENT_TEMP);
     }
 
     @Override
     default double getInverseConduction() {
-        return getInverseConductionCoefficient();
+        return HeatAPI.sanitizeInverseConduction(getInverseConductionCoefficient());
     }
 
     @Override
     default double getInverseInsulation() {
-        return HeatAPI.DEFAULT_INVERSE_INSULATION;
+        return HeatAPI.sanitizeInverseInsulation(getInsulationCoefficient(null));
     }
 
     @Override
@@ -54,16 +58,21 @@ public interface IHeatTransfer extends IHeatCapacitor {
 
     @Override
     default double getHeat() {
-        return getTemperature() * getHeatCapacity();
+        return HeatAPI.multiplyHeat(getTemperature(), getHeatCapacity());
     }
 
     @Override
     default void setHeat(double heat) {
-        transferHeatTo(heat - getHeat());
+        double target = HeatAPI.sanitizeHeat(heat, HeatAPI.multiplyHeat(HeatAPI.AMBIENT_TEMP, getHeatCapacity()));
+        transferHeatTo(target - getHeat());
+        applyTemperatureChange();
     }
 
     @Override
     default void handleHeat(double transfer) {
-        transferHeatTo(transfer);
+        if (HeatAPI.isFinite(transfer)) {
+            transferHeatTo(Math.max(-HeatAPI.MAX_HEAT, Math.min(HeatAPI.MAX_HEAT, transfer)));
+            applyTemperatureChange();
+        }
     }
 }

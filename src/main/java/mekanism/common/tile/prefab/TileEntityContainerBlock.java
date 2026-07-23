@@ -8,7 +8,7 @@ import mekanism.api.fluid.IExtendedFluidTank;
 import mekanism.api.fluid.IMekanismFluidHandler;
 import mekanism.api.gas.*;
 import mekanism.api.heat.IHeatCapacitor;
-import mekanism.api.heat.IMekanismHeatHandler;
+import mekanism.api.heat.IHeatHandler;
 import mekanism.api.inventory.IInventorySlot;
 import mekanism.common.Upgrade;
 import mekanism.common.base.IEnergyWrapper;
@@ -18,6 +18,8 @@ import mekanism.common.base.ITankManager;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.capabilities.CapabilityCache;
 import mekanism.common.capabilities.IToggleableCapability;
+import mekanism.common.capabilities.heat.CachedAmbientTemperature;
+import mekanism.common.capabilities.heat.ITileHeatHandler;
 import mekanism.common.capabilities.holder.energy.EnergyContainerHelper;
 import mekanism.common.capabilities.holder.energy.IEnergyContainerHolder;
 import mekanism.common.capabilities.holder.energy.ProxiedEnergyContainerHolder;
@@ -36,12 +38,15 @@ import mekanism.common.frequency.TileComponentFrequency;
 import mekanism.common.inventory.ISlotBackedInventory;
 import mekanism.common.inventory.slot.BasicInventorySlot;
 import mekanism.common.util.ItemDataUtils;
+import mekanism.common.util.HeatCapabilityUtils;
 import mekanism.common.util.LangUtils;
+import mekanism.common.util.MekanismUtils;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.inventory.Slot;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.util.Constants.NBT;
@@ -63,7 +68,7 @@ import java.util.List;
  */
 
 public abstract class TileEntityContainerBlock extends TileEntityBasicBlock implements ISustainedInventory, IToggleableCapability,
-        ISlotBackedInventory, IMekanismFluidHandler, IMekanismGasHandler, IMekanismStrictEnergyHandler, IMekanismHeatHandler {
+        ISlotBackedInventory, IMekanismFluidHandler, IMekanismGasHandler, IMekanismStrictEnergyHandler, ITileHeatHandler {
 
     private IInventorySlotHolder inventorySlotHolder;
     private IFluidTankHolder fluidTankHolder;
@@ -77,11 +82,11 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
     private GasHandlerManager gasHandlerManager;
     private EnergyHandlerManager energyHandlerManager;
     private HeatHandlerManager heatHandlerManager;
+    private final CachedAmbientTemperature ambientTemperature = new CachedAmbientTemperature(this::getWorld, this::getPos);
     private final List<IInventorySlot> noSlots = Collections.emptyList();
     private final List<IExtendedFluidTank> noFluidTanks = Collections.emptyList();
     private final List<IExtendedGasTank> noGasTanks = Collections.emptyList();
     private final List<IEnergyContainer> noEnergyContainers = Collections.emptyList();
-    private final List<IHeatTransfer> noHeatTransfers = Collections.emptyList();
     private final List<IHeatCapacitor> noHeatCapacitors = Collections.emptyList();
 
     /**
@@ -255,7 +260,7 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
         fluidHandlerManager = new FluidHandlerManager(fluidTankHolder, this);
         gasHandlerManager = new GasHandlerManager(gasTankHolder, this);
         energyHandlerManager = new EnergyHandlerManager(energyContainerHolder, this);
-        heatHandlerManager = new HeatHandlerManager(heatCapacitorHolder);
+        heatHandlerManager = new HeatHandlerManager(this, heatCapacitorHolder);
         List<ICapabilityResolver> resolvers = new ArrayList<>(Arrays.asList(itemHandlerManager, fluidHandlerManager, gasHandlerManager, energyHandlerManager, heatHandlerManager));
         if (this instanceof IConfigurable configurable) {
             resolvers.add(BasicCapabilityResolver.constant(Capabilities.CONFIGURABLE_CAPABILITY, configurable));
@@ -303,6 +308,9 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
         if (persistGasTanks() && hasGasTanks() && hasStoredGasTanks(nbtTags)) {
             DataHandlerUtils.readContainers(getGasTanks(null), nbtTags.getTagList(NBTConstants.GAS_TANKS, NBT.TAG_COMPOUND));
         }
+        if (persistHeatCapacitors() && canHandleHeat() && nbtTags.hasKey(NBTConstants.HEAT_CAPACITORS, NBT.TAG_LIST)) {
+            DataHandlerUtils.readContainers(getHeatCapacitors(null), nbtTags.getTagList(NBTConstants.HEAT_CAPACITORS, NBT.TAG_COMPOUND));
+        }
     }
 
     protected void readCustomNBTBeforeInventory(NBTTagCompound nbtTags) {
@@ -327,6 +335,9 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
         }
         if (persistGasTanks() && hasGasTanks()) {
             nbtTags.setTag(NBTConstants.GAS_TANKS, DataHandlerUtils.writeContainers(getGasTanks(null)));
+        }
+        if (persistHeatCapacitors() && canHandleHeat()) {
+            nbtTags.setTag(NBTConstants.HEAT_CAPACITORS, DataHandlerUtils.writeContainers(getHeatCapacitors(null)));
         }
     }
 
@@ -411,6 +422,10 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
 
     protected boolean persistGasTanks() {
         return hasGasTanks();
+    }
+
+    protected boolean persistHeatCapacitors() {
+        return canHandleHeat();
     }
 
     protected void writeSustainedFluidTanks(ItemStack itemStack) {
@@ -860,13 +875,39 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
               IMekanismStrictEnergyHandler.super.extractEnergy(amount, side, action), () -> 0D);
     }
 
-    public boolean hasHeatTransfers() {
-        return !getHeatTransfers(null).isEmpty();
-    }
-
     @Override
     public boolean canHandleHeat() {
         return heatCapacitorHolder != null && heatHandlerManager != null && heatHandlerManager.canHandle();
+    }
+
+    @Override
+    public int getHeatCapacitorCount() {
+        return getHeatCapacitorCount(getHeatSideFor());
+    }
+
+    @Override
+    public Object getHeatIdentity() {
+        return getHeatIdentity(getHeatSideFor());
+    }
+
+    @Override
+    public double getTemperature(int capacitor) {
+        return getTemperature(capacitor, getHeatSideFor());
+    }
+
+    @Override
+    public double getInverseConduction(int capacitor) {
+        return getInverseConduction(capacitor, getHeatSideFor());
+    }
+
+    @Override
+    public double getHeatCapacity(int capacitor) {
+        return getHeatCapacity(capacitor, getHeatSideFor());
+    }
+
+    @Override
+    public void handleHeat(int capacitor, double transfer) {
+        handleHeat(capacitor, transfer, getHeatSideFor());
     }
 
     @Nonnull
@@ -875,47 +916,9 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
         return canHandleHeat() ? heatCapacitorHolder.getHeatCapacitors(side) : noHeatCapacitors;
     }
 
-    @Nonnull
-    public List<IHeatTransfer> getHeatTransfers(@Nullable EnumFacing side) {
-        List<IHeatCapacitor> heatCapacitors = getHeatCapacitors(side);
-        if (heatCapacitors.isEmpty()) {
-            return noHeatTransfers;
-        }
-        List<IHeatTransfer> heatTransfers = null;
-        for (IHeatCapacitor heatCapacitor : heatCapacitors) {
-            if (heatCapacitor instanceof IHeatTransfer heatTransfer) {
-                if (heatTransfers == null) {
-                    heatTransfers = new ArrayList<>();
-                }
-                heatTransfers.add(heatTransfer);
-            }
-        }
-        return heatTransfers == null ? noHeatTransfers : heatTransfers;
-    }
-
     @Override
     public void handleHeat(double transfer) {
-        if (this instanceof IHeatTransfer heatTransfer) {
-            heatTransfer.transferHeatTo(transfer);
-            return;
-        }
-        List<IHeatCapacitor> heatCapacitors = getHeatCapacitors(getHeatSideFor());
-        if (heatCapacitors.isEmpty()) {
-            return;
-        } else if (heatCapacitors.size() == 1) {
-            heatCapacitors.get(0).handleHeat(transfer);
-            return;
-        }
-        double totalHeatCapacity = 0;
-        for (IHeatCapacitor heatCapacitor : heatCapacitors) {
-            totalHeatCapacity += heatCapacitor.getHeatCapacity();
-        }
-        if (totalHeatCapacity <= 0) {
-            return;
-        }
-        for (IHeatCapacitor heatCapacitor : heatCapacitors) {
-            heatCapacitor.handleHeat(transfer * (heatCapacitor.getHeatCapacity() / totalHeatCapacity));
-        }
+        handleHeat(transfer, getHeatSideFor());
     }
 
     public boolean canInsertHeat(@Nullable EnumFacing side) {
@@ -930,6 +933,21 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
             return false;
         }
         return heatCapacitorHolder != null && heatCapacitorHolder.canExtract(side);
+    }
+
+    @Nullable
+    @Override
+    public IHeatHandler getAdjacent(EnumFacing side) {
+        if (world == null) {
+            return null;
+        }
+        TileEntity adjacent = MekanismUtils.getTileEntity(world, pos.offset(side));
+        return HeatCapabilityUtils.getHandler(adjacent, side.getOpposite());
+    }
+
+    @Override
+    public double getAmbientTemperature(EnumFacing side) {
+        return ambientTemperature.getTemperature(side);
     }
 
     @Nonnull

@@ -61,7 +61,7 @@ public interface IQIOItemViewerContainer {
             PacketQIOViewerData.sendBatch((EntityPlayerMP) player, windowId, Collections.emptyList(), 0, 0);
         } else {
             PacketQIOViewerData.sendBatch((EntityPlayerMP) player, windowId, frequency.getResourceEntries(),
-                  frequency.getTotalCountCapacity(), frequency.getTotalTypeCapacity());
+                  frequency.getCapacitySummary());
         }
     }
 

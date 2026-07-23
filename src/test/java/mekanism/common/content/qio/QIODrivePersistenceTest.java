@@ -2,11 +2,12 @@ package mekanism.common.content.qio;
 
 import mekanism.api.Action;
 import mekanism.common.tier.QIODriveTier;
+import net.minecraft.init.Bootstrap;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.nbt.NBTTagList;
 import net.minecraftforge.fluids.FluidRegistry;
 import net.minecraftforge.fluids.FluidStack;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
@@ -20,6 +21,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class QIODrivePersistenceTest {
 
     private File worldDirectory;
+
+    @BeforeAll
+    static void bootstrapMinecraft() {
+        Bootstrap.register();
+    }
 
     @AfterEach
     void cleanUp() throws Exception {
@@ -68,64 +74,51 @@ class QIODrivePersistenceTest {
         QIODriveRecord restored = QIODriveStorage.INSTANCE.get(drive);
         assertEquals(QIODriveType.FLUID, restored.getDriveType());
         assertEquals(QIODriveTier.TIME_DILATING, restored.getTier());
+        assertEquals(QIODriveDefinition.TIME_DILATING, restored.getDefinition());
     }
 
     @Test
-    void legacyDriveFileIsRewrittenAsCurrentMixedStorage() throws Exception {
-        worldDirectory = Files.createTempDirectory("qio-drive-migration-test").toFile();
-        UUID drive = UUID.randomUUID();
-        NBTTagCompound legacy = new NBTTagCompound();
-        legacy.setInteger("version", 1);
-        legacy.setString("uuid", drive.toString());
-        legacy.setString("tier", QIODriveTier.BASE.getSerializedName());
-        legacy.setLong("count", 0);
-        legacy.setInteger("types", 0);
-        File driveFile = new File(worldDirectory, "mekanism/qio/drives/" + drive + ".dat");
-        QIOFileIO.writeAtomic(driveFile, legacy);
-
+    void driveFilesUseTheInitialRecordVersion() throws Exception {
+        worldDirectory = Files.createTempDirectory("qio-drive-version-test").toFile();
         QIODriveStorage.INSTANCE.createOrLoad(worldDirectory);
-        assertEquals(QIODriveType.MIXED, QIODriveStorage.INSTANCE.get(drive).getDriveType());
+        UUID drive = UUID.randomUUID();
+        QIODriveStorage.INSTANCE.getOrCreate(drive, QIODriveTier.BASE);
+        QIODriveStorage.INSTANCE.markDriveDirty(drive);
         QIODriveStorage.INSTANCE.flush();
+        File driveFile = new File(worldDirectory, "mekanism/qio/drives/" + drive + ".dat");
+        NBTTagCompound stored = QIOFileIO.read(driveFile);
 
-        NBTTagCompound migrated = QIOFileIO.read(driveFile);
-        assertEquals(QIODriveRecord.DATA_VERSION, migrated.getInteger("version"));
-        assertEquals("mixed", migrated.getString("driveType"));
+        assertEquals(1, stored.getInteger("version"));
+        assertEquals("mixed", stored.getString("driveType"));
+        assertEquals("mekanism:base", stored.getString("definition"));
+        assertTrue(stored.hasKey("countCapacityExact", net.minecraftforge.common.util.Constants.NBT.TAG_BYTE_ARRAY));
+        assertTrue(stored.hasKey("storageCapacityExact", net.minecraftforge.common.util.Constants.NBT.TAG_BYTE_ARRAY));
     }
 
     @Test
-    void versionTwoFluidAmountsMigrateToFixedStorageUnits() throws Exception {
-        worldDirectory = Files.createTempDirectory("qio-drive-unit-migration-test").toFile();
+    void fluidAmountsPersistInFixedStorageUnits() throws Exception {
+        worldDirectory = Files.createTempDirectory("qio-drive-fluid-persistence-test").toFile();
         QIOResourceTypeRegistry.INSTANCE.createOrLoad(worldDirectory);
+        QIODriveStorage.INSTANCE.createOrLoad(worldDirectory);
         UUID resource = QIOResourceTypeRegistry.INSTANCE.getOrTrackFluid(new FluidStack(FluidRegistry.WATER, 1));
         UUID drive = UUID.randomUUID();
-
-        NBTTagCompound legacy = new NBTTagCompound();
-        legacy.setInteger("version", 2);
-        legacy.setString("uuid", drive.toString());
-        legacy.setString("tier", QIODriveTier.BASE.getSerializedName());
-        legacy.setString("driveType", QIODriveType.MIXED.getSerializedName());
-        legacy.setLong("count", 1_500);
-        legacy.setInteger("types", 1);
-        NBTTagCompound content = new NBTTagCompound();
-        content.setString("resource", resource.toString());
-        content.setLong("amount", 1_500);
-        NBTTagList contents = new NBTTagList();
-        contents.appendTag(content);
-        legacy.setTag("contents", contents);
-        File driveFile = new File(worldDirectory, "mekanism/qio/drives/" + drive + ".dat");
-        QIOFileIO.writeAtomic(driveFile, legacy);
-
-        QIODriveStorage.INSTANCE.createOrLoad(worldDirectory);
-        QIODriveRecord migratedRecord = QIODriveStorage.INSTANCE.get(drive);
-        assertEquals(1_500, migratedRecord.getStored(resource));
-        assertEquals(1_500, migratedRecord.getTotalStorageUnits());
-        assertEquals(2, migratedRecord.getTotalCount());
+        QIODriveRecord record = QIODriveStorage.INSTANCE.getOrCreate(drive, QIODriveTier.BASE);
+        assertEquals(1_500, record.insert(resource, 1_500, Action.EXECUTE));
+        QIODriveStorage.INSTANCE.markDriveDirty(drive);
         QIODriveStorage.INSTANCE.flush();
+        File driveFile = new File(worldDirectory, "mekanism/qio/drives/" + drive + ".dat");
 
-        NBTTagCompound migrated = QIOFileIO.read(driveFile);
-        assertEquals(QIODriveRecord.DATA_VERSION, migrated.getInteger("version"));
-        assertEquals(1_500, migrated.getLong("storageUnits"));
-        assertEquals("fluid", migrated.getTagList("contents",
+        QIODriveStorage.INSTANCE.reset();
+        QIODriveStorage.INSTANCE.createOrLoad(worldDirectory);
+        QIODriveRecord restored = QIODriveStorage.INSTANCE.get(drive);
+        assertEquals(1_500, restored.getStored(resource));
+        assertEquals(1_500, restored.getTotalStorageUnits());
+        assertEquals(2, restored.getTotalCount());
+
+        NBTTagCompound stored = QIOFileIO.read(driveFile);
+        assertEquals(1, stored.getInteger("version"));
+        assertEquals(1_500, stored.getLong("storageUnits"));
+        assertEquals("fluid", stored.getTagList("contents",
               net.minecraftforge.common.util.Constants.NBT.TAG_COMPOUND).getCompoundTagAt(0).getString("kind"));
     }
 
@@ -183,7 +176,7 @@ class QIODrivePersistenceTest {
         try (java.io.InputStream input = Files.newInputStream(index.toPath())) {
             rebuilt = net.minecraft.nbt.CompressedStreamTools.readCompressed(input);
         }
-        assertEquals(2, rebuilt.getInteger("version"));
+        assertEquals(3, rebuilt.getInteger("version"));
         assertEquals(2, rebuilt.getTagList("drives", net.minecraftforge.common.util.Constants.NBT.TAG_COMPOUND).tagCount());
     }
 

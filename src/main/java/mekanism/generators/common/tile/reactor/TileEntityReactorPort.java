@@ -38,7 +38,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 
-public class TileEntityReactorPort extends TileEntityReactorBlock implements IHeatTransfer, IConfigurable {
+public class TileEntityReactorPort extends TileEntityReactorBlock implements IConfigurable {
 
     public boolean fluidEject;
 
@@ -63,7 +63,7 @@ public class TileEntityReactorPort extends TileEntityReactorBlock implements IHe
     protected IFluidTankHolder getInitialFluidTanks(IContentsListener listener) {
         return ProxiedFluidTankHolder.create(
               side -> getReactor() != null && getReactor().isFormed() && !fluidEject,
-              side -> getReactor() != null && getReactor().isFormed(),
+              side -> getReactor() != null && getReactor().isFormed() && fluidEject,
               this::getReactorFluidTanks,
               this::getReactorFluidTanksForInsert,
               this::getReactorFluidTanksForExtract
@@ -73,7 +73,7 @@ public class TileEntityReactorPort extends TileEntityReactorBlock implements IHe
     @Override
     protected IGasTankHolder getInitialGasTanks(IContentsListener listener) {
         return ProxiedGasTankHolder.create(
-              side -> getReactor() != null && getReactor().isFormed(),
+              side -> getReactor() != null && getReactor().isFormed() && !fluidEject,
               side -> false,
               this::getReactorGasTanks
         );
@@ -83,7 +83,7 @@ public class TileEntityReactorPort extends TileEntityReactorBlock implements IHe
     protected IEnergyContainerHolder getInitialEnergyContainers(IContentsListener listener) {
         return ProxiedEnergyContainerHolder.create(
               side -> false,
-              side -> getReactor() != null && getReactor().isFormed(),
+              side -> getReactor() != null && getReactor().isFormed() && fluidEject,
               side -> getReactor() != null && getReactor().isFormed() ? Collections.singletonList(this) : Collections.emptyList()
         );
     }
@@ -110,8 +110,13 @@ public class TileEntityReactorPort extends TileEntityReactorBlock implements IHe
         return ProxiedHeatCapacitorHolder.create(
               side -> getReactor() != null && getReactor().isFormed(),
               side -> getReactor() != null && getReactor().isFormed(),
-              side -> getReactor() == null ? Collections.emptyList() : Collections.singletonList(this)
+              side -> getReactor() == null ? Collections.emptyList() : Collections.singletonList(getReactor().getHeatCapacitor())
         );
+    }
+
+    @Override
+    protected boolean persistHeatCapacitors() {
+        return false;
     }
 
     @Override
@@ -181,7 +186,7 @@ public class TileEntityReactorPort extends TileEntityReactorBlock implements IHe
 
     @Override
     public boolean canOutputEnergy(EnumFacing side) {
-        return true;
+        return fluidEject;
     }
 
     @Override
@@ -209,7 +214,7 @@ public class TileEntityReactorPort extends TileEntityReactorBlock implements IHe
 
     @Override
     public boolean sideIsOutput(EnumFacing side) {
-        return true;
+        return fluidEject;
     }
 
     @Override
@@ -220,63 +225,6 @@ public class TileEntityReactorPort extends TileEntityReactorBlock implements IHe
     @Override
     public double getMaxOutput() {
         return Double.MAX_VALUE;
-    }
-
-    @Override
-    public double getTemp() {
-        if (getReactor() != null) {
-            return getReactor().getTemp();
-        }
-        return 0;
-    }
-
-    @Override
-    public double getInverseConductionCoefficient() {
-        return 5;
-    }
-
-    @Override
-    public double getInsulationCoefficient(EnumFacing side) {
-        if (getReactor() != null) {
-            return getReactor().getInsulationCoefficient(side);
-        }
-        return 0;
-    }
-
-    @Override
-    public void transferHeatTo(double heat) {
-        if (getReactor() != null) {
-            getReactor().transferHeatTo(heat);
-        }
-    }
-
-    @Override
-    public double[] simulateHeat() {
-        return HeatUtils.simulate(this);
-    }
-
-    @Override
-    public double applyTemperatureChange() {
-        if (getReactor() != null) {
-            return getReactor().applyTemperatureChange();
-        }
-        return 0;
-    }
-
-    @Override
-    public boolean canConnectHeat(EnumFacing side) {
-        return getReactor() != null;
-    }
-
-    @Override
-    public IHeatTransfer getAdjacent(EnumFacing side) {
-        TileEntity adj = Coord4D.get(this).offset(side).getTileEntity(world);
-        if (CapabilityUtils.hasCapability(adj, Capabilities.HEAT_TRANSFER_CAPABILITY, side.getOpposite())) {
-            if (!(adj instanceof TileEntityReactorBlock)) {
-                return CapabilityUtils.getCapability(adj, Capabilities.HEAT_TRANSFER_CAPABILITY, side.getOpposite());
-            }
-        }
-        return null;
     }
 
     @Nonnull

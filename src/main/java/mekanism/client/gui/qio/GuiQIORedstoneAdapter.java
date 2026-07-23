@@ -158,10 +158,7 @@ public class GuiQIORedstoneAdapter extends GuiMekanismTile<TileEntityQIORedstone
         if (frequency == null) {
             return Collections.emptyList();
         }
-        return java.util.Arrays.asList(MekanismLang.QIO_ITEMS_DETAIL.translateColored(EnumColor.GREY, EnumColor.INDIGO,
-                    TextUtils.format(frequency.getTotalCount()), TextUtils.format(frequency.getTotalCountCapacity())),
-              MekanismLang.QIO_TYPES_DETAIL.translateColored(EnumColor.GREY, EnumColor.INDIGO,
-                    TextUtils.format(frequency.getTotalTypes()), TextUtils.format(frequency.getTotalTypeCapacity())));
+        return QIOGuiCapacityText.forFrequency(frequency);
     }
 
     private List<ITextComponent> getDetails() {

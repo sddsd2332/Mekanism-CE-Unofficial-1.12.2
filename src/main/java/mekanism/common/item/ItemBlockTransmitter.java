@@ -12,6 +12,7 @@ import mekanism.common.block.states.BlockStateTransmitter.TransmitterType;
 import mekanism.common.integration.MekanismHooks;
 import mekanism.common.integration.multipart.MultipartMekanism;
 import mekanism.common.interfaces.IOverlayRenderAware;
+import mekanism.common.item.interfaces.IItemBlockPlacementData;
 import mekanism.common.tier.*;
 import mekanism.common.tile.transmitter.TileEntitySidedPipe;
 import mekanism.common.util.LangUtils;
@@ -23,8 +24,10 @@ import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.settings.GameSettings;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
@@ -37,7 +40,7 @@ import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.Locale;
 
-public class ItemBlockTransmitter extends ItemBlockMultipartAble implements ITierItem, IOverlayRenderAware {
+public class ItemBlockTransmitter extends ItemBlockMultipartAble implements ITierItem, IOverlayRenderAware, IItemBlockPlacementData {
 
     public Block metaBlock;
 
@@ -54,17 +57,11 @@ public class ItemBlockTransmitter extends ItemBlockMultipartAble implements ITie
     }
 
     @Override
-    public boolean placeBlockAt(@Nonnull ItemStack stack, @Nonnull EntityPlayer player, World world, @Nonnull BlockPos pos, EnumFacing side, float hitX, float hitY,
-                                float hitZ, @Nonnull IBlockState state) {
-        boolean place = super.placeBlockAt(stack, player, world, pos, side, hitX, hitY, hitZ, state);
-        if (place) {
-            TileEntitySidedPipe tileEntity = (TileEntitySidedPipe) world.getTileEntity(pos);
-            tileEntity.setBaseTier(getBaseTier(stack));
-            if (!world.isRemote) {
-                Mekanism.packetHandler.sendUpdatePacket(tileEntity);
-            }
+    public void restorePlacementData(@Nonnull ItemStack stack, @Nonnull EntityLivingBase placer, @Nonnull World world, @Nonnull BlockPos pos,
+          @Nonnull TileEntity tileEntity) {
+        if (tileEntity instanceof TileEntitySidedPipe pipe) {
+            pipe.setBaseTier(getBaseTier(stack));
         }
-        return place;
     }
 
     @Override
@@ -92,7 +89,7 @@ public class ItemBlockTransmitter extends ItemBlockMultipartAble implements ITie
             } else if (transmission == TransmissionType.HEAT) {
                 list.add(EnumColor.INDIGO + LangUtils.localize("tooltip.conduction") + ": " + EnumColor.GREY + ConductorTier.get(tier).getInverseConduction());
                 list.add(EnumColor.INDIGO + LangUtils.localize("tooltip.insulation") + ": " + EnumColor.GREY + ConductorTier.get(tier).getBaseConductionInsulation());
-                list.add(EnumColor.INDIGO + LangUtils.localize("tooltip.heatCapacity") + ": " + EnumColor.GREY + ConductorTier.get(tier).getInverseHeatCapacity());
+                list.add(EnumColor.INDIGO + LangUtils.localize("tooltip.heatCapacity") + ": " + EnumColor.GREY + ConductorTier.get(tier).getHeatCapacity());
             }
             list.add(LangUtils.localize("tooltip.hold") + " " + EnumColor.AQUA + GameSettings.getKeyDisplayString(MekanismKeyHandler.sneakKey.getKeyCode()) +
                     EnumColor.GREY + " " + LangUtils.localize("tooltip.forDetails"));

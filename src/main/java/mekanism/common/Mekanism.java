@@ -522,6 +522,7 @@ public class Mekanism {
         worldTickHandler.resetRegenChunks();
         //Reset consistent managers
         MultiblockManager.reset();
+        SynchronizedBoilerData.hotMap.clear();
         FrequencyManager.reset();
         TransporterManager.reset();
         PathfinderCache.reset();

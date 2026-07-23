@@ -93,6 +93,7 @@ public class TileComponentConfig implements ITileComponent, ISpecificContainerTr
                 invalidateCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, direction);
                 break;
             case HEAT:
+                invalidateCapability(Capabilities.HEAT_HANDLER_CAPABILITY, direction);
                 invalidateCapability(Capabilities.HEAT_TRANSFER_CAPABILITY, direction);
                 break;
             default:
@@ -151,7 +152,7 @@ public class TileComponentConfig implements ITileComponent, ISpecificContainerTr
             type = TransmissionType.ITEM;
         } else if (capability == Capabilities.GAS_HANDLER_CAPABILITY) {
             type = TransmissionType.GAS;
-        } else if (capability == Capabilities.HEAT_TRANSFER_CAPABILITY) {
+        } else if (capability == Capabilities.HEAT_HANDLER_CAPABILITY || capability == Capabilities.HEAT_TRANSFER_CAPABILITY) {
             type = TransmissionType.HEAT;
         } else if (capability == CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY) {
             type = TransmissionType.FLUID;

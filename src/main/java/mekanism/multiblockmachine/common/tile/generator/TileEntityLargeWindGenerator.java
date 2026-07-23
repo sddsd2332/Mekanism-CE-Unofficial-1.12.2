@@ -862,4 +862,11 @@ public class TileEntityLargeWindGenerator extends TileEntityGenerator implements
         return false;
     }
 
+    @Override
+    @SideOnly(Side.CLIENT)
+    public double getMaxRenderDistanceSquared() {
+        return MekanismConfig.current().client.largeWindGeneratorisGlobalRenderer.val()
+              ? Double.POSITIVE_INFINITY : super.getMaxRenderDistanceSquared();
+    }
+
 }

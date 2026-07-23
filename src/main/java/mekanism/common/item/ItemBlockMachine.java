@@ -19,6 +19,7 @@ import mekanism.common.base.*;
 import mekanism.common.base.IRedstoneControl.RedstoneControl;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.capabilities.ItemCapabilityWrapper;
+import mekanism.common.capabilities.energy.BasicEnergyContainer;
 import mekanism.common.capabilities.energy.item.RateLimitEnergyHandler;
 import mekanism.common.capabilities.fluid.item.RateLimitFluidHandler;
 import mekanism.common.config.MekanismConfig;
@@ -32,6 +33,7 @@ import mekanism.common.integration.ic2.IC2ItemManager;
 import mekanism.common.integration.redstoneflux.RFIntegration;
 import mekanism.common.integration.tesla.TeslaItemWrapper;
 import mekanism.common.item.interfaces.IItemSustainedInventory;
+import mekanism.common.item.interfaces.IItemBlockPlacementData;
 import mekanism.common.item.interfaces.ILegacyEnergizedItem;
 import mekanism.common.item.interfaces.IModeItem;
 import mekanism.common.security.ISecurityItem;
@@ -53,12 +55,14 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.settings.GameSettings;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.init.SoundEvents;
 import net.minecraft.inventory.EntityEquipmentSlot;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.*;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
@@ -137,7 +141,7 @@ import java.util.UUID;
         @Interface(iface = "ic2.api.item.ISpecialElectricItem", modid = MekanismHooks.IC2_MOD_ID)
 })
 public class ItemBlockMachine extends ItemBlock implements ILegacyEnergizedItem, ISpecialElectricItem, IFactory, IItemSustainedInventory, ISustainedTank, IEnergyContainerItem,
-        ITierItem, ISecurityItem, IModeItem {
+        ITierItem, ISecurityItem, IModeItem, IItemBlockPlacementData {
 
     public Block metaBlock;
 
@@ -314,79 +318,29 @@ public class ItemBlockMachine extends ItemBlock implements ILegacyEnergizedItem,
             }
         }
 
-        if (place && super.placeBlockAt(stack, player, world, pos, side, hitX, hitY, hitZ, state)) {
-            TileEntityBasicBlock tileEntity = (TileEntityBasicBlock) world.getTileEntity(pos);
-            if (tileEntity instanceof TileEntityFluidTank tile) {
-                tile.tier = FluidTankTier.values()[getBaseTier(stack).ordinal()];
-            }
-            if (tileEntity instanceof ISecurityTile security) {
-                security.getSecurity().setOwnerUUID(getOwnerUUID(stack));
-                if (hasSecurity(stack)) {
-                    security.getSecurity().setMode(getSecurity(stack));
-                }
-                if (getOwnerUUID(stack) == null) {
-                    security.getSecurity().setOwnerUUID(player.getUniqueID());
-                }
-            }
+        return place && super.placeBlockAt(stack, player, world, pos, side, hitX, hitY, hitZ, state);
+    }
 
-            if (tileEntity instanceof IUpgradeTile upgradeTile) {
-                if (Upgrade.hasUpgradeData(ItemDataUtils.getDataMapIfPresent(stack))) {
-                    upgradeTile.readUpgrades(ItemDataUtils.getDataMap(stack));
-                }
-            }
-
-            if (tileEntity instanceof ISideConfiguration config) {
-                if (ItemDataUtils.hasData(stack, "sideDataStored")) {
-                    config.getConfig().read(ItemDataUtils.getDataMap(stack));
-                    config.getEjector().read(ItemDataUtils.getDataMap(stack));
-                }
-            }
-
-            if (tileEntity instanceof ISustainedData data) {
-                if (stack.getTagCompound() != null) {
-                    data.readSustainedData(stack);
-                }
-            }
-
-            if (tileEntity instanceof IRedstoneControl redstoneControl) {
-                if (ItemDataUtils.hasData(stack, "controlType")) {
-                    int controlType = ItemDataUtils.getInt(stack, "controlType");
-                    if (controlType >= 0 && controlType < RedstoneControl.values().length) {
-                        redstoneControl.setControlType(RedstoneControl.values()[controlType]);
-                    }
-                }
-            }
-
-            if (tileEntity instanceof TileEntityFactory factory) {
-                RecipeType recipeType = getRecipeTypeOrNull(stack);
-                if (recipeType != null) {
-                    factory.setRecipeType(recipeType);
-                }
-
-                world.notifyNeighborsOfStateChange(pos, tileEntity.getBlockType(), true);
-                Mekanism.packetHandler.sendUpdatePacket(tileEntity);
-            }
-
-            if (tileEntity instanceof ISustainedTank tank) {
-                if (hasTank(stack) && getFluidStack(stack) != null) {
-                    tank.setFluidStack(getFluidStack(stack));
-                }
-            }
-            if (tileEntity instanceof ISustainedInventory inventory) {
-                inventory.setInventory(getInventory(stack));
-            }
-            if (tileEntity instanceof TileEntityElectricBlock entityElectricBlock) {
-                entityElectricBlock.setEnergy(StorageUtils.getStoredEnergyFromItemData(stack));
-            }
-            if (!world.isRemote && tileEntity instanceof TileEntityQuantumEntangloporter quantum) {
-                FrequencyIdentity freq = getStoredInventoryFrequency(stack);
-                if (freq != null) {
-                    quantum.setFrequency(freq);
-                }
-            }
-            return true;
+    @Override
+    public void restorePlacementData(@Nonnull ItemStack stack, @Nonnull EntityLivingBase placer, @Nonnull World world, @Nonnull BlockPos pos,
+          @Nonnull TileEntity tileEntity) {
+        if (tileEntity instanceof TileEntityFluidTank tile) {
+            tile.tier = FluidTankTier.values()[getBaseTier(stack).ordinal()];
         }
-        return false;
+        MekanismPlacementData.restoreCommon(stack, placer, tileEntity);
+        if (tileEntity instanceof TileEntityFactory factory) {
+            RecipeType recipeType = getRecipeTypeOrNull(stack);
+            if (recipeType != null) {
+                factory.setRecipeType(recipeType);
+            }
+            world.notifyNeighborsOfStateChange(pos, tileEntity.getBlockType(), true);
+        }
+        if (!world.isRemote && tileEntity instanceof TileEntityQuantumEntangloporter quantum) {
+            FrequencyIdentity frequency = getStoredInventoryFrequency(stack);
+            if (frequency != null) {
+                quantum.setFrequency(frequency);
+            }
+        }
     }
 
     @Nullable
@@ -495,20 +449,18 @@ public class ItemBlockMachine extends ItemBlock implements ILegacyEnergizedItem,
 
     @Override
     public int getRecipeType(ItemStack itemStack) {
-        if (itemStack.getTagCompound() == null) {
-            return 0;
-        }
-        return itemStack.getTagCompound().getInteger("recipeType");
+        RecipeType recipeType = getRecipeTypeOrNull(itemStack);
+        return recipeType == null ? -1 : recipeType.ordinal();
     }
 
     @Nullable
     @Override
     public RecipeType getRecipeTypeOrNull(ItemStack itemStack) {
-        int recipeType = getRecipeType(itemStack);
-        if (recipeType >= 0 && recipeType < RecipeType.values().length) {
-            return RecipeType.values()[recipeType];
+        NBTTagCompound nbt = itemStack.getTagCompound();
+        if (!FactoryRecipeTypeCodec.hasRecipeType(nbt)) {
+            return RecipeType.SMELTING;
         }
-        return null;
+        return FactoryRecipeTypeCodec.read(nbt);
     }
 
     @Override
@@ -516,7 +468,12 @@ public class ItemBlockMachine extends ItemBlock implements ILegacyEnergizedItem,
         if (itemStack.getTagCompound() == null) {
             itemStack.setTagCompound(new NBTTagCompound());
         }
-        itemStack.getTagCompound().setInteger("recipeType", type);
+        RecipeType[] values = RecipeType.values();
+        if (type >= 0 && type < values.length) {
+            FactoryRecipeTypeCodec.write(itemStack.getTagCompound(), values[type]);
+        } else {
+            FactoryRecipeTypeCodec.writeLegacyOrdinal(itemStack.getTagCompound(), type);
+        }
     }
 
     @Override
@@ -839,7 +796,7 @@ public class ItemBlockMachine extends ItemBlock implements ILegacyEnergizedItem,
     @Override
     public ICapabilityProvider initCapabilities(ItemStack stack, NBTTagCompound nbt) {
         return new ItemCapabilityWrapper(stack, new TeslaItemWrapper(), new ForgeEnergyItemWrapper(),
-              RateLimitEnergyHandler.create(() -> getEnergyTransfer(stack), () -> getEnergyCapacity(stack), ConstantPredicates.alwaysFalse(), ConstantPredicates.alwaysTrue()),
+              RateLimitEnergyHandler.create(() -> getEnergyTransfer(stack), () -> getEnergyCapacity(stack), BasicEnergyContainer.manualOnly, ConstantPredicates.alwaysTrue()),
               RateLimitFluidHandler.create(() -> FluidTankTier.values()[getBaseTier(stack).ordinal()], "fluidTank")) {
             @Override
             public boolean hasCapability(@Nonnull Capability<?> capability, EnumFacing facing) {

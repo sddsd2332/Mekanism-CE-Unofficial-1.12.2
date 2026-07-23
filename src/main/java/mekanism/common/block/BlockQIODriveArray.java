@@ -13,6 +13,7 @@ import mekanism.common.tile.qio.TileEntityQIODriveArray;
 import mekanism.common.tile.qio.TileEntityQIOComponent;
 import mekanism.common.tile.prefab.TileEntityBasicBlock;
 import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.MekanismPlacementData;
 import mekanism.common.util.SecurityUtils;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.BlockStateContainer;
@@ -97,6 +98,7 @@ public class BlockQIODriveArray extends BlockMekanismContainer {
               ((ISecurityTile) tile).getSecurity().getOwnerUUID() == null) {
             ((ISecurityTile) tile).getSecurity().setOwnerUUID(((EntityPlayer) placer).getUniqueID());
         }
+        MekanismPlacementData.apply(world, pos, placer, stack);
     }
 
     @Override

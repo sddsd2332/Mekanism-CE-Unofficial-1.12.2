@@ -27,6 +27,7 @@ import mekanism.common.tile.multiblock.*;
 import mekanism.common.tile.prefab.TileEntityBasicBlock;
 import mekanism.common.util.FluidUtils;
 import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.MekanismPlacementData;
 import mekanism.common.util.SecurityUtils;
 import mekanism.common.util.StorageUtils;
 import net.minecraft.block.Block;
@@ -140,11 +141,7 @@ public abstract class BlockBasic extends BlockTileDrops {
             state = state.withProperty(BlockStateBasic.activeProperty, port.mode);
         }
         if (tile instanceof TileEntitySuperheatingElement element) {
-            boolean active = false;
-            if (element.multiblockUUID != null && SynchronizedBoilerData.clientHotMap.get(element.multiblockUUID) != null) {
-                active = SynchronizedBoilerData.clientHotMap.get(element.multiblockUUID);
-            }
-            state = state.withProperty(BlockStateBasic.activeProperty, active);
+            state = state.withProperty(BlockStateBasic.activeProperty, element.getActive());
         }
         if (tile instanceof TileEntityDynamicValve Valve) {
             state = state.withProperty(BlockStateBasic.activeProperty, Valve.eject);
@@ -469,10 +466,7 @@ public abstract class BlockBasic extends BlockTileDrops {
             }
         } else if (getBasicBlock() == BasicBlock.BASIC_BLOCK_2) {
             if (metadata == 5 && tileEntity instanceof TileEntitySuperheatingElement element) {
-                if (element.multiblockUUID != null && SynchronizedBoilerData.clientHotMap.get(element.multiblockUUID) != null) {
-                    return SynchronizedBoilerData.clientHotMap.get(element.multiblockUUID) ? 15 : 0;
-                }
-                return 0;
+                return element.getActive() ? 15 : 0;
             }
         }
 
@@ -526,6 +520,8 @@ public abstract class BlockBasic extends BlockTileDrops {
                 block.onPlace();
             }
         }
+
+        MekanismPlacementData.apply(world, pos, placer, stack);
 
         world.markBlockRangeForRenderUpdate(pos, pos.add(1, 1, 1));
         world.checkLightFor(EnumSkyBlock.BLOCK, pos);

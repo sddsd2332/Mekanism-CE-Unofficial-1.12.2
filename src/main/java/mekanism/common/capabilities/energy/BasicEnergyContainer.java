@@ -5,6 +5,7 @@ import mekanism.api.AutomationType;
 import mekanism.api.IContentsListener;
 import mekanism.api.NBTConstants;
 import mekanism.api.energy.IEnergyContainer;
+import mekanism.api.heat.HeatAPI;
 import mekanism.api.functions.ConstantPredicates;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.EnumFacing;
@@ -51,10 +52,10 @@ public class BasicEnergyContainer implements IEnergyContainer, IContentsListener
 
     protected BasicEnergyContainer(double maxEnergy, Predicate<AutomationType> canExtract, Predicate<AutomationType> canInsert,
           @Nullable IContentsListener listener) {
-        if (maxEnergy < 0) {
+        if (!HeatAPI.isFinite(maxEnergy) || maxEnergy < 0) {
             throw new IllegalArgumentException("Max energy cannot be negative");
         }
-        this.maxEnergy = maxEnergy;
+        this.maxEnergy = Math.min(HeatAPI.MAX_HEAT, maxEnergy);
         this.canExtract = canExtract;
         this.canInsert = canInsert;
         this.listener = listener;
@@ -69,16 +70,18 @@ public class BasicEnergyContainer implements IEnergyContainer, IContentsListener
 
     @Override
     public double getEnergy() {
-        return stored;
+        return HeatAPI.isFinite(stored) && stored > 0 ? Math.min(HeatAPI.MAX_HEAT, stored) : 0;
     }
 
     protected double clampEnergy(double energy) {
-        return Math.min(energy, getMaxEnergy());
+        return HeatAPI.isFinite(energy) ? Math.max(0, Math.min(energy, getMaxEnergy())) : 0;
     }
 
     @Override
     public void setEnergy(double energy) {
-        if (energy < 0) {
+        if (Double.isNaN(energy) || Double.isInfinite(energy)) {
+            energy = 0;
+        } else if (energy < 0) {
             throw new IllegalArgumentException("Energy cannot be negative");
         }
         energy = clampEnergy(energy);
@@ -98,7 +101,7 @@ public class BasicEnergyContainer implements IEnergyContainer, IContentsListener
 
     @Override
     public double insert(double amount, Action action, AutomationType automationType) {
-        if (amount <= 0 || !canInsert.test(automationType)) {
+        if (!HeatAPI.isFinite(amount) || amount <= 0 || !canInsert.test(automationType)) {
             return amount;
         }
         double needed = Math.min(getInsertRate(automationType), getNeeded());
@@ -107,8 +110,7 @@ public class BasicEnergyContainer implements IEnergyContainer, IContentsListener
         }
         double toAdd = Math.min(amount, needed);
         if (action.execute()) {
-            stored += toAdd;
-            onContentsChanged();
+            setEnergy(getEnergy() + toAdd);
         }
         return amount - toAdd;
     }
@@ -120,13 +122,12 @@ public class BasicEnergyContainer implements IEnergyContainer, IContentsListener
 
     @Override
     public double extract(double amount, Action action, AutomationType automationType) {
-        if (isEmpty() || amount <= 0 || !canExtract.test(automationType)) {
+        if (!HeatAPI.isFinite(amount) || amount <= 0 || !canExtract.test(automationType)) {
             return 0;
         }
         double ret = Math.min(Math.min(getExtractRate(automationType), getEnergy()), amount);
         if (ret > 0 && action.execute()) {
-            stored -= ret;
-            onContentsChanged();
+            setEnergy(getEnergy() - ret);
         }
         return ret;
     }

@@ -17,6 +17,7 @@ import mekanism.common.tile.TileEntityEnergyCube;
 import mekanism.common.tile.prefab.TileEntityBasicBlock;
 import mekanism.common.util.ItemDataUtils;
 import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.MekanismPlacementData;
 import mekanism.common.util.SecurityUtils;
 import mekanism.common.util.StorageUtils;
 import net.minecraft.block.Block;
@@ -127,6 +128,7 @@ public class BlockEnergyCube extends BlockMekanismContainer {
         }
         tileEntity.setFacing(change);
         tileEntity.redstone = world.getRedstonePowerFromNeighbors(pos) > 0;
+        MekanismPlacementData.apply(world, pos, placer, stack);
     }
 
     @Override

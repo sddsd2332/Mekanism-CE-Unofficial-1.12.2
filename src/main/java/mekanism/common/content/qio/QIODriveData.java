@@ -3,8 +3,6 @@ package mekanism.common.content.qio;
 import mekanism.api.Action;
 import mekanism.api.gas.GasStack;
 import mekanism.common.lib.inventory.HashedItem;
-import mekanism.common.tier.QIODriveTier;
-import mekanism.common.util.ItemDataUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.fluids.FluidStack;
 
@@ -46,16 +44,33 @@ public final class QIODriveData {
             return MountAttempt.invalid(QIODriveSlotState.UNLOADED);
         }
         IQIODriveItem driveItem = (IQIODriveItem) stack.getItem();
+        QIODriveDefinition definition = driveItem.getDriveDefinition(stack);
+        QIODriveType driveType = driveItem.getDriveType(stack);
+        if (!QIODriveDefinition.isRegistered(definition) || driveType == null) {
+            return MountAttempt.invalid(QIODriveSlotState.INVALID_DRIVE);
+        }
         UUID driveId = driveItem.getOrCreateDriveId(stack);
         syncDriveStack(mount, stack);
         QIODriveRecord existingRecord = QIODriveStorage.INSTANCE.get(driveId);
-        if (existingRecord != null && (existingRecord.getDriveType() != driveItem.getDriveType() ||
+        if (existingRecord != null && QIODriveStorage.INSTANCE.isDuplicateMount(driveId, mount)) {
+            updateMetadata(stack, existingRecord);
+            syncDriveStack(mount, stack);
+            return new MountAttempt(QIODriveSlotState.DUPLICATE_UUID,
+                  QIODriveStorage.MountResult.DUPLICATE_UUID, driveId, null);
+        }
+        if (existingRecord != null && (existingRecord.getDriveType() != driveType ||
               !existingRecord.hasValidResourceKinds())) {
+            QIODriveStorage.INSTANCE.unmount(mount);
             return MountAttempt.invalidDrive(driveId);
         }
-        QIODriveRecord record = QIODriveStorage.INSTANCE.getOrCreate(driveId, driveItem.getDriveTier(), driveItem.getDriveType());
+        if (existingRecord != null && !existingRecord.canApplyDefinition(definition)) {
+            QIODriveStorage.INSTANCE.unmount(mount);
+            return MountAttempt.invalidDrive(driveId);
+        }
+        QIODriveRecord record = existingRecord == null ?
+              QIODriveStorage.INSTANCE.getOrCreateInitial(driveId, definition, driveType) : existingRecord;
         if (record == null) {
-            return MountAttempt.missing(driveId);
+            return existingRecord == null ? MountAttempt.missing(driveId) : MountAttempt.invalidDrive(driveId);
         }
         QIODriveStorage.MountResult result = QIODriveStorage.INSTANCE.tryMount(driveId, mount);
         if (result == QIODriveStorage.MountResult.DUPLICATE_UUID) {
@@ -65,11 +80,15 @@ public final class QIODriveData {
         } else if (result == QIODriveStorage.MountResult.MISSING_STORAGE) {
             return MountAttempt.missing(driveId);
         }
-        QIODriveStorage.INSTANCE.upgradeTier(driveId, driveItem.getDriveTier());
+        record = QIODriveStorage.INSTANCE.applyMountedDefinition(driveId, definition, driveType, mount);
+        if (record == null) {
+            QIODriveStorage.INSTANCE.unmount(mount);
+            return MountAttempt.invalidDrive(driveId);
+        }
         updateMetadata(stack, record);
         syncDriveStack(mount, stack);
         return new MountAttempt(QIODriveSlotState.ACTIVE, result, driveId,
-              new QIODriveData(stack, driveId, mount, record, driveItem.getDriveType(), null));
+              new QIODriveData(stack, driveId, mount, record, driveType, null));
     }
 
     /**
@@ -81,14 +100,20 @@ public final class QIODriveData {
             return false;
         }
         IQIODriveItem item = (IQIODriveItem) stack.getItem();
+        QIODriveDefinition definition = item.getDriveDefinition(stack);
+        QIODriveType driveType = item.getDriveType(stack);
+        if (!QIODriveDefinition.isRegistered(definition) || driveType == null) {
+            return false;
+        }
         UUID driveId = item.getOrCreateDriveId(stack);
         QIODriveRecord existingRecord = QIODriveStorage.INSTANCE.get(driveId);
-        if (existingRecord != null && (existingRecord.getDriveType() != item.getDriveType() ||
+        if (existingRecord != null && (existingRecord.getDriveType() != driveType ||
               !existingRecord.hasValidResourceKinds())) {
             return false;
         }
-        QIODriveRecord record = QIODriveStorage.INSTANCE.getOrCreate(driveId, item.getDriveTier(), item.getDriveType());
-        if (record == null) {
+        QIODriveRecord record = existingRecord == null ?
+              QIODriveStorage.INSTANCE.getOrCreateInitial(driveId, definition, driveType) : existingRecord;
+        if (record == null || !record.canApplyDefinition(definition)) {
             return false;
         }
         updateMetadata(stack, record);
@@ -102,6 +127,17 @@ public final class QIODriveData {
     public boolean isActive() {
         QIODriveMount active = QIODriveStorage.INSTANCE.getActiveMount(driveId);
         return active != null && mount.equals(active) && mount.getHolder() == active.getHolder();
+    }
+
+    public boolean isCompatibleWith(@Nullable ItemStack stack) {
+        if (stack == null || stack.isEmpty() || !(stack.getItem() instanceof IQIODriveItem)) {
+            return false;
+        }
+        IQIODriveItem item = (IQIODriveItem) stack.getItem();
+        QIODriveDefinition definition = item.getDriveDefinition(stack);
+        return driveId.equals(item.getDriveId(stack)) && driveType == item.getDriveType(stack) &&
+              QIODriveDefinition.isRegistered(definition) && record.hasValidResourceKinds() &&
+              record.canApplyDefinition(definition);
     }
 
     public long insert(ItemStack stack, long amount, Action action) {

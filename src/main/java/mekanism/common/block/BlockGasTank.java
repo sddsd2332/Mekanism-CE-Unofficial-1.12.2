@@ -16,6 +16,7 @@ import mekanism.common.tile.TileEntityGasTank;
 import mekanism.common.tile.prefab.TileEntityBasicBlock;
 import mekanism.common.util.ItemDataUtils;
 import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.MekanismPlacementData;
 import mekanism.common.util.SecurityUtils;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
@@ -94,6 +95,7 @@ public class BlockGasTank extends BlockMekanismContainer {
         }
         tileEntity.setFacing(change);
         tileEntity.redstone = world.getRedstonePowerFromNeighbors(pos) > 0;
+        MekanismPlacementData.apply(world, pos, placer, stack);
     }
 
     @Override

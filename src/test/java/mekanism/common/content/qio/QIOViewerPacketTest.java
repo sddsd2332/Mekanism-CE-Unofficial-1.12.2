@@ -25,6 +25,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
+import java.math.BigInteger;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
@@ -105,6 +106,32 @@ class QIOViewerPacketTest {
 
         QIOItemViewerContainer container = new QIOItemViewerContainer(null, null);
         assertTrue(container.canInteractWith(null));
+    }
+
+    @Test
+    void expandedResourceAmountsAndCapacitiesRoundTripAsOneEntry() throws Exception {
+        worldDirectory = Files.createTempDirectory("qio-viewer-expanded-amount-test").toFile();
+        QIOResourceTypeRegistry.INSTANCE.createOrLoad(worldDirectory);
+        UUID resource = QIOResourceTypeRegistry.INSTANCE.getOrTrackItem(
+              mekanism.common.lib.inventory.HashedItem.create(new ItemStack(Blocks.STONE)));
+        QIOAmount amount = QIOAmount.LONG_MAX_VALUE.add(100);
+        QIOCapacitySummary capacity = new QIOCapacitySummary(amount.add(Long.MAX_VALUE),
+              QIOAmount.INT_MAX_VALUE.add(Integer.MAX_VALUE), 0, 0);
+        PacketQIOViewerData.Message encoded = PacketQIOViewerData.Message.update(41,
+              java.util.Collections.singletonList(QIOResourceEntry.create(resource, amount)), capacity);
+
+        ByteBuf buffer = Unpooled.buffer();
+        encoded.toBytes(buffer);
+        PacketQIOViewerData.Message decoded = new PacketQIOViewerData.Message();
+        decoded.fromBytes(buffer);
+
+        assertTrue(decoded.isValid());
+        assertEquals(1, decoded.getEntries().size());
+        assertEquals(BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.valueOf(100)),
+              decoded.getEntries().get(0).getExactAmount().toBigInteger());
+        assertEquals(capacity, decoded.getCapacitySummary());
+        assertEquals(Long.MAX_VALUE, decoded.getTotalCountCapacity());
+        assertEquals(Integer.MAX_VALUE, decoded.getTotalTypeCapacity());
     }
 
     @Test

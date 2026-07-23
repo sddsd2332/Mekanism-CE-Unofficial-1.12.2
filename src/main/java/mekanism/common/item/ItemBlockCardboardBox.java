@@ -4,6 +4,7 @@ import mekanism.api.EnumColor;
 import mekanism.api.MekanismAPI;
 import mekanism.common.MekanismBlocks;
 import mekanism.common.block.BlockCardboardBox.BlockData;
+import mekanism.common.item.interfaces.IItemBlockPlacementData;
 import mekanism.common.tile.TileEntityCardboardBox;
 import mekanism.common.util.ItemDataUtils;
 import mekanism.common.util.LangUtils;
@@ -11,6 +12,7 @@ import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.entity.item.EntityItem;
+import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
@@ -30,7 +32,7 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 import javax.annotation.Nonnull;
 import java.util.List;
 
-public class ItemBlockCardboardBox extends ItemBlock {
+public class ItemBlockCardboardBox extends ItemBlock implements IItemBlockPlacementData {
 
     private static boolean isMonitoring;
 
@@ -111,14 +113,15 @@ public class ItemBlockCardboardBox extends ItemBlock {
         if (world.isRemote) {
             return true;
         }
-        boolean place = super.placeBlockAt(stack, player, world, pos, side, hitX, hitY, hitZ, state);
-        if (place) {
-            TileEntityCardboardBox tileEntity = (TileEntityCardboardBox) world.getTileEntity(pos);
-            if (tileEntity != null) {
-                tileEntity.storedData = getBlockData(stack);
-            }
+        return super.placeBlockAt(stack, player, world, pos, side, hitX, hitY, hitZ, state);
+    }
+
+    @Override
+    public void restorePlacementData(@Nonnull ItemStack stack, @Nonnull EntityLivingBase placer, @Nonnull World world, @Nonnull BlockPos pos,
+          @Nonnull TileEntity tileEntity) {
+        if (tileEntity instanceof TileEntityCardboardBox cardboardBox) {
+            cardboardBox.storedData = getBlockData(stack);
         }
-        return place;
     }
 
     public void setBlockData(ItemStack itemstack, BlockData data) {

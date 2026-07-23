@@ -13,13 +13,10 @@ import mekanism.client.gui.element.tab.GuiHeatTab;
 import mekanism.client.gui.element.tab.GuiWarningTab;
 import mekanism.client.gui.warning.IWarningTracker;
 import mekanism.common.MekanismLang;
-import mekanism.common.config.MekanismConfig;
-import mekanism.common.content.boiler.SynchronizedBoilerData;
 import mekanism.common.inventory.container.ContainerThermoelectricBoiler;
 import mekanism.common.tile.multiblock.TileEntityBoilerCasing;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.UnitDisplayUtils;
 import mekanism.common.util.UnitDisplayUtils.TemperatureUnit;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.util.text.ITextComponent;
@@ -68,12 +65,11 @@ public class GuiThermoelectricBoiler extends GuiMekanismTile<TileEntityBoilerCas
 
             @Override
             public double getLevel() {
-                int superheaters = tileEntity.getSuperheatingElements();
-                if (superheaters <= 0) {
+                int capacity = tileEntity.getBoilCapacity();
+                if (capacity <= 0) {
                     return 0;
                 }
-                return Math.min(1, tileEntity.getLastMaxBoil() * SynchronizedBoilerData.getHeatEnthalpy() /
-                      (superheaters * MekanismConfig.current().general.superheatingHeatTransfer.val()));
+                return Math.max(0, Math.min(1, tileEntity.getLastMaxBoil() / (double) capacity));
             }
         }, 166, 13));
         addButton(new GuiGasGauge(() -> tileEntity.getInputGasTank(), () -> tileEntity.getGasTanks(null), GaugeType.STANDARD, this, 6, 13)
@@ -109,12 +105,11 @@ public class GuiThermoelectricBoiler extends GuiMekanismTile<TileEntityBoilerCas
     }
 
     private String getTemperature() {
-        return MekanismUtils.getTemperatureDisplay(tileEntity.getTemperature(), TemperatureUnit.AMBIENT);
+        return MekanismUtils.getTemperatureDisplay(tileEntity.getTemperature(), TemperatureUnit.KELVIN);
     }
 
     private String getEnvironmentLoss() {
-        TemperatureUnit unit = TemperatureUnit.values()[MekanismConfig.current().general.tempUnit.val().ordinal()];
-        return UnitDisplayUtils.getDisplayShort(tileEntity.getLastEnvironmentLoss() * unit.intervalSize, false, unit);
+        return MekanismUtils.getTemperatureDisplay(tileEntity.getLastEnvironmentLoss(), TemperatureUnit.KELVIN, false);
     }
 
 }

@@ -2,6 +2,7 @@ package mekanism.generators.common.tile.reactor;
 
 import mekanism.api.Coord4D;
 import mekanism.common.tile.prefab.TileEntityElectricBlock;
+import mekanism.common.capabilities.Capabilities;
 import mekanism.common.util.InventoryUtils;
 import mekanism.generators.common.FusionReactor;
 import net.minecraft.util.EnumFacing;
@@ -39,6 +40,8 @@ public abstract class TileEntityReactorBlock extends TileEntityElectricBlock {
             changed = true;
         }
         fusionReactor = reactor;
+        invalidateCapability(Capabilities.HEAT_HANDLER_CAPABILITY, null);
+        invalidateCapability(Capabilities.HEAT_TRANSFER_CAPABILITY, null);
     }
 
     @Override
@@ -94,7 +97,7 @@ public abstract class TileEntityReactorBlock extends TileEntityElectricBlock {
         super.onAdded();
         if (!isRemote()) {
             if (getReactor() != null) {
-                getReactor().formMultiblock(false);
+                getReactor().formMultiblock(true);
             } else {
                 updateController();
             }
@@ -105,7 +108,7 @@ public abstract class TileEntityReactorBlock extends TileEntityElectricBlock {
         if (!(this instanceof TileEntityReactorController)) {
             TileEntityReactorController found = new ControllerFinder().find();
             if (found != null && (found.getReactor() == null || !found.getReactor().isFormed())) {
-                found.formMultiblock(false);
+                found.formMultiblock(true);
             }
         }
     }

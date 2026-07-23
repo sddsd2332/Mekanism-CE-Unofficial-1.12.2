@@ -68,6 +68,9 @@ public abstract class TileEntityMultiblock<T extends SynchronizedData<T>> extend
     @Nullable
     public String cachedID = null;
 
+    /** World time represented by cachedData, used to choose the newest replica after chunk loading. */
+    public long cachedDataTimestamp = Long.MIN_VALUE;
+
     private static final int MULTIBLOCK_OCCLUSION_CACHE_INTERVAL = 20;
     private static final int MULTIBLOCK_OCCLUSION_MAX_SAMPLE_BLOCKS = 32;
     private static final int MULTIBLOCK_OCCLUSION_MAX_GLASS_BLOCKS = 64;
@@ -153,9 +156,7 @@ public abstract class TileEntityMultiblock<T extends SynchronizedData<T>> extend
         if (structure != null) {
             structure.didTick = false;
             if (structure.inventoryID != null) {
-                cachedData.sync(structure);
-                cachedID = structure.inventoryID;
-                getManager().updateCache(this);
+                syncCachedDataFromStructure();
             }
         }
     }
@@ -172,6 +173,31 @@ public abstract class TileEntityMultiblock<T extends SynchronizedData<T>> extend
             if (structure != null) {
                 structure.didTick = true;
             }
+        }
+    }
+
+    /**
+     * Uses the persistent inventory ID so a replacement structure object remains guarded during
+     * the same tick. A malformed formed structure without an ID falls back to its local guard.
+     */
+    protected boolean tryClaimStructureServerTick() {
+        if (structure == null || world == null) {
+            return false;
+        }
+        long gameTime = world.getTotalWorldTime();
+        return structure.inventoryID == null ? structure.tryClaimServerTick(gameTime) :
+              getManager().tryClaimServerTick(world.provider.getDimension(), structure.inventoryID, gameTime);
+    }
+
+    /** Synchronizes both this tile's persisted replica and the manager's canonical runtime cache. */
+    public void syncCachedDataFromStructure() {
+        if (structure != null && structure.inventoryID != null) {
+            cachedData.sync(structure);
+            cachedID = structure.inventoryID;
+            if (world != null) {
+                cachedDataTimestamp = world.getTotalWorldTime();
+            }
+            getManager().updateCache(this);
         }
     }
 
@@ -263,9 +289,30 @@ public abstract class TileEntityMultiblock<T extends SynchronizedData<T>> extend
         super.readCustomNBT(nbtTags);
         if (structure == null) {
             if (nbtTags.hasKey("cachedID")) {
-                cachedID = nbtTags.getString("cachedID");
-                cachedData.load(nbtTags);
+                String loadedID = nbtTags.getString("cachedID");
+                if (isValidCacheID(loadedID)) {
+                    cachedID = loadedID;
+                    long loadedTimestamp = nbtTags.hasKey("cachedDataTimestamp") ? nbtTags.getLong("cachedDataTimestamp") : Long.MIN_VALUE;
+                    long currentTime = world == null ? Long.MAX_VALUE : world.getTotalWorldTime();
+                    cachedDataTimestamp = loadedTimestamp >= 0 && loadedTimestamp <= currentTime ? loadedTimestamp : Long.MIN_VALUE;
+                    cachedData.load(nbtTags);
+                } else {
+                    cachedID = null;
+                    cachedData = getNewCache();
+                    cachedDataTimestamp = Long.MIN_VALUE;
+                }
             }
+        }
+    }
+
+    static boolean isValidCacheID(String id) {
+        if (id == null || id.isEmpty()) {
+            return false;
+        }
+        try {
+            return UUID.fromString(id).toString().equalsIgnoreCase(id);
+        } catch (IllegalArgumentException ignored) {
+            return false;
         }
     }
 
@@ -277,9 +324,13 @@ public abstract class TileEntityMultiblock<T extends SynchronizedData<T>> extend
         if (structure != null && structure.inventoryID != null) {
             cachedID = structure.inventoryID;
             cachedData.sync(structure);
+            if (world != null) {
+                cachedDataTimestamp = world.getTotalWorldTime();
+            }
         }
         if (cachedID != null) {
             nbtTags.setString("cachedID", cachedID);
+            nbtTags.setLong("cachedDataTimestamp", cachedDataTimestamp);
             cachedData.save(nbtTags);
         }
     }

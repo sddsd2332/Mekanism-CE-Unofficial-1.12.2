@@ -11,6 +11,7 @@ import mekanism.client.render.MekanismRenderer;
 import mekanism.common.Mekanism;
 import mekanism.common.MekanismLang;
 import mekanism.common.config.MekanismConfig;
+import mekanism.common.content.qio.QIOAmount;
 import mekanism.common.content.qio.QIOResourceEntry;
 import mekanism.common.content.qio.QIOResourceKind;
 import mekanism.common.content.qio.QIOSearchQueryParser;
@@ -273,23 +274,23 @@ public class GuiQIOResourceGrid extends GuiElement implements IJEIIngredientHelp
         }
         QIOResourceEntry entry = entries.get(index);
         if (entry.getKind() == QIOResourceKind.ITEM) {
-            if (entry.getAmount() < 10_000) {
+            if (!entry.getExactAmount().isExpanded() && entry.getAmount() < 10_000) {
                 gui().renderItemTooltip(entry.getItem(), mouseX, mouseY);
             } else {
                 gui().renderItemTooltipWithExtra(entry.getItem(), mouseX, mouseY,
-                      java.util.Collections.singletonList(getStoredTooltip(entry.getAmount())));
+                      java.util.Collections.singletonList(getStoredTooltip(entry.getExactAmount())));
             }
         } else {
             List<String> tooltip = new ArrayList<>(2);
             tooltip.add(getResourceName(entry));
-            tooltip.add(getStoredTooltip(entry.getAmount()));
+            tooltip.add(getStoredTooltip(entry.getExactAmount()));
             displayTooltips(tooltip, mouseX, mouseY);
         }
     }
 
-    private String getStoredTooltip(long amount) {
+    private String getStoredTooltip(QIOAmount amount) {
         return MekanismLang.QIO_STORED_COUNT.translateColored(EnumColor.GREY, EnumColor.INDIGO,
-              TextUtils.format(amount)).getFormattedText();
+              TextUtils.format(amount.toBigInteger())).getFormattedText();
     }
 
     @Nonnull
@@ -344,8 +345,8 @@ public class GuiQIOResourceGrid extends GuiElement implements IJEIIngredientHelp
         Comparator<QIOResourceEntry> comparator;
         switch (sortMode) {
             case SIZE:
-                comparator = descending ? Comparator.comparingLong(QIOResourceEntry::getAmount).reversed()
-                      .thenComparing(this::getResourceName) : Comparator.comparingLong(QIOResourceEntry::getAmount)
+                comparator = descending ? Comparator.comparing(QIOResourceEntry::getExactAmount).reversed()
+                      .thenComparing(this::getResourceName) : Comparator.comparing(QIOResourceEntry::getExactAmount)
                       .thenComparing(this::getResourceName);
                 break;
             case MOD:
@@ -355,8 +356,8 @@ public class GuiQIOResourceGrid extends GuiElement implements IJEIIngredientHelp
                 break;
             case REGISTRY_NAME:
                 comparator = descending ? Comparator.comparing(this::getRegistryName, Comparator.reverseOrder())
-                      .thenComparingLong(QIOResourceEntry::getAmount) : Comparator.comparing(this::getRegistryName)
-                      .thenComparingLong(QIOResourceEntry::getAmount);
+                      .thenComparing(QIOResourceEntry::getExactAmount) : Comparator.comparing(this::getRegistryName)
+                      .thenComparing(QIOResourceEntry::getExactAmount);
                 break;
             case NAME:
             default:
@@ -431,9 +432,9 @@ public class GuiQIOResourceGrid extends GuiElement implements IJEIIngredientHelp
             getFont().drawString(marker, 0, 0, 0xFFFFFFFF);
             GlStateManager.popMatrix();
         }
-        String count = getCountText(entry.getAmount());
+        String count = getCountText(entry.getExactAmount());
         if (count != null) {
-            renderSlotText(count, x + 1, y + 1, entry.getAmount() == 0 ? 0xFFFFFF55 : 0xFFFFFFFF);
+            renderSlotText(count, x + 1, y + 1, entry.getExactAmount().isZero() ? 0xFFFFFF55 : 0xFFFFFFFF);
         }
     }
 
@@ -529,13 +530,19 @@ public class GuiQIOResourceGrid extends GuiElement implements IJEIIngredientHelp
     }
 
     @Nullable
-    private String getCountText(long count) {
-        if (count == 0) {
+    private String getCountText(QIOAmount count) {
+        if (count.isZero()) {
             return "0";
         }
-        if (count < 0 || count == 1) {
+        if (!count.isExpanded() && count.longValueClamped() == 1) {
             return null;
         }
-        return count < 10_000 ? Long.toString(count) : UnitDisplayUtils.getDisplay(count, 1);
+        if (!count.isExpanded()) {
+            long value = count.longValueClamped();
+            return value < 10_000 ? Long.toString(value) : UnitDisplayUtils.getDisplay(value, 1);
+        }
+        String digits = count.toString();
+        String decimals = digits.substring(1, Math.min(3, digits.length()));
+        return digits.charAt(0) + (decimals.isEmpty() ? "" : "." + decimals) + "e" + (digits.length() - 1);
     }
 }

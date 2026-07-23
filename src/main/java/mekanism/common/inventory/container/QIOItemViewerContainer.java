@@ -5,6 +5,8 @@ import mekanism.common.Mekanism;
 import mekanism.common.content.qio.IQIOCraftingWindowHolder;
 import mekanism.common.content.qio.QIOCraftingWindow;
 import mekanism.common.content.qio.QIOFrequency;
+import mekanism.common.content.qio.QIOAmount;
+import mekanism.common.content.qio.QIOCapacitySummary;
 import mekanism.common.content.qio.QIOResourceEntry;
 import mekanism.common.content.qio.QIOStorageUnits;
 import mekanism.common.config.ClientConfig;
@@ -47,8 +49,8 @@ public class QIOItemViewerContainer extends MekanismContainer implements IQIOIte
     protected QIOFrequency frequency;
     private final Map<UUID, QIOResourceEntry> entries = new LinkedHashMap<>();
     private long totalCount;
-    private long totalCountCapacity;
-    private int totalTypeCapacity;
+    private QIOAmount exactTotalCount = QIOAmount.ZERO;
+    private QIOCapacitySummary capacitySummary = QIOCapacitySummary.EMPTY;
     private long resourceRevision;
     private boolean killed;
     private boolean shiftClickIntoFrequency = true;
@@ -348,56 +350,60 @@ public class QIOItemViewerContainer extends MekanismContainer implements IQIOIte
 
     /** Applies a complete authoritative snapshot on the client. */
     public void applyBatch(Collection<QIOResourceEntry> snapshot, long countCapacity, int typeCapacity) {
-        applyBatchChunk(snapshot, countCapacity, typeCapacity, true);
+        applyBatchChunk(snapshot, new QIOCapacitySummary(QIOAmount.of(countCapacity), QIOAmount.of(typeCapacity), 0, 0), true);
     }
 
     /** Applies one packet of a complete snapshot; only the first packet clears stale entries. */
     public void applyBatchChunk(Collection<QIOResourceEntry> snapshot, long countCapacity, int typeCapacity, boolean first) {
+        applyBatchChunk(snapshot, new QIOCapacitySummary(QIOAmount.of(countCapacity), QIOAmount.of(typeCapacity), 0, 0), first);
+    }
+
+    public void applyBatchChunk(Collection<QIOResourceEntry> snapshot, QIOCapacitySummary capacitySummary, boolean first) {
         if (!isRemote()) {
             return;
         }
         Map<UUID, QIOResourceEntry> oldEntries = new LinkedHashMap<>(entries);
-        long oldCountCapacity = totalCountCapacity;
-        int oldTypeCapacity = totalTypeCapacity;
+        QIOCapacitySummary oldCapacity = this.capacitySummary;
         if (first) {
             entries.clear();
         }
         applyEntries(snapshot);
         recalculateTotals();
-        totalCountCapacity = Math.max(0, countCapacity);
-        totalTypeCapacity = Math.max(0, typeCapacity);
+        this.capacitySummary = capacitySummary == null ? QIOCapacitySummary.EMPTY : capacitySummary;
         killed = false;
-        if (!oldEntries.equals(entries) || oldCountCapacity != totalCountCapacity || oldTypeCapacity != totalTypeCapacity) {
+        if (!oldEntries.equals(entries) || !oldCapacity.equals(this.capacitySummary)) {
             markResourcesChanged();
         }
     }
 
     /** Applies changed entries; zero amounts remove a resource. */
     public void applyUpdate(Collection<QIOResourceEntry> updates, long countCapacity, int typeCapacity) {
+        applyUpdate(updates, new QIOCapacitySummary(QIOAmount.of(countCapacity), QIOAmount.of(typeCapacity), 0, 0));
+    }
+
+    public void applyUpdate(Collection<QIOResourceEntry> updates, QIOCapacitySummary capacitySummary) {
         if (!isRemote()) {
             return;
         }
         Map<UUID, QIOResourceEntry> oldEntries = new LinkedHashMap<>(entries);
-        long oldCountCapacity = totalCountCapacity;
-        int oldTypeCapacity = totalTypeCapacity;
+        QIOCapacitySummary oldCapacity = this.capacitySummary;
         applyEntries(updates);
         recalculateTotals();
-        totalCountCapacity = Math.max(0, countCapacity);
-        totalTypeCapacity = Math.max(0, typeCapacity);
+        this.capacitySummary = capacitySummary == null ? QIOCapacitySummary.EMPTY : capacitySummary;
         killed = false;
-        if (!oldEntries.equals(entries) || oldCountCapacity != totalCountCapacity || oldTypeCapacity != totalTypeCapacity) {
+        if (!oldEntries.equals(entries) || !oldCapacity.equals(this.capacitySummary)) {
             markResourcesChanged();
         }
     }
 
     public void applyKill() {
         if (isRemote()) {
-            boolean changed = !killed || !entries.isEmpty() || totalCountCapacity != 0 || totalTypeCapacity != 0;
+            boolean changed = !killed || !entries.isEmpty() || !capacitySummary.equals(QIOCapacitySummary.EMPTY);
             killed = true;
             entries.clear();
             totalCount = 0;
-            totalCountCapacity = 0;
-            totalTypeCapacity = 0;
+            exactTotalCount = QIOAmount.ZERO;
+            capacitySummary = QIOCapacitySummary.EMPTY;
             if (changed) {
                 markResourcesChanged();
             }
@@ -412,16 +418,12 @@ public class QIOItemViewerContainer extends MekanismContainer implements IQIOIte
     }
 
     private void recalculateTotals() {
-        long storageUnits = 0;
+        QIOAmount storageUnits = QIOAmount.ZERO;
         for (QIOResourceEntry entry : entries.values()) {
-            long entryStorageUnits = QIOStorageUnits.toStorageUnits(entry.getKind(), entry.getAmount());
-            if (entryStorageUnits > Long.MAX_VALUE - storageUnits) {
-                totalCount = Long.MAX_VALUE;
-                return;
-            }
-            storageUnits += entryStorageUnits;
+            storageUnits = storageUnits.add(entry.getExactAmount().multiply(QIOStorageUnits.getUnitsPerResource(entry.getKind())));
         }
-        totalCount = QIOStorageUnits.toItemEquivalent(storageUnits);
+        exactTotalCount = storageUnits.divideRoundUp(QIOStorageUnits.UNITS_PER_ITEM);
+        totalCount = exactTotalCount.longValueClamped();
     }
 
     private void applyEntries(Collection<QIOResourceEntry> updates) {
@@ -432,7 +434,7 @@ public class QIOItemViewerContainer extends MekanismContainer implements IQIOIte
             if (entry == null) {
                 continue;
             }
-            if (entry.getAmount() <= 0) {
+            if (entry.getExactAmount().isZero()) {
                 entries.remove(entry.getUUID());
             } else {
                 entries.put(entry.getUUID(), entry);
@@ -454,16 +456,26 @@ public class QIOItemViewerContainer extends MekanismContainer implements IQIOIte
         return totalCount;
     }
 
+    @Nonnull
+    public QIOAmount getExactTotalCount() {
+        return exactTotalCount;
+    }
+
     public int getTotalTypes() {
         return entries.size();
     }
 
     public long getTotalCountCapacity() {
-        return totalCountCapacity;
+        return capacitySummary.getCountCapacityClamped();
     }
 
     public int getTotalTypeCapacity() {
-        return totalTypeCapacity;
+        return capacitySummary.getTypeCapacityClamped();
+    }
+
+    @Nonnull
+    public QIOCapacitySummary getCapacitySummary() {
+        return capacitySummary;
     }
 
     public long getResourceRevision() {

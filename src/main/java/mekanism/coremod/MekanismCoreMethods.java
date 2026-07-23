@@ -3,6 +3,7 @@ package mekanism.coremod;
 
 
 import mekanism.common.event.ItemGUIRenderEvent;
+import mekanism.common.config.MekanismConfig;
 import mekanism.common.interfaces.IOcclusionCulling;
 import mekanism.common.interfaces.IOverlayRenderAware;
 import mekanism.common.interfaces.IRenderEffectIntoGUI;
@@ -14,6 +15,9 @@ import net.minecraftforge.common.MinecraftForge;
 import javax.annotation.Nonnull;
 
 public class MekanismCoreMethods {
+
+    private static boolean occlusionCullingWasEnabled;
+    private static boolean openGlOcclusionWasEnabled;
 
     public static void renderItemOverlayIntoGUI(@Nonnull ItemStack stack, int xPosition, int yPosition) {
         if (!stack.isEmpty()) {
@@ -45,9 +49,29 @@ public class MekanismCoreMethods {
     }
 
     public static boolean shouldCullTileEntityForOcclusion(TileEntity tileEntity) {
-        if (tileEntity instanceof IOcclusionCulling cullingTile) {
-            return cullingTile.shouldCullForOcclusion();
+        if (!(tileEntity instanceof IOcclusionCulling cullingTile)) {
+            return false;
         }
-        return false;
+        try {
+            // Keep the injected dispatcher hook fail-open so the master option always disables
+            // culling, even if an individual tile has an incorrect override.
+            if (!MekanismConfig.current().client.GazeCullingTracking.val()) {
+                if (occlusionCullingWasEnabled || openGlOcclusionWasEnabled) {
+                    cullingTile.cullingClearGpuQueryCache();
+                }
+                occlusionCullingWasEnabled = false;
+                openGlOcclusionWasEnabled = false;
+                return false;
+            }
+            occlusionCullingWasEnabled = true;
+            boolean openGlEnabled = MekanismConfig.current().client.GazeCullingOpenGLTracking.val();
+            if (openGlOcclusionWasEnabled && !openGlEnabled) {
+                cullingTile.cullingClearGpuQueryCache();
+            }
+            openGlOcclusionWasEnabled = openGlEnabled;
+            return cullingTile.shouldCullForOcclusion();
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 }

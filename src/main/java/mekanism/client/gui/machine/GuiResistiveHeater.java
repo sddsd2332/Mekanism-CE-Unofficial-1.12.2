@@ -2,7 +2,6 @@ package mekanism.client.gui.machine;
 
 import mekanism.client.gui.GuiMekanism;
 import mekanism.client.gui.GuiMekanismTile;
-import mekanism.api.IHeatTransfer;
 import mekanism.api.TileNetworkList;
 import mekanism.client.gui.element.GuiInnerScreen;
 import mekanism.client.gui.element.bar.GuiVerticalPowerBar;
@@ -14,13 +13,11 @@ import mekanism.client.gui.warning.IWarningTracker;
 import mekanism.client.gui.warning.WarningTracker.WarningType;
 import mekanism.common.Mekanism;
 import mekanism.common.capabilities.energy.MachineEnergyContainer;
-import mekanism.common.config.MekanismConfig;
 import mekanism.common.inventory.container.ContainerResistiveHeater;
 import mekanism.common.network.PacketTileEntity.TileEntityMessage;
 import mekanism.common.tile.TileEntityResistiveHeater;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.UnitDisplayUtils;
 import mekanism.common.util.UnitDisplayUtils.TemperatureUnit;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.util.text.ITextComponent;
@@ -56,10 +53,9 @@ public class GuiResistiveHeater extends GuiMekanismTile<TileEntityResistiveHeate
               });
         addButton(new GuiEnergyTab(this, tileEntity.getEnergyContainer(), tileEntity::getEnergyUsed));
         addButton(new GuiHeatTab(this, () -> {
-            TemperatureUnit unit = TemperatureUnit.values()[MekanismConfig.current().general.tempUnit.val().ordinal()];
-            String temp = UnitDisplayUtils.getDisplayShort(tileEntity.getTemp() + IHeatTransfer.AMBIENT_TEMP, unit);
-            String transfer = UnitDisplayUtils.getDisplayShort(tileEntity.lastTransferLoss * unit.intervalSize, false, unit);
-            String environment = UnitDisplayUtils.getDisplayShort(tileEntity.lastEnvironmentLoss * unit.intervalSize, false, unit);
+            String temp = MekanismUtils.getTemperatureDisplay(tileEntity.getTemp(), TemperatureUnit.KELVIN);
+            String transfer = MekanismUtils.getTemperatureDisplay(tileEntity.lastTransferLoss, TemperatureUnit.KELVIN, false);
+            String environment = MekanismUtils.getTemperatureDisplay(tileEntity.lastEnvironmentLoss, TemperatureUnit.KELVIN, false);
             return Arrays.asList(
                   new TextComponentString(LangUtils.localize("gui.temp") + ": " + temp),
                   new TextComponentString(LangUtils.localize("gui.transferred") + ": " + transfer + "/t"),
@@ -110,6 +106,6 @@ public class GuiResistiveHeater extends GuiMekanismTile<TileEntityResistiveHeate
     }
 
     private String getTemp() {
-        return MekanismUtils.getTemperatureDisplay(tileEntity.getTemp(), TemperatureUnit.AMBIENT);
+        return MekanismUtils.getTemperatureDisplay(tileEntity.getTemp(), TemperatureUnit.KELVIN);
     }
 }

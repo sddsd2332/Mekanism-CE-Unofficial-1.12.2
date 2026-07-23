@@ -2,14 +2,22 @@ package mekanism.generators.common.tile;
 
 import io.netty.buffer.ByteBuf;
 import mekanism.api.*;
+import mekanism.api.heat.HeatAPI;
+import mekanism.api.heat.HeatAPI.HeatTransfer;
+import mekanism.api.heat.HeatCapacitorWrapper;
+import mekanism.api.heat.IHeatCapacitor;
+import mekanism.api.heat.IHeatHandler;
 import mekanism.common.Mekanism;
 import mekanism.common.base.IComparatorSupport;
 import mekanism.common.base.ISpecialSelectionWireframeTile;
 import mekanism.common.base.ISustainedData;
-import mekanism.common.capabilities.Capabilities;
 import mekanism.common.capabilities.fluid.BasicFluidTank;
+import mekanism.common.capabilities.fluid.VariableCapacityFluidTank;
+import mekanism.common.capabilities.heat.BasicHeatCapacitor;
 import mekanism.common.capabilities.holder.fluid.FluidTankHelper;
 import mekanism.common.capabilities.holder.fluid.IFluidTankHolder;
+import mekanism.common.capabilities.holder.heat.IHeatCapacitorHolder;
+import mekanism.common.capabilities.holder.heat.ProxiedHeatCapacitorHolder;
 import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
 import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
 import mekanism.common.config.MekanismConfig;
@@ -18,11 +26,11 @@ import mekanism.common.inventory.slot.EnergyInventorySlot;
 import mekanism.common.util.*;
 import mekanism.generators.client.render.bloom.BloomRenderHeatGenerator;
 import mekanism.generators.common.slot.FluidFuelInventorySlot;
+import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.init.Blocks;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.tileentity.TileEntity;
 import net.minecraft.tileentity.TileEntityFurnace;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
@@ -35,10 +43,16 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 
 import javax.annotation.Nonnull;
 
-public class TileEntityHeatGenerator extends TileEntityGenerator implements ISustainedData, IHeatTransfer, IComparatorSupport, ISpecialSelectionWireframeTile {
+public class TileEntityHeatGenerator extends TileEntityGenerator implements ISustainedData, IComparatorSupport, ISpecialSelectionWireframeTile {
 
     private static final String[] methods = new String[]{"getEnergy", "getOutput", "getMaxEnergy", "getEnergyNeeded", "getFuel", "getFuelNeeded"};
-    private static final int LAVA_USAGE = 10;
+    private static final double HEAT_CAPACITY = 10;
+    private static final double INVERSE_CONDUCTION_COEFFICIENT = 5;
+    private static final double INVERSE_INSULATION_COEFFICIENT = 100;
+    private static final double THERMAL_EFFICIENCY = 0.5;
+    private static final double DEFAULT_ACTIVE_HEAT = 100;
+    private static final double DEFAULT_LAVA_HEAT = 7;
+    private static final double DEFAULT_NETHER_HEAT = 10;
     private static final ISpecialSelectionWireframeTile.SelectionTransform[] SELECTION_ROTATE_180 = {
             ISpecialSelectionWireframeTile.SelectionTransform.rotateY(180.0D, 0.5D, 0.5D, 0.5D)
     };
@@ -46,26 +60,42 @@ public class TileEntityHeatGenerator extends TileEntityGenerator implements ISus
      * The FluidTank for this generator.
      */
     public BasicFluidTank lavaTank;
-    public double temperature = 0;
-    public double thermalEfficiency = 0.5D;
-    public double invHeatCapacity = 1;
-    public double heatToAbsorb = 0;
     public double producingEnergy;
     public double lastTransferLoss;
     public double lastEnvironmentLoss;
     private int currentRedstoneLevel;
     private FluidFuelInventorySlot fuelSlot;
     private EnergyInventorySlot energySlot;
+    private BasicHeatCapacitor heatCapacitor;
+    private IHeatCapacitor bottomHeatCapacitor;
 
     public TileEntityHeatGenerator() {
-        super("heat", "HeatGenerator", MekanismConfig.current().generators.heatGeneratorStorage.val(), MekanismConfig.current().generators.heatGeneration.val() * 2);
+        super("heat", "HeatGenerator", getInitialStorage(), getActiveHeat());
         initializeInventorySlots();
+    }
+
+    private static double getActiveHeat() {
+        return finiteConfig(MekanismConfig.current().generators.heatGeneration.val(), DEFAULT_ACTIVE_HEAT);
+    }
+
+    private static double getLavaHeat() {
+        return finiteConfig(MekanismConfig.current().generators.heatGenerationLava.val(), DEFAULT_LAVA_HEAT);
+    }
+
+    private static double getNetherHeat() {
+        return finiteConfig(MekanismConfig.current().generators.heatGenerationNether.val(), DEFAULT_NETHER_HEAT);
+    }
+
+    private static double getInitialStorage() {
+        double configured = MekanismConfig.current().generators.heatGeneratorStorage.val();
+        return HeatAPI.isFinite(configured) && configured >= 0 ? Math.min(HeatAPI.MAX_HEAT, configured) : HeatAPI.multiplyHeat(getActiveHeat(), 2);
     }
 
     @Override
     protected IFluidTankHolder getInitialFluidTanks(IContentsListener listener) {
         FluidTankHelper builder = createFluidTankHelper();
-        lavaTank = BasicFluidTank.input(24000, fluid -> fluid.getFluid() == FluidRegistry.LAVA, listener);
+        lavaTank = VariableCapacityFluidTank.input(TileEntityHeatGenerator::getHeatTankCapacity,
+              fluid -> fluid.getFluid() == FluidRegistry.LAVA, listener);
         builder.addTank(lavaTank, RelativeSide.LEFT, RelativeSide.RIGHT, RelativeSide.BACK, RelativeSide.TOP, RelativeSide.BOTTOM);
         return builder.build();
     }
@@ -81,26 +111,40 @@ public class TileEntityHeatGenerator extends TileEntityGenerator implements ISus
     }
 
     @Override
+    protected IHeatCapacitorHolder getInitialHeatCapacitors(IContentsListener listener) {
+        heatCapacitor = BasicHeatCapacitor.create(HEAT_CAPACITY, INVERSE_CONDUCTION_COEFFICIENT, INVERSE_INSULATION_COEFFICIENT,
+              () -> getAmbientTemperature(null), listener);
+        bottomHeatCapacitor = new DefaultInsulationCapacitor(heatCapacitor);
+        return ProxiedHeatCapacitorHolder.create(side -> true, side -> true, side -> {
+            if (side == null) {
+                return java.util.Collections.singletonList(heatCapacitor);
+            }
+            return java.util.Collections.singletonList(side == EnumFacing.DOWN ? bottomHeatCapacitor : heatCapacitor);
+        });
+    }
+
+    @Override
     public void onUpdateServer() {
         super.onUpdateServer();
         energySlot.drainContainer();
         fuelSlot.fillOrBurn();
 
         double prev = getEnergy();
-        transferHeatTo(getBoost());
+        heatCapacitor.handleHeat(getBoost());
         if (canOperate()) {
             setActive(true);
-            lavaTank.extract(LAVA_USAGE, Action.EXECUTE, AutomationType.INTERNAL);
-            transferHeatTo(MekanismConfig.current().generators.heatGeneration.val());
+            lavaTank.extract(getHeatGenerationFluidRate(), Action.EXECUTE, AutomationType.INTERNAL);
+            double activeHeat = getActiveHeat();
+            heatCapacitor.handleHeat(activeHeat);
         } else {
             setActive(false);
         }
 
-        double[] loss = simulateHeat();
-        applyTemperatureChange();
-        lastTransferLoss = loss[0];
-        lastEnvironmentLoss = loss[1];
-        producingEnergy = getEnergy() - prev;
+        HeatTransfer loss = simulateGeneratorHeat();
+        lastTransferLoss = sanitizeLoss(loss.adjacentTransfer());
+        lastEnvironmentLoss = sanitizeLoss(loss.environmentTransfer());
+        double produced = getEnergy() - prev;
+        producingEnergy = HeatAPI.isFinite(produced) ? Math.max(0, produced) : 0;
         int newRedstoneLevel = getRedstoneLevel();
         if (newRedstoneLevel != currentRedstoneLevel) {
             updateComparatorOutputLevelSync();
@@ -110,8 +154,9 @@ public class TileEntityHeatGenerator extends TileEntityGenerator implements ISus
 
     @Override
     public boolean canOperate() {
-        FluidStack extracted = lavaTank.extract(LAVA_USAGE, Action.SIMULATE, AutomationType.INTERNAL);
-        return MekanismUtils.canFunction(this) && getEnergyContainer().getNeeded() > 0 && extracted != null && extracted.amount == LAVA_USAGE;
+        int fluidRate = getHeatGenerationFluidRate();
+        FluidStack extracted = lavaTank.extract(fluidRate, Action.SIMULATE, AutomationType.INTERNAL);
+        return MekanismUtils.canFunction(this) && getEnergyContainer().getNeeded() > 0 && extracted != null && extracted.amount == fluidRate;
     }
 
     @Override
@@ -139,6 +184,9 @@ public class TileEntityHeatGenerator extends TileEntityGenerator implements ISus
     }
 
     public double getBoost() {
+        if (world == null) {
+            return 0;
+        }
         int lavaBoost = 0;
         double netherBoost = 0D;
         for (EnumFacing side : EnumFacing.VALUES) {
@@ -148,13 +196,16 @@ public class TileEntityHeatGenerator extends TileEntityGenerator implements ISus
             }
         }
         if (world.provider.getDimension() == -1) {
-            netherBoost = MekanismConfig.current().generators.heatGenerationNether.val();
+            netherBoost = getNetherHeat();
         }
-        return (MekanismConfig.current().generators.heatGenerationLava.val() * lavaBoost) + netherBoost;
+        double lavaHeat = getLavaHeat();
+        double boost = saturatingMultiply(lavaHeat, lavaBoost);
+        return netherBoost >= HeatAPI.MAX_HEAT - boost ? HeatAPI.MAX_HEAT : boost + netherBoost;
     }
 
     private boolean isLava(BlockPos pos) {
-        return world.getBlockState(pos).getBlock() == Blocks.LAVA;
+        Block block = world.getBlockState(pos).getBlock();
+        return block == Blocks.LAVA || block == Blocks.FLOWING_LAVA;
     }
 
     public int getFuel(ItemStack itemstack) {
@@ -168,7 +219,9 @@ public class TileEntityHeatGenerator extends TileEntityGenerator implements ISus
      * @return Scaled fuel level
      */
     public int getScaledFuelLevel(int i) {
-        return (lavaTank.getFluid() != null ? lavaTank.getFluid().amount : 0) * i / lavaTank.getCapacity();
+        int capacity = lavaTank.getCapacity();
+        return capacity <= 0 ? 0 : (int) Math.min(Integer.MAX_VALUE,
+              (long) Math.max(0, lavaTank.getFluidAmount()) * Math.max(0, i) / capacity);
     }
 
     @Override
@@ -176,10 +229,14 @@ public class TileEntityHeatGenerator extends TileEntityGenerator implements ISus
         super.handlePacketData(dataStream);
 
         if (FMLCommonHandler.instance().getEffectiveSide().isClient()) {
-            producingEnergy = dataStream.readDouble();
+            double syncedProduction = dataStream.readDouble();
+            producingEnergy = HeatAPI.isFinite(syncedProduction) ? Math.max(0, Math.min(HeatAPI.MAX_HEAT, syncedProduction)) : 0;
 
-            lastTransferLoss = dataStream.readDouble();
-            lastEnvironmentLoss = dataStream.readDouble();
+            heatCapacitor.setHeatCapacityFromPacket(dataStream.readDouble());
+            heatCapacitor.setHeat(dataStream.readDouble());
+
+            lastTransferLoss = sanitizeLoss(dataStream.readDouble());
+            lastEnvironmentLoss = sanitizeLoss(dataStream.readDouble());
 
             TileUtils.readTankData(dataStream, lavaTank);
         }
@@ -188,9 +245,11 @@ public class TileEntityHeatGenerator extends TileEntityGenerator implements ISus
     @Override
     public TileNetworkList getNetworkedData(TileNetworkList data) {
         super.getNetworkedData(data);
-        data.add(producingEnergy);
-        data.add(lastTransferLoss);
-        data.add(lastEnvironmentLoss);
+        data.add(HeatAPI.isFinite(producingEnergy) ? Math.max(0, Math.min(HeatAPI.MAX_HEAT, producingEnergy)) : 0);
+        data.add(heatCapacitor.getHeatCapacity());
+        data.add(heatCapacitor.getHeat());
+        data.add(sanitizeLoss(lastTransferLoss));
+        data.add(sanitizeLoss(lastEnvironmentLoss));
         TileUtils.addTankData(data, lavaTank);
         return data;
     }
@@ -237,60 +296,87 @@ public class TileEntityHeatGenerator extends TileEntityGenerator implements ISus
         }
     }
 
-    @Override
     public double getTemp() {
-        return temperature;
+        return heatCapacitor.getTemperature();
     }
 
-    @Override
-    public double getInverseConductionCoefficient() {
-        return 1;
-    }
-
-    @Override
-    public double getInsulationCoefficient(EnumFacing side) {
-        return canConnectHeat(side) ? 0 : 10000;
-    }
-
-    @Override
-    public void transferHeatTo(double heat) {
-        heatToAbsorb += heat;
-    }
-
-    @Override
-    public double[] simulateHeat() {
-        if (getTemp() > 0) {
-            double carnotEfficiency = getTemp() / (getTemp() + IHeatTransfer.AMBIENT_TEMP);
-            double heatLost = thermalEfficiency * getTemp();
-            double workDone = heatLost * carnotEfficiency;
-            transferHeatTo(-heatLost);
-            getEnergyContainer().insert(workDone, Action.EXECUTE, AutomationType.INTERNAL);
+    private HeatTransfer simulateGeneratorHeat() {
+        double ambient = HeatAPI.sanitizeTemperature(getAmbientTemperature(null));
+        double temperature = HeatAPI.sanitizeTemperature(getTemp());
+        double maximum = Math.max(ambient, temperature);
+        double carnotEfficiency = maximum <= 0 ? 0 : 1 - Math.min(ambient, temperature) / maximum;
+        carnotEfficiency = HeatAPI.isFinite(carnotEfficiency) ? Math.max(0, Math.min(1, carnotEfficiency)) : 0;
+        double heatLost = THERMAL_EFFICIENCY * (temperature - ambient);
+        heatCapacitor.handleHeat(-heatLost);
+        double energyFromHeat = saturatingMultiply(Math.abs(heatLost), carnotEfficiency);
+        if (HeatAPI.isFinite(energyFromHeat) && energyFromHeat > 0) {
+            getEnergyContainer().insert(Math.min(energyFromHeat, getMaxHeatConversion()), Action.EXECUTE, AutomationType.INTERNAL);
         }
-        return HeatUtils.simulate(this);
+        return simulate();
+    }
+
+    private static double getMaxHeatConversion() {
+        double active = getActiveHeat();
+        double lava = saturatingMultiply(getLavaHeat(), EnumFacing.VALUES.length);
+        double nether = getNetherHeat();
+        double max = active >= HeatAPI.MAX_HEAT - lava ? HeatAPI.MAX_HEAT : active + lava;
+        return nether >= HeatAPI.MAX_HEAT - max ? HeatAPI.MAX_HEAT : max + nether;
+    }
+
+    static int getHeatTankCapacity() {
+        return Math.max(1, MekanismConfig.current().generators.heatTankCapacity.val());
+    }
+
+    static int getHeatGenerationFluidRate() {
+        return Math.max(1, Math.min(getHeatTankCapacity(), MekanismConfig.current().generators.heatGenerationFluidRate.val()));
     }
 
     @Override
-    public double applyTemperatureChange() {
-        temperature += invHeatCapacity * heatToAbsorb;
-        heatToAbsorb = 0;
-
-        return temperature;
+    public double extractEnergy(int container, double amount, EnumFacing side, Action action) {
+        return super.extractEnergy(container, finiteAmount(amount), side, action);
     }
 
     @Override
-    public boolean canConnectHeat(EnumFacing side) {
-        return side == EnumFacing.DOWN;
+    public double extractEnergy(double amount, EnumFacing side, Action action) {
+        return super.extractEnergy(finiteAmount(amount), side, action);
     }
 
     @Override
-    public IHeatTransfer getAdjacent(EnumFacing side) {
-        if (canConnectHeat(side)) {
-            TileEntity adj = Coord4D.get(this).offset(side).getTileEntity(world);
-            if (CapabilityUtils.hasCapability(adj, Capabilities.HEAT_TRANSFER_CAPABILITY, side.getOpposite())) {
-                return CapabilityUtils.getCapability(adj, Capabilities.HEAT_TRANSFER_CAPABILITY, side.getOpposite());
-            }
+    public double pullEnergy(EnumFacing side, double amount, boolean simulate) {
+        return super.pullEnergy(side, finiteAmount(amount), simulate);
+    }
+
+    @Override
+    public double getMaxOutput() {
+        return getMaxHeatConversion();
+    }
+
+    @Override
+    public IHeatHandler getAdjacent(EnumFacing side) {
+        return side == EnumFacing.DOWN ? super.getAdjacent(side) : null;
+    }
+
+    private static double finiteNonNegative(double value) {
+        return HeatAPI.isFinite(value) && value >= 0 ? Math.min(HeatAPI.MAX_HEAT, value) : 0;
+    }
+
+    private static double finiteConfig(double value, double fallback) {
+        return HeatAPI.isFinite(value) && value >= 0 ? Math.min(HeatAPI.MAX_HEAT, value) : fallback;
+    }
+
+    private static double sanitizeLoss(double loss) {
+        return HeatAPI.isFinite(loss) ? Math.max(0, Math.min(HeatAPI.MAX_HEAT, loss)) : 0;
+    }
+
+    private static double saturatingMultiply(double first, double second) {
+        if (!HeatAPI.isFinite(first) || !HeatAPI.isFinite(second) || first < 0 || second < 0 || first == 0 || second == 0) {
+            return 0;
         }
-        return null;
+        return first >= HeatAPI.MAX_HEAT / second ? HeatAPI.MAX_HEAT : first * second;
+    }
+
+    private static double finiteAmount(double amount) {
+        return HeatAPI.isFinite(amount) && amount > 0 ? Math.min(amount, getMaxHeatConversion()) : 0;
     }
 
     @Override
@@ -325,5 +411,17 @@ public class TileEntityHeatGenerator extends TileEntityGenerator implements ISus
     @Override
     public ISpecialSelectionWireframeTile.SelectionTransform[] getSelectionWireframeTransforms(IBlockState state, IBlockAccess world, BlockPos pos) {
         return SELECTION_ROTATE_180;
+    }
+
+    private static class DefaultInsulationCapacitor extends HeatCapacitorWrapper {
+
+        private DefaultInsulationCapacitor(IHeatCapacitor internal) {
+            super(internal);
+        }
+
+        @Override
+        public double getInverseInsulation() {
+            return HeatAPI.DEFAULT_INVERSE_INSULATION;
+        }
     }
 }

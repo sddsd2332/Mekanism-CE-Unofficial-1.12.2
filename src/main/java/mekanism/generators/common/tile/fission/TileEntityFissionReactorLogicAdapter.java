@@ -26,6 +26,7 @@ public class TileEntityFissionReactorLogicAdapter extends TileEntityFissionReact
 
     public TileEntityFissionReactorLogicAdapter() {
         super("FissionReactorLogicAdapter");
+        initializeContainerHolders();
     }
 
     @Override
@@ -59,7 +60,7 @@ public class TileEntityFissionReactorLogicAdapter extends TileEntityFissionReact
         return switch (logicMode) {
             case DISABLED -> false;
             case ACTIVATION -> redstone;
-            case TEMPERATURE -> structure.temperature >= SynchronizedFissionData.MIN_DAMAGE_TEMPERATURE;
+            case TEMPERATURE -> structure.getTemperature() >= SynchronizedFissionData.MIN_DAMAGE_TEMPERATURE;
             case EXCESS_WASTE -> structure.wasteTank.getNeeded() == 0;
             case DAMAGED -> structure.reactorDamage >= SynchronizedFissionData.MAX_DAMAGE;
             case DEPLETED -> structure.fuelTank.getStored() == 0;
@@ -198,4 +199,3 @@ public class TileEntityFissionReactorLogicAdapter extends TileEntityFissionReact
         }
     }
 }
-

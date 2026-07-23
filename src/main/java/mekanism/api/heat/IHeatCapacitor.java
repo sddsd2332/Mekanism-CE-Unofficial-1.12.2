@@ -5,7 +5,7 @@ import mekanism.api.NBTConstants;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.common.util.INBTSerializable;
 
-public interface IHeatCapacitor extends INBTSerializable<NBTTagCompound>, IContentsListener {
+public interface IHeatCapacitor extends IHeatHandler, INBTSerializable<NBTTagCompound>, IContentsListener {
 
     double getTemperature();
 
@@ -21,6 +21,38 @@ public interface IHeatCapacitor extends INBTSerializable<NBTTagCompound>, IConte
 
     void handleHeat(double transfer);
 
+    @Override
+    default Object getHeatIdentity() {
+        return this;
+    }
+
+    @Override
+    default int getHeatCapacitorCount() {
+        return 1;
+    }
+
+    @Override
+    default double getTemperature(int capacitor) {
+        return capacitor == 0 ? getTemperature() : HeatAPI.AMBIENT_TEMP;
+    }
+
+    @Override
+    default double getInverseConduction(int capacitor) {
+        return capacitor == 0 ? getInverseConduction() : HeatAPI.DEFAULT_INVERSE_CONDUCTION;
+    }
+
+    @Override
+    default double getHeatCapacity(int capacitor) {
+        return capacitor == 0 ? getHeatCapacity() : HeatAPI.DEFAULT_HEAT_CAPACITY;
+    }
+
+    @Override
+    default void handleHeat(int capacitor, double transfer) {
+        if (capacitor == 0) {
+            handleHeat(transfer);
+        }
+    }
+
     default boolean isAmbientTemperature() {
         return Math.abs(getTemperature() - HeatAPI.AMBIENT_TEMP) < HeatAPI.EPSILON;
     }
@@ -35,7 +67,7 @@ public interface IHeatCapacitor extends INBTSerializable<NBTTagCompound>, IConte
     @Override
     default void deserializeNBT(NBTTagCompound nbt) {
         if (nbt.hasKey(NBTConstants.STORED)) {
-            setHeat(nbt.getDouble(NBTConstants.STORED));
+            setHeat(HeatAPI.sanitizeHeat(nbt.getDouble(NBTConstants.STORED), HeatAPI.multiplyHeat(HeatAPI.AMBIENT_TEMP, getHeatCapacity())));
         }
     }
 

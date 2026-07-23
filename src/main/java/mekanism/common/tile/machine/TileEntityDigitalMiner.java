@@ -523,7 +523,7 @@ public class TileEntityDigitalMiner extends TileEntityElectricBlock implements I
 
     public TransitRequest getEjectItemMap() {
         EnumFacing outputSide = facing.getOpposite();
-        IItemHandler handler = InventoryUtils.getItemHandler(this, outputSide);
+        IItemHandler handler = getItemHandler(outputSide);
         return handler == null ? new HandlerTransitRequest(null) : InventoryUtils.getEjectItemMap(handler, getInventorySlots(outputSide));
     }
 

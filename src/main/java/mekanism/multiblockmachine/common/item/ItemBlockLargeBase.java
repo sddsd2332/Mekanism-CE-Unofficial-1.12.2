@@ -8,12 +8,14 @@ import mekanism.common.Upgrade;
 import mekanism.common.base.*;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.item.interfaces.IItemSustainedInventory;
+import mekanism.common.item.interfaces.IItemBlockPlacementData;
 import mekanism.common.security.ISecurityItem;
 import mekanism.common.security.ISecurityTile;
 import mekanism.common.tile.prefab.TileEntityBasicBlock;
 import mekanism.common.util.ItemDataUtils;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.MekanismPlacementData;
 import mekanism.common.util.SecurityUtils;
 import mekanism.multiblockmachine.common.MekanismMultiblockMachine;
 import net.minecraft.block.Block;
@@ -22,6 +24,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.settings.GameSettings;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagList;
@@ -37,7 +40,7 @@ import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.UUID;
 
-public abstract class ItemBlockLargeBase extends ItemBlock implements IItemSustainedInventory, ISecurityItem {
+public abstract class ItemBlockLargeBase extends ItemBlock implements IItemSustainedInventory, ISecurityItem, IItemBlockPlacementData {
 
     public String name;
 
@@ -106,46 +109,14 @@ public abstract class ItemBlockLargeBase extends ItemBlock implements IItemSusta
         if (canPlace(stack, player, world, pos, side, hitX, hitY, hitZ, state)) {
             place = false;
         }
-        if (place && super.placeBlockAt(stack, player, world, pos, side, hitX, hitY, hitZ, state)) {
-            if (world.getTileEntity(pos) instanceof TileEntityBasicBlock tileEntity) {
-                if (tileEntity instanceof ISecurityTile security) {
-                    security.getSecurity().setOwnerUUID(getOwnerUUID(stack));
-                    if (hasSecurity(stack)) {
-                        security.getSecurity().setMode(getSecurity(stack));
-                    }
-                    if (getOwnerUUID(stack) == null) {
-                        security.getSecurity().setOwnerUUID(player.getUniqueID());
-                    }
-                }
-                if (tileEntity instanceof IUpgradeTile upgradeTile) {
-                    if (Upgrade.hasUpgradeData(ItemDataUtils.getDataMapIfPresent(stack))) {
-                        upgradeTile.readUpgrades(ItemDataUtils.getDataMap(stack));
-                    }
-                }
-                if (tileEntity instanceof ISideConfiguration config) {
-                    if (ItemDataUtils.hasData(stack, "sideDataStored")) {
-                        config.getConfig().read(ItemDataUtils.getDataMap(stack));
-                        config.getEjector().read(ItemDataUtils.getDataMap(stack));
-                    }
-                }
-                if (tileEntity instanceof ISustainedData data) {
-                    if (stack.getTagCompound() != null) {
-                        data.readSustainedData(stack);
-                    }
-                }
-                if (tileEntity instanceof IRedstoneControl redstoneControl) {
-                    if (ItemDataUtils.hasData(stack, "controlType")) {
-                        redstoneControl.setControlType(MekanismUtils.getByIndex(IRedstoneControl.RedstoneControl.values(), ItemDataUtils.getInt(stack, "controlType"), IRedstoneControl.RedstoneControl.DISABLED));
-                    }
-                }
-                if (tileEntity instanceof ISustainedInventory inventory) {
-                    inventory.setInventory(getInventory(stack));
-                }
-                addOtherMachine(tileEntity, stack, world);
-            }
-            return true;
-        }
-        return false;
+        return place && super.placeBlockAt(stack, player, world, pos, side, hitX, hitY, hitZ, state);
+    }
+
+    @Override
+    public void restorePlacementData(@Nonnull ItemStack stack, @Nonnull EntityLivingBase placer, @Nonnull World world, @Nonnull BlockPos pos,
+          @Nonnull TileEntity tileEntity) {
+        MekanismPlacementData.restoreCommon(stack, placer, tileEntity);
+        addOtherMachine(tileEntity, stack, world);
     }
 
     public void addOtherMachine(TileEntity tileEntity, ItemStack stack, World world) {

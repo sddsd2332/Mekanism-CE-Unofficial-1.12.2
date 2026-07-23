@@ -193,26 +193,60 @@ public class GeneralConfig extends BaseConfig {
     public final DoubleOption evaporationHeatDissipation = new DoubleOption(this, "EvaporationHeatDissipation", 0.02D,
             "Thermal Evaporation Tower heat loss per tick.");
 
-    public final DoubleOption evaporationTempMultiplier = new DoubleOption(this, "EvaporationTempMultiplier", 0.1D,
+    public final DoubleOption evaporationTempMultiplier = new DoubleOption(this, "EvaporationTempMultiplier", 0.4D,
             "Temperature to amount produced ratio for Thermal Evaporation Tower.");
 
     public final DoubleOption evaporationSolarMultiplier = new DoubleOption(this, "EvaporationSolarMultiplier", 0.2D,
             "Heat to absorb per Solar Panel array of Thermal Evaporation Tower.");
 
+    public final DoubleOption evaporationHeatCapacity = new DoubleOption(this, "EvaporationHeatCapacity", 100D,
+            "Heat capacity of each Thermal Evaporation Tower layer.", 1D, 1_000_000D);
+
     public final DoubleOption evaporationMaxTemp = new DoubleOption(this, "EvaporationMaxTemp", 3000D,
             "Max Temperature of the Thermal Evaporation Tower.");
 
+    /**
+     * @deprecated Use {@link #resistiveHeaterEfficiency}. Kept so existing config files and integrations still load.
+     */
+    @Deprecated
     public final DoubleOption energyPerHeat = new DoubleOption(this, "EnergyPerHeat", 1000D,
-            "Joules required by the Resistive Heater to produce one unit of heat. Also affects Thermoelectric Boiler's Water->Steam rate.");
+            "Legacy Joules required by the Resistive Heater to produce one unit of heat.");
 
-    public final DoubleOption maxEnergyPerSteam = new DoubleOption(this, "MaxEnergyPerSteam", 100D,
+    public final DoubleOption resistiveHeaterEfficiency = new DoubleOption(this, "ResistiveHeaterEfficiency", 0.6D,
+            "Heat energy created from one Joule in the Resistive Heater.", 0D, 1D);
+
+    public final DoubleOption maxEnergyPerSteam = new DoubleOption(this, "MaxEnergyPerSteam", 10D,
             "Maximum Joules per mB of Steam. Also affects Thermoelectric Boiler.");
 
-    public final DoubleOption superheatingHeatTransfer = new DoubleOption(this, "SuperheatingHeatTransfer", 10000D,
-            "Amount of heat each Boiler heating element produces.");
+    public final DoubleOption superheatingHeatTransfer = new DoubleOption(this, "SuperheatingHeatTransfer", 16_000_000D,
+            "Amount of heat each Boiler heating element produces.", 0.1D, 1_024_000_000D);
 
-    public final DoubleOption heatPerFuelTick = new DoubleOption(this, "HeatPerFuelTick", 4D,
-            "Amount of heat produced per fuel tick of a fuel's burn time in the Fuelwood Heater.");
+    public final DoubleOption boilerWaterConductivity = new DoubleOption(this, "BoilerWaterConductivity", 0.7D,
+            "Water conductivity multiplier used by Thermoelectric Boilers.", 0.01D, 1D);
+
+    public final IntOption boilerWaterPerTank = new IntOption(this, "BoilerWaterPerTank", 16_000,
+            "Water capacity contributed by each block of the Boiler water volume.", 1, Integer.MAX_VALUE);
+
+    public final IntOption boilerSteamPerTank = new IntOption(this, "BoilerSteamPerTank", 160_000,
+            "Steam capacity contributed by each block of the Boiler steam volume.", 1, Integer.MAX_VALUE);
+
+    public final IntOption boilerHeatedCoolantPerTank = new IntOption(this, "BoilerHeatedCoolantPerTank", 256_000,
+            "Heated coolant capacity contributed by each block of the Boiler water volume.", 1, Integer.MAX_VALUE);
+
+    public final IntOption boilerCooledCoolantPerTank = new IntOption(this, "BoilerCooledCoolantPerTank", 256_000,
+            "Cooled coolant capacity contributed by each block of the Boiler steam volume.", 1, Integer.MAX_VALUE);
+
+    public final DoubleOption heatPerFuelTick = new DoubleOption(this, "HeatPerFuelTick", 400D,
+            "Amount of heat produced per fuel tick of a fuel's burn time in the Fuelwood Heater.", 0.1D, 4_000_000D);
+
+    public final IntOption fuelwoodTickMultiplier = new IntOption(this, "FuelwoodTickMultiplier", 1,
+            "Number of fuel ticks consumed by the Fuelwood Heater per game tick.", 1, 1_000);
+
+    public final IntOption evaporationFluidPerTank = new IntOption(this, "EvaporationFluidPerTank", 64_000,
+            "Input fluid capacity contributed by each inner Thermal Evaporation block.", 1, Integer.MAX_VALUE);
+
+    public final IntOption evaporationOutputTankCapacity = new IntOption(this, "EvaporationOutputTankCapacity", 10_000,
+            "Output tank capacity of a Thermal Evaporation Plant.", 1, Integer.MAX_VALUE);
 
     public final BooleanOption allowTransmitterAlloyUpgrade = new BooleanOption(this, "AllowTransmitterAlloyUpgrade", true,
             "Allow right clicking on Cables/Pipes/Tubes with alloys to upgrade the tier.");

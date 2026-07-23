@@ -111,7 +111,6 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
     private static final int PROCESS_INPUT_SLOT_Y = 13;
     private static final int PROCESS_OUTPUT_SLOT_Y = 57;
     private static final int PROCESS_SECONDARY_OUTPUT_SLOT_Y = 77;
-    private static final String RECIPE_TYPE_KEY = "recipeType";
     private static final String FACTORY_INVENTORY_VERSION_KEY = "factoryInventorySlotsVersion";
     private static final String LEGACY_TYPE_SLOT_DROPS_KEY = "legacyFactoryTypeSlotDrops";
     private static final int FACTORY_INVENTORY_VERSION = 2;
@@ -1809,11 +1808,11 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
 
     @Nonnull
     private RecipeType readRecipeTypeFromNBT(NBTTagCompound nbtTags) {
-        return MekanismUtils.getByIndex(RecipeType.values(), nbtTags.getInteger(RECIPE_TYPE_KEY), recipeType);
+        return FactoryRecipeTypeCodec.readOrDefault(nbtTags, recipeType);
     }
 
     private void writeRecipeTypeToNBT(NBTTagCompound nbtTags) {
-        nbtTags.setInteger(RECIPE_TYPE_KEY, getRecipeTypeIndex());
+        FactoryRecipeTypeCodec.write(nbtTags, recipeType);
     }
 
     private void addRecipeTypeToNetwork(TileNetworkList data) {
@@ -2048,7 +2047,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
     }
 
     private void readRecipeTypeFromNBTIfPresent(NBTTagCompound nbtTags) {
-        if (nbtTags.hasKey(RECIPE_TYPE_KEY)) {
+        if (FactoryRecipeTypeCodec.hasRecipeType(nbtTags)) {
             setRecipeType(readRecipeTypeFromNBT(nbtTags));
         }
     }

@@ -286,7 +286,8 @@ public abstract class UpdateProtocol<T extends SynchronizedData<T>> {
         if (current == null) {
             return incoming == null ? null : incoming.copy();
         } else if (incoming != null && current.isGasEqual(incoming)) {
-            return current.copy().withAmount(current.amount + incoming.amount);
+            long amount = (long) Math.max(0, current.amount) + Math.max(0, incoming.amount);
+            return current.copy().withAmount((int) Math.min(Integer.MAX_VALUE, amount));
         }
         return current;
     }
@@ -296,7 +297,8 @@ public abstract class UpdateProtocol<T extends SynchronizedData<T>> {
         if (current == null) {
             return incoming == null ? null : incoming.copy();
         } else if (incoming != null && current.isFluidEqual(incoming)) {
-            return FluidContainerUtils.copyWithAmount(current, current.amount + incoming.amount);
+            long amount = (long) Math.max(0, current.amount) + Math.max(0, incoming.amount);
+            return FluidContainerUtils.copyWithAmount(current, (int) Math.min(Integer.MAX_VALUE, amount));
         }
         return current;
     }
@@ -317,6 +319,9 @@ public abstract class UpdateProtocol<T extends SynchronizedData<T>> {
         structure.internalLocations.forEach(this::killInnerNode);
     }
 
+    protected void onCacheIdsInvalidated(Set<String> staleIds) {
+    }
+
     private void killInnerNode(Coord4D coord) {
         TileEntity tile = coord.getTileEntity(pointer.getWorld());
         if (tile instanceof TileEntityInternalMultiblock block) {
@@ -328,6 +333,13 @@ public abstract class UpdateProtocol<T extends SynchronizedData<T>> {
      * Runs the protocol and updates all nodes that make a part of the multiblock.
      */
     public void doUpdate() {
+        //A neighbor update may destroy and immediately rebuild a structure after it already ran this
+        //tick. Capture the live shared state before any cache is pulled or any tile loses its pointer.
+        T previousStructure = pointer.structure;
+        String previousInventoryId = previousStructure == null ? null : previousStructure.inventoryID;
+        Set<Coord4D> previousLocations = previousStructure == null ? Collections.emptySet() :
+              new ObjectOpenHashSet<>(previousStructure.locations);
+        pointer.syncCachedDataFromStructure();
         Deque<Coord4D> pathingQueue = new LinkedList<>();
         pathingQueue.add(Coord4D.get(pointer));
         while (pathingQueue.peek() != null) {
@@ -356,33 +368,39 @@ public abstract class UpdateProtocol<T extends SynchronizedData<T>> {
                 }
             }
 
-            List<String> idsFound = new ArrayList<>();
+            Set<String> idsFound = new LinkedHashSet<>();
+            Set<Coord4D> multiblockLocations = new ObjectOpenHashSet<>();
             structureFound.locations.forEach(obj -> {
                 TileEntity tileEntity = obj.getTileEntity(pointer.getWorld());
-                if (tileEntity instanceof TileEntityMultiblock<?> block
-                        && block.cachedID != null) {
-                    idsFound.add(block.cachedID);
+                if (tileEntity instanceof TileEntityMultiblock<?> block) {
+                    TileEntityMultiblock<T> multiblock = (TileEntityMultiblock<T>) block;
+                    //This also discards a persisted replica whose ID was already consumed by a
+                    //different structure before this chunk loaded.
+                    getManager().updateCache(multiblock);
+                    multiblockLocations.add(obj);
+                    if (block.cachedID != null) {
+                        idsFound.add(block.cachedID);
+                    }
                 }
             });
             MultiblockCache<T> cache = null;
-            String idToUse = null;
-            if (idsFound.isEmpty()) {
-                cache = getNewCache();
-                idToUse = MultiblockManager.getUniqueInventoryID();
-            } else {
+            boolean reusePreviousId = previousStructure != null && !previousStructure.destroyed && previousInventoryId != null &&
+                  previousLocations.equals(multiblockLocations) && idsFound.size() == 1 && idsFound.contains(previousInventoryId) &&
+                  getManager().inventories.get(previousInventoryId) != null &&
+                  !getManager().isInventoryInvalidated(pointer.getWorld(), previousInventoryId);
+            String idToUse = reusePreviousId ? previousInventoryId : MultiblockManager.getUniqueInventoryID();
+            if (reusePreviousId) {
+                cache = getManager().inventories.get(previousInventoryId);
+            } else if (!idsFound.isEmpty()) {
                 List<ItemStack> rejectedItems = new ArrayList<>();
-                Set<String> checkedIds = new ObjectOpenHashSet<>();
                 for (String id : idsFound) {
-                    if (!checkedIds.add(id)) {
-                        continue;
-                    }
-                    if (getManager().inventories.get(id) != null) {
+                    MultiblockCache<T> pulled = getManager().pullInventory(pointer.getWorld(), id);
+                    if (pulled != null) {
                         if (cache == null) {
-                            cache = getManager().pullInventory(pointer.getWorld(), id);
+                            cache = pulled;
                         } else {
-                            mergeCaches(rejectedItems, cache, getManager().pullInventory(pointer.getWorld(), id));
+                            mergeCaches(rejectedItems, cache, pulled);
                         }
-                        idToUse = id;
                     }
                 }
                 //TODO someday: drop all items in rejectedItems
@@ -394,7 +412,7 @@ public abstract class UpdateProtocol<T extends SynchronizedData<T>> {
             // recover from one of the tiles' local cachedData instead of applying an empty cache.
             if (cache == null) {
                 if (!idsFound.isEmpty()) {
-                    String fallbackId = idsFound.get(0);
+                    String fallbackId = idsFound.iterator().next();
                     for (Coord4D obj : structureFound.locations) {
                         TileEntity tileEntity = obj.getTileEntity(pointer.getWorld());
                         if (tileEntity instanceof TileEntityMultiblock<?> block && Objects.equals(block.cachedID, fallbackId)) {
@@ -402,12 +420,29 @@ public abstract class UpdateProtocol<T extends SynchronizedData<T>> {
                             break;
                         }
                     }
-                    idToUse = fallbackId;
                 }
                 if (cache == null) {
                     cache = getNewCache();
-                    if (idToUse == null) {
-                        idToUse = MultiblockManager.getUniqueInventoryID();
+                }
+            }
+
+            if (!reusePreviousId) {
+                //26.2 assigns a new ID whenever a cache is claimed. Persisting tombstones is
+                //required in 1.12 because each casing stores its own replica instead of the
+                //manager owning the sole saved cache.
+                idsFound.forEach(id -> getManager().invalidateInventory(pointer.getWorld(), id));
+                onCacheIdsInvalidated(idsFound);
+                getManager().inheritServerTickClaim(pointer.getWorld().provider.getDimension(), idsFound, idToUse,
+                      pointer.getWorld().getTotalWorldTime());
+                if (previousStructure != null && !previousStructure.destroyed) {
+                    onStructureDestroyed(previousStructure);
+                    previousStructure.destroyed = true;
+                    previousStructure.setFormed(false);
+                }
+                for (Coord4D location : previousLocations) {
+                    TileEntity tile = location.getTileEntity(pointer.getWorld());
+                    if (tile instanceof TileEntityMultiblock<?> multiblock && multiblock.structure == previousStructure) {
+                        multiblock.structure = null;
                     }
                 }
             }
@@ -419,12 +454,15 @@ public abstract class UpdateProtocol<T extends SynchronizedData<T>> {
             onFormed();
 
             List<IStructuralMultiblock> structures = new ArrayList<>();
+            List<TileEntityMultiblock<T>> formedTiles = new ArrayList<>();
             Coord4D toUse = null;
 
             for (Coord4D obj : structureFound.locations) {
                 TileEntity tileEntity = obj.getTileEntity(pointer.getWorld());
                 if (tileEntity instanceof TileEntityMultiblock) {
-                    ((TileEntityMultiblock<T>) tileEntity).structure = structureFound;
+                    TileEntityMultiblock<T> multiblock = (TileEntityMultiblock<T>) tileEntity;
+                    multiblock.structure = structureFound;
+                    formedTiles.add(multiblock);
                     if (toUse == null) {
                         toUse = obj;
                     }
@@ -437,6 +475,31 @@ public abstract class UpdateProtocol<T extends SynchronizedData<T>> {
             for (IStructuralMultiblock node : structures) {
                 node.setController(toUse);
                 structureFound.locations.remove(Coord4D.get((TileEntity) node));
+            }
+            //Make the new shared state and ID visible immediately on every loaded replica. This
+            //also establishes the canonical manager cache before another neighbor callback can run.
+            for (TileEntityMultiblock<T> formedTile : formedTiles) {
+                formedTile.syncCachedDataFromStructure();
+                formedTile.markDirty();
+            }
+            TileEntityMultiblock<T> renderer = null;
+            for (TileEntityMultiblock<T> formedTile : formedTiles) {
+                if (formedTile.isRendering && renderer == null) {
+                    renderer = formedTile;
+                } else {
+                    formedTile.isRendering = false;
+                }
+            }
+            if (renderer == null && !formedTiles.isEmpty()) {
+                renderer = formedTiles.get(0);
+                renderer.isRendering = true;
+            }
+            structureFound.hasRenderer = renderer != null;
+            if (renderer != null) {
+                renderer.sendStructure = true;
+                //prevStructure remains true during an in-place rebuild, so the base tile tick
+                //will not automatically resend the new UUID and dimensions.
+                pointer.sendPacketToRenderer();
             }
         } else {
             iteratedNodes.forEach(coord -> {

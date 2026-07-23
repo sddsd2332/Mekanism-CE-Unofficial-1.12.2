@@ -165,7 +165,7 @@ public class TileEntityBoilerValve extends TileEntityBoilerCasing implements ICo
                     return new Object[]{structure.lastMaxBoil};
                 }
                 case 5 -> {
-                    return new Object[]{structure.temperature};
+                    return new Object[]{structure.getTemperature()};
                 }
             }
         }

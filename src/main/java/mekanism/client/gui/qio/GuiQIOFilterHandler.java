@@ -74,10 +74,7 @@ public abstract class GuiQIOFilterHandler<TILE extends TileEntityQIOFilterHandle
         if (frequency == null) {
             return Collections.emptyList();
         }
-        return Arrays.asList(MekanismLang.QIO_ITEMS_DETAIL.translateColored(EnumColor.GREY, EnumColor.INDIGO,
-                    TextUtils.format(frequency.getTotalCount()), TextUtils.format(frequency.getTotalCountCapacity())),
-              MekanismLang.QIO_TYPES_DETAIL.translateColored(EnumColor.GREY, EnumColor.INDIGO,
-                    TextUtils.format(frequency.getTotalTypes()), TextUtils.format(frequency.getTotalTypeCapacity())));
+        return QIOGuiCapacityText.forFrequency(frequency);
     }
 
     @Override

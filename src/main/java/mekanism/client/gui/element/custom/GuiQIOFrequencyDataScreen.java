@@ -5,6 +5,7 @@ import mekanism.client.gui.IGuiWrapper;
 import mekanism.client.gui.element.GuiInnerScreen;
 import mekanism.client.gui.element.bar.GuiBar.IBarInfoHandler;
 import mekanism.client.gui.element.bar.GuiDigitalBar;
+import mekanism.client.gui.qio.QIOGuiCapacityText;
 import mekanism.common.MekanismLang;
 import mekanism.common.content.qio.QIOFrequency;
 import mekanism.common.util.text.TextUtils;
@@ -57,11 +58,9 @@ public class GuiQIOFrequencyDataScreen extends GuiInnerScreen {
                 return 0;
             }
             if (count) {
-                long capacity = frequency.getTotalCountCapacity();
-                return capacity <= 0 ? 0 : frequency.getTotalCount() / (double) capacity;
+                return frequency.getCapacitySummary().getCountLevel(frequency.getExactTotalCount());
             }
-            int capacity = frequency.getTotalTypeCapacity();
-            return capacity <= 0 ? 0 : frequency.getTotalTypes() / (double) capacity;
+            return frequency.getCapacitySummary().getTypeLevel(frequency.getTotalTypes());
         }
 
         @Override
@@ -70,10 +69,8 @@ public class GuiQIOFrequencyDataScreen extends GuiInnerScreen {
             if (frequency == null) {
                 return null;
             }
-            return count ? MekanismLang.QIO_RESOURCES_DETAIL.translateColored(EnumColor.GREY, EnumColor.INDIGO,
-                  TextUtils.format(frequency.getTotalCount()), TextUtils.format(frequency.getTotalCountCapacity())) :
-                  MekanismLang.QIO_TYPES_DETAIL.translateColored(EnumColor.GREY, EnumColor.INDIGO,
-                        TextUtils.format(frequency.getTotalTypes()), TextUtils.format(frequency.getTotalTypeCapacity()));
+            java.util.List<ITextComponent> details = QIOGuiCapacityText.forFrequency(frequency);
+            return details.size() < 2 ? null : details.get(count ? 0 : 1);
         }
     }
 }

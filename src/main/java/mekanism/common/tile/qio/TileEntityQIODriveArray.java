@@ -9,6 +9,7 @@ import mekanism.common.content.qio.IQIODriveHolder;
 import mekanism.common.content.qio.QIODriveData;
 import mekanism.common.content.qio.QIODriveMount;
 import mekanism.common.content.qio.QIODriveSlotState;
+import mekanism.common.content.qio.QIOAmount;
 import mekanism.common.content.qio.QIOFrequency;
 import mekanism.common.inventory.slot.QIODriveSlot;
 import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
@@ -93,11 +94,13 @@ public class TileEntityQIODriveArray extends TileEntityQIOComponent implements I
                 QIODriveSlotState state = frequency.getSlotState(mount);
                 QIODriveData data = frequency.getDriveData(mount);
                 if (state == QIODriveSlotState.ACTIVE && data != null) {
-                    if (data.getRecord().getTotalStorageUnits() >= data.getRecord().getStorageCapacity() ||
-                          data.getRecord().getTotalTypes() >= data.getRecord().getTypeCapacity()) {
+                    boolean countFull = data.getRecord().getExactTotalStorageUnits().compareTo(
+                          data.getRecord().getExactStorageCapacity()) >= 0;
+                    boolean typesFull = data.getRecord().getTotalTypes() >= data.getRecord().getTypeCapacity();
+                    if (countFull || typesFull) {
                         status = DriveStatus.FULL;
-                    } else if (data.getRecord().getTotalStorageUnits() * 4 >= data.getRecord().getStorageCapacity() * 3L ||
-                          data.getRecord().getTotalTypes() >= data.getRecord().getTypeCapacity()) {
+                    } else if (isNearFull(data.getRecord().getExactTotalStorageUnits(),
+                          data.getRecord().getExactStorageCapacity())) {
                         status = DriveStatus.NEAR_FULL;
                     } else {
                         status = DriveStatus.READY;
@@ -131,6 +134,15 @@ public class TileEntityQIODriveArray extends TileEntityQIOComponent implements I
         int shift = slot * BITS_PER_DRIVE_STATUS;
         long mask = ((long) DRIVE_STATUS_MASK) << shift;
         return (currentStatus & ~mask) | ((long) status.ordinal() << shift);
+    }
+
+    public static boolean isNearFull(long stored, long capacity) {
+        return capacity > 0 && stored >= capacity - capacity / 4;
+    }
+
+    public static boolean isNearFull(QIOAmount stored, QIOAmount capacity) {
+        return stored != null && capacity != null && !capacity.isZero() &&
+              stored.multiply(4).compareTo(capacity.multiply(3)) >= 0;
     }
 
     public static int getStatusOrdinal(int slot, long status) {

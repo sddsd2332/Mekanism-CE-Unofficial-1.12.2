@@ -5,13 +5,13 @@ import mekanism.api.NBTConstants;
 import mekanism.api.energy.IStrictEnergyStorage;
 import mekanism.client.MekKeyHandler;
 import mekanism.client.MekanismKeyHandler;
-import mekanism.common.Mekanism;
 import mekanism.common.MekanismBlocks;
 import mekanism.common.base.ITierItem;
 import mekanism.common.block.states.BlockStateBasic.BasicBlockType;
 import mekanism.common.inventory.BinMekanismInventory;
 import mekanism.common.inventory.slot.BinInventorySlot;
 import mekanism.common.item.interfaces.IItemSustainedInventory;
+import mekanism.common.item.interfaces.IItemBlockPlacementData;
 import mekanism.common.tier.BaseTier;
 import mekanism.common.tier.BinTier;
 import mekanism.common.tier.InductionCellTier;
@@ -26,6 +26,7 @@ import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.settings.GameSettings;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -48,7 +49,7 @@ import java.util.List;
  *
  * @author AidanBrady
  */
-public class ItemBlockBasic extends ItemBlock implements ITierItem, IItemSustainedInventory {
+public class ItemBlockBasic extends ItemBlock implements ITierItem, IItemSustainedInventory, IItemBlockPlacementData {
 
     public Block metaBlock;
 
@@ -186,38 +187,32 @@ public class ItemBlockBasic extends ItemBlock implements ITierItem, IItemSustain
             }
         }
 
-        if (place && super.placeBlockAt(stack, player, world, pos, side, hitX, hitY, hitZ, state)) {
-            if (type == BasicBlockType.BIN && stack.getTagCompound() != null) {
-                TileEntityBin tileEntity = (TileEntityBin) world.getTileEntity(pos);
-                BinMekanismInventory inventory = BinMekanismInventory.create(stack);
-                tileEntity.tier = BinTier.values()[getBaseTier(stack).ordinal()];
-                if (inventory != null) {
-                    BinInventorySlot slot = inventory.getBinSlot();
-                    if (!slot.isEmpty()) {
-                        tileEntity.setItemType(slot.getStack());
-                    }
-                    tileEntity.setItemCount(slot.getCount());
-                    tileEntity.getBinSlot().setLockStack(slot.getLockStack());
+        return place && super.placeBlockAt(stack, player, world, pos, side, hitX, hitY, hitZ, state);
+    }
+
+    @Override
+    public void restorePlacementData(@Nonnull ItemStack stack, @Nonnull EntityLivingBase placer, @Nonnull World world, @Nonnull BlockPos pos,
+          @Nonnull TileEntity tileEntity) {
+        BasicBlockType type = BasicBlockType.get(stack);
+        if (type == BasicBlockType.BIN && stack.hasTagCompound() && tileEntity instanceof TileEntityBin bin) {
+            BinMekanismInventory inventory = BinMekanismInventory.create(stack);
+            bin.tier = BinTier.values()[getBaseTier(stack).ordinal()];
+            if (inventory != null) {
+                BinInventorySlot slot = inventory.getBinSlot();
+                if (!slot.isEmpty()) {
+                    bin.setItemType(slot.getStack());
                 }
-            } else if (type == BasicBlockType.INDUCTION_CELL) {
-                TileEntityInductionCell tileEntity = (TileEntityInductionCell) world.getTileEntity(pos);
-                tileEntity.tier = InductionCellTier.values()[getBaseTier(stack).ordinal()];
-                if (!world.isRemote) {
-                    Mekanism.packetHandler.sendUpdatePacket(tileEntity);
-                }
-            } else if (type == BasicBlockType.INDUCTION_PROVIDER) {
-                TileEntityInductionProvider tileEntity = (TileEntityInductionProvider) world.getTileEntity(pos);
-                tileEntity.tier = InductionProviderTier.values()[getBaseTier(stack).ordinal()];
-                if (!world.isRemote) {
-                    Mekanism.packetHandler.sendUpdatePacket(tileEntity);
-                }
+                bin.setItemCount(slot.getCount());
+                bin.getBinSlot().setLockStack(slot.getLockStack());
             }
-            TileEntity tileEntity = world.getTileEntity(pos);
-            if (tileEntity instanceof IStrictEnergyStorage storage && !(tileEntity instanceof TileEntityMultiblock<?>)) {
-                storage.setEnergy(StorageUtils.getStoredEnergyFromItemData(stack));
-            }
+        } else if (type == BasicBlockType.INDUCTION_CELL && tileEntity instanceof TileEntityInductionCell cell) {
+            cell.tier = InductionCellTier.values()[getBaseTier(stack).ordinal()];
+        } else if (type == BasicBlockType.INDUCTION_PROVIDER && tileEntity instanceof TileEntityInductionProvider provider) {
+            provider.tier = InductionProviderTier.values()[getBaseTier(stack).ordinal()];
         }
-        return place;
+        if (tileEntity instanceof IStrictEnergyStorage storage && !(tileEntity instanceof TileEntityMultiblock<?>)) {
+            storage.setEnergy(StorageUtils.getStoredEnergyForDisplay(stack));
+        }
     }
 
     @Nonnull

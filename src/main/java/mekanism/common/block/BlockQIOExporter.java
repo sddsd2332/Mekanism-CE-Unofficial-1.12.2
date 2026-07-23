@@ -11,6 +11,7 @@ import mekanism.common.tile.prefab.TileEntityBasicBlock;
 import mekanism.common.tile.qio.TileEntityQIOExporter;
 import mekanism.common.tile.qio.TileEntityQIOComponent;
 import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.MekanismPlacementData;
 import mekanism.common.util.SecurityUtils;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.BlockFaceShape;
@@ -68,6 +69,7 @@ public class BlockQIOExporter extends BlockMekanismContainer {
         TileEntity tile = world.getTileEntity(pos);
         QIOBlockShapes.setPlacedFacing(world, pos, state);
         if (tile instanceof ISecurityTile security && placer instanceof EntityPlayer player && security.getSecurity().getOwnerUUID() == null) security.getSecurity().setOwnerUUID(player.getUniqueID());
+        MekanismPlacementData.apply(world, pos, placer, stack);
     }
     @Override @Deprecated public void neighborChanged(IBlockState state, World world, BlockPos pos, net.minecraft.block.Block neighborBlock, BlockPos neighborPos) {
         if (!world.isRemote && world.getTileEntity(pos) instanceof TileEntityBasicBlock tile) tile.onNeighborChange(neighborBlock);

@@ -1,18 +1,15 @@
 package mekanism.client.gui.machine;
 
 import mekanism.client.gui.GuiMekanismTile;
-import mekanism.api.IHeatTransfer;
 import mekanism.client.gui.element.GuiInnerScreen;
 import mekanism.client.gui.element.progress.GuiFlame;
 import mekanism.client.gui.element.tab.GuiHeatTab;
 import mekanism.client.gui.element.tab.GuiWarningTab;
 import mekanism.client.gui.warning.IWarningTracker;
-import mekanism.common.config.MekanismConfig;
 import mekanism.common.inventory.container.ContainerFuelwoodHeater;
 import mekanism.common.tile.TileEntityFuelwoodHeater;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.UnitDisplayUtils;
 import mekanism.common.util.UnitDisplayUtils.TemperatureUnit;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.util.text.ITextComponent;
@@ -47,10 +44,9 @@ public class GuiFuelwoodHeater extends GuiMekanismTile<TileEntityFuelwoodHeater,
             }
         }, this, 144, 31));
         addButton(new GuiHeatTab(this, () -> {
-            TemperatureUnit unit = TemperatureUnit.values()[MekanismConfig.current().general.tempUnit.val().ordinal()];
-            String temp = UnitDisplayUtils.getDisplayShort(tileEntity.getTemp() + IHeatTransfer.AMBIENT_TEMP, unit);
-            String transfer = UnitDisplayUtils.getDisplayShort(tileEntity.lastTransferLoss * unit.intervalSize, false, unit);
-            String environment = UnitDisplayUtils.getDisplayShort(tileEntity.lastEnvironmentLoss * unit.intervalSize, false, unit);
+            String temp = MekanismUtils.getTemperatureDisplay(tileEntity.getTemp(), TemperatureUnit.KELVIN);
+            String transfer = MekanismUtils.getTemperatureDisplay(tileEntity.lastTransferLoss, TemperatureUnit.KELVIN, false);
+            String environment = MekanismUtils.getTemperatureDisplay(tileEntity.lastEnvironmentLoss, TemperatureUnit.KELVIN, false);
             return Arrays.asList(
                   new TextComponentString(LangUtils.localize("gui.temp") + ": " + temp),
                   new TextComponentString(LangUtils.localize("gui.transferred") + ": " + transfer + "/t"),
@@ -79,6 +75,6 @@ public class GuiFuelwoodHeater extends GuiMekanismTile<TileEntityFuelwoodHeater,
     }
 
     private String getTemp() {
-        return MekanismUtils.getTemperatureDisplay(tileEntity.getTemp(), TemperatureUnit.AMBIENT);
+        return MekanismUtils.getTemperatureDisplay(tileEntity.getTemp(), TemperatureUnit.KELVIN);
     }
 }

@@ -21,6 +21,7 @@ import mekanism.common.integration.ic2.IC2ItemManager;
 import mekanism.common.integration.redstoneflux.RFIntegration;
 import mekanism.common.integration.tesla.TeslaItemWrapper;
 import mekanism.common.item.interfaces.IItemSustainedInventory;
+import mekanism.common.item.interfaces.IItemBlockPlacementData;
 import mekanism.common.item.interfaces.ILegacyEnergizedItem;
 import mekanism.common.security.ISecurityItem;
 import mekanism.common.security.ISecurityTile;
@@ -35,10 +36,12 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.settings.GameSettings;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
@@ -65,7 +68,8 @@ import java.util.UUID;
         @Interface(iface = "cofh.redstoneflux.api.IEnergyContainerItem", modid = MekanismHooks.REDSTONEFLUX_MOD_ID),
         @Interface(iface = "ic2.api.item.ISpecialElectricItem", modid = MekanismHooks.IC2_MOD_ID)
 })
-public class ItemBlockGenerator extends ItemBlock implements ILegacyEnergizedItem, ISpecialElectricItem, IItemSustainedInventory, ISustainedTank, IEnergyContainerItem, ISecurityItem {
+public class ItemBlockGenerator extends ItemBlock implements ILegacyEnergizedItem, ISpecialElectricItem, IItemSustainedInventory, ISustainedTank, IEnergyContainerItem,
+      ISecurityItem, IItemBlockPlacementData {
 
     public Block metaBlock;
 
@@ -186,37 +190,13 @@ public class ItemBlockGenerator extends ItemBlock implements ILegacyEnergizedIte
             }
         }
 
-        if (place && super.placeBlockAt(stack, player, world, pos, side, hitX, hitY, hitZ, state)) {
-            TileEntityBasicBlock tileEntity = (TileEntityBasicBlock) world.getTileEntity(pos);
-            if (tileEntity instanceof ISecurityTile security) {
-                security.getSecurity().setOwnerUUID(getOwnerUUID(stack));
-                if (hasSecurity(stack)) {
-                    security.getSecurity().setMode(getSecurity(stack));
-                }
-                if (getOwnerUUID(stack) == null) {
-                    security.getSecurity().setOwnerUUID(player.getUniqueID());
-                }
-            }
+        return place && super.placeBlockAt(stack, player, world, pos, side, hitX, hitY, hitZ, state);
+    }
 
-            if (tileEntity instanceof TileEntityElectricBlock entityElectricBlock) {
-                entityElectricBlock.setEnergy(StorageUtils.getStoredEnergyFromItemData(stack));
-            }
-            if (tileEntity instanceof ISustainedInventory inventory) {
-                inventory.setInventory(getInventory(stack));
-            }
-            if (tileEntity instanceof ISustainedData data) {
-                if (stack.getTagCompound() != null) {
-                    data.readSustainedData(stack);
-                }
-            }
-            if (tileEntity instanceof ISustainedTank tank) {
-                if (hasTank(stack) && getFluidStack(stack) != null) {
-                    tank.setFluidStack(getFluidStack(stack), stack);
-                }
-            }
-            return true;
-        }
-        return false;
+    @Override
+    public void restorePlacementData(@Nonnull ItemStack stack, @Nonnull EntityLivingBase placer, @Nonnull World world, @Nonnull BlockPos pos,
+          @Nonnull TileEntity tileEntity) {
+        MekanismPlacementData.restoreCommon(stack, placer, tileEntity);
     }
 
     @Override

@@ -1,6 +1,7 @@
 package mekanism.common.content.qio;
 
 import javax.annotation.Nonnull;
+import java.math.BigInteger;
 
 /** Fixed-point conversion used by every QIO count-capacity calculation. */
 public final class QIOStorageUnits {
@@ -35,10 +36,18 @@ public final class QIOStorageUnits {
     }
 
     public static long getInsertableAmount(@Nonnull QIOResourceKind kind, long requested, long availableStorageUnits) {
-        if (requested <= 0 || availableStorageUnits <= 0) {
+        return getInsertableAmount(kind, requested, BigInteger.valueOf(Math.max(0, availableStorageUnits)));
+    }
+
+    public static long getInsertableAmount(@Nonnull QIOResourceKind kind, long requested,
+          @Nonnull BigInteger availableStorageUnits) {
+        if (requested <= 0 || availableStorageUnits.signum() <= 0) {
             return 0;
         }
-        return Math.min(requested, availableStorageUnits / getUnitsPerResource(kind));
+        BigInteger unitsPerResource = BigInteger.valueOf(getUnitsPerResource(kind));
+        BigInteger requestedAmount = BigInteger.valueOf(requested);
+        BigInteger availableAmount = availableStorageUnits.divide(unitsPerResource);
+        return availableAmount.compareTo(requestedAmount) >= 0 ? requested : availableAmount.longValue();
     }
 
     public static long safeAdd(long first, long second) {

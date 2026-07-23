@@ -2,8 +2,10 @@ package mekanism.generators.common.tile.fission;
 
 import io.netty.buffer.ByteBuf;
 import mekanism.api.Coord4D;
+import mekanism.api.IContentsListener;
 import mekanism.api.MekanismAPI;
 import mekanism.api.TileNetworkList;
+import mekanism.common.capabilities.holder.heat.IHeatCapacitorHolder;
 import mekanism.client.sound.SoundHandler;
 import mekanism.common.Mekanism;
 import mekanism.common.config.MekanismConfig;
@@ -14,6 +16,7 @@ import mekanism.common.multiblock.UpdateProtocol;
 import mekanism.common.tile.multiblock.TileEntityMultiblock;
 import mekanism.common.util.InventoryUtils;
 import mekanism.common.util.LangUtils;
+import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.TileUtils;
 import mekanism.generators.common.MekanismGenerators;
 import mekanism.generators.common.content.fission.FissionReactorCache;
@@ -21,14 +24,12 @@ import mekanism.generators.common.content.fission.FissionReactorUpdateProtocol;
 import mekanism.generators.common.content.fission.SynchronizedFissionData;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.audio.ISound;
-import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumHand;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.SoundEvent;
-import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraftforge.fml.common.FMLCommonHandler;
@@ -51,6 +52,9 @@ public class TileEntityFissionReactorCasing extends TileEntityMultiblock<Synchro
 
     protected TileEntityFissionReactorCasing(String name) {
         super(name);
+        if (getClass() == TileEntityFissionReactorCasing.class) {
+            initializeContainerHolders();
+        }
     }
 
     @Override
@@ -64,7 +68,9 @@ public class TileEntityFissionReactorCasing extends TileEntityMultiblock<Synchro
             markNoUpdateSync();
         }
 
-        if (isRendering) {
+        //The renderer may be in an unloaded chunk while another casing remains loaded. Let any
+        //loaded casing own structure-wide processing, while the claim keeps it to once per tick.
+        if (tryClaimStructureServerTick()) {
             boolean needsUpdate = structure.needsRenderUpdate();
             structure.tick(world);
             if (structure.shouldMeltdown(world.rand)) {
@@ -74,15 +80,16 @@ public class TileEntityFissionReactorCasing extends TileEntityMultiblock<Synchro
                 sendPacketToRenderer();
             }
             structure.syncPrev();
+            syncCachedDataFromStructure();
+            //SynchronizedData has no owning tile listener in the 1.12 multiblock implementation.
+            //Ensure runtime heat, fuel, and damage changes cause the current owner chunk to be saved.
+            MekanismUtils.saveChunk(this);
         }
+    }
 
-        if (structure.temperature >= SynchronizedFissionData.MIN_DAMAGE_TEMPERATURE && world.rand.nextInt(20) == 0) {
-            AxisAlignedBB hotZone = new AxisAlignedBB(structure.minLocation.x + 1, structure.minLocation.y + 1, structure.minLocation.z + 1,
-                    structure.maxLocation.x, structure.maxLocation.y, structure.maxLocation.z);
-            for (Entity entity : world.getEntitiesWithinAABB(Entity.class, hotZone)) {
-                entity.setFire(2);
-            }
-        }
+    @Override
+    protected IHeatCapacitorHolder getInitialHeatCapacitors(IContentsListener listener) {
+        return null;
     }
 
     private void triggerMeltdown() {
@@ -93,9 +100,11 @@ public class TileEntityFissionReactorCasing extends TileEntityMultiblock<Synchro
         BlockPos maxPos = structure.maxLocation.getPos();
         Coord4D center = new Coord4D((minPos.getX() + maxPos.getX()) / 2D, (minPos.getY() + maxPos.getY()) / 2D, (minPos.getZ() + maxPos.getZ()) / 2D,
                 world.provider.getDimension());
-        double releasedRadiation = structure.collectRadiationForMeltdown();
-        if (releasedRadiation > 0) {
-            MekanismAPI.getRadiationManager().radiate(center, releasedRadiation);
+        if (MekanismAPI.getRadiationManager().isRadiationEnabled()) {
+            double releasedRadiation = structure.collectRadiationForMeltdown();
+            if (releasedRadiation > 0) {
+                MekanismAPI.getRadiationManager().radiate(center, releasedRadiation);
+            }
         }
         double magnitude = structure.getEstimatedMeltdownMagnitude();
         RadiationManager.INSTANCE.createMeltdown(world, minPos, maxPos, magnitude, SynchronizedFissionData.MELTDOWN_EXPLOSION_CHANCE, getMeltdownID());
@@ -176,16 +185,17 @@ public class TileEntityFissionReactorCasing extends TileEntityMultiblock<Synchro
     public TileNetworkList getNetworkedData(TileNetworkList data) {
         super.getNetworkedData(data);
         if (structure != null) {
+            structure.sanitizeRuntimeState();
             data.add(structure.fuelAssemblies);
             data.add(structure.surfaceArea);
             data.add(structure.volume);
-            data.add(structure.casingHeatCapacity);
+            data.add(structure.getHeatCapacitor().getHeatCapacity());
             data.add(structure.rateLimit);
             data.add(structure.active);
             data.add(structure.forceDisable);
             data.add(structure.burnRemaining);
             data.add(structure.partialWaste);
-            data.add(structure.temperature);
+            data.add(structure.getHeatCapacitor().getHeat());
             data.add(structure.reactorDamage);
             data.add(structure.lastBoilRate);
             data.add(structure.lastBurnRate);
@@ -217,18 +227,18 @@ public class TileEntityFissionReactorCasing extends TileEntityMultiblock<Synchro
         }
         super.handlePacketData(dataStream);
         if (FMLCommonHandler.instance().getEffectiveSide().isClient() && clientHasStructure && structure != null) {
-            structure.fuelAssemblies = dataStream.readInt();
-            structure.surfaceArea = dataStream.readInt();
-            structure.volume = dataStream.readInt();
-            structure.casingHeatCapacity = dataStream.readDouble();
+            structure.fuelAssemblies = Math.max(0, dataStream.readInt());
+            structure.surfaceArea = Math.max(0, dataStream.readInt());
+            structure.volume = Math.max(0, dataStream.readInt());
+            structure.getHeatCapacitor().setHeatCapacityFromPacket(dataStream.readDouble());
             structure.rateLimit = dataStream.readDouble();
             structure.active = dataStream.readBoolean();
             structure.forceDisable = dataStream.readBoolean();
             structure.burnRemaining = dataStream.readDouble();
             structure.partialWaste = dataStream.readDouble();
-            structure.temperature = dataStream.readDouble();
+            structure.getHeatCapacitor().setHeat(dataStream.readDouble());
             structure.reactorDamage = dataStream.readDouble();
-            structure.lastBoilRate = dataStream.readLong();
+            structure.lastBoilRate = Math.max(0, dataStream.readLong());
             structure.lastBurnRate = dataStream.readDouble();
             structure.lastEnvironmentLoss = dataStream.readDouble();
             TileUtils.readTankData(dataStream, structure.fuelTank);
@@ -237,6 +247,7 @@ public class TileEntityFissionReactorCasing extends TileEntityMultiblock<Synchro
             TileUtils.readTankData(dataStream, structure.heatedCoolantTank);
             TileUtils.readTankData(dataStream, structure.coolantTank);
             TileUtils.readTankData(dataStream, structure.steamTank);
+            structure.sanitizeRuntimeState();
             structure.updateCapacities();
             structure.syncPrev();
         }

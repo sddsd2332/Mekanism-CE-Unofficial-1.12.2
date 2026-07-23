@@ -9,10 +9,10 @@ import mekanism.client.gui.element.tab.GuiWarningTab;
 import mekanism.client.gui.element.text.GuiTextField;
 import mekanism.client.gui.warning.IWarningTracker;
 import mekanism.common.Mekanism;
-import mekanism.common.config.MekanismConfig;
 import mekanism.common.inventory.container.ContainerNull;
 import mekanism.common.network.PacketTileEntity.TileEntityMessage;
 import mekanism.common.util.LangUtils;
+import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.UnitDisplayUtils;
 import mekanism.common.util.UnitDisplayUtils.TemperatureUnit;
 import mekanism.generators.client.gui.element.GuiFissionReactorTab;
@@ -75,7 +75,7 @@ public class GuiFissionReactorStats extends GuiMekanismTile<TileEntityFissionRea
 
         SynchronizedFissionData data = tileEntity.structure;
         drawScrollingString(new TextComponentString(LangUtils.localize("gui.fissionHeatStatistics")), 0, 20, TextAlignment.LEFT, headingTextColor(), 6, false);
-        drawScrollingString(new TextComponentString(LangUtils.localize("tooltip.heatCapacity") + ": " + UnitDisplayUtils.roundDecimals(data.casingHeatCapacity)), 0, 32,
+        drawScrollingString(new TextComponentString(LangUtils.localize("tooltip.heatCapacity") + ": " + UnitDisplayUtils.roundDecimals(data.getHeatCapacitor().getHeatCapacity())), 0, 32,
               TextAlignment.LEFT, titleTextColor(), 6, false);
         drawScrollingString(new TextComponentString(LangUtils.localize("gui.surfaceArea") + ": " + data.surfaceArea), 0, 42,
               TextAlignment.LEFT, titleTextColor(), 6, false);
@@ -97,8 +97,7 @@ public class GuiFissionReactorStats extends GuiMekanismTile<TileEntityFissionRea
         if (tileEntity.structure == null) {
             return Collections.emptyList();
         }
-        TemperatureUnit unit = TemperatureUnit.values()[MekanismConfig.current().general.tempUnit.val().ordinal()];
-        String environment = UnitDisplayUtils.getDisplayShort(tileEntity.structure.lastEnvironmentLoss * unit.intervalSize, false, unit);
+        String environment = MekanismUtils.getTemperatureDisplay(tileEntity.structure.lastEnvironmentLoss, TemperatureUnit.KELVIN, false);
         return Collections.singletonList(new TextComponentString(LangUtils.localize("gui.dissipated") + ": " + environment + "/t"));
     }
 

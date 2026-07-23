@@ -17,9 +17,11 @@ import mekanism.common.KeySync;
 import mekanism.common.Mekanism;
 import mekanism.common.MekanismModules;
 import mekanism.common.config.MekanismConfig;
+import mekanism.common.content.boiler.SynchronizedBoilerData;
 import mekanism.common.content.gear.ModuleHelper;
 import mekanism.common.content.gear.mekasuit.ModuleVisionEnhancementUnit;
 import mekanism.common.frequency.Frequency.FrequencyIdentity;
+import mekanism.common.interfaces.IOcclusionCulling;
 import mekanism.common.item.armor.ItemMekaSuitBodyArmor;
 import mekanism.common.item.armor.ItemMekaSuitHelmet;
 import mekanism.common.item.armor.ItemMekaSuitPants;
@@ -376,6 +378,10 @@ public class ClientTickHandler {
     //Maybe it works
     @SubscribeEvent
     public void remove(WorldEvent.Unload event) {
+        if (event.getWorld().isRemote) {
+            IOcclusionCulling.cullingClearClientCaches();
+            SynchronizedBoilerData.clientHotMap.clear();
+        }
         portableTeleports.remove(minecraft.player);
     }
 

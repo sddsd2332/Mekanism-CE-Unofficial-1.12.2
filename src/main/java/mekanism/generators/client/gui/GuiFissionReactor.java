@@ -20,7 +20,6 @@ import mekanism.client.gui.element.tab.GuiWarningTab;
 import mekanism.client.gui.warning.IWarningTracker;
 import mekanism.client.recipe_viewer.type.RecipeViewerRecipeType;
 import mekanism.common.Mekanism;
-import mekanism.common.config.MekanismConfig;
 import mekanism.common.network.PacketTileEntity.TileEntityMessage;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
@@ -89,7 +88,7 @@ public class GuiFissionReactor extends GuiMekanismTile<TileEntityFissionReactorC
 
             @Override
             public double getLevel() {
-                return tileEntity.structure == null ? 0 : Math.min(1, tileEntity.structure.temperature / SynchronizedFissionData.MAX_DAMAGE_TEMPERATURE);
+                return tileEntity.structure == null ? 0 : Math.min(1, tileEntity.structure.getTemperature() / SynchronizedFissionData.MAX_DAMAGE_TEMPERATURE);
             }
         }, 5, 102, xSize - 12));
         heatGraph = addButton(new GuiGraph(this, 5, 123, xSize - 10, 38, data -> LangUtils.localize("gui.temp") + ": " + data + " K"));
@@ -119,7 +118,7 @@ public class GuiFissionReactor extends GuiMekanismTile<TileEntityFissionReactorC
         super.updateScreen();
         if (heatGraph != null) {
             heatGraph.addData(tileEntity.structure == null ? (int) SynchronizedFissionData.BASE_TEMPERATURE :
-                  MathUtils.clampToInt(Math.round(tileEntity.structure.temperature)));
+                  MathUtils.clampToInt(Math.round(tileEntity.structure.getTemperature())));
         }
     }
 
@@ -153,8 +152,7 @@ public class GuiFissionReactor extends GuiMekanismTile<TileEntityFissionReactorC
         if (tileEntity.structure == null) {
             return Collections.emptyList();
         }
-        TemperatureUnit unit = TemperatureUnit.values()[MekanismConfig.current().general.tempUnit.val().ordinal()];
-        String environment = UnitDisplayUtils.getDisplayShort(tileEntity.structure.lastEnvironmentLoss * unit.intervalSize, false, unit);
+        String environment = MekanismUtils.getTemperatureDisplay(tileEntity.structure.lastEnvironmentLoss, TemperatureUnit.KELVIN, false);
         return Collections.singletonList(new TextComponentString(LangUtils.localize("gui.dissipated") + ": " + environment + "/t"));
     }
 
@@ -188,7 +186,7 @@ public class GuiFissionReactor extends GuiMekanismTile<TileEntityFissionReactorC
     }
 
     private String getTemperatureDisplay() {
-        return tileEntity.structure == null ? "0 K" : MekanismUtils.getTemperatureDisplay(tileEntity.structure.temperature, TemperatureUnit.KELVIN);
+        return tileEntity.structure == null ? "0 K" : MekanismUtils.getTemperatureDisplay(tileEntity.structure.getTemperature(), TemperatureUnit.KELVIN);
     }
 
     private EnumColor getDamageColor() {

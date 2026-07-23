@@ -2,6 +2,7 @@ package mekanism.common.util.text;
 
 import mekanism.common.util.LangUtils;
 
+import java.math.BigInteger;
 import java.text.NumberFormat;
 
 public final class TextUtils {
@@ -30,6 +31,10 @@ public final class TextUtils {
 
     public static String format(double count) {
         return doubleFormatter.format(count);
+    }
+
+    public static String format(BigInteger count) {
+        return intFormatter.format(count);
     }
 
     public static String hex(boolean prefix, int bytes, long value) {

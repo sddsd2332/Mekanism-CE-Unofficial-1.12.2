@@ -63,6 +63,7 @@ import java.util.function.Consumer;
 public class InventoryFrequency extends Frequency implements IMekanismInventory {
 
     public static final String ENTANGLOPORTER = "Entangloporter";
+    private static final double DEFAULT_ENERGY_BUFFER = 16_000_000D;
 
     public BasicEnergyContainer storedEnergy;
     public BasicFluidTank storedFluid;
@@ -76,7 +77,6 @@ public class InventoryFrequency extends Frequency implements IMekanismInventory 
     private List<IHeatCapacitor> heatCapacitors;
     private final Map<Coord4D, TileEntityQuantumEntangloporter> activeQEs = new Object2ObjectOpenHashMap<>();
     private long lastEject = -1;
-    public double temperature;
 
     public InventoryFrequency(String n, UUID uuid) {
         this(n, uuid, SecurityMode.PUBLIC);
@@ -96,14 +96,18 @@ public class InventoryFrequency extends Frequency implements IMekanismInventory 
     }
 
     private void initContainers() {
-        storedEnergy = BasicEnergyContainer.create(MekanismConfig.current().general.quantumEntangloporterEnergyTransfer.val(), this);
+        storedEnergy = BasicEnergyContainer.create(getEnergyBufferCapacity(), this);
         energyContainers = Collections.singletonList(storedEnergy);
         storedHeat = BasicHeatCapacitor.create(HeatAPI.DEFAULT_HEAT_CAPACITY, HeatAPI.DEFAULT_INVERSE_CONDUCTION, 1_000, () -> HeatAPI.AMBIENT_TEMP, this);
         heatCapacitors = Collections.singletonList(storedHeat);
         initTanks();
         storedItem = EntangloporterInventorySlot.create(this);
         inventorySlots = Collections.singletonList(storedItem);
-        temperature = getTemperature();
+    }
+
+    public static double getEnergyBufferCapacity() {
+        double configured = MekanismConfig.current().general.quantumEntangloporterEnergyTransfer.val();
+        return HeatAPI.isFinite(configured) ? Math.max(0, Math.min(HeatAPI.MAX_HEAT, configured)) : DEFAULT_ENERGY_BUFFER;
     }
 
     private void initTanks() {
@@ -361,7 +365,6 @@ public class InventoryFrequency extends Frequency implements IMekanismInventory 
         }
         nbtTags.setTag("storedItem", storedItem.serializeNBT());
         nbtTags.setTag(NBTConstants.HEAT_STORED, storedHeat.serializeNBT());
-        nbtTags.setDouble("temperature", getTemperature());
     }
 
     @Override
@@ -388,10 +391,7 @@ public class InventoryFrequency extends Frequency implements IMekanismInventory 
         }
         if (nbtTags.hasKey(NBTConstants.HEAT_STORED, NBT.TAG_COMPOUND)) {
             storedHeat.deserializeNBT(nbtTags.getCompoundTag(NBTConstants.HEAT_STORED));
-        } else {
-            storedHeat.setHeat((nbtTags.getDouble("temperature") + HeatAPI.AMBIENT_TEMP) * storedHeat.getHeatCapacity());
         }
-        temperature = getTemperature();
     }
 
     @Override
@@ -400,7 +400,8 @@ public class InventoryFrequency extends Frequency implements IMekanismInventory 
         data.add(storedEnergy.getEnergy());
         TileUtils.addTankData(data, storedFluid);
         TileUtils.addTankData(data, storedGas);
-        data.add(getTemperature());
+        data.add(storedHeat.getHeatCapacity());
+        data.add(storedHeat.getHeat());
     }
 
     @Override
@@ -410,14 +411,11 @@ public class InventoryFrequency extends Frequency implements IMekanismInventory 
         storedEnergy.setEnergy(dataStream.readDouble());
         TileUtils.readTankData(dataStream, storedFluid);
         TileUtils.readTankData(dataStream, storedGas);
-        storedHeat.setHeat((dataStream.readDouble() + HeatAPI.AMBIENT_TEMP) * storedHeat.getHeatCapacity());
-        temperature = getTemperature();
+        storedHeat.setHeatCapacityFromPacket(dataStream.readDouble());
+        storedHeat.setHeat(dataStream.readDouble());
     }
 
     public double getTemperature() {
-        if (storedHeat == null) {
-            return temperature;
-        }
-        return storedHeat.getTemperature() - HeatAPI.AMBIENT_TEMP;
+        return storedHeat == null ? HeatAPI.AMBIENT_TEMP : storedHeat.getTemperature();
     }
 }

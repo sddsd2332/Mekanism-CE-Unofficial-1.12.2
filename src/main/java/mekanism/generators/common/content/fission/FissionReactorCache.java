@@ -1,6 +1,8 @@
 package mekanism.generators.common.content.fission;
 
+import mekanism.api.NBTConstants;
 import mekanism.api.gas.GasStack;
+import mekanism.api.heat.HeatAPI;
 import mekanism.common.multiblock.MultiblockCache;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.fluids.FluidStack;
@@ -20,7 +22,8 @@ public class FissionReactorCache extends MultiblockCache<SynchronizedFissionData
 
     public double burnRemaining;
     public double partialWaste;
-    public double temperature = SynchronizedFissionData.BASE_TEMPERATURE;
+    public double storedHeat = -1;
+    public double heatCapacity;
     public double reactorDamage;
     public boolean forceDisable;
 
@@ -34,18 +37,23 @@ public class FissionReactorCache extends MultiblockCache<SynchronizedFissionData
         data.coolantTank.setFluid(coolant == null ? null : coolant.copy());
         data.steamTank.setFluid(steam == null ? null : steam.copy());
 
-        data.rateLimit = rateLimit;
+        data.rateLimit = HeatAPI.isFinite(rateLimit) ? Math.max(0, rateLimit) : SynchronizedFissionData.getDefaultRateLimit();
         data.active = active;
-        data.burnRemaining = burnRemaining;
-        data.partialWaste = partialWaste;
-        data.temperature = temperature;
-        data.reactorDamage = reactorDamage;
+        data.burnRemaining = HeatAPI.isFinite(burnRemaining) ? Math.max(0, Math.min(HeatAPI.MAX_HEAT, burnRemaining)) : 0;
+        data.partialWaste = HeatAPI.isFinite(partialWaste) ? Math.max(0, Math.min(HeatAPI.MAX_HEAT, partialWaste)) : 0;
+        if (storedHeat >= 0 && HeatAPI.isFinite(storedHeat) && heatCapacity >= 1 && HeatAPI.isFinite(heatCapacity)) {
+            data.getHeatCapacitor().setHeatCapacity(heatCapacity, false);
+            data.getHeatCapacitor().setHeat(storedHeat);
+        }
+        data.reactorDamage = SynchronizedFissionData.sanitizeDamage(reactorDamage);
         data.forceDisable = forceDisable;
+        data.sanitizeRuntimeState();
         data.updateCapacities();
     }
 
     @Override
     public void sync(SynchronizedFissionData data) {
+        data.sanitizeRuntimeState();
         fuel = data.fuelTank.getGas() == null ? null : data.fuelTank.getGas().copy();
         waste = data.wasteTank.getGas() == null ? null : data.wasteTank.getGas().copy();
         gasCoolant = data.gasCoolantTank.getGas() == null ? null : data.gasCoolantTank.getGas().copy();
@@ -53,12 +61,13 @@ public class FissionReactorCache extends MultiblockCache<SynchronizedFissionData
         coolant = data.coolantTank.getFluid() == null ? null : data.coolantTank.getFluid().copy();
         steam = data.steamTank.getFluid() == null ? null : data.steamTank.getFluid().copy();
 
-        rateLimit = data.rateLimit;
+        rateLimit = HeatAPI.isFinite(data.rateLimit) ? Math.max(0, data.rateLimit) : SynchronizedFissionData.getDefaultRateLimit();
         active = data.active;
-        burnRemaining = data.burnRemaining;
-        partialWaste = data.partialWaste;
-        temperature = data.temperature;
-        reactorDamage = data.reactorDamage;
+        burnRemaining = HeatAPI.isFinite(data.burnRemaining) ? Math.max(0, Math.min(HeatAPI.MAX_HEAT, data.burnRemaining)) : 0;
+        partialWaste = HeatAPI.isFinite(data.partialWaste) ? Math.max(0, Math.min(HeatAPI.MAX_HEAT, data.partialWaste)) : 0;
+        storedHeat = data.getHeatCapacitor().getHeat();
+        heatCapacity = data.getHeatCapacitor().getHeatCapacity();
+        reactorDamage = SynchronizedFissionData.sanitizeDamage(data.reactorDamage);
         forceDisable = data.forceDisable;
     }
 
@@ -87,9 +96,22 @@ public class FissionReactorCache extends MultiblockCache<SynchronizedFissionData
         active = nbtTags.getBoolean("fissionActive");
         burnRemaining = nbtTags.getDouble("fissionBurnRemaining");
         partialWaste = nbtTags.getDouble("fissionPartialWaste");
-        temperature = nbtTags.hasKey("fissionTemperature") ? nbtTags.getDouble("fissionTemperature") : SynchronizedFissionData.BASE_TEMPERATURE;
+        if (nbtTags.hasKey(NBTConstants.HEAT_STORED) && nbtTags.hasKey(NBTConstants.HEAT_CAPACITY)) {
+            double loadedHeat = nbtTags.getDouble(NBTConstants.HEAT_STORED);
+            double loadedCapacity = nbtTags.getDouble(NBTConstants.HEAT_CAPACITY);
+            if (loadedHeat >= 0 && HeatAPI.isFinite(loadedHeat) && loadedCapacity >= 1 && HeatAPI.isFinite(loadedCapacity)) {
+                storedHeat = HeatAPI.sanitizeHeat(loadedHeat, 0);
+                heatCapacity = HeatAPI.sanitizeHeatCapacity(loadedCapacity);
+            }
+        }
         reactorDamage = nbtTags.getDouble("fissionReactorDamage");
         forceDisable = nbtTags.getBoolean("fissionForceDisable");
+        if (!HeatAPI.isFinite(rateLimit) || rateLimit < 0) {
+            rateLimit = SynchronizedFissionData.getDefaultRateLimit();
+        }
+        burnRemaining = HeatAPI.isFinite(burnRemaining) ? Math.max(0, Math.min(HeatAPI.MAX_HEAT, burnRemaining)) : 0;
+        partialWaste = HeatAPI.isFinite(partialWaste) ? Math.max(0, Math.min(HeatAPI.MAX_HEAT, partialWaste)) : 0;
+        reactorDamage = SynchronizedFissionData.sanitizeDamage(reactorDamage);
     }
 
     @Override
@@ -113,12 +135,15 @@ public class FissionReactorCache extends MultiblockCache<SynchronizedFissionData
             nbtTags.setTag("cachedSteam", steam.writeToNBT(new NBTTagCompound()));
         }
 
-        nbtTags.setDouble("fissionRateLimit", rateLimit);
+        nbtTags.setDouble("fissionRateLimit", HeatAPI.isFinite(rateLimit) ? Math.max(0, rateLimit) : SynchronizedFissionData.getDefaultRateLimit());
         nbtTags.setBoolean("fissionActive", active);
-        nbtTags.setDouble("fissionBurnRemaining", burnRemaining);
-        nbtTags.setDouble("fissionPartialWaste", partialWaste);
-        nbtTags.setDouble("fissionTemperature", temperature);
-        nbtTags.setDouble("fissionReactorDamage", reactorDamage);
+        nbtTags.setDouble("fissionBurnRemaining", HeatAPI.isFinite(burnRemaining) ? Math.max(0, Math.min(HeatAPI.MAX_HEAT, burnRemaining)) : 0);
+        nbtTags.setDouble("fissionPartialWaste", HeatAPI.isFinite(partialWaste) ? Math.max(0, Math.min(HeatAPI.MAX_HEAT, partialWaste)) : 0);
+        if (storedHeat >= 0 && HeatAPI.isFinite(storedHeat) && heatCapacity >= 1 && HeatAPI.isFinite(heatCapacity)) {
+            nbtTags.setDouble(NBTConstants.HEAT_STORED, storedHeat);
+            nbtTags.setDouble(NBTConstants.HEAT_CAPACITY, heatCapacity);
+        }
+        nbtTags.setDouble("fissionReactorDamage", SynchronizedFissionData.sanitizeDamage(reactorDamage));
         nbtTags.setBoolean("fissionForceDisable", forceDisable);
     }
 }

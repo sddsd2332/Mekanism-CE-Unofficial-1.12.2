@@ -42,11 +42,42 @@ public enum QIODriveType {
     }
 
     public long getCountCapacity(QIODriveTier tier) {
-        return Math.multiplyExact(Objects.requireNonNull(tier, "tier").getMaxCount(), countCapacityMultiplier);
+        return getCountCapacity(Objects.requireNonNull(tier, "tier").getDefinition());
     }
 
     public long getStorageCapacity(QIODriveTier tier) {
-        return QIOStorageUnits.toStorageCapacity(getCountCapacity(tier));
+        return getStorageCapacity(Objects.requireNonNull(tier, "tier").getDefinition());
+    }
+
+    public QIOAmount getExactCountCapacity(QIODriveTier tier) {
+        return getExactCountCapacity(Objects.requireNonNull(tier, "tier").getDefinition());
+    }
+
+    public QIOAmount getExactStorageCapacity(QIODriveTier tier) {
+        return getExactStorageCapacity(Objects.requireNonNull(tier, "tier").getDefinition());
+    }
+
+    public long getCountCapacity(QIODriveDefinition definition) {
+        return getExactCountCapacity(definition).longValueClamped();
+    }
+
+    public long getStorageCapacity(QIODriveDefinition definition) {
+        return getExactStorageCapacity(definition).longValueClamped();
+    }
+
+    /** Exact item-equivalent capacity, including the mixed-drive multiplier. */
+    public QIOAmount getExactCountCapacity(QIODriveDefinition definition) {
+        return getExactCountCapacity(Objects.requireNonNull(definition, "definition").getMaxCount());
+    }
+
+    /** Applies this drive type's capacity multiplier to a base definition value. */
+    public QIOAmount getExactCountCapacity(long baseCountCapacity) {
+        return QIOAmount.of(baseCountCapacity).multiply(countCapacityMultiplier);
+    }
+
+    /** Exact fixed-point capacity used for resource insertion checks. */
+    public QIOAmount getExactStorageCapacity(QIODriveDefinition definition) {
+        return getExactCountCapacity(definition).multiply(QIOStorageUnits.UNITS_PER_ITEM);
     }
 
     public String getTranslationKey() {

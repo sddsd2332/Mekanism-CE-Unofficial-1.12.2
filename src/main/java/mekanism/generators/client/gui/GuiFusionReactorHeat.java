@@ -39,7 +39,7 @@ public class GuiFusionReactorHeat extends GuiFusionReactorInfo {
 
             @Override
             public double getLevel() {
-                return TemperatureUnit.AMBIENT.convertToK(tileEntity.getPlasmaTemp(), true);
+                return tileEntity.getPlasmaTemp();
             }
 
             @Override
@@ -61,7 +61,7 @@ public class GuiFusionReactorHeat extends GuiFusionReactorInfo {
 
             @Override
             public double getLevel() {
-                return TemperatureUnit.AMBIENT.convertToK(tileEntity.getCaseTemp(), true);
+                return tileEntity.getCaseTemp();
             }
 
             @Override
@@ -74,8 +74,8 @@ public class GuiFusionReactorHeat extends GuiFusionReactorInfo {
                 return LangUtils.localize("gui.Case") + ": " + MekanismUtils.getTemperatureDisplay(getLevel(), TemperatureUnit.KELVIN);
             }
         }, GaugeType.STANDARD, this, 66, 50));
-        addButton(new GuiProgress(() -> tileEntity.getCaseTemp() > 0 ? 1 : 0, ProgressType.SMALL_RIGHT, this, 88, 61));
-        addButton(new GuiProgress(() -> tileEntity.getCaseTemp() > 0 && tileEntity.waterTank.getFluidAmount() > 0 && tileEntity.getactivelyCooled() &&
+        addButton(new GuiProgress(() -> tileEntity.getCaseTemp() > tileEntity.getReactor().getAmbientTemperature() ? 1 : 0, ProgressType.SMALL_RIGHT, this, 88, 61));
+        addButton(new GuiProgress(() -> tileEntity.getCaseTemp() > tileEntity.getReactor().getAmbientTemperature() && tileEntity.waterTank.getFluidAmount() > 0 && tileEntity.getactivelyCooled() &&
               tileEntity.steamTank.getFluidAmount() < tileEntity.steamTank.getCapacity() ? 1 : 0,
               ProgressType.SMALL_RIGHT, this, 88, 91));
         addButton(new GuiFluidGauge(this, tileEntity.waterTank, GuiFluidGauge.Type.SMALL, 120, 84));

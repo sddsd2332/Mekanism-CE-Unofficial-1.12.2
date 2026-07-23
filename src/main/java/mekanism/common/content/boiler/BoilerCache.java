@@ -1,6 +1,8 @@
 package mekanism.common.content.boiler;
 
+import mekanism.api.NBTConstants;
 import mekanism.api.gas.GasStack;
+import mekanism.api.heat.HeatAPI;
 import mekanism.common.multiblock.MultiblockCache;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.fluids.FluidStack;
@@ -11,7 +13,8 @@ public class BoilerCache extends MultiblockCache<SynchronizedBoilerData> {
     public FluidStack steam;
     public GasStack input;
     public GasStack output;
-    public double temperature;
+    public double storedHeat = -1;
+    public double heatCapacity;
 
     @Override
     public void apply(SynchronizedBoilerData data) {
@@ -19,7 +22,10 @@ public class BoilerCache extends MultiblockCache<SynchronizedBoilerData> {
         data.steamStored = steam == null ? null : steam.copy();
         data.InputGas = input == null ? null : input.copy();
         data.OutputGas = output == null ? null : output.copy();
-        data.temperature = temperature;
+        if (storedHeat >= 0 && HeatAPI.isFinite(storedHeat) && heatCapacity >= 1 && HeatAPI.isFinite(heatCapacity)) {
+            data.getHeatCapacitor().setHeatCapacity(heatCapacity, false);
+            data.getHeatCapacitor().setHeat(storedHeat);
+        }
     }
 
     @Override
@@ -28,7 +34,8 @@ public class BoilerCache extends MultiblockCache<SynchronizedBoilerData> {
         steam = data.steamStored == null ? null : data.steamStored.copy();
         input = data.InputGas == null ? null : data.InputGas.copy();
         output = data.OutputGas == null ? null : data.OutputGas.copy();
-        temperature = data.temperature;
+        storedHeat = data.getHeatCapacitor().getHeat();
+        heatCapacity = data.getHeatCapacitor().getHeatCapacity();
     }
 
     @Override
@@ -45,7 +52,14 @@ public class BoilerCache extends MultiblockCache<SynchronizedBoilerData> {
         if (nbtTags.hasKey("cachedOutputGas")){
             output = GasStack.readFromNBT(nbtTags.getCompoundTag("cachedOutputGas"));
         }
-        temperature = nbtTags.getDouble("temperature");
+        if (nbtTags.hasKey(NBTConstants.HEAT_STORED) && nbtTags.hasKey(NBTConstants.HEAT_CAPACITY)) {
+            double loadedHeat = nbtTags.getDouble(NBTConstants.HEAT_STORED);
+            double loadedCapacity = nbtTags.getDouble(NBTConstants.HEAT_CAPACITY);
+            if (loadedHeat >= 0 && HeatAPI.isFinite(loadedHeat) && loadedCapacity >= 1 && HeatAPI.isFinite(loadedCapacity)) {
+                storedHeat = HeatAPI.sanitizeHeat(loadedHeat, 0);
+                heatCapacity = HeatAPI.sanitizeHeatCapacity(loadedCapacity);
+            }
+        }
     }
 
     @Override
@@ -62,6 +76,9 @@ public class BoilerCache extends MultiblockCache<SynchronizedBoilerData> {
         if (output != null){
             nbtTags.setTag("cachedOutputGas",output.write(new NBTTagCompound()));
         }
-        nbtTags.setDouble("temperature", temperature);
+        if (storedHeat >= 0 && HeatAPI.isFinite(storedHeat) && heatCapacity >= 1 && HeatAPI.isFinite(heatCapacity)) {
+            nbtTags.setDouble(NBTConstants.HEAT_STORED, storedHeat);
+            nbtTags.setDouble(NBTConstants.HEAT_CAPACITY, heatCapacity);
+        }
     }
 }

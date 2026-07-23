@@ -13,7 +13,6 @@ import mekanism.client.gui.element.tab.GuiWarningTab;
 import mekanism.client.gui.element.text.BackgroundType;
 import mekanism.client.gui.warning.IWarningTracker;
 import mekanism.common.Mekanism;
-import mekanism.common.config.MekanismConfig;
 import mekanism.common.frequency.Frequency;
 import mekanism.common.frequency.Frequency.FrequencyIdentity;
 import mekanism.common.frequency.FrequencyManager;
@@ -93,9 +92,8 @@ public class GuiQuantumEntangloporter extends GuiConfigurableTile<TileEntityQuan
     }
 
     private List<ITextComponent> getHeatTabText() {
-        UnitDisplayUtils.TemperatureUnit unit = UnitDisplayUtils.TemperatureUnit.values()[MekanismConfig.current().general.tempUnit.val().ordinal()];
-        String transfer = UnitDisplayUtils.getDisplayShort(tileEntity.lastTransferLoss, false, unit);
-        String environment = UnitDisplayUtils.getDisplayShort(tileEntity.lastEnvironmentLoss, false, unit);
+        String transfer = MekanismUtils.getTemperatureDisplay(tileEntity.lastTransferLoss, UnitDisplayUtils.TemperatureUnit.KELVIN, false);
+        String environment = MekanismUtils.getTemperatureDisplay(tileEntity.lastEnvironmentLoss, UnitDisplayUtils.TemperatureUnit.KELVIN, false);
         List<ITextComponent> info = new ArrayList<>();
         info.add(new TextComponentString(LangUtils.localize("gui.transferred") + ": " + transfer + "/t"));
         info.add(new TextComponentString(LangUtils.localize("gui.dissipated") + ": " + environment + "/t"));

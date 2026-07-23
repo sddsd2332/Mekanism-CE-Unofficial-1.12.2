@@ -303,11 +303,7 @@ public class TileEntityUniversalCable extends TileEntityTransmitter<EnergyAccept
 
     @Override
     public boolean canReceiveEnergy(EnumFacing side) {
-        if (side == null) {
-            return !isRedstoneActivated();
-        }
-        ConnectionType connectionType = getConnectionType(side);
-        return !isRedstoneActivated() && (connectionType == ConnectionType.NORMAL || connectionType == ConnectionType.PULL);
+        return hasEnergyContainer(side) && (side == null || getConnectionTypeRaw(side).canAccept());
     }
 
     @Override
@@ -317,11 +313,7 @@ public class TileEntityUniversalCable extends TileEntityTransmitter<EnergyAccept
 
     @Override
     public boolean canOutputEnergy(EnumFacing side) {
-        if (side == null) {
-            return !isRedstoneActivated();
-        }
-        ConnectionType connectionType = getConnectionType(side);
-        return !isRedstoneActivated() && (connectionType == ConnectionType.NORMAL || connectionType == ConnectionType.PUSH);
+        return hasEnergyContainer(side) && (side == null || getConnectionTypeRaw(side).canSendTo());
     }
 
     public double getMaxOutput() {

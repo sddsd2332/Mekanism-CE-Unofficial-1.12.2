@@ -5,6 +5,9 @@ import mekanism.common.capabilities.DefaultStorageHelper.NullStorage;
 import net.minecraft.util.EnumFacing;
 import net.minecraftforge.common.capabilities.CapabilityManager;
 
+/** @deprecated Compatibility registration for the pre-capacitor heat API. */
+@Deprecated
+@SuppressWarnings("removal")
 public class DefaultHeatTransfer implements IHeatTransfer {
 
     public static void register() {

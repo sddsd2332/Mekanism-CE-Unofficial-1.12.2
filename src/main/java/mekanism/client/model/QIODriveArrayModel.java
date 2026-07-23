@@ -296,10 +296,14 @@ public class QIODriveArrayModel implements IBakedModel {
             } else {
                 DriveMetadata metadata = driveItem.getDriveMetadata(drive);
                 long capacity = driveItem.getStorageCapacity(drive);
+                boolean expandedCapacity = driveItem.getExactStorageCapacity(drive).isExpanded();
                 int typeCapacity = driveItem.getTypeCapacity(drive);
-                if (capacity <= 0 || metadata.getStorageUnits() >= capacity) {
+                boolean countUnlimited = driveItem.hasUnlimitedCountCapacity(drive);
+                boolean typesUnlimited = driveItem.hasUnlimitedTypeCapacity(drive);
+                if (capacity <= 0 || (!countUnlimited && !expandedCapacity && metadata.getStorageUnits() >= capacity) ||
+                      (!typesUnlimited && metadata.getTypes() >= typeCapacity)) {
                     status = DriveStatus.FULL;
-                } else if (metadata.getTypes() >= typeCapacity || metadata.getStorageUnits() >= capacity - capacity / 4) {
+                } else if (!countUnlimited && !expandedCapacity && metadata.getStorageUnits() >= capacity - capacity / 4) {
                     status = DriveStatus.NEAR_FULL;
                 } else {
                     status = DriveStatus.READY;

@@ -6,6 +6,15 @@ import javax.annotation.Nullable;
 
 public interface ISidedHeatHandler extends IHeatHandler {
 
+    default Object getHeatIdentity(@Nullable EnumFacing side) {
+        return this;
+    }
+
+    @Override
+    default Object getHeatIdentity() {
+        return getHeatIdentity(getHeatSideFor());
+    }
+
     @Nullable
     default EnumFacing getHeatSideFor() {
         return null;
@@ -48,15 +57,33 @@ public interface ISidedHeatHandler extends IHeatHandler {
 
     default double getTotalTemperature(@Nullable EnumFacing side) {
         int heatCapacitorCount = getHeatCapacitorCount(side);
-        if (heatCapacitorCount == 1) {
-            return getTemperature(0, side);
+        if (heatCapacitorCount <= 0) {
+            return HeatAPI.AMBIENT_TEMP;
+        } else if (heatCapacitorCount == 1) {
+            return HeatAPI.sanitizeTemperature(getTemperature(0, side));
         }
         double sum = 0;
         double totalCapacity = getTotalHeatCapacity(side);
-        for (int capacitor = 0; capacitor < heatCapacitorCount; capacitor++) {
-            sum += getTemperature(capacitor, side) * (getHeatCapacity(capacitor, side) / totalCapacity);
+        if (!HeatAPI.isFinite(totalCapacity) || totalCapacity < 1) {
+            return HeatAPI.AMBIENT_TEMP;
         }
-        return sum;
+        double maxCapacity = getMaxHeatCapacity(heatCapacitorCount, side);
+        double totalWeight = getTotalCapacityWeight(heatCapacitorCount, maxCapacity, side);
+        if (totalWeight <= 0) {
+            return HeatAPI.AMBIENT_TEMP;
+        }
+        for (int capacitor = 0; capacitor < heatCapacitorCount; capacitor++) {
+            double capacity = getHeatCapacity(capacitor, side);
+            if (HeatAPI.isFinite(capacity) && capacity > 0) {
+                double contribution = HeatAPI.sanitizeTemperature(getTemperature(capacitor, side)) *
+                      (HeatAPI.getCapacityWeight(capacity, maxCapacity) / totalWeight);
+                if (!HeatAPI.isFinite(contribution) || contribution >= HeatAPI.MAX_HEAT - sum) {
+                    return HeatAPI.MAX_HEAT;
+                }
+                sum += contribution;
+            }
+        }
+        return HeatAPI.sanitizeTemperature(sum);
     }
 
     @Override
@@ -69,14 +96,30 @@ public interface ISidedHeatHandler extends IHeatHandler {
         if (heatCapacitorCount == 0) {
             return HeatAPI.DEFAULT_INVERSE_CONDUCTION;
         } else if (heatCapacitorCount == 1) {
-            return getInverseConduction(0, side);
+            return HeatAPI.sanitizeInverseConduction(getInverseConduction(0, side));
         }
         double sum = 0;
         double totalCapacity = getTotalHeatCapacity(side);
-        for (int capacitor = 0; capacitor < heatCapacitorCount; capacitor++) {
-            sum += getInverseConduction(capacitor, side) * (getHeatCapacity(capacitor, side) / totalCapacity);
+        if (totalCapacity < 1) {
+            return HeatAPI.DEFAULT_INVERSE_CONDUCTION;
         }
-        return sum;
+        double maxCapacity = getMaxHeatCapacity(heatCapacitorCount, side);
+        double totalWeight = getTotalCapacityWeight(heatCapacitorCount, maxCapacity, side);
+        if (totalWeight <= 0) {
+            return HeatAPI.DEFAULT_INVERSE_CONDUCTION;
+        }
+        for (int capacitor = 0; capacitor < heatCapacitorCount; capacitor++) {
+            double capacity = getHeatCapacity(capacitor, side);
+            if (HeatAPI.isFinite(capacity) && capacity > 0) {
+                double contribution = HeatAPI.sanitizeInverseConduction(getInverseConduction(capacitor, side)) *
+                      (HeatAPI.getCapacityWeight(capacity, maxCapacity) / totalWeight);
+                if (!HeatAPI.isFinite(contribution) || contribution >= HeatAPI.MAX_HEAT - sum) {
+                    return HeatAPI.MAX_HEAT;
+                }
+                sum += contribution;
+            }
+        }
+        return HeatAPI.sanitizeInverseConduction(sum);
     }
 
     @Override
@@ -86,14 +129,48 @@ public interface ISidedHeatHandler extends IHeatHandler {
 
     default double getTotalHeatCapacity(@Nullable EnumFacing side) {
         int heatCapacitorCount = getHeatCapacitorCount(side);
-        if (heatCapacitorCount == 1) {
-            return getHeatCapacity(0, side);
+        if (heatCapacitorCount <= 0) {
+            return 0;
+        } else if (heatCapacitorCount == 1) {
+            return HeatAPI.sanitizeHeatCapacity(getHeatCapacity(0, side));
         }
         double sum = 0;
         for (int capacitor = 0; capacitor < heatCapacitorCount; capacitor++) {
-            sum += getHeatCapacity(capacitor, side);
+            double capacity = getHeatCapacity(capacitor, side);
+            if (HeatAPI.isFinite(capacity) && capacity > 0) {
+                if (capacity >= HeatAPI.MAX_HEAT - sum) {
+                    return HeatAPI.MAX_HEAT;
+                }
+                sum += capacity;
+            }
         }
         return sum;
+    }
+
+    default double getMaxHeatCapacity(int heatCapacitorCount, @Nullable EnumFacing side) {
+        double maxCapacity = 0;
+        for (int capacitor = 0; capacitor < heatCapacitorCount; capacitor++) {
+            double capacity = getHeatCapacity(capacitor, side);
+            if (HeatAPI.isFinite(capacity) && capacity > maxCapacity) {
+                maxCapacity = capacity;
+            }
+        }
+        return maxCapacity;
+    }
+
+    default double getTotalCapacityWeight(int heatCapacitorCount, double maxCapacity, @Nullable EnumFacing side) {
+        double totalWeight = 0;
+        for (int capacitor = 0; capacitor < heatCapacitorCount; capacitor++) {
+            double weight = HeatAPI.getCapacityWeight(getHeatCapacity(capacitor, side), maxCapacity);
+            if (!HeatAPI.isFinite(weight) || weight <= 0) {
+                continue;
+            }
+            if (weight >= HeatAPI.MAX_HEAT - totalWeight) {
+                return HeatAPI.MAX_HEAT;
+            }
+            totalWeight += weight;
+        }
+        return totalWeight;
     }
 
     @Override
@@ -102,13 +179,30 @@ public interface ISidedHeatHandler extends IHeatHandler {
     }
 
     default void handleHeat(double transfer, @Nullable EnumFacing side) {
+        if (!HeatAPI.isFinite(transfer) || Math.abs(transfer) <= HeatAPI.EPSILON) {
+            return;
+        }
         int heatCapacitorCount = getHeatCapacitorCount(side);
         if (heatCapacitorCount == 1) {
             handleHeat(0, transfer, side);
-        } else {
+        } else if (heatCapacitorCount > 1) {
             double totalHeatCapacity = getTotalHeatCapacity(side);
+            if (totalHeatCapacity < 1) {
+                return;
+            }
+            double maxCapacity = getMaxHeatCapacity(heatCapacitorCount, side);
+            double totalWeight = getTotalCapacityWeight(heatCapacitorCount, maxCapacity, side);
+            if (totalWeight <= 0) {
+                return;
+            }
             for (int capacitor = 0; capacitor < heatCapacitorCount; capacitor++) {
-                handleHeat(capacitor, transfer * (getHeatCapacity(capacitor, side) / totalHeatCapacity), side);
+                double capacity = getHeatCapacity(capacitor, side);
+                if (HeatAPI.isFinite(capacity) && capacity > 0) {
+                    double share = transfer * (HeatAPI.getCapacityWeight(capacity, maxCapacity) / totalWeight);
+                    if (HeatAPI.isFinite(share)) {
+                        handleHeat(capacitor, share, side);
+                    }
+                }
             }
         }
     }

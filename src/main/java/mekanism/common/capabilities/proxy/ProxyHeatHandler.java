@@ -17,6 +17,11 @@ public class ProxyHeatHandler extends ProxyHandler implements IHeatHandler {
     }
 
     @Override
+    public Object getHeatIdentity() {
+        return heatHandler.getHeatIdentity(side);
+    }
+
+    @Override
     public int getHeatCapacitorCount() {
         return heatHandler.getHeatCapacitorCount(side);
     }
@@ -38,7 +43,7 @@ public class ProxyHeatHandler extends ProxyHandler implements IHeatHandler {
 
     @Override
     public void handleHeat(int capacitor, double transfer) {
-        if (!readOnly) {
+        if (!readOnly && !(transfer > 0 && readOnlyInsert()) && !(transfer < 0 && readOnlyExtract())) {
             heatHandler.handleHeat(capacitor, transfer, side);
         }
     }
@@ -60,7 +65,7 @@ public class ProxyHeatHandler extends ProxyHandler implements IHeatHandler {
 
     @Override
     public void handleHeat(double transfer) {
-        if (!readOnly) {
+        if (!readOnly && !(transfer > 0 && readOnlyInsert()) && !(transfer < 0 && readOnlyExtract())) {
             heatHandler.handleHeat(transfer, side);
         }
     }

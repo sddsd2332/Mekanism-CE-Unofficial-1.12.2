@@ -22,6 +22,7 @@ import net.minecraftforge.fluids.FluidStack;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -45,11 +46,11 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
     private final Set<IQIODriveHolder> driveHolders = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Map<QIODriveMount, QIODriveData> activeDrives = new LinkedHashMap<>();
     private final Map<QIODriveMount, QIODriveSlotState> slotStates = new LinkedHashMap<>();
-    private final Map<UUID, Long> resourceDataMap = new LinkedHashMap<>();
+    private final Map<UUID, QIOAmount> resourceDataMap = new LinkedHashMap<>();
     private final Map<UUID, QIOResourceKind> resourceKinds = new HashMap<>();
     private final Set<QIODriveMount> ownedMounts = new HashSet<>();
     private final Set<UUID> missingResources = new java.util.HashSet<>();
-    private final Map<QIOResourceKind, Long> kindCounts = new EnumMap<>(QIOResourceKind.class);
+    private final Map<QIOResourceKind, QIOAmount> kindCounts = new EnumMap<>(QIOResourceKind.class);
     private final Set<UUID> updatedResources = new HashSet<>();
     private final Set<EntityPlayerMP> viewers = Collections.newSetFromMap(new IdentityHashMap<>());
     private long totalCount;
@@ -57,6 +58,13 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
     private long totalCountCapacity;
     private int totalTypes;
     private int totalTypeCapacity;
+    private QIOAmount exactTotalCount = QIOAmount.ZERO;
+    private QIOAmount exactTotalStorageUnits = QIOAmount.ZERO;
+    private QIOAmount finiteCountCapacity = QIOAmount.ZERO;
+    private QIOAmount finiteTypeCapacity = QIOAmount.ZERO;
+    private QIOCapacitySummary capacitySummary = QIOCapacitySummary.EMPTY;
+    private int unlimitedCountDrives;
+    private int unlimitedTypeDrives;
     private EnumColor color = EnumColor.INDIGO;
     private boolean needsRefresh = true;
     private boolean clientSnapshot;
@@ -161,15 +169,21 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
             totalCountCapacity = 0;
             totalTypes = 0;
             totalTypeCapacity = 0;
+            exactTotalCount = QIOAmount.ZERO;
+            exactTotalStorageUnits = QIOAmount.ZERO;
+            finiteCountCapacity = QIOAmount.ZERO;
+            finiteTypeCapacity = QIOAmount.ZERO;
+            capacitySummary = QIOCapacitySummary.EMPTY;
+            unlimitedCountDrives = 0;
+            unlimitedTypeDrives = 0;
             updatedResources.addAll(staleResources);
             viewerCapacityDirty = true;
             needsRefresh = false;
             observedMountRevision = QIODriveStorage.INSTANCE.getMountRevision();
             return;
         }
-        Map<UUID, Long> previousResources = new HashMap<>(resourceDataMap);
-        long previousCapacity = totalCountCapacity;
-        int previousTypeCapacity = totalTypeCapacity;
+        Map<UUID, QIOAmount> previousResources = new HashMap<>(resourceDataMap);
+        QIOCapacitySummary previousCapacity = capacitySummary;
 
         List<IQIODriveHolder> holders = new ArrayList<>(driveHolders);
         holders.sort(Comparator.comparingInt(IQIODriveHolder::getQIODimension)
@@ -192,11 +206,7 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         // other forever through the global mount revision.
         for (Map.Entry<QIODriveMount, QIODriveData> previous : new ArrayList<>(activeDrives.entrySet())) {
             ItemStack current = scannedDrives.get(previous.getKey());
-            IQIODriveItem currentItem = current != null && !current.isEmpty() && current.getItem() instanceof IQIODriveItem
-                  ? (IQIODriveItem) current.getItem() : null;
-            UUID currentDrive = currentItem == null ? null : currentItem.getDriveId(current);
-            if (!previous.getValue().getDriveId().equals(currentDrive) || currentItem == null ||
-                  previous.getValue().getDriveType() != currentItem.getDriveType()) {
+            if (!previous.getValue().isCompatibleWith(current)) {
                 QIODriveStorage.INSTANCE.unmount(previous.getKey());
             }
         }
@@ -212,6 +222,12 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         totalCountCapacity = 0;
         totalTypes = 0;
         totalTypeCapacity = 0;
+        exactTotalCount = QIOAmount.ZERO;
+        exactTotalStorageUnits = QIOAmount.ZERO;
+        finiteCountCapacity = QIOAmount.ZERO;
+        finiteTypeCapacity = QIOAmount.ZERO;
+        unlimitedCountDrives = 0;
+        unlimitedTypeDrives = 0;
 
         for (Map.Entry<QIODriveMount, ItemStack> candidate : scannedDrives.entrySet()) {
                 QIODriveMount mount = candidate.getKey();
@@ -239,17 +255,23 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
                     if (!resourceDataMap.containsKey(resource)) {
                         totalTypes = safeIntAdd(totalTypes, 1);
                     }
-                    resourceDataMap.put(resource, safeAdd(resourceDataMap.getOrDefault(resource, 0L), amount));
+                    resourceDataMap.put(resource, resourceDataMap.getOrDefault(resource, QIOAmount.ZERO).add(amount));
                     QIOResourceType type = QIOResourceTypeRegistry.INSTANCE.getTypeByUUID(resource);
                     if (type == null) {
                         missingResources.add(resource);
                     } else {
                         resourceKinds.put(resource, type.getKind());
-                        kindCounts.put(type.getKind(), safeAdd(kindCounts.getOrDefault(type.getKind(), 0L), amount));
+                        kindCounts.put(type.getKind(), kindCounts.getOrDefault(type.getKind(), QIOAmount.ZERO).add(amount));
                     }
                 }
         }
-        totalCount = QIOStorageUnits.toItemEquivalent(totalStorageUnits);
+        capacitySummary = new QIOCapacitySummary(finiteCountCapacity, finiteTypeCapacity,
+              unlimitedCountDrives, unlimitedTypeDrives);
+        totalCountCapacity = capacitySummary.getCountCapacityClamped();
+        totalTypeCapacity = capacitySummary.getTypeCapacityClamped();
+        totalStorageUnits = exactTotalStorageUnits.longValueClamped();
+        exactTotalCount = exactTotalStorageUnits.divideRoundUp(QIOStorageUnits.UNITS_PER_ITEM);
+        totalCount = exactTotalCount.longValueClamped();
         needsRefresh = false;
         observedMountRevision = QIODriveStorage.INSTANCE.getMountRevision();
         Set<UUID> changedResources = new HashSet<>(previousResources.keySet());
@@ -259,7 +281,7 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
                 updatedResources.add(resource);
             }
         }
-        viewerCapacityDirty |= previousCapacity != totalCountCapacity || previousTypeCapacity != totalTypeCapacity;
+        viewerCapacityDirty |= !previousCapacity.equals(capacitySummary);
     }
 
     /** Requests a remount/aggregate pass on the next frequency tick or query. */
@@ -484,7 +506,16 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         // UUID-based callers are predominantly server packet handlers. Keep
         // their view authoritative even when a drive changed between ticks.
         ensureFresh();
-        return resourceDataMap.getOrDefault(resource, 0L);
+        return resourceDataMap.getOrDefault(resource, QIOAmount.ZERO).longValueClamped();
+    }
+
+    @Nonnull
+    public synchronized QIOAmount getStoredExact(@Nullable UUID resource) {
+        if (resource == null) {
+            return QIOAmount.ZERO;
+        }
+        ensureFresh();
+        return resourceDataMap.getOrDefault(resource, QIOAmount.ZERO);
     }
 
     public synchronized long getStored(@Nullable QIOFilter filter) {
@@ -506,9 +537,22 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         return totalCount;
     }
 
+    @Nonnull
+    public synchronized QIOAmount getExactTotalCount() {
+        ensureFresh();
+        return exactTotalCount;
+    }
+
     public synchronized long getTotalCountCapacity() {
         ensureFresh();
         return totalCountCapacity;
+    }
+
+    /** Exact finite capacity contribution; use {@link #getCapacitySummary()} to detect unlimited capacity. */
+    @Nonnull
+    public synchronized QIOAmount getExactCountCapacity() {
+        ensureFresh();
+        return finiteCountCapacity;
     }
 
     public synchronized int getTotalTypes() {
@@ -521,10 +565,35 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         return totalTypeCapacity;
     }
 
+    /** Exact finite type-capacity contribution; use {@link #getCapacitySummary()} to detect unlimited capacity. */
+    @Nonnull
+    public synchronized QIOAmount getExactTypeCapacity() {
+        ensureFresh();
+        return finiteTypeCapacity;
+    }
+
+    public synchronized int getUnlimitedCountDriveCount() {
+        ensureFresh();
+        return unlimitedCountDrives;
+    }
+
+    public synchronized int getUnlimitedTypeDriveCount() {
+        ensureFresh();
+        return unlimitedTypeDrives;
+    }
+
+    @Nonnull
+    public synchronized QIOCapacitySummary getCapacitySummary() {
+        ensureFresh();
+        return capacitySummary;
+    }
+
     @Nonnull
     public synchronized Map<UUID, Long> getResourceDataMap() {
         ensureFresh();
-        return Collections.unmodifiableMap(new LinkedHashMap<>(resourceDataMap));
+        Map<UUID, Long> projected = new LinkedHashMap<>();
+        resourceDataMap.forEach((resource, amount) -> projected.put(resource, amount.longValueClamped()));
+        return Collections.unmodifiableMap(projected);
     }
 
     @Nonnull
@@ -542,7 +611,8 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         List<QIOResourceEntry> entries = new ArrayList<>();
         for (Map.Entry<UUID, QIOResourceKind> entry : resourceKinds.entrySet()) {
             if (entry.getValue() == kind) {
-                QIOResourceEntry resource = QIOResourceEntry.create(entry.getKey(), resourceDataMap.getOrDefault(entry.getKey(), 0L));
+                QIOResourceEntry resource = QIOResourceEntry.create(entry.getKey(),
+                      resourceDataMap.getOrDefault(entry.getKey(), QIOAmount.ZERO));
                 if (resource != null) {
                     entries.add(resource);
                 }
@@ -556,10 +626,10 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
     public synchronized Map<HashedItem, Long> getItemDataMap() {
         ensureFresh();
         Map<HashedItem, Long> items = new LinkedHashMap<>();
-        for (Map.Entry<UUID, Long> entry : resourceDataMap.entrySet()) {
+        for (Map.Entry<UUID, QIOAmount> entry : resourceDataMap.entrySet()) {
             QIOResourceType type = QIOResourceTypeRegistry.INSTANCE.getTypeByUUID(entry.getKey());
             if (type != null && type.getKind() == QIOResourceKind.ITEM && type.getItemType() != null) {
-                items.put(type.getItemType(), entry.getValue());
+                items.put(type.getItemType(), entry.getValue().longValueClamped());
             }
         }
         return Collections.unmodifiableMap(items);
@@ -677,7 +747,7 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
 
     public synchronized long getStoredCount(QIOResourceKind kind) {
         ensureFresh();
-        return kindCounts.getOrDefault(kind, 0L);
+        return kindCounts.getOrDefault(kind, QIOAmount.ZERO).longValueClamped();
     }
 
     @Override
@@ -702,6 +772,8 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         hash = 31 * hash + Long.hashCode(totalCountCapacity);
         hash = 31 * hash + totalTypes;
         hash = 31 * hash + totalTypeCapacity;
+        hash = 31 * hash + exactTotalCount.hashCode();
+        hash = 31 * hash + capacitySummary.hashCode();
         return 31 * hash + color.ordinal();
     }
 
@@ -730,8 +802,16 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         totalTypes = data.readInt();
         totalTypeCapacity = data.readInt();
         for (QIOResourceKind kind : QIOResourceKind.values()) {
-            kindCounts.put(kind, data.readLong());
+            kindCounts.put(kind, QIOAmount.of(data.readLong()));
         }
+        exactTotalCount = QIOAmount.parse(mekanism.common.PacketHandler.readString(data));
+        finiteCountCapacity = QIOAmount.parse(mekanism.common.PacketHandler.readString(data));
+        finiteTypeCapacity = QIOAmount.parse(mekanism.common.PacketHandler.readString(data));
+        unlimitedCountDrives = Math.max(0, data.readInt());
+        unlimitedTypeDrives = Math.max(0, data.readInt());
+        capacitySummary = new QIOCapacitySummary(finiteCountCapacity, finiteTypeCapacity,
+              unlimitedCountDrives, unlimitedTypeDrives);
+        exactTotalStorageUnits = QIOAmount.of(totalStorageUnits);
         color = EnumColor.values()[Math.max(0, Math.min(EnumColor.values().length - 1, data.readInt()))];
         clientSnapshot = true;
         needsRefresh = false;
@@ -746,14 +826,24 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         data.add(totalTypes);
         data.add(totalTypeCapacity);
         for (QIOResourceKind kind : QIOResourceKind.values()) {
-            data.add(kindCounts.getOrDefault(kind, 0L));
+            data.add(kindCounts.getOrDefault(kind, QIOAmount.ZERO).longValueClamped());
         }
+        data.add(exactTotalCount.toString());
+        data.add(finiteCountCapacity.toString());
+        data.add(finiteTypeCapacity.toString());
+        data.add(unlimitedCountDrives);
+        data.add(unlimitedTypeDrives);
         data.add(color.ordinal());
     }
 
     private void ensureFresh() {
-        if (!clientSnapshot && needsRefresh) {
-            refresh();
+        if (!clientSnapshot) {
+            if (observedMountRevision != QIODriveStorage.INSTANCE.getMountRevision()) {
+                needsRefresh = true;
+            }
+            if (needsRefresh) {
+                refresh();
+            }
         }
     }
 
@@ -781,10 +871,13 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
             }
             QIODriveRecord record = drive.getRecord();
             boolean newType = resource == null || record.getStored(resource) <= 0;
-            if (newType && record.getTotalTypes() >= record.getTypeCapacity()) {
+            if (!record.hasUnlimitedTypeCapacity() && newType && record.getTotalTypes() >= record.getTypeCapacity()) {
                 continue;
             }
             long current = record.getInsertable(kind, amount - inserted, newType);
+            if (resource != null) {
+                current = Math.min(current, Long.MAX_VALUE - record.getStored(resource));
+            }
             inserted = safeAdd(inserted, current);
             if (inserted >= amount) {
                 break;
@@ -828,7 +921,7 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
             List<QIOResourceEntry> entries = createEntries(updatedResources);
             for (EntityPlayerMP viewer : viewers) {
                 PacketQIOViewerData.sendUpdate(viewer, PacketQIOViewerData.getViewerWindowId(viewer), entries,
-                      totalCountCapacity, totalTypeCapacity);
+                      capacitySummary);
             }
             updatedResources.clear();
             viewerCapacityDirty = false;
@@ -839,7 +932,8 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
     private List<QIOResourceEntry> createEntries(Collection<UUID> resources) {
         List<QIOResourceEntry> entries = new ArrayList<>();
         for (UUID resource : resources) {
-            QIOResourceEntry entry = QIOResourceEntry.create(resource, resourceDataMap.getOrDefault(resource, 0L));
+            QIOResourceEntry entry = QIOResourceEntry.create(resource,
+                  resourceDataMap.getOrDefault(resource, QIOAmount.ZERO));
             if (entry != null) {
                 entries.add(entry);
             }
@@ -860,9 +954,17 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
     }
 
     private void addCapacity(QIODriveRecord record) {
-        totalCountCapacity = safeAdd(totalCountCapacity, record.getCountCapacity());
-        totalTypeCapacity = safeIntAdd(totalTypeCapacity, record.getTypeCapacity());
-        totalStorageUnits = safeAdd(totalStorageUnits, record.getTotalStorageUnits());
+        if (record.hasUnlimitedCountCapacity()) {
+            unlimitedCountDrives = safeIntAdd(unlimitedCountDrives, 1);
+        } else {
+            finiteCountCapacity = finiteCountCapacity.add(record.getExactCountCapacity());
+        }
+        if (record.hasUnlimitedTypeCapacity()) {
+            unlimitedTypeDrives = safeIntAdd(unlimitedTypeDrives, 1);
+        } else {
+            finiteTypeCapacity = finiteTypeCapacity.add(record.getTypeCapacity());
+        }
+        exactTotalStorageUnits = exactTotalStorageUnits.add(record.getExactTotalStorageUnits());
     }
 
     private void unmountOwnedBy(IQIODriveHolder holder) {
@@ -888,34 +990,39 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
 
     private static final class ItemInsertionSimulation {
 
-        private final long storageCapacity;
+        private final QIOAmount storageCapacity;
         private final int typeCapacity;
-        private final Set<Object> resources = new HashSet<>();
-        private long storageUnits;
+        private final boolean unlimitedTypes;
+        private final Map<Object, Long> resources = new HashMap<>();
+        private QIOAmount storageUnits;
         private int types;
 
         private ItemInsertionSimulation(QIODriveRecord record) {
-            storageCapacity = record.getStorageCapacity();
+            storageCapacity = record.getExactStorageCapacity();
             typeCapacity = record.getTypeCapacity();
-            storageUnits = record.getTotalStorageUnits();
+            unlimitedTypes = record.hasUnlimitedTypeCapacity();
+            storageUnits = record.getExactTotalStorageUnits();
             types = record.getTotalTypes();
-            resources.addAll(record.getContents().keySet());
+            record.getContents().object2LongEntrySet().forEach(entry -> resources.put(entry.getKey(), entry.getLongValue()));
         }
 
         private long insert(Object resource, long amount) {
-            if (amount <= 0 || storageUnits >= storageCapacity) {
+            if (amount <= 0 || storageUnits.compareTo(storageCapacity) >= 0) {
                 return Math.max(0, amount);
             }
-            boolean newType = !resources.contains(resource);
-            if (newType && types >= typeCapacity) {
+            long previous = resources.getOrDefault(resource, 0L);
+            boolean newType = previous <= 0;
+            if (!unlimitedTypes && newType && types >= typeCapacity) {
                 return amount;
             }
-            long inserted = QIOStorageUnits.getInsertableAmount(QIOResourceKind.ITEM, amount,
-                  storageCapacity - storageUnits);
+            long inserted = Math.min(amount, Long.MAX_VALUE - previous);
+            BigInteger available = storageCapacity.toBigInteger().subtract(storageUnits.toBigInteger());
+            inserted = Math.min(inserted,
+                  QIOStorageUnits.getInsertableAmount(QIOResourceKind.ITEM, inserted, available));
             if (inserted > 0) {
-                storageUnits += QIOStorageUnits.toStorageUnits(QIOResourceKind.ITEM, inserted);
+                storageUnits = storageUnits.add(QIOAmount.of(inserted).multiply(QIOStorageUnits.UNITS_PER_ITEM));
+                resources.put(resource, previous + inserted);
                 if (newType) {
-                    resources.add(resource);
                     types++;
                 }
             }

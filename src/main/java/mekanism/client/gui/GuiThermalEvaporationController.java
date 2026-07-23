@@ -9,7 +9,6 @@ import mekanism.client.gui.element.tab.GuiWarningTab;
 import mekanism.client.gui.warning.IWarningTracker;
 import mekanism.client.gui.warning.WarningTracker.WarningType;
 import mekanism.client.recipe_viewer.type.RecipeViewerRecipeType;
-import mekanism.common.config.MekanismConfig;
 import mekanism.common.inventory.container.ContainerThermalEvaporationController;
 import mekanism.common.tile.multiblock.TileEntityThermalEvaporationController;
 import mekanism.common.util.LangUtils;
@@ -47,8 +46,7 @@ public class GuiThermalEvaporationController extends GuiMekanismTile<TileEntityT
         outputGauge = addButton(new GuiFluidGauge(this, tileEntity.outputTank, GuiFluidGauge.Type.STANDARD, 172, 13))
               .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity::hasWarningNoSpaceInOutput);
         addButton(new GuiHeatTab(this, () -> {
-            TemperatureUnit unit = TemperatureUnit.values()[MekanismConfig.current().general.tempUnit.val().ordinal()];
-            String environment = mekanism.common.util.UnitDisplayUtils.getDisplayShort(tileEntity.totalLoss * unit.intervalSize, false, unit);
+            String environment = MekanismUtils.getTemperatureDisplay(tileEntity.totalLoss, TemperatureUnit.KELVIN, false);
             return Collections.singletonList(new TextComponentString(LangUtils.localize("gui.dissipated") + ": " + environment + "/t"));
         }));
         addButton(new GuiHorizontalRateBar(this, new GuiHorizontalRateBar.IBarInfoHandler() {
@@ -59,7 +57,7 @@ public class GuiThermalEvaporationController extends GuiMekanismTile<TileEntityT
 
             @Override
             public double getLevel() {
-                return Math.min(1, tileEntity.getTemperature() / MekanismConfig.current().general.evaporationMaxTemp.val());
+                return tileEntity.getTemperatureScale();
             }
         }, 58, 62)).warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity::hasWarningInputDoesntProduceOutput);
         addButton(new GuiDownArrow(this, 32, 39));
@@ -98,6 +96,6 @@ public class GuiThermalEvaporationController extends GuiMekanismTile<TileEntityT
     }
 
     private String getTemp() {
-        return MekanismUtils.getTemperatureDisplay(tileEntity.getTemperature(), TemperatureUnit.AMBIENT);
+        return MekanismUtils.getTemperatureDisplay(tileEntity.getTemperature(), TemperatureUnit.KELVIN);
     }
 }

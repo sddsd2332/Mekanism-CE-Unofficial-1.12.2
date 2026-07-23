@@ -16,6 +16,7 @@ import mekanism.common.base.ISideConfiguration;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.capabilities.CapabilityWrapperManager;
 import mekanism.common.capabilities.energy.MachineEnergyContainer;
+import mekanism.api.heat.HeatAPI;
 import mekanism.common.capabilities.holder.energy.EnergyContainerHelper;
 import mekanism.common.capabilities.holder.energy.IEnergyContainerHolder;
 import mekanism.common.capabilities.holder.energy.ProxiedEnergyContainerHolder;
@@ -196,14 +197,16 @@ public abstract class TileEntityElectricBlock extends TileEntityContainerBlock i
     @Override
     public void setEnergy(double energy) {
         runContainerTransaction(() -> {
-            electricityStored.set(Math.max(Math.min(energy, getMaxEnergy()), 0));
+            double max = getMaxEnergy();
+            double sanitized = HeatAPI.isFinite(energy) ? Math.max(0, Math.min(energy, max)) : 0;
+            electricityStored.set(sanitized);
             MekanismUtils.saveChunk(this);
         });
     }
 
     @Override
     public double getMaxEnergy() {
-        return maxEnergy;
+        return HeatAPI.isFinite(maxEnergy) ? Math.max(0, Math.min(HeatAPI.MAX_HEAT, maxEnergy)) : 0;
     }
 
     @Override

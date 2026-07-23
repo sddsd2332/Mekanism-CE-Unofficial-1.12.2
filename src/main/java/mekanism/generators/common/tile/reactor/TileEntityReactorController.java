@@ -2,7 +2,9 @@ package mekanism.generators.common.tile.reactor;
 
 import io.netty.buffer.ByteBuf;
 import mekanism.api.Action;
+import mekanism.api.AutomationType;
 import mekanism.api.IContentsListener;
+import mekanism.api.NBTConstants;
 import mekanism.api.TileNetworkList;
 import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasStack;
@@ -49,6 +51,8 @@ import java.util.List;
 
 public class TileEntityReactorController extends TileEntityReactorBlock implements IActiveState {
 
+    private static final String FUSION_PLASMA_TEMPERATURE = "fusionPlasmaTemperature";
+
     public VariableCapacityFluidTank waterTank = VariableCapacityFluidTank.input(this::getWaterTankCapacity,
           fluid -> RecipeHandler.Recipe.FUSION_COOLING.containsRecipe(fluid.getFluid()), this);
     public VariableCapacityFluidTank steamTank = VariableCapacityFluidTank.output(this::getSteamTankCapacity, BasicFluidTank.alwaysTrue, this);
@@ -91,17 +95,27 @@ public class TileEntityReactorController extends TileEntityReactorBlock implemen
     }
 
     private int getWaterTankCapacity() {
-        return MekanismConfig.current().generators.FusionReactorsWaterTank.val() * getFusionTankCapacityMultiplier();
+        return getScaledTankCapacity(MekanismConfig.current().generators.FusionReactorsWaterTank.val());
     }
 
     private int getSteamTankCapacity() {
-        return MekanismConfig.current().generators.FusionReactorsSteamTank.val() * getFusionTankCapacityMultiplier();
+        return getScaledTankCapacity(MekanismConfig.current().generators.FusionReactorsSteamTank.val());
+    }
+
+    private int getScaledTankCapacity(int baseCapacity) {
+        long capacity = (long) Math.max(0, baseCapacity) * Math.max(0, getFusionTankCapacityMultiplier());
+        return (int) Math.min(Integer.MAX_VALUE, capacity);
     }
 
     @Override
     protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
         InventorySlotHelper builder = createInventorySlotHelper();
-        hohlraumSlot = ReactorInventorySlot.at(stack -> stack.getItem() instanceof ItemHohlraum, listener, 80, 39);
+        hohlraumSlot = ReactorInventorySlot.at(
+              stack -> stack.getItem() instanceof ItemHohlraum,
+              (stack, automationType) -> automationType == AutomationType.INTERNAL ||
+                    stack.getItem() instanceof ItemHohlraum hohlraum && hohlraum.isReadyForReaction(stack),
+              listener, 80, 39
+        );
         hohlraumSlot.setEnabledSupplier(this::isFormed);
         builder.addSlot(hohlraumSlot);
         IInventorySlotHolder slotHolder = builder.build();
@@ -257,21 +271,19 @@ public class TileEntityReactorController extends TileEntityReactorBlock implemen
     @Override
     public void onAdded() {
         super.onAdded();
-        formMultiblock(false);
+        formMultiblock(true);
     }
 
     @Override
     public void writeCustomNBT(NBTTagCompound tag) {
         super.writeCustomNBT(tag);
         tag.setBoolean("formed", isFormed());
-        if (isFormed()) {
-            tag.setDouble("plasmaTemp", getReactor().getPlasmaTemp());
-            tag.setDouble("caseTemp", getReactor().getCaseTemp());
+        if (getReactor() != null) {
+            tag.setDouble(FUSION_PLASMA_TEMPERATURE, getReactor().getPlasmaTemp());
+            tag.setTag(NBTConstants.HEAT_STORED, getReactor().getHeatCapacitor().serializeNBT());
             tag.setInteger("injectionRate", getReactor().getInjectionRate());
             tag.setBoolean("burning", getReactor().isBurning());
         } else {
-            tag.setDouble("plasmaTemp", 0);
-            tag.setDouble("caseTemp", 0);
             tag.setInteger("injectionRate", 0);
             tag.setBoolean("burning", false);
         }
@@ -286,12 +298,21 @@ public class TileEntityReactorController extends TileEntityReactorBlock implemen
     public void readCustomNBT(NBTTagCompound tag) {
         super.readCustomNBT(tag);
         boolean formed = tag.getBoolean("formed");
-        if (formed) {
+        boolean hasReactorState = formed || tag.hasKey(FUSION_PLASMA_TEMPERATURE) ||
+              tag.hasKey(NBTConstants.HEAT_STORED, net.minecraftforge.common.util.Constants.NBT.TAG_COMPOUND) || tag.hasKey("injectionRate");
+        if (hasReactorState) {
             setReactor(new FusionReactor(this));
-            getReactor().setPlasmaTemp(tag.getDouble("plasmaTemp"));
-            getReactor().setCaseTemp(tag.getDouble("caseTemp"));
-            getReactor().setInjectionRate(tag.getInteger("injectionRate"));
+            if (tag.hasKey(FUSION_PLASMA_TEMPERATURE)) {
+                getReactor().setPlasmaTemp(tag.getDouble(FUSION_PLASMA_TEMPERATURE));
+            }
+            if (tag.hasKey(NBTConstants.HEAT_STORED, net.minecraftforge.common.util.Constants.NBT.TAG_COMPOUND)) {
+                getReactor().getHeatCapacitor().deserializeNBT(tag.getCompoundTag(NBTConstants.HEAT_STORED));
+            }
+            if (tag.hasKey("injectionRate")) {
+                getReactor().setInjectionRate(tag.getInteger("injectionRate"));
+            }
             getReactor().setBurning(tag.getBoolean("burning"));
+            getReactor().formed = formed;
             getReactor().updateTemperatures();
         }
         fuelTank.read(tag.getCompoundTag("fuelTank"));
@@ -305,12 +326,14 @@ public class TileEntityReactorController extends TileEntityReactorBlock implemen
     @Override
     public TileNetworkList getNetworkedData(TileNetworkList data) {
         super.getNetworkedData(data);
-        data.add(getReactor() != null && getReactor().isFormed());
-        if (getReactor() != null) {
+        boolean formed = getReactor() != null && getReactor().isFormed();
+        data.add(formed);
+        if (formed) {
             data.add(getReactor().getPlasmaTemp());
-            data.add(getReactor().getCaseTemp());
-            data.add(getReactor().lastTransferLoss);
-            data.add(getReactor().lastEnvironmentLoss);
+            data.add(getReactor().getHeatCapacitor().getHeatCapacity());
+            data.add(getReactor().getHeatCapacitor().getHeat());
+            data.add(sanitizeHeatMetric(getReactor().lastTransferLoss));
+            data.add(sanitizeHeatMetric(getReactor().lastEnvironmentLoss));
             data.add(getReactor().getInjectionRate());
             data.add(getReactor().isBurning());
 
@@ -356,9 +379,12 @@ public class TileEntityReactorController extends TileEntityReactorBlock implemen
 
                 getReactor().formed = true;
                 getReactor().setPlasmaTemp(dataStream.readDouble());
-                getReactor().setCaseTemp(dataStream.readDouble());
-                getReactor().lastTransferLoss = dataStream.readDouble();
-                getReactor().lastEnvironmentLoss = dataStream.readDouble();
+                getReactor().getHeatCapacitor().setHeatCapacityFromPacket(dataStream.readDouble());
+                getReactor().getHeatCapacitor().setHeat(dataStream.readDouble());
+                double transferLoss = dataStream.readDouble();
+                getReactor().lastTransferLoss = sanitizeHeatMetric(transferLoss);
+                double environmentLoss = dataStream.readDouble();
+                getReactor().lastEnvironmentLoss = sanitizeHeatMetric(environmentLoss);
                 getReactor().setInjectionRate(dataStream.readInt());
                 getReactor().setBurning(dataStream.readBoolean());
 
@@ -372,6 +398,7 @@ public class TileEntityReactorController extends TileEntityReactorBlock implemen
                 */
                 TileUtils.readTankData(dataStream, waterTank);
                 TileUtils.readTankData(dataStream, steamTank);
+                getReactor().updateTemperatures();
             } else if (getReactor() != null) {
                 setReactor(null);
                 MekanismUtils.updateBlock(world, getPos());
@@ -381,6 +408,11 @@ public class TileEntityReactorController extends TileEntityReactorBlock implemen
 
     public boolean isFormed() {
         return getReactor() != null && getReactor().isFormed();
+    }
+
+    private static double sanitizeHeatMetric(double value) {
+        return mekanism.api.heat.HeatAPI.isFinite(value) ?
+              Math.max(0, Math.min(mekanism.api.heat.HeatAPI.MAX_HEAT, value)) : 0;
     }
 
     public boolean isBurning() {

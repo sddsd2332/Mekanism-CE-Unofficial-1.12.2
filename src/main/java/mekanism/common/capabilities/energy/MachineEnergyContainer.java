@@ -4,6 +4,7 @@ import mekanism.api.Action;
 import mekanism.api.AutomationType;
 import mekanism.api.IContentsListener;
 import mekanism.api.energy.IEnergyContainer;
+import mekanism.api.heat.HeatAPI;
 import net.minecraft.util.EnumFacing;
 
 import javax.annotation.Nullable;
@@ -79,12 +80,13 @@ public class MachineEnergyContainer implements IEnergyContainer {
 
     @Override
     public double getEnergy() {
-        return stored.getAsDouble();
+        double energy = stored.getAsDouble();
+        return HeatAPI.isFinite(energy) && energy > 0 ? Math.min(HeatAPI.MAX_HEAT, energy) : 0;
     }
 
     @Override
     public void setEnergy(double energy) {
-        double clamped = Math.max(0, Math.min(energy, getMaxEnergy()));
+        double clamped = HeatAPI.isFinite(energy) ? Math.max(0, Math.min(energy, getMaxEnergy())) : 0;
         if (Double.compare(getEnergy(), clamped) != 0) {
             setter.accept(clamped);
             onContentsChanged();
@@ -93,11 +95,13 @@ public class MachineEnergyContainer implements IEnergyContainer {
 
     @Override
     public double getMaxEnergy() {
-        return Math.max(0, maxEnergy.getAsDouble());
+        double maximum = maxEnergy.getAsDouble();
+        return HeatAPI.isFinite(maximum) ? Math.max(0, Math.min(HeatAPI.MAX_HEAT, maximum)) : 0;
     }
 
     public double getEnergyPerTick() {
-        return Math.max(0, energyPerTick.getAsDouble());
+        double rate = energyPerTick.getAsDouble();
+        return HeatAPI.isFinite(rate) ? Math.max(0, Math.min(HeatAPI.MAX_HEAT, rate)) : 0;
     }
 
     protected double getInsertRate(@Nullable AutomationType automationType) {
@@ -110,7 +114,7 @@ public class MachineEnergyContainer implements IEnergyContainer {
 
     @Override
     public double insert(double amount, Action action, AutomationType automationType) {
-        if (amount <= 0 || !canInsert.test(automationType)) {
+        if (!HeatAPI.isFinite(amount) || amount <= 0 || !canInsert.test(automationType)) {
             return amount;
         }
         double needed = Math.min(getInsertRate(automationType), getNeeded());
@@ -126,7 +130,7 @@ public class MachineEnergyContainer implements IEnergyContainer {
 
     @Override
     public double extract(double amount, Action action, AutomationType automationType) {
-        if (isEmpty() || amount <= 0 || !canExtract.test(automationType)) {
+        if (!HeatAPI.isFinite(amount) || amount <= 0 || !canExtract.test(automationType)) {
             return 0;
         }
         double ret = Math.min(Math.min(getExtractRate(automationType), getEnergy()), amount);

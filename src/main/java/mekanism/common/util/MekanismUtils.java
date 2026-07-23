@@ -817,13 +817,24 @@ public final class MekanismUtils {
      * @return rounded energy display
      */
     public static String getTemperatureDisplay(double T, TemperatureUnit unit) {
+        return getTemperatureDisplay(T, unit, true);
+    }
+
+    /**
+     * Formats either an absolute temperature or a temperature interval using the configured display unit.
+     *
+     * @param T temperature expressed in {@code unit}
+     * @param unit unit the supplied temperature is expressed in
+     * @param shift whether the display unit's zero offset should be applied
+     */
+    public static String getTemperatureDisplay(double T, TemperatureUnit unit, boolean shift) {
         double TK = unit.convertToK(T, true);
         return switch (MekanismConfig.current().general.tempUnit.val()) {
-            case K -> UnitDisplayUtils.getDisplayShort(TK, TemperatureUnit.KELVIN);
-            case C -> UnitDisplayUtils.getDisplayShort(TK, TemperatureUnit.CELSIUS);
-            case R -> UnitDisplayUtils.getDisplayShort(TK, TemperatureUnit.RANKINE);
-            case F -> UnitDisplayUtils.getDisplayShort(TK, TemperatureUnit.FAHRENHEIT);
-            case STP -> UnitDisplayUtils.getDisplayShort(TK, TemperatureUnit.AMBIENT);
+            case K -> UnitDisplayUtils.getDisplayShort(TK, shift, TemperatureUnit.KELVIN);
+            case C -> UnitDisplayUtils.getDisplayShort(TK, shift, TemperatureUnit.CELSIUS);
+            case R -> UnitDisplayUtils.getDisplayShort(TK, shift, TemperatureUnit.RANKINE);
+            case F -> UnitDisplayUtils.getDisplayShort(TK, shift, TemperatureUnit.FAHRENHEIT);
+            case STP -> UnitDisplayUtils.getDisplayShort(TK, shift, TemperatureUnit.AMBIENT);
         };
     }
 

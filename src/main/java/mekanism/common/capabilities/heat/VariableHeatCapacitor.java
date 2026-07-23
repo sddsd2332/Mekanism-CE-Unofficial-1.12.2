@@ -22,18 +22,23 @@ public class VariableHeatCapacitor extends BasicHeatCapacitor {
 
     protected VariableHeatCapacitor(double heatCapacity, DoubleSupplier conductionCoefficient, DoubleSupplier insulationCoefficient,
           @Nullable DoubleSupplier ambientTempSupplier, @Nullable IContentsListener listener) {
-        super(heatCapacity, conductionCoefficient.getAsDouble(), insulationCoefficient.getAsDouble(), ambientTempSupplier, listener);
+        // Suppliers may be backed by live config values. Sanitize their initial values as well as
+        // subsequent reads so a malformed value cannot prevent the capacitor from being created.
+        super(heatCapacity, HeatAPI.sanitizeInverseConduction(conductionCoefficient.getAsDouble()),
+              HeatAPI.sanitizeInverseInsulation(insulationCoefficient.getAsDouble()), ambientTempSupplier, listener);
         this.conductionCoefficientSupplier = conductionCoefficient;
         this.insulationCoefficientSupplier = insulationCoefficient;
     }
 
     @Override
     public double getInverseConduction() {
-        return Math.max(1, conductionCoefficientSupplier.getAsDouble());
+        double inverseConduction = conductionCoefficientSupplier.getAsDouble();
+        return HeatAPI.sanitizeInverseConduction(inverseConduction);
     }
 
     @Override
     public double getInverseInsulation() {
-        return insulationCoefficientSupplier.getAsDouble();
+        double inverseInsulation = insulationCoefficientSupplier.getAsDouble();
+        return HeatAPI.sanitizeInverseInsulation(inverseInsulation);
     }
 }

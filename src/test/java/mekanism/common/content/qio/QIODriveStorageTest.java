@@ -10,6 +10,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class QIODriveStorageTest {
 
@@ -49,11 +50,31 @@ class QIODriveStorageTest {
         QIODriveRecord record = QIODriveStorage.INSTANCE.getOrCreate(drive, mekanism.common.tier.QIODriveTier.BASE);
         assertNotNull(record);
         assertEquals(mekanism.common.tier.QIODriveTier.BASE, record.getTier());
+        long revision = QIODriveStorage.INSTANCE.getMountRevision();
 
         assertEquals(record, QIODriveStorage.INSTANCE.getOrCreate(drive, mekanism.common.tier.QIODriveTier.SUPERMASSIVE));
         assertEquals(mekanism.common.tier.QIODriveTier.SUPERMASSIVE, record.getTier());
-        QIODriveStorage.INSTANCE.getOrCreate(drive, mekanism.common.tier.QIODriveTier.BASE);
+        assertTrue(QIODriveStorage.INSTANCE.getMountRevision() > revision);
+        assertEquals(record, QIODriveStorage.INSTANCE.getOrCreate(drive, mekanism.common.tier.QIODriveTier.BASE));
         assertEquals(mekanism.common.tier.QIODriveTier.SUPERMASSIVE, record.getTier());
+    }
+
+    @Test
+    void legacyRecordUpgradeMarksManagedStorageDirtyAndAdvancesRevision() throws Exception {
+        worldDirectory = Files.createTempDirectory("qio-legacy-record-upgrade-test").toFile();
+        QIODriveStorage.INSTANCE.createOrLoad(worldDirectory);
+        UUID drive = UUID.randomUUID();
+        QIODriveRecord record = QIODriveStorage.INSTANCE.getOrCreate(drive, mekanism.common.tier.QIODriveTier.BASE);
+        long revision = QIODriveStorage.INSTANCE.getMountRevision();
+
+        assertTrue(record.upgradeTier(mekanism.common.tier.QIODriveTier.HYPER_DENSE));
+        assertTrue(QIODriveStorage.INSTANCE.getMountRevision() > revision);
+        QIODriveStorage.INSTANCE.flush();
+        QIODriveStorage.INSTANCE.reset();
+        QIODriveStorage.INSTANCE.createOrLoad(worldDirectory);
+
+        assertEquals(mekanism.common.tier.QIODriveTier.HYPER_DENSE,
+              QIODriveStorage.INSTANCE.get(drive).getTier());
     }
 
     @Test

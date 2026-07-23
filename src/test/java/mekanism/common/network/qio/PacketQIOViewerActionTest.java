@@ -149,6 +149,19 @@ class PacketQIOViewerActionTest {
     }
 
     @Test
+    void directItemPutConsumesTheCursorStackExactlyOnce() throws Exception {
+        QIOFrequency frequency = createFrequency();
+        ItemStack held = new ItemStack(Blocks.STONE, 12);
+
+        assertTrue(PacketQIOViewerAction.insertHeldItem(held, frequency, 7));
+
+        UUID resource = QIOResourceTypeRegistry.INSTANCE.getUUIDForItem(HashedItem.create(new ItemStack(Blocks.STONE)));
+        assertNotNull(resource);
+        assertEquals(7, frequency.getStored(resource));
+        assertEquals(5, held.getCount());
+    }
+
+    @Test
     void shiftTakeFillsMultipleFluidContainersFromOneStack() throws Exception {
         QIOFrequency frequency = createFrequency();
         assertEquals(3_000, frequency.massInsert(new FluidStack(fluid, 3_000), 3_000, Action.EXECUTE));

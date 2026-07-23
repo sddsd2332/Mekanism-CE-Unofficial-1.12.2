@@ -5,10 +5,8 @@ import mekanism.client.gui.element.tab.GuiEnergyTab;
 import mekanism.client.gui.element.tab.GuiHeatTab;
 import mekanism.client.gui.element.tab.GuiWarningTab;
 import mekanism.client.gui.warning.IWarningTracker;
-import mekanism.common.config.MekanismConfig;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.UnitDisplayUtils;
 import mekanism.common.util.UnitDisplayUtils.TemperatureUnit;
 import mekanism.generators.client.gui.element.GuiFusionReactorTab;
 import mekanism.generators.client.gui.element.GuiFusionReactorTab.FusionReactorTab;
@@ -68,9 +66,8 @@ public class GuiFusionReactorController extends GuiMekanismTile<TileEntityReacto
         if (!tileEntity.isFormed()) {
             return new ArrayList<>();
         }
-        TemperatureUnit unit = TemperatureUnit.values()[MekanismConfig.current().general.tempUnit.val().ordinal()];
-        String transfer = UnitDisplayUtils.getDisplayShort(tileEntity.getReactor().lastTransferLoss * unit.intervalSize, false, unit);
-        String environment = UnitDisplayUtils.getDisplayShort(tileEntity.getReactor().lastEnvironmentLoss * unit.intervalSize, false, unit);
+        String transfer = MekanismUtils.getTemperatureDisplay(tileEntity.getReactor().lastTransferLoss, TemperatureUnit.KELVIN, false);
+        String environment = MekanismUtils.getTemperatureDisplay(tileEntity.getReactor().lastEnvironmentLoss, TemperatureUnit.KELVIN, false);
         return Arrays.asList(
               new TextComponentString(LangUtils.localize("gui.transferred") + ": " + transfer + "/t"),
               new TextComponentString(LangUtils.localize("gui.dissipated") + ": " + environment + "/t")

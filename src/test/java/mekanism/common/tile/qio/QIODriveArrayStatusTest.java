@@ -11,6 +11,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class QIODriveArrayStatusTest {
 
@@ -45,6 +47,17 @@ class QIODriveArrayStatusTest {
         TileNetworkList networkData = tile.getNetworkedData(new TileNetworkList());
         assertEquals(encoded, networkData.get(networkData.size() - 1));
         assertEquals(encoded, tile.getDriveStatusData());
+    }
+
+    @Test
+    void nearFullCheckDoesNotOverflowAtLongCapacity() {
+        long capacity = Long.MAX_VALUE;
+        long threshold = capacity - capacity / 4;
+
+        assertFalse(TileEntityQIODriveArray.isNearFull(threshold - 1, capacity));
+        assertTrue(TileEntityQIODriveArray.isNearFull(threshold, capacity));
+        assertTrue(TileEntityQIODriveArray.isNearFull(capacity - 1, capacity));
+        assertFalse(TileEntityQIODriveArray.isNearFull(0, 0));
     }
 
     @Test

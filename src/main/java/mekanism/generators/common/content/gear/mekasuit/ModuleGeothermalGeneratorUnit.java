@@ -2,8 +2,8 @@ package mekanism.generators.common.content.gear.mekasuit;
 
 import mekanism.api.Action;
 import mekanism.api.AutomationType;
-import mekanism.api.IHeatTransfer;
 import mekanism.api.energy.IEnergyContainer;
+import mekanism.api.heat.HeatAPI;
 import mekanism.api.gear.ICustomModule;
 import mekanism.api.gear.IModule;
 import mekanism.common.config.MekanismConfig;
@@ -53,10 +53,10 @@ public class ModuleGeothermalGeneratorUnit implements ICustomModule<ModuleGeothe
                     }
                 }
                 temperature /= positions.size();
-                if (temperature > IHeatTransfer.AMBIENT_TEMP) {
+                if (temperature > HeatAPI.AMBIENT_TEMP) {
                     //If the temperature is above the ambient temperature, calculate how many degrees above
                     // and factor in how much of the legs are submerged
-                    double scaledDegrees = (temperature - IHeatTransfer.AMBIENT_TEMP) * height / legHeight;
+                    double scaledDegrees = (temperature - HeatAPI.AMBIENT_TEMP) * height / legHeight;
                     if (scaledDegrees > highestScaledDegrees) {
                         highestScaledDegrees = scaledDegrees;
                     }

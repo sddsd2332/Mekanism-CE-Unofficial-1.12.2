@@ -10,8 +10,10 @@ import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasStack;
 import mekanism.common.PacketHandler;
 import mekanism.common.frequency.FrequencyAware;
+import mekanism.common.item.ItemQIODrive;
 import mekanism.common.item.ItemBlockQIOComponent;
 import mekanism.common.item.ItemPortableQIODashboard;
+import mekanism.common.tier.BaseTier;
 import mekanism.common.tier.QIODriveTier;
 import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.RecipeUtils;
@@ -30,6 +32,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
+import java.math.BigInteger;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Collections;
@@ -38,8 +41,34 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 class QIOFrequencyTest {
+
+    private static final QIODriveDefinition SMALL_DEFINITION = QIODriveDefinition.builder("qio_frequency_test", "small")
+          .baseTier(BaseTier.BASIC)
+          .maxCount(1_000L)
+          .maxTypes(10)
+          .register();
+    private static final QIODriveDefinition LARGE_DEFINITION = QIODriveDefinition.builder("qio_frequency_test", "large")
+          .baseTier(BaseTier.ULTIMATE)
+          .maxCount(2_000L)
+          .maxTypes(20)
+          .register();
+    private static final QIODriveDefinition CREATIVE_DEFINITION = QIODriveDefinition.builder("qio_frequency_test", "creative")
+          .baseTier(BaseTier.ULTIMATE)
+          .creativeCapacity()
+          .register();
+    private static final QIODriveDefinition MAX_FINITE_DEFINITION = QIODriveDefinition.builder("qio_frequency_test", "max_finite")
+          .baseTier(BaseTier.ULTIMATE)
+          .maxCount(Long.MAX_VALUE / QIOStorageUnits.UNITS_PER_ITEM)
+          .maxTypes(1)
+          .register();
+    private static final QIODriveDefinition EXPANDED_FINITE_DEFINITION = QIODriveDefinition.builder("qio_frequency_test", "expanded_finite")
+          .baseTier(BaseTier.ULTIMATE)
+          .maxCount(Long.MAX_VALUE - 1)
+          .maxTypes(4)
+          .register();
 
     @BeforeAll
     static void bootstrapMinecraft() {
@@ -102,6 +131,75 @@ class QIOFrequencyTest {
         assertEquals(1, frequency.getSlotStates().values().stream().filter(state -> state == QIODriveSlotState.ACTIVE).count());
         assertEquals(1, frequency.getSlotStates().values().stream().filter(state -> state == QIODriveSlotState.DUPLICATE_UUID).count());
         assertEquals(QIODriveType.MIXED.getCountCapacity(QIODriveTier.BASE), frequency.getTotalCountCapacity());
+    }
+
+    @Test
+    void laterLargerDuplicateCannotUpgradeTheActiveRecord() throws Exception {
+        worldDirectory = Files.createTempDirectory("qio-frequency-capacity-duplicate-test").toFile();
+        QIOResourceTypeRegistry.INSTANCE.createOrLoad(worldDirectory);
+        QIODriveStorage.INSTANCE.createOrLoad(worldDirectory);
+
+        ItemQIODrive smallItem = new ItemQIODrive(SMALL_DEFINITION, QIODriveType.MIXED);
+        ItemQIODrive largeItem = new ItemQIODrive(LARGE_DEFINITION, QIODriveType.MIXED);
+        ItemStack smallDrive = new ItemStack(smallItem);
+        assertEquals(true, QIODriveData.initialize(smallDrive));
+        UUID driveId = smallItem.getDriveId(smallDrive);
+        ItemStack largeCopy = new ItemStack(largeItem);
+        largeItem.setDriveId(largeCopy, driveId);
+
+        TestHolder first = new TestHolder(Collections.singletonList(smallDrive), 0, new BlockPos(1, 0, 0));
+        TestHolder duplicate = new TestHolder(Collections.singletonList(largeCopy), 0, new BlockPos(10, 0, 0));
+        QIOFrequency frequency = new QIOFrequency("capacity-duplicate", null,
+              mekanism.common.security.ISecurityTile.SecurityMode.PUBLIC);
+        frequency.addHolder(first);
+        frequency.refresh();
+
+        assertEquals(true, QIODriveData.initialize(largeCopy));
+        assertSame(SMALL_DEFINITION, QIODriveStorage.INSTANCE.get(driveId).getDefinition());
+        frequency.addHolder(duplicate);
+        frequency.refresh();
+
+        assertEquals(QIODriveSlotState.ACTIVE, frequency.getSlotState(new QIODriveMount(first, 0)));
+        assertEquals(QIODriveSlotState.DUPLICATE_UUID, frequency.getSlotState(new QIODriveMount(duplicate, 0)));
+        assertSame(SMALL_DEFINITION, QIODriveStorage.INSTANCE.get(driveId).getDefinition());
+        assertEquals(QIODriveType.MIXED.getCountCapacity(SMALL_DEFINITION), frequency.getTotalCountCapacity());
+        assertEquals(first, QIODriveStorage.INSTANCE.getActiveMount(driveId).getHolder());
+    }
+
+    @Test
+    void earlierLargerDriveUpgradesOnlyAfterWinningAndInvalidatesOtherFrequency() throws Exception {
+        worldDirectory = Files.createTempDirectory("qio-frequency-capacity-handoff-test").toFile();
+        QIOResourceTypeRegistry.INSTANCE.createOrLoad(worldDirectory);
+        QIODriveStorage.INSTANCE.createOrLoad(worldDirectory);
+
+        ItemQIODrive smallItem = new ItemQIODrive(SMALL_DEFINITION, QIODriveType.MIXED);
+        ItemQIODrive largeItem = new ItemQIODrive(LARGE_DEFINITION, QIODriveType.MIXED);
+        ItemStack smallDrive = new ItemStack(smallItem);
+        assertEquals(true, QIODriveData.initialize(smallDrive));
+        UUID driveId = smallItem.getDriveId(smallDrive);
+        ItemStack largeCopy = new ItemStack(largeItem);
+        largeItem.setDriveId(largeCopy, driveId);
+
+        TestHolder later = new TestHolder(Collections.singletonList(smallDrive), 0, new BlockPos(10, 0, 0));
+        TestHolder earlier = new TestHolder(Collections.singletonList(largeCopy), 0, new BlockPos(1, 0, 0));
+        QIOFrequency laterFrequency = new QIOFrequency("capacity-later", null,
+              mekanism.common.security.ISecurityTile.SecurityMode.PUBLIC);
+        QIOFrequency earlierFrequency = new QIOFrequency("capacity-earlier", null,
+              mekanism.common.security.ISecurityTile.SecurityMode.PUBLIC);
+        laterFrequency.addHolder(later);
+        laterFrequency.refresh();
+
+        assertEquals(true, QIODriveData.initialize(largeCopy));
+        assertSame(SMALL_DEFINITION, QIODriveStorage.INSTANCE.get(driveId).getDefinition());
+        earlierFrequency.addHolder(earlier);
+        earlierFrequency.refresh();
+
+        assertSame(LARGE_DEFINITION, QIODriveStorage.INSTANCE.get(driveId).getDefinition());
+        assertEquals(QIODriveType.MIXED.getCountCapacity(LARGE_DEFINITION), earlierFrequency.getTotalCountCapacity());
+        assertEquals(0, laterFrequency.getTotalCountCapacity());
+        assertEquals(QIODriveSlotState.DUPLICATE_UUID,
+              laterFrequency.getSlotState(new QIODriveMount(later, 0)));
+        assertEquals(earlier, QIODriveStorage.INSTANCE.getActiveMount(driveId).getHolder());
     }
 
     @Test
@@ -168,6 +266,123 @@ class QIOFrequencyTest {
         assertEquals(capacity, frequency.massInsert(item, Long.MAX_VALUE, Action.SIMULATE));
         assertEquals(capacity, frequency.massInsert(item, capacity, Action.EXECUTE));
         assertEquals(capacity, frequency.massExtract(item, Long.MAX_VALUE, Action.SIMULATE));
+    }
+
+    @Test
+    void multipleCreativeDrivesKeepOneExactResourceEntryAndRebuildAfterRemoval() throws Exception {
+        worldDirectory = Files.createTempDirectory("qio-frequency-creative-overflow-test").toFile();
+        QIOResourceTypeRegistry.INSTANCE.createOrLoad(worldDirectory);
+        QIODriveStorage.INSTANCE.createOrLoad(worldDirectory);
+        ItemQIODrive driveItem = new ItemQIODrive(CREATIVE_DEFINITION, QIODriveType.MIXED);
+        java.util.ArrayList<ItemStack> drives = new java.util.ArrayList<>(Arrays.asList(
+              new ItemStack(driveItem), new ItemStack(driveItem)));
+        TestHolder holder = new TestHolder(drives, 0, new BlockPos(1, 2, 3));
+        QIOFrequency frequency = new QIOFrequency("creative-overflow", null,
+              mekanism.common.security.ISecurityTile.SecurityMode.PUBLIC);
+        frequency.addHolder(holder);
+        frequency.refresh();
+
+        ItemStack item = new ItemStack(Blocks.STONE);
+        assertEquals(Long.MAX_VALUE, frequency.massInsert(item, Long.MAX_VALUE, Action.EXECUTE));
+        assertEquals(100, frequency.massInsert(item, 100, Action.SIMULATE));
+        assertEquals(100, frequency.massInsert(item, 100, Action.EXECUTE));
+        BigInteger expected = BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.valueOf(100));
+        assertEquals(Long.MAX_VALUE, frequency.getStored(item));
+        assertEquals(expected, frequency.getStoredExact(
+              QIOResourceTypeRegistry.INSTANCE.getUUIDForItem(mekanism.common.lib.inventory.HashedItem.create(item))).toBigInteger());
+        assertEquals(1, frequency.getResourceEntries().size());
+        assertEquals(expected, frequency.getResourceEntries().get(0).getExactAmount().toBigInteger());
+        assertEquals(2, frequency.getUnlimitedCountDriveCount());
+        assertEquals(2, frequency.getUnlimitedTypeDriveCount());
+        assertEquals(Long.MAX_VALUE, frequency.getTotalCountCapacity());
+        assertEquals(Integer.MAX_VALUE, frequency.getTotalTypeCapacity());
+        assertEquals(Long.MAX_VALUE, frequency.massExtract(item, Long.MAX_VALUE, Action.SIMULATE));
+        assertEquals(Long.MAX_VALUE, frequency.massExtract(item, Long.MAX_VALUE, Action.EXECUTE));
+        assertEquals(100, frequency.getStored(item));
+
+        drives.set(0, ItemStack.EMPTY);
+        frequency.requestRefresh();
+        frequency.refresh();
+        assertEquals(100, frequency.getStored(item));
+        assertEquals(BigInteger.valueOf(100), frequency.getResourceEntries().get(0).getExactAmount().toBigInteger());
+        assertEquals(1, frequency.getUnlimitedCountDriveCount());
+        assertEquals(Long.MAX_VALUE, frequency.getTotalCountCapacity());
+    }
+
+    @Test
+    void oneCreativeMixedDriveUsesThreeLongMaxPhysicalCapacity() throws Exception {
+        worldDirectory = Files.createTempDirectory("qio-frequency-creative-mixed-capacity-test").toFile();
+        QIOResourceTypeRegistry.INSTANCE.createOrLoad(worldDirectory);
+        QIODriveStorage.INSTANCE.createOrLoad(worldDirectory);
+        ItemQIODrive driveItem = new ItemQIODrive(CREATIVE_DEFINITION, QIODriveType.MIXED);
+        TestHolder holder = new TestHolder(Collections.singletonList(new ItemStack(driveItem)), 0,
+              new BlockPos(4, 5, 6));
+        QIOFrequency frequency = new QIOFrequency("creative-mixed-capacity", null,
+              mekanism.common.security.ISecurityTile.SecurityMode.PUBLIC);
+        frequency.addHolder(holder);
+        frequency.refresh();
+
+        BigInteger expectedCapacity = BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.valueOf(3));
+        QIODriveData drive = frequency.getDriveData(new QIODriveMount(holder, 0));
+        assertNotNull(drive);
+        assertEquals(expectedCapacity, drive.getRecord().getExactCountCapacity().toBigInteger());
+        assertEquals(Long.MAX_VALUE, frequency.massInsert(new ItemStack(Blocks.STONE), Long.MAX_VALUE, Action.EXECUTE));
+        assertEquals(Long.MAX_VALUE, frequency.massInsert(new ItemStack(Blocks.DIRT), Long.MAX_VALUE, Action.EXECUTE));
+        assertEquals(Long.MAX_VALUE, frequency.massInsert(new ItemStack(Blocks.COBBLESTONE), Long.MAX_VALUE, Action.EXECUTE));
+        assertEquals(0, frequency.massInsert(new ItemStack(Blocks.SAND), 1, Action.SIMULATE));
+        assertEquals(0, frequency.massInsert(new ItemStack(Blocks.SAND), 1, Action.EXECUTE));
+        assertEquals(expectedCapacity, frequency.getExactTotalCount().toBigInteger());
+        assertEquals(3, frequency.getTotalTypes());
+    }
+
+    @Test
+    void expandedFiniteMixedCapacityRemainsFiniteInFrequencySummary() throws Exception {
+        worldDirectory = Files.createTempDirectory("qio-frequency-expanded-finite-test").toFile();
+        QIOResourceTypeRegistry.INSTANCE.createOrLoad(worldDirectory);
+        QIODriveStorage.INSTANCE.createOrLoad(worldDirectory);
+        ItemQIODrive driveItem = new ItemQIODrive(EXPANDED_FINITE_DEFINITION, QIODriveType.MIXED);
+        TestHolder holder = new TestHolder(Collections.singletonList(new ItemStack(driveItem)), 0,
+              new BlockPos(7, 8, 9));
+        QIOFrequency frequency = new QIOFrequency("expanded-finite", null,
+              mekanism.common.security.ISecurityTile.SecurityMode.PUBLIC);
+        frequency.addHolder(holder);
+        frequency.refresh();
+
+        BigInteger expected = BigInteger.valueOf(Long.MAX_VALUE - 1).multiply(BigInteger.valueOf(3));
+        assertEquals(expected, frequency.getExactCountCapacity().toBigInteger());
+        assertEquals(Long.MAX_VALUE, frequency.getTotalCountCapacity());
+        assertEquals(0, frequency.getUnlimitedCountDriveCount());
+        assertEquals(false, frequency.getCapacitySummary().hasUnlimitedCount());
+    }
+
+    @Test
+    void manyFiniteDrivesExposeAnExactCapacityAfterTheLegacyLongSaturates() throws Exception {
+        worldDirectory = Files.createTempDirectory("qio-frequency-finite-capacity-overflow-test").toFile();
+        QIOResourceTypeRegistry.INSTANCE.createOrLoad(worldDirectory);
+        QIODriveStorage.INSTANCE.createOrLoad(worldDirectory);
+        ItemQIODrive driveItem = new ItemQIODrive(MAX_FINITE_DEFINITION, QIODriveType.ITEM);
+        java.util.ArrayList<ItemStack> drives = new java.util.ArrayList<>();
+        for (int i = 0; i < 1_001; i++) {
+            drives.add(new ItemStack(driveItem));
+        }
+        TestHolder holder = new TestHolder(drives, 0, new BlockPos(3, 4, 5));
+        QIOFrequency frequency = new QIOFrequency("finite-overflow", null,
+              mekanism.common.security.ISecurityTile.SecurityMode.PUBLIC);
+        frequency.addHolder(holder);
+        frequency.refresh();
+
+        BigInteger expected = BigInteger.valueOf(MAX_FINITE_DEFINITION.getMaxCount()).multiply(BigInteger.valueOf(1_001));
+        assertEquals(expected, frequency.getExactCountCapacity().toBigInteger());
+        assertEquals(Long.MAX_VALUE, frequency.getTotalCountCapacity());
+        assertEquals(0, frequency.getUnlimitedCountDriveCount());
+        assertEquals(BigInteger.valueOf(1_001), frequency.getExactTypeCapacity().toBigInteger());
+
+        drives.subList(1, drives.size()).clear();
+        frequency.requestRefresh();
+        frequency.refresh();
+        assertEquals(BigInteger.valueOf(MAX_FINITE_DEFINITION.getMaxCount()),
+              frequency.getExactCountCapacity().toBigInteger());
+        assertEquals(MAX_FINITE_DEFINITION.getMaxCount(), frequency.getTotalCountCapacity());
     }
 
     @Test
@@ -470,15 +685,13 @@ class QIOFrequencyTest {
               mekanism.common.lib.inventory.HashedItem.create(new ItemStack(Blocks.STONE)));
         UUID driveId = UUID.randomUUID();
 
-        NBTTagCompound drive = new NBTTagCompound();
-        drive.setInteger("version", QIODriveRecord.DATA_VERSION);
-        drive.setString("uuid", driveId.toString());
-        drive.setString("tier", QIODriveTier.BASE.getSerializedName());
-        drive.setString("driveType", QIODriveType.FLUID.getSerializedName());
+        NBTTagCompound drive = new QIODriveRecord(driveId, QIODriveTier.BASE, QIODriveType.FLUID).write();
         drive.setLong("count", 1);
+        drive.setLong("storageUnits", QIOStorageUnits.UNITS_PER_ITEM);
         drive.setInteger("types", 1);
         NBTTagCompound content = new NBTTagCompound();
         content.setString("resource", itemResource.toString());
+        content.setString("kind", QIOResourceKind.ITEM.getSerializedName());
         content.setLong("amount", 1);
         net.minecraft.nbt.NBTTagList contents = new net.minecraft.nbt.NBTTagList();
         contents.appendTag(content);

@@ -7,6 +7,7 @@ import mekanism.common.frequency.Frequency.FrequencyIdentity;
 import mekanism.common.frequency.FrequencyType;
 import mekanism.common.frequency.IFrequencyItem;
 import mekanism.common.item.interfaces.IColoredItem;
+import mekanism.common.item.interfaces.IItemBlockPlacementData;
 import mekanism.common.item.interfaces.IItemSustainedInventory;
 import mekanism.common.security.ISecurityItem;
 import mekanism.common.security.ISecurityTile.SecurityMode;
@@ -17,6 +18,7 @@ import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
@@ -24,6 +26,7 @@ import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraftforge.common.util.Constants.NBT;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
@@ -35,7 +38,8 @@ import java.util.Locale;
 import java.util.UUID;
 
 /** Shared item implementation for QIO component blocks. */
-public class ItemBlockQIOComponent extends ItemBlock implements IItemSustainedInventory, ISecurityItem, IFrequencyItem, IColoredItem {
+public class ItemBlockQIOComponent extends ItemBlock implements IItemSustainedInventory, ISecurityItem, IFrequencyItem, IColoredItem,
+      IItemBlockPlacementData {
 
     public ItemBlockQIOComponent(Block block) {
         super(block);
@@ -69,24 +73,22 @@ public class ItemBlockQIOComponent extends ItemBlock implements IItemSustainedIn
     }
 
     @Override
-    public boolean placeBlockAt(@Nonnull ItemStack stack, @Nonnull EntityPlayer player, World world, @Nonnull BlockPos pos,
-          EnumFacing side, float hitX, float hitY, float hitZ, @Nonnull IBlockState newState) {
-        boolean placed = super.placeBlockAt(stack, player, world, pos, side, hitX, hitY, hitZ, newState);
-        if (placed && world.getTileEntity(pos) instanceof TileEntityQIOComponent) {
-            TileEntityQIOComponent tile = (TileEntityQIOComponent) world.getTileEntity(pos);
-            UUID owner = getOwnerUUID(stack);
-            tile.getSecurity().setOwnerUUID(owner == null ? player.getUniqueID() : owner);
-            tile.getSecurity().setMode(getSecurity(stack));
-            tile.setInventory(getSustainedInventory(stack));
-            if (ItemDataUtils.hasData(stack, "qioSustained", NBT.TAG_COMPOUND)) {
-                tile.readSustainedQIOData(ItemDataUtils.getCompound(stack, "qioSustained"));
-            }
-            FrequencyIdentity identity = getFrequency(stack);
-            if (!world.isRemote && identity != null) {
-                tile.setFrequency(FrequencyType.QIO, identity, player.getUniqueID());
-            }
+    public void restorePlacementData(@Nonnull ItemStack stack, @Nonnull EntityLivingBase placer, @Nonnull World world, @Nonnull BlockPos pos,
+          @Nonnull TileEntity tileEntity) {
+        if (!(tileEntity instanceof TileEntityQIOComponent tile)) {
+            return;
         }
-        return placed;
+        UUID owner = getOwnerUUID(stack);
+        tile.getSecurity().setOwnerUUID(owner == null ? placer.getUniqueID() : owner);
+        tile.getSecurity().setMode(getSecurity(stack));
+        tile.setInventory(getSustainedInventory(stack));
+        if (ItemDataUtils.hasData(stack, "qioSustained", NBT.TAG_COMPOUND)) {
+            tile.readSustainedQIOData(ItemDataUtils.getCompound(stack, "qioSustained"));
+        }
+        FrequencyIdentity identity = getFrequency(stack);
+        if (!world.isRemote && identity != null) {
+            tile.setFrequency(FrequencyType.QIO, identity, placer.getUniqueID());
+        }
     }
 
     @Override

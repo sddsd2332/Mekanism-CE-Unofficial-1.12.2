@@ -126,8 +126,16 @@ public class UnitDisplayUtils {
     }
 
     public static double roundDecimals(double d, int decimalPlaces) {
-        int j = (int) (d * Math.pow(10, decimalPlaces));
-        return j / Math.pow(10, decimalPlaces);
+        double factor = Math.pow(10, decimalPlaces);
+        if (!Double.isFinite(d) || !Double.isFinite(factor) || factor == 0) {
+            return d;
+        }
+        double scaled = d * factor;
+        if (!Double.isFinite(scaled)) {
+            return d;
+        }
+        //Preserve the old truncation-towards-zero behavior without narrowing to int.
+        return (scaled < 0 ? Math.ceil(scaled) : Math.floor(scaled)) / factor;
     }
 
     public static double roundDecimals(double d) {

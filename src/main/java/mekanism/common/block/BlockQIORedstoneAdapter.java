@@ -11,6 +11,7 @@ import mekanism.common.tile.prefab.TileEntityBasicBlock;
 import mekanism.common.tile.qio.TileEntityQIORedstoneAdapter;
 import mekanism.common.tile.qio.TileEntityQIOComponent;
 import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.MekanismPlacementData;
 import mekanism.common.util.SecurityUtils;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.BlockFaceShape;
@@ -88,6 +89,7 @@ public class BlockQIORedstoneAdapter extends BlockMekanismContainer {
         if (tile instanceof ISecurityTile && placer instanceof EntityPlayer && ((ISecurityTile) tile).getSecurity().getOwnerUUID() == null) {
             ((ISecurityTile) tile).getSecurity().setOwnerUUID(((EntityPlayer) placer).getUniqueID());
         }
+        MekanismPlacementData.apply(world, pos, placer, stack);
     }
 
     @Override

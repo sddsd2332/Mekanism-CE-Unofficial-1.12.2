@@ -2,6 +2,11 @@ package mekanism.common.tile.multiblock;
 
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import mekanism.api.Coord4D;
+import mekanism.api.IContentsListener;
+import mekanism.api.heat.IHeatCapacitor;
+import mekanism.common.capabilities.Capabilities;
+import mekanism.common.capabilities.holder.heat.IHeatCapacitorHolder;
+import mekanism.common.capabilities.holder.heat.ProxiedHeatCapacitorHolder;
 import mekanism.common.integration.computer.IComputerIntegration;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
 import mekanism.common.util.InventoryUtils;
@@ -15,6 +20,7 @@ import net.minecraftforge.items.CapabilityItemHandler;
 
 import javax.annotation.Nonnull;
 import java.util.Deque;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.Set;
 
@@ -46,6 +52,9 @@ public class TileEntityThermalEvaporationBlock extends TileEntityContainerBlock 
         if (ticker == 5 && !attempted && master == null) {
             updateController();
         }
+        if (getController() != null) {
+            simulateAdjacent();
+        }
 
     }
 
@@ -56,10 +65,32 @@ public class TileEntityThermalEvaporationBlock extends TileEntityContainerBlock 
 
     public void addToStructure(Coord4D controller) {
         master = controller;
+        invalidateCapability(Capabilities.HEAT_HANDLER_CAPABILITY, null);
+        invalidateCapability(Capabilities.HEAT_TRANSFER_CAPABILITY, null);
     }
 
     public void controllerGone() {
         master = null;
+        invalidateCapability(Capabilities.HEAT_HANDLER_CAPABILITY, null);
+        invalidateCapability(Capabilities.HEAT_TRANSFER_CAPABILITY, null);
+    }
+
+    @Override
+    protected IHeatCapacitorHolder getInitialHeatCapacitors(IContentsListener listener) {
+        return ProxiedHeatCapacitorHolder.create(
+              side -> getController() != null,
+              side -> getController() != null,
+              side -> {
+                  TileEntityThermalEvaporationController controller = getController();
+                  IHeatCapacitor capacitor = controller == null ? null : controller.getStructureHeatCapacitor();
+                  return capacitor == null ? Collections.emptyList() : Collections.singletonList(capacitor);
+              }
+        );
+    }
+
+    @Override
+    protected boolean persistHeatCapacitors() {
+        return false;
     }
 
     @Override
@@ -127,7 +158,7 @@ public class TileEntityThermalEvaporationBlock extends TileEntityContainerBlock 
             return new Object[]{"Unformed."};
         }
         return switch (method) {
-            case 0 -> new Object[]{controller.temperature};
+            case 0 -> new Object[]{controller.getTemperature()};
             case 1 -> new Object[]{controller.height};
             case 2 -> new Object[]{controller.structured};
             case 3 -> new Object[]{controller.inputTank.getFluidAmount()};

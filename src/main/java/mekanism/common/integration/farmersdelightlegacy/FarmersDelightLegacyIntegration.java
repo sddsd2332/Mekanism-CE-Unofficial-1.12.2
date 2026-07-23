@@ -1,9 +1,9 @@
 package mekanism.common.integration.farmersdelightlegacy;
 
 import com.wdcftgg.farmersdelightlegacy.api.heat.HeatSourceApi;
-import mekanism.api.IHeatTransfer;
-import mekanism.common.capabilities.Capabilities;
-import mekanism.common.util.CapabilityUtils;
+import mekanism.api.heat.HeatAPI;
+import mekanism.api.heat.IHeatHandler;
+import mekanism.common.util.HeatCapabilityUtils;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.math.BlockPos;
@@ -25,8 +25,7 @@ public final class FarmersDelightLegacyIntegration {
         if (tile == null) {
             return false;
         }
-        IHeatTransfer heatTransfer = CapabilityUtils.getCapability(tile, Capabilities.HEAT_TRANSFER_CAPABILITY, null);
-        // Mekanism heat values are stored as temperature above ambient, so any positive value is hot enough.
-        return heatTransfer != null && heatTransfer.getTemp() > 0;
+        IHeatHandler heatHandler = HeatCapabilityUtils.getHandler(tile, null);
+        return heatHandler != null && heatHandler.getTotalTemperature() > HeatAPI.AMBIENT_TEMP;
     }
 }

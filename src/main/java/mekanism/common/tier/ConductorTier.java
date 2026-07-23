@@ -46,8 +46,14 @@ public enum ConductorTier implements ITier {
         return MekanismConfig.current().general.tiers.get(baseTier).ConductorConductionInsulation.val();
     }
 
-    public double getInverseHeatCapacity() {
+    public double getHeatCapacity() {
         return MekanismConfig.current().general.tiers.get(baseTier).ConductorHeatCapacity.val();
+    }
+
+    /** @deprecated Use {@link #getHeatCapacity()}. */
+    @Deprecated
+    public double getInverseHeatCapacity() {
+        return getHeatCapacity();
     }
 
     public ColourRGBA getBaseColour() {

@@ -137,10 +137,7 @@ public abstract class GuiQIOViewerScreen<CONTAINER extends QIOItemViewerContaine
             return Collections.emptyList();
         }
         QIOItemViewerContainer container = getViewerContainer();
-        return Arrays.asList(MekanismLang.QIO_ITEMS_DETAIL.translateColored(EnumColor.GREY, EnumColor.INDIGO,
-                    TextUtils.format(container.getTotalCount()), TextUtils.format(container.getTotalCountCapacity())),
-              MekanismLang.QIO_TYPES_DETAIL.translateColored(EnumColor.GREY, EnumColor.INDIGO,
-                    TextUtils.format(container.getTotalTypes()), TextUtils.format(container.getTotalTypeCapacity())));
+        return QIOGuiCapacityText.forContainer(container);
     }
 
     private boolean isValidSearchChar(char character) {

@@ -8,6 +8,7 @@ import mekanism.api.energy.IStrictEnergyOutputter;
 import mekanism.api.energy.IStrictEnergyStorage;
 import mekanism.api.gas.IGasHandler;
 import mekanism.api.gas.ITubeConnection;
+import mekanism.api.heat.IHeatHandler;
 import mekanism.api.lasers.ILaserDissipation;
 import mekanism.api.lasers.ILaserReceptor;
 import mekanism.api.radiation.capability.IRadiationEntity;
@@ -54,7 +55,11 @@ public class Capabilities {
     public static Capability<IGasHandler> GAS_HANDLER_CAPABILITY = null;
 
     @CapabilityInject(IHeatTransfer.class)
+    @Deprecated
     public static Capability<IHeatTransfer> HEAT_TRANSFER_CAPABILITY = null;
+
+    @CapabilityInject(IHeatHandler.class)
+    public static Capability<IHeatHandler> HEAT_HANDLER_CAPABILITY = null;
 
     @CapabilityInject(IBlockableConnection.class)
     public static Capability<IBlockableConnection> BLOCKABLE_CONNECTION_CAPABILITY = null;
@@ -130,6 +135,7 @@ public class Capabilities {
         DefaultConfigurable.register();
         DefaultTileNetwork.register();
         DefaultAlloyInteraction.register();
+        DefaultHeatHandler.register();
         DefaultHeatTransfer.register();
         DefaultConfigCardAccess.register();
         DefaultSpecialConfigData.register();

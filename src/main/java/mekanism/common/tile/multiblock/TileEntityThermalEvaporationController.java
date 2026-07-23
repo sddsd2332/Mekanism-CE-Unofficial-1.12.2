@@ -3,6 +3,8 @@ package mekanism.common.tile.multiblock;
 import io.netty.buffer.ByteBuf;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import mekanism.api.*;
+import mekanism.api.heat.HeatAPI;
+import mekanism.api.heat.IHeatCapacitor;
 import mekanism.common.Mekanism;
 import mekanism.common.base.IActiveState;
 import mekanism.common.base.ITankManager;
@@ -10,6 +12,7 @@ import mekanism.common.block.states.BlockStateBasic.BasicBlockType;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.capabilities.fluid.BasicFluidTank;
 import mekanism.common.capabilities.fluid.VariableCapacityFluidTank;
+import mekanism.common.capabilities.heat.VariableHeatCapacitor;
 import mekanism.common.capabilities.holder.fluid.IFluidTankHolder;
 import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
 import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
@@ -58,6 +61,11 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
 
     public static final int MAX_OUTPUT = 10000;
     public static final int MAX_HEIGHT = 18;
+    private static final double DEFAULT_MAX_TEMPERATURE = 3_000;
+    private static final double DEFAULT_HEAT_CAPACITY = 100;
+    private static final double DEFAULT_HEAT_DISSIPATION = 0.02;
+    private static final double DEFAULT_SOLAR_MULTIPLIER = 0.2;
+    private static final double DEFAULT_TEMPERATURE_MULTIPLIER = 0.4;
     private static final List<RecipeError> TRACKED_ERROR_TYPES = Arrays.asList(
           RecipeError.NOT_ENOUGH_INPUT,
           RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
@@ -65,7 +73,8 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
     );
     private final RecipeCacheLookupMonitor<ThermalEvaporationRecipe> recipeCacheLookupMonitor = new RecipeCacheLookupMonitor<>(this);
     public VariableCapacityFluidTank inputTank = VariableCapacityFluidTank.input(this::getMaxFluid, fluid -> hasRecipe(fluid.getFluid()), recipeCacheLookupMonitor);
-    public VariableCapacityFluidTank outputTank = VariableCapacityFluidTank.output(() -> MAX_OUTPUT, BasicFluidTank.alwaysTrue, this::onRecipeCacheContentsChanged);
+    public VariableCapacityFluidTank outputTank = VariableCapacityFluidTank.output(TileEntityThermalEvaporationController::getOutputTankCapacity,
+          BasicFluidTank.alwaysTrue, this::onRecipeCacheContentsChanged);
     private FluidInventorySlot inputSlot;
     private OutputInventorySlot inputContainerSlot;
     private FluidInventorySlot outputSlot;
@@ -78,11 +87,12 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
     public Set<Coord4D> tankParts = new ObjectOpenHashSet<>();
     public IEvaporationSolar[] solars = new IEvaporationSolar[4];
 
-    public boolean temperatureSet = false;
-
-    public float biomeTemp = 0;
-    public float temperature = 0;
-    public float heatToAbsorb = 0;
+    private double biomeAmbientTemp = HeatAPI.AMBIENT_TEMP;
+    private final VariableHeatCapacitor structureHeatCapacitor = VariableHeatCapacitor.create(
+          getEvaporationHeatCapacity(3),
+          () -> biomeAmbientTemp,
+          this
+    );
 
     public float lastGain = 0;
 
@@ -102,7 +112,7 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
 
     public float prevScale;
 
-    public float totalLoss = 0;
+    public double totalLoss = 0;
 
     @SideOnly(Side.CLIENT)
     private static final double THERMAL_FLUID_EDGE_MARGIN = 0.02D;
@@ -345,7 +355,7 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
             if (productionRate > 0 && productionRate < 1) {
                 lastGain = 1F / (float) Math.ceil(1 / productionRate);
             } else {
-                lastGain = (float) productionRate;
+                lastGain = (float) Math.min(Float.MAX_VALUE, productionRate);
             }
         } else {
             lastGain = 0;
@@ -354,16 +364,19 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
 
     private int getRecipeRequiredTicks() {
         double productionRate = getProductionRate();
-        return productionRate > 0 && productionRate < 1 ? (int) Math.ceil(1 / productionRate) : 1;
+        return productionRate > 0 && productionRate < 1 ? Math.max(1, (int) Math.ceil(1 / productionRate)) : 1;
     }
 
     private int getBaselineMaxOperations() {
         double productionRate = getProductionRate();
-        return productionRate > 0 && productionRate < 1 ? 1 : (int) productionRate;
+        return productionRate > 0 && productionRate < 1 ? 1 : (int) Math.min(Integer.MAX_VALUE, productionRate);
     }
 
     private double getProductionRate() {
-        return Math.max(0, getTemperature()) * MekanismConfig.current().general.evaporationTempMultiplier.val() * ((double) height / (double) MAX_HEIGHT);
+        double effectiveTemperature = Math.min(getMaxTemperature(), getTemperature());
+        double temperatureDelta = Math.max(0, effectiveTemperature - HeatAPI.AMBIENT_TEMP);
+        double rate = HeatAPI.multiplyHeat(temperatureDelta, getTemperatureMultiplier());
+        return rate * ((double) Math.max(0, Math.min(MAX_HEIGHT, height)) / MAX_HEIGHT);
     }
 
     private void manageBuckets() {
@@ -379,39 +392,64 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
     }
 
     private void updateTemperature() {
-        if (!temperatureSet) {
-            biomeTemp = world.getBiomeForCoordsBody(getPos()).getTemperature(getPos());
-            temperatureSet = true;
-        }
-        heatToAbsorb += getActiveSolars() * MekanismConfig.current().general.evaporationSolarMultiplier.val();
-        temperature += heatToAbsorb / (float) height;
-
-        float biome = biomeTemp - 0.5F;
-        float base = biome > 0 ? biome * 20 : biomeTemp * 40;
-
-        if (Math.abs(temperature - base) < 0.001) {
-            temperature = base;
-        }
-        float incr = (float) Math.sqrt(Math.abs(temperature - base)) * (float) MekanismConfig.current().general.evaporationHeatDissipation.val();
-
-        if (temperature > base) {
-            incr = -incr;
-        }
-
-        float prev = temperature;
-        temperature = (float) Math.min(MekanismConfig.current().general.evaporationMaxTemp.val(), temperature + incr / (float) height);
-
-        if (incr < 0) {
-            totalLoss = prev - temperature;
+        double heatCapacity = structureHeatCapacitor.getHeatCapacity();
+        double solarTemperature = getActiveSolars() * getSolarMultiplier();
+        structureHeatCapacitor.handleHeat(HeatAPI.multiplyHeatSigned(solarTemperature, heatCapacity));
+        double currentTemperature = getTemperature();
+        double ambientTemperature = HeatAPI.sanitizeTemperature(biomeAmbientTemp);
+        double difference = Math.abs(currentTemperature - ambientTemperature);
+        double heatBeforeDissipation = structureHeatCapacitor.getHeat();
+        if (difference < 0.001) {
+            structureHeatCapacitor.setHeat(HeatAPI.multiplyHeat(ambientTemperature, heatCapacity));
         } else {
-            totalLoss = 0;
+            double temperatureChange = getHeatDissipation() * Math.sqrt(difference);
+            if (currentTemperature > ambientTemperature) {
+                temperatureChange = -temperatureChange;
+            }
+            structureHeatCapacitor.handleHeat(HeatAPI.multiplyHeatSigned(temperatureChange, heatCapacity));
         }
-        heatToAbsorb = 0;
+        double heatAfterDissipation = structureHeatCapacitor.getHeat();
+        totalLoss = heatBeforeDissipation > heatAfterDissipation ? (heatBeforeDissipation - heatAfterDissipation) / heatCapacity : 0;
         MekanismUtils.saveChunk(this);
     }
 
-    public float getTemperature() {
-        return temperature;
+    private static double getEvaporationHeatCapacity(int layers) {
+        double capacityPerLayer = sanitizeRangedConfig(MekanismConfig.current().general.evaporationHeatCapacity.val(),
+              DEFAULT_HEAT_CAPACITY, 1, 1_000_000);
+        return HeatAPI.sanitizeHeatCapacity(HeatAPI.multiplyHeat(capacityPerLayer, Math.max(1, Math.min(MAX_HEIGHT, layers))));
+    }
+
+    private static double getHeatDissipation() {
+        return sanitizeRangedConfig(MekanismConfig.current().general.evaporationHeatDissipation.val(),
+              DEFAULT_HEAT_DISSIPATION, 0.001, 1_000);
+    }
+
+    private static double getSolarMultiplier() {
+        return sanitizeRangedConfig(MekanismConfig.current().general.evaporationSolarMultiplier.val(),
+              DEFAULT_SOLAR_MULTIPLIER, 0.001, 1_000_000);
+    }
+
+    private static double getTemperatureMultiplier() {
+        return sanitizeRangedConfig(MekanismConfig.current().general.evaporationTempMultiplier.val(),
+              DEFAULT_TEMPERATURE_MULTIPLIER, 0.001, 1_000_000);
+    }
+
+    private static double getMaxTemperature() {
+        double maxTemperature = MekanismConfig.current().general.evaporationMaxTemp.val();
+        return HeatAPI.isFinite(maxTemperature) && maxTemperature > 0 ? Math.min(HeatAPI.MAX_HEAT, maxTemperature) : DEFAULT_MAX_TEMPERATURE;
+    }
+
+    private static double sanitizeRangedConfig(double value, double fallback, double min, double max) {
+        return HeatAPI.isFinite(value) && value >= min && value <= max ? value : fallback;
+    }
+
+    public double getTemperature() {
+        return structureHeatCapacitor.getTemperature();
+    }
+
+    @Nullable
+    public IHeatCapacitor getStructureHeatCapacitor() {
+        return structured || isRemote() ? structureHeatCapacitor : null;
     }
 
     public int getActiveSolars() {
@@ -457,9 +495,35 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
             height = 0;
             return false;
         }
+        Coord4D oppositeCorner = startPoint.offset(right, 3).offset(MekanismUtils.getBack(facing), 3);
+        BlockPos min = new BlockPos(Math.min(startPoint.x, oppositeCorner.x), renderY,
+              Math.min(startPoint.z, oppositeCorner.z));
+        BlockPos max = new BlockPos(Math.max(startPoint.x, oppositeCorner.x), startPoint.y,
+              Math.max(startPoint.z, oppositeCorner.z));
+        updateAmbientTemperature(min, max);
+        structureHeatCapacitor.updateHeatAndCapacity(getEvaporationHeatCapacity(height));
         structured = true;
         markNoUpdateSync();
         return true;
+    }
+
+    private void updateAmbientTemperature(BlockPos min, BlockPos max) {
+        BlockPos[] corners = {
+              min,
+              new BlockPos(max.getX(), min.getY(), min.getZ()),
+              new BlockPos(min.getX(), min.getY(), max.getZ()),
+              new BlockPos(max.getX(), min.getY(), max.getZ()),
+              new BlockPos(min.getX(), max.getY(), min.getZ()),
+              new BlockPos(max.getX(), max.getY(), min.getZ()),
+              new BlockPos(min.getX(), max.getY(), max.getZ()),
+              max
+        };
+        double biomeTemperature = 0;
+        for (BlockPos corner : corners) {
+            double temperature = world.getBiomeForCoordsBody(corner).getTemperature(corner);
+            biomeTemperature += HeatAPI.isFinite(temperature) ? temperature : 0.8D;
+        }
+        biomeAmbientTemp = HeatAPI.getAmbientTemp(biomeTemperature / corners.length);
     }
 
     public boolean scanTopLayer(Coord4D current) {
@@ -489,7 +553,13 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
     }
 
     public int getMaxFluid() {
-        return height * 4 * 64000;
+        int configured = MekanismConfig.current().general.evaporationFluidPerTank.val();
+        long capacity = (long) Math.max(0, Math.min(MAX_HEIGHT, height)) * 4L * Math.max(1, configured);
+        return (int) Math.min(Integer.MAX_VALUE, capacity);
+    }
+
+    private static int getOutputTankCapacity() {
+        return Math.max(1, MekanismConfig.current().general.evaporationOutputTankCapacity.val());
     }
 
     public int getCorner(int x, int z) {
@@ -567,7 +637,12 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
     }
 
     public int getScaledTempLevel(int i) {
-        return (int) (i * Math.min(1, getTemperature() / MekanismConfig.current().general.evaporationMaxTemp.val()));
+        return (int) (Math.max(0, i) * getTemperatureScale());
+    }
+
+    public double getTemperatureScale() {
+        double scale = getTemperature() / getMaxTemperature();
+        return HeatAPI.isFinite(scale) ? Math.max(0, Math.min(1, scale)) : 0;
     }
 
     public Coord4D getRenderLocation() {
@@ -874,13 +949,16 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
 
             structured = dataStream.readBoolean();
             controllerConflict = dataStream.readBoolean();
-            clientSolarAmount = dataStream.readInt();
-            height = dataStream.readInt();
-            temperature = dataStream.readFloat();
-            biomeTemp = dataStream.readFloat();
+            clientSolarAmount = Math.max(0, Math.min(solars.length, dataStream.readInt()));
+            height = Math.max(0, Math.min(MAX_HEIGHT, dataStream.readInt()));
+            structureHeatCapacitor.setHeatCapacityFromPacket(dataStream.readDouble());
+            structureHeatCapacitor.setHeat(dataStream.readDouble());
+            biomeAmbientTemp = HeatAPI.sanitizeTemperature(dataStream.readDouble());
             isLeftOnFace = dataStream.readBoolean();
-            lastGain = dataStream.readFloat();
-            totalLoss = dataStream.readFloat();
+            float syncedLastGain = dataStream.readFloat();
+            lastGain = Float.isFinite(syncedLastGain) && syncedLastGain >= 0 ? syncedLastGain : 0;
+            double syncedTotalLoss = dataStream.readDouble();
+            totalLoss = HeatAPI.isFinite(syncedTotalLoss) && syncedTotalLoss >= 0 ? Math.min(HeatAPI.MAX_HEAT, syncedTotalLoss) : 0;
             renderY = dataStream.readInt();
 
             if (structured != clientStructured) {
@@ -907,8 +985,9 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
         data.add(controllerConflict);
         data.add(getActiveSolars());
         data.add(height);
-        data.add(temperature);
-        data.add(biomeTemp);
+        data.add(structureHeatCapacitor.getHeatCapacity());
+        data.add(structureHeatCapacitor.getHeat());
+        data.add(biomeAmbientTemp);
         data.add(isLeftOnFace);
         data.add(lastGain);
         data.add(totalLoss);
@@ -922,11 +1001,13 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
         inputTank.readFromNBT(nbtTags.getCompoundTag("waterTank"));
         outputTank.readFromNBT(nbtTags.getCompoundTag("brineTank"));
         sanitizeStoredFluids();
-        clampTanksToCapacity();
+        // Input capacity depends on the rebuilt structure height. refresh() clamps it once that height is authoritative.
 
-        temperature = nbtTags.getFloat("temperature");
+        if (nbtTags.hasKey(NBTConstants.HEAT_STORED, net.minecraftforge.common.util.Constants.NBT.TAG_COMPOUND)) {
+            structureHeatCapacitor.deserializeNBT(nbtTags.getCompoundTag(NBTConstants.HEAT_STORED));
+        }
 
-        operatingTicks = nbtTags.getInteger("operatingTicks");
+        operatingTicks = Math.max(0, nbtTags.getInteger("operatingTicks"));
     }
 
     @Override
@@ -935,7 +1016,7 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
         nbtTags.setTag("waterTank", inputTank.writeToNBT(new NBTTagCompound()));
         nbtTags.setTag("brineTank", outputTank.writeToNBT(new NBTTagCompound()));
 
-        nbtTags.setFloat("temperature", temperature);
+        nbtTags.setTag(NBTConstants.HEAT_STORED, structureHeatCapacitor.serializeNBT());
 
         nbtTags.setInteger("operatingTicks", operatingTicks);
     }
@@ -948,6 +1029,16 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
     @Override
     public TileEntityThermalEvaporationController getController() {
         return structured ? this : null;
+    }
+
+    @Override
+    protected mekanism.common.capabilities.holder.heat.IHeatCapacitorHolder getInitialHeatCapacitors(IContentsListener listener) {
+        return null;
+    }
+
+    @Override
+    public double simulateAdjacent() {
+        return 0;
     }
 
     public void clearStructure() {

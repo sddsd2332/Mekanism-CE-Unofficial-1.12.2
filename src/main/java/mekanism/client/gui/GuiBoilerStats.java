@@ -6,12 +6,10 @@ import mekanism.client.gui.element.tab.GuiBoilerTab.BoilerTab;
 import mekanism.client.gui.element.tab.GuiHeatTab;
 import mekanism.client.gui.element.tab.GuiWarningTab;
 import mekanism.client.gui.warning.IWarningTracker;
-import mekanism.common.config.MekanismConfig;
-import mekanism.common.content.boiler.SynchronizedBoilerData;
 import mekanism.common.inventory.container.ContainerNull;
 import mekanism.common.tile.multiblock.TileEntityBoilerCasing;
 import mekanism.common.util.LangUtils;
-import mekanism.common.util.UnitDisplayUtils;
+import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.UnitDisplayUtils.TemperatureUnit;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.util.text.TextComponentString;
@@ -69,12 +67,10 @@ public class GuiBoilerStats extends GuiMekanismTile<TileEntityBoilerCasing, Cont
     }
 
     private String getEnvironmentLoss() {
-        TemperatureUnit unit = TemperatureUnit.values()[MekanismConfig.current().general.tempUnit.val().ordinal()];
-        return UnitDisplayUtils.getDisplayShort(tileEntity.getLastEnvironmentLoss() * unit.intervalSize, false, unit);
+        return MekanismUtils.getTemperatureDisplay(tileEntity.getLastEnvironmentLoss(), TemperatureUnit.KELVIN, false);
     }
 
     private int getBoilCapacity() {
-        return (int) (tileEntity.getSuperheatingElements() * MekanismConfig.current().general.superheatingHeatTransfer.val() /
-              SynchronizedBoilerData.getHeatEnthalpy());
+        return tileEntity.getBoilCapacity();
     }
 }

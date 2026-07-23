@@ -17,6 +17,7 @@ import mekanism.common.capabilities.gas.item.RateLimitGasHandler;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.item.interfaces.IItemSustainedInventory;
+import mekanism.common.item.interfaces.IItemBlockPlacementData;
 import mekanism.common.item.interfaces.ILegacyGasItem;
 import mekanism.common.security.ISecurityItem;
 import mekanism.common.security.ISecurityTile;
@@ -26,6 +27,7 @@ import mekanism.common.tier.GasTankTier;
 import mekanism.common.tile.TileEntityGasTank;
 import mekanism.common.util.ItemDataUtils;
 import mekanism.common.util.LangUtils;
+import mekanism.common.util.MekanismPlacementData;
 import mekanism.common.util.SecurityUtils;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
@@ -34,10 +36,12 @@ import net.minecraft.client.settings.GameSettings;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.NonNullList;
 import net.minecraft.util.math.BlockPos;
@@ -52,7 +56,7 @@ import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.UUID;
 
-public class ItemBlockGasTank extends ItemBlock implements ILegacyGasItem, IItemSustainedInventory, ITierItem, ISecurityItem {
+public class ItemBlockGasTank extends ItemBlock implements ILegacyGasItem, IItemSustainedInventory, ITierItem, ISecurityItem, IItemBlockPlacementData {
 
     /**
      * How fast this tank can transfer gas.
@@ -90,34 +94,15 @@ public class ItemBlockGasTank extends ItemBlock implements ILegacyGasItem, IItem
     }
 
     @Override
-    public boolean placeBlockAt(@Nonnull ItemStack stack, @Nonnull EntityPlayer player, World world, @Nonnull BlockPos pos, EnumFacing side, float hitX, float hitY,
-                                float hitZ, @Nonnull IBlockState state) {
-        boolean place = super.placeBlockAt(stack, player, world, pos, side, hitX, hitY, hitZ, state);
-        if (place) {
-            TileEntityGasTank tileEntity = (TileEntityGasTank) world.getTileEntity(pos);
-            tileEntity.tier = GasTankTier.values()[getBaseTier(stack).ordinal()];
-            tileEntity.gasTank.setMaxGas(tileEntity.tier.getStorage());
-            tileEntity.gasTank.setGas(getStoredGas(stack));
-            ((ISecurityTile) tileEntity).getSecurity().setOwnerUUID(getOwnerUUID(stack));
-
-            if (hasSecurity(stack)) {
-                ((ISecurityTile) tileEntity).getSecurity().setMode(getSecurity(stack));
-            }
-            if (getOwnerUUID(stack) == null) {
-                ((ISecurityTile) tileEntity).getSecurity().setOwnerUUID(player.getUniqueID());
-            }
-
-            if (ItemDataUtils.hasData(stack, "sideDataStored")) {
-                ((ISideConfiguration) tileEntity).getConfig().read(ItemDataUtils.getDataMap(stack));
-                ((ISideConfiguration) tileEntity).getEjector().read(ItemDataUtils.getDataMap(stack));
-            }
-
-            ((ISustainedInventory) tileEntity).setInventory(getInventory(stack));
-            if (!world.isRemote) {
-                Mekanism.packetHandler.sendUpdatePacket(tileEntity);
-            }
+    public void restorePlacementData(@Nonnull ItemStack stack, @Nonnull EntityLivingBase placer, @Nonnull World world, @Nonnull BlockPos pos,
+          @Nonnull TileEntity tileEntity) {
+        if (!(tileEntity instanceof TileEntityGasTank gasTank)) {
+            return;
         }
-        return place;
+        gasTank.tier = GasTankTier.values()[getBaseTier(stack).ordinal()];
+        gasTank.gasTank.setMaxGas(gasTank.tier.getStorage());
+        gasTank.gasTank.setGas(getStoredGas(stack));
+        MekanismPlacementData.restoreCommon(stack, placer, gasTank);
     }
 
     @Override

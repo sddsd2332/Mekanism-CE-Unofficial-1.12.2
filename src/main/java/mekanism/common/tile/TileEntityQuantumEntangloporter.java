@@ -5,7 +5,10 @@ import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import mekanism.api.*;
 import mekanism.api.fluid.IExtendedFluidTank;
 import mekanism.api.gas.IExtendedGasTank;
+import mekanism.api.heat.HeatAPI;
+import mekanism.api.heat.HeatAPI.HeatTransfer;
 import mekanism.api.heat.IHeatCapacitor;
+import mekanism.api.heat.IHeatHandler;
 import mekanism.api.inventory.IInventorySlot;
 import mekanism.api.transmitters.TransmissionType;
 import mekanism.common.Upgrade;
@@ -15,6 +18,7 @@ import mekanism.common.base.ITankManager;
 import mekanism.common.base.IUpgradeTile;
 import mekanism.common.block.states.BlockStateMachine;
 import mekanism.common.capabilities.Capabilities;
+import mekanism.common.capabilities.heat.ITileHeatHandler;
 import mekanism.common.capabilities.holder.energy.IEnergyContainerHolder;
 import mekanism.common.capabilities.holder.energy.QuantumEntangloporterEnergyContainerHolder;
 import mekanism.common.capabilities.holder.fluid.IFluidTankHolder;
@@ -45,7 +49,7 @@ import mekanism.common.tile.component.config.slot.ISlotInfo;
 import mekanism.common.tile.component.config.slot.InventorySlotInfo;
 import mekanism.common.tile.prefab.TileEntityElectricBlock;
 import mekanism.common.util.CapabilityUtils;
-import mekanism.common.util.HeatUtils;
+import mekanism.common.util.HeatCapabilityUtils;
 import mekanism.common.util.InventoryUtils;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.block.Block;
@@ -65,11 +69,12 @@ import javax.annotation.Nullable;
 import java.util.UUID;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 
 public class TileEntityQuantumEntangloporter extends TileEntityElectricBlock implements ISideConfiguration, ITankManager, IFrequencyHandler,
-        IHeatTransfer, IComputerIntegration, ISecurityTile, IChunkLoader, IUpgradeTile, ISpecialSelectionWireframeTile, IConfigCardAccess {
+        ITileHeatHandler, IComputerIntegration, ISecurityTile, IChunkLoader, IUpgradeTile, ISpecialSelectionWireframeTile, IConfigCardAccess {
 
     private static final String[] methods = {"setFrequency", "createFrequency"};
     private static final ISpecialSelectionWireframeTile.SelectionTransform[] SELECTION_ROTATE_SOUTH = {
@@ -136,10 +141,9 @@ public class TileEntityQuantumEntangloporter extends TileEntityElectricBlock imp
         InventoryFrequency frequency = getFreq();
         if (frequency != null && frequency.isValid() && !frequency.isRemoved()) {
             frequency.handleEject(world.getTotalWorldTime());
-            double[] loss = simulateHeat();
-            applyTemperatureChange();
-            lastTransferLoss = loss[0];
-            lastEnvironmentLoss = loss[1];
+            HeatTransfer loss = simulate();
+            lastTransferLoss = sanitizeLoss(loss.adjacentTransfer());
+            lastEnvironmentLoss = sanitizeLoss(loss.environmentTransfer());
         } else {
             lastTransferLoss = 0;
             lastEnvironmentLoss = 0;
@@ -196,17 +200,21 @@ public class TileEntityQuantumEntangloporter extends TileEntityElectricBlock imp
         super.handlePacketData(dataStream);
 
         if (FMLCommonHandler.instance().getEffectiveSide().isClient()) {
-            lastTransferLoss = dataStream.readDouble();
-            lastEnvironmentLoss = dataStream.readDouble();
+            lastTransferLoss = sanitizeLoss(dataStream.readDouble());
+            lastEnvironmentLoss = sanitizeLoss(dataStream.readDouble());
         }
     }
 
     @Override
     public TileNetworkList getNetworkedData(TileNetworkList data) {
         super.getNetworkedData(data);
-        data.add(lastTransferLoss);
-        data.add(lastEnvironmentLoss);
+        data.add(sanitizeLoss(lastTransferLoss));
+        data.add(sanitizeLoss(lastEnvironmentLoss));
         return data;
+    }
+
+    private static double sanitizeLoss(double loss) {
+        return HeatAPI.isFinite(loss) ? Math.max(0, Math.min(HeatAPI.MAX_HEAT, loss)) : 0;
     }
 
     @Override
@@ -221,7 +229,7 @@ public class TileEntityQuantumEntangloporter extends TileEntityElectricBlock imp
 
     @Override
     public double getMaxOutput() {
-        return !hasFrequency() ? 0 : MekanismConfig.current().general.quantumEntangloporterEnergyTransfer.val();
+        return getMaxEnergy();
     }
 
     @Override
@@ -285,6 +293,11 @@ public class TileEntityQuantumEntangloporter extends TileEntityElectricBlock imp
     }
 
     @Override
+    protected boolean persistHeatCapacitors() {
+        return false;
+    }
+
+    @Override
     public boolean hasInventory() {
         return true;
     }
@@ -319,55 +332,15 @@ public class TileEntityQuantumEntangloporter extends TileEntityElectricBlock imp
     }
 
     @Override
-    public double getTemp() {
-        InventoryFrequency frequency = getFreq();
-        return frequency == null || !frequency.isValid() || frequency.isRemoved() ? 0 : frequency.getTemperature();
-    }
-
-    @Override
-    public double getInverseConductionCoefficient() {
-        return 1;
-    }
-
-    @Override
-    public double getInsulationCoefficient(EnumFacing side) {
-        return 1000;
-    }
-
-    @Override
-    public void transferHeatTo(double heat) {
-        InventoryFrequency frequency = getFreq();
-        if (frequency != null && frequency.isValid() && !frequency.isRemoved()) {
-            frequency.storedHeat.handleHeat(heat * frequency.storedHeat.getHeatCapacity());
-        }
-    }
-
-    @Override
-    public double[] simulateHeat() {
-        return HeatUtils.simulate(this);
-    }
-
-    @Override
-    public double applyTemperatureChange() {
-        InventoryFrequency frequency = getFreq();
-        if (frequency != null && frequency.isValid() && !frequency.isRemoved()) {
-            frequency.storedHeat.update();
-            frequency.temperature = frequency.getTemperature();
-        }
-        return frequency == null || !frequency.isValid() || frequency.isRemoved() ? 0 : frequency.getTemperature();
-    }
-
-    @Override
-    public boolean canConnectHeat(EnumFacing side) {
-        return hasFrequency() && canInsertHeat(side);
-    }
-
-    @Override
-    public IHeatTransfer getAdjacent(EnumFacing side) {
+    public IHeatHandler getAdjacent(EnumFacing side) {
         TileEntity adj = Coord4D.get(this).offset(side).getTileEntity(world);
         if (hasFrequency() && canInsertHeat(side)) {
-            if (CapabilityUtils.hasCapability(adj, Capabilities.HEAT_TRANSFER_CAPABILITY, side.getOpposite())) {
-                return CapabilityUtils.getCapability(adj, Capabilities.HEAT_TRANSFER_CAPABILITY, side.getOpposite());
+            if (adj instanceof TileEntityQuantumEntangloporter adjacentQe && Objects.equals(getFreq(), adjacentQe.getFreq())) {
+                return null;
+            }
+            IHeatHandler handler = HeatCapabilityUtils.getHandler(adj, side.getOpposite());
+            if (handler != null && !Objects.equals(handler.getHeatIdentity(), getHeatIdentity(side))) {
+                return handler;
             }
         }
         return null;
@@ -378,9 +351,6 @@ public class TileEntityQuantumEntangloporter extends TileEntityElectricBlock imp
         if (capability == Capabilities.CONFIG_CARD_CAPABILITY) {
             return true;
         }
-        if (capability == Capabilities.HEAT_TRANSFER_CAPABILITY) {
-            return hasFrequency() && (side == null || canInsertHeat(side));
-        }
         return super.hasCapability(capability, side);
     }
 
@@ -388,9 +358,6 @@ public class TileEntityQuantumEntangloporter extends TileEntityElectricBlock imp
     public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing side) {
         if (capability == Capabilities.CONFIG_CARD_CAPABILITY) {
             return Capabilities.CONFIG_CARD_CAPABILITY.cast(this);
-        }
-        if (capability == Capabilities.HEAT_TRANSFER_CAPABILITY) {
-            return hasFrequency() && (side == null || canInsertHeat(side)) ? Capabilities.HEAT_TRANSFER_CAPABILITY.cast(this) : null;
         }
         return super.getCapability(capability, side);
     }

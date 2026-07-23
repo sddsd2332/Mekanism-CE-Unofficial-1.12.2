@@ -14,6 +14,7 @@ import mekanism.client.render.ModelCustomArmor.ArmorModel;
 import mekanism.common.Mekanism;
 import mekanism.common.MekanismItems;
 import mekanism.common.capabilities.ItemCapabilityWrapper;
+import mekanism.common.capabilities.energy.BasicEnergyContainer;
 import mekanism.common.capabilities.energy.item.RateLimitEnergyHandler;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.integration.MekanismHooks;
@@ -223,7 +224,7 @@ public class ItemFreeRunners extends ItemArmor implements ILegacyEnergizedItem, 
     public ICapabilityProvider initCapabilities(ItemStack stack, NBTTagCompound nbt) {
         return new ItemCapabilityWrapper(stack, new TeslaItemWrapper(), new ForgeEnergyItemWrapper(),
               RateLimitEnergyHandler.create(() -> getEnergyTransfer(stack), () -> getEnergyCapacity(stack),
-                    ConstantPredicates.alwaysFalse(), ConstantPredicates.alwaysTrue()));
+                    BasicEnergyContainer.manualOnly, ConstantPredicates.alwaysTrue()));
     }
 
     public FreeRunnerMode getMode(ItemStack itemStack) {

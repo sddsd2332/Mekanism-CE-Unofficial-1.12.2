@@ -117,6 +117,7 @@ public class TileEntityFissionReactorPort extends TileEntityFissionReactorCasing
                 structure.heatedCoolantTank.extract(sent, Action.EXECUTE, AutomationType.INTERNAL);
             }
         }
+        syncCachedDataFromStructure();
     }
 
     @Override

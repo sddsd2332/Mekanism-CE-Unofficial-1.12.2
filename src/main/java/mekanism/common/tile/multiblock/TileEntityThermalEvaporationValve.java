@@ -2,13 +2,10 @@ package mekanism.common.tile.multiblock;
 
 import mekanism.api.Coord4D;
 import mekanism.api.IContentsListener;
-import mekanism.api.IHeatTransfer;
 import mekanism.api.fluid.IExtendedFluidTank;
 import mekanism.common.base.IComparatorSupport;
 import mekanism.common.capabilities.holder.fluid.IFluidTankHolder;
 import mekanism.common.capabilities.holder.fluid.ProxiedFluidTankHolder;
-import mekanism.common.capabilities.holder.heat.IHeatCapacitorHolder;
-import mekanism.common.capabilities.holder.heat.ProxiedHeatCapacitorHolder;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.util.EnumFacing;
 
@@ -16,7 +13,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-public class TileEntityThermalEvaporationValve extends TileEntityThermalEvaporationBlock implements IHeatTransfer, IComparatorSupport {
+public class TileEntityThermalEvaporationValve extends TileEntityThermalEvaporationBlock implements IComparatorSupport {
 
     public boolean prevMaster = false;
     private int currentRedstoneLevel;
@@ -29,15 +26,6 @@ public class TileEntityThermalEvaporationValve extends TileEntityThermalEvaporat
               this::getValveFluidTanks,
               this::getValveFluidTanksForInsert,
               this::getValveFluidTanksForExtract
-        );
-    }
-
-    @Override
-    protected IHeatCapacitorHolder getInitialHeatCapacitors(IContentsListener listener) {
-        return ProxiedHeatCapacitorHolder.create(
-              side -> true,
-              side -> true,
-              side -> getController() == null ? Collections.emptyList() : Collections.singletonList(this)
         );
     }
 
@@ -73,49 +61,6 @@ public class TileEntityThermalEvaporationValve extends TileEntityThermalEvaporat
             updateComparatorOutputLevelSync();
             currentRedstoneLevel = newRedstoneLevel;
         }
-    }
-
-    @Override
-    public double getTemp() {
-        return 0;
-    }
-
-    @Override
-    public double getInverseConductionCoefficient() {
-        return 1;
-    }
-
-    @Override
-    public double getInsulationCoefficient(EnumFacing side) {
-        return 0;
-    }
-
-    @Override
-    public void transferHeatTo(double heat) {
-        TileEntityThermalEvaporationController controller = getController();
-        if (controller != null) {
-            controller.heatToAbsorb += heat;
-        }
-    }
-
-    @Override
-    public double[] simulateHeat() {
-        return new double[]{0, 0};
-    }
-
-    @Override
-    public double applyTemperatureChange() {
-        return 0;
-    }
-
-    @Override
-    public boolean canConnectHeat(EnumFacing side) {
-        return getController() != null;
-    }
-
-    @Override
-    public IHeatTransfer getAdjacent(EnumFacing side) {
-        return null;
     }
 
     @Override

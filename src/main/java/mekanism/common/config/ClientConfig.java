@@ -107,7 +107,7 @@ public class ClientConfig extends BaseConfig {
 
     public final BooleanOption windGeneratorRotating = new BooleanOption(this,  "windGeneratorRotating", true, "Wind turbine blade rotation [block]");
 
-    public final IntOption windGeneratorBladeRenderDistance = new IntOption(this, "windGeneratorBladeRenderDistance", 96,
+    public final IntOption windGeneratorBladeRenderDistance = new IntOption(this, "windGeneratorBladeRenderDistance", 0,
             "Render distance (in blocks) for wind turbine blades. Set to 0 to always render blades.", 0, 1024);
 
     public final FloatOption hudJitter = new FloatOption(this,  "hudJitter", 6F, "Visual jitter of MekaSuit HUD, seen when moving the player's head. Bigger value = more jitter.", 1F, 100F);
@@ -116,7 +116,7 @@ public class ClientConfig extends BaseConfig {
 
     public final BooleanOption largeWindGeneratorRending = new BooleanOption(this,  "largeWindGeneratorRending", true, "Whether to render a model of a large wind turbine，If false, no rendering is done, which may optimize the fps");
 
-    public final IntOption largeWindGeneratorFanRenderDistance = new IntOption(this, "largeWindGeneratorFanRenderDistance", 128,
+    public final IntOption largeWindGeneratorFanRenderDistance = new IntOption(this, "largeWindGeneratorFanRenderDistance", 0,
             "Render distance (in blocks) for large wind turbine fan blades. Set to 0 to always render blades.", 0, 1024);
 
     public final BooleanOption hudCompassEnabled = new BooleanOption(this,  "mekaSuitHelmetCompass", true, "Display a fancy compass when the MekaSuit is worn.");
@@ -157,10 +157,10 @@ public class ClientConfig extends BaseConfig {
     public final BooleanOption jsonSelectionBoxAutoColorCycle = new BooleanOption(this, "JsonSelectionBoxAutoColorCycle", false,
             "Whether model-based selection wireframes should automatically cycle through rainbow colors.");
 
-    public final BooleanOption GazeCullingTracking = new BooleanOption(this, "GazeCullingTracking", true,
+    public final BooleanOption GazeCullingTracking = new BooleanOption(this, "GazeCullingTracking", false,
             "Cancel rendering the machine when it is not within the player's line of sight.");
 
-    public final BooleanOption GazeCullingOpenGLTracking = new BooleanOption(this, "GazeCullingOpenGLTracking", true,
+    public final BooleanOption GazeCullingOpenGLTracking = new BooleanOption(this, "GazeCullingOpenGLTracking", false,
             "Use OpenGL occlusion query for tile gaze culling (asynchronous, 1+ frame delayed). Falls back to CPU culling when unsupported.");
 
     public final IntOption GazeCullingOpenGLQueryInterval = new IntOption(this, "GazeCullingOpenGLQueryInterval", 2,

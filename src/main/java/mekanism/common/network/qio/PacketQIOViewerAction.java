@@ -95,13 +95,21 @@ public class PacketQIOViewerAction implements IMessageHandler<PacketQIOViewerAct
             return hasFluid ? insertHeldFluid(player, frequency, held, requested)
                   : insertHeldGas(player, frequency, held, requested);
         }
+        boolean inserted = insertHeldItem(held, frequency, requested);
+        if (inserted && held.isEmpty()) {
+            player.inventory.setItemStack(ItemStack.EMPTY);
+        }
+        return inserted;
+    }
+
+    static boolean insertHeldItem(ItemStack held, QIOFrequency frequency, long requested) {
+        if (held.isEmpty() || requested <= 0) {
+            return false;
+        }
         long amount = Math.min(requested, held.getCount());
         long inserted = frequency.massInsert(held, amount, Action.EXECUTE);
         if (inserted > 0) {
             held.shrink((int) Math.min(Integer.MAX_VALUE, inserted));
-            if (held.isEmpty()) {
-                player.inventory.setItemStack(ItemStack.EMPTY);
-            }
             return true;
         }
         return false;

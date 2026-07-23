@@ -25,7 +25,7 @@ import java.util.UUID;
 public final class QIODriveStorage {
 
     public static final QIODriveStorage INSTANCE = new QIODriveStorage();
-    private static final int INDEX_VERSION = 2;
+    private static final int INDEX_VERSION = 3;
 
     private final Map<UUID, QIODriveRecord> records = new HashMap<>();
     private final Set<UUID> dirtyDrives = new HashSet<>();
@@ -35,6 +35,8 @@ public final class QIODriveStorage {
     private File driveDirectory;
     private boolean indexDirty;
     private boolean loaded;
+    // Also advances when a record's capacity definition changes so live
+    // frequency aggregates cannot retain stale capacity snapshots.
     private long mountRevision;
 
     private QIODriveStorage() {
@@ -81,13 +83,53 @@ public final class QIODriveStorage {
 
     @Nullable
     public synchronized QIODriveRecord getOrCreate(UUID driveId, QIODriveTier tier, QIODriveType driveType) {
+        QIODriveRecord record = getOrCreate(driveId, tier == null ? null : tier.getDefinition(), driveType);
+        if (record != null || driveId == null || tier == null || driveType == null || damagedDrives.contains(driveId)) {
+            return record;
+        }
+        // Preserve the legacy lookup behavior for callers compiled against
+        // enum tiers: seeing a smaller tier returns the existing record but
+        // never downgrades it. Physical mounting uses the definition overload
+        // and therefore still rejects a smaller forged drive item.
+        QIODriveRecord existing = records.get(driveId);
+        return existing != null && existing.getDriveType() == driveType ? existing : null;
+    }
+
+    @Nullable
+    public synchronized QIODriveRecord getOrCreate(UUID driveId, QIODriveDefinition definition) {
+        return getOrCreate(driveId, definition, QIODriveType.MIXED);
+    }
+
+    @Nullable
+    public synchronized QIODriveRecord getOrCreate(UUID driveId, QIODriveDefinition definition, QIODriveType driveType) {
+        QIODriveRecord record = getOrCreateInitial(driveId, definition, driveType);
+        if (record == null) {
+            return null;
+        }
+        QIODriveRecord.DefinitionUpdate update = record.applyDefinition(definition);
+        if (update == QIODriveRecord.DefinitionUpdate.INCOMPATIBLE) {
+            return null;
+        }
+        if (update.changed()) {
+            markDefinitionChanged(driveId);
+        }
+        return record;
+    }
+
+    /**
+     * Creates storage for a genuinely new UUID without allowing an existing
+     * record to be resized merely because an unmounted physical copy was seen.
+     */
+    @Nullable
+    synchronized QIODriveRecord getOrCreateInitial(UUID driveId, QIODriveDefinition definition, QIODriveType driveType) {
         requireLoaded();
-        if (driveId == null || tier == null || driveType == null || damagedDrives.contains(driveId)) {
+        if (driveId == null || !QIODriveDefinition.isRegistered(definition) || driveType == null ||
+              damagedDrives.contains(driveId)) {
             return null;
         }
         QIODriveRecord record = records.get(driveId);
         if (record == null) {
-            record = new QIODriveRecord(driveId, tier, driveType);
+            record = new QIODriveRecord(driveId, definition, driveType);
             records.put(driveId, record);
             dirtyDrives.add(driveId);
             indexDirty = true;
@@ -95,13 +137,31 @@ public final class QIODriveStorage {
             // A UUID identifies one physical drive record. Never reinterpret
             // an existing record through a differently specialized item.
             return null;
-        } else if (record.upgradeTier(tier)) {
-            // A higher-tier physical drive may be encountered before it is
-            // mounted (for example while restoring an inventory). Persist the
-            // expanded capacity immediately; never downgrade an existing
-            // record when a lower-tier copy is seen.
-            dirtyDrives.add(driveId);
-            indexDirty = true;
+        }
+        return record;
+    }
+
+    /** Applies a compatible definition only after this exact mount won ownership. */
+    @Nullable
+    synchronized QIODriveRecord applyMountedDefinition(@Nullable UUID driveId,
+          @Nullable QIODriveDefinition definition, @Nullable QIODriveType driveType, @Nullable QIODriveMount mount) {
+        if (driveId == null || !QIODriveDefinition.isRegistered(definition) || driveType == null || mount == null) {
+            return null;
+        }
+        QIODriveMount active = activeMounts.get(driveId);
+        if (active == null || !active.equals(mount) || active.getHolder() != mount.getHolder()) {
+            return null;
+        }
+        QIODriveRecord record = records.get(driveId);
+        if (record == null || record.getDriveType() != driveType) {
+            return null;
+        }
+        QIODriveRecord.DefinitionUpdate update = record.applyDefinition(definition);
+        if (update == QIODriveRecord.DefinitionUpdate.INCOMPATIBLE) {
+            return null;
+        }
+        if (update.changed()) {
+            markDefinitionChanged(driveId);
         }
         return record;
     }
@@ -126,20 +186,45 @@ public final class QIODriveStorage {
         }
     }
 
+    @Deprecated
     public synchronized boolean upgradeTier(@Nullable UUID driveId, QIODriveTier tier) {
-        if (driveId == null || tier == null) {
+        return upgradeDefinition(driveId, tier == null ? null : tier.getDefinition());
+    }
+
+    public synchronized boolean upgradeDefinition(@Nullable UUID driveId, @Nullable QIODriveDefinition definition) {
+        if (driveId == null || !QIODriveDefinition.isRegistered(definition)) {
             return false;
         }
         QIODriveRecord record = records.get(driveId);
         if (record == null) {
             return false;
         }
-        boolean changed = record.upgradeTier(tier);
+        boolean changed = record.applyDefinition(definition).changed();
         if (changed) {
-            dirtyDrives.add(driveId);
-            indexDirty = true;
+            markDefinitionChanged(driveId);
         }
         return changed;
+    }
+
+    synchronized boolean upgradeDefinition(@Nullable QIODriveRecord record, @Nullable QIODriveDefinition definition) {
+        if (record == null || !QIODriveDefinition.isRegistered(definition)) {
+            return false;
+        }
+        QIODriveRecord managed = records.get(record.getDriveId());
+        QIODriveRecord.DefinitionUpdate update = record.applyDefinition(definition);
+        if (!update.changed()) {
+            return false;
+        }
+        if (managed == record) {
+            markDefinitionChanged(record.getDriveId());
+        }
+        return true;
+    }
+
+    private void markDefinitionChanged(UUID driveId) {
+        dirtyDrives.add(driveId);
+        indexDirty = true;
+        mountRevision++;
     }
 
     @Nonnull
@@ -164,6 +249,21 @@ public final class QIODriveStorage {
             return MountResult.MOUNTED;
         }
         return MountResult.DUPLICATE_UUID;
+    }
+
+    /** Returns true when an existing, stably earlier mount already owns this UUID. */
+    public synchronized boolean isDuplicateMount(@Nullable UUID driveId, @Nullable QIODriveMount mount) {
+        if (driveId == null || mount == null) {
+            return false;
+        }
+        QIODriveMount active = activeMounts.get(driveId);
+        if (active == null) {
+            return false;
+        }
+        if (active.equals(mount)) {
+            return active.getHolder() != mount.getHolder();
+        }
+        return mount.compareTo(active) > 0;
     }
 
     public synchronized void unmount(@Nullable QIODriveMount mount) {
@@ -249,7 +349,6 @@ public final class QIODriveStorage {
 
     private void loadFiles() throws IOException {
         Map<UUID, QIODriveRecord> loadedRecords = new HashMap<>();
-        boolean migratedRecord = false;
         File[] allFiles = driveDirectory.listFiles(File::isFile);
         if (allFiles != null) {
             for (File file : allFiles) {
@@ -271,10 +370,6 @@ public final class QIODriveStorage {
                     throw new IOException("File is empty");
                 }
                 loadedRecords.put(uuid, QIODriveRecord.read(uuid, data));
-                if (data.getInteger("version") < QIODriveRecord.DATA_VERSION) {
-                    dirtyDrives.add(uuid);
-                    migratedRecord = true;
-                }
                 damagedDrives.remove(uuid);
             } catch (Exception e) {
                 damagedDrives.add(uuid);
@@ -283,7 +378,7 @@ public final class QIODriveStorage {
             }
         }
         records.putAll(loadedRecords);
-        indexDirty = migratedRecord || !isIndexValid(loadedRecords.keySet());
+        indexDirty = !isIndexValid(loadedRecords.keySet());
     }
 
     private boolean isIndexValid(Set<UUID> actualUUIDs) {
@@ -315,8 +410,15 @@ public final class QIODriveStorage {
             QIODriveRecord record = records.get(uuid);
             NBTTagCompound entry = new NBTTagCompound();
             entry.setString("uuid", uuid.toString());
-            entry.setString("tier", record.getTier().getSerializedName());
+            entry.setString("definition", record.getDefinitionName().toString());
             entry.setString("driveType", record.getDriveType().getSerializedName());
+            entry.setLong("countCapacity", record.getCountCapacity());
+            entry.setLong("storageCapacity", record.getStorageCapacity());
+            entry.setByteArray("countCapacityExact", record.getExactCountCapacity().toBigInteger().toByteArray());
+            entry.setByteArray("storageCapacityExact", record.getExactStorageCapacity().toBigInteger().toByteArray());
+            entry.setInteger("typeCapacity", record.getTypeCapacity());
+            entry.setBoolean("unlimitedCount", record.hasUnlimitedCountCapacity());
+            entry.setBoolean("unlimitedTypes", record.hasUnlimitedTypeCapacity());
             entry.setLong("count", record.getTotalCount());
             entry.setInteger("types", record.getTotalTypes());
             entry.setString("lastKnownFile", uuid.toString() + ".dat");

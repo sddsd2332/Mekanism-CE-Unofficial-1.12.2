@@ -3,6 +3,7 @@ package mekanism.generators.common.content.fission;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import mekanism.api.Coord4D;
+import mekanism.api.heat.HeatAPI;
 import mekanism.common.multiblock.MultiblockCache;
 import mekanism.common.multiblock.MultiblockManager;
 import mekanism.common.multiblock.UpdateProtocol;
@@ -17,6 +18,7 @@ import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 
+import javax.annotation.Nullable;
 import java.util.*;
 
 public class FissionReactorUpdateProtocol extends UpdateProtocol<SynchronizedFissionData> {
@@ -136,6 +138,7 @@ public class FissionReactorUpdateProtocol extends UpdateProtocol<SynchronizedFis
         FissionReactorCache fissionCache = (FissionReactorCache) cache;
         FissionReactorCache mergeCache = (FissionReactorCache) merge;
 
+        double fuelOverflow = getFuelMergeOverflow(fissionCache.fuel, mergeCache.fuel);
         fissionCache.fuel = mergeGasStack(fissionCache.fuel, mergeCache.fuel);
         fissionCache.waste = mergeGasStack(fissionCache.waste, mergeCache.waste);
         fissionCache.gasCoolant = mergeGasStack(fissionCache.gasCoolant, mergeCache.gasCoolant);
@@ -143,18 +146,47 @@ public class FissionReactorUpdateProtocol extends UpdateProtocol<SynchronizedFis
         fissionCache.coolant = mergeFluidStack(fissionCache.coolant, mergeCache.coolant);
         fissionCache.steam = mergeFluidStack(fissionCache.steam, mergeCache.steam);
 
-        fissionCache.rateLimit = Math.max(fissionCache.rateLimit, mergeCache.rateLimit);
+        double currentRate = HeatAPI.isFinite(fissionCache.rateLimit) ? Math.max(0, fissionCache.rateLimit) : 0;
+        double incomingRate = HeatAPI.isFinite(mergeCache.rateLimit) ? Math.max(0, mergeCache.rateLimit) : 0;
+        fissionCache.rateLimit = Math.min(HeatAPI.MAX_HEAT, Math.max(currentRate, incomingRate));
         fissionCache.active |= mergeCache.active;
-        fissionCache.burnRemaining += mergeCache.burnRemaining;
-        fissionCache.partialWaste += mergeCache.partialWaste;
-        fissionCache.temperature = Math.max(fissionCache.temperature, mergeCache.temperature);
-        fissionCache.reactorDamage = Math.max(fissionCache.reactorDamage, mergeCache.reactorDamage);
+        fissionCache.burnRemaining = HeatAPI.addHeatClamped(fissionCache.burnRemaining, Math.max(0, mergeCache.burnRemaining));
+        fissionCache.burnRemaining = HeatAPI.addHeatClamped(fissionCache.burnRemaining, fuelOverflow);
+        fissionCache.partialWaste = HeatAPI.addHeatClamped(fissionCache.partialWaste, Math.max(0, mergeCache.partialWaste));
+        if (mergeCache.storedHeat >= 0 && HeatAPI.isFinite(mergeCache.storedHeat)) {
+            if (fissionCache.storedHeat < 0 || !HeatAPI.isFinite(fissionCache.storedHeat)) {
+                fissionCache.storedHeat = mergeCache.storedHeat;
+            } else {
+                fissionCache.storedHeat = HeatAPI.addHeatClamped(fissionCache.storedHeat, mergeCache.storedHeat);
+            }
+        }
+        if (mergeCache.heatCapacity >= 1 && HeatAPI.isFinite(mergeCache.heatCapacity)) {
+            if (fissionCache.heatCapacity < 1 || !HeatAPI.isFinite(fissionCache.heatCapacity)) {
+                fissionCache.heatCapacity = mergeCache.heatCapacity;
+            } else {
+                double mergedCapacity = fissionCache.heatCapacity + mergeCache.heatCapacity;
+                fissionCache.heatCapacity = HeatAPI.isFinite(mergedCapacity) ? HeatAPI.sanitizeHeatCapacity(mergedCapacity) : HeatAPI.MAX_HEAT;
+            }
+        }
+        double currentDamage = HeatAPI.isFinite(fissionCache.reactorDamage) ? Math.max(0, fissionCache.reactorDamage) : 0;
+        double incomingDamage = HeatAPI.isFinite(mergeCache.reactorDamage) ? Math.max(0, mergeCache.reactorDamage) : 0;
+        fissionCache.reactorDamage = SynchronizedFissionData.sanitizeDamage(Math.max(currentDamage, incomingDamage));
         fissionCache.forceDisable |= mergeCache.forceDisable;
+    }
+
+    static double getFuelMergeOverflow(@Nullable mekanism.api.gas.GasStack current, @Nullable mekanism.api.gas.GasStack incoming) {
+        if (current == null || incoming == null || !current.isGasEqual(incoming)) {
+            return 0;
+        }
+        long total = (long) Math.max(0, current.amount) + Math.max(0, incoming.amount);
+        return Math.max(0, total - (long) Integer.MAX_VALUE);
     }
 
     @Override
     protected void onFormed() {
         super.onFormed();
+        structureFound.updateAmbientTemperature(pointer.getWorld());
+        structureFound.updateHeatCapacity();
         structureFound.updateCapacities();
         structureFound.sanitizeStoredContents();
         structureFound.syncPrev();
