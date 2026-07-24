@@ -128,12 +128,12 @@ public class GuiQIOFrequencySelectWindow extends GuiWindow {
 
         @Override
         public void sendSetFrequency(FrequencyIdentity identity) {
-            Mekanism.packetHandler.sendToServer(new SetItemFrequencyMessage(true, FrequencyType.QIO, identity, container.getHand()));
+            Mekanism.packetHandler.sendToServer(new SetItemFrequencyMessage(container.windowId, true, FrequencyType.QIO, identity, container.getHand()));
         }
 
         @Override
         public void sendRemoveFrequency(FrequencyIdentity identity) {
-            Mekanism.packetHandler.sendToServer(new SetItemFrequencyMessage(false, FrequencyType.QIO, identity, container.getHand()));
+            Mekanism.packetHandler.sendToServer(new SetItemFrequencyMessage(container.windowId, false, FrequencyType.QIO, identity, container.getHand()));
         }
 
         @Nullable

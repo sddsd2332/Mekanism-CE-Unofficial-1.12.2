@@ -43,6 +43,7 @@ import mekanism.common.util.TileUtils;
 import net.minecraft.block.Block;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraftforge.common.capabilities.Capability;
@@ -340,14 +341,18 @@ public class TileEntitySolarNeutronActivator extends TileEntityContainerBlock im
 
 
     @Override
+    public void collectBoundingBlocks(java.util.function.BiConsumer<BlockPos, Boolean> consumer) {
+        consumer.accept(getPos().up(), false);
+    }
+
+    @Override
     public void onPlace() {
-        MekanismUtils.makeBoundingBlock(world, Coord4D.get(this).offset(EnumFacing.UP).getPos(), Coord4D.get(this));
+        tryPlaceBoundingBlocks(world, Coord4D.get(this));
     }
 
     @Override
     public void onBreak() {
-        world.setBlockToAir(getPos().up());
-        world.setBlockToAir(getPos());
+        removeBoundingBlocks(world, getPos());
     }
 
     @Override

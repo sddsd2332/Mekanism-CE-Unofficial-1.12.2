@@ -130,7 +130,7 @@ public class ItemMekaTool extends ItemEnergized implements IModuleContainerItem,
     @Method(modid = MekanismHooks.FARMERS_DELIGHT_LEGACY_MOD_ID)
     public void onCuttingBoardRecipeProcessed(ItemStack stack, World world, EntityPlayer player) {
         if (StorageUtils.getStoredEnergy(stack) >= CUTTING_BOARD_RECIPE_ENERGY_USAGE) {
-            StorageUtils.extractEnergy(stack, CUTTING_BOARD_RECIPE_ENERGY_USAGE, Action.EXECUTE);
+            StorageUtils.extractFromContainer(stack, CUTTING_BOARD_RECIPE_ENERGY_USAGE, Action.EXECUTE);
         }
     }
 

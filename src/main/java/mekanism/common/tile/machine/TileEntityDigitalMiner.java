@@ -950,19 +950,21 @@ public class TileEntityDigitalMiner extends TileEntityElectricBlock implements I
 
 
     @Override
-    public void onPlace() {
-        for (int x = -1; x <= +1; x++) {
-            for (int y = 0; y <= +1; y++) {
-                for (int z = -1; z <= +1; z++) {
-                    if (x == 0 && y == 0 && z == 0) {
-                        continue;
+    public void collectBoundingBlocks(java.util.function.BiConsumer<BlockPos, Boolean> consumer) {
+        for (int x = -1; x <= 1; x++) {
+            for (int y = 0; y <= 1; y++) {
+                for (int z = -1; z <= 1; z++) {
+                    if (x != 0 || y != 0 || z != 0) {
+                        consumer.accept(getPos().add(x, y, z), true);
                     }
-                    BlockPos pos1 = getPos().add(x, y, z);
-                    MekanismUtils.makeAdvancedBoundingBlock(world, pos1, Coord4D.get(this));
-                    world.notifyNeighborsOfStateChange(pos1, getBlockType(), true);
                 }
             }
         }
+    }
+
+    @Override
+    public void onPlace() {
+        tryPlaceBoundingBlocks(world, Coord4D.get(this));
     }
 
     @Override
@@ -972,13 +974,7 @@ public class TileEntityDigitalMiner extends TileEntityElectricBlock implements I
 
     @Override
     public void onBreak() {
-        for (int x = -1; x <= +1; x++) {
-            for (int y = 0; y <= +1; y++) {
-                for (int z = -1; z <= +1; z++) {
-                    world.setBlockToAir(getPos().add(x, y, z));
-                }
-            }
-        }
+        removeBoundingBlocks(world, getPos());
     }
 
     @Nonnull

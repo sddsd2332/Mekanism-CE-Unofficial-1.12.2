@@ -8,10 +8,10 @@ import mekanism.common.content.teleporter.TeleporterFrequency;
 import mekanism.common.frequency.Frequency.FrequencyIdentity;
 import mekanism.common.frequency.FrequencyType;
 import mekanism.common.item.ItemPortableTeleporter;
+import mekanism.common.inventory.container.item.ItemStackSlotAccess;
 import mekanism.common.network.PacketPortableTeleporter.PortableTeleporterMessage;
 import mekanism.common.network.PacketPortalFX.PortalFXMessage;
 import mekanism.common.tile.TileEntityTeleporter;
-import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.SecurityUtils;
 import mekanism.common.util.StorageUtils;
 import net.minecraft.entity.player.EntityPlayer;
@@ -30,15 +30,19 @@ public class PacketPortableTeleporter implements IMessageHandler<PortableTelepor
 
     @Override
     public IMessage onMessage(PortableTeleporterMessage message, MessageContext context) {
+        if (!message.valid) {
+            return null;
+        }
         EntityPlayer player = PacketHandler.getPlayer(context);
         if (player == null) {
             return null;
         }
         PacketHandler.handlePacket(() -> {
-            ItemStack itemstack = player.getHeldItem(message.currentHand);
+            ItemStack itemstack = ItemStackSlotAccess.getStack(player.inventory, message.currentHand, message.itemSlot);
             World world = player.world;
-            if (itemstack.isEmpty() || !(itemstack.getItem() instanceof ItemPortableTeleporter) || !SecurityUtils.canAccess(player, itemstack)
-                  || message.identity == null) {
+            if (itemstack.isEmpty() || !(itemstack.getItem() instanceof ItemPortableTeleporter teleporterItem) ||
+                  !SecurityUtils.canAccess(player, itemstack) || message.identity == null ||
+                  !message.identity.equals(teleporterItem.getFrequency(itemstack))) {
                 return;
             }
             TeleporterFrequency found = FrequencyType.TELEPORTER.getFrequency(message.identity, player.getUniqueID());
@@ -59,7 +63,7 @@ public class PacketPortableTeleporter implements IMessageHandler<PortableTelepor
             }
             teleporter.didTeleport.add(player.getPersistentID());
             teleporter.teleDelay = 5;
-            StorageUtils.extractEnergy(itemstack, energyCost, mekanism.api.Action.EXECUTE);
+            StorageUtils.extractFromContainer(itemstack, energyCost, mekanism.api.Action.EXECUTE);
             if (player instanceof EntityPlayerMP mp) {
                 mp.connection.floatingTickCount = 0;
             }
@@ -83,29 +87,58 @@ public class PacketPortableTeleporter implements IMessageHandler<PortableTelepor
 
         public PortableTeleporterPacketType packetType = PortableTeleporterPacketType.TELEPORT;
         public EnumHand currentHand;
+        public int itemSlot = -1;
         public FrequencyIdentity identity;
+        private boolean valid;
 
         public PortableTeleporterMessage() {
         }
 
         public PortableTeleporterMessage(PortableTeleporterPacketType type, EnumHand hand, FrequencyIdentity identity) {
+            this(type, hand, -1, identity);
+        }
+
+        public PortableTeleporterMessage(PortableTeleporterPacketType type, EnumHand hand, int itemSlot, FrequencyIdentity identity) {
             packetType = type;
             currentHand = hand;
+            this.itemSlot = itemSlot;
             this.identity = identity;
+            valid = type != null && hand != null && ItemStackSlotAccess.isValidSlot(hand, itemSlot) && identity != null;
         }
 
         @Override
         public void toBytes(ByteBuf buffer) {
             buffer.writeInt(packetType.ordinal());
             buffer.writeInt(currentHand.ordinal());
+            buffer.writeInt(itemSlot);
             FrequencyType.writeIdentity(buffer, FrequencyType.TELEPORTER, identity);
         }
 
         @Override
         public void fromBytes(ByteBuf buffer) {
-            packetType = MekanismUtils.getByIndex(PortableTeleporterPacketType.values(), buffer.readInt(), PortableTeleporterPacketType.TELEPORT);
-            currentHand = MekanismUtils.getByIndex(EnumHand.values(), buffer.readInt(), EnumHand.MAIN_HAND);
-            identity = FrequencyType.readIdentity(buffer, FrequencyType.TELEPORTER);
+            valid = false;
+            try {
+                int typeOrdinal = buffer.readInt();
+                int handOrdinal = buffer.readInt();
+                itemSlot = buffer.readInt();
+                if (typeOrdinal < 0 || typeOrdinal >= PortableTeleporterPacketType.values().length ||
+                      handOrdinal < 0 || handOrdinal >= EnumHand.values().length) {
+                    return;
+                }
+                packetType = PortableTeleporterPacketType.values()[typeOrdinal];
+                currentHand = EnumHand.values()[handOrdinal];
+                identity = FrequencyType.readIdentity(buffer, FrequencyType.TELEPORTER);
+                valid = ItemStackSlotAccess.isValidSlot(currentHand, itemSlot) && identity != null;
+            } catch (RuntimeException ex) {
+                packetType = PortableTeleporterPacketType.TELEPORT;
+                currentHand = EnumHand.MAIN_HAND;
+                itemSlot = -1;
+                identity = null;
+            }
+        }
+
+        public boolean isValid() {
+            return valid;
         }
     }
 }

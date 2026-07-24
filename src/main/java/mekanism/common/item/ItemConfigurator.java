@@ -127,7 +127,7 @@ public class ItemConfigurator extends ItemEnergized implements IMekWrench, ITool
                         } else {
                             if (StorageUtils.getStoredEnergy(stack) >= ENERGY_PER_CONFIGURE) {
                                 if (SecurityUtils.canAccess(player, tile)) {
-                                    StorageUtils.extractEnergy(stack, ENERGY_PER_CONFIGURE, Action.EXECUTE);
+                                    StorageUtils.extractFromContainer(stack, ENERGY_PER_CONFIGURE, Action.EXECUTE);
                                     MekanismUtils.incrementOutput(configuration, transmissionType, MekanismUtils.getBaseOrientation(side, configuration.getOrientation()));
                                     DataType data = configuration.getConfig().getDataType(transmissionType, side, configuration.getOrientation());
                                     player.sendMessage(new TextComponentString(EnumColor.DARK_BLUE + Mekanism.LOG_TAG + EnumColor.GREY + " "
@@ -161,7 +161,7 @@ public class ItemConfigurator extends ItemEnergized implements IMekWrench, ITool
                     if (MekanismConfig.current().mekce.EmptytoCreateFluidTank.val()) {
                         if (SecurityUtils.canAccess(player, tile)) {
                             if (tank.tier == FluidTankTier.CREATIVE && tank.fluidTank.getFluid() != null && StorageUtils.getStoredEnergy(stack) >= ENERGY_PER_CONFIGURE) {
-                                StorageUtils.extractEnergy(stack, ENERGY_PER_CONFIGURE, Action.EXECUTE);
+                                StorageUtils.extractFromContainer(stack, ENERGY_PER_CONFIGURE, Action.EXECUTE);
                                 tank.fluidTank.setEmpty();
                             }
                             return EnumActionResult.SUCCESS;
@@ -174,7 +174,7 @@ public class ItemConfigurator extends ItemEnergized implements IMekWrench, ITool
                     if (MekanismConfig.current().mekce.EmptyToCreateGasTank.val()) {
                         if (SecurityUtils.canAccess(player, tile)) {
                             if (tank.tier == GasTankTier.CREATIVE && tank.gasTank.getGas() != null && StorageUtils.getStoredEnergy(stack) >= ENERGY_PER_CONFIGURE) {
-                                StorageUtils.extractEnergy(stack, ENERGY_PER_CONFIGURE, Action.EXECUTE);
+                                StorageUtils.extractFromContainer(stack, ENERGY_PER_CONFIGURE, Action.EXECUTE);
                                 tank.gasTank.setEmpty();
                             }
                             return EnumActionResult.SUCCESS;
@@ -195,7 +195,7 @@ public class ItemConfigurator extends ItemEnergized implements IMekWrench, ITool
                                 }
                                 Block.spawnAsEntity(world, pos, slotStack.copy());
                                 inv.setInventorySlotContents(i, ItemStack.EMPTY);
-                                StorageUtils.extractEnergy(stack, ENERGY_PER_ITEM_DUMP, Action.EXECUTE);
+                                StorageUtils.extractFromContainer(stack, ENERGY_PER_ITEM_DUMP, Action.EXECUTE);
                             }
                         }
                         return EnumActionResult.SUCCESS;
@@ -217,7 +217,7 @@ public class ItemConfigurator extends ItemEnergized implements IMekWrench, ITool
                                         Block.spawnAsEntity(world, pos, bin.bottomStack.copy());
                                         inv.setInventorySlotContents(i, ItemStack.EMPTY);
                                         bin.setItemCount(0);
-                                        StorageUtils.extractEnergy(stack, ENERGY_PER_ITEM_DUMP, Action.EXECUTE);
+                                        StorageUtils.extractFromContainer(stack, ENERGY_PER_ITEM_DUMP, Action.EXECUTE);
                                     }
                                 }
                             }

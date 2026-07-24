@@ -33,26 +33,24 @@ public class TileEntityAdvancedSolarGenerator extends TileEntitySolarGenerator i
     }
 
     @Override
-    public void onPlace() {
-        Coord4D current = Coord4D.get(this);
-        MekanismUtils.makeBoundingBlock(world, getPos().add(0, 1, 0), current);
+    public void collectBoundingBlocks(java.util.function.BiConsumer<BlockPos, Boolean> consumer) {
+        consumer.accept(getPos().up(), false);
         for (int x = -1; x <= 1; x++) {
             for (int z = -1; z <= 1; z++) {
-                MekanismUtils.makeBoundingBlock(world, getPos().add(x, 2, z), current);
+                consumer.accept(getPos().add(x, 2, z), false);
             }
         }
     }
 
     @Override
+    public void onPlace() {
+        tryPlaceBoundingBlocks(world, Coord4D.get(this));
+    }
+
+    @Override
     public void onBreak() {
-        world.setBlockToAir(getPos().add(0, 1, 0));
-        for (int x = -1; x <= 1; x++) {
-            for (int z = -1; z <= 1; z++) {
-                world.setBlockToAir(getPos().add(x, 2, z));
-            }
-        }
+        removeBoundingBlocks(world, getPos());
         invalidate();
-        world.setBlockToAir(getPos());
     }
 
     @Override

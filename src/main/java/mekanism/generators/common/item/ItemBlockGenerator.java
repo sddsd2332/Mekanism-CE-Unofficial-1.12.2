@@ -166,13 +166,13 @@ public class ItemBlockGenerator extends ItemBlock implements ILegacyEnergizedIte
         boolean place = true;
         Block block = world.getBlockState(pos).getBlock();
         if (type == GeneratorType.ADVANCED_SOLAR_GENERATOR) {
-            if (!(block.isReplaceable(world, pos) && world.isAirBlock(pos.add(0, 1, 0)))) {
+            if (!block.isReplaceable(world, pos) || !MekanismUtils.isValidBoundingBlockPosition(world, pos.up(), pos)) {
                 return false;
             }
             outer:
             for (int xPos = -1; xPos <= 1; xPos++) {
                 for (int zPos = -1; zPos <= 1; zPos++) {
-                    if (!world.isAirBlock(pos.add(xPos, 2, zPos)) || pos.getY() + 2 > 255) {
+                    if (!MekanismUtils.isValidBoundingBlockPosition(world, pos.add(xPos, 2, zPos), pos)) {
                         place = false;
                         break outer;
                     }
@@ -183,7 +183,7 @@ public class ItemBlockGenerator extends ItemBlock implements ILegacyEnergizedIte
                 return false;
             }
             for (int yPos = 1; yPos <= 4; yPos++) {
-                if (!world.isAirBlock(pos.add(0, yPos, 0)) || pos.getY() + yPos > 255) {
+                if (!MekanismUtils.isValidBoundingBlockPosition(world, pos.up(yPos), pos)) {
                     place = false;
                     break;
                 }
@@ -320,7 +320,7 @@ public class ItemBlockGenerator extends ItemBlock implements ILegacyEnergizedIte
     @Override
     public UUID getOwnerUUID(ItemStack stack) {
         if (ItemDataUtils.hasData(stack, "ownerUUID")) {
-            return UUID.fromString(ItemDataUtils.getString(stack, "ownerUUID"));
+            return MekanismUtils.parseUUID(ItemDataUtils.getString(stack, "ownerUUID"));
         }
         return null;
     }

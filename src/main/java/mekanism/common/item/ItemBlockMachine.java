@@ -298,22 +298,34 @@ public class ItemBlockMachine extends ItemBlock implements ILegacyEnergizedItem,
                 return false;
             }
         }
-        if (type == MachineType.DIGITAL_MINER || type == MachineType.MODIFICATION_STATION) {
+        if (type == MachineType.DIGITAL_MINER) {
             BlockPos.MutableBlockPos testPos = new BlockPos.MutableBlockPos();
             for (int xPos = -1; xPos <= +1; xPos++) {
                 for (int yPos = 0; yPos <= +1; yPos++) {
                     for (int zPos = -1; zPos <= +1; zPos++) {
                         testPos.setPos(pos.getX() + xPos, pos.getY() + yPos, pos.getZ() + zPos);
-                        Block b = world.getBlockState(testPos).getBlock();
-                        if (!world.isValid(testPos) || !world.isBlockLoaded(testPos, false) || !b.isReplaceable(world, testPos)) {
+                        if (!MekanismUtils.isValidBoundingBlockPosition(world, testPos, pos)) {
                             place = false;
                         }
                     }
                 }
             }
+        } else if (type == MachineType.MODIFICATION_STATION) {
+            int facingIndex = MathHelper.floor((player.rotationYaw * 4.0F / 360.0F) + 0.5D) & 3;
+            EnumFacing facing = switch (facingIndex) {
+                case 0 -> EnumFacing.NORTH;
+                case 1 -> EnumFacing.EAST;
+                case 2 -> EnumFacing.SOUTH;
+                case 3 -> EnumFacing.WEST;
+                default -> EnumFacing.NORTH;
+            };
+            EnumFacing right = MekanismUtils.getRight(facing);
+            place = MekanismUtils.isValidBoundingBlockPosition(world, pos.up(), pos)
+                  && MekanismUtils.isValidBoundingBlockPosition(world, pos.offset(right), pos)
+                  && MekanismUtils.isValidBoundingBlockPosition(world, pos.offset(right).up(), pos);
         } else if (type == MachineType.SOLAR_NEUTRON_ACTIVATOR || type == MachineType.SEISMIC_VIBRATOR || type == MachineType.ISOTOPIC_CENTRIFUGE) {
             BlockPos abovePos = pos.up();
-            if (!world.isValid(abovePos) || !world.getBlockState(abovePos).getBlock().isReplaceable(world, abovePos)) {
+            if (!MekanismUtils.isValidBoundingBlockPosition(world, abovePos, pos)) {
                 place = false;
             }
         }
@@ -327,15 +339,17 @@ public class ItemBlockMachine extends ItemBlock implements ILegacyEnergizedItem,
         if (tileEntity instanceof TileEntityFluidTank tile) {
             tile.tier = FluidTankTier.values()[getBaseTier(stack).ordinal()];
         }
-        MekanismPlacementData.restoreCommon(stack, placer, tileEntity);
         if (tileEntity instanceof TileEntityFactory factory) {
             RecipeType recipeType = getRecipeTypeOrNull(stack);
             if (recipeType != null) {
                 factory.setRecipeType(recipeType);
             }
+        }
+        MekanismPlacementData.restoreCommon(stack, placer, tileEntity);
+        if (world != null && tileEntity instanceof TileEntityFactory) {
             world.notifyNeighborsOfStateChange(pos, tileEntity.getBlockType(), true);
         }
-        if (!world.isRemote && tileEntity instanceof TileEntityQuantumEntangloporter quantum) {
+        if (world != null && !world.isRemote && tileEntity instanceof TileEntityQuantumEntangloporter quantum) {
             FrequencyIdentity frequency = getStoredInventoryFrequency(stack);
             if (frequency != null) {
                 quantum.setFrequency(frequency);

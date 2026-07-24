@@ -79,11 +79,14 @@ public final class MekanismPlacementData {
             electricBlock.setEnergy(StorageUtils.getStoredEnergyForDisplay(stack));
         }
         if (tileEntity instanceof ISecurityTile securityTile && stack.getItem() instanceof ISecurityItem securityItem) {
-            securityTile.getSecurity().setOwnerUUID(securityItem.getOwnerUUID(stack));
+            java.util.UUID owner = securityItem.getOwnerUUID(stack);
+            if (owner != null) {
+                securityTile.getSecurity().setOwnerUUID(owner);
+            }
             if (securityItem.hasSecurity(stack)) {
                 securityTile.getSecurity().setMode(securityItem.getSecurity(stack));
             }
-            if (securityItem.getOwnerUUID(stack) == null) {
+            if (owner == null && placer != null) {
                 securityTile.getSecurity().setOwnerUUID(placer.getUniqueID());
             }
         }

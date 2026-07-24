@@ -7,6 +7,7 @@ import mekanism.api.Action;
 import mekanism.api.EnumColor;
 import mekanism.api.functions.ConstantPredicates;
 import mekanism.common.capabilities.ItemCapabilityWrapper;
+import mekanism.common.capabilities.energy.BasicEnergyContainer;
 import mekanism.common.capabilities.energy.item.RateLimitEnergyHandler;
 import mekanism.common.integration.MekanismHooks;
 import mekanism.common.integration.forgeenergy.ForgeEnergyItemWrapper;
@@ -50,13 +51,20 @@ public class ItemEnergized extends ItemMekanism implements ILegacyEnergizedItem,
      */
     public double MAX_ELECTRICITY;
 
+    private final boolean allowsExternalEnergyExtraction;
+
     public ItemEnergized(double maxElectricity) {
+        this(maxElectricity, false);
+    }
+
+    protected ItemEnergized(double maxElectricity, boolean allowsExternalEnergyExtraction) {
         super();
         MAX_ELECTRICITY = maxElectricity;
+        this.allowsExternalEnergyExtraction = allowsExternalEnergyExtraction;
     }
 
     public ItemEnergized() {
-        this(1000000);
+        this(1000000, true);
         setRarity(EnumRarity.UNCOMMON);
         this.addPropertyOverride(new ResourceLocation("energy"), new IItemPropertyGetter() {
             @SideOnly(Side.CLIENT)
@@ -134,7 +142,7 @@ public class ItemEnergized extends ItemMekanism implements ILegacyEnergizedItem,
     }
 
     public boolean canSendEnergy(ItemStack itemStack) {
-        if (itemStack.getCount() > 1) {
+        if (!allowsExternalEnergyExtraction || itemStack.getCount() > 1) {
             return false;
         }
         return StorageUtils.getStoredEnergy(itemStack) > 0;
@@ -185,7 +193,9 @@ public class ItemEnergized extends ItemMekanism implements ILegacyEnergizedItem,
     @Override
     public ICapabilityProvider initCapabilities(ItemStack stack, NBTTagCompound nbt) {
         return new ItemCapabilityWrapper(stack, new TeslaItemWrapper(), new ForgeEnergyItemWrapper(),
-              RateLimitEnergyHandler.create(() -> getEnergyTransfer(stack), () -> getEnergyCapacity(stack), ConstantPredicates.alwaysTrue(), ConstantPredicates.alwaysTrue()));
+              RateLimitEnergyHandler.create(() -> getEnergyTransfer(stack), () -> getEnergyCapacity(stack),
+                    allowsExternalEnergyExtraction ? ConstantPredicates.alwaysTrue() : BasicEnergyContainer.manualOnly,
+                    ConstantPredicates.alwaysTrue()));
     }
 
 }

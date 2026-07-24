@@ -15,6 +15,7 @@ import mekanism.common.Mekanism;
 import mekanism.common.MekanismModules;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.capabilities.ItemCapabilityWrapper;
+import mekanism.common.capabilities.energy.BasicEnergyContainer;
 import mekanism.common.capabilities.energy.item.RateLimitEnergyHandler;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.content.gear.IModuleContainerItem;
@@ -198,10 +199,7 @@ public class ItemMekaFishingRod extends ItemFishingRod implements ILegacyEnergiz
     }
 
     public boolean canSendEnergy(ItemStack itemStack) {
-        if (itemStack.getCount() > 1) {
-            return false;
-        }
-        return StorageUtils.getStoredEnergy(itemStack) > 0;
+        return false;
     }
 
 
@@ -250,7 +248,8 @@ public class ItemMekaFishingRod extends ItemFishingRod implements ILegacyEnergiz
     @Override
     public ICapabilityProvider initCapabilities(ItemStack stack, NBTTagCompound nbt) {
         return new ItemCapabilityWrapper(stack, new TeslaItemWrapper(), new ForgeEnergyItemWrapper(),
-              RateLimitEnergyHandler.create(() -> getEnergyTransfer(stack), () -> getEnergyCapacity(stack), ConstantPredicates.alwaysTrue(), ConstantPredicates.alwaysTrue()));
+              RateLimitEnergyHandler.create(() -> getEnergyTransfer(stack), () -> getEnergyCapacity(stack),
+                    BasicEnergyContainer.manualOnly, ConstantPredicates.alwaysTrue()));
     }
 
 
@@ -279,7 +278,7 @@ public class ItemMekaFishingRod extends ItemFishingRod implements ILegacyEnergiz
         if (player.fishEntity != null) {
             player.fishEntity.handleHookRetraction();
             if (!player.capabilities.isCreativeMode) {
-                StorageUtils.extractEnergy(stack, ENERGY_PER_CONFIGURE, Action.EXECUTE);
+                StorageUtils.extractFromContainer(stack, ENERGY_PER_CONFIGURE, Action.EXECUTE);
             }
             player.swingArm(hand);
             world.playSound(null, player.posX, player.posY, player.posZ, SoundEvents.ENTITY_BOBBER_RETRIEVE, SoundCategory.NEUTRAL, 1.0F, 0.4F / (itemRand.nextFloat() * 0.4F + 0.8F));

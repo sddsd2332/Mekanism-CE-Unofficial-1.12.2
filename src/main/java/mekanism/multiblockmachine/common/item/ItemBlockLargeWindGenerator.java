@@ -4,6 +4,7 @@ import mekanism.api.EnumColor;
 import mekanism.common.Mekanism;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.util.LangUtils;
+import mekanism.common.util.MekanismUtils;
 import mekanism.multiblockmachine.common.tile.generator.TileEntityLargeWindGenerator;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
@@ -35,56 +36,17 @@ public class ItemBlockLargeWindGenerator extends ItemBlockLargeBaseEnergy {
     @Override
     public boolean canPlace(@Nonnull ItemStack stack, @Nonnull EntityPlayer player, World world, @Nonnull BlockPos pos, EnumFacing side, float hitX, float hitY, float hitZ, @Nonnull IBlockState state) {
         boolean isCanPlace = false;
-        BlockPos.MutableBlockPos testPos = new BlockPos.MutableBlockPos();
-
-        outer:
-        for (int y = 0; y <= 1; y++) {
-            for (int x = -3; x <= 3; x++) {
-                for (int z = -3; z <= 3; z++) {
-                    testPos.setPos(pos.getX() + x, pos.getY() + y, pos.getZ() + z);
-                    Block b = world.getBlockState(testPos).getBlock();
-                    if (!world.isValid(testPos) || !world.isBlockLoaded(testPos, false) || !b.isReplaceable(world, testPos)) {
-                        isCanPlace = true;
-                        if (player instanceof EntityPlayerMP mp) {
-                            mp.sendMessage(new TextComponentString(EnumColor.DARK_BLUE + Mekanism.LOG_TAG + EnumColor.GREY + " " + LangUtils.localize("tooltip.canPlace.pos") + ": " + "X " + testPos.getX() + " " + "Y " + testPos.getY() + " " + "Z " + testPos.getZ()));
-                        }
-                        break outer;
-                    }
-                }
+        BlockPos[] blockedPosition = {null};
+        TileEntityLargeWindGenerator.collectBoundingBlocks(pos, player.getHorizontalFacing().getOpposite(), (testPos, advanced) -> {
+            if (blockedPosition[0] == null && !MekanismUtils.isValidBoundingBlockPosition(world, testPos, pos)) {
+                blockedPosition[0] = testPos;
             }
-        }
-
-        outer:
-        for (int y = 2; y <= 43; y++) {
-            for (int x = -2; x <= 2; x++) {
-                for (int z = -2; z <= 2; z++) {
-                    testPos.setPos(pos.getX() + x, pos.getY() + y, pos.getZ() + z);
-                    Block b = world.getBlockState(testPos).getBlock();
-                    if (!world.isValid(testPos) || !world.isBlockLoaded(testPos, false) || !b.isReplaceable(world, testPos)) {
-                        isCanPlace = true;
-                        if (player instanceof EntityPlayerMP mp) {
-                            mp.sendMessage(new TextComponentString(EnumColor.DARK_BLUE + Mekanism.LOG_TAG + EnumColor.GREY + " " + LangUtils.localize("tooltip.canPlace.pos") + ": " + "X " + testPos.getX() + " " + "Y " + testPos.getY() + " " + "Z " + testPos.getZ()));
-                        }
-                        break outer;
-                    }
-                }
-            }
-        }
-
-        outer:
-        for (int y = 43; y <= 47; y++) {
-            for (int z = -5; z <= 5; z++) {
-                for (int x = -5; x <= 5; x++) {
-                    testPos.setPos(pos.getX() + x, pos.getY() + y, pos.getZ() + z);
-                    Block b = world.getBlockState(testPos).getBlock();
-                    if (!world.isValid(testPos) || !world.isBlockLoaded(testPos, false) || !b.isReplaceable(world, testPos)) {
-                        isCanPlace = true;
-                        if (player instanceof EntityPlayerMP mp) {
-                            mp.sendMessage(new TextComponentString(EnumColor.DARK_BLUE + Mekanism.LOG_TAG + EnumColor.GREY + " " + LangUtils.localize("tooltip.canPlace.pos") + ": " + "X " + testPos.getX() + " " + "Y " + testPos.getY() + " " + "Z " + testPos.getZ()));
-                        }
-                        break outer;
-                    }
-                }
+        });
+        if (blockedPosition[0] != null) {
+            isCanPlace = true;
+            BlockPos testPos = blockedPosition[0];
+            if (player instanceof EntityPlayerMP mp) {
+                mp.sendMessage(new TextComponentString(EnumColor.DARK_BLUE + Mekanism.LOG_TAG + EnumColor.GREY + " " + LangUtils.localize("tooltip.canPlace.pos") + ": " + "X " + testPos.getX() + " " + "Y " + testPos.getY() + " " + "Z " + testPos.getZ()));
             }
         }
 
@@ -112,7 +74,7 @@ public class ItemBlockLargeWindGenerator extends ItemBlockLargeBaseEnergy {
                             if (distanceSquared <= rangeCheck * rangeCheck) {
                                 isCanPlace = true;
                                 if (player instanceof EntityPlayerMP mp) {
-                                    mp.sendMessage(new TextComponentString(EnumColor.DARK_BLUE + Mekanism.LOG_TAG + EnumColor.GREY + " " + LangUtils.localize("tooltip.tileEntity.pos") + ": " + "X " + testPos.getX() + " " + "Y " + testPos.getY() + " " + "Z " + testPos.getZ()));
+                                    mp.sendMessage(new TextComponentString(EnumColor.DARK_BLUE + Mekanism.LOG_TAG + EnumColor.GREY + " " + LangUtils.localize("tooltip.tileEntity.pos") + ": " + "X " + tilePos.getX() + " " + "Y " + tilePos.getY() + " " + "Z " + tilePos.getZ()));
                                 }
                                 break outer;
                             }

@@ -85,7 +85,7 @@ public class PacketQIOViewerAction implements IMessageHandler<PacketQIOViewerAct
         }
         if (player.openContainer instanceof PortableQIODashboardContainer) {
             PortableQIODashboardContainer portable = (PortableQIODashboardContainer) player.openContainer;
-            if (player.getHeldItem(portable.getHand()) == held) {
+            if (portable.getStack() == held || portable.getItemAccess().getOpeningStack() == held) {
                 return false;
             }
         }

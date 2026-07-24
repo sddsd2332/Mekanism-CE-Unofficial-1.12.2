@@ -145,7 +145,7 @@ public abstract class ItemBlockLargeBase extends ItemBlock implements IItemSusta
     @Override
     public UUID getOwnerUUID(ItemStack stack) {
         if (ItemDataUtils.hasData(stack, "ownerUUID")) {
-            return UUID.fromString(ItemDataUtils.getString(stack, "ownerUUID"));
+            return MekanismUtils.parseUUID(ItemDataUtils.getString(stack, "ownerUUID"));
         }
         return null;
     }

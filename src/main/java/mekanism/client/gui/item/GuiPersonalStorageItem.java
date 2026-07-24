@@ -6,6 +6,8 @@ import mekanism.common.inventory.InventoryPersonalChest;
 import mekanism.common.inventory.container.item.PersonalStorageItemContainer;
 import mekanism.common.util.LangUtils;
 import net.minecraft.entity.player.InventoryPlayer;
+import net.minecraft.item.ItemStack;
+import net.minecraft.util.EnumHand;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
@@ -15,6 +17,15 @@ public class GuiPersonalStorageItem extends GuiMekanism<PersonalStorageItemConta
 
     public GuiPersonalStorageItem(InventoryPlayer inventory, InventoryPersonalChest inv) {
         super(new PersonalStorageItemContainer(inventory, inv));
+        init();
+    }
+
+    public GuiPersonalStorageItem(InventoryPlayer inventory, EnumHand hand, int itemSlot, ItemStack stack) {
+        super(new PersonalStorageItemContainer(inventory, hand, itemSlot, stack));
+        init();
+    }
+
+    private void init() {
         dynamicSlots = true;
         ySize += 56;
         inventoryLabelY = ySize - 94;
@@ -23,7 +34,7 @@ public class GuiPersonalStorageItem extends GuiMekanism<PersonalStorageItemConta
     @Override
     protected void addGuiElements() {
         super.addGuiElements();
-        addButton(new GuiSecurityTab<>(this, ((PersonalStorageItemContainer) inventorySlots).getHand()));
+        addButton(new GuiSecurityTab<>(this, (PersonalStorageItemContainer) inventorySlots));
     }
 
     @Override

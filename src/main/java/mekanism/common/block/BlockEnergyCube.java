@@ -3,6 +3,7 @@ package mekanism.common.block;
 import mekanism.api.IMekWrench;
 import mekanism.common.Mekanism;
 import mekanism.common.MekanismBlocks;
+import mekanism.common.base.IRedstoneControl;
 import mekanism.common.base.ISideConfiguration;
 import mekanism.common.base.ISustainedInventory;
 import mekanism.common.base.ITierItem;
@@ -109,22 +110,23 @@ public class BlockEnergyCube extends BlockMekanismContainer {
         if (tileEntity == null) {
             return;
         }
-        int height = Math.round(placer.rotationPitch);
         EnumFacing change = EnumFacing.SOUTH;
-
-        if (height >= 65) {
-            change = EnumFacing.UP;
-        } else if (height <= -65) {
-            change = EnumFacing.DOWN;
-        } else {
-            int side = MathHelper.floor((double) (placer.rotationYaw * 4.0F / 360.0F) + 0.5D) & 3;
-            change = switch (side) {
-                case 0 -> EnumFacing.NORTH;
-                case 1 -> EnumFacing.EAST;
-                case 2 -> EnumFacing.SOUTH;
-                case 3 -> EnumFacing.WEST;
-                default -> change;
-            };
+        if (placer != null) {
+            int height = Math.round(placer.rotationPitch);
+            if (height >= 65) {
+                change = EnumFacing.UP;
+            } else if (height <= -65) {
+                change = EnumFacing.DOWN;
+            } else {
+                int side = MathHelper.floor((double) (placer.rotationYaw * 4.0F / 360.0F) + 0.5D) & 3;
+                change = switch (side) {
+                    case 0 -> EnumFacing.NORTH;
+                    case 1 -> EnumFacing.EAST;
+                    case 2 -> EnumFacing.SOUTH;
+                    case 3 -> EnumFacing.WEST;
+                    default -> change;
+                };
+            }
         }
         tileEntity.setFacing(change);
         tileEntity.redstone = world.getRedstonePowerFromNeighbors(pos) > 0;
@@ -135,11 +137,18 @@ public class BlockEnergyCube extends BlockMekanismContainer {
     public void getSubBlocks(CreativeTabs creativetabs, NonNullList<ItemStack> list) {
         for (EnergyCubeTier tier : EnergyCubeTier.values()) {
             ItemStack discharged = new ItemStack(this);
-            ((ItemBlockEnergyCube) discharged.getItem()).setBaseTier(discharged, tier.getBaseTier());
+            ItemBlockEnergyCube item = (ItemBlockEnergyCube) discharged.getItem();
+            item.setBaseTier(discharged, tier.getBaseTier());
+            if (tier == EnergyCubeTier.CREATIVE) {
+                item.setCreativeDefaultSideConfig(discharged, false);
+            }
             list.add(discharged);
             ItemStack charged = new ItemStack(this);
-            ((ItemBlockEnergyCube) charged.getItem()).setBaseTier(charged, tier.getBaseTier());
-            ((ItemBlockEnergyCube) charged.getItem()).setStoredEnergy(charged, tier.getMaxEnergy());
+            item.setBaseTier(charged, tier.getBaseTier());
+            item.setStoredEnergy(charged, tier.getMaxEnergy());
+            if (tier == EnergyCubeTier.CREATIVE) {
+                item.setCreativeDefaultSideConfig(charged, true);
+            }
             list.add(charged);
         }
     }
@@ -231,6 +240,7 @@ public class BlockEnergyCube extends BlockMekanismContainer {
             }
             ((ISideConfiguration) tileEntity).getConfig().write(ItemDataUtils.getDataMap(itemStack));
             ((ISideConfiguration) tileEntity).getEjector().write(ItemDataUtils.getDataMap(itemStack));
+            ItemDataUtils.setInt(itemStack, "controlType", ((IRedstoneControl) tileEntity).getControlType().ordinal());
         }
 
         ITierItem tierItem = (ITierItem) itemStack.getItem();

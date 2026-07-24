@@ -37,21 +37,26 @@ public class PacketQIOPortableGui implements IMessageHandler<PacketQIOPortableGu
             if (!Message.isSupportedGui(message.guiId)) {
                 return;
             }
-            ItemStack stack = player.getHeldItem(message.hand);
-            if (stack.isEmpty() || !(stack.getItem() instanceof ItemPortableQIODashboard) || !SecurityUtils.canAccess(player, stack)) {
-                return;
-            }
+            ItemStack stack;
+            int itemSlot;
             if (player.openContainer instanceof PortableQIODashboardContainer) {
                 PortableQIODashboardContainer container = (PortableQIODashboardContainer) player.openContainer;
                 if (container.windowId != message.windowId || container.getHand() != message.hand || !container.canInteractWith(player)) {
                     return;
                 }
+                stack = container.getStack();
+                itemSlot = container.getItemSlot();
             } else if (player.openContainer instanceof QIOItemFrequencySelectContainer) {
                 QIOItemFrequencySelectContainer container = (QIOItemFrequencySelectContainer) player.openContainer;
                 if (container.windowId != message.windowId || container.getHand() != message.hand || !container.canInteractWith(player)) {
                     return;
                 }
+                stack = container.getStack();
+                itemSlot = container.getItemSlot();
             } else {
+                return;
+            }
+            if (stack.isEmpty() || !(stack.getItem() instanceof ItemPortableQIODashboard) || !SecurityUtils.canAccess(player, stack)) {
                 return;
             }
             if (message.guiId == ACTION_TOGGLE_TARGET) {
@@ -60,7 +65,7 @@ public class PacketQIOPortableGui implements IMessageHandler<PacketQIOPortableGu
                 player.inventory.markDirty();
                 return;
             }
-            MekanismUtils.openItemGui(player, message.hand, message.guiId);
+            MekanismUtils.openItemGui(player, message.hand, itemSlot, message.guiId);
         }, player);
         return null;
     }

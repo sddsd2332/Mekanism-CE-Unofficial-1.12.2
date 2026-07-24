@@ -38,6 +38,16 @@ public class GuiQIOItemFrequencySelect extends GuiTeleporterBase<QIOItemFrequenc
     public GuiQIOItemFrequencySelect(InventoryPlayer inventory, EnumHand hand, ItemStack stack) {
         super(new QIOItemFrequencySelectContainer(inventory, hand, stack));
         this.hand = hand;
+        init();
+    }
+
+    public GuiQIOItemFrequencySelect(InventoryPlayer inventory, EnumHand hand, int itemSlot, ItemStack stack) {
+        super(new QIOItemFrequencySelectContainer(inventory, hand, itemSlot, stack));
+        this.hand = hand;
+        init();
+    }
+
+    private void init() {
         ySize = 155;
         titleLabelY = 5;
     }
@@ -92,13 +102,13 @@ public class GuiQIOItemFrequencySelect extends GuiTeleporterBase<QIOItemFrequenc
         return name == null ? "" : name;
     }
     @Override protected void setFrequency(FrequencyIdentity identity) {
-        Mekanism.packetHandler.sendToServer(new SetItemFrequencyMessage(true, FrequencyType.QIO, identity, hand));
+        Mekanism.packetHandler.sendToServer(new SetItemFrequencyMessage(inventorySlots.windowId, true, FrequencyType.QIO, identity, hand));
     }
     @Override protected void deleteSelectedFrequency() {
         Frequency selected = getSelectedFrequency();
         if (selected != null) {
             GuiConfirmationDialog.show(this, MekanismLang.FREQUENCY_DELETE_CONFIRM.translate(), () -> {
-                Mekanism.packetHandler.sendToServer(new SetItemFrequencyMessage(false, FrequencyType.QIO, selected.getIdentity(), hand));
+                Mekanism.packetHandler.sendToServer(new SetItemFrequencyMessage(inventorySlots.windowId, false, FrequencyType.QIO, selected.getIdentity(), hand));
                 scrollList.clearSelection();
                 updateFrequencyButtons();
             }, DialogType.DANGER);

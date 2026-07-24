@@ -98,7 +98,7 @@ public class ItemElectricBow extends ItemEnergized implements IModeItem, IItemHU
                     entityarrow.setIsCritical(true);
                     }
                     if (!player.capabilities.isCreativeMode) {
-                        StorageUtils.extractEnergy(itemstack, getFireState(itemstack) ? 1200 : 120, Action.EXECUTE);
+                        StorageUtils.extractFromContainer(itemstack, getFireState(itemstack) ? 1200 : 120, Action.EXECUTE);
                     }
                     if (noConsume) {
                         entityarrow.pickupStatus = EntityArrow.PickupStatus.CREATIVE_ONLY;

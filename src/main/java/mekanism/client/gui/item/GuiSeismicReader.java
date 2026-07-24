@@ -47,6 +47,15 @@ public class GuiSeismicReader extends GuiMekanism<SeismicReaderContainer> {
 
     public GuiSeismicReader(InventoryPlayer inventory, EnumHand hand, ItemStack stack) {
         super(new SeismicReaderContainer(inventory, hand, stack));
+        init(inventory);
+    }
+
+    public GuiSeismicReader(InventoryPlayer inventory, EnumHand hand, int itemSlot, ItemStack stack) {
+        super(new SeismicReaderContainer(inventory, hand, itemSlot, stack));
+        init(inventory);
+    }
+
+    private void init(InventoryPlayer inventory) {
         xSize = 150;
         ySize = 182;
         calculate(inventory.player.world, inventory.player.getPosition(), inventory.player);

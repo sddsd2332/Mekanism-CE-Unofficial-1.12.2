@@ -9,6 +9,7 @@ import mekanism.client.render.MekanismRenderer;
 import mekanism.common.Mekanism;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.entity.EntityRobit;
+import mekanism.common.inventory.container.item.MekanismItemContainer;
 import mekanism.common.network.PacketSecurityMode.SecurityModeMessage;
 import mekanism.common.security.ISecurityItem;
 import mekanism.common.security.ISecurityTile;
@@ -32,6 +33,7 @@ public class GuiSecurityTab<TILE extends net.minecraft.tileentity.TileEntity & I
     private static final ResourceLocation PROTECTED = MekanismUtils.getResource(MekanismUtils.ResourceType.GUI, "protected.png");
     private final EnumHand currentHand;
     private final boolean isEntity;
+    private final MekanismItemContainer itemContainer;
 
     public GuiSecurityTab(IGuiWrapper gui, TILE tile) {
         this(gui, tile, 34);
@@ -41,18 +43,28 @@ public class GuiSecurityTab<TILE extends net.minecraft.tileentity.TileEntity & I
         super(PUBLIC, gui, tile, gui.getWidth(), y, 26, 18, false);
         currentHand = null;
         isEntity = false;
+        itemContainer = null;
     }
 
     public GuiSecurityTab(IGuiWrapper gui, EntityRobit robit, int y) {
         super(PUBLIC, gui, robit, gui.getWidth(), y, 26, 18, false);
         currentHand = null;
         isEntity = true;
+        itemContainer = null;
     }
 
     public GuiSecurityTab(IGuiWrapper gui, EnumHand hand) {
         super(PUBLIC, gui, null, gui.getWidth(), 34, 26, 18, false);
         currentHand = hand;
         isEntity = false;
+        itemContainer = null;
+    }
+
+    public GuiSecurityTab(IGuiWrapper gui, MekanismItemContainer container) {
+        super(PUBLIC, gui, null, gui.getWidth(), 34, 26, 18, false);
+        currentHand = container.getHand();
+        isEntity = false;
+        itemContainer = container;
     }
 
     @Override
@@ -104,7 +116,17 @@ public class GuiSecurityTab<TILE extends net.minecraft.tileentity.TileEntity & I
             return;
         }
         SecurityMode next = button == 1 ? getSecurityMode().getPrevious() : getSecurityMode().getNext();
-        Mekanism.packetHandler.sendToServer(isItem() ? new SecurityModeMessage(currentHand, next) : isEntity() ? new SecurityModeMessage(getEntity(), next) : new SecurityModeMessage(Coord4D.get(getTile()), next));
+        if (isItem()) {
+            MekanismItemContainer container = itemContainer;
+            if (container == null && minecraft.player.openContainer instanceof MekanismItemContainer) {
+                container = (MekanismItemContainer) minecraft.player.openContainer;
+            }
+            if (container != null && container.getHand() == currentHand) {
+                Mekanism.packetHandler.sendToServer(new SecurityModeMessage(container.windowId, currentHand, next));
+            }
+        } else {
+            Mekanism.packetHandler.sendToServer(isEntity() ? new SecurityModeMessage(getEntity(), next) : new SecurityModeMessage(Coord4D.get(getTile()), next));
+        }
     }
 
     private SecurityMode getDisplayedMode() {
@@ -130,7 +152,7 @@ public class GuiSecurityTab<TILE extends net.minecraft.tileentity.TileEntity & I
     }
 
     private ItemStack getItem() {
-        return minecraft.player.getHeldItem(currentHand);
+        return itemContainer == null ? minecraft.player.getHeldItem(currentHand) : itemContainer.getStack();
     }
 
     private boolean isSecurityItem() {

@@ -24,13 +24,18 @@ public class PortableTeleporterContainer extends FrequencyItemContainer<Teleport
         super(inv, hand, stack);
     }
 
+    public PortableTeleporterContainer(InventoryPlayer inv, EnumHand hand, int itemSlot, ItemStack stack) {
+        super(inv, hand, itemSlot, stack);
+    }
+
+    @Override
+    protected boolean isValidStack(ItemStack stack) {
+        return super.isValidStack(stack) && stack.getItem() instanceof ItemPortableTeleporter;
+    }
+
     @Override
     protected FrequencyType<TeleporterFrequency> getFrequencyType() {
         return FrequencyType.TELEPORTER;
-    }
-
-    public ItemStack getStack() {
-        return stack;
     }
 
     public byte getStatus() {
@@ -48,6 +53,7 @@ public class PortableTeleporterContainer extends FrequencyItemContainer<Teleport
     }
 
     private byte calculateStatus() {
+        ItemStack stack = getStack();
         TeleporterFrequency freq = getFrequencyFromStack();
         if (freq == null || freq.activeCoords.isEmpty()) {
             return 3;
@@ -71,7 +77,7 @@ public class PortableTeleporterContainer extends FrequencyItemContainer<Teleport
         return new IStrictEnergyStorage() {
             @Override
             public double getEnergy() {
-                return StorageUtils.getStoredEnergy(stack);
+                return StorageUtils.getStoredEnergy(getStack());
             }
 
             @Override
@@ -80,7 +86,7 @@ public class PortableTeleporterContainer extends FrequencyItemContainer<Teleport
 
             @Override
             public double getMaxEnergy() {
-                return StorageUtils.getMaxEnergy(stack);
+                return StorageUtils.getMaxEnergy(getStack());
             }
         };
     }

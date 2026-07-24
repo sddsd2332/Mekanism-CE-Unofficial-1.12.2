@@ -26,6 +26,7 @@ import net.minecraft.block.Block;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumFacing;
+import net.minecraft.util.math.BlockPos;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.wrapper.InvWrapper;
 import org.jetbrains.annotations.NotNull;
@@ -163,20 +164,21 @@ public class TileEntityModificationStation extends TileEntityOperationalMachine 
     }
 
     @Override
-    public void onPlace() {
+    public void collectBoundingBlocks(java.util.function.BiConsumer<BlockPos, Boolean> consumer) {
         EnumFacing right = MekanismUtils.getRight(facing);
-        MekanismUtils.makeBoundingBlock(world, getPos().up(), Coord4D.get(this));
-        MekanismUtils.makeBoundingBlock(world, getPos().offset(right), Coord4D.get(this));
-        MekanismUtils.makeBoundingBlock(world, getPos().offset(right).up(), Coord4D.get(this));
+        consumer.accept(getPos().up(), false);
+        consumer.accept(getPos().offset(right), false);
+        consumer.accept(getPos().offset(right).up(), false);
+    }
+
+    @Override
+    public void onPlace() {
+        tryPlaceBoundingBlocks(world, Coord4D.get(this));
     }
 
     @Override
     public void onBreak() {
-        EnumFacing right = MekanismUtils.getRight(facing);
-        world.setBlockToAir(getPos().offset(right).up());
-        world.setBlockToAir(getPos().offset(right));
-        world.setBlockToAir(getPos().up());
-        world.setBlockToAir(getPos());
+        removeBoundingBlocks(world, getPos());
     }
 
     @Override

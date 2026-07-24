@@ -192,14 +192,18 @@ public class TileEntitySecurityDesk extends TileEntityContainerBlock implements 
     }
 
     @Override
+    public void collectBoundingBlocks(java.util.function.BiConsumer<BlockPos, Boolean> consumer) {
+        consumer.accept(getPos().up(), false);
+    }
+
+    @Override
     public void onPlace() {
-        MekanismUtils.makeBoundingBlock(world, getPos().up(), Coord4D.get(this));
+        tryPlaceBoundingBlocks(world, Coord4D.get(this));
     }
 
     @Override
     public void onBreak() {
-        world.setBlockToAir(getPos().up());
-        world.setBlockToAir(getPos());
+        removeBoundingBlocks(world, getPos());
     }
 
     @Nonnull

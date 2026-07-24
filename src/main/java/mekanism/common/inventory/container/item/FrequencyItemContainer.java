@@ -27,6 +27,10 @@ public abstract class FrequencyItemContainer<FREQ extends Frequency> extends Mek
         super(inv, hand, stack);
     }
 
+    protected FrequencyItemContainer(InventoryPlayer inv, EnumHand hand, int itemSlot, ItemStack stack) {
+        super(inv, hand, itemSlot, stack);
+    }
+
     protected abstract FrequencyType<FREQ> getFrequencyType();
 
     @Nullable
@@ -36,6 +40,7 @@ public abstract class FrequencyItemContainer<FREQ extends Frequency> extends Mek
 
     @Nullable
     protected FREQ getFrequencyFromStack() {
+        ItemStack stack = getStack();
         if (stack.getItem() instanceof IFrequencyItem frequencyItem) {
             FrequencyAware<?> frequencyAware = frequencyItem.getFrequencyAware(stack);
             if (frequencyAware.identity() != null) {

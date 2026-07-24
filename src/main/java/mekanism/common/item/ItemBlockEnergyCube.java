@@ -120,12 +120,22 @@ public class ItemBlockEnergyCube extends ItemBlock implements ILegacyEnergizedIt
             return;
         }
         energyCube.tier = EnergyCubeTier.values()[getBaseTier(stack).ordinal()];
+        boolean hasStoredSideConfig = ItemDataUtils.hasData(stack, "sideDataStored");
         MekanismPlacementData.restoreCommon(stack, placer, energyCube);
-        if (energyCube.tier == EnergyCubeTier.CREATIVE) {
+        if (energyCube.tier == EnergyCubeTier.CREATIVE && !hasStoredSideConfig) {
             boolean filled = energyCube.getEnergy() > 0;
             energyCube.configComponent.fillConfig(TransmissionType.ENERGY, filled ? DataType.OUTPUT : DataType.INPUT);
             energyCube.configComponent.setEjecting(TransmissionType.ENERGY, filled);
         }
+    }
+
+    public void setCreativeDefaultSideConfig(ItemStack stack, boolean filled) {
+        TileEntityEnergyCube template = new TileEntityEnergyCube();
+        template.tier = EnergyCubeTier.CREATIVE;
+        template.configComponent.fillConfig(TransmissionType.ENERGY, filled ? DataType.OUTPUT : DataType.INPUT);
+        template.configComponent.setEjecting(TransmissionType.ENERGY, filled);
+        template.configComponent.write(ItemDataUtils.getDataMap(stack));
+        template.ejectorComponent.write(ItemDataUtils.getDataMap(stack));
     }
 
     @Override

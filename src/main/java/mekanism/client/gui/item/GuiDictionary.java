@@ -25,6 +25,15 @@ public class GuiDictionary extends GuiMekanism<DictionaryContainer> {
 
     public GuiDictionary(InventoryPlayer inventory, EnumHand hand, ItemStack stack) {
         super(new DictionaryContainer(inventory, hand, stack));
+        init();
+    }
+
+    public GuiDictionary(InventoryPlayer inventory, EnumHand hand, int itemSlot, ItemStack stack) {
+        super(new DictionaryContainer(inventory, hand, itemSlot, stack));
+        init();
+    }
+
+    private void init() {
         dynamicSlots = true;
         ySize += 5;
         inventoryLabelY = ySize - 96;

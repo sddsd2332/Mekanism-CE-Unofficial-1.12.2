@@ -3,6 +3,7 @@ package mekanism.common.block;
 import mekanism.api.IMekWrench;
 import mekanism.common.Mekanism;
 import mekanism.common.MekanismBlocks;
+import mekanism.common.base.IRedstoneControl;
 import mekanism.common.base.ISideConfiguration;
 import mekanism.common.base.ISustainedInventory;
 import mekanism.common.base.ITierItem;
@@ -86,12 +87,14 @@ public class BlockGasTank extends BlockMekanismContainer {
     public void onBlockPlacedBy(World world, BlockPos pos, IBlockState state, EntityLivingBase placer, ItemStack stack) {
         TileEntityBasicBlock tileEntity = (TileEntityBasicBlock) world.getTileEntity(pos);
         EnumFacing change = EnumFacing.SOUTH;
-        int side = MathHelper.floor((double) (placer.rotationYaw * 4.0F / 360.0F) + 0.5D) & 3;
-        switch (side) {
-            case 0 -> change = EnumFacing.NORTH;
-            case 1 -> change = EnumFacing.EAST;
-            case 2 -> change = EnumFacing.SOUTH;
-            case 3 -> change = EnumFacing.WEST;
+        if (placer != null) {
+            int side = MathHelper.floor((double) (placer.rotationYaw * 4.0F / 360.0F) + 0.5D) & 3;
+            switch (side) {
+                case 0 -> change = EnumFacing.NORTH;
+                case 1 -> change = EnumFacing.EAST;
+                case 2 -> change = EnumFacing.SOUTH;
+                case 3 -> change = EnumFacing.WEST;
+            }
         }
         tileEntity.setFacing(change);
         tileEntity.redstone = world.getRedstonePowerFromNeighbors(pos) > 0;
@@ -188,7 +191,7 @@ public class BlockGasTank extends BlockMekanismContainer {
     protected ItemStack getDropItem(@Nonnull IBlockState state, @Nonnull IBlockAccess world, @Nonnull BlockPos pos) {
         TileEntityGasTank tileEntity = (TileEntityGasTank) world.getTileEntity(pos);
         ItemStack itemStack = new ItemStack(MekanismBlocks.GasTank);
-        if (itemStack.hasTagCompound()) {
+        if (!itemStack.hasTagCompound()) {
             itemStack.setTagCompound(new NBTTagCompound());
         }
         if (tileEntity != null) {
@@ -199,6 +202,7 @@ public class BlockGasTank extends BlockMekanismContainer {
             }
             ((ISideConfiguration) tileEntity).getConfig().write(ItemDataUtils.getDataMap(itemStack));
             ((ISideConfiguration) tileEntity).getEjector().write(ItemDataUtils.getDataMap(itemStack));
+            ItemDataUtils.setInt(itemStack, "controlType", ((IRedstoneControl) tileEntity).getControlType().ordinal());
         }
         ITierItem tierItem = (ITierItem) itemStack.getItem();
         tierItem.setBaseTier(itemStack, tileEntity.tier.getBaseTier());

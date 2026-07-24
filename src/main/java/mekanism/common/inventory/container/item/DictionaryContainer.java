@@ -10,6 +10,10 @@ public class DictionaryContainer extends MekanismItemContainer {
         super(inv, hand, stack);
     }
 
+    public DictionaryContainer(InventoryPlayer inv, EnumHand hand, int itemSlot, ItemStack stack) {
+        super(inv, hand, itemSlot, stack);
+    }
+
     @Override
     protected int getInventoryYOffset() {
         return super.getInventoryYOffset() + 5;

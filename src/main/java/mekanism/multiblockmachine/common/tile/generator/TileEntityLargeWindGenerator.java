@@ -356,7 +356,82 @@ public class TileEntityLargeWindGenerator extends TileEntityGenerator implements
     }
 
     @Override
+    public void collectBoundingBlocks(java.util.function.BiConsumer<BlockPos, Boolean> consumer) {
+        collectBoundingBlocks(getPos(), facing, consumer);
+    }
+
+    public static void collectBoundingBlocks(BlockPos origin, EnumFacing facing, java.util.function.BiConsumer<BlockPos, Boolean> consumer) {
+        for (int x = -3; x <= 3; x++) {
+            for (int z = -3; z <= 3; z++) {
+                if (x != 0 || z != 0) {
+                    consumer.accept(origin.add(x, 0, z), true);
+                }
+            }
+        }
+        for (int x = -2; x <= 2; x++) {
+            for (int z = -2; z <= 2; z++) {
+                consumer.accept(origin.add(x, 1, z), false);
+            }
+        }
+        if (facing == EnumFacing.WEST || facing == EnumFacing.EAST) {
+            int x = facing == EnumFacing.WEST ? 3 : -3;
+            for (int z = -1; z <= 1; z++) {
+                consumer.accept(origin.add(x, 1, z), false);
+            }
+        } else if (facing == EnumFacing.NORTH || facing == EnumFacing.SOUTH) {
+            int z = facing == EnumFacing.NORTH ? 3 : -3;
+            for (int x = -1; x <= 1; x++) {
+                consumer.accept(origin.add(x, 1, z), false);
+            }
+        }
+        for (int y = 2; y <= 47; y++) {
+            for (int x = -2; x <= 2; x++) {
+                for (int z = -2; z <= 2; z++) {
+                    consumer.accept(origin.add(x, y, z), false);
+                }
+            }
+        }
+        for (int y = 43; y <= 47; y++) {
+            if (facing == EnumFacing.SOUTH || facing == EnumFacing.NORTH) {
+                int headMin = facing == EnumFacing.SOUTH ? -5 : 3;
+                int headMax = facing == EnumFacing.SOUTH ? -3 : 5;
+                int tailMin = facing == EnumFacing.SOUTH ? 3 : -4;
+                int tailMax = facing == EnumFacing.SOUTH ? 4 : -3;
+                for (int x = -2; x <= 2; x++) {
+                    for (int z = headMin; z <= headMax; z++) {
+                        consumer.accept(origin.add(x, y, z), false);
+                    }
+                    for (int z = tailMin; z <= tailMax; z++) {
+                        consumer.accept(origin.add(x, y, z), false);
+                    }
+                }
+            } else if (facing == EnumFacing.EAST || facing == EnumFacing.WEST) {
+                int headMin = facing == EnumFacing.EAST ? -5 : 3;
+                int headMax = facing == EnumFacing.EAST ? -3 : 5;
+                int tailMin = facing == EnumFacing.EAST ? 3 : -4;
+                int tailMax = facing == EnumFacing.EAST ? 4 : -3;
+                for (int z = -2; z <= 2; z++) {
+                    for (int x = headMin; x <= headMax; x++) {
+                        consumer.accept(origin.add(x, y, z), false);
+                    }
+                    for (int x = tailMin; x <= tailMax; x++) {
+                        consumer.accept(origin.add(x, y, z), false);
+                    }
+                }
+            }
+        }
+    }
+
+    @Override
+    public void onBoundingBlocksPlaced() {
+        isBlacklistDimension = MekanismConfig.current().generators.windGenerationDimBlacklist.val().contains(world.provider.getDimension());
+    }
+
+    @Override
     public void onPlace() {
+        if (tryPlaceBoundingBlocks(world, Coord4D.get(this)) != PlacementResult.LEGACY) {
+            return;
+        }
         //bottom
         for (int x = -3; x <= 3; x++) {
             for (int z = -3; z <= 3; z++) {
@@ -475,6 +550,9 @@ public class TileEntityLargeWindGenerator extends TileEntityGenerator implements
 
     @Override
     public void onBreak() {
+        if (removeBoundingBlocks(world, getPos())) {
+            return;
+        }
         for (int x = -3; x <= 3; x++) {
             for (int z = -3; z <= 3; z++) {
                 if (x == 0 && z == 0) {

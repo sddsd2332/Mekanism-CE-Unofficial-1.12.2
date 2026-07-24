@@ -30,8 +30,6 @@ public class GuiPortableTeleporter extends GuiTeleporterBase<PortableTeleporterC
 
     private final EntityPlayer player;
     private final EnumHand currentHand;
-    private final ItemStack itemStack;
-    private final ItemPortableTeleporter item;
     private final PortableTeleporterContainer container;
     private Frequency clientFreq;
     private MekanismButton teleportButton;
@@ -40,15 +38,17 @@ public class GuiPortableTeleporter extends GuiTeleporterBase<PortableTeleporterC
         this(new PortableTeleporterContainer(player.inventory, hand, stack), player, hand, stack);
     }
 
+    public GuiPortableTeleporter(EntityPlayer player, EnumHand hand, int itemSlot, ItemStack stack) {
+        this(new PortableTeleporterContainer(player.inventory, hand, itemSlot, stack), player, hand, stack);
+    }
+
     private GuiPortableTeleporter(PortableTeleporterContainer container, EntityPlayer player, EnumHand hand, ItemStack stack) {
         super(container);
         this.container = container;
         this.player = player;
         currentHand = hand;
-        itemStack = stack;
-        item = (ItemPortableTeleporter) stack.getItem();
         ySize = 172;
-        FrequencyIdentity identity = item.getFrequency(stack);
+        FrequencyIdentity identity = ((ItemPortableTeleporter) stack.getItem()).getFrequency(stack);
         if (identity != null) {
             selectedMode = identity.securityMode();
             clientFreq = new TeleporterFrequency(String.valueOf(identity.key()), identity.ownerUUID(), identity.securityMode());
@@ -73,7 +73,7 @@ public class GuiPortableTeleporter extends GuiTeleporterBase<PortableTeleporterC
     private void teleport() {
         if (getFrequency() != null && getStatus() == 1) {
             mc.setIngameFocus();
-            ClientTickHandler.portableTeleport(player, currentHand, getFrequency().getIdentity());
+            ClientTickHandler.portableTeleport(player, currentHand, container.getItemSlot(), getFrequency().getIdentity());
         }
     }
 
@@ -93,12 +93,12 @@ public class GuiPortableTeleporter extends GuiTeleporterBase<PortableTeleporterC
     }
 
     public boolean isStackEmpty() {
-        return itemStack.isEmpty();
+        return container.getStack().isEmpty();
     }
 
     @Override
     protected String getGuiTitle() {
-        return itemStack.getDisplayName();
+        return container.getStack().getDisplayName();
     }
 
     @Override
@@ -139,7 +139,8 @@ public class GuiPortableTeleporter extends GuiTeleporterBase<PortableTeleporterC
 
     @Override
     protected UUID getOwnerUUID() {
-        return ((IOwnerItem) itemStack.getItem()).getOwnerUUID(itemStack);
+        ItemStack stack = container.getStack();
+        return stack.isEmpty() || !(stack.getItem() instanceof IOwnerItem) ? null : ((IOwnerItem) stack.getItem()).getOwnerUUID(stack);
     }
 
     @Override
@@ -152,7 +153,7 @@ public class GuiPortableTeleporter extends GuiTeleporterBase<PortableTeleporterC
         if (identity != null) {
             clientFreq = new TeleporterFrequency(String.valueOf(identity.key()), identity.ownerUUID(), identity.securityMode());
             clientFreq.clientOwner = getSelfOwnerName();
-            Mekanism.packetHandler.sendToServer(new SetItemFrequencyMessage(true, FrequencyType.TELEPORTER, identity, currentHand));
+            Mekanism.packetHandler.sendToServer(new SetItemFrequencyMessage(container.windowId, true, FrequencyType.TELEPORTER, identity, currentHand));
         }
     }
 
@@ -160,7 +161,7 @@ public class GuiPortableTeleporter extends GuiTeleporterBase<PortableTeleporterC
     protected void deleteSelectedFrequency() {
         Frequency selected = getSelectedFrequency();
         if (selected != null) {
-            Mekanism.packetHandler.sendToServer(new SetItemFrequencyMessage(false, FrequencyType.TELEPORTER, selected.getIdentity(), currentHand));
+            Mekanism.packetHandler.sendToServer(new SetItemFrequencyMessage(container.windowId, false, FrequencyType.TELEPORTER, selected.getIdentity(), currentHand));
             scrollList.clearSelection();
         }
         updateButtons();

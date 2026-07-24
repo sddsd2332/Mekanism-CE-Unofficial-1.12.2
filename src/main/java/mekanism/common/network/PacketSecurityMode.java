@@ -4,12 +4,12 @@ import io.netty.buffer.ByteBuf;
 import mekanism.api.Coord4D;
 import mekanism.common.PacketHandler;
 import mekanism.common.entity.EntityRobit;
+import mekanism.common.inventory.container.item.MekanismItemContainer;
 import mekanism.common.network.PacketSecurityMode.SecurityModeMessage;
 import mekanism.common.security.ISecurityItem;
 import mekanism.common.security.ISecurityTile;
 import mekanism.common.security.ISecurityTile.SecurityMode;
 import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.SecurityUtils;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
@@ -42,8 +42,16 @@ public class PacketSecurityMode implements IMessageHandler<SecurityModeMessage, 
                     }
                 }
             } else if (message.packetType == SecurityPacketType.ITEM) {
-                ItemStack stack = player.getHeldItem(message.currentHand);
-                if (!stack.isEmpty() && stack.getItem() instanceof ISecurityItem item && SecurityUtils.canAccess(player, stack)) {
+                if (message.windowId < 0 || !(player.openContainer instanceof MekanismItemContainer)) {
+                    return;
+                }
+                MekanismItemContainer container = (MekanismItemContainer) player.openContainer;
+                if (container.windowId != message.windowId || container.getHand() != message.currentHand || !container.canInteractWith(player)) {
+                    return;
+                }
+                ItemStack stack = container.getStack();
+                if (!stack.isEmpty() && stack.getItem() instanceof ISecurityItem item &&
+                      player.getUniqueID().equals(item.getOwnerUUID(stack))) {
                     item.setSecurity(stack, message.value);
                 }
             } else if (message.packetType == SecurityPacketType.ENTITY) {
@@ -70,6 +78,7 @@ public class PacketSecurityMode implements IMessageHandler<SecurityModeMessage, 
         public EnumHand currentHand;
         public int entityId;
         public SecurityMode value;
+        public int windowId = -1;
 
         public SecurityModeMessage() {
         }
@@ -81,7 +90,12 @@ public class PacketSecurityMode implements IMessageHandler<SecurityModeMessage, 
         }
 
         public SecurityModeMessage(EnumHand hand, SecurityMode control) {
+            this(-1, hand, control);
+        }
+
+        public SecurityModeMessage(int windowId, EnumHand hand, SecurityMode control) {
             packetType = SecurityPacketType.ITEM;
+            this.windowId = windowId;
             currentHand = hand;
             value = control;
         }
@@ -98,6 +112,7 @@ public class PacketSecurityMode implements IMessageHandler<SecurityModeMessage, 
             if (packetType == SecurityPacketType.BLOCK) {
                 coord4D.write(dataStream);
             } else if (packetType == SecurityPacketType.ITEM) {
+                dataStream.writeInt(windowId);
                 dataStream.writeInt(currentHand.ordinal());
             } else if (packetType == SecurityPacketType.ENTITY) {
                 dataStream.writeInt(entityId);
@@ -111,6 +126,7 @@ public class PacketSecurityMode implements IMessageHandler<SecurityModeMessage, 
             if (packetType == SecurityPacketType.BLOCK) {
                 coord4D = Coord4D.read(dataStream);
             } else if (packetType == SecurityPacketType.ITEM) {
+                windowId = dataStream.readInt();
                 currentHand = MekanismUtils.getByIndex(EnumHand.values(), dataStream.readInt(), EnumHand.MAIN_HAND);
             } else if (packetType == SecurityPacketType.ENTITY) {
                 entityId = dataStream.readInt();

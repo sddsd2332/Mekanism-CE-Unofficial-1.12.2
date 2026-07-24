@@ -52,8 +52,8 @@ import mekanism.common.entity.EntityFlame;
 import mekanism.common.entity.EntityObsidianTNT;
 import mekanism.common.entity.EntityRobit;
 import mekanism.common.entity.baby.*;
-import mekanism.common.inventory.InventoryPersonalChest;
 import mekanism.common.inventory.container.PortableQIODashboardContainer;
+import mekanism.common.inventory.container.item.ItemStackSlotAccess;
 import mekanism.common.item.*;
 import mekanism.common.item.armor.ItemMekaSuitArmor;
 import mekanism.common.item.interfaces.IColoredItem;
@@ -746,14 +746,17 @@ public class ClientProxy extends CommonProxy {
     }
 
     private GuiScreen getClientItemGui(EntityPlayer player, BlockPos pos) {
-        int currentItem = pos.getX();
+        int itemSlot = pos.getX();
         int handOrdinal = pos.getY();
-        if (currentItem < 0 || currentItem >= player.inventory.mainInventory.size() || handOrdinal < 0 || handOrdinal >= EnumHand.values().length) {
+        if (handOrdinal < 0 || handOrdinal >= EnumHand.values().length) {
             //If it is out of bounds don't do anything
             return null;
         }
         EnumHand hand = EnumHand.values()[handOrdinal];
-        ItemStack stack = player.getHeldItem(hand);
+        if (!ItemStackSlotAccess.isValidSlot(hand, itemSlot)) {
+            return null;
+        }
+        ItemStack stack = ItemStackSlotAccess.getStack(player.inventory, hand, itemSlot);
         if (stack.isEmpty()) {
             return null;
         }
@@ -761,31 +764,31 @@ public class ClientProxy extends CommonProxy {
         switch (guiID) {
             case 0 -> {
                 if (stack.getItem() instanceof ItemDictionary) {
-                    return new mekanism.client.gui.item.GuiDictionary(player.inventory, hand, stack);
+                    return new mekanism.client.gui.item.GuiDictionary(player.inventory, hand, itemSlot, stack);
                 }
             }
             case 14 -> {
                 if (stack.getItem() instanceof ItemPortableTeleporter) {
-                    return new mekanism.client.gui.item.GuiPortableTeleporter(player, hand, stack);
+                    return new mekanism.client.gui.item.GuiPortableTeleporter(player, hand, itemSlot, stack);
                 }
             }
             case QIOGuiConstants.PORTABLE_DASHBOARD -> {
                 return stack.getItem() instanceof ItemPortableQIODashboard ?
-                      new GuiPortableQIODashboard(player.inventory, new PortableQIODashboardContainer(player.inventory, hand, stack)) : null;
+                      new GuiPortableQIODashboard(player.inventory, new PortableQIODashboardContainer(player.inventory, hand, itemSlot, stack)) : null;
             }
             case QIOGuiConstants.PORTABLE_FREQUENCY -> {
                 return stack.getItem() instanceof ItemPortableQIODashboard ?
-                      new GuiQIOItemFrequencySelect(player.inventory, hand, stack) : null;
+                      new GuiQIOItemFrequencySelect(player.inventory, hand, itemSlot, stack) : null;
             }
             case 19 -> {
                 if (MachineType.get(stack) == MachineType.PERSONAL_CHEST) {
                     //Ensure the item didn't change. From testing even if it did things still seemed to work properly but better safe than sorry
-                    return new mekanism.client.gui.item.GuiPersonalStorageItem(player.inventory, new InventoryPersonalChest(stack, hand));
+                    return new mekanism.client.gui.item.GuiPersonalStorageItem(player.inventory, hand, itemSlot, stack);
                 }
             }
             case 38 -> {
                 if (stack.getItem() instanceof ItemSeismicReader) {
-                    return new mekanism.client.gui.item.GuiSeismicReader(player.inventory, hand, stack);
+                    return new mekanism.client.gui.item.GuiSeismicReader(player.inventory, hand, itemSlot, stack);
                 }
             }
         }

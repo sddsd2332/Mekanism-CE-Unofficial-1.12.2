@@ -8,6 +8,7 @@ import mekanism.common.interfaces.IOcclusionCulling;
 import mekanism.common.interfaces.IOverlayRenderAware;
 import mekanism.common.interfaces.IRenderEffectIntoGUI;
 import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.client.renderer.tileentity.TileEntityRendererDispatcher;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraftforge.common.MinecraftForge;
@@ -57,13 +58,21 @@ public class MekanismCoreMethods {
             // culling, even if an individual tile has an incorrect override.
             if (!MekanismConfig.current().client.GazeCullingTracking.val()) {
                 if (occlusionCullingWasEnabled || openGlOcclusionWasEnabled) {
-                    cullingTile.cullingClearGpuQueryCache();
+                    IOcclusionCulling.cullingClearClientCaches();
                 }
                 occlusionCullingWasEnabled = false;
                 openGlOcclusionWasEnabled = false;
                 return false;
             }
             occlusionCullingWasEnabled = true;
+            TileEntityRendererDispatcher dispatcher = TileEntityRendererDispatcher.instance;
+            if (dispatcher != null && IOcclusionCulling.cullingIsBeyondRenderDistance(
+                  tileEntity.getDistanceSq(dispatcher.entityX, dispatcher.entityY, dispatcher.entityZ),
+                  tileEntity.getMaxRenderDistanceSquared())) {
+                // Vanilla will reject this tile later in the same dispatcher method. Avoid doing
+                // CPU rays or GPU queries before that distance check runs.
+                return false;
+            }
             boolean openGlEnabled = MekanismConfig.current().client.GazeCullingOpenGLTracking.val();
             if (openGlOcclusionWasEnabled && !openGlEnabled) {
                 cullingTile.cullingClearGpuQueryCache();

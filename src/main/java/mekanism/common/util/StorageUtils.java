@@ -24,8 +24,11 @@ public class StorageUtils {
         if (stack.isEmpty() || !stack.hasCapability(Capabilities.STRICT_ENERGY_CAPABILITY, null)) {
             return null;
         }
-        IStrictEnergyHandler energyHandler = stack.getCapability(Capabilities.STRICT_ENERGY_CAPABILITY, null);
-        return energyHandler != null && energyHandler.getEnergyContainerCount() > 0 ? energyHandler : null;
+        Object handler = stack.getCapability(Capabilities.STRICT_ENERGY_CAPABILITY, null);
+        if (!(handler instanceof IStrictEnergyHandler energyHandler)) {
+            return null;
+        }
+        return energyHandler.getEnergyContainerCount() > 0 ? energyHandler : null;
     }
 
     @Nullable

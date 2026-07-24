@@ -33,6 +33,7 @@ import mekanism.common.lib.radiation.RadiationManager;
 import mekanism.common.network.PacketModeChange.ModeChangMessage;
 import mekanism.common.network.PacketPortableTeleporter.PortableTeleporterMessage;
 import mekanism.common.network.PacketPortableTeleporter.PortableTeleporterPacketType;
+import mekanism.common.inventory.container.item.ItemStackSlotAccess;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.client.Minecraft;
@@ -43,6 +44,7 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.MobEffects;
 import net.minecraft.inventory.EntityEquipmentSlot;
 import net.minecraft.item.ItemStack;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.potion.PotionEffect;
 import net.minecraft.util.EnumHand;
 import net.minecraft.util.EnumParticleTypes;
@@ -50,6 +52,7 @@ import net.minecraft.util.MovementInput;
 import net.minecraft.util.math.MathHelper;
 import net.minecraftforge.client.event.*;
 import net.minecraftforge.event.world.WorldEvent;
+import net.minecraftforge.event.world.ChunkEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent.ClientTickEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent.Phase;
@@ -131,11 +134,15 @@ public class ClientTickHandler {
     }
 
     public static void portableTeleport(EntityPlayer player, EnumHand hand, FrequencyIdentity identity) {
+        portableTeleport(player, hand, ItemStackSlotAccess.getSlotForHand(player.inventory, hand), identity);
+    }
+
+    public static void portableTeleport(EntityPlayer player, EnumHand hand, int itemSlot, FrequencyIdentity identity) {
         int delay = MekanismConfig.current().general.portableTeleporterDelay.val();
         if (delay == 0) {
-            Mekanism.packetHandler.sendToServer(new PortableTeleporterMessage(PortableTeleporterPacketType.TELEPORT, hand, identity));
+            Mekanism.packetHandler.sendToServer(new PortableTeleporterMessage(PortableTeleporterPacketType.TELEPORT, hand, itemSlot, identity));
         } else {
-            portableTeleports.put(player, new TeleportData(hand, identity, minecraft.world.getTotalWorldTime() + delay));
+            portableTeleports.put(player, new TeleportData(hand, itemSlot, identity, minecraft.world.getTotalWorldTime() + delay));
         }
     }
 
@@ -214,7 +221,7 @@ public class ClientTickHandler {
                 }
                 TeleportData data = entry.getValue();
                 if (minecraft.world.getTotalWorldTime() == data.teleportTime) {
-                    Mekanism.packetHandler.sendToServer(new PortableTeleporterMessage(PortableTeleporterPacketType.TELEPORT, data.hand, data.identity));
+                    Mekanism.packetHandler.sendToServer(new PortableTeleporterMessage(PortableTeleporterPacketType.TELEPORT, data.hand, data.itemSlot, data.identity));
                     iter.remove();
                 }
             }
@@ -377,6 +384,18 @@ public class ClientTickHandler {
 
     //Maybe it works
     @SubscribeEvent
+    public void remove(ChunkEvent.Unload event) {
+        if (!event.getWorld().isRemote) {
+            return;
+        }
+        for (TileEntity tile : event.getChunk().getTileEntityMap().values()) {
+            if (tile instanceof IOcclusionCulling culling) {
+                IOcclusionCulling.cullingRemoveClientCacheEntry(culling);
+            }
+        }
+    }
+
+    @SubscribeEvent
     public void remove(WorldEvent.Unload event) {
         if (event.getWorld().isRemote) {
             IOcclusionCulling.cullingClearClientCaches();
@@ -388,11 +407,13 @@ public class ClientTickHandler {
     private static class TeleportData {
 
         private EnumHand hand;
+        private int itemSlot;
         private FrequencyIdentity identity;
         private long teleportTime;
 
-        public TeleportData(EnumHand h, FrequencyIdentity f, long t) {
+        public TeleportData(EnumHand h, int itemSlot, FrequencyIdentity f, long t) {
             hand = h;
+            this.itemSlot = itemSlot;
             identity = f;
             teleportTime = t;
         }

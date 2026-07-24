@@ -79,14 +79,18 @@ public class ItemBlockQIOComponent extends ItemBlock implements IItemSustainedIn
             return;
         }
         UUID owner = getOwnerUUID(stack);
-        tile.getSecurity().setOwnerUUID(owner == null ? placer.getUniqueID() : owner);
+        if (owner != null) {
+            tile.getSecurity().setOwnerUUID(owner);
+        } else if (placer != null) {
+            tile.getSecurity().setOwnerUUID(placer.getUniqueID());
+        }
         tile.getSecurity().setMode(getSecurity(stack));
         tile.setInventory(getSustainedInventory(stack));
         if (ItemDataUtils.hasData(stack, "qioSustained", NBT.TAG_COMPOUND)) {
             tile.readSustainedQIOData(ItemDataUtils.getCompound(stack, "qioSustained"));
         }
         FrequencyIdentity identity = getFrequency(stack);
-        if (!world.isRemote && identity != null) {
+        if (world != null && !world.isRemote && identity != null && placer != null) {
             tile.setFrequency(FrequencyType.QIO, identity, placer.getUniqueID());
         }
     }

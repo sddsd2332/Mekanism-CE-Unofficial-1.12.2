@@ -17,6 +17,7 @@ import mekanism.common.MekanismFluids;
 import mekanism.common.Upgrade;
 import mekanism.common.base.*;
 import mekanism.common.base.IFactory.RecipeType;
+import mekanism.common.base.IBoundingBlock.BoundingBlockData;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.block.states.BlockStateTransmitter.TransmitterType;
 import mekanism.common.config.MekanismConfig;
@@ -515,10 +516,8 @@ public final class MekanismUtils {
      * @param orig             - original block
      */
     public static void makeBoundingBlock(World world, BlockPos boundingLocation, Coord4D orig) {
-        world.setBlockState(boundingLocation, MekanismBlocks.BoundingBlock.getStateFromMeta(0));
-        TileEntity tile = world.getTileEntity(boundingLocation);
-        if (tile instanceof TileEntityBoundingBlock block) {
-            block.setMainLocation(orig.getPos());
+        if (!tryMakeBoundingBlock(world, boundingLocation, orig, false)) {
+            Mekanism.logger.warn("Unable to place bounding block for {} at {}", orig, boundingLocation);
         }
     }
 
@@ -530,11 +529,102 @@ public final class MekanismUtils {
      * @param orig             - original block
      */
     public static void makeAdvancedBoundingBlock(World world, BlockPos boundingLocation, Coord4D orig) {
-        world.setBlockState(boundingLocation, MekanismBlocks.BoundingBlock.getStateFromMeta(1));
-        TileEntity tile = world.getTileEntity(boundingLocation);
-        if (tile instanceof TileEntityAdvancedBoundingBlock block) {
-            block.setMainLocation(orig.getPos());
+        if (!tryMakeBoundingBlock(world, boundingLocation, orig, true)) {
+            Mekanism.logger.warn("Unable to place advanced bounding block for {} at {}", orig, boundingLocation);
         }
+    }
+
+    /** Places an entire bounding layout atomically with respect to the preflight check. */
+    public static boolean tryPlaceBoundingBlocks(@Nonnull World world, @Nonnull Coord4D orig, @Nonnull List<BoundingBlockData> blocks) {
+        BlockPos mainPos = orig.getPos();
+        Set<BlockPos> uniquePositions = new HashSet<>();
+        for (BoundingBlockData block : blocks) {
+            BlockPos position = block.getPosition();
+            if (mainPos.equals(position) || !uniquePositions.add(position) || !isValidBoundingBlockPosition(world, position, mainPos)) {
+                return false;
+            }
+        }
+
+        List<BlockPos> placed = new ArrayList<>(blocks.size());
+        for (BoundingBlockData block : blocks) {
+            BlockPos position = block.getPosition();
+            boolean alreadyLinked = isLinkedBoundingBlock(world, position, mainPos);
+            if (!tryMakeBoundingBlock(world, position, orig, block.isAdvanced())) {
+                for (BlockPos placedPosition : placed) {
+                    removeBoundingBlock(world, placedPosition, mainPos);
+                }
+                return false;
+            }
+            if (!alreadyLinked) {
+                placed.add(position);
+            }
+        }
+        for (BoundingBlockData block : blocks) {
+            world.notifyNeighborsOfStateChange(block.getPosition(), world.getBlockState(mainPos).getBlock(), true);
+        }
+        return true;
+    }
+
+    /** True when a location is loaded, in bounds, and replaceable without data loss. */
+    public static boolean isValidBoundingBlockPosition(@Nonnull World world, @Nonnull BlockPos position, @Nonnull BlockPos mainPos) {
+        if (!world.isValid(position) || !world.isBlockLoaded(position, false)) {
+            return false;
+        }
+        if (isLinkedBoundingBlock(world, position, mainPos)) {
+            return true;
+        }
+        IBlockState state = world.getBlockState(position);
+        return state.getBlock().isReplaceable(world, position);
+    }
+
+    /** Removes only auxiliary blocks whose stored main position matches this machine. */
+    public static void removeBoundingBlocks(@Nonnull World world, @Nonnull BlockPos mainPos, @Nonnull List<BoundingBlockData> blocks) {
+        Set<BlockPos> handled = new HashSet<>();
+        for (BoundingBlockData block : blocks) {
+            BlockPos position = block.getPosition();
+            if (handled.add(position)) {
+                removeBoundingBlock(world, position, mainPos);
+            }
+        }
+    }
+
+    private static boolean tryMakeBoundingBlock(World world, BlockPos boundingLocation, Coord4D orig, boolean advanced) {
+        BlockPos mainPos = orig.getPos();
+        if (isLinkedBoundingBlock(world, boundingLocation, mainPos)) {
+            return true;
+        }
+        if (!isValidBoundingBlockPosition(world, boundingLocation, mainPos)) {
+            return false;
+        }
+        IBlockState boundingState = MekanismBlocks.BoundingBlock.getStateFromMeta(advanced ? 1 : 0);
+        if (!world.setBlockState(boundingLocation, boundingState)) {
+            return false;
+        }
+        TileEntity tile = world.getTileEntity(boundingLocation);
+        if (tile instanceof TileEntityBoundingBlock block && (!advanced || tile instanceof TileEntityAdvancedBoundingBlock)) {
+            block.setMainLocation(mainPos);
+            return true;
+        }
+        world.removeTileEntity(boundingLocation);
+        world.setBlockToAir(boundingLocation);
+        return false;
+    }
+
+    private static boolean isLinkedBoundingBlock(World world, BlockPos position, BlockPos mainPos) {
+        if (!world.isBlockLoaded(position, false) || world.getBlockState(position).getBlock() != MekanismBlocks.BoundingBlock) {
+            return false;
+        }
+        TileEntity tile = world.getTileEntity(position);
+        return tile instanceof TileEntityBoundingBlock block && block.receivedCoords && mainPos.equals(block.getMainPos());
+    }
+
+    private static void removeBoundingBlock(World world, BlockPos position, BlockPos mainPos) {
+        if (!world.isBlockLoaded(position, false) || !isLinkedBoundingBlock(world, position, mainPos)) {
+            return;
+        }
+        // Remove the tile first so BlockBounding does not proxy removal back to the main block.
+        world.removeTileEntity(position);
+        world.setBlockToAir(position);
     }
 
     /**
@@ -653,8 +743,16 @@ public final class MekanismUtils {
      * @apiNote Should only be used from the server side
      */
     public static void openItemGui(EntityPlayer player, EnumHand hand, int guiID) {
-        //current item, hand, gui type
-        player.openGui(Mekanism.instance, 0, player.world, player.inventory.currentItem, hand.ordinal(), guiID);
+        openItemGui(player, hand, mekanism.common.inventory.container.item.ItemStackSlotAccess.getSlotForHand(player.inventory, hand), guiID);
+    }
+
+    /**
+     * Opens an item GUI using the inventory slot captured by the original
+     * container. Used when switching between screens for the same item.
+     */
+    public static void openItemGui(EntityPlayer player, EnumHand hand, int itemSlot, int guiID) {
+        //item slot, hand, gui type
+        player.openGui(Mekanism.instance, 0, player.world, itemSlot, hand.ordinal(), guiID);
     }
 
     /**

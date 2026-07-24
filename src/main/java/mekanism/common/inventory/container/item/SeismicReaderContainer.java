@@ -10,4 +10,8 @@ public class SeismicReaderContainer extends MekanismItemContainer implements IEm
     public SeismicReaderContainer(InventoryPlayer inv, EnumHand hand, ItemStack stack) {
         super(inv, hand, stack);
     }
+
+    public SeismicReaderContainer(InventoryPlayer inv, EnumHand hand, int itemSlot, ItemStack stack) {
+        super(inv, hand, itemSlot, stack);
+    }
 }

@@ -182,7 +182,7 @@ public class ItemBlockBasic extends ItemBlock implements ITierItem, IItemSustain
 
         BasicBlockType type = BasicBlockType.get(stack);
         if (type == BasicBlockType.SECURITY_DESK) {
-            if (world.isOutsideBuildHeight(pos.up()) || !world.getBlockState(pos.up()).getBlock().isReplaceable(world, pos.up())) {
+            if (!MekanismUtils.isValidBoundingBlockPosition(world, pos.up(), pos)) {
                 place = false;
             }
         }

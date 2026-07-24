@@ -1,5 +1,6 @@
 package mekanism.generators.common.block;
 
+import mekanism.api.Coord4D;
 import mekanism.api.IMekWrench;
 import mekanism.common.base.*;
 import mekanism.common.block.BlockMekanismContainer;
@@ -13,6 +14,7 @@ import mekanism.common.tile.multiblock.TileEntityMultiblock;
 import mekanism.common.tile.prefab.TileEntityBasicBlock;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
 import mekanism.common.tile.prefab.TileEntityElectricBlock;
+import mekanism.common.util.ItemDataUtils;
 import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.MekanismPlacementData;
 import mekanism.common.util.SecurityUtils;
@@ -133,30 +135,38 @@ public abstract class BlockGenerator extends BlockMekanismContainer {
     public void onBlockPlacedBy(World world, BlockPos pos, IBlockState state, EntityLivingBase entityliving, ItemStack itemstack) {
         TileEntityBasicBlock tileEntity = (TileEntityBasicBlock) world.getTileEntity(pos);
         EnumFacing change = EnumFacing.SOUTH;
-        if (tileEntity.canSetFacing(EnumFacing.DOWN) && tileEntity.canSetFacing(EnumFacing.UP)) {
-            int height = Math.round(entityliving.rotationPitch);
-            if (height >= 65) {
-                change = EnumFacing.UP;
-            } else if (height <= -65) {
-                change = EnumFacing.DOWN;
+        if (entityliving != null) {
+            if (tileEntity.canSetFacing(EnumFacing.DOWN) && tileEntity.canSetFacing(EnumFacing.UP)) {
+                int height = Math.round(entityliving.rotationPitch);
+                if (height >= 65) {
+                    change = EnumFacing.UP;
+                } else if (height <= -65) {
+                    change = EnumFacing.DOWN;
+                }
             }
-        }
 
-        if (change != EnumFacing.DOWN && change != EnumFacing.UP) {
-            int side = MathHelper.floor((double) (entityliving.rotationYaw * 4.0F / 360.0F) + 0.5D) & 3;
-            change = switch (side) {
-                case 0 -> EnumFacing.NORTH;
-                case 1 -> EnumFacing.EAST;
-                case 2 -> EnumFacing.SOUTH;
-                case 3 -> EnumFacing.WEST;
-                default -> change;
-            };
+            if (change != EnumFacing.DOWN && change != EnumFacing.UP) {
+                int side = MathHelper.floor((double) (entityliving.rotationYaw * 4.0F / 360.0F) + 0.5D) & 3;
+                change = switch (side) {
+                    case 0 -> EnumFacing.NORTH;
+                    case 1 -> EnumFacing.EAST;
+                    case 2 -> EnumFacing.SOUTH;
+                    case 3 -> EnumFacing.WEST;
+                    default -> change;
+                };
+            }
         }
 
         tileEntity.setFacing(change);
         tileEntity.redstone = world.getRedstonePowerFromNeighbors(pos) > 0;
         if (tileEntity instanceof IBoundingBlock block) {
-            block.onPlace();
+            IBoundingBlock.PlacementResult result = block.tryPlaceBoundingBlocks(world, Coord4D.get(tileEntity));
+            if (result == IBoundingBlock.PlacementResult.LEGACY) {
+                block.onPlace();
+            } else if (result == IBoundingBlock.PlacementResult.BLOCKED) {
+                world.setBlockToAir(pos);
+                return;
+            }
         }
         MekanismPlacementData.apply(world, pos, entityliving, itemstack);
         if (!world.isRemote && tileEntity instanceof IMultiblock<?> multiblock) {
@@ -271,7 +281,9 @@ public abstract class BlockGenerator extends BlockMekanismContainer {
             }
         }
         if (tileEntity instanceof IBoundingBlock block) {
-            block.onBreak();
+            if (!block.removeBoundingBlocks(world, pos)) {
+                block.onBreak();
+            }
         }
         super.breakBlock(world, pos, state);
     }
@@ -507,6 +519,9 @@ public abstract class BlockGenerator extends BlockMekanismContainer {
         }
         if (tileEntity instanceof ISustainedData data) {
             data.writeSustainedData(itemStack);
+        }
+        if (tileEntity instanceof IRedstoneControl control) {
+            ItemDataUtils.setInt(itemStack, "controlType", control.getControlType().ordinal());
         }
         if (((ISustainedTank) itemStack.getItem()).hasTank(itemStack)) {
             if (tileEntity instanceof ISustainedTank tank) {

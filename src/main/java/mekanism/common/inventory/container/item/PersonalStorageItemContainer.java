@@ -18,15 +18,24 @@ public class PersonalStorageItemContainer extends MekanismItemContainer {
     private final InventoryPersonalChest itemInventory;
 
     public PersonalStorageItemContainer(InventoryPlayer inv, EnumHand hand, ItemStack stack) {
-        this(inv, hand, stack, new InventoryPersonalChest(stack, hand));
+        this(inv, hand, ItemStackSlotAccess.getSlotForHand(inv, hand), stack);
+    }
+
+    public PersonalStorageItemContainer(InventoryPlayer inv, EnumHand hand, int itemSlot, ItemStack stack) {
+        this(inv, new ItemStackSlotAccess(inv, hand, itemSlot, stack));
     }
 
     public PersonalStorageItemContainer(InventoryPlayer inv, InventoryPersonalChest itemInventory) {
-        this(inv, itemInventory.currentHand, itemInventory.getStack(), itemInventory);
+        this(inv, new ItemStackSlotAccess(inv, itemInventory.currentHand,
+              ItemStackSlotAccess.getSlotForHand(inv, itemInventory.currentHand), itemInventory.getStack()), itemInventory);
     }
 
-    private PersonalStorageItemContainer(InventoryPlayer inv, EnumHand hand, ItemStack stack, InventoryPersonalChest itemInventory) {
-        super(inv, hand, stack);
+    private PersonalStorageItemContainer(InventoryPlayer inv, ItemStackSlotAccess itemAccess) {
+        this(inv, itemAccess, new InventoryPersonalChest(itemAccess.getOpeningStack(), itemAccess.getHand()));
+    }
+
+    private PersonalStorageItemContainer(InventoryPlayer inv, ItemStackSlotAccess itemAccess, InventoryPersonalChest itemInventory) {
+        super(inv, itemAccess);
         this.itemInventory = itemInventory;
         super.addSlotsAndOpen();
     }
@@ -65,13 +74,13 @@ public class PersonalStorageItemContainer extends MekanismItemContainer {
     }
 
     @Override
-    public boolean canInteractWith(@Nonnull EntityPlayer player) {
-        return super.canInteractWith(player) && MachineType.get(stack) == MachineType.PERSONAL_CHEST;
+    protected boolean isValidStack(@Nonnull ItemStack stack) {
+        return super.isValidStack(stack) && MachineType.get(stack) == MachineType.PERSONAL_CHEST;
     }
 
     @Override
     protected HotBarSlot createHotBarSlot(@Nonnull InventoryPlayer inv, int index, int x, int y) {
-        if (hand == EnumHand.MAIN_HAND && index == inv.currentItem) {
+        if (hand == EnumHand.MAIN_HAND && index == getItemSlot()) {
             return new HotBarSlot(inv, index, x, y) {
 
                 @Override

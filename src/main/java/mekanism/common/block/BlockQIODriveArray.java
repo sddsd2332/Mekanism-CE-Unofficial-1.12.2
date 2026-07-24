@@ -89,7 +89,7 @@ public class BlockQIODriveArray extends BlockMekanismContainer {
     @Override
     public void onBlockPlacedBy(World world, BlockPos pos, IBlockState state, EntityLivingBase placer, ItemStack stack) {
         TileEntity tile = world.getTileEntity(pos);
-        if (tile instanceof TileEntityBasicBlock) {
+        if (placer != null && tile instanceof TileEntityBasicBlock) {
             int side = MathHelper.floor((double) (placer.rotationYaw * 4.0F / 360.0F) + 0.5D) & 3;
             EnumFacing facing = side == 0 ? EnumFacing.NORTH : side == 1 ? EnumFacing.EAST : side == 2 ? EnumFacing.SOUTH : EnumFacing.WEST;
             ((TileEntityBasicBlock) tile).setFacing(facing);

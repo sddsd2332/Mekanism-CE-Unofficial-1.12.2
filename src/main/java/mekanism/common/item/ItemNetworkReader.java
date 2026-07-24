@@ -46,7 +46,7 @@ public class ItemNetworkReader extends ItemEnergized {
                 IHeatHandler heatHandler = HeatCapabilityUtils.getHandler(tileEntity, side.getOpposite());
                 if (CapabilityUtils.hasCapability(tileEntity, Capabilities.GRID_TRANSMITTER_CAPABILITY, side.getOpposite())) {
                     if (drain) {
-                        StorageUtils.extractEnergy(stack, ENERGY_PER_USE, Action.EXECUTE);
+                        StorageUtils.extractFromContainer(stack, ENERGY_PER_USE, Action.EXECUTE);
                     }
                     IGridTransmitter transmitter = CapabilityUtils.getCapability(tileEntity, Capabilities.GRID_TRANSMITTER_CAPABILITY, side.getOpposite());
 
@@ -66,7 +66,7 @@ public class ItemNetworkReader extends ItemEnergized {
                     return EnumActionResult.SUCCESS;
                 } else if (heatHandler != null) {
                     if (drain) {
-                        StorageUtils.extractEnergy(stack, ENERGY_PER_USE, Action.EXECUTE);
+                        StorageUtils.extractFromContainer(stack, ENERGY_PER_USE, Action.EXECUTE);
                     }
 
                     player.sendMessage(new TextComponentString(EnumColor.GREY + "------------- " + EnumColor.DARK_BLUE + Mekanism.LOG_TAG + EnumColor.GREY + " -------------"));
@@ -75,7 +75,7 @@ public class ItemNetworkReader extends ItemEnergized {
                     return EnumActionResult.SUCCESS;
                 } else {
                     if (drain) {
-                        StorageUtils.extractEnergy(stack, ENERGY_PER_USE, Action.EXECUTE);
+                        StorageUtils.extractFromContainer(stack, ENERGY_PER_USE, Action.EXECUTE);
                     }
                     Set<DynamicNetwork> iteratedNetworks = new ObjectOpenHashSet<>();
 

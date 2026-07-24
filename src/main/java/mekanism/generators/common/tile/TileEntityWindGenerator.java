@@ -151,23 +151,25 @@ public class TileEntityWindGenerator extends TileEntityGenerator implements IBou
     }
 
     @Override
-    public void onPlace() {
-        Coord4D current = Coord4D.get(this);
-        MekanismUtils.makeBoundingBlock(world, getPos().offset(EnumFacing.UP, 1), current);
-        MekanismUtils.makeBoundingBlock(world, getPos().offset(EnumFacing.UP, 2), current);
-        MekanismUtils.makeBoundingBlock(world, getPos().offset(EnumFacing.UP, 3), current);
-        MekanismUtils.makeBoundingBlock(world, getPos().offset(EnumFacing.UP, 4), current);
-        // Check to see if the placement is happening in a blacklisted dimension
+    public void collectBoundingBlocks(java.util.function.BiConsumer<BlockPos, Boolean> consumer) {
+        for (int y = 1; y <= 4; y++) {
+            consumer.accept(getPos().up(y), false);
+        }
+    }
+
+    @Override
+    public void onBoundingBlocksPlaced() {
         isBlacklistDimension = MekanismConfig.current().generators.windGenerationDimBlacklist.val().contains(world.provider.getDimension());
     }
 
     @Override
+    public void onPlace() {
+        tryPlaceBoundingBlocks(world, Coord4D.get(this));
+    }
+
+    @Override
     public void onBreak() {
-        world.setBlockToAir(getPos().add(0, 1, 0));
-        world.setBlockToAir(getPos().add(0, 2, 0));
-        world.setBlockToAir(getPos().add(0, 3, 0));
-        world.setBlockToAir(getPos().add(0, 4, 0));
-        world.setBlockToAir(getPos());
+        removeBoundingBlocks(world, getPos());
     }
 
     @Override

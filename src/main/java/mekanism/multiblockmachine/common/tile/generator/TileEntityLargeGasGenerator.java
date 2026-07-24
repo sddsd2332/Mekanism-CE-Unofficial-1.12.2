@@ -362,45 +362,38 @@ public GasStackFuelToEnergyRecipe getRecipe() {
     }
 
     @Override
-    public void onPlace() {
+    public void collectBoundingBlocks(java.util.function.BiConsumer<BlockPos, Boolean> consumer) {
         for (int y = 0; y <= 2; y++) {
             for (int x = -1; x <= 1; x++) {
                 for (int z = -1; z <= 1; z++) {
                     if (x == 0 && y == 0 && z == 0) {
                         continue;
                     }
-                    if (y != 2) {
-                        if (x == z || x == -z ||
-                                facing == EnumFacing.NORTH && (x == 0 && z == -1) ||
-                                facing == EnumFacing.WEST && (z == 0 && x == -1) ||
-                                facing == EnumFacing.SOUTH && (x == 0 && z == 1) ||
-                                facing == EnumFacing.EAST && (z == 0 && x == 1)) {
-                            MekanismUtils.makeBoundingBlock(world, getPos().add(x, y, z), Coord4D.get(this));
-                        } else {
-                            MekanismUtils.makeAdvancedBoundingBlock(world, getPos().add(x, y, z), Coord4D.get(this));
-                        }
+                    boolean advanced;
+                    if (y == 2) {
+                        advanced = x == 0 && z == 0;
                     } else {
-                        if (x == 0 && z == 0) {
-                            MekanismUtils.makeAdvancedBoundingBlock(world, getPos().add(x, y, z), Coord4D.get(this));
-                        } else {
-                            MekanismUtils.makeBoundingBlock(world, getPos().add(x, y, z), Coord4D.get(this));
-                        }
+                        boolean normal = x == z || x == -z ||
+                              facing == EnumFacing.NORTH && x == 0 && z == -1 ||
+                              facing == EnumFacing.WEST && z == 0 && x == -1 ||
+                              facing == EnumFacing.SOUTH && x == 0 && z == 1 ||
+                              facing == EnumFacing.EAST && z == 0 && x == 1;
+                        advanced = !normal;
                     }
-                    world.notifyNeighborsOfStateChange(getPos().add(x, y, z), getBlockType(), true);
+                    consumer.accept(getPos().add(x, y, z), advanced);
                 }
             }
         }
     }
 
     @Override
+    public void onPlace() {
+        tryPlaceBoundingBlocks(world, Coord4D.get(this));
+    }
+
+    @Override
     public void onBreak() {
-        for (int y = 0; y <= 2; y++) {
-            for (int x = -1; x <= 1; x++) {
-                for (int z = -1; z <= 1; z++) {
-                    world.setBlockToAir(getPos().add(x, y, z));
-                }
-            }
-        }
+        removeBoundingBlocks(world, getPos());
     }
 
     @Override

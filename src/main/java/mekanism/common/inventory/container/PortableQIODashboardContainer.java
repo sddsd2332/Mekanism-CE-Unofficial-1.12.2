@@ -5,6 +5,7 @@ import mekanism.common.frequency.Frequency.FrequencyIdentity;
 import mekanism.common.frequency.FrequencyType;
 import mekanism.common.frequency.IFrequencyItem;
 import mekanism.common.inventory.container.slot.HotBarSlot;
+import mekanism.common.inventory.container.item.ItemStackSlotAccess;
 import mekanism.common.inventory.container.sync.FrequencyContainerSync;
 import mekanism.common.inventory.PortableQIODashboardInventory;
 import mekanism.common.item.ItemPortableQIODashboard;
@@ -26,19 +27,23 @@ import java.util.function.Supplier;
 public class PortableQIODashboardContainer extends QIOItemViewerContainer {
 
     private final EnumHand hand;
-    private ItemStack stack;
+    private final ItemStackSlotAccess itemAccess;
     private final PortableQIODashboardInventory craftingInventory;
     private final FrequencyContainerSync<QIOFrequency> frequencySync = new FrequencyContainerSync<>();
 
     public PortableQIODashboardContainer(InventoryPlayer inventory, EnumHand hand, ItemStack stack) {
-        super(inventory, resolveFrequency(inventory, stack), false);
-        this.hand = hand;
-        this.stack = stack;
-        // The stack object in a player inventory can be replaced by vanilla
-        // slot synchronization while this container is open. Keep the
-        // crafting window attached to the current hand rather than to the
-        // constructor snapshot.
-        Supplier<ItemStack> currentStack = () -> getCurrentStack();
+        this(inventory, hand, ItemStackSlotAccess.getSlotForHand(inventory, hand), stack);
+    }
+
+    public PortableQIODashboardContainer(InventoryPlayer inventory, EnumHand hand, int itemSlot, ItemStack stack) {
+        this(inventory, new ItemStackSlotAccess(inventory, hand, itemSlot, stack));
+    }
+
+    private PortableQIODashboardContainer(InventoryPlayer inventory, ItemStackSlotAccess itemAccess) {
+        super(inventory, resolveFrequency(inventory, itemAccess.getStack()), false);
+        this.itemAccess = itemAccess;
+        this.hand = itemAccess.getHand();
+        Supplier<ItemStack> currentStack = () -> itemAccess.isOriginalStackPresent() ? itemAccess.getStack() : ItemStack.EMPTY;
         this.craftingInventory = new PortableQIODashboardInventory(currentStack, inventory.player.world);
         setCraftingWindowHolder(craftingInventory);
         frequencySync.addTrackers(this, FrequencyType.QIO, this::getFrequency);
@@ -59,19 +64,19 @@ public class PortableQIODashboardContainer extends QIOItemViewerContainer {
     }
 
     public ItemStack getStack() {
-        return getCurrentStack();
+        return itemAccess.getStack();
     }
 
-    /**
-     * Returns the stack currently occupying the hand used to open this
-     * container. The fallback is only needed while the client is constructing
-     * its mirror container, before its inventory has been populated.
-     */
-    private ItemStack getCurrentStack() {
-        if (inv != null && inv.player != null) {
-            return inv.player.getHeldItem(hand);
-        }
-        return stack;
+    public int getItemSlot() {
+        return itemAccess.getSlot();
+    }
+
+    public ItemStackSlotAccess getItemAccess() {
+        return itemAccess;
+    }
+
+    private boolean isValidStack(ItemStack stack) {
+        return !stack.isEmpty() && stack.getItem() instanceof ItemPortableQIODashboard;
     }
 
     public PortableQIODashboardInventory getCraftingInventory() {
@@ -80,14 +85,17 @@ public class PortableQIODashboardContainer extends QIOItemViewerContainer {
 
     @Override
     public boolean shiftClickIntoFrequency() {
-        ItemStack current = getCurrentStack();
+        ItemStack current = getStack();
         return !ItemDataUtils.hasData(current, "qioInsertIntoFrequency") || ItemDataUtils.getBoolean(current, "qioInsertIntoFrequency");
     }
 
     @Override
     public void toggleTargetDirection() {
         boolean current = shiftClickIntoFrequency();
-        ItemDataUtils.setBoolean(getCurrentStack(), "qioInsertIntoFrequency", !current);
+        ItemStack stack = getStack();
+        if (isValidStack(stack)) {
+            ItemDataUtils.setBoolean(stack, "qioInsertIntoFrequency", !current);
+        }
         Mekanism.packetHandler.sendToServer(new PacketQIOPortableGui.Message(windowId, hand, PacketQIOPortableGui.ACTION_TOGGLE_TARGET));
     }
 
@@ -96,22 +104,20 @@ public class PortableQIODashboardContainer extends QIOItemViewerContainer {
         if (isRemote()) {
             return frequencySync.getFrequency();
         } else {
-            ItemStack current = getCurrentStack();
-            QIOFrequency resolved = resolveFrequency(inv, current);
-            if (resolved != null || current.getItem() instanceof ItemPortableQIODashboard) {
-                if (resolved != frequency && inv != null && inv.player instanceof EntityPlayerMP) {
-                    EntityPlayerMP player = (EntityPlayerMP) inv.player;
-                    if (frequency != null) {
-                        frequency.closeViewer(player);
-                    }
-                    frequency = resolved;
-                    if (frequency != null) {
-                        frequency.openViewer(player);
-                    }
-                    sendViewerSync(player);
-                } else {
-                    frequency = resolved;
+            ItemStack current = getStack();
+            QIOFrequency resolved = itemAccess.isOriginalStackPresent() && isValidStack(current) ? resolveFrequency(inv, current) : null;
+            if (resolved != frequency && inv != null && inv.player instanceof EntityPlayerMP) {
+                EntityPlayerMP player = (EntityPlayerMP) inv.player;
+                if (frequency != null) {
+                    frequency.closeViewer(player);
                 }
+                frequency = resolved;
+                if (frequency != null) {
+                    frequency.openViewer(player);
+                }
+                sendViewerSync(player);
+            } else {
+                frequency = resolved;
             }
         }
         return frequency;
@@ -141,21 +147,14 @@ public class PortableQIODashboardContainer extends QIOItemViewerContainer {
 
     @Override
     public boolean canInteractWith(@Nonnull EntityPlayer player) {
-        // The client can construct this mirror container before the hand
-        // inventory synchronization packet arrives.  The server remains the
-        // authority for both the held item and security access; enforcing the
-        // hand stack here on the client closes the GUI during its first tick.
-        if (player.world.isRemote) {
-            return !isKilled();
-        }
-        ItemStack held = player.getHeldItem(hand);
-        return !held.isEmpty() && held.getItem() instanceof ItemPortableQIODashboard &&
-              (player.world.isRemote || SecurityUtils.canAccess(player, held)) && super.canInteractWith(player);
+        ItemStack current = getStack();
+        return !isKilled() && itemAccess.isOriginalStackPresent() && isValidStack(current) &&
+              (player.world.isRemote || SecurityUtils.canAccess(player, current)) && super.canInteractWith(player);
     }
 
     @Override
     protected HotBarSlot createHotBarSlot(@Nonnull InventoryPlayer inventory, int index, int x, int y) {
-        if (hand == EnumHand.MAIN_HAND && index == inventory.currentItem) {
+        if (hand == EnumHand.MAIN_HAND && index == getItemSlot()) {
             return new HotBarSlot(inventory, index, x, y) {
                 @Override
                 public boolean canTakeStack(@Nonnull EntityPlayer player) {
@@ -169,14 +168,18 @@ public class PortableQIODashboardContainer extends QIOItemViewerContainer {
     @Nonnull
     @Override
     public ItemStack slotClick(int slotId, int dragType, net.minecraft.inventory.ClickType clickType, EntityPlayer player) {
+        if (!player.world.isRemote && !canInteractWith(player)) {
+            return ItemStack.EMPTY;
+        }
         if (clickType == net.minecraft.inventory.ClickType.SWAP) {
             if (hand == EnumHand.OFF_HAND && dragType == 40) {
                 // Prevent pressing F from swapping the dashboard out of the
                 // hand that backs this container.
                 return ItemStack.EMPTY;
             }
-            if (hand == EnumHand.MAIN_HAND && dragType == player.inventory.currentItem) {
-                // The selected hotbar slot is likewise the backing item.
+            if (hand == EnumHand.MAIN_HAND && dragType >= 0 && dragType < hotBarSlots.size() &&
+                  !hotBarSlots.get(dragType).canTakeStack(player)) {
+                // Block number-key swaps targeting the fixed backing slot.
                 return ItemStack.EMPTY;
             }
         }
@@ -185,7 +188,7 @@ public class PortableQIODashboardContainer extends QIOItemViewerContainer {
 
     @Override
     protected void closeInventory(@Nonnull EntityPlayer player) {
-        if (!player.world.isRemote) {
+        if (!player.world.isRemote && itemAccess.isOriginalStackPresent() && isValidStack(getStack())) {
             craftingInventory.flush();
             player.inventory.markDirty();
         }

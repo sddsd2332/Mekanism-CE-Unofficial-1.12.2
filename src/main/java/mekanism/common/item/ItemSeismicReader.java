@@ -76,7 +76,7 @@ public class ItemSeismicReader extends ItemEnergized {
             return new ActionResult<>(EnumActionResult.SUCCESS, itemstack);
         }
         if (!entityplayer.capabilities.isCreativeMode) {
-            StorageUtils.extractEnergy(itemstack, ENERGY_USAGE, Action.EXECUTE);
+            StorageUtils.extractFromContainer(itemstack, ENERGY_USAGE, Action.EXECUTE);
         }
         if (!world.isRemote && entityplayer instanceof EntityPlayerMP playerMP) {
             MekanismCriteriaTriggers.VIEW_VIBRATIONS.trigger(playerMP);
