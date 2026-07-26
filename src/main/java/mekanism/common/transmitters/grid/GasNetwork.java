@@ -44,6 +44,7 @@ public class GasNetwork extends DynamicNetwork<IGasHandler, GasNetwork, GasStack
     public int prevTransferAmount = 0;
 
     private GasHandlerTarget target;
+    private GasHandlerTarget reusableTarget;
 
     public GasNetwork() {
     }
@@ -221,7 +222,13 @@ public class GasNetwork extends DynamicNetwork<IGasHandler, GasNetwork, GasStack
     }
 
     private void collectTargets(GasStack stack) {
-        GasHandlerTarget target = new GasHandlerTarget(stack, possibleAcceptors.size() * 2);
+        target = null;
+        GasHandlerTarget collectedTarget = reusableTarget;
+        if (collectedTarget == null) {
+            collectedTarget = reusableTarget = new GasHandlerTarget(stack, possibleAcceptors.size() * 2);
+        } else {
+            collectedTarget.reset(stack);
+        }
         for (Coord4D coord : possibleAcceptors) {
             EnumSet<EnumFacing> sides = acceptorDirections.get(coord);
             if (sides == null || sides.isEmpty()) {
@@ -235,12 +242,12 @@ public class GasNetwork extends DynamicNetwork<IGasHandler, GasNetwork, GasStack
                 if (CapabilityUtils.hasCapability(tile, Capabilities.GAS_HANDLER_CAPABILITY, side)) {
                     IGasHandler acceptor = CapabilityUtils.getCapability(tile, Capabilities.GAS_HANDLER_CAPABILITY, side);
                     if (GasInventorySlot.canReceiveGas(acceptor, side, stack)) {
-                        target.addHandler(side, acceptor);
+                        collectedTarget.addHandler(side, acceptor);
                     }
                 }
             }
         }
-        this.target = target;
+        target = collectedTarget;
     }
 
     private int tickEmit(GasStack stack) {

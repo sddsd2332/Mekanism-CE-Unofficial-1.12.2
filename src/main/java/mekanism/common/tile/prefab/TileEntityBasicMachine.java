@@ -254,7 +254,17 @@ public abstract class TileEntityBasicMachine<INPUT extends MachineInput<INPUT>, 
     @Override
     public void recalculateUpgradables(Upgrade upgrade) {
         super.recalculateUpgradables(upgrade);
-        unpauseRecipeCache();
+        if (!isRecalculatingAllUpgradables()) {
+            unpauseRecipeCache();
+        }
+    }
+
+    @Override
+    protected void onAllUpgradablesRecalculated(Set<Upgrade> upgrades) {
+        super.onAllUpgradablesRecalculated(upgrades);
+        if (!upgrades.isEmpty()) {
+            unpauseRecipeCache();
+        }
     }
 
     protected void unpauseRecipeCache() {

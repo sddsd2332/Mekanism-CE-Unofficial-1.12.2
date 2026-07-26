@@ -47,6 +47,7 @@ import net.minecraftforge.fml.common.FMLCommonHandler;
 
 import javax.annotation.Nonnull;
 import java.util.List;
+import java.util.Set;
 
 public class TileEntityAmbientAccumulatorEnergy extends TileEntityMachine implements ISustainedData,
         IUpgradeInfoHandler, ITankManager, IComparatorSupport, ISideConfiguration, IConfigCardAccess, IRecipeLookupHandler<AmbientGasRecipe> {
@@ -168,6 +169,20 @@ public class TileEntityAmbientAccumulatorEnergy extends TileEntityMachine implem
     @Override
     public void recalculateUpgradables(Upgrade upgrade) {
         super.recalculateUpgradables(upgrade);
+        if (!isRecalculatingAllUpgradables()) {
+            unpauseRecipeCache();
+        }
+    }
+
+    @Override
+    protected void onAllUpgradablesRecalculated(Set<Upgrade> upgrades) {
+        super.onAllUpgradablesRecalculated(upgrades);
+        if (!upgrades.isEmpty()) {
+            unpauseRecipeCache();
+        }
+    }
+
+    private void unpauseRecipeCache() {
         if (recipeCacheLookupMonitor != null && world != null && !world.isRemote) {
             recipeCacheLookupMonitor.unpause();
         }

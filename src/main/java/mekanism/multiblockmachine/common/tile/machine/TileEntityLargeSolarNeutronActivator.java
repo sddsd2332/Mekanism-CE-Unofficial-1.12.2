@@ -558,7 +558,7 @@ public class TileEntityLargeSolarNeutronActivator extends TileEntityContainerBlo
     @Override
     @SideOnly(Side.CLIENT)
     public AxisAlignedBB getRenderBoundingBox() {
-        return INFINITE_EXTENT_AABB;
+        return super.getRenderBoundingBox();
     }
 
     @Nonnull

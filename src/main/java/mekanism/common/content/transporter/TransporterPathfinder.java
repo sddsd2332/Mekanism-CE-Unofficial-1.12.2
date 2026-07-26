@@ -23,7 +23,6 @@ import org.apache.commons.lang3.tuple.Pair;
 
 import javax.annotation.Nonnull;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public final class TransporterPathfinder {
 
@@ -38,7 +37,15 @@ public final class TransporterPathfinder {
             return Collections.emptyList();
         }
         List<AcceptorData> acceptors = network.calculateAcceptors(request, stack, additionalFlowingStacks);
-        return acceptors.stream().map(data -> getPath(data, start, stack, min)).filter(Objects::nonNull).sorted().collect(Collectors.toList());
+        List<Destination> paths = new ArrayList<>();
+        for (AcceptorData data : acceptors) {
+            Destination path = getPath(data, start, stack, min);
+            if (path != null) {
+                paths.add(path);
+            }
+        }
+        Collections.sort(paths);
+        return paths;
     }
 
     private static boolean checkPath(World world, List<Coord4D> path, TransporterStack stack) {
@@ -81,11 +88,18 @@ public final class TransporterPathfinder {
 
     public static Destination getNewBasePath(ILogisticalTransporter start, TransporterStack stack, TransitRequest request, int min,
           Map<Coord4D, Set<TransporterStack>> additionalFlowingStacks) {
-        List<Destination> paths = getPaths(start, stack, request, min, additionalFlowingStacks);
-        if (paths.isEmpty()) {
+        InventoryNetwork network = start.getTransmitterNetwork();
+        if (network == null) {
             return null;
         }
-        return paths.get(0);
+        Destination bestPath = null;
+        for (AcceptorData data : network.calculateAcceptors(request, stack, additionalFlowingStacks)) {
+            Destination path = getPath(data, start, stack, min);
+            if (path != null && (bestPath == null || path.compareTo(bestPath) < 0)) {
+                bestPath = path;
+            }
+        }
+        return bestPath;
     }
 
     public static Destination getNewRRPath(ILogisticalTransporter start, TransporterStack stack, TransitRequest request, IAdvancedTransportEjector outputter, int min) {
@@ -301,6 +315,7 @@ public final class TransporterPathfinder {
     public static class Pathfinder {
 
         private final Set<Coord4D> openSet, closedSet;
+        private final PriorityQueue<PathNode> openQueue;
         private final Map<Coord4D, Coord4D> navMap;
         private final Map<Coord4D, Double> gScore, fScore;
         private final Coord4D start;
@@ -312,6 +327,7 @@ public final class TransporterPathfinder {
         private EnumFacing side;
         private List<Coord4D> results;
         private World world;
+        private long queueSequence;
 
         public Pathfinder(DestChecker checker, World world, Coord4D finishObj, Coord4D startObj, TransporterStack stack) {
             destChecker = checker;
@@ -323,6 +339,7 @@ public final class TransporterPathfinder {
             transportStack = stack;
 
             openSet = new ObjectOpenHashSet<>();
+            openQueue = new PriorityQueue<>();
             closedSet = new ObjectOpenHashSet<>();
 
             navMap = new Object2ObjectOpenHashMap<>();
@@ -338,7 +355,9 @@ public final class TransporterPathfinder {
         public boolean find(Coord4D start) {
             openSet.add(start);
             gScore.put(start, 0D);
-            fScore.put(start, gScore.get(start) + getEstimate(start, finalNode));
+            double initialScore = getEstimate(start, finalNode);
+            fScore.put(start, initialScore);
+            openQueue.add(new PathNode(start, initialScore, queueSequence++));
 
             int blockCount = 0;
 
@@ -358,14 +377,7 @@ public final class TransporterPathfinder {
             Coord4D[] neighbors = new Coord4D[EnumFacing.VALUES.length];
             TileEntity[] neighborEntities = new TileEntity[neighbors.length];
             while (!openSet.isEmpty()) {
-                Coord4D currentNode = null;
-                double lowestFScore = 0;
-                for (Coord4D node : openSet) {
-                    if (currentNode == null || fScore.get(node) < lowestFScore) {
-                        currentNode = node;
-                        lowestFScore = fScore.get(node);
-                    }
-                }
+                Coord4D currentNode = pollBestOpenNode();
                 if (currentNode == null || start.distanceTo(currentNode) > maxSearchDistance) {
                     break;
                 }
@@ -400,8 +412,10 @@ public final class TransporterPathfinder {
                         if (!openSet.contains(neighbor) || tentativeG < gScore.get(neighbor)) {
                             navMap.put(neighbor, currentNode);
                             gScore.put(neighbor, tentativeG);
-                            fScore.put(neighbor, gScore.get(neighbor) + getEstimate(neighbor, finalNode));
+                            double estimatedTotal = tentativeG + getEstimate(neighbor, finalNode);
+                            fScore.put(neighbor, estimatedTotal);
                             openSet.add(neighbor);
+                            openQueue.add(new PathNode(neighbor, estimatedTotal, queueSequence++));
                         }
                     } else if (neighbor.equals(finalNode) && destChecker.isValid(transportStack, direction, neighborEntity)) {
                         side = direction;
@@ -413,11 +427,23 @@ public final class TransporterPathfinder {
             return false;
         }
 
+        private Coord4D pollBestOpenNode() {
+            while (!openQueue.isEmpty()) {
+                PathNode pathNode = openQueue.poll();
+                Double currentScore = fScore.get(pathNode.node);
+                if (openSet.contains(pathNode.node) && currentScore != null && Double.compare(currentScore, pathNode.score) == 0) {
+                    return pathNode.node;
+                }
+            }
+            return null;
+        }
+
         private List<Coord4D> reconstructPath(Map<Coord4D, Coord4D> naviMap, Coord4D currentNode) {
-            List<Coord4D> path = new ArrayList<>();
-            path.add(currentNode);
-            if (naviMap.containsKey(currentNode)) {
-                path.addAll(reconstructPath(naviMap, naviMap.get(currentNode)));
+            List<Coord4D> path = new ArrayList<>(naviMap.size() + 1);
+            Coord4D nextNode = currentNode;
+            while (nextNode != null) {
+                path.add(nextNode);
+                nextNode = naviMap.get(nextNode);
             }
             finalScore = gScore.get(currentNode) + currentNode.distanceTo(finalNode);
             return path;
@@ -436,6 +462,25 @@ public final class TransporterPathfinder {
 
         private double getEstimate(Coord4D start, Coord4D target2) {
             return start.distanceTo(target2);
+        }
+
+        private static class PathNode implements Comparable<PathNode> {
+
+            private final Coord4D node;
+            private final double score;
+            private final long sequence;
+
+            private PathNode(Coord4D node, double score, long sequence) {
+                this.node = node;
+                this.score = score;
+                this.sequence = sequence;
+            }
+
+            @Override
+            public int compareTo(@Nonnull PathNode other) {
+                int scoreComparison = Double.compare(score, other.score);
+                return scoreComparison == 0 ? Long.compare(sequence, other.sequence) : scoreComparison;
+            }
         }
 
         public static class DestChecker {

@@ -76,6 +76,22 @@ public class RenderTickHandler {
 
     public static double prevRadiation = 0;
 
+    public static void tickRadiationOverlay(EntityPlayer player) {
+        double severity = 0;
+        if (RadiationManager.INSTANCE.isRadiationEnabled() && MekanismUtils.isPlayingMode(player) &&
+            player.hasCapability(Capabilities.RADIATION_ENTITY_CAPABILITY, null)) {
+            IRadiationEntity radiation = player.getCapability(Capabilities.RADIATION_ENTITY_CAPABILITY, null);
+            if (radiation != null) {
+                severity = RadiationManager.RadiationScale.getScaledDoseSeverity(radiation.getRadiation()) * 0.8;
+            }
+        }
+        if (prevRadiation < severity) {
+            prevRadiation = Math.min(severity, prevRadiation + 0.01);
+        } else if (prevRadiation > severity) {
+            prevRadiation = Math.max(severity, prevRadiation - 0.01);
+        }
+    }
+
     public static void renderBolt(Object renderer, BoltEffect bolt) {
         BOLT_RENDERER.update(renderer, bolt, MekanismRenderer.getPartialTick());
     }
@@ -225,21 +241,10 @@ public class RenderTickHandler {
                 }
 
                 if (MekanismUtils.isPlayingMode(player)) {
-                    if (player.hasCapability(Capabilities.RADIATION_ENTITY_CAPABILITY, null)) {
-                        IRadiationEntity c = player.getCapability(Capabilities.RADIATION_ENTITY_CAPABILITY, null);
-                        double radiation = c.getRadiation();
-                        double severity = RadiationManager.RadiationScale.getScaledDoseSeverity(radiation) * 0.8;
-                        if (prevRadiation < severity) {
-                            prevRadiation = Math.min(severity, prevRadiation + 0.01);
-                        }
-                        if (prevRadiation > severity) {
-                            prevRadiation = Math.max(severity, prevRadiation - 0.01);
-                        }
-                        if (severity > RadiationManager.BASELINE) {
-                            int effect = (int) (prevRadiation * 255);
-                            int color = (0x701E1E << 8) + effect;
-                            MekanismRenderer.renderColorOverlay(0, 0, mc.displayWidth, mc.displayHeight, color);
-                        }
+                    if (prevRadiation > 0) {
+                        int effect = (int) (prevRadiation * 255);
+                        int color = (0x701E1E << 8) + effect;
+                        MekanismRenderer.renderColorOverlay(0, 0, mc.displayWidth, mc.displayHeight, color);
                     }
                 }
             }

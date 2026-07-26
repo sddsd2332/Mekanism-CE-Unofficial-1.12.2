@@ -69,9 +69,17 @@ public final class TransporterUtils {
     }
 
     public static float[] getStackPosition(ILogisticalTransporter tileEntity, TransporterStack stack, float partial) {
+        float[] position = new float[3];
+        getStackPosition(tileEntity, stack, partial, position);
+        return position;
+    }
+
+    public static void getStackPosition(ILogisticalTransporter tileEntity, TransporterStack stack, float partial, float[] position) {
         EnumFacing side = stack.getSide(tileEntity);
         float progress = (((float) stack.progress + partial) / 100F) - 0.5F;
-        return new float[]{0.5F + side.getXOffset() * progress, 0.25F + side.getYOffset() * progress, 0.5F + side.getZOffset() * progress};
+        position[0] = 0.5F + side.getXOffset() * progress;
+        position[1] = 0.25F + side.getYOffset() * progress;
+        position[2] = 0.5F + side.getZOffset() * progress;
     }
 
     public static void incrementColor(ILogisticalTransporter tileEntity) {

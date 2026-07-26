@@ -4,6 +4,7 @@ import mekanism.api.Action;
 import mekanism.api.AutomationType;
 import mekanism.api.IContentsListener;
 import mekanism.api.IContentsListenerRegistry;
+import mekanism.api.IContentsSnapshot;
 import mekanism.api.NBTConstants;
 import mekanism.api.functions.ConstantPredicates;
 import mekanism.api.gas.Gas;
@@ -18,7 +19,7 @@ import java.util.Objects;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
-public class BasicGasTank extends GasTank implements IExtendedGasTank, IContentsListenerRegistry {
+public class BasicGasTank extends GasTank implements IExtendedGasTank, IContentsListenerRegistry, IContentsSnapshot {
 
     public static final Predicate<Gas> alwaysTrue = ConstantPredicates.alwaysTrue();
     public static final Predicate<Gas> alwaysFalse = ConstantPredicates.alwaysFalse();
@@ -246,12 +247,16 @@ public class BasicGasTank extends GasTank implements IExtendedGasTank, IContents
 
     @Override
     public void setStack(@Nullable GasStack stack) {
-        setStack(stack, true);
+        setStack(stack, true, true);
     }
 
     @Override
     public void setStackUnchecked(@Nullable GasStack stack) {
-        setStack(stack, false);
+        setStack(stack, false, true);
+    }
+
+    public void setStackUncheckedNoUpdate(@Nullable GasStack stack) {
+        setStack(stack, false, false);
     }
 
     @Override
@@ -267,7 +272,7 @@ public class BasicGasTank extends GasTank implements IExtendedGasTank, IContents
         return Integer.MAX_VALUE;
     }
 
-    private void setStack(@Nullable GasStack stack, boolean validateStack) {
+    private void setStack(@Nullable GasStack stack, boolean validateStack, boolean notifyChange) {
         if (stack == null || stack.amount <= 0) {
             if (stored == null) {
                 return;
@@ -278,7 +283,20 @@ public class BasicGasTank extends GasTank implements IExtendedGasTank, IContents
         } else {
             throw new RuntimeException("Invalid gas for tank: " + stack.getGas().getName() + " " + stack.amount);
         }
-        onContentsChanged();
+        if (notifyChange) {
+            onContentsChanged();
+        }
+    }
+
+    @Override
+    public NBTTagCompound createContentsSnapshot() {
+        return serializeNBT();
+    }
+
+    @Override
+    public void restoreContentsSnapshot(NBTTagCompound snapshot) {
+        setStackUncheckedNoUpdate(snapshot.hasKey(NBTConstants.STORED) ?
+              GasStack.readFromNBT(snapshot.getCompoundTag(NBTConstants.STORED)) : null);
     }
 
     @Override

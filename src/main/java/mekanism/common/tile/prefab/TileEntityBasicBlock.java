@@ -27,6 +27,7 @@ import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.AxisAlignedBB;
+import net.minecraft.util.math.BlockPos;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.common.Optional.Interface;
@@ -34,6 +35,7 @@ import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -55,6 +57,14 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
     public EnumFacing facing = EnumFacing.NORTH;
 
     public EnumFacing clientFacing = facing;
+
+    @Nullable
+    private AxisAlignedBB cachedBoundingBlockRenderBounds;
+    @Nullable
+    private BlockPos cachedBoundingBlockRenderPos;
+    @Nullable
+    private EnumFacing cachedBoundingBlockRenderFacing;
+    private boolean boundingBlockRenderBoundsResolved;
 
     /**
      * The players currently using this block.
@@ -403,11 +413,31 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
     @Override
     @SideOnly(Side.CLIENT)
     public AxisAlignedBB getRenderBoundingBox() {
-        if (this instanceof IBoundingBlock) {
-            return INFINITE_EXTENT_AABB;
-        }else {
-            return super.getRenderBoundingBox();
+        if (this instanceof IBoundingBlock boundingBlock) {
+            BlockPos currentPos = getPos();
+            if (!boundingBlockRenderBoundsResolved || !currentPos.equals(cachedBoundingBlockRenderPos) || facing != cachedBoundingBlockRenderFacing) {
+                AxisAlignedBB declaredBounds;
+                try {
+                    declaredBounds = boundingBlock.getBoundingBlockRenderBounds(currentPos);
+                } catch (RuntimeException ignored) {
+                    declaredBounds = null;
+                }
+                cachedBoundingBlockRenderBounds = declaredBounds == null ? INFINITE_EXTENT_AABB : declaredBounds;
+                cachedBoundingBlockRenderPos = currentPos.toImmutable();
+                cachedBoundingBlockRenderFacing = facing;
+                boundingBlockRenderBoundsResolved = true;
+            }
+            return cachedBoundingBlockRenderBounds == null ? INFINITE_EXTENT_AABB : cachedBoundingBlockRenderBounds;
         }
+        return super.getRenderBoundingBox();
+    }
+
+    @SideOnly(Side.CLIENT)
+    protected void invalidateBoundingBlockRenderBounds() {
+        boundingBlockRenderBoundsResolved = false;
+        cachedBoundingBlockRenderBounds = null;
+        cachedBoundingBlockRenderPos = null;
+        cachedBoundingBlockRenderFacing = null;
     }
 
 }

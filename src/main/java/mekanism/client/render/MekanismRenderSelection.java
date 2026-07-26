@@ -21,7 +21,7 @@ public class MekanismRenderSelection {
 
     @SubscribeEvent(priority = EventPriority.NORMAL, receiveCanceled = true)
     public void renderSelection(DrawBlockHighlightEvent event) {
-        if (event.getSubID() != 0) {
+        if (!SelectionWireframeRenderer.isSelectionWireframeRenderingEnabled() || event.getSubID() != 0) {
             return;
         }
         RayTraceResult target = event.getTarget();

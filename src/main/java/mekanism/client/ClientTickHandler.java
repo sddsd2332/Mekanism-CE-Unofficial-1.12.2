@@ -10,6 +10,7 @@ import mekanism.client.gui.GuiRadialSelector;
 import mekanism.client.jei.MekanismJEI;
 import mekanism.client.render.hud.MekanismStatusOverlay;
 import mekanism.client.render.lib.ScrollIncrementer;
+import mekanism.client.render.RenderTickHandler;
 import mekanism.client.sound.GeigerSound;
 import mekanism.client.sound.SoundHandler;
 import mekanism.common.CommonPlayerTickHandler;
@@ -196,6 +197,7 @@ public class ClientTickHandler {
 
 
             RadiationManager.INSTANCE.tickClient(minecraft.player);
+            RenderTickHandler.tickRadiationOverlay(minecraft.player);
 
 
             UUID playerUUID = minecraft.player.getUniqueID();

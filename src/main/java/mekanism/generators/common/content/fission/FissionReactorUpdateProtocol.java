@@ -185,6 +185,7 @@ public class FissionReactorUpdateProtocol extends UpdateProtocol<SynchronizedFis
     @Override
     protected void onFormed() {
         super.onFormed();
+        structureFound.updateDerivedGeometry();
         structureFound.updateAmbientTemperature(pointer.getWorld());
         structureFound.updateHeatCapacity();
         structureFound.updateCapacities();

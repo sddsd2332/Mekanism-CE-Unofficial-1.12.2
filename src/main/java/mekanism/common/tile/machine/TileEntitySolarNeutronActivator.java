@@ -54,6 +54,7 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 public class TileEntitySolarNeutronActivator extends TileEntityContainerBlock implements IUpgradeTile, IRedstoneControl, ISecurityTile, IComputerIntegration, ISideConfiguration, IConfigCardAccess, IBoundingBlock, ISustainedData, ITankManager, IUpgradeInfoHandler, IComparatorSupport, IActiveState, ISpecialSelectionWireframeTile,
         IRecipeLookupHandler<SolarNeutronRecipe> {
@@ -202,6 +203,20 @@ public class TileEntitySolarNeutronActivator extends TileEntityContainerBlock im
     @Override
     public void recalculateUpgradables(Upgrade upgrade) {
         super.recalculateUpgradables(upgrade);
+        if (!isRecalculatingAllUpgradables()) {
+            unpauseRecipeCache();
+        }
+    }
+
+    @Override
+    protected void onAllUpgradablesRecalculated(Set<Upgrade> upgrades) {
+        super.onAllUpgradablesRecalculated(upgrades);
+        if (!upgrades.isEmpty()) {
+            unpauseRecipeCache();
+        }
+    }
+
+    private void unpauseRecipeCache() {
         if (recipeCacheLookupMonitor != null && world != null && !world.isRemote) {
             recipeCacheLookupMonitor.unpause();
         }
@@ -441,7 +456,7 @@ public class TileEntitySolarNeutronActivator extends TileEntityContainerBlock im
     @Override
     @SideOnly(Side.CLIENT)
     public AxisAlignedBB getRenderBoundingBox() {
-        return INFINITE_EXTENT_AABB;
+        return super.getRenderBoundingBox();
     }
 
     @Override

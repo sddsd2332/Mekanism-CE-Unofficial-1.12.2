@@ -233,6 +233,14 @@ public class TileEntityPRC extends TileEntityUpgradeableMachine<PressurizedInput
         return getMainEnergyContainer();
     }
 
+    public InputInventorySlot getRecipeInputSlot() {
+        return inputSlot;
+    }
+
+    public OutputInventorySlot getRecipeOutputSlot() {
+        return outputSlot;
+    }
+
     @Override
     protected double getMainEnergyPerTick() {
         return getRecipeEnergyPerTick();

@@ -10,6 +10,8 @@ import net.minecraft.inventory.Container;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 
+import java.util.Set;
+
 /**
  * 可以操作的机器类型
  */
@@ -71,9 +73,19 @@ public abstract class TileEntityOperationalMachine extends TileEntityMachine imp
         super.recalculateUpgradables(upgrade);
         if (upgrade == Upgrade.SPEED) {
             ticksRequired = MekanismUtils.getTicks(this, BASE_TICKS_REQUIRED);
-            energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK);
-        } else if (upgrade == Upgrade.ENERGY) {
+            if (!isRecalculatingAllUpgradables()) {
+                energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK);
+            }
+        } else if (upgrade == Upgrade.ENERGY && !isRecalculatingAllUpgradables()) {
             energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK); // incorporate speed upgrades
+        }
+    }
+
+    @Override
+    protected void onAllUpgradablesRecalculated(Set<Upgrade> upgrades) {
+        super.onAllUpgradablesRecalculated(upgrades);
+        if (upgrades.contains(Upgrade.SPEED) || upgrades.contains(Upgrade.ENERGY)) {
+            energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK);
         }
     }
 

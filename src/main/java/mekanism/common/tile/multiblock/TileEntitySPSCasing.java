@@ -19,7 +19,10 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumHand;
+import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraftforge.fml.common.FMLCommonHandler;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayDeque;
@@ -27,6 +30,8 @@ import java.util.Map;
 import java.util.Queue;
 
 public class TileEntitySPSCasing extends TileEntityMultiblock<SynchronizedSPSData> {
+
+    private static final double RENDER_EFFECT_EXPANSION = 1D;
 
     public final Queue<SPSOrbitEffect> orbitEffects = new ArrayDeque<>();
 
@@ -105,6 +110,17 @@ public class TileEntitySPSCasing extends TileEntityMultiblock<SynchronizedSPSDat
     @Override
     protected UpdateProtocol<SynchronizedSPSData> getProtocol() {
         return new SPSUpdateProtocol(this);
+    }
+
+    @Nonnull
+    @Override
+    @SideOnly(Side.CLIENT)
+    public AxisAlignedBB getRenderBoundingBox() {
+        AxisAlignedBB bounds = super.getRenderBoundingBox();
+        if (clientHasStructure && isRendering && structure != null && structure.renderLocation != null) {
+            return bounds.grow(RENDER_EFFECT_EXPANSION);
+        }
+        return bounds;
     }
 
     @Override

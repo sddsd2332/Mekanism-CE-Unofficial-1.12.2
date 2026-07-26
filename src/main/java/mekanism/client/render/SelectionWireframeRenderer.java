@@ -35,6 +35,8 @@ public final class SelectionWireframeRenderer {
     private static final double MODEL_GRID_SCALE = 16D;
     // Many block models use small anti-z-fighting offsets like 0.005. Treat those as grid-aligned.
     private static final double MODEL_SNAP_EPSILON = 0.006D;
+    private static final PreparedWireframe EMPTY_PREPARED_WIREFRAME = new PreparedWireframe(new LineSegment[0]);
+    private static final Map<JsonModelSelectionBoxCache.OutlineBox[], PreparedWireframe> PREPARED_WIREFRAME_CACHE = new WeakHashMap<>();
 
     private SelectionWireframeRenderer() {
     }
@@ -43,7 +45,7 @@ public final class SelectionWireframeRenderer {
         try {
             return MekanismConfig.current().client.enableSelectionWireframeRendering.val();
         } catch (Exception ignored) {
-            return true;
+            return false;
         }
     }
 
@@ -161,6 +163,43 @@ public final class SelectionWireframeRenderer {
             return;
         }
 
+        PreparedWireframe preparedWireframe = getOrPrepareWireframe(wireframes);
+        if (preparedWireframe.isEmpty()) {
+            return;
+        }
+
+        double localCameraX = cameraX - blockPos.getX();
+        double localCameraY = cameraY - blockPos.getY();
+        double localCameraZ = cameraZ - blockPos.getZ();
+        Tessellator tessellator = Tessellator.getInstance();
+        BufferBuilder buffer = tessellator.getBuffer();
+        buffer.begin(GL11.GL_LINES, DefaultVertexFormats.POSITION_COLOR);
+        for (LineSegment segment : preparedWireframe.segments) {
+            if (!keepVisibleInternalEdges && !shouldRenderSegment(segment, localCameraX, localCameraY, localCameraZ)) {
+                continue;
+            }
+            addVertex(buffer, segment.start(), blockPos, cameraX, cameraY, cameraZ, red, green, blue, alpha);
+            addVertex(buffer, segment.end(), blockPos, cameraX, cameraY, cameraZ, red, green, blue, alpha);
+        }
+        tessellator.draw();
+    }
+
+    static PreparedWireframe getOrPrepareWireframe(JsonModelSelectionBoxCache.OutlineBox[] wireframes) {
+        if (wireframes == null || wireframes.length == 0) {
+            return EMPTY_PREPARED_WIREFRAME;
+        }
+        synchronized (PREPARED_WIREFRAME_CACHE) {
+            PreparedWireframe cached = PREPARED_WIREFRAME_CACHE.get(wireframes);
+            if (cached != null) {
+                return cached;
+            }
+            PreparedWireframe prepared = prepareWireframe(wireframes);
+            PREPARED_WIREFRAME_CACHE.put(wireframes, prepared);
+            return prepared;
+        }
+    }
+
+    private static PreparedWireframe prepareWireframe(JsonModelSelectionBoxCache.OutlineBox[] wireframes) {
         Map<PlaneKey, PlaneEdgeCollector> coplanarPlanes = new HashMap<>();
         Map<LineKey, LineAccumulator> fallbackSegments = new HashMap<>();
 
@@ -187,15 +226,10 @@ public final class SelectionWireframeRenderer {
             }
             addOrUpdateSegment(finalSegments, segment.start(), segment.end(), 0, true);
         }
-
-        Tessellator tessellator = Tessellator.getInstance();
-        BufferBuilder buffer = tessellator.getBuffer();
-        buffer.begin(GL11.GL_LINES, DefaultVertexFormats.POSITION_COLOR);
-        for (LineSegment segment : finalSegments.values()) {
-            addVertex(buffer, segment.start(), blockPos, cameraX, cameraY, cameraZ, red, green, blue, alpha);
-            addVertex(buffer, segment.end(), blockPos, cameraX, cameraY, cameraZ, red, green, blue, alpha);
+        if (finalSegments.isEmpty()) {
+            return EMPTY_PREPARED_WIREFRAME;
         }
-        tessellator.draw();
+        return new PreparedWireframe(finalSegments.values().toArray(new LineSegment[0]));
     }
 
     private static boolean isAxisAligned(JsonModelSelectionBoxCache.OutlineBox wireframe) {
@@ -361,6 +395,23 @@ public final class SelectionWireframeRenderer {
         double y = lineVertex.y + blockPos.getY() - cameraY;
         double z = lineVertex.z + blockPos.getZ() - cameraZ;
         buffer.pos(x, y, z).color(red, green, blue, alpha).endVertex();
+    }
+
+    static final class PreparedWireframe {
+
+        private final LineSegment[] segments;
+
+        private PreparedWireframe(LineSegment[] segments) {
+            this.segments = segments;
+        }
+
+        int segmentCount() {
+            return segments.length;
+        }
+
+        private boolean isEmpty() {
+            return segments.length == 0;
+        }
     }
 
     private static final class LineAccumulator {

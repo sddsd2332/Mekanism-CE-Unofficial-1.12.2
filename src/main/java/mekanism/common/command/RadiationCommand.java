@@ -28,8 +28,10 @@ public class RadiationCommand extends CommandTreeBase {
 
     public RadiationCommand() {
         addSubcommand(new Cmd("add", "cmd.mek.radiation.add", this::add));
+        addSubcommand(new Cmd("addEntity", "cmd.mek.radiation.addEntity", this::addEntity));
         addSubcommand(new Cmd("get", "cmd.mek.radiation.get", this::get));
         addSubcommand(new Cmd("heal", "cmd.mek.radiation.heal", this::heal));
+        addSubcommand(new Cmd("reduce", "cmd.mek.radiation.reduce", this::reduce));
         addSubcommand(new Cmd("removeAll", "cmd.mek.radiation.removeAll", this::removeAll));
         MinecraftForge.EVENT_BUS.register(this);
     }
@@ -97,11 +99,67 @@ public class RadiationCommand extends CommandTreeBase {
                 IRadiationEntity rad = base.getCapability(Capabilities.RADIATION_ENTITY_CAPABILITY, null);
                 if (rad != null) {
                     rad.set(0);
-                    sender.sendMessage(MekanismLang.COMMAND_RADIATION_CLEAR_ENTITY.translateColored(EnumColor.GREY).appendText(EnumColor.INDIGO + entity.getDisplayName().getFormattedText()));
+                    sender.sendMessage(MekanismLang.COMMAND_RADIATION_CLEAR_ENTITY.translateColored(
+                          EnumColor.GREY, EnumColor.INDIGO, entity.getDisplayName()));
                 }
             }
         }
 
+    }
+
+    public void addEntity(MinecraftServer server, ICommandSender sender, String[] args) throws CommandException {
+        if (args.length < 1 || args.length > 2) {
+            throw new net.minecraft.command.WrongUsageException("cmd.mek.radiation.addEntity.usage");
+        }
+        double magnitude = parseDouble(args[0], 0, 10_000);
+        EntityLivingBase target = getLivingTarget(server, sender, args.length == 2 ? args[1] : null);
+        IRadiationEntity radiation = target.getCapability(Capabilities.RADIATION_ENTITY_CAPABILITY, null);
+        if (radiation != null) {
+            radiation.radiate(magnitude);
+            MekanismLang message = args.length == 2 ? MekanismLang.COMMAND_RADIATION_ADD_ENTITY_TARGET : MekanismLang.COMMAND_RADIATION_ADD_ENTITY;
+            String display = UnitDisplayUtils.getDisplayShort(magnitude, UnitDisplayUtils.RadiationUnit.SV, 3);
+            if (args.length == 2) {
+                sender.sendMessage(message.translateColored(EnumColor.GREY,
+                      RadiationManager.RadiationScale.getSeverityColor(magnitude), display,
+                      EnumColor.INDIGO, target.getDisplayName()));
+            } else {
+                sender.sendMessage(message.translateColored(EnumColor.GREY,
+                      RadiationManager.RadiationScale.getSeverityColor(magnitude), display));
+            }
+        }
+    }
+
+    public void reduce(MinecraftServer server, ICommandSender sender, String[] args) throws CommandException {
+        if (args.length < 1 || args.length > 2) {
+            throw new net.minecraft.command.WrongUsageException("cmd.mek.radiation.reduce.usage");
+        }
+        double requested = parseDouble(args[0], 0, 10_000);
+        EntityLivingBase target = getLivingTarget(server, sender, args.length == 2 ? args[1] : null);
+        IRadiationEntity radiation = target.getCapability(Capabilities.RADIATION_ENTITY_CAPABILITY, null);
+        if (radiation != null) {
+            double previous = radiation.getRadiation();
+            double updated = Math.max(RadiationManager.BASELINE, previous - requested);
+            double reduced = previous - updated;
+            radiation.set(updated);
+            MekanismLang message = args.length == 2 ? MekanismLang.COMMAND_RADIATION_REDUCE_TARGET : MekanismLang.COMMAND_RADIATION_REDUCE;
+            String display = UnitDisplayUtils.getDisplayShort(reduced, UnitDisplayUtils.RadiationUnit.SV, 3);
+            if (args.length == 2) {
+                sender.sendMessage(message.translateColored(EnumColor.GREY,
+                      EnumColor.INDIGO, target.getDisplayName(),
+                      RadiationManager.RadiationScale.getSeverityColor(reduced), display));
+            } else {
+                sender.sendMessage(message.translateColored(EnumColor.GREY,
+                      RadiationManager.RadiationScale.getSeverityColor(reduced), display));
+            }
+        }
+    }
+
+    private static EntityLivingBase getLivingTarget(MinecraftServer server, ICommandSender sender, String name) throws CommandException {
+        Entity target = name == null ? getCommandSenderAsPlayer(sender) : getEntity(server, sender, name);
+        if (!(target instanceof EntityLivingBase living)) {
+            throw new CommandException("commands.generic.entity.invalidType", target == null ? "" : target.getName());
+        }
+        return living;
     }
 
     public void removeAll(MinecraftServer server, ICommandSender sender, String[] args) {
@@ -117,9 +175,11 @@ public class RadiationCommand extends CommandTreeBase {
 
     private static int addRadiation(ICommandSender source, Coord4D location, double magnitude) {
         MekanismAPI.getRadiationManager().radiate(location, magnitude);
-        source.sendMessage(MekanismLang.COMMAND_RADIATION_ADD.translateColored(EnumColor.GREY)
-                .appendText(RadiationManager.RadiationScale.getSeverityColor(magnitude) + UnitDisplayUtils.getDisplayShort(magnitude, UnitDisplayUtils.RadiationUnit.SVH, 3))
-                .appendText(EnumColor.INDIGO + " " + location.getPos() + EnumColor.INDIGO + location.dimensionId));
+        source.sendMessage(MekanismLang.COMMAND_RADIATION_ADD.translateColored(EnumColor.GREY,
+              RadiationManager.RadiationScale.getSeverityColor(magnitude),
+              UnitDisplayUtils.getDisplayShort(magnitude, UnitDisplayUtils.RadiationUnit.SVH, 3),
+              EnumColor.INDIGO, getPosition(location.getPos()),
+              EnumColor.INDIGO, Integer.toString(location.dimensionId)));
         return 0;
     }
 
@@ -138,10 +198,11 @@ public class RadiationCommand extends CommandTreeBase {
 
     private static int getRadiationLevel(ICommandSender source, Coord4D location) {
         double magnitude = MekanismAPI.getRadiationManager().getRadiationLevel(location);
-        source.sendMessage(MekanismLang.COMMAND_RADIATION_GET.translateColored(EnumColor.GREY).
-                appendText(EnumColor.INDIGO + "" + location.getPos()).
-                appendText(EnumColor.INDIGO + "" + location.dimensionId).
-                appendText(RadiationManager.RadiationScale.getSeverityColor(magnitude) + UnitDisplayUtils.getDisplayShort(magnitude, UnitDisplayUtils.RadiationUnit.SVH, 3)));
+        source.sendMessage(MekanismLang.COMMAND_RADIATION_GET.translateColored(EnumColor.GREY,
+              EnumColor.INDIGO, getPosition(location.getPos()),
+              EnumColor.INDIGO, Integer.toString(location.dimensionId),
+              RadiationManager.RadiationScale.getSeverityColor(magnitude),
+              UnitDisplayUtils.getDisplayShort(magnitude, UnitDisplayUtils.RadiationUnit.SVH, 3)));
         return 0;
     }
 

@@ -41,7 +41,7 @@ import mekanism.common.tile.component.config.DataType;
 import mekanism.common.tile.prefab.TileEntityBasicMachine;
 import mekanism.common.util.ItemDataUtils;
 import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.StatUtils;
+import mekanism.common.util.PoissonSampler;
 import mekanism.common.util.TileUtils;
 import net.minecraft.block.Block;
 import net.minecraft.item.ItemStack;
@@ -53,6 +53,7 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class TileEntityChemicalDissolutionChamber extends TileEntityBasicMachine<ItemStackInput, GasOutput, DissolutionRecipe> implements ISustainedData, ITankManager,
       IComparatorSupport, ISpecialSelectionWireframeTile, ConstantUsageRecipeLookupHandler {
@@ -75,6 +76,7 @@ public class TileEntityChemicalDissolutionChamber extends TileEntityBasicMachine
     private double gasPerTickMeanMultiplier = 1;
     private long baseTotalUsage;
     private long usedSoFar;
+    private final PoissonSampler injectUsageSampler = new PoissonSampler();
     private final GasUsageMultiplier gasUsageMultiplier;
 
 
@@ -162,7 +164,7 @@ public class TileEntityChemicalDissolutionChamber extends TileEntityBasicMachine
         energySlot.fillContainerOrConvert();
         injectSlot.fillTank();
         outputSlot.drainTank();
-        injectUsageThisTick = Math.max(BASE_INJECT_USAGE, StatUtils.inversePoisson(injectUsage));
+        injectUsageThisTick = Math.max(BASE_INJECT_USAGE, injectUsageSampler.sample(injectUsage));
         processRecipe();
         prevEnergy = getEnergy();
         if (needsPacket) {
@@ -212,6 +214,14 @@ public class TileEntityChemicalDissolutionChamber extends TileEntityBasicMachine
 
     public Map<ItemStackInput, DissolutionRecipe> getRecipes() {
         return RecipeHandler.Recipe.CHEMICAL_DISSOLUTION_CHAMBER.get();
+    }
+
+    public InputInventorySlot getRecipeInputSlot() {
+        return inputSlot;
+    }
+
+    public int getRecipeGasUsagePerOperation() {
+        return Math.max(1, MathUtils.clampToInt(baseTotalUsage));
     }
 
 
@@ -359,19 +369,35 @@ public class TileEntityChemicalDissolutionChamber extends TileEntityBasicMachine
         super.recalculateUpgradables(upgrade);
         if (upgrade == Upgrade.SPEED) {
             ticksRequired = MekanismUtils.getTicks(this, BASE_TICKS_REQUIRED);
-            energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_USAGE);
-            injectUsage = MekanismUtils.getSecondaryEnergyPerTickMean(this, BASE_INJECT_USAGE);
-            gasPerTickMeanMultiplier = MekanismUtils.getGasPerTickMeanMultiplier(this);
-            baseTotalUsage = MekanismUtils.getBaseUsage(this, BASE_INJECT_USAGE);
-        } else if (upgrade == Upgrade.ENERGY) {
+            if (!isRecalculatingAllUpgradables()) {
+                energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_USAGE);
+                recalculateInjectUsage();
+            }
+        } else if (upgrade == Upgrade.ENERGY && !isRecalculatingAllUpgradables()) {
             energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK); // incorporate speed upgrades
-        } else if (upgrade == Upgrade.GAS) {
-            injectUsage = MekanismUtils.getSecondaryEnergyPerTickMean(this, BASE_INJECT_USAGE);
+        } else if (upgrade == Upgrade.GAS && !isRecalculatingAllUpgradables()) {
+            recalculateInjectUsage();
         }
-        if (upgrade == Upgrade.GAS) {
-            gasPerTickMeanMultiplier = MekanismUtils.getGasPerTickMeanMultiplier(this);
-            baseTotalUsage = MekanismUtils.getBaseUsage(this, BASE_INJECT_USAGE);
+    }
+
+    @Override
+    protected void onAllUpgradablesRecalculated(Set<Upgrade> upgrades) {
+        super.onAllUpgradablesRecalculated(upgrades);
+        boolean speedChanged = upgrades.contains(Upgrade.SPEED);
+        if (upgrades.contains(Upgrade.ENERGY)) {
+            energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK);
+        } else if (speedChanged) {
+            energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_USAGE);
         }
+        if (speedChanged || upgrades.contains(Upgrade.GAS)) {
+            recalculateInjectUsage();
+        }
+    }
+
+    private void recalculateInjectUsage() {
+        injectUsage = MekanismUtils.getSecondaryEnergyPerTickMean(this, BASE_INJECT_USAGE);
+        gasPerTickMeanMultiplier = MekanismUtils.getGasPerTickMeanMultiplier(this);
+        baseTotalUsage = MekanismUtils.getBaseUsage(this, BASE_INJECT_USAGE);
     }
 
     @Override

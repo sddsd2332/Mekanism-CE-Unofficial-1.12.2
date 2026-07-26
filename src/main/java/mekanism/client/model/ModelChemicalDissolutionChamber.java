@@ -230,24 +230,29 @@ public class ModelChemicalDissolutionChamber extends ModelBase {
     }
 
     public void render(float size, boolean isEnableGlow) {
-
         GlStateManager.pushMatrix();
-        GlStateManager.shadeModel(GL11.GL_SMOOTH);
-        doRender(size);
-        if (!isEnableGlow){
-            glass.render(size);
+        try {
+            GlStateManager.shadeModel(GL11.GL_SMOOTH);
+            doRender(size);
+            if (!isEnableGlow) {
+                glass.render(size);
+            }
+        } finally {
+            GlStateManager.popMatrix();
         }
-        GlStateManager.popMatrix();
 
         if (isEnableGlow) {
             GlStateManager.shadeModel(GL11.GL_SMOOTH);
             GlStateManager.disableAlpha();
             GlStateManager.enableBlend();
             GlStateManager.blendFunc(SourceFactor.SRC_ALPHA, DestFactor.ONE_MINUS_SRC_ALPHA);
-            glass.render(size);
-            GlStateManager.disableBlend();
-            GlStateManager.enableAlpha();
-            GlStateManager.shadeModel(GL11.GL_FLAT);
+            try {
+                glass.render(size);
+            } finally {
+                GlStateManager.disableBlend();
+                GlStateManager.enableAlpha();
+                GlStateManager.shadeModel(GL11.GL_FLAT);
+            }
         }
     }
 

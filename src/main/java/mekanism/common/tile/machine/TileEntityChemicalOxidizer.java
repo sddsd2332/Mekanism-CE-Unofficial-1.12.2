@@ -145,6 +145,10 @@ public class TileEntityChemicalOxidizer extends TileEntityBasicMachine<ItemStack
         return RecipeHandler.Recipe.CHEMICAL_OXIDIZER.get();
     }
 
+    public InputInventorySlot getRecipeInputSlot() {
+        return inputSlot;
+    }
+
     public ItemStackInput getInput() {
         return new ItemStackInput(inputSlot.getStack());
     }

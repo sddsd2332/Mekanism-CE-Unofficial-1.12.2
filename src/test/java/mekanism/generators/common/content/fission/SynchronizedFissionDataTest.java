@@ -1,5 +1,6 @@
 package mekanism.generators.common.content.fission;
 
+import mekanism.api.Coord4D;
 import mekanism.api.gas.GasStack;
 import mekanism.common.MekanismFluids;
 import mekanism.common.config.GeneratorsConfig;
@@ -16,9 +17,13 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SynchronizedFissionDataTest {
@@ -218,6 +223,72 @@ class SynchronizedFissionDataTest {
         assertEquals(600, loaded.getTemperature(), EPSILON);
     }
 
+    @Test
+    void existingWasteStackGrowsInPlaceAndNotifiesOnce() {
+        SynchronizedFissionData data = reactorWithOneAssembly();
+        data.fuelTank.setGas(new GasStack(MekanismFluids.FissileFuel, 10));
+        data.wasteTank.setGas(new GasStack(MekanismFluids.NuclearWaste, 5));
+        data.rateLimit = 1;
+        GasStack waste = data.wasteTank.getGas();
+        AtomicInteger changes = new AtomicInteger();
+        data.wasteTank.addContentsListener(changes::incrementAndGet);
+
+        data.burnFuel(null);
+
+        assertSame(waste, data.wasteTank.getGas());
+        assertEquals(6, data.wasteTank.getStored());
+        assertEquals(1, changes.get());
+    }
+
+    @Test
+    void reactorGeometryIsReusedUntilFormationDataChanges() {
+        SynchronizedFissionData data = new SynchronizedFissionData();
+        data.minLocation = new Coord4D(0, 0, 0, 7);
+        data.maxLocation = new Coord4D(4, 6, 8, 7);
+
+        data.updateDerivedGeometry();
+        Coord4D firstCenter = data.getReactorCenter();
+        net.minecraft.util.math.AxisAlignedBB firstBounds = data.getRadiationBounds();
+
+        assertSame(firstCenter, data.getReactorCenter());
+        assertSame(firstBounds, data.getRadiationBounds());
+        assertEquals(new Coord4D(2, 3, 4, 7), firstCenter);
+        assertEquals(new net.minecraft.util.math.AxisAlignedBB(1, 1, 1, 4, 6, 8), firstBounds);
+
+        data.maxLocation = new Coord4D(6, 8, 10, 7);
+        data.updateDerivedGeometry();
+        assertNotSame(firstCenter, data.getReactorCenter());
+        assertNotSame(firstBounds, data.getRadiationBounds());
+        assertEquals(new Coord4D(3, 4, 5, 7), data.getReactorCenter());
+    }
+
+    @Test
+    void renderSnapshotsReuseStableStackTypesAndClearWithTanks() throws ReflectiveOperationException {
+        SynchronizedFissionData data = reactorWithOneAssembly();
+        data.volume = 1;
+        data.updateCapacities();
+        data.wasteTank.setGas(new GasStack(MekanismFluids.NuclearWaste, 5));
+        data.coolantTank.setFluid(new FluidStack(FluidRegistry.WATER, 10));
+        data.syncPrev();
+        GasStack firstWaste = getField(data, "prevWaste", GasStack.class);
+        FluidStack firstCoolant = getField(data, "prevCoolant", FluidStack.class);
+
+        data.wasteTank.growStack(2, mekanism.api.Action.EXECUTE);
+        data.coolantTank.growStack(3, mekanism.api.Action.EXECUTE);
+        data.syncPrev();
+
+        assertSame(firstWaste, getField(data, "prevWaste", GasStack.class));
+        assertSame(firstCoolant, getField(data, "prevCoolant", FluidStack.class));
+        assertEquals(7, firstWaste.amount);
+        assertEquals(13, firstCoolant.amount);
+
+        data.wasteTank.setEmpty();
+        data.coolantTank.setEmpty();
+        data.syncPrev();
+        assertNull(getField(data, "prevWaste", GasStack.class));
+        assertNull(getField(data, "prevCoolant", FluidStack.class));
+    }
+
     private static SynchronizedFissionData reactorWithOneAssembly() {
         SynchronizedFissionData data = new SynchronizedFissionData();
         data.fuelAssemblies = 1;
@@ -227,5 +298,11 @@ class SynchronizedFissionDataTest {
 
     private static double representedFuel(SynchronizedFissionData data) {
         return data.fuelTank.getStored() + data.burnRemaining;
+    }
+
+    private static <T> T getField(SynchronizedFissionData data, String name, Class<T> type) throws ReflectiveOperationException {
+        Field field = SynchronizedFissionData.class.getDeclaredField(name);
+        field.setAccessible(true);
+        return type.cast(field.get(data));
     }
 }

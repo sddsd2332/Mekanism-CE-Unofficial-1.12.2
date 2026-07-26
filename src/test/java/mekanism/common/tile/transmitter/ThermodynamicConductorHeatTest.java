@@ -1,6 +1,8 @@
 package mekanism.common.tile.transmitter;
 
+import mekanism.api.Coord4D;
 import mekanism.api.heat.HeatAPI;
+import mekanism.common.transmitters.grid.HeatNetwork;
 import mekanism.common.tile.transmitter.TileEntitySidedPipe.ConnectionType;
 import net.minecraft.init.Bootstrap;
 import net.minecraft.util.EnumFacing;
@@ -12,6 +14,7 @@ import java.lang.reflect.Field;
 import java.util.Collections;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ThermodynamicConductorHeatTest {
@@ -47,5 +50,16 @@ class ThermodynamicConductorHeatTest {
               Math.pow(1 - 1 / inverseConduction, EnumFacing.VALUES.length);
         assertEquals(expectedTemperature, conductor.buffer.getTemperature(), EPSILON);
         assertEquals(400 - expectedTemperature, environmentLoss, EPSILON);
+    }
+
+    @Test
+    void stableNetworkPointersAvoidScanningNetworkMembers() {
+        HeatNetwork network = new HeatNetwork();
+        HeatNetwork otherNetwork = new HeatNetwork();
+        Coord4D adjacent = new Coord4D(1, 2, 3, 0);
+
+        assertTrue(TileEntityThermodynamicConductor.isSameNetworkForAdjacentTransfer(network, network, adjacent));
+        assertFalse(TileEntityThermodynamicConductor.isSameNetworkForAdjacentTransfer(network, otherNetwork, adjacent));
+        assertFalse(TileEntityThermodynamicConductor.isSameNetworkForAdjacentTransfer(network, null, adjacent));
     }
 }

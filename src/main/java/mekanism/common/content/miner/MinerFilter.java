@@ -55,6 +55,14 @@ public abstract class MinerFilter implements IFilter {
 
     public abstract boolean hasBlacklistedElement();
 
+    @Override
+    public MinerFilter clone() {
+        MinerFilter copy = readFromNBT(write(new NBTTagCompound()));
+        // Third-party filter types may not be registered with the legacy numeric decoder.
+        // They remain usable, but cannot be isolated from live edits unless they override clone().
+        return copy == null ? this : copy;
+    }
+
     public NBTTagCompound write(NBTTagCompound nbtTags) {
         nbtTags.setBoolean(NBTConstants.ENABLED, enabled);
         nbtTags.setBoolean("requireStack", requireStack);

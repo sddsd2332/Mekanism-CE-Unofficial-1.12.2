@@ -87,6 +87,14 @@ public class RateLimitEnergyHandler extends ItemStackMekanismEnergyHandler {
         }
 
         @Override
+        public double getEnergy() {
+            double energy = super.getEnergy();
+            // Creative cubes are binary sources/sinks. The generic double container applies a
+            // heat-safety clamp when reading values, which would otherwise report a full cube as 25% full.
+            return isCreative() && energy > 0 ? getMaxEnergy() : energy;
+        }
+
+        @Override
         public double insert(double amount, Action action, AutomationType automationType) {
             return super.insert(amount, action.combine(!isCreative()), automationType);
         }

@@ -13,6 +13,7 @@ class CullingConfigDefaultsTest {
 
         assertFalse(config.GazeCullingTracking.val());
         assertFalse(config.GazeCullingOpenGLTracking.val());
+        assertFalse(config.enableSelectionWireframeRendering.val());
         assertEquals(0, config.windGeneratorBladeRenderDistance.val());
         assertEquals(0, config.largeWindGeneratorFanRenderDistance.val());
     }

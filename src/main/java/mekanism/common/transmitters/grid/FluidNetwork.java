@@ -36,6 +36,7 @@ public class FluidNetwork extends DynamicNetwork<IFluidHandler, FluidNetwork, Fl
     public int prevTransferAmount = 0;
 
     private FluidHandlerTarget target;
+    private FluidHandlerTarget reusableTarget;
 
     public FluidNetwork() {
     }
@@ -197,7 +198,13 @@ public class FluidNetwork extends DynamicNetwork<IFluidHandler, FluidNetwork, Fl
     }
 
     private void collectTargets(FluidStack fluidToSend) {
-        FluidHandlerTarget target = new FluidHandlerTarget(fluidToSend, possibleAcceptors.size() * 2);
+        target = null;
+        FluidHandlerTarget collectedTarget = reusableTarget;
+        if (collectedTarget == null) {
+            collectedTarget = reusableTarget = new FluidHandlerTarget(fluidToSend, possibleAcceptors.size() * 2);
+        } else {
+            collectedTarget.reset(fluidToSend);
+        }
         for (Coord4D coord : possibleAcceptors) {
             EnumSet<EnumFacing> sides = acceptorDirections.get(coord);
             if (sides == null || sides.isEmpty()) {
@@ -211,12 +218,12 @@ public class FluidNetwork extends DynamicNetwork<IFluidHandler, FluidNetwork, Fl
                 if (CapabilityUtils.hasCapability(tile, CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, side)) {
                     IFluidHandler acceptor = CapabilityUtils.getCapability(tile, CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, side);
                     if (acceptor != null && PipeUtils.canFill(acceptor, fluidToSend)) {
-                        target.addHandler(acceptor);
+                        collectedTarget.addHandler(acceptor);
                     }
                 }
             }
         }
-        this.target = target;
+        target = collectedTarget;
     }
 
     private int tickEmit(FluidStack fluidToSend) {

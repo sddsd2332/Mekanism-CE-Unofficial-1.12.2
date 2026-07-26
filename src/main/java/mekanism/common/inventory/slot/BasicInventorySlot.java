@@ -4,6 +4,7 @@ import mekanism.api.Action;
 import mekanism.api.AutomationType;
 import mekanism.api.IContentsListener;
 import mekanism.api.IContentsListenerRegistry;
+import mekanism.api.IContentsSnapshot;
 import mekanism.api.NBTConstants;
 import mekanism.api.functions.ConstantPredicates;
 import mekanism.api.inventory.IInventorySlot;
@@ -21,7 +22,7 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.function.*;
 
-public class BasicInventorySlot implements IInventorySlot, IContentsListenerRegistry {
+public class BasicInventorySlot implements IInventorySlot, IContentsListenerRegistry, IContentsSnapshot {
 
     public static final Predicate<ItemStack> alwaysTrue = ConstantPredicates.alwaysTrue();
     public static final Predicate<ItemStack> alwaysFalse = ConstantPredicates.alwaysFalse();
@@ -389,6 +390,23 @@ public class BasicInventorySlot implements IInventorySlot, IContentsListenerRegi
             }
         }
         setStackUnchecked(stack);
+    }
+
+    @Override
+    public NBTTagCompound createContentsSnapshot() {
+        return serializeNBT();
+    }
+
+    @Override
+    public void restoreContentsSnapshot(NBTTagCompound snapshot) {
+        ItemStack stack = ItemStack.EMPTY;
+        if (snapshot.hasKey(NBTConstants.ITEM, NBT.TAG_COMPOUND)) {
+            stack = new ItemStack(snapshot.getCompoundTag(NBTConstants.ITEM));
+            if (snapshot.hasKey(NBTConstants.SIZE_OVERRIDE, NBT.TAG_INT)) {
+                stack.setCount(snapshot.getInteger(NBTConstants.SIZE_OVERRIDE));
+            }
+        }
+        setStackUncheckedNoUpdate(stack);
     }
 
     private static void validateSlotLimit(int limit) {

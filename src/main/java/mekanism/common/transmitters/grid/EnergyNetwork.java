@@ -27,6 +27,7 @@ public class EnergyNetwork extends DynamicNetwork<EnergyAcceptorWrapper, EnergyN
     private double jouleBufferLastTick = 0;
 
     private EnergyAcceptorTarget target;
+    private EnergyAcceptorTarget reusableTarget;
 
     public EnergyNetwork() {
     }
@@ -164,7 +165,13 @@ public class EnergyNetwork extends DynamicNetwork<EnergyAcceptorWrapper, EnergyN
     }
 
     private void collectTargets() {
-        EnergyAcceptorTarget target = new EnergyAcceptorTarget(possibleAcceptors.size() * 2);
+        target = null;
+        EnergyAcceptorTarget collectedTarget = reusableTarget;
+        if (collectedTarget == null) {
+            collectedTarget = reusableTarget = new EnergyAcceptorTarget(possibleAcceptors.size() * 2);
+        } else {
+            collectedTarget.reset();
+        }
         for (Coord4D coord : possibleAcceptors) {
             EnumSet<EnumFacing> sides = acceptorDirections.get(coord);
             if (sides == null || sides.isEmpty()) {
@@ -177,11 +184,11 @@ public class EnergyNetwork extends DynamicNetwork<EnergyAcceptorWrapper, EnergyN
             for (EnumFacing side : sides) {
                 EnergyAcceptorWrapper acceptor = EnergyAcceptorWrapper.get(tile, side);
                 if (acceptor != null && acceptor.canReceiveEnergy(side) && acceptor.needsEnergy(side)) {
-                    target.addHandler(side, acceptor);
+                    collectedTarget.addHandler(side, acceptor);
                 }
             }
         }
-        this.target = target;
+        target = collectedTarget;
     }
 
     public double getPowerScale() {

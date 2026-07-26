@@ -175,6 +175,10 @@ public class TileEntityChemicalCrystallizer extends TileEntityBasicMachine<GasIn
         return getMainEnergyContainer();
     }
 
+    public OutputInventorySlot getRecipeOutputSlot() {
+        return outputSlot;
+    }
+
     public int getEnergySlotX() {
         return energySlot.getGuiX();
     }

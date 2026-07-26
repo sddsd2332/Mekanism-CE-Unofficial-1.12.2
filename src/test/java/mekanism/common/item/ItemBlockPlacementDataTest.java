@@ -1,14 +1,18 @@
 package mekanism.common.item;
 
 import mekanism.api.RelativeSide;
+import mekanism.api.energy.IStrictEnergyHandler;
 import mekanism.api.transmitters.TransmissionType;
 import mekanism.common.TestBootstrap;
 import mekanism.common.base.IFactory.RecipeType;
+import mekanism.common.capabilities.Capabilities;
+import mekanism.common.capabilities.DefaultStrictEnergyHandler;
 import mekanism.common.tile.TileEntityEnergyCube;
 import mekanism.common.tile.component.config.DataType;
 import mekanism.common.tile.factory.TileEntityBasicFactory;
 import mekanism.common.tier.BaseTier;
 import mekanism.common.util.ItemDataUtils;
+import mekanism.common.util.StorageUtils;
 import mekanism.generators.common.item.ItemBlockGenerator;
 import mekanism.multiblockmachine.common.item.ItemBlockLargeBase;
 import mekanism.common.tile.transmitter.TileEntityLogisticalTransporter;
@@ -16,9 +20,13 @@ import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.math.BlockPos;
+import net.minecraftforge.common.capabilities.Capability;
+import net.minecraftforge.common.capabilities.CapabilityManager;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -30,8 +38,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ItemBlockPlacementDataTest {
 
     @BeforeAll
-    static void bootstrapMinecraft() {
+    static void bootstrapMinecraft() throws ReflectiveOperationException {
         TestBootstrap.bootstrapMinecraft();
+        Capability<IStrictEnergyHandler> strictEnergy = getRegisteredCapability(IStrictEnergyHandler.class);
+        if (strictEnergy == null) {
+            DefaultStrictEnergyHandler.register();
+            strictEnergy = getRegisteredCapability(IStrictEnergyHandler.class);
+        }
+        Capabilities.STRICT_ENERGY_CAPABILITY = strictEnergy;
     }
 
     @Test
@@ -103,6 +117,25 @@ class ItemBlockPlacementDataTest {
     }
 
     @Test
+    void filledCreativeEnergyCubeRemainsFullWhenCopiedAndPlaced() {
+        ItemBlockEnergyCube item = new ItemBlockEnergyCube(new Block(Material.ROCK));
+        ItemStack filled = creativeCube(item);
+        double maxEnergy = item.getEnergyCapacity(filled);
+        item.setStoredEnergy(filled, maxEnergy);
+
+        assertEquals(maxEnergy, StorageUtils.getStoredEnergy(filled));
+        assertEquals(1D, StorageUtils.getEnergyRatio(filled));
+
+        ItemStack copied = filled.copy();
+        assertEquals(maxEnergy, StorageUtils.getStoredEnergy(copied));
+        assertEquals(1D, StorageUtils.getEnergyRatio(copied));
+
+        TileEntityEnergyCube placed = new TileEntityEnergyCube();
+        item.restorePlacementData(copied, null, null, BlockPos.ORIGIN, placed);
+        assertEquals(placed.getMaxEnergy(), placed.getEnergy());
+    }
+
+    @Test
     void malformedOwnerUuidCannotAbortMachinePlacement() {
         ItemBlockGenerator generator = new ItemBlockGenerator(new Block(Material.ROCK));
         ItemStack generatorStack = new ItemStack(generator);
@@ -121,6 +154,14 @@ class ItemBlockPlacementDataTest {
         item.setBaseTier(stack, BaseTier.CREATIVE);
         item.setOwnerUUID(stack, UUID.randomUUID());
         return stack;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> Capability<T> getRegisteredCapability(Class<T> type) throws ReflectiveOperationException {
+        Field providers = CapabilityManager.class.getDeclaredField("providers");
+        providers.setAccessible(true);
+        Map<String, Capability<?>> registered = (Map<String, Capability<?>>) providers.get(CapabilityManager.INSTANCE);
+        return (Capability<T>) registered.get(type.getName().intern());
     }
 
     private static class TrackingFactory extends TileEntityBasicFactory {

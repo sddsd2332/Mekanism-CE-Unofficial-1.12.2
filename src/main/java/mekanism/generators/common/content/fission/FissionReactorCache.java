@@ -54,12 +54,12 @@ public class FissionReactorCache extends MultiblockCache<SynchronizedFissionData
     @Override
     public void sync(SynchronizedFissionData data) {
         data.sanitizeRuntimeState();
-        fuel = data.fuelTank.getGas() == null ? null : data.fuelTank.getGas().copy();
-        waste = data.wasteTank.getGas() == null ? null : data.wasteTank.getGas().copy();
-        gasCoolant = data.gasCoolantTank.getGas() == null ? null : data.gasCoolantTank.getGas().copy();
-        heatedCoolant = data.heatedCoolantTank.getGas() == null ? null : data.heatedCoolantTank.getGas().copy();
-        coolant = data.coolantTank.getFluid() == null ? null : data.coolantTank.getFluid().copy();
-        steam = data.steamTank.getFluid() == null ? null : data.steamTank.getFluid().copy();
+        fuel = syncGasStack(fuel, data.fuelTank.getGas());
+        waste = syncGasStack(waste, data.wasteTank.getGas());
+        gasCoolant = syncGasStack(gasCoolant, data.gasCoolantTank.getGas());
+        heatedCoolant = syncGasStack(heatedCoolant, data.heatedCoolantTank.getGas());
+        coolant = syncFluidStack(coolant, data.coolantTank.getFluid());
+        steam = syncFluidStack(steam, data.steamTank.getFluid());
 
         rateLimit = HeatAPI.isFinite(data.rateLimit) ? Math.max(0, data.rateLimit) : SynchronizedFissionData.getDefaultRateLimit();
         active = data.active;

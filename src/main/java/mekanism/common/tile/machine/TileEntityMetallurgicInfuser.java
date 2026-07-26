@@ -196,6 +196,18 @@ public class TileEntityMetallurgicInfuser extends TileEntityUpgradeableMachine<I
         return getMainEnergyContainer();
     }
 
+    public InputInventorySlot getRecipeInputSlot() {
+        return inputSlot;
+    }
+
+    public InputInventorySlot getRecipeExtraInputSlot() {
+        return extraSlot;
+    }
+
+    public OutputInventorySlot getRecipeOutputSlot() {
+        return outputSlot;
+    }
+
     public boolean hasWarningNoMatchingSecondaryInput() {
         if (hasWarning(RecipeError.NOT_ENOUGH_SECONDARY_INPUT)) {
             return true;

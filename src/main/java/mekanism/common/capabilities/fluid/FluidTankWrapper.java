@@ -4,6 +4,7 @@ import mekanism.api.Action;
 import mekanism.api.AutomationType;
 import mekanism.api.IContentsListener;
 import mekanism.api.IContentsListenerRegistry;
+import mekanism.api.IContentsSnapshot;
 import mekanism.api.fluid.IExtendedFluidTank;
 import mekanism.common.capabilities.merged.MergedTank;
 import net.minecraft.nbt.NBTTagCompound;
@@ -12,7 +13,7 @@ import net.minecraftforge.fluids.FluidStack;
 import javax.annotation.Nullable;
 import java.util.function.BooleanSupplier;
 
-public class FluidTankWrapper implements IExtendedFluidTank, IContentsListenerRegistry {
+public class FluidTankWrapper implements IExtendedFluidTank, IContentsListenerRegistry, IContentsSnapshot {
 
     private final IExtendedFluidTank internal;
     private final BooleanSupplier insertCheck;
@@ -112,6 +113,20 @@ public class FluidTankWrapper implements IExtendedFluidTank, IContentsListenerRe
     @Override
     public void deserializeNBT(NBTTagCompound nbt) {
         internal.deserializeNBT(nbt);
+    }
+
+    @Override
+    public NBTTagCompound createContentsSnapshot() {
+        return internal instanceof IContentsSnapshot snapshot ? snapshot.createContentsSnapshot() : internal.serializeNBT();
+    }
+
+    @Override
+    public void restoreContentsSnapshot(NBTTagCompound snapshot) {
+        if (internal instanceof IContentsSnapshot contentsSnapshot) {
+            contentsSnapshot.restoreContentsSnapshot(snapshot);
+        } else {
+            internal.deserializeNBT(snapshot);
+        }
     }
 
     @Override

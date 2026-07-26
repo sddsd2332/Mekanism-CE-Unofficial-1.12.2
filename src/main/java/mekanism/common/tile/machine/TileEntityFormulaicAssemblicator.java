@@ -55,6 +55,7 @@ import net.minecraftforge.items.ItemHandlerHelper;
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 public class TileEntityFormulaicAssemblicator extends TileEntityElectricBlock implements ISideConfiguration, IUpgradeTile, IRedstoneControl, IConfigCardAccess, ISecurityTile {
 
@@ -791,12 +792,30 @@ public class TileEntityFormulaicAssemblicator extends TileEntityElectricBlock im
         super.recalculateUpgradables(upgrade);
         if (upgrade == Upgrade.SPEED) {
             ticksRequired = MekanismUtils.getTicks(this, BASE_TICKS_REQUIRED);
-            energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK);
+            if (!isRecalculatingAllUpgradables()) {
+                energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK);
+            }
         } else if (upgrade == Upgrade.ENERGY) {
-            energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK);
-            maxEnergy = MekanismUtils.getMaxEnergy(this, BASE_MAX_ENERGY);
-            setEnergy(Math.min(getMaxEnergy(), getEnergy()));
+            if (!isRecalculatingAllUpgradables()) {
+                recalculateEnergyAndCapacity();
+            }
         }
+    }
+
+    @Override
+    protected void onAllUpgradablesRecalculated(Set<Upgrade> upgrades) {
+        super.onAllUpgradablesRecalculated(upgrades);
+        if (upgrades.contains(Upgrade.ENERGY)) {
+            recalculateEnergyAndCapacity();
+        } else if (upgrades.contains(Upgrade.SPEED)) {
+            energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK);
+        }
+    }
+
+    private void recalculateEnergyAndCapacity() {
+        energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK);
+        maxEnergy = MekanismUtils.getMaxEnergy(this, BASE_MAX_ENERGY);
+        setEnergy(Math.min(getMaxEnergy(), getEnergy()));
     }
 
     @Override

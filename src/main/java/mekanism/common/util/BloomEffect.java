@@ -7,6 +7,7 @@ import mekanism.client.render.MekanismRenderer;
 import mekanism.common.base.IBloom;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.tile.prefab.TileEntityBasicBlock;
+import mekanism.coremod.MekanismCoreMethods;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.GlStateManager;
@@ -94,7 +95,9 @@ public abstract class BloomEffect<T extends TileEntityBasicBlock> implements IBl
         if (tile.getDistanceSq(context.cameraX(), context.cameraY(), context.cameraZ()) >= maxRenderDistanceSq) {
             return false;
         }
-        return !tile.shouldCullForOcclusion();
+        // Bloom is rendered outside TileEntityRendererDispatcher, so route it through
+        // the same fail-open policy and OptiFine shadow-pass guard as the normal TESR.
+        return !MekanismCoreMethods.shouldCullTileEntityForOcclusion(tile);
     }
 
 

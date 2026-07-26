@@ -4,11 +4,13 @@ import mekanism.api.Coord4D;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.block.state.BlockFaceShape;
 import net.minecraft.util.EnumFacing;
+import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3i;
 import net.minecraft.world.World;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -20,6 +22,14 @@ import java.util.function.BiConsumer;
  * @author AidanBrady
  */
 public interface IBoundingBlock {
+
+    /**
+     * Small render-only allowance for TESR/model vertices which land just outside
+     * an integer block footprint because of rotations, piston interpolation, or
+     * floating point rounding. This does not change the blocks occupied by a
+     * machine; it only keeps vanilla frustum culling from clipping the model.
+     */
+    double RENDER_BOUNDS_EPSILON = 1D / 16D;
 
     /** Result of attempting the shared, preflighted bounding-block placement path. */
     enum PlacementResult {
@@ -77,6 +87,47 @@ public interface IBoundingBlock {
         List<BoundingBlockData> blocks = new ArrayList<>();
         collectBoundingBlocks((position, advanced) -> blocks.add(new BoundingBlockData(position, advanced)));
         return blocks.isEmpty() ? Collections.emptyList() : blocks;
+    }
+
+    /**
+     * Builds a finite world-space render box from the machine's declared occupied blocks.
+     * Returns {@code null} for legacy implementations which do not expose their layout, so
+     * callers can preserve the old fail-open rendering behavior for binary-compatible addons.
+     */
+    @Nullable
+    default AxisAlignedBB getBoundingBlockRenderBounds(@Nonnull BlockPos main) {
+        int[] bounds = {
+              Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE,
+              Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE
+        };
+        boolean[] found = {false};
+        collectBoundingBlocks((position, advanced) -> {
+            if (position == null) {
+                return;
+            }
+            found[0] = true;
+            bounds[0] = Math.min(bounds[0], position.getX());
+            bounds[1] = Math.min(bounds[1], position.getY());
+            bounds[2] = Math.min(bounds[2], position.getZ());
+            bounds[3] = Math.max(bounds[3], position.getX());
+            bounds[4] = Math.max(bounds[4], position.getY());
+            bounds[5] = Math.max(bounds[5], position.getZ());
+        });
+        if (!found[0]) {
+            return null;
+        }
+        bounds[0] = Math.min(bounds[0], main.getX());
+        bounds[1] = Math.min(bounds[1], main.getY());
+        bounds[2] = Math.min(bounds[2], main.getZ());
+        bounds[3] = Math.max(bounds[3], main.getX());
+        bounds[4] = Math.max(bounds[4], main.getY());
+        bounds[5] = Math.max(bounds[5], main.getZ());
+        return new AxisAlignedBB(bounds[0] - RENDER_BOUNDS_EPSILON,
+              bounds[1] - RENDER_BOUNDS_EPSILON,
+              bounds[2] - RENDER_BOUNDS_EPSILON,
+              bounds[3] + 1D + RENDER_BOUNDS_EPSILON,
+              bounds[4] + 1D + RENDER_BOUNDS_EPSILON,
+              bounds[5] + 1D + RENDER_BOUNDS_EPSILON);
     }
 
     /** Performs a complete replaceability check before creating any auxiliary blocks. */

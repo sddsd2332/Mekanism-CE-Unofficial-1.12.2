@@ -17,6 +17,7 @@ public abstract class TileEntityRestrictedTick extends TileEntitySynchronized im
     protected int ticksExisted = 0;
     private long lastUpdateWorldTick = -1;
     private float radiationScale;
+    private boolean suppressRadiationOnInvalidate;
 
     @Override
     public final void update() {
@@ -38,10 +39,17 @@ public abstract class TileEntityRestrictedTick extends TileEntitySynchronized im
         return false;
     }
 
+    /**
+     * Prevents this tile from dumping radioactive contents when invalidated as part of an in-place tier upgrade.
+     */
+    public final void suppressRadiationForUpgrade() {
+        suppressRadiationOnInvalidate = true;
+    }
+
     @Override
     public void invalidate() {
         super.invalidate();
-        if (!isRemote() && MekanismAPI.getRadiationManager().isRadiationEnabled() && shouldDumpRadiation()) {
+        if (!suppressRadiationOnInvalidate && !isRemote() && MekanismAPI.getRadiationManager().isRadiationEnabled() && shouldDumpRadiation()) {
             if (this instanceof IGasHandler handler) {
                 //If we are on a server and radiation is enabled dump all gas tanks with radioactive materials
                 // Note: we handle clearing radioactive contents later in drop calculation due to when things are written to NBT

@@ -4,6 +4,7 @@ import mekanism.api.Action;
 import mekanism.api.AutomationType;
 import mekanism.api.IContentsListener;
 import mekanism.api.IContentsListenerRegistry;
+import mekanism.api.IContentsSnapshot;
 import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasStack;
 import mekanism.api.gas.GasTankInfo;
@@ -16,7 +17,7 @@ import java.util.function.BooleanSupplier;
 /**
  * Gas-only wrapper for merged tank behavior. Only one side of a merged fluid/gas tank can accept contents at a time.
  */
-public class GasTankWrapper implements IExtendedGasTank, IContentsListenerRegistry {
+public class GasTankWrapper implements IExtendedGasTank, IContentsListenerRegistry, IContentsSnapshot {
 
     private final IExtendedGasTank internal;
     private final BooleanSupplier insertCheck;
@@ -172,5 +173,19 @@ public class GasTankWrapper implements IExtendedGasTank, IContentsListenerRegist
     @Override
     public void deserializeNBT(NBTTagCompound nbt) {
         internal.deserializeNBT(nbt);
+    }
+
+    @Override
+    public NBTTagCompound createContentsSnapshot() {
+        return internal instanceof IContentsSnapshot snapshot ? snapshot.createContentsSnapshot() : internal.serializeNBT();
+    }
+
+    @Override
+    public void restoreContentsSnapshot(NBTTagCompound snapshot) {
+        if (internal instanceof IContentsSnapshot contentsSnapshot) {
+            contentsSnapshot.restoreContentsSnapshot(snapshot);
+        } else {
+            internal.deserializeNBT(snapshot);
+        }
     }
 }

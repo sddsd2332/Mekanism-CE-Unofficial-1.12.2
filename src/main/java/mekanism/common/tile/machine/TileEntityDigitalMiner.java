@@ -57,11 +57,12 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.tileentity.TileEntityShulkerBox;
 import net.minecraft.util.EnumFacing;
+import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3i;
-import net.minecraft.world.ChunkCache;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.IBlockAccess;
 import net.minecraft.world.WorldServer;
 import net.minecraftforge.common.MinecraftForge;
@@ -160,6 +161,14 @@ public class TileEntityDigitalMiner extends TileEntityElectricBlock implements I
     public String[] methods = {"setRadius", "setMin", "setMax", "addFilter", "removeFilter", "addOreFilter", "removeOreFilter", "reset", "start", "stop", "getToMine"};
     private List<IInventorySlot> mainSlots = new ArrayList<>();
     private EnergyInventorySlot energySlot;
+
+    /**
+     * Exposes the miner inventory to network-independent output providers. External extraction rules on these slots
+     * keep configured replacement materials inside the miner.
+     */
+    public List<IInventorySlot> getMiningOutputSlots() {
+        return Collections.unmodifiableList(mainSlots);
+    }
 
     public TileEntityDigitalMiner() {
         super("DigitalMiner", MachineType.DIGITAL_MINER.getStorage());
@@ -608,9 +617,7 @@ public class TileEntityDigitalMiner extends TileEntityElectricBlock implements I
     }
 
     public void start() {
-        if (searcher.state == State.IDLE) {
-            BlockPos startingPos = getStartingCoord().getPos();
-            searcher.setChunkCache(new ChunkCache(getWorld(), startingPos, startingPos.add(getDiameter(), maxY - minY + 1, getDiameter()), 0));
+        if (searcher.state == State.IDLE && searcher.prepare()) {
             searcher.start();
         }
         running = true;
@@ -619,7 +626,6 @@ public class TileEntityDigitalMiner extends TileEntityElectricBlock implements I
 
     public void stop() {
         if (searcher.state == State.SEARCHING) {
-            searcher.interrupt();
             reset();
             return;
         } else if (searcher.state == State.FINISHED) {
@@ -629,6 +635,9 @@ public class TileEntityDigitalMiner extends TileEntityElectricBlock implements I
     }
 
     public void reset() {
+        if (searcher != null) {
+            searcher.cancel();
+        }
         searcher = new ThreadMinerSearch(this);
         running = false;
         oresToMine.clear();
@@ -636,6 +645,22 @@ public class TileEntityDigitalMiner extends TileEntityElectricBlock implements I
         missingStack = ItemStack.EMPTY;
         setActive(false);
         MekanismUtils.saveChunk(this);
+    }
+
+    @Override
+    public void onChunkUnload() {
+        if (searcher != null) {
+            searcher.cancel();
+        }
+        super.onChunkUnload();
+    }
+
+    @Override
+    public void invalidate() {
+        if (searcher != null) {
+            searcher.cancel();
+        }
+        super.invalidate();
     }
 
     public boolean isReplaceStack(ItemStack stack) {
@@ -1250,11 +1275,23 @@ public class TileEntityDigitalMiner extends TileEntityElectricBlock implements I
         if (upgrade == Upgrade.SPEED) {
             delayLength = MekanismUtils.getTicks(this, BASE_DELAY);
         }
-        if (upgrade == Upgrade.SPEED || upgrade == Upgrade.ENERGY) {
-            energyUsage = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_USAGE);
-            maxEnergy = MekanismUtils.getMaxEnergy(this, BASE_MAX_ENERGY);
-            setEnergy(Math.min(getMaxEnergy(), getEnergy()));
+        if (!isRecalculatingAllUpgradables() && (upgrade == Upgrade.SPEED || upgrade == Upgrade.ENERGY)) {
+            recalculateEnergyAndCapacity();
         }
+    }
+
+    @Override
+    protected void onAllUpgradablesRecalculated(Set<Upgrade> upgrades) {
+        super.onAllUpgradablesRecalculated(upgrades);
+        if (upgrades.contains(Upgrade.SPEED) || upgrades.contains(Upgrade.ENERGY)) {
+            recalculateEnergyAndCapacity();
+        }
+    }
+
+    private void recalculateEnergyAndCapacity() {
+        energyUsage = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_USAGE);
+        maxEnergy = MekanismUtils.getMaxEnergy(this, BASE_MAX_ENERGY);
+        setEnergy(Math.min(getMaxEnergy(), getEnergy()));
     }
 
     @Override
@@ -1443,6 +1480,36 @@ public class TileEntityDigitalMiner extends TileEntityElectricBlock implements I
     @Override
     public boolean canDisplayVisuals() {
         return this.getRadius() <= 64;
+    }
+
+    @Nonnull
+    @Override
+    @SideOnly(Side.CLIENT)
+    public AxisAlignedBB getRenderBoundingBox() {
+        AxisAlignedBB machineBounds = super.getRenderBoundingBox();
+        if (!clientRendering || !canDisplayVisuals()) {
+            return machineBounds;
+        }
+        return machineBounds.union(getVisualizationRenderBoundingBox(getPos(), getRadius(), minY, maxY))
+              .grow(IBoundingBlock.RENDER_BOUNDS_EPSILON);
+    }
+
+    public static AxisAlignedBB getVisualizationRenderBoundingBox(BlockPos pos, int radius, int minY, int maxY) {
+        int clampedRadius = Math.max(0, Math.min(64, radius));
+        int renderMinY = Math.min(minY, maxY);
+        int renderMaxY = Math.max(minY, maxY);
+        return new AxisAlignedBB(pos.getX() - clampedRadius, renderMinY, pos.getZ() - clampedRadius,
+              pos.getX() + clampedRadius + 1D, renderMaxY + 1D, pos.getZ() + clampedRadius + 1D);
+    }
+
+    @Override
+    @SideOnly(Side.CLIENT)
+    public List<Vec3d> computeOcclusionSamplePoints() {
+        List<Vec3d> samplePoints = new ArrayList<>(super.computeOcclusionSamplePoints());
+        if (clientRendering && canDisplayVisuals()) {
+            samplePoints.addAll(cullingGetAabbOcclusionSamplePoints(getVisualizationRenderBoundingBox(getPos(), getRadius(), minY, maxY)));
+        }
+        return samplePoints;
     }
 
     @Override

@@ -44,6 +44,8 @@ public class SynchronizedFissionData extends SynchronizedData<SynchronizedFissio
     private static final double DEFAULT_CASING_HEAT_CAPACITY = 1_000;
     private static final double INVERSE_INSULATION_COEFFICIENT = 10_000;
     private static final double INVERSE_CONDUCTION_COEFFICIENT = 10;
+    private static final double ENVIRONMENT_INVERSE_CONDUCTION = HeatAPI.AIR_INVERSE_COEFFICIENT + INVERSE_INSULATION_COEFFICIENT +
+          INVERSE_CONDUCTION_COEFFICIENT;
     private static final double DEFAULT_WATER_COOLING_CONDUCTIVITY = 0.5;
     private static final double DEFAULT_SODIUM_COOLING_CONDUCTIVITY = 1;
     private static final double DEFAULT_STEAM_ENERGY_EFFICIENCY = 0.2;
@@ -82,6 +84,9 @@ public class SynchronizedFissionData extends SynchronizedData<SynchronizedFissio
     public long lastBoilRate;
     public double lastBurnRate;
     public double lastEnvironmentLoss;
+
+    private Coord4D reactorCenter;
+    private AxisAlignedBB radiationBounds;
 
     private GasStack prevFuel;
     private GasStack prevWaste;
@@ -429,12 +434,19 @@ public class SynchronizedFissionData extends SynchronizedData<SynchronizedFissio
         }
         if (wasteToAdd > 0) {
             if (MekanismFluids.NuclearWaste != null) {
-                GasStack waste = new GasStack(MekanismFluids.NuclearWaste, wasteToAdd);
-                GasStack remainder = wasteTank.insert(waste, Action.EXECUTE, AutomationType.INTERNAL);
-                int accepted = waste.amount - (remainder == null ? 0 : remainder.amount);
+                int accepted;
+                if (wasteTank.isEmpty()) {
+                    GasStack waste = new GasStack(MekanismFluids.NuclearWaste, wasteToAdd);
+                    GasStack remainder = wasteTank.insert(waste, Action.EXECUTE, AutomationType.INTERNAL);
+                    accepted = waste.amount - (remainder == null ? 0 : remainder.amount);
+                } else if (wasteTank.isTypeEqual(MekanismFluids.NuclearWaste)) {
+                    accepted = wasteTank.growStack(wasteToAdd, Action.EXECUTE);
+                } else {
+                    accepted = 0;
+                }
                 int leftoverWaste = Math.max(0, wasteToAdd - accepted);
-                if (leftoverWaste > 0 && waste.getGas() != null && waste.getGas().isRadiation()) {
-                    radiateFromCore(world, HeatAPI.multiplyHeat(leftoverWaste, waste.getGas().getRadioactivity()));
+                if (leftoverWaste > 0 && MekanismFluids.NuclearWaste.isRadiation()) {
+                    radiateFromCore(world, HeatAPI.multiplyHeat(leftoverWaste, MekanismFluids.NuclearWaste.getRadioactivity()));
                 }
             }
         }
@@ -522,9 +534,8 @@ public class SynchronizedFissionData extends SynchronizedData<SynchronizedFissio
     }
 
     private void dissipateHeat() {
-        double invConduction = HeatAPI.AIR_INVERSE_COEFFICIENT + INVERSE_INSULATION_COEFFICIENT + INVERSE_CONDUCTION_COEFFICIENT;
         double tempToTransfer = (HeatAPI.sanitizeTemperature(getTemperature()) - HeatAPI.sanitizeTemperature(biomeAmbientTemp)) /
-              (HeatAPI.isFinite(invConduction) && invConduction > 0 ? invConduction : HeatAPI.MAX_HEAT);
+              ENVIRONMENT_INVERSE_CONDUCTION;
         double heatToTransfer = HeatAPI.multiplyHeatSigned(tempToTransfer, heatCapacitor.getHeatCapacity());
         double heatBefore = heatCapacitor.getHeat();
         if (HeatAPI.isFinite(heatToTransfer)) {
@@ -560,7 +571,10 @@ public class SynchronizedFissionData extends SynchronizedData<SynchronizedFissio
         if (world.rand.nextInt(20) != 0) {
             return;
         }
-        AxisAlignedBB hotZone = new AxisAlignedBB(minLocation.x + 1, minLocation.y + 1, minLocation.z + 1, maxLocation.x, maxLocation.y, maxLocation.z);
+        AxisAlignedBB hotZone = getRadiationBounds();
+        if (hotZone == null) {
+            return;
+        }
         Iterable<EntityLivingBase> entities = world.getEntitiesWithinAABB(EntityLivingBase.class, hotZone);
         double wasteRadiation = getWasteTankRadioactivity(false) / 3_600D;
         double magnitude = HeatAPI.addHeatClamped(lastBurnRate, wasteRadiation);
@@ -653,7 +667,20 @@ public class SynchronizedFissionData extends SynchronizedData<SynchronizedFissio
         }
     }
 
-    private Coord4D getReactorCenter() {
+    public void updateDerivedGeometry() {
+        reactorCenter = calculateReactorCenter();
+        radiationBounds = minLocation == null || maxLocation == null ? null :
+              new AxisAlignedBB(minLocation.x + 1, minLocation.y + 1, minLocation.z + 1, maxLocation.x, maxLocation.y, maxLocation.z);
+    }
+
+    public Coord4D getReactorCenter() {
+        if (reactorCenter == null) {
+            reactorCenter = calculateReactorCenter();
+        }
+        return reactorCenter;
+    }
+
+    private Coord4D calculateReactorCenter() {
         if (minLocation != null && maxLocation != null) {
             return new Coord4D((minLocation.x + maxLocation.x) / 2D, (minLocation.y + maxLocation.y) / 2D, (minLocation.z + maxLocation.z) / 2D,
                     minLocation.dimensionId);
@@ -671,6 +698,13 @@ public class SynchronizedFissionData extends SynchronizedData<SynchronizedFissio
             return renderLocation;
         }
         return locations.isEmpty() ? null : locations.iterator().next();
+    }
+
+    AxisAlignedBB getRadiationBounds() {
+        if (radiationBounds == null && minLocation != null && maxLocation != null) {
+            radiationBounds = new AxisAlignedBB(minLocation.x + 1, minLocation.y + 1, minLocation.z + 1, maxLocation.x, maxLocation.y, maxLocation.z);
+        }
+        return radiationBounds;
     }
 
     public boolean shouldPlaySoundAt(BlockPos pos) {
@@ -717,15 +751,37 @@ public class SynchronizedFissionData extends SynchronizedData<SynchronizedFissio
     }
 
     public void syncPrev() {
-        prevFuel = fuelTank.getGas() == null ? null : fuelTank.getGas().copy();
-        prevWaste = wasteTank.getGas() == null ? null : wasteTank.getGas().copy();
-        prevGasCoolant = gasCoolantTank.getGas() == null ? null : gasCoolantTank.getGas().copy();
-        prevHeatedCoolant = heatedCoolantTank.getGas() == null ? null : heatedCoolantTank.getGas().copy();
-        prevCoolant = coolantTank.getFluid() == null ? null : coolantTank.getFluid().copy();
-        prevSteam = steamTank.getFluid() == null ? null : steamTank.getFluid().copy();
+        prevFuel = syncGasSnapshot(prevFuel, fuelTank.getGas());
+        prevWaste = syncGasSnapshot(prevWaste, wasteTank.getGas());
+        prevGasCoolant = syncGasSnapshot(prevGasCoolant, gasCoolantTank.getGas());
+        prevHeatedCoolant = syncGasSnapshot(prevHeatedCoolant, heatedCoolantTank.getGas());
+        prevCoolant = syncFluidSnapshot(prevCoolant, coolantTank.getFluid());
+        prevSteam = syncFluidSnapshot(prevSteam, steamTank.getFluid());
         prevTemperature = getTemperature();
         prevDamage = reactorDamage;
         prevActive = active;
+    }
+
+    private static GasStack syncGasSnapshot(GasStack cached, GasStack source) {
+        if (source == null) {
+            return null;
+        }
+        if (cached != null && cached.isGasEqual(source)) {
+            cached.amount = source.amount;
+            return cached;
+        }
+        return source.copy();
+    }
+
+    private static FluidStack syncFluidSnapshot(FluidStack cached, FluidStack source) {
+        if (source == null) {
+            return null;
+        }
+        if (cached != null && cached.isFluidEqual(source)) {
+            cached.amount = source.amount;
+            return cached;
+        }
+        return source.copy();
     }
 
     public boolean needsRenderUpdate() {

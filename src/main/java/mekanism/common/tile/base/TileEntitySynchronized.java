@@ -2,6 +2,7 @@ package mekanism.common.tile.base;
 
 import mekanism.common.Mekanism;
 import mekanism.common.base.IActiveState;
+import mekanism.common.base.IBoundingBlock;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.interfaces.IOcclusionCulling;
 import mekanism.common.util.MekanismUtils;
@@ -9,6 +10,7 @@ import net.minecraft.block.state.IBlockState;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.network.play.server.SPacketUpdateTileEntity;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.world.World;
 import net.minecraft.world.chunk.Chunk;
 import net.minecraftforge.fml.common.FMLCommonHandler;
@@ -237,29 +239,20 @@ public class TileEntitySynchronized extends TileEntity implements IOcclusionCull
         return rang * rang;
     }
 
+    @Nonnull
+    @Override
+    @SideOnly(Side.CLIENT)
+    public AxisAlignedBB getRenderBoundingBox() {
+        return new AxisAlignedBB(getPos()).grow(IBoundingBlock.RENDER_BOUNDS_EPSILON);
+    }
+
 
     @Override
     @SideOnly(Side.CLIENT)
     public boolean shouldCullForOcclusion() {
         if (!MekanismConfig.current().client.GazeCullingTracking.val()) {
-            cullingDiscardOpenGlQuery();
             return false;
         }
-        if (!MekanismConfig.current().client.GazeCullingOpenGLTracking.val()) {
-            cullingDiscardOpenGlQuery();
-        }
         return IOcclusionCulling.super.shouldCullForOcclusion();
-    }
-
-    @Override
-    @SideOnly(Side.CLIENT)
-    public boolean useOpenGlOcclusionCulling() {
-        return MekanismConfig.current().client.GazeCullingOpenGLTracking.val();
-    }
-
-    @Override
-    @SideOnly(Side.CLIENT)
-    public int getOpenGlOcclusionQueryInterval() {
-        return MekanismConfig.current().client.GazeCullingOpenGLQueryInterval.val();
     }
 }

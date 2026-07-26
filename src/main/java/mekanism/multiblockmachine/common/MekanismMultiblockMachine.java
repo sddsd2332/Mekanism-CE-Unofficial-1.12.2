@@ -9,6 +9,7 @@ import mekanism.common.config.MekanismConfig;
 import mekanism.common.network.PacketSimpleGui;
 import mekanism.multiblockmachine.common.registries.MultiblockMachineBlocks;
 import mekanism.multiblockmachine.common.registries.MultiblockMachineItems;
+import mekanism.multiblockmachine.common.processing.MultiblockMachineRecipeProviders;
 import net.minecraft.block.Block;
 import net.minecraft.item.Item;
 import net.minecraft.item.crafting.IRecipe;
@@ -66,6 +67,7 @@ public class MekanismMultiblockMachine implements IModule {
     public void preInit(FMLPreInitializationEvent event) {
         proxy.preInit();
         proxy.loadConfiguration();
+        MultiblockMachineRecipeProviders.register();
     }
 
     @Mod.EventHandler

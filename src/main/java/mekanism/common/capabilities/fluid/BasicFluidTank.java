@@ -4,6 +4,8 @@ import mekanism.api.Action;
 import mekanism.api.AutomationType;
 import mekanism.api.IContentsListener;
 import mekanism.api.IContentsListenerRegistry;
+import mekanism.api.IContentsSnapshot;
+import mekanism.api.NBTConstants;
 import mekanism.api.fluid.ExtendedFluidHandlerUtils;
 import mekanism.api.fluid.IExtendedFluidTank;
 import mekanism.api.functions.ConstantPredicates;
@@ -15,7 +17,7 @@ import java.util.Objects;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
-public class BasicFluidTank implements IExtendedFluidTank, IContentsListenerRegistry {
+public class BasicFluidTank implements IExtendedFluidTank, IContentsListenerRegistry, IContentsSnapshot {
 
     public static final Predicate<FluidStack> alwaysTrue = ConstantPredicates.alwaysTrue();
     public static final Predicate<FluidStack> alwaysFalse = ConstantPredicates.alwaysFalse();
@@ -163,12 +165,16 @@ public class BasicFluidTank implements IExtendedFluidTank, IContentsListenerRegi
 
     @Override
     public void setStack(@Nullable FluidStack stack) {
-        setStack(stack, true);
+        setStack(stack, true, true);
     }
 
     @Override
     public void setStackUnchecked(@Nullable FluidStack stack) {
-        setStack(stack, false);
+        setStack(stack, false, true);
+    }
+
+    public void setStackUncheckedNoUpdate(@Nullable FluidStack stack) {
+        setStack(stack, false, false);
     }
 
     public void setFluid(@Nullable FluidStack stack) {
@@ -179,7 +185,7 @@ public class BasicFluidTank implements IExtendedFluidTank, IContentsListenerRegi
         return Integer.MAX_VALUE;
     }
 
-    private void setStack(@Nullable FluidStack stack, boolean validateStack) {
+    private void setStack(@Nullable FluidStack stack, boolean validateStack, boolean notifyChange) {
         if (ExtendedFluidHandlerUtils.isEmpty(stack)) {
             if (stored == null) {
                 return;
@@ -190,7 +196,20 @@ public class BasicFluidTank implements IExtendedFluidTank, IContentsListenerRegi
         } else {
             throw new RuntimeException("Invalid fluid for tank: " + stack.getFluid().getName() + " " + stack.amount);
         }
-        onContentsChanged();
+        if (notifyChange) {
+            onContentsChanged();
+        }
+    }
+
+    @Override
+    public NBTTagCompound createContentsSnapshot() {
+        return serializeNBT();
+    }
+
+    @Override
+    public void restoreContentsSnapshot(NBTTagCompound snapshot) {
+        setStackUncheckedNoUpdate(snapshot.hasKey(NBTConstants.STORED) ?
+              FluidStack.loadFluidStackFromNBT(snapshot.getCompoundTag(NBTConstants.STORED)) : null);
     }
 
     @Override

@@ -39,6 +39,7 @@ public class TransporterStack {
     private Coord4D clientPrev;
     private Path pathType;
     private List<Coord4D> pathToTarget = new ArrayList<>();
+    private int pathIndex = -1;
 
     public static TransporterStack readFromNBT(NBTTagCompound nbtTags) {
         TransporterStack stack = new TransporterStack();
@@ -63,7 +64,7 @@ public class TransporterStack {
         originalLocation.write(data);
         data.add(pathType.ordinal());
 
-        if (pathToTarget.indexOf(transporter.coord()) > 0) {
+        if (getPathIndex(transporter.coord()) > 0) {
             data.add(true);
             getNext(transporter).write(data);
         } else {
@@ -75,6 +76,9 @@ public class TransporterStack {
     }
 
     public void read(ByteBuf dataStream) {
+        pathToTarget = new ArrayList<>();
+        pathIndex = -1;
+        initiatedPath = false;
         int c = dataStream.readInt();
         if (c != -1) {
             color = MekanismUtils.getByIndex(TransporterUtils.colors, c, null);
@@ -112,6 +116,9 @@ public class TransporterStack {
     }
 
     public void read(NBTTagCompound nbtTags) {
+        pathToTarget = new ArrayList<>();
+        pathIndex = -1;
+        initiatedPath = false;
         if (nbtTags.hasKey("color")) {
             color = MekanismUtils.getByIndex(TransporterUtils.colors, nbtTags.getInteger("color"), null);
         }
@@ -140,6 +147,7 @@ public class TransporterStack {
         }
         pathToTarget = path;
         pathType = type;
+        pathIndex = path == null || path.isEmpty() ? -1 : path.size() - 1;
         if (updateFlowing && pathType != Path.NONE) {
             TransporterManager.add(this);
         }
@@ -212,12 +220,33 @@ public class TransporterStack {
     }
 
     public boolean isFinal(ILogisticalTransporter transporter) {
-        return pathToTarget.indexOf(transporter.coord()) == (pathType == Path.NONE ? 0 : 1);
+        return getPathIndex(transporter.coord()) == (pathType == Path.NONE ? 0 : 1);
+    }
+
+    /**
+     * Resolves the current position against the reversed path. Normal movement advances one entry
+     * toward index zero, while the full scan is retained as a recovery path after reloads or reroutes.
+     */
+    public int getPathIndex(Coord4D current) {
+        if (current == null || pathToTarget == null || pathToTarget.isEmpty()) {
+            pathIndex = -1;
+            return -1;
+        }
+        if (pathIndex >= 0 && pathIndex < pathToTarget.size()) {
+            if (pathToTarget.get(pathIndex).equals(current)) {
+                return pathIndex;
+            }
+            if (pathIndex > 0 && pathToTarget.get(pathIndex - 1).equals(current)) {
+                return --pathIndex;
+            }
+        }
+        pathIndex = pathToTarget.indexOf(current);
+        return pathIndex;
     }
 
     public Coord4D getNext(ILogisticalTransporter transporter) {
         if (!transporter.world().isRemote) {
-            int index = pathToTarget.indexOf(transporter.coord()) - 1;
+            int index = getPathIndex(transporter.coord()) - 1;
             if (index < 0) {
                 return null;
             }
@@ -228,7 +257,11 @@ public class TransporterStack {
 
     public Coord4D getPrev(ILogisticalTransporter transporter) {
         if (!transporter.world().isRemote) {
-            int index = pathToTarget.indexOf(transporter.coord()) + 1;
+            int currentIndex = getPathIndex(transporter.coord());
+            if (currentIndex < 0) {
+                return originalLocation;
+            }
+            int index = currentIndex + 1;
             if (index < pathToTarget.size()) {
                 return pathToTarget.get(index);
             }

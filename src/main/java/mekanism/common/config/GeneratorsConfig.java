@@ -3,6 +3,7 @@ package mekanism.common.config;
 import io.netty.buffer.ByteBuf;
 import mekanism.common.config.options.BooleanOption;
 import mekanism.common.config.options.DoubleOption;
+import mekanism.common.config.options.FloatOption;
 import mekanism.common.config.options.IntOption;
 import mekanism.common.config.options.IntSetOption;
 import mekanism.generators.common.block.states.BlockStateGenerator.GeneratorType;
@@ -111,6 +112,8 @@ public class GeneratorsConfig extends BaseConfig {
             "Average fuel assembly surface area required for 100% boiling efficiency.", 1D, Double.MAX_VALUE);
     public final BooleanOption fissionMeltdownsEnabled = new BooleanOption(this, "FissionMeltdownsEnabled", true,
             "If disabled, reactor will force shutdown at critical damage instead of melting down.");
+    public final FloatOption fissionMeltdownRadius = new FloatOption(this, "FissionMeltdownRadius", 8F,
+            "Radius of explosions created by a fission reactor meltdown.", 1F, 500F);
     public final DoubleOption fissionMeltdownChance = new DoubleOption(this, "FissionMeltdownChance", 0.001D,
             "Base per-tick meltdown chance once critical damage is reached.", 0D, 1D);
     public final DoubleOption fissionMeltdownRadiationMultiplier = new DoubleOption(this, "FissionMeltdownRadiationMultiplier", 50D,

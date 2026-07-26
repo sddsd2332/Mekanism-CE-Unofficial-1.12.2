@@ -177,6 +177,10 @@ public class TileEntityNutritionalLiquifier extends TileEntityBasicMachine<ItemS
         return getMainEnergyContainer();
     }
 
+    public InputInventorySlot getRecipeInputSlot() {
+        return inputSlot;
+    }
+
     public boolean hasWarningNoSpaceInOutput() {
         if (hasWarning(RecipeError.NOT_ENOUGH_OUTPUT_SPACE)) {
             return true;

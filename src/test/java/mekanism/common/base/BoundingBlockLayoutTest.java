@@ -21,6 +21,7 @@ import mekanism.multiblockmachine.common.tile.machine.TileEntityLargeElectrolyti
 import mekanism.multiblockmachine.common.tile.machine.TileEntityLargeSolarNeutronActivator;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
+import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -31,6 +32,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BoundingBlockLayoutTest {
@@ -90,6 +92,31 @@ class BoundingBlockLayoutTest {
         }
     }
 
+    @Test
+    void declaredLayoutsProduceFiniteRenderBounds() {
+        assertBox(atOrigin(new TileEntitySecurityDesk()).getRenderBoundingBox(), 10, 64, -4, 11, 66, -3);
+        assertBox(atOrigin(new TileEntityDigitalMiner()).getRenderBoundingBox(), 9, 64, -5, 12, 66, -2);
+        assertBox(atOrigin(new TileEntityAdvancedSolarGenerator()).getRenderBoundingBox(), 9, 64, -5, 12, 67, -2);
+
+        TileEntityLargeGasGenerator gasGenerator = atOrigin(new TileEntityLargeGasGenerator());
+        gasGenerator.facing = EnumFacing.NORTH;
+        assertBox(gasGenerator.getRenderBoundingBox(), 9, 64, -5, 12, 67, -2);
+    }
+
+    @Test
+    void legacyLayoutsRemainFailOpen() {
+        IBoundingBlock legacy = new IBoundingBlock() {
+            @Override
+            public void onPlace() {
+            }
+
+            @Override
+            public void onBreak() {
+            }
+        };
+        assertNull(legacy.getBoundingBlockRenderBounds(ORIGIN));
+    }
+
     private static <T extends TileEntity> T atOrigin(T tile) {
         tile.setPos(ORIGIN);
         return tile;
@@ -109,5 +136,18 @@ class BoundingBlockLayoutTest {
             positions.add(data.getPosition());
         }
         return positions;
+    }
+
+    private static void assertBox(AxisAlignedBB box, double minX, double minY, double minZ,
+                                  double maxX, double maxY, double maxZ) {
+        double epsilon = IBoundingBlock.RENDER_BOUNDS_EPSILON + 1.0E-9D;
+        assertTrue(box.minX <= minX && box.minX >= minX - epsilon);
+        assertTrue(box.minY <= minY && box.minY >= minY - epsilon);
+        assertTrue(box.minZ <= minZ && box.minZ >= minZ - epsilon);
+        assertTrue(box.maxX >= maxX && box.maxX <= maxX + epsilon);
+        assertTrue(box.maxY >= maxY && box.maxY <= maxY + epsilon);
+        assertTrue(box.maxZ >= maxZ && box.maxZ <= maxZ + epsilon);
+        assertTrue(Double.isFinite(box.minX) && Double.isFinite(box.minY) && Double.isFinite(box.minZ));
+        assertTrue(Double.isFinite(box.maxX) && Double.isFinite(box.maxY) && Double.isFinite(box.maxZ));
     }
 }

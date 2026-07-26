@@ -1,21 +1,20 @@
 package mekanism.common.interfaces;
 
-import mekanism.common.Mekanism;
+import mekanism.client.render.OptifineRenderCompat;
 import mekanism.common.base.IBoundingBlock;
 import mekanism.common.tile.TileEntityBoundingBlock;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.tileentity.TileEntityRendererDispatcher;
 import net.minecraft.entity.Entity;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
+import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
-import org.lwjgl.opengl.*;
 
 import javax.annotation.Nullable;
 import java.util.*;
@@ -35,7 +34,7 @@ public interface IOcclusionCulling {
     @SideOnly(Side.CLIENT)
     int BOUNDING_SAMPLED_POINT_LIMIT = 48;
     @SideOnly(Side.CLIENT)
-    int BOUNDING_PROBE_POINT_LIMIT = 512;
+    int BOUNDING_PROBE_POINT_LIMIT = 96;
     @SideOnly(Side.CLIENT)
     double BOUNDING_EDGE_PROBE_MIN = 0.02D;
     @SideOnly(Side.CLIENT)
@@ -45,24 +44,18 @@ public interface IOcclusionCulling {
     @SideOnly(Side.CLIENT)
     int OCCLUSION_AABB_FACE_MAX_STEPS = 4;
     @SideOnly(Side.CLIENT)
-    int OCCLUSION_AABB_MAX_RAY_BUDGET = 96;
+    int OCCLUSION_AABB_MAX_RAY_BUDGET = 64;
     @SideOnly(Side.CLIENT)
     double OCCLUSION_AABB_EXPAND_EPSILON = 0.02D;
+    /** Visible results may be reused briefly when doing so can only cause extra rendering. */
     @SideOnly(Side.CLIENT)
-    int OCCLUSION_GPU_QUERY_STALE_TICKS = 200;
+    int OCCLUSION_VISIBLE_RESULT_CACHE_TICKS = 2;
     @SideOnly(Side.CLIENT)
-    int OCCLUSION_GPU_QUERY_CLEANUP_INTERVAL = 20;
+    double OCCLUSION_VISIBLE_CAMERA_POSITION_EPSILON = 0.125D;
+    @SideOnly(Side.CLIENT)
+    double OCCLUSION_VISIBLE_CAMERA_LOOK_DOT = 0.9995D;
     Map<IOcclusionCulling, CacheEntry> OCCLUSION_CACHE = Collections.synchronizedMap(new WeakHashMap<>());
     Map<IOcclusionCulling, OcclusionResultCacheEntry> OCCLUSION_RESULT_CACHE = Collections.synchronizedMap(new WeakHashMap<>());
-    // Keep query owners alive until explicit stale cleanup so WeakHashMap expunging cannot orphan
-    // an OpenGL query ID before it is deleted.
-    Map<IOcclusionCulling, GpuQueryState> GPU_QUERY_CACHE = Collections.synchronizedMap(new IdentityHashMap<>());
-    long[] GPU_QUERY_LAST_CLEANUP_TICK = new long[]{Long.MIN_VALUE};
-    boolean[] GPU_QUERY_FORCE_DISABLE = new boolean[]{false};
-    boolean[] GPU_QUERY_UNSUPPORTED_LOGGED = new boolean[]{false};
-    boolean[] GPU_QUERY_FALLBACK_LOGGED = new boolean[]{false};
-    long[] OPTIFINE_COMPATIBILITY_LAST_CHECK = new long[]{Long.MIN_VALUE};
-    boolean[] OPTIFINE_RENDER_PATH_INCOMPATIBLE = new boolean[]{false};
 
     @SideOnly(Side.CLIENT)
     default boolean shouldCullForOcclusion() {
@@ -73,6 +66,9 @@ public interface IOcclusionCulling {
         }
         Minecraft mc = Minecraft.getMinecraft();
         if (mc == null || mc.gameSettings == null) {
+            return false;
+        }
+        if (OptifineRenderCompat.isShadowPass()) {
             return false;
         }
         if (mc.gameSettings.thirdPersonView != 0) {
@@ -86,12 +82,16 @@ public interface IOcclusionCulling {
         float partialTicks = mc.getRenderPartialTicks();
         Vec3d eyePos = renderView.getPositionEyes(partialTicks);
         Vec3d lookVec = renderView.getLook(partialTicks);
+        if (!cullingIsFiniteVec(eyePos) || !cullingIsFiniteVec(lookVec) || lookVec.lengthSquared() <= 1.0E-8D) {
+            return false;
+        }
         long worldTime = world.getTotalWorldTime();
-        Boolean cachedResult = cullingGetCachedResult(world, worldTime, eyePos, lookVec);
+        AxisAlignedBB renderBounds = cullingGetRenderBounds();
+        Boolean cachedResult = cullingGetCachedResult(world, worldTime, eyePos, lookVec, renderBounds);
         if (cachedResult != null) {
             return cachedResult;
         }
-        List<Vec3d> samplePoints = computeOcclusionSamplePoints();
+        List<Vec3d> samplePoints = cullingMergeRenderBoundsSamplePoints(computeOcclusionSamplePoints(), renderBounds);
         if (samplePoints == null || samplePoints.isEmpty()) {
             samplePoints = Collections.singletonList(new Vec3d(pos).add(0.5D, 0.5D, 0.5D));
         }
@@ -112,60 +112,124 @@ public interface IOcclusionCulling {
             }
         }
         if (!anyPointInView) {
-            return cullingCacheResult(world, worldTime, eyePos, lookVec, true);
+            return cullingCacheResult(world, worldTime, eyePos, lookVec, true, renderBounds);
         }
-        if (useOpenGlOcclusionCulling()) {
-            Boolean gpuCulled = cullingComputeOpenGlResult(samplePoints, worldTime);
-            if (Boolean.FALSE.equals(gpuCulled)) {
-                // A visible GPU result is sufficient to render. An occluded result is asynchronous
-                // and may describe the previous camera position, so confirm it with current CPU rays.
-                return cullingCacheResult(world, worldTime, eyePos, lookVec, false);
-            }
-        }
-
         for (Vec3d samplePoint : samplePoints) {
             if (cullingCanSeePointCached(eyePos, samplePoint, rayCache)) {
-                return cullingCacheResult(world, worldTime, eyePos, lookVec, false);
+                return cullingCacheResult(world, worldTime, eyePos, lookVec, false, renderBounds);
             }
         }
         // Borrowed from entity-culling AABB-side tracing: if corner probes are all blocked,
         // still allow rendering when any visible face sample can be seen.
         if (cullingIsAabbFaceVisible(eyePos, samplePoints, rayCache)) {
-            return cullingCacheResult(world, worldTime, eyePos, lookVec, false);
+            return cullingCacheResult(world, worldTime, eyePos, lookVec, false, renderBounds);
         }
-        return cullingCacheResult(world, worldTime, eyePos, lookVec, true);
+        return cullingCacheResult(world, worldTime, eyePos, lookVec, true, renderBounds);
     }
 
     @SideOnly(Side.CLIENT)
     @Nullable
     default Boolean cullingGetCachedResult(World world, long worldTime, Vec3d eyePos, Vec3d lookVec) {
+        return cullingGetCachedResult(world, worldTime, eyePos, lookVec, cullingGetRenderBounds());
+    }
+
+    @SideOnly(Side.CLIENT)
+    @Nullable
+    default Boolean cullingGetCachedResult(World world, long worldTime, Vec3d eyePos, Vec3d lookVec,
+                                           @Nullable AxisAlignedBB renderBounds) {
         OcclusionResultCacheEntry entry = OCCLUSION_RESULT_CACHE.get(this);
-        if (entry != null && entry.world == world && entry.tick == worldTime &&
-              entry.eyePos.equals(eyePos) && entry.lookVec.equals(lookVec)) {
-            return entry.culled;
+        if (entry == null || entry.world != world || !cullingAreSameBounds(entry.renderBounds, renderBounds)) {
+            return null;
+        }
+        if (entry.tick == worldTime) {
+            if (entry.eyePos.equals(eyePos) && entry.lookVec.equals(lookVec)) {
+                return entry.culled;
+            }
+            // The camera can move several render frames inside one world tick. Do
+            // not repeat the full ray set for each frame; fail open until the next
+            // tick so movement can never reuse an obsolete hidden result.
+            return false;
+        }
+        // Reusing a visible result can only render an object which has since become
+        // hidden. Never reuse a stale "culled" result, as that could hide geometry.
+        if (!entry.culled && cullingIsVisibleResultCacheFresh(entry.tick, worldTime)
+              && cullingIsCameraClose(entry.eyePos, entry.lookVec, eyePos, lookVec)) {
+            return false;
         }
         return null;
     }
 
     @SideOnly(Side.CLIENT)
     default boolean cullingCacheResult(World world, long worldTime, Vec3d eyePos, Vec3d lookVec, boolean culled) {
-        OCCLUSION_RESULT_CACHE.put(this, new OcclusionResultCacheEntry(world, worldTime, eyePos, lookVec, culled));
+        return cullingCacheResult(world, worldTime, eyePos, lookVec, culled, cullingGetRenderBounds());
+    }
+
+    @SideOnly(Side.CLIENT)
+    default boolean cullingCacheResult(World world, long worldTime, Vec3d eyePos, Vec3d lookVec, boolean culled,
+                                       @Nullable AxisAlignedBB renderBounds) {
+        OCCLUSION_RESULT_CACHE.put(this, new OcclusionResultCacheEntry(world, worldTime, eyePos, lookVec, culled, renderBounds));
         return culled;
+    }
+
+    @SideOnly(Side.CLIENT)
+    static boolean cullingIsVisibleResultCacheFresh(long cachedTick, long currentTick) {
+        long age = currentTick - cachedTick;
+        return age >= 0 && age < OCCLUSION_VISIBLE_RESULT_CACHE_TICKS;
+    }
+
+    @SideOnly(Side.CLIENT)
+    static boolean cullingIsCameraClose(Vec3d cachedEye, Vec3d cachedLook, Vec3d eye, Vec3d look) {
+        if (cachedEye == null || cachedLook == null || eye == null || look == null
+              || !Double.isFinite(cachedEye.x) || !Double.isFinite(cachedEye.y) || !Double.isFinite(cachedEye.z)
+              || !Double.isFinite(eye.x) || !Double.isFinite(eye.y) || !Double.isFinite(eye.z)) {
+            return false;
+        }
+        if (cachedEye.squareDistanceTo(eye) > OCCLUSION_VISIBLE_CAMERA_POSITION_EPSILON * OCCLUSION_VISIBLE_CAMERA_POSITION_EPSILON) {
+            return false;
+        }
+        double cachedLength = cachedLook.lengthSquared();
+        double currentLength = look.lengthSquared();
+        if (!Double.isFinite(cachedLength) || !Double.isFinite(currentLength)
+              || cachedLength <= 1.0E-8D || currentLength <= 1.0E-8D) {
+            return false;
+        }
+        return cachedLook.dotProduct(look) / Math.sqrt(cachedLength * currentLength) >= OCCLUSION_VISIBLE_CAMERA_LOOK_DOT;
+    }
+
+    @SideOnly(Side.CLIENT)
+    static boolean cullingIsFiniteVec(@Nullable Vec3d vector) {
+        return vector != null && Double.isFinite(vector.x) && Double.isFinite(vector.y) && Double.isFinite(vector.z);
+    }
+
+    @SideOnly(Side.CLIENT)
+    @Nullable
+    default AxisAlignedBB cullingGetRenderBounds() {
+        if (this instanceof TileEntity tile) {
+            try {
+                return tile.getRenderBoundingBox();
+            } catch (RuntimeException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    @SideOnly(Side.CLIENT)
+    static boolean cullingAreSameBounds(@Nullable AxisAlignedBB first, @Nullable AxisAlignedBB second) {
+        if (first == second) {
+            return true;
+        }
+        if (first == null || second == null) {
+            return false;
+        }
+        return Double.compare(first.minX, second.minX) == 0 && Double.compare(first.minY, second.minY) == 0
+              && Double.compare(first.minZ, second.minZ) == 0 && Double.compare(first.maxX, second.maxX) == 0
+              && Double.compare(first.maxY, second.maxY) == 0 && Double.compare(first.maxZ, second.maxZ) == 0;
     }
 
     static boolean cullingIsBeyondRenderDistance(double distanceSquared, double maxDistanceSquared) {
         return Double.isFinite(distanceSquared) && Double.isFinite(maxDistanceSquared) && maxDistanceSquared >= 0 &&
               distanceSquared > maxDistanceSquared;
-    }
-
-    @SideOnly(Side.CLIENT)
-    default boolean useOpenGlOcclusionCulling() {
-        return false;
-    }
-
-    @SideOnly(Side.CLIENT)
-    default int getOpenGlOcclusionQueryInterval() {
-        return 2;
     }
 
     @SideOnly(Side.CLIENT)
@@ -179,19 +243,54 @@ public interface IOcclusionCulling {
             return cullingGetSingleBlockOcclusionSamplePoints(pos);
         }
         long worldTime = world.getTotalWorldTime();
+        AxisAlignedBB renderBounds = cullingGetRenderBounds();
         CacheEntry entry = OCCLUSION_CACHE.get(this);
-        if (entry != null && entry.world == world && cullingIsSampleCacheFresh(entry.tick, worldTime) && !entry.points.isEmpty()) {
+        if (entry != null && entry.world == world && cullingIsSampleCacheFresh(entry.tick, worldTime)
+              && cullingAreSameBounds(entry.renderBounds, renderBounds) && !entry.points.isEmpty()) {
             return entry.points;
         }
 
         List<Vec3d> rebuiltPoints = this instanceof IBoundingBlock ? cullingBuildBoundingOcclusionSamplePoints(world, pos) : cullingGetSingleBlockOcclusionSamplePoints(pos);
-        OCCLUSION_CACHE.put(this, new CacheEntry(world, worldTime, rebuiltPoints));
+        OCCLUSION_CACHE.put(this, new CacheEntry(world, worldTime, rebuiltPoints, renderBounds));
         return rebuiltPoints;
     }
 
     static boolean cullingIsSampleCacheFresh(long cachedTick, long currentTick) {
         long age = currentTick - cachedTick;
         return age >= 0 && age < BOUNDING_SAMPLE_CACHE_INTERVAL;
+    }
+
+    @SideOnly(Side.CLIENT)
+    default List<Vec3d> cullingMergeRenderBoundsSamplePoints(List<Vec3d> samplePoints) {
+        return cullingMergeRenderBoundsSamplePoints(samplePoints, cullingGetRenderBounds());
+    }
+
+    @SideOnly(Side.CLIENT)
+    default List<Vec3d> cullingMergeRenderBoundsSamplePoints(@Nullable List<Vec3d> samplePoints,
+                                                             @Nullable AxisAlignedBB renderBounds) {
+        List<Vec3d> renderPoints = cullingGetAabbOcclusionSamplePoints(renderBounds);
+        int baseSize = samplePoints == null ? 0 : samplePoints.size();
+        List<Vec3d> merged = new ArrayList<>(Math.min(BOUNDING_PROBE_POINT_LIMIT, renderPoints.size() + baseSize));
+        Set<Vec3d> seen = new HashSet<>();
+        // Reserve space for the finite render box first. For large structures the
+        // structural sampler is capped, and the model envelope must not be the part
+        // which gets dropped when that cap is reached.
+        for (Vec3d point : renderPoints) {
+            if (cullingIsFiniteVec(point) && seen.add(point)) {
+                merged.add(point);
+            }
+        }
+        if (samplePoints != null) {
+            for (Vec3d point : samplePoints) {
+                if (merged.size() >= BOUNDING_PROBE_POINT_LIMIT) {
+                    break;
+                }
+                if (cullingIsFiniteVec(point) && seen.add(point)) {
+                    merged.add(point);
+                }
+            }
+        }
+        return merged;
     }
 
     @SideOnly(Side.CLIENT)
@@ -226,18 +325,29 @@ public interface IOcclusionCulling {
 
     @SideOnly(Side.CLIENT)
     default List<Vec3d> cullingGetSingleBlockOcclusionSamplePoints(BlockPos pos) {
-        double x = pos.getX();
-        double y = pos.getY();
-        double z = pos.getZ();
-        double xMin = x + BOUNDING_EDGE_PROBE_MIN;
-        double yMin = y + BOUNDING_EDGE_PROBE_MIN;
-        double zMin = z + BOUNDING_EDGE_PROBE_MIN;
-        double xMax = x + BOUNDING_EDGE_PROBE_MAX;
-        double yMax = y + BOUNDING_EDGE_PROBE_MAX;
-        double zMax = z + BOUNDING_EDGE_PROBE_MAX;
+        return cullingGetAabbOcclusionSamplePoints(new AxisAlignedBB(pos));
+    }
+
+    @SideOnly(Side.CLIENT)
+    default List<Vec3d> cullingGetAabbOcclusionSamplePoints(@Nullable AxisAlignedBB bounds) {
+        if (bounds == null || !Double.isFinite(bounds.minX) || !Double.isFinite(bounds.minY) || !Double.isFinite(bounds.minZ)
+              || !Double.isFinite(bounds.maxX) || !Double.isFinite(bounds.maxY) || !Double.isFinite(bounds.maxZ)
+              || bounds.maxX <= bounds.minX || bounds.maxY <= bounds.minY || bounds.maxZ <= bounds.minZ) {
+            return Collections.emptyList();
+        }
+        double insetX = Math.min(BOUNDING_EDGE_PROBE_MIN, (bounds.maxX - bounds.minX) * 0.25D);
+        double insetY = Math.min(BOUNDING_EDGE_PROBE_MIN, (bounds.maxY - bounds.minY) * 0.25D);
+        double insetZ = Math.min(BOUNDING_EDGE_PROBE_MIN, (bounds.maxZ - bounds.minZ) * 0.25D);
+        double xMin = bounds.minX + insetX;
+        double yMin = bounds.minY + insetY;
+        double zMin = bounds.minZ + insetZ;
+        double xMax = bounds.maxX - insetX;
+        double yMax = bounds.maxY - insetY;
+        double zMax = bounds.maxZ - insetZ;
 
         List<Vec3d> points = new ArrayList<>(9);
-        points.add(new Vec3d(x + 0.5D, y + 0.5D, z + 0.5D));
+        points.add(new Vec3d((bounds.minX + bounds.maxX) * 0.5D, (bounds.minY + bounds.maxY) * 0.5D,
+              (bounds.minZ + bounds.maxZ) * 0.5D));
         points.add(new Vec3d(xMin, yMin, zMin));
         points.add(new Vec3d(xMin, yMin, zMax));
         points.add(new Vec3d(xMin, yMax, zMin));
@@ -382,56 +492,28 @@ public interface IOcclusionCulling {
     default List<Vec3d> cullingToProbePoints(Set<BlockPos> points) {
         List<BlockPos> orderedPoints = new ArrayList<>(points);
         orderedPoints.sort(Comparator.comparingInt(BlockPos::getY).thenComparingInt(BlockPos::getX).thenComparingInt(BlockPos::getZ));
-        List<Vec3d> centers = new ArrayList<>(Math.min(BOUNDING_PROBE_POINT_LIMIT, orderedPoints.size() * 9));
+        List<Vec3d> probes = new ArrayList<>(Math.min(BOUNDING_PROBE_POINT_LIMIT, orderedPoints.size() * 9));
+        // Cover every selected structure block before spending the remaining budget
+        // on corners. Sequentially adding all nine points per block biases the cap
+        // toward the first few positions and can entirely miss a distant extreme.
         for (BlockPos point : orderedPoints) {
-            if (centers.size() >= BOUNDING_PROBE_POINT_LIMIT) {
-                break;
+            if (probes.size() >= BOUNDING_PROBE_POINT_LIMIT) {
+                return probes;
             }
-            double x = point.getX();
-            double y = point.getY();
-            double z = point.getZ();
-            centers.add(new Vec3d(x + 0.5D, y + 0.5D, z + 0.5D));
-            if (centers.size() >= BOUNDING_PROBE_POINT_LIMIT) {
-                continue;
-            }
-            double xMin = x + BOUNDING_EDGE_PROBE_MIN;
-            double xMax = x + BOUNDING_EDGE_PROBE_MAX;
-            double yMin = y + BOUNDING_EDGE_PROBE_MIN;
-            double yMax = y + BOUNDING_EDGE_PROBE_MAX;
-            double zMin = z + BOUNDING_EDGE_PROBE_MIN;
-            double zMax = z + BOUNDING_EDGE_PROBE_MAX;
-
-            centers.add(new Vec3d(xMin, yMin, zMin));
-            if (centers.size() >= BOUNDING_PROBE_POINT_LIMIT) {
-                continue;
-            }
-            centers.add(new Vec3d(xMin, yMin, zMax));
-            if (centers.size() >= BOUNDING_PROBE_POINT_LIMIT) {
-                continue;
-            }
-            centers.add(new Vec3d(xMin, yMax, zMin));
-            if (centers.size() >= BOUNDING_PROBE_POINT_LIMIT) {
-                continue;
-            }
-            centers.add(new Vec3d(xMin, yMax, zMax));
-            if (centers.size() >= BOUNDING_PROBE_POINT_LIMIT) {
-                continue;
-            }
-            centers.add(new Vec3d(xMax, yMin, zMin));
-            if (centers.size() >= BOUNDING_PROBE_POINT_LIMIT) {
-                continue;
-            }
-            centers.add(new Vec3d(xMax, yMin, zMax));
-            if (centers.size() >= BOUNDING_PROBE_POINT_LIMIT) {
-                continue;
-            }
-            centers.add(new Vec3d(xMax, yMax, zMin));
-            if (centers.size() >= BOUNDING_PROBE_POINT_LIMIT) {
-                continue;
-            }
-            centers.add(new Vec3d(xMax, yMax, zMax));
+            probes.add(new Vec3d(point).add(0.5D, 0.5D, 0.5D));
         }
-        return centers;
+        for (int corner = 0; corner < 8 && probes.size() < BOUNDING_PROBE_POINT_LIMIT; corner++) {
+            for (BlockPos point : orderedPoints) {
+                if (probes.size() >= BOUNDING_PROBE_POINT_LIMIT) {
+                    break;
+                }
+                double x = point.getX() + ((corner & 4) == 0 ? BOUNDING_EDGE_PROBE_MIN : BOUNDING_EDGE_PROBE_MAX);
+                double y = point.getY() + ((corner & 2) == 0 ? BOUNDING_EDGE_PROBE_MIN : BOUNDING_EDGE_PROBE_MAX);
+                double z = point.getZ() + ((corner & 1) == 0 ? BOUNDING_EDGE_PROBE_MIN : BOUNDING_EDGE_PROBE_MAX);
+                probes.add(new Vec3d(x, y, z));
+            }
+        }
+        return probes;
     }
 
     @SideOnly(Side.CLIENT)
@@ -447,6 +529,9 @@ public interface IOcclusionCulling {
     default boolean cullingCanSeePoint(Vec3d eyePos, Vec3d target) {
         World world = getOcclusionWorld();
         if (world == null) {
+            return true;
+        }
+        if (!cullingIsFiniteVec(eyePos) || !cullingIsFiniteVec(target)) {
             return true;
         }
         Vec3d start = eyePos;
@@ -638,133 +723,7 @@ public interface IOcclusionCulling {
     }
 
     @SideOnly(Side.CLIENT)
-    default Boolean cullingComputeOpenGlResult(List<Vec3d> samplePoints, long worldTime) {
-        if (!cullingIsOpenGlQuerySupported()) {
-            if (!GPU_QUERY_UNSUPPORTED_LOGGED[0]) {
-                GPU_QUERY_UNSUPPORTED_LOGGED[0] = true;
-                Mekanism.logger.warn("GazeCulling OpenGL path unsupported on this client; falling back to CPU occlusion culling.");
-            }
-            return null;
-        }
-        if (GPU_QUERY_FORCE_DISABLE[0]) {
-            return null;
-        }
-        cullingCleanupStaleGpuQueries(worldTime);
-        GpuQueryState state = GPU_QUERY_CACHE.computeIfAbsent(this, ignored -> new GpuQueryState());
-        state.lastTouchedTick = worldTime;
-
-        try {
-            if (state.queryPending && state.queryId != -1) {
-                if (cullingIsQueryResultAvailable(state)) {
-                    state.lastVisible = cullingConsumeQueryResult(state);
-                }
-            }
-            int interval = Math.max(1, getOpenGlOcclusionQueryInterval());
-            if (!state.queryPending && (state.lastIssueTick == Long.MIN_VALUE || worldTime - state.lastIssueTick >= interval)) {
-                double[] aabb = cullingComputeAabb(samplePoints);
-                if (aabb != null) {
-                    cullingIssueQuery(state, aabb[0], aabb[1], aabb[2], aabb[3], aabb[4], aabb[5]);
-                    state.lastIssueTick = worldTime;
-                }
-            }
-            return !state.lastVisible;
-        } catch (Throwable ignored) {
-            GPU_QUERY_FORCE_DISABLE[0] = true;
-            if (!GPU_QUERY_FALLBACK_LOGGED[0]) {
-                GPU_QUERY_FALLBACK_LOGGED[0] = true;
-                Mekanism.logger.warn("GazeCulling OpenGL path failed at runtime; switched to CPU occlusion culling fallback.");
-            }
-            cullingClearGpuQueryCache();
-            return null;
-        }
-    }
-
-    @SideOnly(Side.CLIENT)
-    default boolean cullingIsOpenGlQuerySupported() {
-        try {
-            if (cullingHasIncompatibleOptifineRenderPath()) {
-                return false;
-            }
-            ContextCapabilities caps = GLContext.getCapabilities();
-            return caps != null && (caps.OpenGL15 || caps.GL_ARB_occlusion_query);
-        } catch (Throwable ignored) {
-            return false;
-        }
-    }
-
-    @SideOnly(Side.CLIENT)
-    default boolean cullingHasIncompatibleOptifineRenderPath() {
-        long now = System.currentTimeMillis();
-        if (OPTIFINE_COMPATIBILITY_LAST_CHECK[0] != Long.MIN_VALUE
-                && now - OPTIFINE_COMPATIBILITY_LAST_CHECK[0] < 1_000L) {
-            return OPTIFINE_RENDER_PATH_INCOMPATIBLE[0];
-        }
-        OPTIFINE_COMPATIBILITY_LAST_CHECK[0] = now;
-        boolean incompatible = false;
-        try {
-            Class<?> config = Class.forName("Config", false, IOcclusionCulling.class.getClassLoader());
-            Object fastRender = config.getMethod("isFastRender").invoke(null);
-            incompatible = Boolean.TRUE.equals(fastRender);
-            if (!incompatible) {
-                Object shaders = config.getMethod("isShaders").invoke(null);
-                incompatible = Boolean.TRUE.equals(shaders);
-            }
-        } catch (ClassNotFoundException ignored) {
-            // OptiFine is not installed.
-        } catch (ReflectiveOperationException | LinkageError ignored) {
-            // Unknown OptiFine version. Leave the normal capability checks in control.
-        }
-        OPTIFINE_RENDER_PATH_INCOMPATIBLE[0] = incompatible;
-        return incompatible;
-    }
-
-    @SideOnly(Side.CLIENT)
-    default void cullingDiscardOpenGlQuery() {
-        GpuQueryState state;
-        synchronized (GPU_QUERY_CACHE) {
-            state = GPU_QUERY_CACHE.remove(this);
-        }
-        cullingDeleteQuery(state);
-    }
-
-    @SideOnly(Side.CLIENT)
-    default void cullingCleanupStaleGpuQueries(long worldTime) {
-        if (GPU_QUERY_LAST_CLEANUP_TICK[0] != Long.MIN_VALUE && worldTime < GPU_QUERY_LAST_CLEANUP_TICK[0]) {
-            // World changes and /time operations can move the clock backwards. Pending results
-            // describe the old render state and their issue timestamps would otherwise never expire.
-            cullingClearGpuQueryCache();
-            GPU_QUERY_LAST_CLEANUP_TICK[0] = Long.MIN_VALUE;
-        }
-        if (GPU_QUERY_LAST_CLEANUP_TICK[0] != Long.MIN_VALUE
-                && worldTime - GPU_QUERY_LAST_CLEANUP_TICK[0] < OCCLUSION_GPU_QUERY_CLEANUP_INTERVAL) {
-            return;
-        }
-        GPU_QUERY_LAST_CLEANUP_TICK[0] = worldTime;
-        synchronized (GPU_QUERY_CACHE) {
-            Iterator<Map.Entry<IOcclusionCulling, GpuQueryState>> iterator = GPU_QUERY_CACHE.entrySet().iterator();
-            while (iterator.hasNext()) {
-                Map.Entry<IOcclusionCulling, GpuQueryState> entry = iterator.next();
-                GpuQueryState state = entry.getValue();
-                if (state == null) {
-                    iterator.remove();
-                    continue;
-                }
-                if (state.lastTouchedTick != Long.MIN_VALUE && worldTime - state.lastTouchedTick > OCCLUSION_GPU_QUERY_STALE_TICKS) {
-                    cullingDeleteQuery(state);
-                    iterator.remove();
-                }
-            }
-        }
-    }
-
-    @SideOnly(Side.CLIENT)
-    default void cullingClearGpuQueryCache() {
-        cullingClearAllGpuQueries();
-    }
-
-    @SideOnly(Side.CLIENT)
     static void cullingClearClientCaches() {
-        cullingClearAllGpuQueries();
         synchronized (OCCLUSION_CACHE) {
             OCCLUSION_CACHE.clear();
         }
@@ -777,231 +736,6 @@ public interface IOcclusionCulling {
     static void cullingRemoveClientCacheEntry(IOcclusionCulling culling) {
         OCCLUSION_CACHE.remove(culling);
         OCCLUSION_RESULT_CACHE.remove(culling);
-        GpuQueryState state;
-        synchronized (GPU_QUERY_CACHE) {
-            state = GPU_QUERY_CACHE.remove(culling);
-        }
-        cullingDeleteQueryState(state);
-    }
-
-    @SideOnly(Side.CLIENT)
-    static void cullingClearAllGpuQueries() {
-        synchronized (GPU_QUERY_CACHE) {
-            for (GpuQueryState state : GPU_QUERY_CACHE.values()) {
-                cullingDeleteQueryState(state);
-            }
-            GPU_QUERY_CACHE.clear();
-        }
-        GPU_QUERY_LAST_CLEANUP_TICK[0] = Long.MIN_VALUE;
-    }
-
-    @SideOnly(Side.CLIENT)
-    default boolean cullingIsQueryResultAvailable(GpuQueryState state) {
-        if (state.queryId == -1 || !state.queryPending) {
-            return false;
-        }
-        if (state.useArbApi) {
-            return ARBOcclusionQuery.glGetQueryObjectiARB(state.queryId, ARBOcclusionQuery.GL_QUERY_RESULT_AVAILABLE_ARB) != 0;
-        }
-        return GL15.glGetQueryObjecti(state.queryId, GL15.GL_QUERY_RESULT_AVAILABLE) != 0;
-    }
-
-    @SideOnly(Side.CLIENT)
-    default boolean cullingConsumeQueryResult(GpuQueryState state) {
-        int samples;
-        if (state.useArbApi) {
-            samples = ARBOcclusionQuery.glGetQueryObjectiARB(state.queryId, ARBOcclusionQuery.GL_QUERY_RESULT_ARB);
-        } else {
-            samples = GL15.glGetQueryObjecti(state.queryId, GL15.GL_QUERY_RESULT);
-        }
-        cullingDeleteQuery(state);
-        state.queryPending = false;
-        return samples > 0;
-    }
-
-    @SideOnly(Side.CLIENT)
-    default void cullingDeleteQuery(GpuQueryState state) {
-        cullingDeleteQueryState(state);
-    }
-
-    @SideOnly(Side.CLIENT)
-    static void cullingDeleteQueryState(GpuQueryState state) {
-        if (state == null || state.queryId == -1) {
-            return;
-        }
-        try {
-            if (state.useArbApi) {
-                ARBOcclusionQuery.glDeleteQueriesARB(state.queryId);
-            } else {
-                GL15.glDeleteQueries(state.queryId);
-            }
-        } catch (Throwable ignored) {
-        }
-        state.queryId = -1;
-        state.queryPending = false;
-    }
-
-    @SideOnly(Side.CLIENT)
-    default void cullingIssueQuery(GpuQueryState state, double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
-        ContextCapabilities caps = GLContext.getCapabilities();
-        QueryApi queryApi = cullingSelectQueryApi(caps);
-        if (queryApi == QueryApi.NONE) {
-            throw new IllegalStateException("No supported OpenGL occlusion query API found");
-        }
-        cullingDeleteQuery(state);
-        boolean useArb = queryApi == QueryApi.ARB;
-        int queryId = useArb ? ARBOcclusionQuery.glGenQueriesARB() : GL15.glGenQueries();
-        state.queryId = queryId;
-        state.useArbApi = useArb;
-        state.queryTarget = queryApi == QueryApi.GL33_ANY_SAMPLES ? GL33.GL_ANY_SAMPLES_PASSED
-                : (useArb ? ARBOcclusionQuery.GL_SAMPLES_PASSED_ARB : GL15.GL_SAMPLES_PASSED);
-
-        double x0 = minX - TileEntityRendererDispatcher.staticPlayerX;
-        double y0 = minY - TileEntityRendererDispatcher.staticPlayerY;
-        double z0 = minZ - TileEntityRendererDispatcher.staticPlayerZ;
-        double x1 = maxX - TileEntityRendererDispatcher.staticPlayerX;
-        double y1 = maxY - TileEntityRendererDispatcher.staticPlayerY;
-        double z1 = maxZ - TileEntityRendererDispatcher.staticPlayerZ;
-
-        int previousMatrixMode = GL11.glGetInteger(GL11.GL_MATRIX_MODE);
-        GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT | GL11.GL_CURRENT_BIT);
-        try {
-            GL11.glMatrixMode(GL11.GL_MODELVIEW);
-            GL11.glPushMatrix();
-            try {
-                GL11.glDisable(GL11.GL_TEXTURE_2D);
-                GL11.glDisable(GL11.GL_LIGHTING);
-                GL11.glDisable(GL11.GL_ALPHA_TEST);
-                GL11.glDisable(GL11.GL_BLEND);
-                GL11.glDisable(GL11.GL_CULL_FACE);
-                GL11.glEnable(GL11.GL_DEPTH_TEST);
-                GL11.glDepthMask(false);
-                GL11.glColorMask(false, false, false, false);
-
-                cullingBeginQuery(state, queryId);
-                try {
-                    boolean drawing = false;
-                    try {
-                        GL11.glBegin(GL11.GL_QUADS);
-                        drawing = true;
-                        // +X
-                        GL11.glVertex3d(x1, y0, z0);
-                        GL11.glVertex3d(x1, y1, z0);
-                        GL11.glVertex3d(x1, y1, z1);
-                        GL11.glVertex3d(x1, y0, z1);
-                        // -X
-                        GL11.glVertex3d(x0, y0, z1);
-                        GL11.glVertex3d(x0, y1, z1);
-                        GL11.glVertex3d(x0, y1, z0);
-                        GL11.glVertex3d(x0, y0, z0);
-                        // +Y
-                        GL11.glVertex3d(x0, y1, z0);
-                        GL11.glVertex3d(x0, y1, z1);
-                        GL11.glVertex3d(x1, y1, z1);
-                        GL11.glVertex3d(x1, y1, z0);
-                        // -Y
-                        GL11.glVertex3d(x0, y0, z1);
-                        GL11.glVertex3d(x0, y0, z0);
-                        GL11.glVertex3d(x1, y0, z0);
-                        GL11.glVertex3d(x1, y0, z1);
-                        // +Z
-                        GL11.glVertex3d(x1, y0, z1);
-                        GL11.glVertex3d(x1, y1, z1);
-                        GL11.glVertex3d(x0, y1, z1);
-                        GL11.glVertex3d(x0, y0, z1);
-                        // -Z
-                        GL11.glVertex3d(x0, y0, z0);
-                        GL11.glVertex3d(x0, y1, z0);
-                        GL11.glVertex3d(x1, y1, z0);
-                        GL11.glVertex3d(x1, y0, z0);
-                    } finally {
-                        if (drawing) {
-                            GL11.glEnd();
-                        }
-                    }
-                } finally {
-                    cullingEndQuery(state);
-                }
-            } finally {
-                GL11.glMatrixMode(GL11.GL_MODELVIEW);
-                GL11.glPopMatrix();
-            }
-        } finally {
-            try {
-                GL11.glPopAttrib();
-            } finally {
-                GL11.glMatrixMode(previousMatrixMode);
-            }
-        }
-        state.queryPending = true;
-    }
-
-    @SideOnly(Side.CLIENT)
-    default void cullingBeginQuery(GpuQueryState state, int queryId) {
-        if (state.useArbApi) {
-            ARBOcclusionQuery.glBeginQueryARB(state.queryTarget, queryId);
-        } else {
-            GL15.glBeginQuery(state.queryTarget, queryId);
-        }
-    }
-
-    @SideOnly(Side.CLIENT)
-    default void cullingEndQuery(GpuQueryState state) {
-        if (state.useArbApi) {
-            ARBOcclusionQuery.glEndQueryARB(state.queryTarget);
-        } else {
-            GL15.glEndQuery(state.queryTarget);
-        }
-    }
-
-    @SideOnly(Side.CLIENT)
-    default QueryApi cullingSelectQueryApi(@Nullable ContextCapabilities caps) {
-        if (caps == null) {
-            return QueryApi.NONE;
-        }
-        // Prefer newer query target first, then progressively degrade.
-        if (caps.OpenGL33) {
-            return QueryApi.GL33_ANY_SAMPLES;
-        }
-        if (caps.OpenGL15) {
-            return QueryApi.GL15_SAMPLES;
-        }
-        if (caps.GL_ARB_occlusion_query) {
-            return QueryApi.ARB;
-        }
-        return QueryApi.NONE;
-    }
-
-    @SideOnly(Side.CLIENT)
-    @Nullable
-    default double[] cullingComputeAabb(List<Vec3d> samplePoints) {
-        if (samplePoints.isEmpty()) {
-            return null;
-        }
-        double minX = Double.POSITIVE_INFINITY;
-        double minY = Double.POSITIVE_INFINITY;
-        double minZ = Double.POSITIVE_INFINITY;
-        double maxX = Double.NEGATIVE_INFINITY;
-        double maxY = Double.NEGATIVE_INFINITY;
-        double maxZ = Double.NEGATIVE_INFINITY;
-        for (Vec3d point : samplePoints) {
-            minX = Math.min(minX, point.x);
-            minY = Math.min(minY, point.y);
-            minZ = Math.min(minZ, point.z);
-            maxX = Math.max(maxX, point.x);
-            maxY = Math.max(maxY, point.y);
-            maxZ = Math.max(maxZ, point.z);
-        }
-        minX -= OCCLUSION_AABB_EXPAND_EPSILON;
-        minY -= OCCLUSION_AABB_EXPAND_EPSILON;
-        minZ -= OCCLUSION_AABB_EXPAND_EPSILON;
-        maxX += OCCLUSION_AABB_EXPAND_EPSILON;
-        maxY += OCCLUSION_AABB_EXPAND_EPSILON;
-        maxZ += OCCLUSION_AABB_EXPAND_EPSILON;
-        if (!(minX <= maxX) || !(minY <= maxY) || !(minZ <= maxZ)) {
-            return null;
-        }
-        return new double[]{minX, minY, minZ, maxX, maxY, maxZ};
     }
 
     class CacheEntry {
@@ -1009,11 +743,18 @@ public interface IOcclusionCulling {
         public final World world;
         public final long tick;
         public final List<Vec3d> points;
+        @Nullable
+        public final AxisAlignedBB renderBounds;
 
         public CacheEntry(World world, long tick, List<Vec3d> points) {
+            this(world, tick, points, null);
+        }
+
+        public CacheEntry(World world, long tick, List<Vec3d> points, @Nullable AxisAlignedBB renderBounds) {
             this.world = world;
             this.tick = tick;
             this.points = points;
+            this.renderBounds = renderBounds;
         }
     }
 
@@ -1024,31 +765,22 @@ public interface IOcclusionCulling {
         public final Vec3d eyePos;
         public final Vec3d lookVec;
         public final boolean culled;
+        @Nullable
+        public final AxisAlignedBB renderBounds;
 
         public OcclusionResultCacheEntry(World world, long tick, Vec3d eyePos, Vec3d lookVec, boolean culled) {
+            this(world, tick, eyePos, lookVec, culled, null);
+        }
+
+        public OcclusionResultCacheEntry(World world, long tick, Vec3d eyePos, Vec3d lookVec, boolean culled,
+                                         @Nullable AxisAlignedBB renderBounds) {
             this.world = world;
             this.tick = tick;
             this.eyePos = eyePos;
             this.lookVec = lookVec;
             this.culled = culled;
+            this.renderBounds = renderBounds;
         }
     }
 
-    class GpuQueryState {
-
-        public int queryId = -1;
-        public boolean queryPending = false;
-        public boolean lastVisible = true;
-        public boolean useArbApi = false;
-        public int queryTarget = GL15.GL_SAMPLES_PASSED;
-        public long lastTouchedTick = Long.MIN_VALUE;
-        public long lastIssueTick = Long.MIN_VALUE;
-    }
-
-    enum QueryApi {
-        NONE,
-        GL33_ANY_SAMPLES,
-        GL15_SAMPLES,
-        ARB
-    }
 }

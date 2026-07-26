@@ -5,6 +5,7 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.ints.IntSet;
+import it.unimi.dsi.fastutil.ints.IntSets;
 import mekanism.api.Coord4D;
 import mekanism.api.EnumColor;
 import mekanism.api.TileNetworkList;
@@ -137,7 +138,7 @@ public class TransporterImpl extends TransmitterImpl<TileEntity, InventoryNetwor
         if (world().isRemote) {
             transit.values().forEach(stack -> stack.progress = Math.min(100, stack.progress + getSpeed()));
         } else if (getTransmitterNetwork() != null) {
-            IntSet deletes = new IntOpenHashSet();
+            IntSet deletes = null;
             pullItems();
             Coord4D coord = coord();
             for (Entry<Integer, TransporterStack> entry : transit.entrySet()) {
@@ -145,7 +146,7 @@ public class TransporterImpl extends TransmitterImpl<TileEntity, InventoryNetwor
                 TransporterStack stack = entry.getValue();
                 if (!stack.initiatedPath) {
                     if (stack.itemStack.isEmpty() || !recalculate(stackId, stack, null)) {
-                        deletes.add(stackId);
+                        deletes = addDelete(deletes, stackId);
                         continue;
                     }
                 }
@@ -154,46 +155,48 @@ public class TransporterImpl extends TransmitterImpl<TileEntity, InventoryNetwor
                 if (stack.progress >= 100) {
                     Coord4D prevSet = null;
                     if (stack.hasPath()) {
-                        int currentIndex = stack.getPath().indexOf(coord);
+                        int currentIndex = stack.getPathIndex(coord);
                         if (currentIndex == 0) { //Necessary for transition reasons, not sure why
-                            deletes.add(stackId);
+                            deletes = addDelete(deletes, stackId);
                             continue;
                         }
 
-                        Coord4D next = stack.getPath().get(currentIndex - 1);
-                        if (!stack.isFinal(this)) {
-                            if (next != null) {
+                        if (currentIndex > 0) {
+                            Coord4D next = stack.getPath().get(currentIndex - 1);
+                            if (!stack.isFinal(this)) {
+                                if (next != null) {
+                                    TileEntity tile = next.getTileEntity(world());
+                                    if (stack.canInsertToTransporter(tile, stack.getSide(this))) {
+                                        ILogisticalTransporter nextTile = CapabilityUtils.getCapability(tile, Capabilities.LOGISTICAL_TRANSPORTER_CAPABILITY, null);
+                                        nextTile.entityEntering(stack, stack.progress % 100);
+                                        deletes = addDelete(deletes, stackId);
+                                        continue;
+                                    }
+                                    prevSet = next;
+                                }
+                            } else if (stack.getPathType() != Path.NONE) {
                                 TileEntity tile = next.getTileEntity(world());
-                                if (stack.canInsertToTransporter(tile, stack.getSide(this))) {
-                                    ILogisticalTransporter nextTile = CapabilityUtils.getCapability(tile, Capabilities.LOGISTICAL_TRANSPORTER_CAPABILITY, null);
-                                    nextTile.entityEntering(stack, stack.progress % 100);
-                                    deletes.add(stackId);
-                                    continue;
+                                if (tile != null) {
+                                    TransitResponse response = InventoryUtils.putStackInInventory(tile, TransitRequest.getFromTransport(stack), stack.getSide(this),
+                                          stack.getPathType() == Path.HOME);
+                                    // Nothing was rejected; remove the stack from the prediction tracker and
+                                    // schedule this stack for deletion. Continue the loop thereafter
+                                    ItemStack rejected = response.getRejected(stack.itemStack);
+                                    if (rejected.isEmpty()) {
+                                        TransporterManager.remove(stack);
+                                        deletes = addDelete(deletes, stackId);
+                                        continue;
+                                    }
+                                    // Some portion of the stack got rejected; save the remainder and
+                                    // let the recalculate below sort out what to do next
+                                    stack.itemStack = rejected;
+                                    prevSet = next;
                                 }
-                                prevSet = next;
-                            }
-                        } else if (stack.getPathType() != Path.NONE) {
-                            TileEntity tile = next.getTileEntity(world());
-                            if (tile != null) {
-                                TransitResponse response = InventoryUtils.putStackInInventory(tile, TransitRequest.getFromTransport(stack), stack.getSide(this),
-                                        stack.getPathType() == Path.HOME);
-                                // Nothing was rejected; remove the stack from the prediction tracker and
-                                // schedule this stack for deletion. Continue the loop thereafter
-                                ItemStack rejected = response.getRejected(stack.itemStack);
-                                if (rejected.isEmpty()) {
-                                    TransporterManager.remove(stack);
-                                    deletes.add(stackId);
-                                    continue;
-                                }
-                                // Some portion of the stack got rejected; save the remainder and
-                                // let the recalculate below sort out what to do next
-                                stack.itemStack = rejected;
-                                prevSet = next;
                             }
                         }
                     }
                     if (!recalculate(stackId, stack, prevSet)) {
-                        deletes.add(stackId);
+                        deletes = addDelete(deletes, stackId);
                     } else if (prevSet != null) {
                         stack.progress = 0;
                     } else {
@@ -204,18 +207,22 @@ public class TransporterImpl extends TransmitterImpl<TileEntity, InventoryNetwor
                     if (stack.isFinal(this)) {
                         tryRecalculate = checkPath(stack, Path.DEST, false) || checkPath(stack, Path.HOME, true) || stack.getPathType() == Path.NONE;
                     } else {
-                        tryRecalculate = !stack.canInsertToTransporter(stack.getNext(this).getTileEntity(world()), stack.getSide(this));
+                        Coord4D next = stack.getNext(this);
+                        tryRecalculate = next == null || !stack.canInsertToTransporter(next.getTileEntity(world()), stack.getSide(this));
                     }
                     if (tryRecalculate && !recalculate(stackId, stack, null)) {
-                        deletes.add(stackId);
+                        deletes = addDelete(deletes, stackId);
                     }
                 }
             }
 
-            if (!deletes.isEmpty() || !needsSync.isEmpty()) {
-                TileEntityMessage msg = new TileEntityMessage(coord, getTileEntity().makeBatchPacket(needsSync, deletes));
+            if (deletes != null || !needsSync.isEmpty()) {
+                IntSet deletedStacks = deletes == null ? IntSets.EMPTY_SET : deletes;
+                TileEntityMessage msg = new TileEntityMessage(coord, getTileEntity().makeBatchPacket(needsSync, deletedStacks));
                 // Now remove any entries from transit that have been deleted
-                deletes.forEach(id -> transit.remove(id));
+                if (deletes != null) {
+                    deletes.forEach(id -> transit.remove(id));
+                }
 
                 // Clear the pending sync packets
                 needsSync.clear();
@@ -227,6 +234,14 @@ public class TransporterImpl extends TransmitterImpl<TileEntity, InventoryNetwor
         }
     }
 
+    private static IntSet addDelete(IntSet deletes, int stackId) {
+        if (deletes == null) {
+            deletes = new IntOpenHashSet();
+        }
+        deletes.add(stackId);
+        return deletes;
+    }
+
     private void pullItems() {
         if (delay > 0) {
             delay--;
@@ -234,7 +249,10 @@ public class TransporterImpl extends TransmitterImpl<TileEntity, InventoryNetwor
         }
         delay = 3;
         TileEntityLogisticalTransporter tileEntity = getTileEntity();
-        for (EnumFacing side : tileEntity.getConnections(ConnectionType.PULL)) {
+        for (EnumFacing side : EnumFacing.VALUES) {
+            if (tileEntity.getConnectionType(side) != ConnectionType.PULL) {
+                continue;
+            }
             TileEntity tile = MekanismUtils.getTileEntity(world(), tileEntity.getPos().offset(side));
             if (tile != null) {
                 TransitRequest request = TransitRequest.buildInventoryMap(tile, side, getPullAmount());
@@ -356,6 +374,7 @@ public class TransporterImpl extends TransmitterImpl<TileEntity, InventoryNetwor
         // of bandwidth in a busy server, so by adding to needsSync, the sync will happen
         // in a batch on a per-tick basis.
         int stackId = nextId++;
+        stack.getPathIndex(coord());
         stack.progress = progress;
         transit.put(stackId, stack);
         needsSync.put(stackId, stack);

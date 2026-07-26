@@ -188,6 +188,14 @@ public class TileEntityAntiprotonicNucleosynthesizer extends TileEntityUpgradeab
         return getMainEnergyContainer();
     }
 
+    public InputInventorySlot getRecipeInputSlot() {
+        return inputSlot;
+    }
+
+    public OutputInventorySlot getRecipeOutputSlot() {
+        return outputSlot;
+    }
+
     public double getEnergyUsed() {
         return clientEnergyUsed;
     }

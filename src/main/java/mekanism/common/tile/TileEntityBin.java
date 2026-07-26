@@ -5,6 +5,7 @@ import mekanism.api.*;
 import mekanism.common.Mekanism;
 import mekanism.common.PacketHandler;
 import mekanism.common.base.IActiveState;
+import mekanism.common.base.IBaseTierProvider;
 import mekanism.common.base.IComparatorSupport;
 import mekanism.common.base.ILogisticalTransporter;
 import mekanism.common.base.IUpgradeableTile;
@@ -35,7 +36,7 @@ import net.minecraftforge.fml.common.FMLCommonHandler;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-public class TileEntityBin extends TileEntityContainerBlock implements IActiveState, IConfigurable, IUpgradeableTile, IComparatorSupport {
+public class TileEntityBin extends TileEntityContainerBlock implements IActiveState, IConfigurable, IUpgradeableTile, IComparatorSupport, IBaseTierProvider {
 
     public final int MAX_DELAY = 10;
     public boolean isActive;
@@ -78,6 +79,11 @@ public class TileEntityBin extends TileEntityContainerBlock implements IActiveSt
             return false;
         }
         return upgradeTier.ordinal() < BinTier.values().length;
+    }
+
+    @Override
+    public BaseTier getBaseTier() {
+        return tier.getBaseTier();
     }
 
     @Nullable

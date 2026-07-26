@@ -45,9 +45,7 @@ public class CommonPlayerTracker {
             }
             Mekanism.packetHandler.sendTo(new BoxBlacklistMessage(), (EntityPlayerMP) player);
             Mekanism.packetHandler.sendTo(new SecurityUpdateMessage(SecurityPacket.FULL, null, null), serverPlayer);
-            if (player.hasCapability(Capabilities.RADIATION_ENTITY_CAPABILITY, null)) {
-                PacketRadiationData.sync(serverPlayer);
-            }
+            PacketRadiationData.sync(serverPlayer);
         }
     }
 
@@ -62,9 +60,7 @@ public class CommonPlayerTracker {
         EntityPlayer player = event.player;
         Mekanism.playerState.clearPlayer(player.getUniqueID(), false);
         Mekanism.playerState.reapplyServerSideOnly(player);
-        if (player.hasCapability(Capabilities.RADIATION_ENTITY_CAPABILITY, null)) {
-            PacketRadiationData.sync((EntityPlayerMP) player);
-        }
+        PacketRadiationData.sync((EntityPlayerMP) player);
     }
 
     @SubscribeEvent
@@ -86,8 +82,8 @@ public class CommonPlayerTracker {
         EntityPlayer player = event.player;
         if (player.hasCapability(Capabilities.RADIATION_ENTITY_CAPABILITY, null)) {
             player.getCapability(Capabilities.RADIATION_ENTITY_CAPABILITY, null).set(0);
-            PacketRadiationData.sync((EntityPlayerMP) player);
         }
+        PacketRadiationData.sync((EntityPlayerMP) player);
         Mekanism.packetHandler.sendToAll(new PacketResetPlayerClient.ResetPlayerClientMessage(player.getUniqueID()));
     }
 

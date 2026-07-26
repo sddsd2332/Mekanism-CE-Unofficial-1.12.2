@@ -32,10 +32,13 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumActionResult;
 import net.minecraft.util.EnumFacing;
+import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.text.TextFormatting;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.property.IExtendedBlockState;
 import net.minecraftforge.fml.common.FMLCommonHandler;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.items.IItemHandler;
 
@@ -51,6 +54,14 @@ public class TileEntityLogisticalTransporter extends TileEntityTransmitter<TileE
     public TileEntityLogisticalTransporter() {
         transmitterDelegate = new TransporterImpl(this);
         addCapabilityResolver(new TransporterCapabilityResolver());
+    }
+
+    @Nonnull
+    @Override
+    @SideOnly(Side.CLIENT)
+    public AxisAlignedBB getRenderBoundingBox() {
+        // In-transit item models can reach the block faces and extend beyond them.
+        return new AxisAlignedBB(getPos()).grow(0.5D);
     }
 
     @Override

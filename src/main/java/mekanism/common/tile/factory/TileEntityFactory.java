@@ -93,7 +93,7 @@ import java.util.function.Predicate;
 import static mekanism.common.tile.prefab.TileEntityAdvancedElectricMachine.ceilSecondaryEnergyPerTick;
 
 
-public class TileEntityFactory extends TileEntityMachine implements IComputerIntegration, ISideConfiguration, ISpecialConfigData, IUpgradeableTile,
+public class TileEntityFactory extends TileEntityMachine implements IComputerIntegration, ISideConfiguration, ISpecialConfigData, IUpgradeableTile, IBaseTierProvider,
         ISustainedData, IComparatorSupport, ITankManager, IRecipeLookupHandler<MachineRecipe<?, ?, ?>>, ConstantUsageRecipeLookupHandler,
         mekanism.common.tile.interfaces.IHasDumpButton {
     private static final int LEGACY_SLOT_ENERGY = 0;
@@ -185,6 +185,8 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
     private double gasPerTickMeanMultiplier = 1;
     private long baseTotalUsage;
     private final long[] usedSoFar;
+    private final PoissonSampler gasUsageSampler = new PoissonSampler();
+    private final PoissonSampler secondaryEnergySampler = new PoissonSampler();
     private final GasUsageMultiplier gasUsageMultiplier;
     private EnergyInventorySlot energySlot;
     private InputInventorySlot extraSlot;
@@ -232,7 +234,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
         baseTotalUsage = BASE_TICKS_REQUIRED;
         gasUsageMultiplier = (usedSoFar, operatingTicks) -> {
             if (usesStatisticalSecondaryFuel()) {
-                return StatUtils.inversePoisson(gasPerTickMeanMultiplier);
+                return gasUsageSampler.sample(gasPerTickMeanMultiplier);
             }
             long baseRemaining = baseTotalUsage - usedSoFar;
             int remainingTicks = getTicksRequired(null) - operatingTicks;
@@ -537,6 +539,11 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
 
     public FactoryTier getTier() {
         return tier;
+    }
+
+    @Override
+    public BaseTier getBaseTier() {
+        return tier.getBaseTier();
     }
 
     public int getFactoryGuiWidthExtra() {
@@ -897,7 +904,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
         electricityStored.set(data.energy);
         isActive = data.active;
         prevEnergy = data.previousEnergy;
-        setRecipeType(data.recipeType);
+        setRecipeType(data.recipeType, false);
         setSorting(data.sorting);
         setControlType(data.controlType);
         applyUpgradeComponents(data.componentData);
@@ -909,7 +916,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
         gasOutTank.setGas(data.outputGas);
         fluidTank.setFluid(data.inputFluid);
         sanitizeAndClampTanks();
-        upgradeComponent.getSupportedTypes().forEach(this::recalculateUpgradables);
+        recalculateAllUpgradables(upgradeComponent.getSupportedTypes());
         markUpgraded();
         isUpgrade = true;
         markNoUpdateSync();
@@ -917,7 +924,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
     }
 
     private void applyUpgradeComponents(NBTTagCompound componentData) {
-        upgradeComponent.read(componentData);
+        upgradeComponent.read(componentData, false);
         configComponent.read(componentData);
         ejectorComponent.read(componentData);
         securityComponent.read(componentData);
@@ -1293,13 +1300,19 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
     }
 
     public void setRecipeType(@Nonnull RecipeType type) {
+        setRecipeType(type, true);
+    }
+
+    private void setRecipeType(@Nonnull RecipeType type, boolean recalculate) {
         initializeRecipeTypeState(type);
         clearContainerHolderCache();
         clearRecipeCaches();
         if (configComponent != null && ejectorComponent != null) {
             updateTransmissionSupport();
         }
-        upgradeComponent.getSupportedTypes().forEach(this::recalculateUpgradables);
+        if (recalculate) {
+            recalculateAllUpgradables(upgradeComponent.getSupportedTypes());
+        }
         if (hasWorld() && isRemote()) {
             setSoundEvent(type.getSound());
         }
@@ -2218,6 +2231,37 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
         return extraSlot.getStack();
     }
 
+    @Nullable
+    public IInventorySlot getRecipeInputSlot(int process) {
+        ProcessInfo processInfo = getProcessInfoOrNull(process);
+        return processInfo == null ? null : processInfo.inputSlot();
+    }
+
+    @Nullable
+    public IInventorySlot getRecipeOutputSlot(int process) {
+        ProcessInfo processInfo = getProcessInfoOrNull(process);
+        return processInfo == null ? null : processInfo.outputSlot();
+    }
+
+    @Nullable
+    public IInventorySlot getRecipeSecondaryOutputSlot(int process) {
+        ProcessInfo processInfo = getProcessInfoOrNull(process);
+        return processInfo == null ? null : processInfo.secondaryOutputSlot();
+    }
+
+    @Nullable
+    public IInventorySlot getRecipeExtraInputSlot() {
+        return extraSlot;
+    }
+
+    public int getRecipeGasUsagePerOperation() {
+        if (!usesStatisticalSecondaryFuel()) {
+            return Math.max(1, MathUtils.clampToInt(baseTotalUsage));
+        }
+        double usage = 3D * Math.max(1, Math.ceil(Math.max(secondaryEnergyPerTick, 0))) * Math.max(1, getTicksRequired());
+        return Math.max(1, MathUtils.clampToInt(usage));
+    }
+
     private ProcessInfo getProcessInfo(int process) {
         return processInfoSlots[process];
     }
@@ -2393,13 +2437,38 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
     public void recalculateUpgradables(Upgrade upgrade) {
         super.recalculateUpgradables(upgrade);
         if (upgrade == Upgrade.ENERGY) {
-            recalculateEnergyUpgrade();
+            if (!isRecalculatingAllUpgradables()) {
+                recalculateEnergyUpgrade();
+            }
         } else if (upgrade == Upgrade.GAS) {
-            recalculateGasUpgrade();
+            if (!isRecalculatingAllUpgradables()) {
+                recalculateGasUpgrade();
+            }
         } else if (upgrade == Upgrade.SPEED) {
-            recalculateSpeedUpgrade();
+            if (isRecalculatingAllUpgradables()) {
+                ticksRequired = MekanismUtils.getTicks(this, BASE_TICKS_REQUIRED);
+            } else {
+                recalculateEnergyUpgrade();
+                ticksRequired = MekanismUtils.getTicks(this, BASE_TICKS_REQUIRED);
+                recalculateGasUpgrade();
+            }
         }
-        if (world != null && !world.isRemote) {
+        if (!isRecalculatingAllUpgradables() && world != null && !world.isRemote) {
+            unpauseRecipeCaches();
+        }
+    }
+
+    @Override
+    protected void onAllUpgradablesRecalculated(Set<Upgrade> upgrades) {
+        super.onAllUpgradablesRecalculated(upgrades);
+        boolean speedChanged = upgrades.contains(Upgrade.SPEED);
+        if (speedChanged || upgrades.contains(Upgrade.ENERGY)) {
+            recalculateEnergyUpgrade();
+        }
+        if (speedChanged || upgrades.contains(Upgrade.GAS)) {
+            recalculateGasUpgrade();
+        }
+        if (!upgrades.isEmpty() && world != null && !world.isRemote) {
             unpauseRecipeCaches();
         }
     }
@@ -2411,12 +2480,6 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
     private void recalculateGasUpgrade() {
         secondaryEnergyPerTick = getSecondaryEnergyPerTick();
         updateSecondaryUsageTracking();
-    }
-
-    private void recalculateSpeedUpgrade() {
-        energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK);
-        ticksRequired = MekanismUtils.getTicks(this, BASE_TICKS_REQUIRED);
-        recalculateGasUpgrade();
     }
 
     private boolean usesStatisticalSecondaryFuel() {
@@ -3863,7 +3926,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
         }
 
         int getSecondaryEnergyThisTick(TileEntityFactory factory) {
-            return usesStatisticalSecondaryFuel(factory) ? StatUtils.inversePoisson(factory.secondaryEnergyPerTick)
+            return usesStatisticalSecondaryFuel(factory) ? factory.secondaryEnergySampler.sample(factory.secondaryEnergyPerTick)
                   : ceilSecondaryEnergyPerTick(factory.secondaryEnergyPerTick);
         }
 

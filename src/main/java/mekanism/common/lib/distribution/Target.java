@@ -34,6 +34,7 @@ public abstract class Target<HANDLER, TYPE extends Number & Comparable<TYPE>, EX
     protected Target(Collection<HANDLER> allHandlers) {
         this.handlers = Collections.unmodifiableCollection(allHandlers);
         this.needed = new ArrayList<>(allHandlers.size() / 2);
+        this.handlerCount = allHandlers.size();
     }
 
     protected Target(int expectedSize) {
@@ -48,6 +49,16 @@ public abstract class Target<HANDLER, TYPE extends Number & Comparable<TYPE>, EX
 
     public int getHandlerCount() {
         return handlerCount;
+    }
+
+    /**
+     * Clears the transient distribution state while retaining mutable backing-list capacity.
+     * Targets created around an external collection cannot be reset.
+     */
+    public void reset() {
+        handlers.clear();
+        needed.clear();
+        handlerCount = 0;
     }
 
     /**

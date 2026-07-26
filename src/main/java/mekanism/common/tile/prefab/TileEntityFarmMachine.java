@@ -37,7 +37,7 @@ import mekanism.common.tile.component.TileComponentEjector;
 import mekanism.common.tile.component.config.DataType;
 import mekanism.common.util.ItemDataUtils;
 import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.StatUtils;
+import mekanism.common.util.PoissonSampler;
 import mekanism.common.util.TileUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -48,6 +48,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 农场方块
@@ -74,6 +75,8 @@ public abstract class TileEntityFarmMachine<RECIPE extends FarmMachineRecipe<REC
     private double gasPerTickMeanMultiplier = 1;
     private long baseTotalUsage;
     private long usedSoFar;
+    private final PoissonSampler gasUsageSampler = new PoissonSampler();
+    private final PoissonSampler secondaryEnergySampler = new PoissonSampler();
     public BasicGasTank gasTank;
     public Gas prevGas;
     protected InputInventorySlot inputSlot;
@@ -99,7 +102,7 @@ public abstract class TileEntityFarmMachine<RECIPE extends FarmMachineRecipe<REC
         secondaryEnergyPerTick = secondaryPerTick;
         baseTotalUsage = ticksRequired;
         if (useStatisticalMechanics()) {
-            gasUsageMultiplier = (usedSoFar, operatingTicks) -> StatUtils.inversePoisson(gasPerTickMeanMultiplier);
+            gasUsageMultiplier = (usedSoFar, operatingTicks) -> gasUsageSampler.sample(gasPerTickMeanMultiplier);
         } else {
             gasUsageMultiplier = (usedSoFar, operatingTicks) -> {
                 long baseRemaining = baseTotalUsage - usedSoFar;
@@ -198,7 +201,7 @@ public abstract class TileEntityFarmMachine<RECIPE extends FarmMachineRecipe<REC
             energySlot.fillContainerOrConvert();
         }
         handleSecondaryFuel();
-        secondaryEnergyThisTick = useStatisticalMechanics() ? StatUtils.inversePoisson(secondaryEnergyPerTick) : (int) Math.ceil(secondaryEnergyPerTick);
+        secondaryEnergyThisTick = useStatisticalMechanics() ? secondaryEnergySampler.sample(secondaryEnergyPerTick) : (int) Math.ceil(secondaryEnergyPerTick);
         processRecipe();
         prevEnergy = getEnergy();
         if (!(gasTank.getGasType() == null || gasTank.getStored() == 0)) {
@@ -220,6 +223,14 @@ public abstract class TileEntityFarmMachine<RECIPE extends FarmMachineRecipe<REC
 
     public boolean useStatisticalMechanics() {
         return false;
+    }
+
+    public int getRecipeGasUsagePerOperation() {
+        if (!useStatisticalMechanics()) {
+            return Math.max(1, MathUtils.clampToInt(baseTotalUsage));
+        }
+        double usage = 3D * Math.max(1, Math.ceil(Math.max(secondaryEnergyPerTick, 0))) * Math.max(1, getTicksRequired());
+        return Math.max(1, MathUtils.clampToInt(usage));
     }
 
     @Override
@@ -363,13 +374,29 @@ public abstract class TileEntityFarmMachine<RECIPE extends FarmMachineRecipe<REC
     @Override
     public void recalculateUpgradables(Upgrade upgrade) {
         super.recalculateUpgradables(upgrade);
-        if (upgrade == Upgrade.SPEED || (upgradeableSecondaryEfficiency() && upgrade == Upgrade.GAS)) {
-            secondaryEnergyPerTick = MekanismUtils.getSecondaryEnergyPerTickMean(this, BASE_SECONDARY_ENERGY_PER_TICK);
-            if (useStatisticalMechanics()) {
-                gasPerTickMeanMultiplier = MekanismUtils.getGasPerTickMeanMultiplier(this);
-            } else {
-                baseTotalUsage = MekanismUtils.getBaseUsage(this, BASE_TICKS_REQUIRED);
-            }
+        if (!isRecalculatingAllUpgradables() && shouldRecalculateSecondary(upgrade)) {
+            recalculateSecondaryUpgrade();
+        }
+    }
+
+    @Override
+    protected void onAllUpgradablesRecalculated(Set<Upgrade> upgrades) {
+        super.onAllUpgradablesRecalculated(upgrades);
+        if (upgrades.contains(Upgrade.SPEED) || upgradeableSecondaryEfficiency() && upgrades.contains(Upgrade.GAS)) {
+            recalculateSecondaryUpgrade();
+        }
+    }
+
+    private boolean shouldRecalculateSecondary(Upgrade upgrade) {
+        return upgrade == Upgrade.SPEED || upgradeableSecondaryEfficiency() && upgrade == Upgrade.GAS;
+    }
+
+    private void recalculateSecondaryUpgrade() {
+        secondaryEnergyPerTick = MekanismUtils.getSecondaryEnergyPerTickMean(this, BASE_SECONDARY_ENERGY_PER_TICK);
+        if (useStatisticalMechanics()) {
+            gasPerTickMeanMultiplier = MekanismUtils.getGasPerTickMeanMultiplier(this);
+        } else {
+            baseTotalUsage = MekanismUtils.getBaseUsage(this, BASE_TICKS_REQUIRED);
         }
     }
 

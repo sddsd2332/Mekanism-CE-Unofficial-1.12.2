@@ -7,6 +7,7 @@ import mekanism.common.config.MekanismConfig;
 import net.minecraft.nbt.NBTTagCompound;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Objects;
 
 public class RadiationSource implements IRadiationSource {
@@ -17,7 +18,7 @@ public class RadiationSource implements IRadiationSource {
 
     public RadiationSource(Coord4D pos, double magnitude) {
         this.pos = pos;
-        this.magnitude = magnitude;
+        this.magnitude = RadiationUtil.sanitizeMagnitude(magnitude);
     }
 
     @Nonnull
@@ -33,17 +34,27 @@ public class RadiationSource implements IRadiationSource {
 
     @Override
     public void radiate(double magnitude) {
-        this.magnitude += magnitude;
+        this.magnitude = RadiationUtil.addClamped(this.magnitude, magnitude);
     }
 
     @Override
     public boolean decay() {
         magnitude *= MekanismConfig.current().general.radiationSourceDecayRate.val();
+        magnitude = RadiationUtil.sanitizeMagnitude(magnitude);
         return magnitude < RadiationManager.MIN_MAGNITUDE;
     }
 
+    @Nullable
     public static RadiationSource load(NBTTagCompound tag) {
-        return new RadiationSource(Coord4D.read(tag), tag.getDouble(NBTConstants.RADIATION));
+        if (!tag.hasKey("x", 99) || !tag.hasKey("y", 99) || !tag.hasKey("z", 99) ||
+            !tag.hasKey("dimensionId", 99) || !tag.hasKey(NBTConstants.RADIATION, 99)) {
+            return null;
+        }
+        double magnitude = tag.getDouble(NBTConstants.RADIATION);
+        if (!Double.isFinite(magnitude) || !(magnitude > 0)) {
+            return null;
+        }
+        return new RadiationSource(Coord4D.read(tag), magnitude);
     }
 
     public void write(NBTTagCompound tag) {

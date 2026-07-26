@@ -47,6 +47,7 @@ import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.fml.common.FMLCommonHandler;
@@ -417,7 +418,17 @@ public class TileEntityTeleporter extends TileEntityElectricBlock implements ICo
     @Override
     @SideOnly(Side.CLIENT)
     public AxisAlignedBB getRenderBoundingBox() {
-        return INFINITE_EXTENT_AABB;
+        return getRenderBoundingBox(getPos());
+    }
+
+    public static AxisAlignedBB getRenderBoundingBox(BlockPos pos) {
+        return new AxisAlignedBB(pos.getX(), pos.getY(), pos.getZ(), pos.getX() + 1D, pos.getY() + 3D, pos.getZ() + 1D);
+    }
+
+    @Override
+    @SideOnly(Side.CLIENT)
+    public List<Vec3d> computeOcclusionSamplePoints() {
+        return cullingGetAabbOcclusionSamplePoints(getRenderBoundingBox());
     }
 
     @Override

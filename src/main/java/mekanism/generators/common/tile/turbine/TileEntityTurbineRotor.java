@@ -26,6 +26,10 @@ import java.util.List;
 
 public class TileEntityTurbineRotor extends TileEntityInternalMultiblock {
 
+    private static final int MAX_RENDER_HORIZONTAL_RADIUS = 4;
+    private static final int RENDER_MIN_Y_OFFSET = -2;
+    private static final int RENDER_MAX_Y_OFFSET = 3;
+
     // Blades on this rotor
     public int blades = 0;
 
@@ -184,7 +188,16 @@ public class TileEntityTurbineRotor extends TileEntityInternalMultiblock {
     @Override
     @SideOnly(Side.CLIENT)
     public AxisAlignedBB getRenderBoundingBox() {
-        return INFINITE_EXTENT_AABB;
+        if (getMultiblock() != null || blades <= 0) {
+            return new AxisAlignedBB(getPos());
+        }
+        return getStandaloneRenderBoundingBox(getPos());
+    }
+
+    public static AxisAlignedBB getStandaloneRenderBoundingBox(BlockPos pos) {
+        return new AxisAlignedBB(pos.getX() - MAX_RENDER_HORIZONTAL_RADIUS, pos.getY() + RENDER_MIN_Y_OFFSET,
+              pos.getZ() - MAX_RENDER_HORIZONTAL_RADIUS, pos.getX() + MAX_RENDER_HORIZONTAL_RADIUS + 1D,
+              pos.getY() + RENDER_MAX_Y_OFFSET, pos.getZ() + MAX_RENDER_HORIZONTAL_RADIUS + 1D);
     }
 
     @SideOnly(Side.CLIENT)

@@ -35,6 +35,9 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
      */
     private final Map<Integer, Map<String, Long>> serverTickClaims = new HashMap<>();
 
+    /** Canonical cache synchronization claims are independent from structure processing claims. */
+    private final Map<Integer, Map<String, Long>> cacheSyncClaims = new HashMap<>();
+
     /** Per-dimension persistent tombstones for caches already consumed by a newer structure. */
     private final Map<World, InvalidatedCacheData> invalidatedCacheData = new WeakHashMap<>();
 
@@ -63,6 +66,7 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
             manager.inventories.clear();
             manager.inventoryTimestamps.clear();
             manager.serverTickClaims.clear();
+            manager.cacheSyncClaims.clear();
             manager.invalidatedCacheData.clear();
         });
     }
@@ -70,6 +74,13 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
     /** Claims structure-wide processing for a persistent multiblock inventory in a dimension. */
     public boolean tryClaimServerTick(int dimensionId, String inventoryID, long gameTime) {
         Map<String, Long> dimensionClaims = serverTickClaims.computeIfAbsent(dimensionId, ignored -> new HashMap<>());
+        Long previousTick = dimensionClaims.put(inventoryID, gameTime);
+        return previousTick == null || previousTick != gameTime;
+    }
+
+    /** Claims the manager's canonical cache synchronization for one persistent structure and tick. */
+    public boolean tryClaimCacheSync(int dimensionId, String inventoryID, long gameTime) {
+        Map<String, Long> dimensionClaims = cacheSyncClaims.computeIfAbsent(dimensionId, ignored -> new HashMap<>());
         Long previousTick = dimensionClaims.put(inventoryID, gameTime);
         return previousTick == null || previousTick != gameTime;
     }
@@ -196,6 +207,14 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
                 serverTickClaims.remove(world.provider.getDimension());
             }
         }
+        Map<String, Long> dimensionCacheClaims = cacheSyncClaims.get(world.provider.getDimension());
+        if (dimensionCacheClaims != null) {
+            long gameTime = world.getTotalWorldTime();
+            dimensionCacheClaims.entrySet().removeIf(entry -> entry.getValue() != gameTime);
+            if (dimensionCacheClaims.isEmpty()) {
+                cacheSyncClaims.remove(world.provider.getDimension());
+            }
+        }
 
     }
 
@@ -211,6 +230,8 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
             return;
         }
         tile.cachedData.locations.add(Coord4D.get(tile));
+        boolean syncCanonical = tile.structure != null && Objects.equals(tile.cachedID, tile.structure.inventoryID) && tile.getWorld() != null &&
+              tryClaimCacheSync(tile.getWorld().provider.getDimension(), tile.cachedID, tile.getWorld().getTotalWorldTime());
         MultiblockCache<T> current = inventories.get(tile.cachedID);
         if (current == null) {
             inventories.put(tile.cachedID, tile.cachedData);
@@ -224,9 +245,11 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
                 inventoryTimestamps.put(tile.cachedID, tile.cachedDataTimestamp);
             } else {
                 current.locations.add(Coord4D.get(tile));
-                if (tile.structure != null && Objects.equals(tile.cachedID, tile.structure.inventoryID)) {
+                if (syncCanonical) {
                     //Keep the canonical runtime cache at the latest immediately visible shared state.
-                    current.sync(tile.structure);
+                    if (current != tile.cachedData) {
+                        current.sync(tile.structure);
+                    }
                     inventoryTimestamps.put(tile.cachedID, Math.max(currentTimestamp, tile.cachedDataTimestamp));
                 }
             }

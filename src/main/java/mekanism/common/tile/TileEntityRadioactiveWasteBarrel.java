@@ -11,6 +11,7 @@ import mekanism.common.base.ITankManager;
 import mekanism.common.capabilities.gas.BasicGasTank;
 import mekanism.common.capabilities.holder.gas.GasTankHelper;
 import mekanism.common.capabilities.holder.gas.IGasTankHolder;
+import mekanism.common.lib.radiation.RadiationUtil;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
 import mekanism.common.util.GasUtils;
 import mekanism.common.util.ItemDataUtils;
@@ -54,9 +55,12 @@ public class TileEntityRadioactiveWasteBarrel extends TileEntityContainerBlock i
         super.onUpdateServer();
         if (getWorld().getTotalWorldTime() > lastProcessTick) {
             lastProcessTick = getWorld().getTotalWorldTime();
-            if (gasTank.getGas() != null && gasTank.getGas().getGas().isRadiation() && ++processTicks >= 20) {
+            GasStack stored = gasTank.getGas();
+            int decayAmount = RadiationUtil.getWasteBarrelDecayAmount();
+            if (decayAmount > 0 && RadiationUtil.canDecayInWasteBarrel(stored) &&
+                ++processTicks >= RadiationUtil.getWasteBarrelProcessTicks()) {
                 processTicks = 0;
-                gasTank.extract(1, Action.EXECUTE, AutomationType.INTERNAL);
+                gasTank.extract(decayAmount, Action.EXECUTE, AutomationType.INTERNAL);
             }
             if (getActive()) {
                 GasUtils.emit(Collections.singleton(EnumFacing.DOWN), gasTank, this, getDownOutputLimit());
@@ -137,6 +141,7 @@ public class TileEntityRadioactiveWasteBarrel extends TileEntityContainerBlock i
     public void readCustomNBT(NBTTagCompound nbtTags) {
         super.readCustomNBT(nbtTags);
         clientActive = isActive = nbtTags.getBoolean("isActive");
+        processTicks = Math.max(0, nbtTags.getInteger(NBTConstants.PROGRESS));
         if (!hasStoredGasTanks(nbtTags) && nbtTags.hasKey("gasTank")) {
             gasTank.read(nbtTags.getCompoundTag("gasTank"));
         }
@@ -147,6 +152,7 @@ public class TileEntityRadioactiveWasteBarrel extends TileEntityContainerBlock i
     public void writeCustomNBT(NBTTagCompound nbtTags) {
         super.writeCustomNBT(nbtTags);
         nbtTags.setBoolean("isActive", isActive);
+        nbtTags.setInteger(NBTConstants.PROGRESS, processTicks);
     }
 
     @Override

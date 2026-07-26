@@ -150,6 +150,7 @@ public enum MekanismLang implements ILangEntry {
     GENERIC_LIST("generic", "list"),
     GENERIC_MINUTES("generic", "minutes"),
     GENERIC_HOURS_MINUTES("generic", "hours_minutes"),
+    GENERIC_NEVER("generic", "never"),
     //Hold for
     HOLD_FOR_DETAILS("tooltip", "hold_for_details"),
     HOLD_FOR_DESCRIPTION("tooltip", "hold_for_description"),

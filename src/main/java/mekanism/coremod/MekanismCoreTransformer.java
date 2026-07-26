@@ -27,7 +27,7 @@ public class MekanismCoreTransformer implements IClassTransformer {
             return runtimeDeobfEnabled ? srg : deobf;
         }
 
-        public boolean equals(String obj) {
+        public boolean matches(String obj) {
             if (obj != null) {
                 return obj.equals(deobf) || obj.equals(srg);
             }
@@ -36,9 +36,7 @@ public class MekanismCoreTransformer implements IClassTransformer {
 
         @Override
         public boolean equals(Object obj) {
-            if (obj instanceof String) {
-                return obj.equals(deobf) || obj.equals(srg);
-            } else if (obj instanceof ObfSafeName obf) {
+            if (obj instanceof ObfSafeName obf) {
                 return obf.deobf.equals(deobf) && obf.srg.equals(srg);
             }
             return false;
@@ -46,7 +44,8 @@ public class MekanismCoreTransformer implements IClassTransformer {
 
         @Override
         public int hashCode() {
-            return super.hashCode();
+            int result = deobf.hashCode();
+            return 31 * result + srg.hashCode();
         }
 
     }
@@ -72,14 +71,14 @@ public class MekanismCoreTransformer implements IClassTransformer {
 
 
         // Item Overlay Rendering hook
-        if (transformedName.equals(renderItemClass)) {
+        if (renderItemClass.equals(transformedName)) {
             return transform(basicClass, renderItemClass, renderItemDisplayName, new Transform() {
                 @Override
                 void transform(Iterator<MethodNode> methods) {
                     int done = 0;
                     while (methods.hasNext()) {
                         MethodNode m = methods.next();
-                        if (renderItemAndEffectIntoGUI.equals(m.name) && "(Lnet/minecraft/entity/EntityLivingBase;Lnet/minecraft/item/ItemStack;II)V".equals(m.desc)) {
+                        if (renderItemAndEffectIntoGUI.matches(m.name) && "(Lnet/minecraft/entity/EntityLivingBase;Lnet/minecraft/item/ItemStack;II)V".equals(m.desc)) {
                             InsnList toAdd = new InsnList();
                             toAdd.add(new VarInsnNode(ALOAD, 2));
                             toAdd.add(new VarInsnNode(ILOAD, 3));
@@ -89,7 +88,7 @@ public class MekanismCoreTransformer implements IClassTransformer {
                             m.instructions.insert(toAdd);
                             done++;
                         }
-                        if (renderItemOverlayIntoGUIMethod.equals(m.name)) {
+                        if (renderItemOverlayIntoGUIMethod.matches(m.name)) {
 
                             InsnList toAdd = new InsnList();
                             toAdd.add(new VarInsnNode(ALOAD, 2));
@@ -143,14 +142,14 @@ public class MekanismCoreTransformer implements IClassTransformer {
                 }
             });
         }
-        if (transformedName.equals(tileEntityRendererDispatcherClass)) {
+        if (tileEntityRendererDispatcherClass.equals(transformedName)) {
             return transform(basicClass, tileEntityRendererDispatcherClass, tileEntityRenderMethodName, new Transform() {
                 @Override
                 void transform(Iterator<MethodNode> methods) {
                     boolean transformed = false;
                     while (methods.hasNext()) {
                         MethodNode m = methods.next();
-                        if (!tileEntityRenderMethodDesc.equals(m.desc)) {
+                        if (!tileEntityRenderMethodName.matches(m.name) || !tileEntityRenderMethodDesc.equals(m.desc)) {
                             continue;
                         }
                         if (containsOcclusionHook(m)) {

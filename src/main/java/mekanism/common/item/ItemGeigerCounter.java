@@ -1,13 +1,16 @@
 package mekanism.common.item;
 
 import mekanism.api.EnumColor;
-import mekanism.api.MekanismAPI;
 import mekanism.common.Mekanism;
 import mekanism.common.MekanismLang;
 import mekanism.common.advancements.MekanismCriteriaTriggers;
+import mekanism.common.config.MekanismConfig;
+import mekanism.common.lib.radiation.LevelAndMaxMagnitude;
 import mekanism.common.lib.radiation.RadiationManager;
 import mekanism.common.lib.radiation.RadiationManager.RadiationScale;
+import mekanism.common.lib.radiation.RadiationUtil;
 import mekanism.common.util.UnitDisplayUtils;
+import mekanism.common.util.text.TextUtils;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
@@ -17,7 +20,6 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.EnumActionResult;
 import net.minecraft.util.EnumHand;
-import net.minecraft.util.text.TextComponentString;
 import net.minecraft.world.World;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
@@ -49,9 +51,16 @@ public class ItemGeigerCounter extends ItemMekanism {
         ItemStack itemstack = player.getHeldItem(hand);
         if (!player.isSneaking()) {
             if (!world.isRemote) {
-                double magnitude = MekanismAPI.getRadiationManager().getRadiationLevel(player);
-                player.sendMessage(new TextComponentString(EnumColor.GREY + MekanismLang.RADIATION_EXPOSURE.getTranslationKey() +
-                        RadiationScale.getSeverityColor(magnitude)+ UnitDisplayUtils.getDisplayShort(magnitude, UnitDisplayUtils.RadiationUnit.SVH, 3)));
+                LevelAndMaxMagnitude radiation = RadiationManager.INSTANCE.getRadiationLevelAndMaxMagnitude(player);
+                double magnitude = radiation.getLevel();
+                player.sendMessage(MekanismLang.RADIATION_EXPOSURE.translateColored(EnumColor.GREY)
+                      .appendText(RadiationScale.getSeverityColor(magnitude) +
+                            UnitDisplayUtils.getDisplayShort(magnitude, UnitDisplayUtils.RadiationUnit.SVH, 3)));
+                if (MekanismConfig.current().general.radiationDecayTimers.val() && magnitude > RadiationManager.BASELINE) {
+                    player.sendMessage(MekanismLang.RADIATION_DECAY_TIME.translateColored(EnumColor.GREY)
+                          .appendText(RadiationScale.getSeverityColor(magnitude) + TextUtils.getHoursMinutesFromTicks(
+                                RadiationUtil.getDecayTime(radiation.getMaxMagnitude(), true))));
+                }
                 if (player instanceof EntityPlayerMP playerMP) {
                     MekanismCriteriaTriggers.USE_GEIGER_COUNTER.trigger(playerMP);
                 }

@@ -44,6 +44,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 public class TileEntityEnergyCube extends TileEntityElectricBlock implements IComputerIntegration, IRedstoneControl, ISideConfiguration, ISecurityTile, IUpgradeableTile,
+        IBaseTierProvider,
         IConfigCardAccess, IComparatorSupport, ISpecialSelectionWireframeTile {
 
     private static final ISpecialSelectionWireframeTile.SelectionTransform[] SELECTION_ROTATE_SOUTH = {
@@ -149,6 +150,11 @@ public class TileEntityEnergyCube extends TileEntityElectricBlock implements ICo
             return false;
         }
         return upgradeTier.ordinal() < EnergyCubeTier.values().length;
+    }
+
+    @Override
+    public BaseTier getBaseTier() {
+        return tier.getBaseTier();
     }
 
     @Nullable

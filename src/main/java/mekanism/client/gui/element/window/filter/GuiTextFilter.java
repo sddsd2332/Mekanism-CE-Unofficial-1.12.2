@@ -10,7 +10,6 @@ import mekanism.common.tile.interfaces.ITileFilterHolder;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
 
 import javax.annotation.Nullable;
-import java.util.Locale;
 
 @SuppressWarnings("deprecation")
 public abstract class GuiTextFilter<FILTER extends IFilter, TILE extends TileEntityContainerBlock & ITileFilterHolder<?>> extends GuiFilter<FILTER, TILE> {
@@ -57,12 +56,7 @@ public abstract class GuiTextFilter<FILTER extends IFilter, TILE extends TileEnt
 
     @Nullable
     protected CharUnaryOperator getInputTransformer() {
-        return c -> {
-            if (c >= 'A' && c <= 'Z') {
-                return Character.toString(c).toLowerCase(Locale.ROOT).charAt(0);
-            }
-            return c;
-        };
+        return null;
     }
 
     @Override

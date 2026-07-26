@@ -68,6 +68,7 @@ import mekanism.common.tile.laser.TileEntityLaserAmplifier;
 import mekanism.common.tile.laser.TileEntityLaserTractorBeam;
 import mekanism.common.tile.machine.*;
 import mekanism.common.tile.multiblock.*;
+import mekanism.common.tile.prefab.MekanismMachineRecipeProviders;
 import mekanism.common.tile.qio.TileEntityQIODriveArray;
 import mekanism.common.tile.qio.TileEntityQIODashboard;
 import mekanism.common.tile.qio.TileEntityQIOImporter;
@@ -599,6 +600,8 @@ public class Mekanism {
         InfuseRegistry.registerInfuseType(new InfuseType("FUNGI", new ResourceLocation(Mekanism.MODID, "blocks/infuse/Fungi")).setTranslationKey("fungi"));
         InfuseRegistry.registerInfuseType(new InfuseType("BIO", new ResourceLocation(Mekanism.MODID, "blocks/infuse/Bio")).setTranslationKey("bio"));
         InfuseRegistry.registerInfuseType(new InfuseType("OBSIDIAN", new ResourceLocation(Mekanism.MODID, "blocks/infuse/Obsidian")).setTranslationKey("obsidian"));
+
+        MekanismMachineRecipeProviders.register();
 
         Capabilities.registerCapabilities();
         hooks.hookPreInit();

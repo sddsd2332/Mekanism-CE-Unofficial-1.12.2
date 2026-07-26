@@ -52,6 +52,12 @@ public class TileEntityLargeWindGenerator extends TileEntityGenerator implements
 
     public static final float SPEED = 32F;
     public static final float SPEED_SCALED = 256F / SPEED;
+    private static final int RENDER_BLADE_RADIUS = 21;
+    private static final int RENDER_BODY_HALF_WIDTH = 5;
+    private static final int RENDER_MIN_Y_OFFSET = -1;
+    private static final int RENDER_MAX_Y_OFFSET = 68;
+    private static final double SELECTION_WIREFRAME_ANGLE_STEP = 15D;
+    private static final int SELECTION_WIREFRAME_ANIMATION_STATES = 24;
     static final String[] methods = new String[]{"getEnergy", "getOutput", "getMaxEnergy", "getEnergyNeeded", "getMultiplier"};
     private double angle;
     private float currentMultiplier;
@@ -856,16 +862,21 @@ public class TileEntityLargeWindGenerator extends TileEntityGenerator implements
         if (!MekanismConfig.current().client.windGeneratorRotating.val()) {
             return 0;
         }
-        // Quantize to 0.5 degree to cap cache growth while keeping animation smooth.
-        return Math.floorMod((int) Math.round(getSelectionWireframeAngle() * 2D), 720);
+        return getSelectionWireframeAnimationState();
     }
 
     @Override
     @SideOnly(Side.CLIENT)
     public void applySelectionWireframeModelState(Object model, IBlockState state, IBlockAccess world, BlockPos pos) {
         if (model instanceof mekanism.multiblockmachine.client.model.generator.ModelLargeWindGenerator windModel) {
-            windModel.applySelectionFanAngle(getSelectionWireframeAngle());
+            windModel.applySelectionFanAngle(getSelectionWireframeAnimationState() * SELECTION_WIREFRAME_ANGLE_STEP);
         }
+    }
+
+    @SideOnly(Side.CLIENT)
+    private int getSelectionWireframeAnimationState() {
+        return Math.floorMod((int) Math.round(getSelectionWireframeAngle() / SELECTION_WIREFRAME_ANGLE_STEP),
+              SELECTION_WIREFRAME_ANIMATION_STATES);
     }
 
     @Override
@@ -898,6 +909,9 @@ public class TileEntityLargeWindGenerator extends TileEntityGenerator implements
         addUpperBoundingProbePoints(world, samplePoints, tailCenter.offset(left, 2));
         addUpperBoundingProbePoints(world, samplePoints, tailCenter.offset(right, 2));
         addUpperBoundingProbePoints(world, samplePoints, tailCenter.offset(back, 1));
+
+        // The rotating fan extends far beyond the tower/head bounding blocks.
+        samplePoints.addAll(cullingGetAabbOcclusionSamplePoints(getRenderBoundingBox()));
 
         return samplePoints;
     }
@@ -935,16 +949,35 @@ public class TileEntityLargeWindGenerator extends TileEntityGenerator implements
         return angle < 0D ? angle + 360D : angle;
     }
 
+    @Nonnull
     @Override
-    public boolean hasFastRenderer() {
-        return false;
+    @SideOnly(Side.CLIENT)
+    public AxisAlignedBB getRenderBoundingBox() {
+        return getRenderBoundingBox(getPos(), facing);
+    }
+
+    static AxisAlignedBB getRenderBoundingBox(BlockPos pos, @Nullable EnumFacing facing) {
+        EnumFacing direction = facing == null ? EnumFacing.NORTH : facing;
+        if (direction == EnumFacing.EAST || direction == EnumFacing.WEST) {
+            return createRenderBoundingBox(pos, RENDER_BODY_HALF_WIDTH, RENDER_BLADE_RADIUS);
+        }
+        return createRenderBoundingBox(pos, RENDER_BLADE_RADIUS, RENDER_BODY_HALF_WIDTH);
+    }
+
+    private static AxisAlignedBB createRenderBoundingBox(BlockPos pos, int xRadius, int zRadius) {
+        return new AxisAlignedBB(
+              pos.getX() - xRadius,
+              pos.getY() + RENDER_MIN_Y_OFFSET,
+              pos.getZ() - zRadius,
+              pos.getX() + xRadius + 1,
+              pos.getY() + RENDER_MAX_Y_OFFSET,
+              pos.getZ() + zRadius + 1
+        );
     }
 
     @Override
-    @SideOnly(Side.CLIENT)
-    public double getMaxRenderDistanceSquared() {
-        return MekanismConfig.current().client.largeWindGeneratorisGlobalRenderer.val()
-              ? Double.POSITIVE_INFINITY : super.getMaxRenderDistanceSquared();
+    public boolean hasFastRenderer() {
+        return false;
     }
 
 }

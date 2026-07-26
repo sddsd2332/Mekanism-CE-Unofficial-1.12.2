@@ -17,6 +17,11 @@ public class FluidHandlerTarget extends Target<IFluidHandler, Integer, FluidStac
         this.extra = type;
     }
 
+    public void reset(FluidStack type) {
+        super.reset();
+        this.extra = type;
+    }
+
     @Override
     protected void acceptAmount(IFluidHandler handler, SplitInfo<Integer> splitInfo, Integer amount) {
         splitInfo.send(handler.fill(FluidContainerUtils.copyWithAmount(extra, amount), true));

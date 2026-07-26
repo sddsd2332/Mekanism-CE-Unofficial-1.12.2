@@ -42,8 +42,8 @@ public class TankCache extends MultiblockCache<SynchronizedTankData> {
     @Override
     public void sync(SynchronizedTankData data) {
         syncInventory(data);
-        fluid = data.fluidStored == null ? null : data.fluidStored.copy();
-        gas = data.gasstored == null ? null : data.gasstored.copy();
+        fluid = syncFluidStack(fluid, data.fluidStored);
+        gas = syncGasStack(gas, data.gasstored);
         sanitizeStoredSubstances();
         editMode = data.editMode;
     }

@@ -39,6 +39,7 @@ public class TileEntityDiversionTransporter extends TileEntityLogisticalTranspor
     @Override
     public void readCustomNBT(NBTTagCompound nbtTags) {
         super.readCustomNBT(nbtTags);
+        wasGettingPower = null;
         if (nbtTags.hasKey("modes")) {
             modes = nbtTags.getIntArray("modes");
         }
@@ -113,9 +114,7 @@ public class TileEntityDiversionTransporter extends TileEntityLogisticalTranspor
 
     @Override
     public void onNeighborBlockChange(EnumFacing side) {
-        boolean receivingPower = isGettingPowered();
-        if (wasGettingPower == null || wasGettingPower != receivingPower) {
-            wasGettingPower = receivingPower;
+        if (refreshPowerState()) {
             byte current = getAllCurrentConnections();
             refreshConnections();
             if (current != getAllCurrentConnections()) {
@@ -148,13 +147,27 @@ public class TileEntityDiversionTransporter extends TileEntityLogisticalTranspor
         }
         int mode = modes[side.ordinal()];
         return switch (mode) {
-            case 1 -> isGettingPowered();
-            case 2 -> !isGettingPowered();
+            case 1 -> getPowerState();
+            case 2 -> !getPowerState();
             default -> true;
         };
     }
 
-    private boolean isGettingPowered() {
+    protected final boolean getPowerState() {
+        if (wasGettingPower == null) {
+            wasGettingPower = queryPowerState();
+        }
+        return wasGettingPower;
+    }
+
+    protected final boolean refreshPowerState() {
+        boolean receivingPower = queryPowerState();
+        boolean changed = wasGettingPower == null || wasGettingPower != receivingPower;
+        wasGettingPower = receivingPower;
+        return changed;
+    }
+
+    protected boolean queryPowerState() {
         return MekanismUtils.isGettingPowered(getWorld(), new Coord4D(getPos(), getWorld()));
     }
 

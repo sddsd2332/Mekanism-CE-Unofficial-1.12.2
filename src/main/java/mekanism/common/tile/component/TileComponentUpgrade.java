@@ -14,6 +14,7 @@ import mekanism.common.inventory.container.sync.ISyncableData;
 import mekanism.common.inventory.container.sync.SyncableInt;
 import mekanism.common.inventory.slot.UpgradeInventorySlot;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
+import mekanism.common.upgrade.ExternalUpgradeSupportRegistry;
 import mekanism.common.util.UpgradeUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -316,7 +317,7 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
     }
 
     public boolean supports(Upgrade upgrade) {
-        return supported.contains(upgrade);
+        return supported.contains(upgrade) || ExternalUpgradeSupportRegistry.supports(tileEntity, upgrade);
     }
 
     public Set<Upgrade> getInstalledTypes() {
@@ -324,7 +325,13 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
     }
 
     public Set<Upgrade> getSupportedTypes() {
-        return supportedView;
+        Set<Upgrade> external = ExternalUpgradeSupportRegistry.getSupported(tileEntity);
+        if (external.isEmpty()) {
+            return supportedView;
+        }
+        Set<Upgrade> combined = new LinkedHashSet<>(supported);
+        combined.addAll(external);
+        return Collections.unmodifiableSet(combined);
     }
 
     public void clearSupportedTypes() {
@@ -352,7 +359,7 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
             }
         }
         upgradeTicks = dataStream.readInt();
-        getSupportedTypes().forEach(upgrade -> tileEntity.recalculateUpgradables(upgrade));
+        tileEntity.recalculateAllUpgradables(getSupportedTypes());
     }
 
     @Override
@@ -376,6 +383,13 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
 
     @Override
     public void read(NBTTagCompound nbtTags) {
+        read(nbtTags, true);
+    }
+
+    /**
+     * Reads component state, optionally allowing the owner to delay recalculation until related state is restored.
+     */
+    public void read(NBTTagCompound nbtTags, boolean recalculate) {
         if (nbtTags.hasKey(NBTConstants.COMPONENT_UPGRADE, NBT.TAG_COMPOUND)) {
             NBTTagCompound upgradeNBT = nbtTags.getCompoundTag(NBTConstants.COMPONENT_UPGRADE);
             upgrades.clear();
@@ -389,7 +403,9 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
             upgradeOutputSlot.setEmpty();
         }
         canCheckUpgrades = true;
-        getSupportedTypes().forEach(upgrade -> tileEntity.recalculateUpgradables(upgrade));
+        if (recalculate) {
+            tileEntity.recalculateAllUpgradables(getSupportedTypes());
+        }
     }
 
     @Override

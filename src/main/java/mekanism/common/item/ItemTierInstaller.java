@@ -5,7 +5,6 @@ import cofh.api.item.IUpgradeItem;
 import cofh.api.tileentity.IUpgradeable;
 import mekanism.common.advancements.MekanismCriteriaTriggers;
 import mekanism.common.base.IMetaItem;
-import mekanism.common.base.IUpgradeableTile;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.tier.BaseTier;
 import mekanism.common.tile.prefab.TileEntityBasicBlock;
@@ -50,13 +49,14 @@ public class ItemTierInstaller extends ItemMekanism implements IMetaItem, IUpgra
         TileEntity tile = world.getTileEntity(pos);
         ItemStack stack = player.getHeldItem(hand);
         BaseTier tier = getTier(stack);
-        if (tile instanceof IUpgradeableTile upgradeable) {
+        if (UpgradeUtils.isUpgradeable(tile)) {
             if (tile instanceof TileEntityBasicBlock basicBlock && !basicBlock.playersUsing.isEmpty()) {
                 return EnumActionResult.FAIL;
             }
-            IUpgradeData upgradeData = upgradeable.getUpgradeData(tier);
-            IBlockState upgradeResult = upgradeable.getUpgradeResult(tier);
-            boolean upgraded = upgradeData != null && (upgradeResult == null ? upgradeable.parseUpgradeData(upgradeData) : UpgradeUtils.replaceTileForUpgrade(tile, upgradeResult, upgradeData));
+            IUpgradeData upgradeData = UpgradeUtils.getUpgradeData(tile, tier);
+            IBlockState upgradeResult = UpgradeUtils.getUpgradeResult(tile, tier);
+            boolean upgraded = upgradeData != null && (upgradeResult == null ? UpgradeUtils.parseUpgradeData(tile, upgradeData) :
+                  UpgradeUtils.replaceTileForUpgrade(tile, upgradeResult, upgradeData));
             if (upgraded) {
                 if (!player.capabilities.isCreativeMode) {
                     stack.shrink(1);

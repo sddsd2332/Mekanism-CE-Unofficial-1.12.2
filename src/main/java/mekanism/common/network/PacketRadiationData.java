@@ -1,7 +1,6 @@
 package mekanism.common.network;
 
 import io.netty.buffer.ByteBuf;
-import mekanism.api.radiation.capability.IRadiationEntity;
 import mekanism.common.Mekanism;
 import mekanism.common.PacketHandler;
 import mekanism.common.capabilities.Capabilities;
@@ -27,7 +26,7 @@ public class PacketRadiationData implements IMessageHandler<PacketRadiationDataM
         }
         PacketHandler.handlePacket(() -> {
             if (message.type == RadiationPacketType.ENVIRONMENTAL) {
-                RadiationManager.INSTANCE.setClientEnvironmentalRadiation(message.radiation);
+                RadiationManager.INSTANCE.setClientEnvironmentalRadiation(message.radiation, message.maxMagnitude);
             } else if (message.type == RadiationPacketType.PLAYER) {
                 if (player.hasCapability(Capabilities.RADIATION_ENTITY_CAPABILITY, null)) {
                     Objects.requireNonNull(player.getCapability(Capabilities.RADIATION_ENTITY_CAPABILITY, null)).set(message.radiation);
@@ -46,29 +45,34 @@ public class PacketRadiationData implements IMessageHandler<PacketRadiationDataM
 
 
     public static void sync(EntityPlayerMP player) {
-        if (player.hasCapability(Capabilities.RADIATION_ENTITY_CAPABILITY, null)) {
-            IRadiationEntity entity = player.getCapability(Capabilities.RADIATION_ENTITY_CAPABILITY, null);
-            if (entity != null) {
-                Mekanism.packetHandler.sendTo(new PacketRadiationDataMessage(RadiationPacketType.PLAYER, entity.getRadiation()), player);
-            }
-        }
+        RadiationManager.INSTANCE.syncPlayer(player);
     }
 
     public static PacketRadiationDataMessage createEnvironmental(double radiation) {
-        return new PacketRadiationDataMessage(RadiationPacketType.ENVIRONMENTAL, radiation);
+        return createEnvironmental(radiation, radiation);
+    }
+
+    public static PacketRadiationDataMessage createEnvironmental(double radiation, double maxMagnitude) {
+        return new PacketRadiationDataMessage(RadiationPacketType.ENVIRONMENTAL, radiation, maxMagnitude);
+    }
+
+    public static PacketRadiationDataMessage createPlayer(double radiation) {
+        return new PacketRadiationDataMessage(RadiationPacketType.PLAYER, radiation, radiation);
     }
 
     public static class PacketRadiationDataMessage implements IMessage {
 
         private RadiationPacketType type;
         private double radiation;
+        private double maxMagnitude;
 
         public PacketRadiationDataMessage() {
         }
 
-        private PacketRadiationDataMessage(RadiationPacketType type, double radiation) {
+        PacketRadiationDataMessage(RadiationPacketType type, double radiation, double maxMagnitude) {
             this.type = type;
             this.radiation = radiation;
+            this.maxMagnitude = maxMagnitude;
         }
 
 
@@ -76,12 +80,26 @@ public class PacketRadiationData implements IMessageHandler<PacketRadiationDataM
         public void toBytes(ByteBuf dataStream) {
             dataStream.writeInt(type.ordinal());
             dataStream.writeDouble(radiation);
+            dataStream.writeDouble(maxMagnitude);
         }
 
         @Override
         public void fromBytes(ByteBuf dataStream) {
             type = MekanismUtils.getByIndex(RadiationPacketType.values(), dataStream.readInt(), RadiationPacketType.ENVIRONMENTAL);
             radiation = dataStream.readDouble();
+            maxMagnitude = dataStream.readDouble();
+        }
+
+        RadiationPacketType getType() {
+            return type;
+        }
+
+        double getRadiation() {
+            return radiation;
+        }
+
+        double getMaxMagnitude() {
+            return maxMagnitude;
         }
 
 

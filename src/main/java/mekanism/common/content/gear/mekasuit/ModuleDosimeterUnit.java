@@ -6,10 +6,13 @@ import mekanism.api.gear.IHUDElement.HUDColor;
 import mekanism.api.gear.IModule;
 import mekanism.api.radiation.capability.IRadiationEntity;
 import mekanism.common.capabilities.Capabilities;
+import mekanism.common.config.MekanismConfig;
 import mekanism.common.content.gear.ModuleHelper;
 import mekanism.common.lib.radiation.RadiationManager;
+import mekanism.common.lib.radiation.RadiationUtil;
 import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.UnitDisplayUtils;
+import mekanism.common.util.text.TextUtils;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.util.ResourceLocation;
 
@@ -28,7 +31,11 @@ public class ModuleDosimeterUnit implements ICustomModule<ModuleDosimeterUnit> {
                 IRadiationEntity entity = player.getCapability(Capabilities.RADIATION_ENTITY_CAPABILITY, null);
                 assert entity != null;
                 double radiation = entity.getRadiation();
-                hudElementAdder.accept(ModuleHelper.get().hudElement(icon, UnitDisplayUtils.getDisplayShort(radiation, UnitDisplayUtils.RadiationUnit.SV, 2), radiation < RadiationManager.MIN_MAGNITUDE ? HUDColor.REGULAR : (radiation < 0.1 ? HUDColor.WARNING : HUDColor.DANGER)));
+                String text = UnitDisplayUtils.getDisplayShort(radiation, UnitDisplayUtils.RadiationUnit.SV, 2);
+                if (MekanismConfig.current().general.radiationDecayTimers.val() && radiation > RadiationManager.MIN_MAGNITUDE) {
+                    text += " (" + TextUtils.getHoursMinutesFromTicks(RadiationUtil.getDecayTime(radiation, false)) + ")";
+                }
+                hudElementAdder.accept(ModuleHelper.get().hudElement(icon, text, radiation < RadiationManager.MIN_MAGNITUDE ? HUDColor.REGULAR : (radiation < 0.1 ? HUDColor.WARNING : HUDColor.DANGER)));
             }
         }
     }

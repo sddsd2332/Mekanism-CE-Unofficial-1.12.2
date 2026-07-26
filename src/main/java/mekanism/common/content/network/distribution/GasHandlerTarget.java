@@ -18,6 +18,11 @@ public class GasHandlerTarget extends Target<GasHandlerTarget.SideHandler, Integ
         this.extra = type;
     }
 
+    public void reset(GasStack type) {
+        super.reset();
+        this.extra = type;
+    }
+
     public void addHandler(EnumFacing side, IGasHandler handler) {
         addHandler(new SideHandler(handler, side));
     }

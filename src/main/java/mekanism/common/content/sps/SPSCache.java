@@ -29,8 +29,8 @@ public class SPSCache extends MultiblockCache<SynchronizedSPSData> {
 
     @Override
     public void sync(SynchronizedSPSData data) {
-        inputGas = data.inputTank.getGas() == null ? null : data.inputTank.getGas().copy();
-        outputGas = data.outputTank.getGas() == null ? null : data.outputTank.getGas().copy();
+        inputGas = syncGasStack(inputGas, data.inputTank.getGas());
+        outputGas = syncGasStack(outputGas, data.outputTank.getGas());
         progress = data.progress;
         inputProcessed = data.inputProcessed;
         receivedEnergy = data.receivedEnergy;

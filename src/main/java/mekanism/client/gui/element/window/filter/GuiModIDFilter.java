@@ -1,5 +1,6 @@
 package mekanism.client.gui.element.window.filter;
 
+import mekanism.api.functions.CharUnaryOperator;
 import mekanism.client.gui.IGuiWrapper;
 import mekanism.client.recipe_viewer.interfaces.IRecipeViewerGhostTarget.IGhostIngredientConsumer;
 import mekanism.common.MekanismLang;
@@ -25,6 +26,12 @@ public abstract class GuiModIDFilter<FILTER extends IModIDFilter, TILE extends T
         super(gui, x, y, width, height, MekanismLang.MODID_FILTER.translate().getFormattedText(), tile, origFilter);
         updateStackList(filter.getModID());
         slotDisplay.updateStackList();
+    }
+
+    @Nullable
+    @Override
+    protected CharUnaryOperator getInputTransformer() {
+        return c -> c >= 'A' && c <= 'Z' ? Character.toLowerCase(c) : c;
     }
 
     @Override

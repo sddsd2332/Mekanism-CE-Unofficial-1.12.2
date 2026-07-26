@@ -7,7 +7,7 @@ import mekanism.common.MekanismDamageSource;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.lib.radiation.RadiationManager;
-import mekanism.common.network.PacketRadiationData;
+import mekanism.common.lib.radiation.RadiationUtil;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayer;
@@ -27,8 +27,7 @@ import java.util.Random;
 
 public class DefaultRadiationEntity implements IRadiationEntity {
 
-    private double radiation;
-    private double clientSeverity = 0;
+    private double radiation = RadiationManager.BASELINE;
 
     @Override
     public double getRadiation() {
@@ -37,7 +36,7 @@ public class DefaultRadiationEntity implements IRadiationEntity {
 
     @Override
     public void radiate(double magnitude) {
-        radiation += magnitude;
+        radiation = RadiationUtil.addClamped(radiation, magnitude);
     }
 
     @Override
@@ -61,14 +60,7 @@ public class DefaultRadiationEntity implements IRadiationEntity {
             }
         }
 
-        if (entity instanceof EntityPlayer) {
-            EntityPlayerMP player = (EntityPlayerMP) entity;
-
-            if (clientSeverity != radiation) {
-                clientSeverity = radiation;
-                PacketRadiationData.sync(player);
-            }
-
+        if (entity instanceof EntityPlayerMP player) {
             if (strength > 0) {
                 player.getFoodStats().addExhaustion(strength);
             }
@@ -77,12 +69,12 @@ public class DefaultRadiationEntity implements IRadiationEntity {
 
     @Override
     public void set(double magnitude) {
-        radiation = magnitude;
+        radiation = RadiationUtil.sanitizeAtLeastBaseline(magnitude);
     }
 
     @Override
     public void decay() {
-        radiation = Math.max(RadiationManager.BASELINE, radiation * MekanismConfig.current().general.radiationTargetDecayRate.val());
+        radiation = RadiationUtil.sanitizeAtLeastBaseline(radiation * MekanismConfig.current().general.radiationTargetDecayRate.val());
     }
 
     @Override
@@ -94,7 +86,7 @@ public class DefaultRadiationEntity implements IRadiationEntity {
 
     @Override
     public void deserializeNBT(NBTTagCompound nbt) {
-        radiation = nbt.getDouble(NBTConstants.RADIATION);
+        set(nbt.getDouble(NBTConstants.RADIATION));
     }
 
     public static void register() {
@@ -144,4 +136,3 @@ public class DefaultRadiationEntity implements IRadiationEntity {
         }
     }
 }
-

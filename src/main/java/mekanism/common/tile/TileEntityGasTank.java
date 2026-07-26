@@ -41,7 +41,7 @@ import net.minecraftforge.fml.common.FMLCommonHandler;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-public class TileEntityGasTank extends TileEntityContainerBlock implements IRedstoneControl, ISideConfiguration, ISecurityTile, IUpgradeableTile,
+public class TileEntityGasTank extends TileEntityContainerBlock implements IRedstoneControl, ISideConfiguration, ISecurityTile, IUpgradeableTile, IBaseTierProvider,
         IComputerIntegration, IComparatorSupport, ITankManager {
 
     private static final String[] methods = new String[]{"getMaxGas", "getStoredGas", "getGas"};
@@ -155,6 +155,11 @@ public class TileEntityGasTank extends TileEntityContainerBlock implements IReds
             return false;
         }
         return upgradeTier.ordinal() < GasTankTier.values().length;
+    }
+
+    @Override
+    public BaseTier getBaseTier() {
+        return tier.getBaseTier();
     }
 
     @Nullable

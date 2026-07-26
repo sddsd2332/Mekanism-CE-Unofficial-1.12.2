@@ -61,6 +61,7 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.function.BooleanSupplier;
 
 public class TileEntityRotaryCondensentrator extends TileEntityMachine implements ISustainedData, IUpgradeInfoHandler, ITankManager,
@@ -250,6 +251,20 @@ public class TileEntityRotaryCondensentrator extends TileEntityMachine implement
     @Override
     public void recalculateUpgradables(Upgrade upgrade) {
         super.recalculateUpgradables(upgrade);
+        if (!isRecalculatingAllUpgradables()) {
+            unpauseRecipeCache();
+        }
+    }
+
+    @Override
+    protected void onAllUpgradablesRecalculated(Set<Upgrade> upgrades) {
+        super.onAllUpgradablesRecalculated(upgrades);
+        if (!upgrades.isEmpty()) {
+            unpauseRecipeCache();
+        }
+    }
+
+    private void unpauseRecipeCache() {
         if (recipeCacheLookupMonitor != null && world != null && !world.isRemote) {
             recipeCacheLookupMonitor.unpause();
         }

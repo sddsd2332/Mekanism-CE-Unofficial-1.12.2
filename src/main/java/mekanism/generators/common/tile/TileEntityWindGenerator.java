@@ -12,12 +12,21 @@ import mekanism.common.util.MekanismUtils;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.util.EnumFacing;
+import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.IBlockAccess;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
+import javax.annotation.Nonnull;
+import java.util.ArrayList;
+import java.util.List;
+
 public class TileEntityWindGenerator extends TileEntityGenerator implements IBoundingBlock, ISpecialSelectionWireframeTile {
+
+    private static final int RENDER_HORIZONTAL_RADIUS = 2;
+    private static final int RENDER_HEIGHT = 7;
 
     public static final float SPEED = 32F;
     public static final float SPEED_SCALED = 256F / SPEED;
@@ -155,6 +164,26 @@ public class TileEntityWindGenerator extends TileEntityGenerator implements IBou
         for (int y = 1; y <= 4; y++) {
             consumer.accept(getPos().up(y), false);
         }
+    }
+
+    @Nonnull
+    @Override
+    @SideOnly(Side.CLIENT)
+    public AxisAlignedBB getRenderBoundingBox() {
+        return getRenderBoundingBox(getPos());
+    }
+
+    public static AxisAlignedBB getRenderBoundingBox(BlockPos pos) {
+        return new AxisAlignedBB(pos.getX() - RENDER_HORIZONTAL_RADIUS, pos.getY(), pos.getZ() - RENDER_HORIZONTAL_RADIUS,
+              pos.getX() + RENDER_HORIZONTAL_RADIUS + 1D, pos.getY() + RENDER_HEIGHT, pos.getZ() + RENDER_HORIZONTAL_RADIUS + 1D);
+    }
+
+    @Override
+    @SideOnly(Side.CLIENT)
+    public List<Vec3d> computeOcclusionSamplePoints() {
+        List<Vec3d> samplePoints = new ArrayList<>(super.computeOcclusionSamplePoints());
+        samplePoints.addAll(cullingGetAabbOcclusionSamplePoints(getRenderBoundingBox()));
+        return samplePoints;
     }
 
     @Override

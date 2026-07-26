@@ -98,8 +98,7 @@ public class TileEntityFissionReactorCasing extends TileEntityMultiblock<Synchro
         }
         BlockPos minPos = structure.minLocation.getPos();
         BlockPos maxPos = structure.maxLocation.getPos();
-        Coord4D center = new Coord4D((minPos.getX() + maxPos.getX()) / 2D, (minPos.getY() + maxPos.getY()) / 2D, (minPos.getZ() + maxPos.getZ()) / 2D,
-                world.provider.getDimension());
+        Coord4D center = structure.getReactorCenter();
         if (MekanismAPI.getRadiationManager().isRadiationEnabled()) {
             double releasedRadiation = structure.collectRadiationForMeltdown();
             if (releasedRadiation > 0) {

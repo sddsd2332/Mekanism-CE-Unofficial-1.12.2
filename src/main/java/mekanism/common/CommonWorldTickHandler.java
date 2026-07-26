@@ -10,7 +10,6 @@ import mekanism.common.multiblock.MultiblockManager;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.world.World;
-import net.minecraft.world.WorldServer;
 import net.minecraft.world.gen.ChunkProviderServer;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
@@ -129,16 +128,4 @@ public class CommonWorldTickHandler {
         RadiationManager.INSTANCE.tickServer();
     }
 
-    @SubscribeEvent
-    public void onTickEnd(WorldTickEvent event) {
-        if (event.side.isServer() && event.phase == Phase.END) {
-            tickEndNew((WorldServer) event.world);
-        }
-    }
-
-    private void tickEndNew(WorldServer world){
-        if (!world.isRemote) {
-            RadiationManager.INSTANCE.tickServerWorld(world);
-        }
-    }
 }

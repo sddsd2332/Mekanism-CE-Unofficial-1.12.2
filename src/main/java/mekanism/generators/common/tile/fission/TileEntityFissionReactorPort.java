@@ -12,6 +12,7 @@ import mekanism.common.capabilities.holder.fluid.IFluidTankHolder;
 import mekanism.common.capabilities.holder.fluid.ProxiedFluidTankHolder;
 import mekanism.common.capabilities.holder.gas.IGasTankHolder;
 import mekanism.common.capabilities.holder.gas.ProxiedGasTankHolder;
+import mekanism.common.content.network.distribution.GasHandlerTarget;
 import mekanism.common.util.*;
 import mekanism.generators.common.block.states.BlockStateGenerator.FissionPortModeProperty;
 import net.minecraft.entity.player.EntityPlayer;
@@ -26,14 +27,20 @@ import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
 public class TileEntityFissionReactorPort extends TileEntityFissionReactorCasing implements IConfigurable, IActiveState {
 
+    private static final Set<EnumFacing> OUTPUT_SIDES = Collections.unmodifiableSet(EnumSet.allOf(EnumFacing.class));
+
     private PortMode mode = PortMode.INPUT;
+    private final GasHandlerTarget gasEmitTarget = new GasHandlerTarget(null, EnumFacing.VALUES.length);
+    private GasStack gasOutputStack;
 
     public TileEntityFissionReactorPort() {
         super("FissionReactorPort");
@@ -87,16 +94,12 @@ public class TileEntityFissionReactorPort extends TileEntityFissionReactorCasing
             return;
         }
 
-        if (mode == PortMode.OUTPUT_WASTE && structure.wasteTank.getGas() != null && structure.wasteTank.getGas().amount > 0) {
-            GasStack toSend = structure.wasteTank.getGas().copy();
-            int sent = GasUtils.emit(toSend, this, EnumSet.allOf(EnumFacing.class));
-            if (sent > 0) {
-                structure.wasteTank.extract(sent, Action.EXECUTE, AutomationType.INTERNAL);
-            }
+        if (mode == PortMode.OUTPUT_WASTE) {
+            emitGas(structure.wasteTank);
         }
 
         if (mode == PortMode.OUTPUT_COOLANT && structure.steamTank.getFluidAmount() > 0) {
-            EmitUtils.forEachSide(getWorld(), getPos(), EnumSet.allOf(EnumFacing.class), (tile, side) -> {
+            EmitUtils.forEachSide(getWorld(), getPos(), OUTPUT_SIDES, (tile, side) -> {
                 if (tile instanceof TileEntityFissionReactorPort) {
                     return;
                 }
@@ -110,14 +113,38 @@ public class TileEntityFissionReactorPort extends TileEntityFissionReactorCasing
                 }
             });
         }
-        if (mode == PortMode.OUTPUT_COOLANT && structure.heatedCoolantTank.getGas() != null && structure.heatedCoolantTank.getGas().amount > 0) {
-            GasStack toSend = structure.heatedCoolantTank.getGas().copy();
-            int sent = GasUtils.emit(toSend, this, EnumSet.allOf(EnumFacing.class));
-            if (sent > 0) {
-                structure.heatedCoolantTank.extract(sent, Action.EXECUTE, AutomationType.INTERNAL);
-            }
+        if (mode == PortMode.OUTPUT_COOLANT) {
+            emitGas(structure.heatedCoolantTank);
         }
         syncCachedDataFromStructure();
+    }
+
+    private void emitGas(IExtendedGasTank tank) {
+        GasStack toSend = prepareGasForEmission(tank.getGas());
+        if (toSend == null) {
+            return;
+        }
+        int sent = GasUtils.emit(toSend, this, OUTPUT_SIDES, gasEmitTarget);
+        if (sent > 0) {
+            tank.extract(sent, Action.EXECUTE, AutomationType.INTERNAL);
+        }
+    }
+
+    @Nullable
+    GasStack prepareGasForEmission(@Nullable GasStack stored) {
+        if (stored == null || stored.getGas() == null || stored.amount <= 0) {
+            return null;
+        }
+        if (gasOutputStack == null || !gasOutputStack.isGasEqual(stored)) {
+            gasOutputStack = new GasStack(stored.getGas(), stored.amount);
+        } else {
+            gasOutputStack.amount = stored.amount;
+        }
+        return gasOutputStack;
+    }
+
+    GasHandlerTarget getGasEmitTarget() {
+        return gasEmitTarget;
     }
 
     @Override

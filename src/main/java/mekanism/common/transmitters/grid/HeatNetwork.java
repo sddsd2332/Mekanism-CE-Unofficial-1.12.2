@@ -9,18 +9,32 @@ import mekanism.common.tile.transmitter.TileEntityThermodynamicConductor;
 import mekanism.common.transmitters.TransmitterImpl;
 import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.UnitDisplayUtils.TemperatureUnit;
+import net.minecraft.util.EnumFacing;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 public class HeatNetwork extends DynamicNetwork<IHeatHandler, HeatNetwork, Void> {
+
+    static final int QUIET_TICKS_BEFORE_SLEEP = 20;
+    static final int SLEEP_PROBE_INTERVAL = 20;
 
     public double meanTemp = HeatAPI.AMBIENT_TEMP;
 
     public double heatLost = 0;
     public double heatTransferred = 0;
+
+    private List<TileEntityThermodynamicConductor> conductorSnapshot = Collections.emptyList();
+    private double[] lastConductorHeat = new double[0];
+    private int snapshotTransmitterCount = -1;
+    private boolean snapshotDirty = true;
+    private boolean sleeping;
+    private int quietTicks;
+    private int sleepingTicks;
 
     public HeatNetwork() {
     }
@@ -33,6 +47,73 @@ public class HeatNetwork extends DynamicNetwork<IHeatHandler, HeatNetwork, Void>
             }
         });
         register();
+    }
+
+    /** Wakes an idle network after heat, acceptors, or topology changed. */
+    public void wakeUp() {
+        sleeping = false;
+        quietTicks = 0;
+        sleepingTicks = 0;
+    }
+
+    @Override
+    public void addNewTransmitters(Collection<IGridTransmitter<IHeatHandler, HeatNetwork, Void>> newTransmitters) {
+        super.addNewTransmitters(newTransmitters);
+        if (!newTransmitters.isEmpty()) {
+            invalidateConductorSnapshot();
+        }
+    }
+
+    @Override
+    public void commit() {
+        boolean topologyChanged = !transmittersToAdd.isEmpty();
+        boolean acceptorsChanged = !changedAcceptors.isEmpty();
+        super.commit();
+        if (topologyChanged) {
+            invalidateConductorSnapshot();
+        } else if (acceptorsChanged) {
+            wakeUp();
+        }
+    }
+
+    @Override
+    public void acceptorChanged(IGridTransmitter<IHeatHandler, HeatNetwork, Void> transmitter, EnumFacing side) {
+        super.acceptorChanged(transmitter, side);
+        wakeUp();
+    }
+
+    @Override
+    public void adoptTransmittersAndAcceptorsFrom(HeatNetwork network) {
+        super.adoptTransmittersAndAcceptorsFrom(network);
+        invalidateConductorSnapshot();
+    }
+
+    @Override
+    public boolean addTransmitter(IGridTransmitter<IHeatHandler, HeatNetwork, Void> transmitter) {
+        boolean added = super.addTransmitter(transmitter);
+        if (added) {
+            invalidateConductorSnapshot();
+        }
+        return added;
+    }
+
+    @Override
+    public boolean removeTransmitter(IGridTransmitter<IHeatHandler, HeatNetwork, Void> transmitter) {
+        boolean removed = super.removeTransmitter(transmitter);
+        if (removed) {
+            invalidateConductorSnapshot();
+        }
+        return removed;
+    }
+
+    @Override
+    public void deregister() {
+        super.deregister();
+        conductorSnapshot = Collections.emptyList();
+        lastConductorHeat = new double[0];
+        snapshotTransmitterCount = 0;
+        snapshotDirty = false;
+        wakeUp();
     }
 
     @Override
@@ -85,37 +166,101 @@ public class HeatNetwork extends DynamicNetwork<IHeatHandler, HeatNetwork, Void>
     public void onUpdate() {
         super.onUpdate();
 
-        List<IGridTransmitter<IHeatHandler, HeatNetwork, Void>> currentTransmitters = new ArrayList<>(transmitters);
+        List<TileEntityThermodynamicConductor> currentConductors = getConductorSnapshot();
         double newHeatLost = 0;
         double newHeatTransferred = 0;
         boolean server = FMLCommonHandler.instance().getEffectiveSide() != null && FMLCommonHandler.instance().getEffectiveSide().isServer();
+        boolean safetyProbe = server && sleeping;
+
+        if (server && !shouldRunServerSimulation()) {
+            return;
+        }
 
         if (server) {
-            for (IGridTransmitter<IHeatHandler, HeatNetwork, Void> transmitter : currentTransmitters) {
-                if (transmitter instanceof TransmitterImpl<?, ?, ?> imp && imp.getTileEntity() instanceof TileEntityThermodynamicConductor conductor) {
-                    HeatTransfer transfer = conductor.simulate();
-                    double adjacent = transfer.adjacentTransfer();
-                    double environment = transfer.environmentTransfer();
-                    newHeatTransferred = addFlowValue(newHeatTransferred, adjacent);
-                    newHeatLost = addFlowValue(newHeatLost, environment);
-                }
+            for (TileEntityThermodynamicConductor conductor : currentConductors) {
+                HeatTransfer transfer = conductor.simulate();
+                double adjacent = transfer.adjacentTransfer();
+                double environment = transfer.environmentTransfer();
+                newHeatTransferred = addFlowValue(newHeatTransferred, adjacent);
+                newHeatLost = addFlowValue(newHeatLost, environment);
             }
         }
         double mean = 0;
         int count = 0;
-        for (IGridTransmitter<IHeatHandler, HeatNetwork, Void> transmitter : currentTransmitters) {
-            if (transmitter instanceof TransmitterImpl<?, ?, ?> imp && imp.getTileEntity() instanceof TileEntityThermodynamicConductor conductor) {
-                double temperature = HeatAPI.sanitizeTemperature(conductor.buffer.getTemperature());
-                count++;
-                // Incremental averaging avoids overflowing a raw temperature sum.
-                mean += (temperature - mean) / count;
+        boolean heatChanged = false;
+        for (TileEntityThermodynamicConductor conductor : currentConductors) {
+            double temperature = HeatAPI.sanitizeTemperature(conductor.buffer.getTemperature());
+            double heat = HeatAPI.sanitizeHeat(conductor.buffer.getHeat(), HeatAPI.multiplyHeat(temperature, conductor.buffer.getHeatCapacity()));
+            if (Double.compare(lastConductorHeat[count], heat) != 0) {
+                heatChanged = true;
             }
+            lastConductorHeat[count] = heat;
+            count++;
+            // Incremental averaging avoids overflowing a raw temperature sum.
+            mean += (temperature - mean) / count;
         }
         if (server) {
             heatLost = newHeatLost;
             heatTransferred = newHeatTransferred;
+            updateSleepState(hasEffectiveActivity(newHeatTransferred, newHeatLost, heatChanged), safetyProbe);
         }
         meanTemp = count == 0 ? HeatAPI.AMBIENT_TEMP : HeatAPI.sanitizeTemperature(mean);
+    }
+
+    private void invalidateConductorSnapshot() {
+        snapshotDirty = true;
+        wakeUp();
+    }
+
+    List<TileEntityThermodynamicConductor> getConductorSnapshot() {
+        // The count check also catches direct additions/removals through the legacy public transmitter set.
+        if (snapshotDirty || snapshotTransmitterCount != transmitters.size()) {
+            List<TileEntityThermodynamicConductor> snapshot = new ArrayList<>(transmitters.size());
+            for (IGridTransmitter<IHeatHandler, HeatNetwork, Void> transmitter : transmitters) {
+                if (transmitter instanceof TransmitterImpl<?, ?, ?> imp && imp.getTileEntity() instanceof TileEntityThermodynamicConductor conductor) {
+                    snapshot.add(conductor);
+                }
+            }
+            conductorSnapshot = snapshot;
+            lastConductorHeat = new double[snapshot.size()];
+            Arrays.fill(lastConductorHeat, Double.NaN);
+            snapshotTransmitterCount = transmitters.size();
+            snapshotDirty = false;
+            wakeUp();
+        }
+        return conductorSnapshot;
+    }
+
+    boolean shouldRunServerSimulation() {
+        if (!sleeping) {
+            return true;
+        }
+        sleepingTicks++;
+        if (sleepingTicks < SLEEP_PROBE_INTERVAL) {
+            return false;
+        }
+        sleepingTicks = 0;
+        return true;
+    }
+
+    void updateSleepState(boolean active, boolean safetyProbe) {
+        if (active) {
+            wakeUp();
+        } else if (safetyProbe) {
+            sleeping = true;
+            quietTicks = QUIET_TICKS_BEFORE_SLEEP;
+        } else if (++quietTicks >= QUIET_TICKS_BEFORE_SLEEP) {
+            sleeping = true;
+            sleepingTicks = 0;
+        }
+    }
+
+    boolean isSleeping() {
+        return sleeping;
+    }
+
+    static boolean hasEffectiveActivity(double transferred, double lost, boolean heatChanged) {
+        return heatChanged || sanitizeFlowValue(transferred) > HeatAPI.EPSILON || sanitizeFlowValue(lost) > HeatAPI.EPSILON;
     }
 
     private static double addFlowValue(double current, double value) {

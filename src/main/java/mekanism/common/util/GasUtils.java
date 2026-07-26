@@ -198,13 +198,20 @@ public final class GasUtils {
      * @return the amount of gas emitted
      */
     public static int emit(GasStack stack, TileEntity from, Set<EnumFacing> sides) {
+        return emit(stack, from, sides, new GasHandlerTarget(stack, 6));
+    }
+
+    /**
+     * Emits gas using a caller-owned target. The target is reset before collection so its backing lists can be reused safely.
+     */
+    public static int emit(GasStack stack, TileEntity from, Set<EnumFacing> sides, GasHandlerTarget target) {
+        target.reset(stack);
         if (stack == null || stack.amount == 0 || sides.isEmpty()) {
             return 0;
         }
 
         //Fake that we have one target given we know that no sides will overlap
         // This allows us to have slightly better performance
-        final GasHandlerTarget target = new GasHandlerTarget(stack, 6);
         if (from != null) {
             EmitUtils.forEachSide(from.getWorld(), from.getPos(), sides, (acceptor, side) -> {
                 //Invert to get access side

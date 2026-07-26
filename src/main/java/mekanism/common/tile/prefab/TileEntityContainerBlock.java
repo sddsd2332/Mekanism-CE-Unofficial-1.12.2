@@ -60,8 +60,11 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 带有可已存储类型的方块
@@ -88,6 +91,7 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
     private final List<IExtendedGasTank> noGasTanks = Collections.emptyList();
     private final List<IEnergyContainer> noEnergyContainers = Collections.emptyList();
     private final List<IHeatCapacitor> noHeatCapacitors = Collections.emptyList();
+    private boolean recalculatingAllUpgradables;
 
     /**
      * The full name of this machine.
@@ -457,6 +461,42 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
     }
 
     public void recalculateUpgradables(Upgrade upgradeType) {
+    }
+
+    /**
+     * Recalculates an ordered snapshot of upgrade types while preserving per-type virtual dispatch.
+     */
+    public final void recalculateAllUpgradables(Collection<Upgrade> upgrades) {
+        if (recalculatingAllUpgradables) {
+            throw new IllegalStateException("Upgrade recalculation batch is already active");
+        }
+        Set<Upgrade> snapshot = new LinkedHashSet<>();
+        if (upgrades != null) {
+            for (Upgrade upgrade : upgrades) {
+                if (upgrade != null) {
+                    snapshot.add(upgrade);
+                }
+            }
+        }
+        recalculatingAllUpgradables = true;
+        try {
+            for (Upgrade upgrade : snapshot) {
+                recalculateUpgradables(upgrade);
+            }
+        } finally {
+            recalculatingAllUpgradables = false;
+        }
+        onAllUpgradablesRecalculated(Collections.unmodifiableSet(snapshot));
+    }
+
+    protected final boolean isRecalculatingAllUpgradables() {
+        return recalculatingAllUpgradables;
+    }
+
+    /**
+     * Called once after every per-type callback completes successfully. Overrides must call {@code super}.
+     */
+    protected void onAllUpgradablesRecalculated(Set<Upgrade> upgrades) {
     }
 
     @Override

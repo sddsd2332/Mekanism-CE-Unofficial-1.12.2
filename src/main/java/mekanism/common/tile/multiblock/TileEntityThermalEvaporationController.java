@@ -1056,7 +1056,17 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
     @Override
     @SideOnly(Side.CLIENT)
     public AxisAlignedBB getRenderBoundingBox() {
-        return INFINITE_EXTENT_AABB;
+        Coord4D renderLocation = getRenderLocation();
+        if (structured && renderLocation != null && height >= 3) {
+            return getRenderBoundingBox(renderLocation.getPos(), height);
+        }
+        return new AxisAlignedBB(getPos());
+    }
+
+    public static AxisAlignedBB getRenderBoundingBox(BlockPos interiorMin, int height) {
+        int renderHeight = Math.max(3, height);
+        return new AxisAlignedBB(interiorMin.getX() - 1D, interiorMin.getY() - 1D, interiorMin.getZ() - 1D,
+              interiorMin.getX() + 3D, interiorMin.getY() + renderHeight - 1D, interiorMin.getZ() + 3D);
     }
 
     @Override

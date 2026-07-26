@@ -12,6 +12,10 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
 import javax.annotation.ParametersAreNonnullByDefault;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 /**
  * The RadiationManager handles radiation across all in-game dimensions. Radiation exposure levels are provided in _sieverts, defining a rate of accumulation of
@@ -47,6 +51,20 @@ public interface IRadiationManager {
     boolean isRadiationEnabled();
 
     /**
+     * Gets the baseline environmental radiation level.
+     */
+    default double baselineRadiation() {
+        return 0.0000001D;
+    }
+
+    /**
+     * Gets the minimum radiation magnitude that has a noticeable effect.
+     */
+    default double minRadiationMagnitude() {
+        return 0.00001D;
+    }
+
+    /**
      * Helper to access Mekanism's internal radiation damage source.
      *
      * @return Damage source used for radiation.
@@ -76,6 +94,14 @@ public interface IRadiationManager {
      * @return Unmodifiable table of radiation sources.
      */
     Table<Chunk3D, Coord4D, IRadiationSource> getRadiationSources();
+
+    /**
+     * Gets a snapshot of sources centered in the given chunk.
+     */
+    default List<IRadiationSource> getRadiationSources(Chunk3D chunk) {
+        Map<Coord4D, IRadiationSource> sources = getRadiationSources().row(chunk);
+        return sources.isEmpty() ? Collections.emptyList() : new ArrayList<>(sources.values());
+    }
 
     /**
      * Removes all radiation sources in a given chunk.

@@ -129,16 +129,22 @@ public class ClientConfig extends BaseConfig {
 
     public final BooleanOption whiteRadialText = new BooleanOption(this,  "whiteRadialText", false, "If enabled tries to force all radial menu text to be white.");
 
-    public final IntOption radiationParticleCount = new IntOption(this,  "radiationParticleCount", 100, "How many particles spawn when rendering radiation effects (scaled by radiation level).");
+    public final IntOption radiationParticleCount = new IntOption(this,  "radiationParticleCount", 100,
+            "How many particles spawn when rendering radiation effects (scaled by radiation level).", 0, 1_000);
 
-    public final IntOption radiationParticleRadius = new IntOption(this,  "radiationParticleRadius", 30, "How far (in blocks) from the player radiation particles can spawn.");
+    public final IntOption radiationParticleLimit = new IntOption(this, "radiationParticleLimit", 256,
+            "Maximum number of environmental radiation particles that can spawn for the player in one client tick.", 0, 10_000);
+
+    public final IntOption radiationParticleRadius = new IntOption(this,  "radiationParticleRadius", 30,
+            "How far (in blocks) from the player radiation particles can spawn.", 0, 64);
 
     public final IntOption terRange = new IntOption(this,"terRange",256,"Range at which Tile Entity Renderer's added by Mekanism can render at, for example the contents of multiblocks. Vanilla defaults the rendering range for TERs to 64 for most blocks, but uses a range of 256 for beacons and end gateways.", 1, 1024);
 
-    public final BooleanOption largeWindGeneratorisGlobalRenderer = new BooleanOption(this,  "largeWindGeneratorisGlobalRenderer", true,"Should large wind turbines always be rendered?");
+    public final BooleanOption largeWindGeneratorisGlobalRenderer = new BooleanOption(this,  "largeWindGeneratorisGlobalRenderer", true,
+            "Keep large wind turbines in the global tile renderer list so their cross-chunk model does not disappear. Normal frustum and render-distance limits still apply.");
 
-    public final BooleanOption enableSelectionWireframeRendering = new BooleanOption(this, "EnableSelectionWireframeRendering", true,
-            "Master switch for Mekanism's model-based selection wireframes and JSON-derived selection boxes. Disable to fall back to normal block selection boxes.");
+    public final BooleanOption enableSelectionWireframeRendering = new BooleanOption(this, "EnableSelectionWireframeRendering", false,
+            "Master switch for Mekanism's custom model-based selection wireframes and selection boxes. Enable to replace normal block selection boxes.");
 
     public final StringListOption jsonSelectionBoxModIdWhitelist = new StringListOption(this, "JsonSelectionBoxModIdWhitelist", new String[]{"mekanism","mekanismgenerators","mekanismtools","mekanismmultiblockmachine","mekceumoremachine"},
             "Mod id whitelist for parsing block models (models/block/*.json) into selection boxes. Supports '*' to match all mods. Example: [mekanism,minecraft]");
@@ -160,11 +166,13 @@ public class ClientConfig extends BaseConfig {
     public final BooleanOption GazeCullingTracking = new BooleanOption(this, "GazeCullingTracking", false,
             "Cancel rendering the machine when it is not within the player's line of sight.");
 
+    @Deprecated
     public final BooleanOption GazeCullingOpenGLTracking = new BooleanOption(this, "GazeCullingOpenGLTracking", false,
-            "Use OpenGL occlusion query for tile gaze culling (asynchronous, 1+ frame delayed). Falls back to CPU culling when unsupported.");
+            "Legacy compatibility key. Per-tile OpenGL queries have been removed and this option no longer has any effect.");
 
+    @Deprecated
     public final IntOption GazeCullingOpenGLQueryInterval = new IntOption(this, "GazeCullingOpenGLQueryInterval", 2,
-            "How many client ticks to wait before issuing a new OpenGL occlusion query for the same tile. Higher values reduce GPU query overhead.", 1, 20);
+            "Legacy compatibility key for the removed per-tile OpenGL query path. This option no longer has any effect.", 1, 20);
 
     public ClientConfig() {
         for (WindowType windowType : WindowType.getRegisteredWindowTypes()) {

@@ -30,10 +30,10 @@ public class BoilerCache extends MultiblockCache<SynchronizedBoilerData> {
 
     @Override
     public void sync(SynchronizedBoilerData data) {
-        water = data.waterStored == null ? null : data.waterStored.copy();
-        steam = data.steamStored == null ? null : data.steamStored.copy();
-        input = data.InputGas == null ? null : data.InputGas.copy();
-        output = data.OutputGas == null ? null : data.OutputGas.copy();
+        water = syncFluidStack(water, data.waterStored);
+        steam = syncFluidStack(steam, data.steamStored);
+        input = syncGasStack(input, data.InputGas);
+        output = syncGasStack(output, data.OutputGas);
         storedHeat = data.getHeatCapacitor().getHeat();
         heatCapacity = data.getHeatCapacitor().getHeatCapacity();
     }

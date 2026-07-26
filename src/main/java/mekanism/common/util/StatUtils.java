@@ -7,16 +7,20 @@ import static java.lang.Math.*;
 public class StatUtils {
 
     public static Random rand = new Random();
+    static final double STIRLING_COEFF = 1 / sqrt(2 * PI);
 
     public static int inversePoisson(double mean) {
-        double r = rand.nextDouble() * exp(mean);
+        return inversePoisson(mean, rand.nextDouble());
+    }
+
+    static int inversePoisson(double mean, double uniform) {
+        double r = uniform * exp(mean);
         int m = 0;
         double p = 1;
         double stirlingValue = mean * E;
-        double stirlingCoeff = 1 / sqrt(2 * PI);
         while ((p < r) && (m < 3 * ceil(mean))) {
             m++;
-            p += stirlingCoeff / sqrt(m) * pow(stirlingValue / m, m);
+            p += STIRLING_COEFF / sqrt(m) * pow(stirlingValue / m, m);
         }
         return m;
     }

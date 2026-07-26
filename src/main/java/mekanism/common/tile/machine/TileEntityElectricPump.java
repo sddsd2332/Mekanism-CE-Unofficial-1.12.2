@@ -443,11 +443,23 @@ public class TileEntityElectricPump extends TileEntityElectricBlock implements I
         if (upgrade == Upgrade.SPEED) {
             ticksRequired = MekanismUtils.getTicks(this, BASE_TICKS_REQUIRED);
         }
-        if (upgrade == Upgrade.SPEED || upgrade == Upgrade.ENERGY) {
-            energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK);
-            maxEnergy = MekanismUtils.getMaxEnergy(this, BASE_MAX_ENERGY);
-            setEnergy(Math.min(getMaxEnergy(), getEnergy()));
+        if (!isRecalculatingAllUpgradables() && (upgrade == Upgrade.SPEED || upgrade == Upgrade.ENERGY)) {
+            recalculateEnergyAndCapacity();
         }
+    }
+
+    @Override
+    protected void onAllUpgradablesRecalculated(Set<Upgrade> upgrades) {
+        super.onAllUpgradablesRecalculated(upgrades);
+        if (upgrades.contains(Upgrade.SPEED) || upgrades.contains(Upgrade.ENERGY)) {
+            recalculateEnergyAndCapacity();
+        }
+    }
+
+    private void recalculateEnergyAndCapacity() {
+        energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK);
+        maxEnergy = MekanismUtils.getMaxEnergy(this, BASE_MAX_ENERGY);
+        setEnergy(Math.min(getMaxEnergy(), getEnergy()));
     }
 
     @Override

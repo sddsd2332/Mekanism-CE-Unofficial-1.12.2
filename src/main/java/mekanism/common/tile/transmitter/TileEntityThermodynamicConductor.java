@@ -215,21 +215,30 @@ public class TileEntityThermodynamicConductor extends TileEntityTransmitter<IHea
             // transfers are attributed to the network that owns the acceptor,
             // matching the 26.2 countsAsAdjacent rule.
             if (getTransmitter().hasTransmitterNetwork()) {
-                Coord4D adjacentCoord = Coord4D.get(adjacentConductor);
-                boolean sameNetwork = false;
-                for (IGridTransmitter<IHeatHandler, HeatNetwork, Void> transmitter : getTransmitter().getTransmitterNetwork().getTransmitters()) {
-                    if (transmitter != null && adjacentCoord.equals(transmitter.coord())) {
-                        sameNetwork = true;
-                        break;
-                    }
-                }
-                if (!sameNetwork) {
+                HeatNetwork network = getTransmitter().getTransmitterNetwork();
+                HeatNetwork adjacentNetwork = adjacentConductor.getTransmitter().hasTransmitterNetwork()
+                      ? adjacentConductor.getTransmitter().getTransmitterNetwork() : null;
+                if (!isSameNetworkForAdjacentTransfer(network, adjacentNetwork, Coord4D.get(adjacentConductor))) {
                     return currentAdjacentTransfer;
                 }
             }
         }
         double current = HeatAPI.isFinite(currentAdjacentTransfer) ? Math.max(0, currentAdjacentTransfer) : 0;
         return tempToTransfer >= HeatAPI.MAX_HEAT - current ? HeatAPI.MAX_HEAT : current + tempToTransfer;
+    }
+
+    static boolean isSameNetworkForAdjacentTransfer(HeatNetwork network, @Nullable HeatNetwork adjacentNetwork, Coord4D adjacentCoord) {
+        if (network == adjacentNetwork && adjacentNetwork != null) {
+            return true;
+        }
+        // During a split or merge either pointer or member set may be transitional. Retain the old
+        // coordinate lookup unless identity already proved the common, stable same-network case.
+        for (IGridTransmitter<IHeatHandler, HeatNetwork, Void> transmitter : network.getTransmitters()) {
+            if (transmitter != null && adjacentCoord.equals(transmitter.coord())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -257,6 +266,7 @@ public class TileEntityThermodynamicConductor extends TileEntityTransmitter<IHea
 
     @Override
     public void onContentsChanged() {
+        wakeNetwork();
         updateRenderTemperature();
         if (world != null && !world.isRemote) {
             markNoUpdateSync();
@@ -268,6 +278,24 @@ public class TileEntityThermodynamicConductor extends TileEntityTransmitter<IHea
                 clientTemperature = absoluteTemperature;
                 sendTemp();
             }
+        }
+    }
+
+    @Override
+    public void refreshConnections() {
+        super.refreshConnections();
+        wakeNetwork();
+    }
+
+    @Override
+    public void refreshConnections(EnumFacing side) {
+        super.refreshConnections(side);
+        wakeNetwork();
+    }
+
+    private void wakeNetwork() {
+        if (getTransmitter().hasTransmitterNetwork()) {
+            getTransmitter().getTransmitterNetwork().wakeUp();
         }
     }
 

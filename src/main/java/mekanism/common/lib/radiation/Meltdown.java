@@ -22,21 +22,27 @@ public class Meltdown {
 
     private final BlockPos minPos, maxPos;
     private final double magnitude, chance;
+    private final float radius;
     private final UUID multiblockID;
 
     private int ticksExisted;
 
     public Meltdown(BlockPos minPos, BlockPos maxPos, double magnitude, double chance, UUID multiblockID) {
-        this(minPos, maxPos, magnitude, chance, multiblockID, 0);
+        this(minPos, maxPos, magnitude, chance, 8, multiblockID);
     }
 
-    private Meltdown(BlockPos minPos, BlockPos maxPos, double magnitude, double chance, UUID multiblockID, int ticksExisted) {
+    public Meltdown(BlockPos minPos, BlockPos maxPos, double magnitude, double chance, float radius, UUID multiblockID) {
+        this(minPos, maxPos, magnitude, chance, radius, multiblockID, 0);
+    }
+
+    private Meltdown(BlockPos minPos, BlockPos maxPos, double magnitude, double chance, float radius, UUID multiblockID, int ticksExisted) {
         this.minPos = minPos;
         this.maxPos = maxPos;
-        this.magnitude = magnitude;
-        this.chance = chance;
+        this.magnitude = RadiationUtil.sanitizeMagnitude(magnitude);
+        this.chance = Double.isFinite(chance) ? Math.max(0, Math.min(1, chance)) : 0;
+        this.radius = Float.isFinite(radius) ? Math.max(1, Math.min(500, radius)) : 8;
         this.multiblockID = multiblockID;
-        this.ticksExisted = ticksExisted;
+        this.ticksExisted = Math.max(0, ticksExisted);
     }
 
     public static Meltdown load(NBTTagCompound tag) {
@@ -45,6 +51,7 @@ public class Meltdown {
                 NBTUtil.getPosFromTag(tag.getCompoundTag(NBTConstants.MAX)),
                 tag.getDouble(NBTConstants.MAGNITUDE),
                 tag.getDouble(NBTConstants.CHANCE),
+                tag.hasKey(NBTConstants.RADIUS, 99) ? tag.getFloat(NBTConstants.RADIUS) : 8,
                 tag.getUniqueId(NBTConstants.INVENTORY_ID),
                 tag.getInteger(NBTConstants.AGE)
         );
@@ -55,6 +62,7 @@ public class Meltdown {
         tag.setTag(NBTConstants.MAX, NBTUtil.createPosTag(maxPos));
         tag.setDouble(NBTConstants.MAGNITUDE, magnitude);
         tag.setDouble(NBTConstants.CHANCE, chance);
+        tag.setFloat(NBTConstants.RADIUS, radius);
         tag.setUniqueId(NBTConstants.INVENTORY_ID, multiblockID);
         tag.setInteger(NBTConstants.AGE, ticksExisted);
     }
@@ -66,7 +74,7 @@ public class Meltdown {
             int x = nextInt(world.rand, minPos.getX(), maxPos.getX());
             int y = nextInt(world.rand, minPos.getY(), maxPos.getY());
             int z = nextInt(world.rand, minPos.getZ(), maxPos.getZ());
-            createExplosion(world, x, y, z, 8, true, true);
+            createExplosion(world, x, y, z, radius, true, true);
         }
 
         if (!WorldUtils.isBlockLoaded(world, minPos) || !WorldUtils.isBlockLoaded(world, maxPos)) {

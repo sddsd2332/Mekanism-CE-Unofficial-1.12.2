@@ -402,7 +402,14 @@ public abstract class TileEntityMultiblock<T extends SynchronizedData<T>> extend
     @Override
     @SideOnly(Side.CLIENT)
     public AxisAlignedBB getRenderBoundingBox() {
-        return INFINITE_EXTENT_AABB;
+        if (clientHasStructure && isRendering) {
+            IntBounds bounds = resolveClientStructureBounds();
+            if (bounds != null) {
+                return new AxisAlignedBB(bounds.minX, bounds.minY, bounds.minZ,
+                      bounds.maxX + 1D, bounds.maxY + 1D, bounds.maxZ + 1D);
+            }
+        }
+        return new AxisAlignedBB(getPos());
     }
 
     @Override
