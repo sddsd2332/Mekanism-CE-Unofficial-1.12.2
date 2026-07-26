@@ -61,7 +61,7 @@ public class MekanismCoreTransformer implements IClassTransformer {
     static final ObfSafeName renderItemDisplayName = new ObfSafeName("renderItemAndEffectIntoGUI, renderItemOverlayIntoGUI", "func_180453_a, func_184391_a");
     static final String tileEntityRendererDispatcherClass = "net.minecraft.client.renderer.tileentity.TileEntityRendererDispatcher";
     static final String tileEntityRenderMethodDesc = "(Lnet/minecraft/tileentity/TileEntity;FI)V";
-    static final ObfSafeName tileEntityRenderMethodName = new ObfSafeName("render", "func_192855_a");
+    static final ObfSafeName tileEntityRenderMethodName = new ObfSafeName("render", "func_180546_a");
     static final String coreMethodsClass = "mekanism/coremod/MekanismCoreMethods";
     static final String occlusionHookMethod = "shouldCullTileEntityForOcclusion";
     static final String occlusionHookDesc = "(Lnet/minecraft/tileentity/TileEntity;)Z";
