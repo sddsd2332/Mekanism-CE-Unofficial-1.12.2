@@ -139,6 +139,7 @@ public class Capabilities {
         DefaultHeatTransfer.register();
         DefaultConfigCardAccess.register();
         DefaultSpecialConfigData.register();
+        DefaultQIOStorageAccessor.register();
         DefaultEvaporationSolar.register();
         DefaultLaserReceptor.register();
         DefaultLaserDissipation.register();

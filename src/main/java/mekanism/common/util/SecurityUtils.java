@@ -9,12 +9,14 @@ import mekanism.common.frequency.Frequency;
 import mekanism.common.security.*;
 import mekanism.common.security.ISecurityTile.SecurityMode;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraftforge.fml.relauncher.Side;
 
 import java.util.UUID;
+import javax.annotation.Nullable;
 
 public final class SecurityUtils {
 
@@ -46,6 +48,38 @@ public final class SecurityUtils {
         return canAccess(security.getSecurity().getMode(), player, security.getSecurity().getOwnerUUID());
     }
 
+    /**
+     * Applies the complete Mekanism security policy to a network-owned UUID.
+     * Offline subjects do not receive operator bypass privileges.
+     */
+    public static boolean canAccess(@Nullable UUID subject, TileEntity tile) {
+        if (!(tile instanceof ISecurityTile security)) {
+            return true;
+        }
+        if (isOnlineOperator(subject)) {
+            return true;
+        }
+        return canAccess(security.getSecurity().getMode(), subject, security.getSecurity().getOwnerUUID());
+    }
+
+    /** Applies owner, trusted-list and security-station override rules without requiring a player entity. */
+    public static boolean canAccess(SecurityMode mode, @Nullable UUID subject, @Nullable UUID owner) {
+        if (!MekanismConfig.current().general.allowProtection.val()) {
+            return true;
+        }
+        if (owner == null || owner.equals(subject)) {
+            return true;
+        }
+        SecurityFrequency frequency = getFrequency(owner);
+        if (frequency != null && frequency.override) {
+            mode = frequency.securityMode;
+        }
+        if (mode == null || mode == SecurityMode.PUBLIC) {
+            return true;
+        }
+        return mode == SecurityMode.TRUSTED && frequency != null && frequency.isTrusted(subject);
+    }
+
     public static boolean canAccess(EntityPlayer player, EntityRobit robit) {
         if (robit == null) {
             return true;
@@ -61,22 +95,20 @@ public final class SecurityUtils {
         if (!MekanismConfig.current().general.allowProtection.val()) {
             return true;
         }
-        if (owner == null || player.getUniqueID().equals(owner)) {
-            return true;
+        return canAccess(mode, player.getUniqueID(), owner);
+    }
+
+    private static boolean isOnlineOperator(@Nullable UUID subject) {
+        if (subject == null || !MekanismConfig.current().general.opsBypassRestrictions.val()) {
+            return false;
         }
-        SecurityFrequency freq = getFrequency(owner);
-        if (freq == null) {
-            return true;
+        net.minecraft.server.MinecraftServer server = net.minecraftforge.fml.common.FMLCommonHandler.instance()
+              .getMinecraftServerInstance();
+        if (server == null) {
+            return false;
         }
-        if (freq.override) {
-            mode = freq.securityMode;
-        }
-        if (mode == SecurityMode.PUBLIC) {
-            return true;
-        } else if (mode == SecurityMode.TRUSTED) {
-            return freq.trusted.contains(player.getName());
-        }
-        return false;
+        EntityPlayerMP player = server.getPlayerList().getPlayerByUUID(subject);
+        return player != null && MekanismUtils.isOp(player);
     }
 
     public static SecurityFrequency getFrequency(UUID uuid) {

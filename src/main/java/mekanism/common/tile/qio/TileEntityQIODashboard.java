@@ -4,12 +4,18 @@ import mekanism.common.CommonWorldTickHandler;
 import mekanism.common.content.qio.IQIOCraftingWindowHolder;
 import mekanism.common.content.qio.QIOCraftingWindow;
 import mekanism.common.content.qio.QIOFrequency;
+import mekanism.common.content.qio.QIOStorageAccessor;
+import mekanism.api.qio.external.IQIOStorageAccessor;
+import mekanism.api.qio.external.QIOCapabilities;
 import mekanism.common.inventory.container.MekanismContainer;
 import mekanism.common.inventory.container.sync.SyncableBoolean;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.world.World;
+import net.minecraft.util.EnumFacing;
+import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.util.Constants;
+import javax.annotation.Nonnull;
 
 /** QIO network viewer block. The actual resource state lives in its frequency. */
 public class TileEntityQIODashboard extends TileEntityQIOComponent implements IQIOCraftingWindowHolder {
@@ -17,6 +23,7 @@ public class TileEntityQIODashboard extends TileEntityQIOComponent implements IQ
     private final QIOCraftingWindow[] craftingWindows = new QIOCraftingWindow[MAX_CRAFTING_WINDOWS];
     private boolean craftingWindowsLoaded;
     private boolean shiftClickIntoFrequency = true;
+    private final QIOStorageAccessor storageAccessor = new QIOStorageAccessor(this);
 
     public TileEntityQIODashboard() {
         super("QIODashboard");
@@ -65,12 +72,46 @@ public class TileEntityQIODashboard extends TileEntityQIOComponent implements IQ
     @Override
     protected void onUpdateServer() {
         super.onUpdateServer();
+        storageAccessor.tick();
         if (world != null && (!craftingWindowsLoaded || CommonWorldTickHandler.flushTagAndRecipeCaches)) {
             craftingWindowsLoaded = true;
             for (QIOCraftingWindow window : craftingWindows) {
                 window.invalidateRecipe();
             }
         }
+    }
+
+    public IQIOStorageAccessor getQIOStorageAccessor() {
+        return storageAccessor;
+    }
+
+    @Override
+    public boolean hasCapability(@Nonnull Capability<?> capability, EnumFacing side) {
+        if (capability == QIOCapabilities.STORAGE_ACCESSOR) {
+            return side != null && facing != null && side == facing.getOpposite();
+        }
+        return super.hasCapability(capability, side);
+    }
+
+    @Override
+    public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing side) {
+        if (capability == QIOCapabilities.STORAGE_ACCESSOR && side != null && facing != null &&
+              side == facing.getOpposite()) {
+            return QIOCapabilities.STORAGE_ACCESSOR.cast(storageAccessor);
+        }
+        return super.getCapability(capability, side);
+    }
+
+    @Override
+    public void invalidate() {
+        storageAccessor.invalidate();
+        super.invalidate();
+    }
+
+    @Override
+    public void onChunkUnload() {
+        storageAccessor.invalidate();
+        super.onChunkUnload();
     }
 
     @Override

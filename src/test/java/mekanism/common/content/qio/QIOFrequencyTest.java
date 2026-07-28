@@ -8,6 +8,10 @@ import mekanism.api.NBTConstants;
 import mekanism.api.TileNetworkList;
 import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasStack;
+import mekanism.api.qio.external.QIOStorageChangeBatch;
+import mekanism.api.qio.external.QIOStorageEntry;
+import mekanism.api.qio.external.QIOStorageResourceKind;
+import mekanism.api.qio.external.QIOStorageSnapshot;
 import mekanism.common.PacketHandler;
 import mekanism.common.frequency.FrequencyAware;
 import mekanism.common.item.ItemQIODrive;
@@ -34,14 +38,17 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 import java.math.BigInteger;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class QIOFrequencyTest {
 
@@ -785,6 +792,149 @@ class QIOFrequencyTest {
     }
 
     @Test
+    void externalFrequencyIdentityPersistsAcrossReloads() {
+        QIOFrequency frequency = new QIOFrequency("identity", UUID.randomUUID(),
+              mekanism.common.security.ISecurityTile.SecurityMode.PRIVATE);
+        UUID identity = frequency.getFrequencyUUID();
+
+        NBTTagCompound data = new NBTTagCompound();
+        frequency.write(data);
+        QIOFrequency reloaded = new QIOFrequency(data);
+
+        assertEquals(identity, reloaded.getFrequencyUUID());
+        assertEquals(frequency.getContentsRevision(), reloaded.getContentsRevision());
+        assertEquals(frequency.getCapacityRevision(), reloaded.getCapacityRevision());
+        assertEquals(frequency.getAccessRevision(), reloaded.getAccessRevision());
+    }
+
+    @Test
+    void externalSnapshotContainsItemsFluidsAndGases() throws Exception {
+        worldDirectory = Files.createTempDirectory("qio-external-snapshot-test").toFile();
+        QIOResourceTypeRegistry.INSTANCE.createOrLoad(worldDirectory);
+        QIODriveStorage.INSTANCE.createOrLoad(worldDirectory);
+        TestHolder holder = new TestHolder(Collections.singletonList(new ItemStack(new TestDriveItem(QIODriveTier.BASE))),
+              0, new BlockPos(20, 21, 22));
+        QIOFrequency frequency = new QIOFrequency("snapshot", null,
+              mekanism.common.security.ISecurityTile.SecurityMode.PUBLIC);
+        frequency.addHolder(holder);
+        frequency.refresh();
+
+        ItemStack item = new ItemStack(Blocks.STONE);
+        FluidStack fluid = new FluidStack(FluidRegistry.WATER, 250);
+        GasStack gas = new GasStack(new Gas("qio_external_snapshot_gas", 0x33AAEE), 125);
+        assertEquals(17, frequency.massInsert(item, 17, Action.EXECUTE));
+        assertEquals(250, frequency.massInsert(fluid, 250, Action.EXECUTE));
+        assertEquals(125, frequency.massInsert(gas, 125, Action.EXECUTE));
+
+        QIOStorageSnapshot snapshot = frequency.getExternalStorageSnapshot();
+        assertEquals(frequency.getFrequencyUUID(), snapshot.getFrequencyUUID());
+        assertEquals(3, snapshot.getEntries().size());
+        assertTrue(snapshot.getEntries().stream().anyMatch(entry ->
+              entry.getKind() == QIOStorageResourceKind.ITEM && entry.getExactAmount().equals(BigInteger.valueOf(17))));
+        assertTrue(snapshot.getEntries().stream().anyMatch(entry ->
+              entry.getKind() == QIOStorageResourceKind.FLUID && entry.getExactAmount().equals(BigInteger.valueOf(250))));
+        assertTrue(snapshot.getEntries().stream().anyMatch(entry ->
+              entry.getKind() == QIOStorageResourceKind.GAS && entry.getExactAmount().equals(BigInteger.valueOf(125))));
+        for (QIOStorageEntry entry : snapshot.getEntries()) {
+            assertNotNull(frequency.getExternalStorageEntry(entry.getResourceUUID()));
+        }
+    }
+
+    @Test
+    void simulatedExternalTransfersDoNotChangeStateOrRevisions() throws Exception {
+        worldDirectory = Files.createTempDirectory("qio-external-simulation-test").toFile();
+        QIOResourceTypeRegistry.INSTANCE.createOrLoad(worldDirectory);
+        QIODriveStorage.INSTANCE.createOrLoad(worldDirectory);
+        TestHolder holder = new TestHolder(Collections.singletonList(new ItemStack(new TestDriveItem(QIODriveTier.BASE))),
+              0, new BlockPos(23, 24, 25));
+        QIOFrequency frequency = new QIOFrequency("simulate", null,
+              mekanism.common.security.ISecurityTile.SecurityMode.PUBLIC);
+        frequency.addHolder(holder);
+        frequency.refresh();
+        ItemStack item = new ItemStack(Blocks.DIRT);
+        assertEquals(40, frequency.massInsert(item, 40, Action.EXECUTE));
+        long contentsRevision = frequency.getContentsRevision();
+        long capacityRevision = frequency.getCapacityRevision();
+        QIOStorageSnapshot before = frequency.getExternalStorageSnapshot();
+
+        assertEquals(25, frequency.massInsert(item, 25, Action.SIMULATE));
+        assertEquals(30, frequency.massExtract(item, 30, Action.SIMULATE));
+
+        assertEquals(contentsRevision, frequency.getContentsRevision());
+        assertEquals(capacityRevision, frequency.getCapacityRevision());
+        assertEquals(before.getEntries().get(0).getExactAmount(),
+              frequency.getExternalStorageSnapshot().getEntries().get(0).getExactAmount());
+    }
+
+    @Test
+    void repeatedExternalTransfersUseIncrementalAggregation() throws Exception {
+        worldDirectory = Files.createTempDirectory("qio-external-incremental-test").toFile();
+        QIOResourceTypeRegistry.INSTANCE.createOrLoad(worldDirectory);
+        QIODriveStorage.INSTANCE.createOrLoad(worldDirectory);
+        CountingHolder holder = new CountingHolder(
+              Collections.singletonList(new ItemStack(new TestDriveItem(QIODriveTier.BASE))),
+              0, new BlockPos(26, 27, 28));
+        QIOFrequency frequency = new QIOFrequency("incremental", null,
+              mekanism.common.security.ISecurityTile.SecurityMode.PUBLIC);
+        frequency.addHolder(holder);
+        frequency.refresh();
+        int scansAfterMount = holder.getScanCount();
+        ItemStack item = new ItemStack(Blocks.COBBLESTONE);
+
+        for (int i = 0; i < 20; i++) {
+            assertEquals(8, frequency.massInsert(item, 8, Action.EXECUTE));
+            assertEquals(3, frequency.massExtract(item, 3, Action.EXECUTE));
+            frequency.getExternalStorageSnapshot();
+        }
+
+        assertEquals(scansAfterMount, holder.getScanCount());
+        assertEquals(100, frequency.getStored(item));
+    }
+
+    @Test
+    void externalChangesAreMergedAndDeliveredOnTick() throws Exception {
+        worldDirectory = Files.createTempDirectory("qio-external-listener-test").toFile();
+        QIOResourceTypeRegistry.INSTANCE.createOrLoad(worldDirectory);
+        QIODriveStorage.INSTANCE.createOrLoad(worldDirectory);
+        TestHolder holder = new TestHolder(Collections.singletonList(new ItemStack(new TestDriveItem(QIODriveTier.BASE))),
+              0, new BlockPos(29, 30, 31));
+        QIOFrequency frequency = new QIOFrequency("listener", null,
+              mekanism.common.security.ISecurityTile.SecurityMode.PUBLIC);
+        frequency.addHolder(holder);
+        frequency.refresh();
+        // Finish the structural mount batch before testing ordinary resource deltas.
+        frequency.tick(true);
+        List<QIOStorageChangeBatch> batches = new ArrayList<>();
+        assertTrue(frequency.addExternalStorageListener(batches::add));
+        ItemStack item = new ItemStack(Blocks.STONE);
+
+        assertEquals(10, frequency.massInsert(item, 10, Action.EXECUTE));
+        assertEquals(4, frequency.massExtract(item, 4, Action.EXECUTE));
+        assertTrue(batches.isEmpty());
+        frequency.tick(true);
+
+        assertEquals(1, batches.size());
+        assertFalse(batches.get(0).isFullRescanRequired());
+        assertEquals(1, batches.get(0).getChanges().size());
+        assertEquals(BigInteger.ZERO, batches.get(0).getChanges().get(0).getOldAmount());
+        assertEquals(BigInteger.valueOf(6), batches.get(0).getChanges().get(0).getNewAmount());
+    }
+
+    @Test
+    void removingFrequencyInvalidatesExternalListeners() {
+        QIOFrequency frequency = new QIOFrequency("invalidate", null,
+              mekanism.common.security.ISecurityTile.SecurityMode.PUBLIC);
+        List<QIOStorageChangeBatch> batches = new ArrayList<>();
+        assertTrue(frequency.addExternalStorageListener(batches::add));
+
+        frequency.onRemove();
+
+        assertEquals(1, batches.size());
+        assertTrue(batches.get(0).isInvalidated());
+        assertTrue(batches.get(0).isFullRescanRequired());
+    }
+
+    @Test
     void tileNetworkSerializationIncludesTheCompleteQIOSnapshot() throws Exception {
         worldDirectory = Files.createTempDirectory("qio-frequency-network-test").toFile();
         QIOResourceTypeRegistry.INSTANCE.createOrLoad(worldDirectory);
@@ -818,6 +968,10 @@ class QIOFrequencyTest {
     }
 
     private static void assertNetworkSnapshot(QIOFrequency expected, QIOFrequency actual, ByteBuf buffer) {
+        assertEquals(expected.getFrequencyUUID(), actual.getFrequencyUUID());
+        assertEquals(expected.getContentsRevision(), actual.getContentsRevision());
+        assertEquals(expected.getCapacityRevision(), actual.getCapacityRevision());
+        assertEquals(expected.getAccessRevision(), actual.getAccessRevision());
         assertEquals(expected.getTotalCount(), actual.getTotalCount());
         assertEquals(expected.getTotalCountCapacity(), actual.getTotalCountCapacity());
         assertEquals(expected.getTotalTypes(), actual.getTotalTypes());
@@ -892,6 +1046,40 @@ class QIOFrequencyTest {
         @Override
         public List<ItemStack> getQIODriveStacks() {
             return drives;
+        }
+    }
+
+    private static final class CountingHolder implements IQIODriveHolder {
+
+        private final List<ItemStack> drives;
+        private final int dimension;
+        private final BlockPos position;
+        private int scanCount;
+
+        private CountingHolder(List<ItemStack> drives, int dimension, BlockPos position) {
+            this.drives = drives;
+            this.dimension = dimension;
+            this.position = position;
+        }
+
+        @Override
+        public int getQIODimension() {
+            return dimension;
+        }
+
+        @Override
+        public BlockPos getQIOPosition() {
+            return position;
+        }
+
+        @Override
+        public List<ItemStack> getQIODriveStacks() {
+            scanCount++;
+            return drives;
+        }
+
+        private int getScanCount() {
+            return scanCount;
         }
     }
 

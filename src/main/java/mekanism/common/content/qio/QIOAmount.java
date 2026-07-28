@@ -93,6 +93,28 @@ public final class QIOAmount implements Comparable<QIOAmount> {
     }
 
     @Nonnull
+    public QIOAmount subtract(long amount) {
+        if (amount <= 0 || isZero()) {
+            return this;
+        }
+        if (expandedValue == null) {
+            return amount >= compactValue ? ZERO : of(compactValue - amount);
+        }
+        return of(expandedValue.subtract(BigInteger.valueOf(amount)));
+    }
+
+    @Nonnull
+    public QIOAmount subtract(@Nullable QIOAmount amount) {
+        if (amount == null || amount.isZero() || isZero()) {
+            return this;
+        }
+        if (compareTo(amount) <= 0) {
+            return ZERO;
+        }
+        return of(toBigInteger().subtract(amount.toBigInteger()));
+    }
+
+    @Nonnull
     public QIOAmount multiply(long factor) {
         if (factor <= 0 || isZero()) {
             return ZERO;

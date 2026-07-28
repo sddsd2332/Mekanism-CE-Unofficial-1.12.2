@@ -6,6 +6,11 @@ import mekanism.api.EnumColor;
 import mekanism.api.NBTConstants;
 import mekanism.api.TileNetworkList;
 import mekanism.api.gas.GasStack;
+import mekanism.api.qio.external.IQIOStorageListener;
+import mekanism.api.qio.external.QIOStorageChange;
+import mekanism.api.qio.external.QIOStorageChangeBatch;
+import mekanism.api.qio.external.QIOStorageEntry;
+import mekanism.api.qio.external.QIOStorageSnapshot;
 import mekanism.common.frequency.Frequency;
 import mekanism.common.frequency.FrequencyType;
 import mekanism.common.frequency.IColorableFrequency;
@@ -36,12 +41,18 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.HashSet;
 import java.util.Collection;
+import java.util.Objects;
 
 /**
  * Unified QIO resource frequency. Drive data remains in QIODriveStorage; this
  * class only owns the live aggregate view and transaction routing.
  */
 public class QIOFrequency extends Frequency implements IColorableFrequency {
+
+    private static final String FREQUENCY_UUID_KEY = "qioFrequencyUUID";
+    private static final String CONTENTS_REVISION_KEY = "qioContentsRevision";
+    private static final String CAPACITY_REVISION_KEY = "qioCapacityRevision";
+    private static final String ACCESS_REVISION_KEY = "qioAccessRevision";
 
     private final Set<IQIODriveHolder> driveHolders = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Map<QIODriveMount, QIODriveData> activeDrives = new LinkedHashMap<>();
@@ -53,6 +64,15 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
     private final Map<QIOResourceKind, QIOAmount> kindCounts = new EnumMap<>(QIOResourceKind.class);
     private final Set<UUID> updatedResources = new HashSet<>();
     private final Set<EntityPlayerMP> viewers = Collections.newSetFromMap(new IdentityHashMap<>());
+    private final Map<IQIOStorageListener, StorageListenerRegistration> storageListeners = new IdentityHashMap<>();
+    private final Map<UUID, PendingStorageChange> pendingStorageChanges = new LinkedHashMap<>();
+    private UUID frequencyUUID = UUID.randomUUID();
+    private long contentsRevision;
+    private long capacityRevision;
+    private long accessRevision;
+    private long pendingOldContentsRevision = -1;
+    private long pendingOldCapacityRevision = -1;
+    private boolean pendingFullRescan;
     private long totalCount;
     private long totalStorageUnits;
     private long totalCountCapacity;
@@ -70,6 +90,7 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
     private boolean clientSnapshot;
     private long observedMountRevision = -1;
     private boolean viewerCapacityDirty;
+    private boolean applyingFrequencyTransaction;
 
     public QIOFrequency(String name, @Nullable UUID ownerUUID, SecurityMode securityMode) {
         super(FrequencyType.QIO, name, ownerUUID, securityMode);
@@ -133,6 +154,7 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         ownedMounts.clear();
         activeDrives.clear();
         driveHolders.clear();
+        invalidateStorageListeners();
         super.onRemove();
     }
 
@@ -145,6 +167,7 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
             refresh();
         }
         sendViewerUpdates();
+        dispatchStorageChanges();
         return dirty;
     }
 
@@ -152,6 +175,8 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         if (clientSnapshot) {
             return;
         }
+        Map<UUID, QIOAmount> previousResources = new HashMap<>(resourceDataMap);
+        QIOCapacitySummary previousCapacity = capacitySummary;
         if (!QIOStorageManager.isLoaded()) {
             Set<UUID> staleResources = new HashSet<>(resourceDataMap.keySet());
             for (QIODriveMount mount : new ArrayList<>(ownedMounts)) {
@@ -180,10 +205,9 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
             viewerCapacityDirty = true;
             needsRefresh = false;
             observedMountRevision = QIODriveStorage.INSTANCE.getMountRevision();
+            recordRefreshChanges(previousResources, previousCapacity, true);
             return;
         }
-        Map<UUID, QIOAmount> previousResources = new HashMap<>(resourceDataMap);
-        QIOCapacitySummary previousCapacity = capacitySummary;
 
         List<IQIODriveHolder> holders = new ArrayList<>(driveHolders);
         holders.sort(Comparator.comparingInt(IQIODriveHolder::getQIODimension)
@@ -245,7 +269,11 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
                 if (attempt.getState() != QIODriveSlotState.ACTIVE || attempt.getData() == null) {
                     continue;
                 }
-                QIODriveData data = attempt.getData().withUpdateListener(() -> needsRefresh = true);
+                QIODriveData data = attempt.getData().withUpdateListener(() -> {
+                    if (!applyingFrequencyTransaction) {
+                        needsRefresh = true;
+                    }
+                });
                 activeDrives.put(mount, data);
                 ownedMounts.add(mount);
                 addCapacity(data.getRecord());
@@ -277,16 +305,89 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         Set<UUID> changedResources = new HashSet<>(previousResources.keySet());
         changedResources.addAll(resourceDataMap.keySet());
         for (UUID resource : changedResources) {
-            if (!java.util.Objects.equals(previousResources.get(resource), resourceDataMap.get(resource))) {
+            if (!Objects.equals(previousResources.get(resource), resourceDataMap.get(resource))) {
                 updatedResources.add(resource);
             }
         }
         viewerCapacityDirty |= !previousCapacity.equals(capacitySummary);
+        recordRefreshChanges(previousResources, previousCapacity, false);
     }
 
     /** Requests a remount/aggregate pass on the next frequency tick or query. */
     public synchronized void requestRefresh() {
         needsRefresh = true;
+    }
+
+    @Nonnull
+    public synchronized UUID getFrequencyUUID() {
+        return frequencyUUID;
+    }
+
+    public synchronized long getContentsRevision() {
+        return contentsRevision;
+    }
+
+    public synchronized long getCapacityRevision() {
+        return capacityRevision;
+    }
+
+    public synchronized long getAccessRevision() {
+        return accessRevision;
+    }
+
+    @Nonnull
+    public synchronized QIOStorageSnapshot getExternalStorageSnapshot() {
+        ensureFresh();
+        List<QIOStorageEntry> entries = new ArrayList<>();
+        for (Map.Entry<UUID, QIOAmount> resource : resourceDataMap.entrySet()) {
+            QIOStorageEntry entry = createExternalEntry(resource.getKey(), resource.getValue());
+            if (entry != null) {
+                entries.add(entry);
+            }
+        }
+        entries.sort(Comparator.comparing(entry -> entry.getResourceUUID().toString()));
+        return new QIOStorageSnapshot(frequencyUUID, getName(), contentsRevision, capacityRevision,
+              accessRevision, entries, finiteCountCapacity.toBigInteger(), finiteTypeCapacity.toBigInteger(),
+              unlimitedCountDrives, unlimitedTypeDrives);
+    }
+
+    @Nullable
+    public synchronized QIOStorageEntry getExternalStorageEntry(@Nullable UUID resource) {
+        ensureFresh();
+        if (resource == null) {
+            return null;
+        }
+        return createExternalEntry(resource, resourceDataMap.getOrDefault(resource, QIOAmount.ZERO));
+    }
+
+    public synchronized boolean addExternalStorageListener(@Nullable IQIOStorageListener listener) {
+        if (listener == null || storageListeners.containsKey(listener) || clientSnapshot || isRemoved()) {
+            return false;
+        }
+        storageListeners.put(listener, new StorageListenerRegistration(contentsRevision, capacityRevision,
+              accessRevision));
+        return true;
+    }
+
+    public synchronized boolean removeExternalStorageListener(@Nullable IQIOStorageListener listener) {
+        return listener != null && storageListeners.remove(listener) != null;
+    }
+
+    @Override
+    public synchronized void setSecurityMode(SecurityMode securityMode) {
+        SecurityMode previous = getSecurity();
+        super.setSecurityMode(securityMode);
+        if (previous != getSecurity()) {
+            markAccessChanged();
+        }
+    }
+
+    @Override
+    public synchronized void setValid(boolean valid) {
+        if (isValid() != valid) {
+            super.setValid(valid);
+            markAccessChanged();
+        }
     }
 
     public synchronized long massInsert(ItemStack stack, long amount, Action action) {
@@ -299,14 +400,20 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
             return simulateInsert(resource, QIOResourceKind.ITEM, amount);
         }
         long inserted = 0;
-        for (QIODriveData drive : activeDrives.values()) {
-            long current = drive.insert(stack, amount - inserted, action);
-            inserted += current;
-            if (inserted >= amount) {
-                break;
+        applyingFrequencyTransaction = true;
+        try {
+            for (QIODriveData drive : activeDrives.values()) {
+                long current = drive.insert(stack, amount - inserted, action);
+                inserted += current;
+                if (inserted >= amount) {
+                    break;
+                }
             }
+        } finally {
+            applyingFrequencyTransaction = false;
         }
-        finishTransaction(action, inserted);
+        UUID resource = QIOResourceTypeRegistry.INSTANCE.getUUIDForItem(HashedItem.create(stack));
+        finishTransaction(resource, QIOResourceKind.ITEM, inserted, true);
         return inserted;
     }
 
@@ -320,14 +427,20 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
             return simulateInsert(resource, QIOResourceKind.FLUID, amount);
         }
         long inserted = 0;
-        for (QIODriveData drive : activeDrives.values()) {
-            long current = drive.insert(stack, amount - inserted, action);
-            inserted += current;
-            if (inserted >= amount) {
-                break;
+        applyingFrequencyTransaction = true;
+        try {
+            for (QIODriveData drive : activeDrives.values()) {
+                long current = drive.insert(stack, amount - inserted, action);
+                inserted += current;
+                if (inserted >= amount) {
+                    break;
+                }
             }
+        } finally {
+            applyingFrequencyTransaction = false;
         }
-        finishTransaction(action, inserted);
+        UUID resource = QIOResourceTypeRegistry.INSTANCE.getUUIDForFluid(stack);
+        finishTransaction(resource, QIOResourceKind.FLUID, inserted, true);
         return inserted;
     }
 
@@ -341,14 +454,20 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
             return simulateInsert(resource, QIOResourceKind.GAS, amount);
         }
         long inserted = 0;
-        for (QIODriveData drive : activeDrives.values()) {
-            long current = drive.insert(stack, amount - inserted, action);
-            inserted += current;
-            if (inserted >= amount) {
-                break;
+        applyingFrequencyTransaction = true;
+        try {
+            for (QIODriveData drive : activeDrives.values()) {
+                long current = drive.insert(stack, amount - inserted, action);
+                inserted += current;
+                if (inserted >= amount) {
+                    break;
+                }
             }
+        } finally {
+            applyingFrequencyTransaction = false;
         }
-        finishTransaction(action, inserted);
+        UUID resource = QIOResourceTypeRegistry.INSTANCE.getUUIDForGas(stack);
+        finishTransaction(resource, QIOResourceKind.GAS, inserted, true);
         return inserted;
     }
 
@@ -397,15 +516,21 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         if (action.simulate()) {
             return simulateExtract(QIOResourceTypeRegistry.INSTANCE.getUUIDForItem(HashedItem.create(stack)), amount);
         }
+        UUID resource = QIOResourceTypeRegistry.INSTANCE.getUUIDForItem(HashedItem.create(stack));
         long extracted = 0;
-        for (QIODriveData drive : activeDrives.values()) {
-            long current = drive.extract(stack, amount - extracted, action);
-            extracted += current;
-            if (extracted >= amount) {
-                break;
+        applyingFrequencyTransaction = true;
+        try {
+            for (QIODriveData drive : activeDrives.values()) {
+                long current = drive.extract(stack, amount - extracted, action);
+                extracted += current;
+                if (extracted >= amount) {
+                    break;
+                }
             }
+        } finally {
+            applyingFrequencyTransaction = false;
         }
-        finishTransaction(action, extracted);
+        finishTransaction(resource, QIOResourceKind.ITEM, extracted, false);
         return extracted;
     }
 
@@ -417,15 +542,21 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         if (action.simulate()) {
             return simulateExtract(QIOResourceTypeRegistry.INSTANCE.getUUIDForFluid(stack), amount);
         }
+        UUID resource = QIOResourceTypeRegistry.INSTANCE.getUUIDForFluid(stack);
         long extracted = 0;
-        for (QIODriveData drive : activeDrives.values()) {
-            long current = drive.extract(stack, amount - extracted, action);
-            extracted += current;
-            if (extracted >= amount) {
-                break;
+        applyingFrequencyTransaction = true;
+        try {
+            for (QIODriveData drive : activeDrives.values()) {
+                long current = drive.extract(stack, amount - extracted, action);
+                extracted += current;
+                if (extracted >= amount) {
+                    break;
+                }
             }
+        } finally {
+            applyingFrequencyTransaction = false;
         }
-        finishTransaction(action, extracted);
+        finishTransaction(resource, QIOResourceKind.FLUID, extracted, false);
         return extracted;
     }
 
@@ -437,15 +568,21 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         if (action.simulate()) {
             return simulateExtract(QIOResourceTypeRegistry.INSTANCE.getUUIDForGas(stack), amount);
         }
+        UUID resource = QIOResourceTypeRegistry.INSTANCE.getUUIDForGas(stack);
         long extracted = 0;
-        for (QIODriveData drive : activeDrives.values()) {
-            long current = drive.extract(stack, amount - extracted, action);
-            extracted += current;
-            if (extracted >= amount) {
-                break;
+        applyingFrequencyTransaction = true;
+        try {
+            for (QIODriveData drive : activeDrives.values()) {
+                long current = drive.extract(stack, amount - extracted, action);
+                extracted += current;
+                if (extracted >= amount) {
+                    break;
+                }
             }
+        } finally {
+            applyingFrequencyTransaction = false;
         }
-        finishTransaction(action, extracted);
+        finishTransaction(resource, QIOResourceKind.GAS, extracted, false);
         return extracted;
     }
 
@@ -458,14 +595,23 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         if (action.simulate()) {
             return simulateExtract(resource, amount);
         }
-        long extracted = 0;
-        for (QIODriveData drive : activeDrives.values()) {
-            extracted += drive.extract(resource, amount - extracted, action);
-            if (extracted >= amount) {
-                break;
-            }
+        QIOResourceKind kind = resourceKinds.get(resource);
+        if (kind == null) {
+            kind = QIOResourceTypeRegistry.INSTANCE.getKindByUUID(resource);
         }
-        finishTransaction(action, extracted);
+        long extracted = 0;
+        applyingFrequencyTransaction = true;
+        try {
+            for (QIODriveData drive : activeDrives.values()) {
+                extracted += drive.extract(resource, amount - extracted, action);
+                if (extracted >= amount) {
+                    break;
+                }
+            }
+        } finally {
+            applyingFrequencyTransaction = false;
+        }
+        finishTransaction(resource, kind, extracted, false);
         return extracted;
     }
 
@@ -780,6 +926,10 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
     @Override
     public synchronized void write(NBTTagCompound data) {
         super.write(data);
+        data.setString(FREQUENCY_UUID_KEY, frequencyUUID.toString());
+        data.setLong(CONTENTS_REVISION_KEY, contentsRevision);
+        data.setLong(CAPACITY_REVISION_KEY, capacityRevision);
+        data.setLong(ACCESS_REVISION_KEY, accessRevision);
         data.setInteger(NBTConstants.COLOR, color.ordinal());
         // Keep the temporary key readable for worlds written by the initial
         // port; new saves use the shared frequency color field.
@@ -787,16 +937,34 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
     }
 
     private synchronized void readQIOData(NBTTagCompound data) {
-        if (!data.hasKey(NBTConstants.COLOR) && !data.hasKey("qioColor")) {
-            return;
+        if (data.hasKey(FREQUENCY_UUID_KEY)) {
+            try {
+                frequencyUUID = UUID.fromString(data.getString(FREQUENCY_UUID_KEY));
+            } catch (IllegalArgumentException ignored) {
+                frequencyUUID = UUID.randomUUID();
+                dirty = true;
+            }
+        } else {
+            frequencyUUID = UUID.randomUUID();
+            dirty = true;
         }
-        int index = data.hasKey(NBTConstants.COLOR) ? data.getInteger(NBTConstants.COLOR) : data.getInteger("qioColor");
-        if (index >= 0 && index < EnumColor.values().length) {
-            color = EnumColor.values()[index];
+        contentsRevision = Math.max(0, data.getLong(CONTENTS_REVISION_KEY));
+        capacityRevision = Math.max(0, data.getLong(CAPACITY_REVISION_KEY));
+        accessRevision = Math.max(0, data.getLong(ACCESS_REVISION_KEY));
+        if (data.hasKey(NBTConstants.COLOR) || data.hasKey("qioColor")) {
+            int index = data.hasKey(NBTConstants.COLOR) ? data.getInteger(NBTConstants.COLOR) : data.getInteger("qioColor");
+            if (index >= 0 && index < EnumColor.values().length) {
+                color = EnumColor.values()[index];
+            }
         }
     }
 
     private synchronized void readQIOData(ByteBuf data) {
+        UUID parsedUUID = mekanism.common.util.MekanismUtils.parseUUID(mekanism.common.PacketHandler.readString(data));
+        frequencyUUID = parsedUUID == null ? UUID.randomUUID() : parsedUUID;
+        contentsRevision = Math.max(0, data.readLong());
+        capacityRevision = Math.max(0, data.readLong());
+        accessRevision = Math.max(0, data.readLong());
         totalCount = data.readLong();
         totalCountCapacity = data.readLong();
         totalTypes = data.readInt();
@@ -821,6 +989,10 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
     public synchronized void write(TileNetworkList data) {
         ensureFresh();
         super.write(data);
+        data.add(frequencyUUID.toString());
+        data.add(contentsRevision);
+        data.add(capacityRevision);
+        data.add(accessRevision);
         data.add(totalCount);
         data.add(totalCountCapacity);
         data.add(totalTypes);
@@ -847,11 +1019,201 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         }
     }
 
-    private void finishTransaction(Action action, long amount) {
-        if (action.execute() && amount > 0) {
+    private void finishTransaction(@Nullable UUID resource, @Nullable QIOResourceKind kind, long amount,
+          boolean insert) {
+        if (amount <= 0) {
+            return;
+        }
+        if (resource == null || kind == null) {
+            needsRefresh = true;
+            pendingFullRescan = true;
+            return;
+        }
+        applyAggregateChange(resource, kind, amount, insert);
+    }
+
+    private void applyAggregateChange(UUID resource, QIOResourceKind kind, long amount, boolean insert) {
+        QIOAmount oldAmount = resourceDataMap.getOrDefault(resource, QIOAmount.ZERO);
+        if (!insert && oldAmount.compareTo(QIOAmount.of(amount)) < 0) {
             needsRefresh = true;
             refresh();
+            return;
         }
+        QIOAmount newAmount = insert ? oldAmount.add(amount) : oldAmount.subtract(amount);
+        QIOAmount storageUnits = QIOAmount.of(amount).multiply(QIOStorageUnits.getUnitsPerResource(kind));
+        QIOAmount oldKindAmount = kindCounts.getOrDefault(kind, QIOAmount.ZERO);
+        if (newAmount.isZero()) {
+            resourceDataMap.remove(resource);
+            resourceKinds.remove(resource);
+            missingResources.remove(resource);
+        } else {
+            resourceDataMap.put(resource, newAmount);
+            resourceKinds.put(resource, kind);
+            if (QIOResourceTypeRegistry.INSTANCE.getTypeByUUID(resource) == null) {
+                missingResources.add(resource);
+            } else {
+                missingResources.remove(resource);
+            }
+        }
+        QIOAmount newKindAmount = insert ? oldKindAmount.add(amount) : oldKindAmount.subtract(amount);
+        if (newKindAmount.isZero()) {
+            kindCounts.remove(kind);
+        } else {
+            kindCounts.put(kind, newKindAmount);
+        }
+        exactTotalStorageUnits = insert ? exactTotalStorageUnits.add(storageUnits) : exactTotalStorageUnits.subtract(storageUnits);
+        totalStorageUnits = exactTotalStorageUnits.longValueClamped();
+        exactTotalCount = exactTotalStorageUnits.divideRoundUp(QIOStorageUnits.UNITS_PER_ITEM);
+        totalCount = exactTotalCount.longValueClamped();
+        totalTypes = resourceDataMap.size();
+        updatedResources.add(resource);
+        queueStorageChanges(Collections.singletonMap(resource, new AmountChange(oldAmount, newAmount)));
+    }
+
+    private void recordRefreshChanges(Map<UUID, QIOAmount> previousResources,
+          QIOCapacitySummary previousCapacity, boolean fullRescan) {
+        Set<UUID> resources = new HashSet<>(previousResources.keySet());
+        resources.addAll(resourceDataMap.keySet());
+        Map<UUID, AmountChange> changes = new LinkedHashMap<>();
+        for (UUID resource : resources) {
+            QIOAmount oldAmount = previousResources.getOrDefault(resource, QIOAmount.ZERO);
+            QIOAmount newAmount = resourceDataMap.getOrDefault(resource, QIOAmount.ZERO);
+            if (!oldAmount.equals(newAmount)) {
+                changes.put(resource, new AmountChange(oldAmount, newAmount));
+            }
+        }
+        if (!changes.isEmpty()) {
+            queueStorageChanges(changes);
+        }
+        if (!previousCapacity.equals(capacitySummary)) {
+            beginPendingStorageBatch();
+            capacityRevision = nextRevision(capacityRevision);
+            dirty = true;
+        }
+        pendingFullRescan |= fullRescan;
+    }
+
+    private void queueStorageChanges(Map<UUID, AmountChange> changes) {
+        if (changes.isEmpty()) {
+            return;
+        }
+        beginPendingStorageBatch();
+        contentsRevision = nextRevision(contentsRevision);
+        dirty = true;
+        for (Map.Entry<UUID, AmountChange> change : changes.entrySet()) {
+            PendingStorageChange pending = pendingStorageChanges.get(change.getKey());
+            if (pending == null) {
+                pendingStorageChanges.put(change.getKey(), new PendingStorageChange(
+                      change.getValue().oldAmount, change.getValue().newAmount));
+            } else {
+                pending.newAmount = change.getValue().newAmount;
+                if (pending.oldAmount.equals(pending.newAmount)) {
+                    pendingStorageChanges.remove(change.getKey());
+                }
+            }
+        }
+    }
+
+    private void beginPendingStorageBatch() {
+        if (pendingOldContentsRevision < 0) {
+            pendingOldContentsRevision = contentsRevision;
+            pendingOldCapacityRevision = capacityRevision;
+        }
+    }
+
+    private void dispatchStorageChanges() {
+        if (pendingOldContentsRevision < 0) {
+            return;
+        }
+        List<QIOStorageChange> changes = new ArrayList<>();
+        boolean requireFullRescan = pendingFullRescan;
+        for (Map.Entry<UUID, PendingStorageChange> pending : pendingStorageChanges.entrySet()) {
+            QIOStorageEntry resource = createExternalEntry(pending.getKey(), QIOAmount.ZERO);
+            if (resource == null) {
+                requireFullRescan = true;
+                continue;
+            }
+            changes.add(new QIOStorageChange(resource, pending.getValue().oldAmount.toBigInteger(),
+                  pending.getValue().newAmount.toBigInteger()));
+        }
+        QIOStorageChangeBatch batch = new QIOStorageChangeBatch(pendingOldContentsRevision,
+              contentsRevision, pendingOldCapacityRevision, capacityRevision, accessRevision, changes,
+              requireFullRescan, false);
+        for (Map.Entry<IQIOStorageListener, StorageListenerRegistration> entry :
+              new ArrayList<>(storageListeners.entrySet())) {
+            IQIOStorageListener listener = entry.getKey();
+            StorageListenerRegistration registration = entry.getValue();
+            if (storageListeners.get(listener) != registration) {
+                continue;
+            }
+            if (contentsRevision <= registration.contentsRevision && capacityRevision <= registration.capacityRevision &&
+                  accessRevision <= registration.accessRevision) {
+                continue;
+            }
+            QIOStorageChangeBatch listenerBatch = registration.contentsRevision > pendingOldContentsRevision ||
+                  registration.capacityRevision > pendingOldCapacityRevision ? batch.requiringFullRescan() : batch;
+            try {
+                listener.onQIOStorageChanged(listenerBatch);
+                registration.contentsRevision = contentsRevision;
+                registration.capacityRevision = capacityRevision;
+                registration.accessRevision = accessRevision;
+            } catch (RuntimeException e) {
+                storageListeners.remove(listener);
+                QIOLog.LOGGER.error("Removing a failing QIO external storage listener", e);
+            }
+        }
+        pendingStorageChanges.clear();
+        pendingOldContentsRevision = -1;
+        pendingOldCapacityRevision = -1;
+        pendingFullRescan = false;
+    }
+
+    private void markAccessChanged() {
+        beginPendingStorageBatch();
+        accessRevision = nextRevision(accessRevision);
+        pendingFullRescan = true;
+        dirty = true;
+    }
+
+    private void invalidateStorageListeners() {
+        accessRevision = nextRevision(accessRevision);
+        QIOStorageChangeBatch invalidation = QIOStorageChangeBatch.invalidated(contentsRevision,
+              capacityRevision, accessRevision);
+        for (IQIOStorageListener listener : new ArrayList<>(storageListeners.keySet())) {
+            try {
+                listener.onQIOStorageChanged(invalidation);
+            } catch (RuntimeException e) {
+                QIOLog.LOGGER.error("A QIO external storage listener failed during invalidation", e);
+            }
+        }
+        storageListeners.clear();
+        pendingStorageChanges.clear();
+        pendingOldContentsRevision = -1;
+        pendingOldCapacityRevision = -1;
+        pendingFullRescan = false;
+    }
+
+    @Nullable
+    private QIOStorageEntry createExternalEntry(UUID resource, QIOAmount amount) {
+        QIOResourceType type = QIOResourceTypeRegistry.INSTANCE.getTypeByUUID(resource);
+        if (type == null) {
+            return null;
+        }
+        BigInteger exactAmount = amount.toBigInteger();
+        try {
+            return switch (type.getKind()) {
+                case ITEM -> QIOStorageEntry.item(resource, exactAmount, type.createItemStack(1));
+                case FLUID -> QIOStorageEntry.fluid(resource, exactAmount, type.createFluidStack(1));
+                case GAS -> QIOStorageEntry.gas(resource, exactAmount, type.createGasStack(1));
+            };
+        } catch (RuntimeException e) {
+            QIOLog.LOGGER.error("Unable to expose QIO resource {} through the external storage API", resource, e);
+            return null;
+        }
+    }
+
+    private static long nextRevision(long revision) {
+        return revision == Long.MAX_VALUE ? Long.MAX_VALUE : revision + 1;
     }
 
     /**
@@ -986,6 +1348,41 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
 
     private static int safeIntAdd(int first, int second) {
         return second > Integer.MAX_VALUE - first ? Integer.MAX_VALUE : first + second;
+    }
+
+    private static final class AmountChange {
+
+        private final QIOAmount oldAmount;
+        private final QIOAmount newAmount;
+
+        private AmountChange(QIOAmount oldAmount, QIOAmount newAmount) {
+            this.oldAmount = oldAmount;
+            this.newAmount = newAmount;
+        }
+    }
+
+    private static final class PendingStorageChange {
+
+        private final QIOAmount oldAmount;
+        private QIOAmount newAmount;
+
+        private PendingStorageChange(QIOAmount oldAmount, QIOAmount newAmount) {
+            this.oldAmount = oldAmount;
+            this.newAmount = newAmount;
+        }
+    }
+
+    private static final class StorageListenerRegistration {
+
+        private long contentsRevision;
+        private long capacityRevision;
+        private long accessRevision;
+
+        private StorageListenerRegistration(long contentsRevision, long capacityRevision, long accessRevision) {
+            this.contentsRevision = contentsRevision;
+            this.capacityRevision = capacityRevision;
+            this.accessRevision = accessRevision;
+        }
     }
 
     private static final class ItemInsertionSimulation {
