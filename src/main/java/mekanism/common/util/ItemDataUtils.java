@@ -7,9 +7,7 @@ import mekanism.common.capabilities.fluid.BasicFluidTank;
 import mekanism.common.capabilities.gas.BasicGasTank;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.nbt.NBTBase;
 import net.minecraft.nbt.NBTTagLong;
-import net.minecraft.nbt.NBTTagLongArray;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraftforge.common.util.Constants.NBT;
 import net.minecraftforge.common.util.INBTSerializable;
@@ -18,7 +16,6 @@ import net.minecraftforge.fluids.FluidStack;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.List;
-import java.lang.reflect.Field;
 
 public class ItemDataUtils {
 
@@ -70,28 +67,6 @@ public class ItemDataUtils {
             return 0;
         }
         return getDataMap(stack).getLong(key);
-    }
-
-    public static long[] getLongArray(ItemStack stack, String key) {
-        if (!hasDataTag(stack) || !getDataMap(stack).hasKey(key, 12)) {
-            return new long[0];
-        }
-        NBTBase base = getDataMap(stack).getTag(key);
-        if (!(base instanceof NBTTagLongArray)) {
-            return new long[0];
-        }
-        try {
-            for (Field field : NBTTagLongArray.class.getDeclaredFields()) {
-                if (field.getType() == long[].class) {
-                    field.setAccessible(true);
-                    long[] value = (long[]) field.get(base);
-                    return value == null ? new long[0] : value.clone();
-                }
-            }
-        } catch (ReflectiveOperationException | SecurityException ignored) {
-            // The helper is best-effort on mappings where the backing field is inaccessible.
-        }
-        return new long[0];
     }
 
     public static boolean getBoolean(ItemStack stack, String key) {
@@ -198,19 +173,6 @@ public class ItemDataUtils {
             removeData(stack, key);
         } else {
             setLong(stack, key, value);
-        }
-    }
-
-    public static void setLongArray(ItemStack stack, String key, long[] value) {
-        initStack(stack);
-        getDataMap(stack).setTag(key, new NBTTagLongArray(value == null ? new long[0] : value.clone()));
-    }
-
-    public static void setLongArrayOrRemove(ItemStack stack, String key, long[] value) {
-        if (value == null || value.length == 0) {
-            removeData(stack, key);
-        } else {
-            setLongArray(stack, key, value);
         }
     }
 

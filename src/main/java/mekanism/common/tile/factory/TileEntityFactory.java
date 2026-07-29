@@ -67,10 +67,8 @@ import net.minecraft.block.state.IBlockState;
 import net.minecraft.inventory.Container;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTBase;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
-import net.minecraft.nbt.NBTTagLongArray;
 import net.minecraft.util.EnumFacing;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.util.Constants.NBT;
@@ -82,7 +80,6 @@ import net.minecraftforge.items.ItemHandlerHelper;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.lang.reflect.Field;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BooleanSupplier;
@@ -104,7 +101,6 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
     private static final int PROCESS_SLOT_STRIDE = 3;
     private static final int RECIPE_CHECK_FREQUENCY = 100;
     private static final int TAG_INT_ARRAY = 11;
-    private static final int TAG_LONG_ARRAY = 12;
     private static final int ENERGY_SLOT_X = 7;
     private static final int ENERGY_SLOT_Y = 13;
     private static final int EXTRA_SLOT_X = 7;
@@ -116,11 +112,10 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
     private static final int FACTORY_INVENTORY_VERSION = 2;
     private static final byte FACTORY_INVENTORY_VERSION_MARKER_SLOT = -1;
     private static final String LEGACY_PROGRESS_KEY_PREFIX = "progress";
-    private static final String LEGACY_USED_SO_FAR_KEY_PREFIX = NBTConstants.USED_SO_FAR;
+    private static final String USED_SO_FAR_KEY_PREFIX = NBTConstants.USED_SO_FAR;
     private static final String LEGACY_FLUID_TANK_KEY = "fluidTank";
     private static final String LEGACY_GAS_TANK_KEY = "gasTank";
     private static final String LEGACY_GAS_OUTPUT_TANK_KEY = "gasOutTank";
-    private static final Field NBT_LONG_ARRAY_DATA = findLongArrayDataField();
     private static final String[] methods = new String[]{"getEnergy", "getProgress", "facing", "canOperate", "getMaxEnergy", "getEnergyNeeded"};
     private static final List<RecipeError> FACTORY_ERROR_TYPES = Arrays.asList(
           RecipeError.NOT_ENOUGH_ENERGY,
@@ -1166,68 +1161,20 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
     }
 
     private void readUsedSoFarFromNBT(NBTTagCompound nbtTags) {
-        if (nbtTags.hasKey(NBTConstants.USED_SO_FAR, TAG_LONG_ARRAY)) {
-            long[] savedUsed = getLongArray(nbtTags, NBTConstants.USED_SO_FAR);
-            if (savedUsed != null) {
-                readUsedSoFarArrayFromNBT(savedUsed);
-                return;
-            }
-        }
-        readLegacyUsedSoFarFromNBT(nbtTags);
-    }
-
-    private void readUsedSoFarArrayFromNBT(long[] savedUsed) {
-        if (getProcessCount() != savedUsed.length) {
-            Arrays.fill(usedSoFar, 0);
-        }
         for (ProcessInfo processInfo : processInfoSlots) {
-            int process = processInfo.process();
-            if (process < savedUsed.length) {
-                setSavedUsedSoFar(processInfo, savedUsed[process]);
-            }
+            setSavedUsedSoFar(processInfo, nbtTags.getLong(getUsedSoFarKey(processInfo)));
         }
     }
 
-    private void readLegacyUsedSoFarFromNBT(NBTTagCompound nbtTags) {
-        for (ProcessInfo processInfo : processInfoSlots) {
-            setSavedUsedSoFar(processInfo, nbtTags.getLong(getLegacyUsedSoFarKey(processInfo)));
-        }
-    }
-
-    private String getLegacyUsedSoFarKey(ProcessInfo processInfo) {
-        return LEGACY_USED_SO_FAR_KEY_PREFIX + processInfo.process();
+    private String getUsedSoFarKey(ProcessInfo processInfo) {
+        return USED_SO_FAR_KEY_PREFIX + processInfo.process();
     }
 
     private void writeUsedSoFarToNBT(NBTTagCompound nbtTags) {
-        nbtTags.setTag(NBTConstants.USED_SO_FAR, new NBTTagLongArray(Arrays.copyOf(usedSoFar, usedSoFar.length)));
-    }
-
-    @Nullable
-    private static long[] getLongArray(NBTTagCompound nbtTags, String key) {
-        NBTBase tag = nbtTags.getTag(key);
-        if (tag instanceof NBTTagLongArray longArray) {
-            if (NBT_LONG_ARRAY_DATA == null) {
-                Mekanism.logger.error("Unable to read long array NBT key '{}' because the long array data field was not found.", key);
-                return null;
-            }
-            try {
-                return (long[]) NBT_LONG_ARRAY_DATA.get(longArray);
-            } catch (IllegalAccessException e) {
-                Mekanism.logger.error("Unable to read long array NBT key '{}'.", key, e);
-            }
+        nbtTags.removeTag(NBTConstants.USED_SO_FAR);
+        for (ProcessInfo processInfo : processInfoSlots) {
+            nbtTags.setLong(getUsedSoFarKey(processInfo), getSavedUsedSoFar(processInfo.process()));
         }
-        return null;
-    }
-
-    @Nullable
-    private static Field findLongArrayDataField() {
-        for (Field field : NBTTagLongArray.class.getDeclaredFields()) {
-            if (field.getType() == long[].class) {
-                field.setAccessible(true);
-                return field;
-            }
-        }
-        return null;
     }
 
     private void setActiveState(boolean state, int cacheIndex) {
