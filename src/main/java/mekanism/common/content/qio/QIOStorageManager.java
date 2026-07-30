@@ -7,6 +7,8 @@ import net.minecraft.world.World;
  */
 public final class QIOStorageManager {
 
+    private static final int STORAGE_MAINTENANCE_INTERVAL = 100;
+
     private QIOStorageManager() {
     }
 
@@ -23,8 +25,10 @@ public final class QIOStorageManager {
 
     public static void tick(World world) {
         if (world != null && !world.isRemote && world.provider.getDimension() == 0) {
-            load(world);
-            if (world.getTotalWorldTime() % 100 == 0) {
+            if (world.getTotalWorldTime() % STORAGE_MAINTENANCE_INTERVAL == 0) {
+                if (!isLoaded()) {
+                    load(world);
+                }
                 flush();
             }
         }

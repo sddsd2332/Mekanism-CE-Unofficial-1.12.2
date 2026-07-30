@@ -61,7 +61,6 @@ public class CommonWorldTickHandler {
 
     public void tickStart(World world) {
         if (!world.isRemote) {
-            QIOStorageManager.load(world);
             if (!FrequencyManager.loaded) {
                 FrequencyManager.load(world);
             }

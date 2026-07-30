@@ -31,6 +31,7 @@ public final class QIODriveStorage {
     private final Set<UUID> dirtyDrives = new HashSet<>();
     private final Set<UUID> damagedDrives = new HashSet<>();
     private final Map<UUID, QIODriveMount> activeMounts = new HashMap<>();
+    private File requestedWorldDirectory;
     private File worldDirectory;
     private File driveDirectory;
     private boolean indexDirty;
@@ -53,12 +54,18 @@ public final class QIODriveStorage {
         if (worldDirectory == null) {
             return;
         }
+        File requested = worldDirectory.getAbsoluteFile();
+        if (loaded && requested.equals(requestedWorldDirectory)) {
+            return;
+        }
         try {
             File canonical = worldDirectory.getCanonicalFile();
             if (loaded && canonical.equals(this.worldDirectory)) {
+                requestedWorldDirectory = requested;
                 return;
             }
             clearRuntimeState();
+            requestedWorldDirectory = requested;
             this.worldDirectory = canonical;
             File qioDirectory = new File(canonical, "mekanism/qio");
             driveDirectory = new File(qioDirectory, "drives");
@@ -445,6 +452,7 @@ public final class QIODriveStorage {
         dirtyDrives.clear();
         damagedDrives.clear();
         activeMounts.clear();
+        requestedWorldDirectory = null;
         worldDirectory = null;
         driveDirectory = null;
         indexDirty = false;

@@ -37,6 +37,7 @@ public final class QIOResourceTypeRegistry {
     private final Map<QIOResourceType, UUID> byType = new HashMap<>();
     private final Set<UUID> dirtyTypes = new HashSet<>();
     private final Set<UUID> damagedTypes = new HashSet<>();
+    private File requestedWorldDirectory;
     private File worldDirectory;
     private File resourceDirectory;
     private boolean indexDirty;
@@ -56,12 +57,18 @@ public final class QIOResourceTypeRegistry {
         if (worldDirectory == null) {
             return;
         }
+        File requested = worldDirectory.getAbsoluteFile();
+        if (loaded && requested.equals(requestedWorldDirectory)) {
+            return;
+        }
         try {
             File canonical = worldDirectory.getCanonicalFile();
             if (loaded && canonical.equals(this.worldDirectory)) {
+                requestedWorldDirectory = requested;
                 return;
             }
             clearRuntimeState();
+            requestedWorldDirectory = requested;
             this.worldDirectory = canonical;
             File qioDirectory = new File(canonical, "mekanism/qio");
             resourceDirectory = new File(qioDirectory, "resource_types");
@@ -336,6 +343,7 @@ public final class QIOResourceTypeRegistry {
         byType.clear();
         dirtyTypes.clear();
         damagedTypes.clear();
+        requestedWorldDirectory = null;
         worldDirectory = null;
         resourceDirectory = null;
         indexDirty = false;
