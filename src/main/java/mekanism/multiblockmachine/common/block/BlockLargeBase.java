@@ -272,10 +272,6 @@ public abstract class BlockLargeBase extends BlockMekanismContainer {
             if (tileEntity instanceof IUpgradeTile upgradeTile) {
                 upgradeTile.writeUpgrades(ItemDataUtils.getDataMap(itemStack));
             }
-            if (tileEntity instanceof ISideConfiguration config) {
-                config.getConfig().write(ItemDataUtils.getDataMap(itemStack));
-                config.getEjector().write(ItemDataUtils.getDataMap(itemStack));
-            }
             if (tileEntity instanceof ISustainedData data) {
                 data.writeSustainedData(itemStack);
             }

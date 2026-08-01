@@ -1861,8 +1861,10 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
 
     @Override
     public void readCustomNBT(NBTTagCompound nbtTags) {
-        super.readCustomNBT(nbtTags);
+        // Restore the recipe type before components are read so dynamically supported
+        // transmissions, such as gas and fluid, can load their saved side configuration.
         readRecipeTypeFromNBTIfPresent(nbtTags);
+        super.readCustomNBT(nbtTags);
         readFactoryStateFromNBT(nbtTags);
         readStoredTankLists(nbtTags);
         readLegacyTankFallbacks(nbtTags);
