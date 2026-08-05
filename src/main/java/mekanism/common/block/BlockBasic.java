@@ -564,8 +564,8 @@ public abstract class BlockBasic extends BlockTileDrops {
 
         if (type == BasicBlockType.BIN) {
             TileEntityBin tileEntity = (TileEntityBin) world.getTileEntity(pos);
-            BinMekanismInventory inventory = BinMekanismInventory.create(ret);
             ((ITierItem) ret.getItem()).setBaseTier(ret, tileEntity.tier.getBaseTier());
+            BinMekanismInventory inventory = BinMekanismInventory.create(ret);
             if (inventory != null) {
                 inventory.setItemCount(tileEntity.getItemCount());
                 if (tileEntity.getItemCount() > 0) {
