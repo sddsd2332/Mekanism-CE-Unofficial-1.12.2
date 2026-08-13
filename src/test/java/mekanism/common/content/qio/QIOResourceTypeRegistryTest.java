@@ -43,6 +43,17 @@ class QIOResourceTypeRegistryTest {
     }
 
     @Test
+    void repeatedLoadOfCurrentWorldDoesNotCanonicalizeAgain() throws Exception {
+        worldDirectory = Files.createTempDirectory("qio-resource-load-test").toFile();
+        CountingCanonicalFile countingDirectory = new CountingCanonicalFile(worldDirectory);
+
+        QIOResourceTypeRegistry.INSTANCE.createOrLoad(countingDirectory);
+        QIOResourceTypeRegistry.INSTANCE.createOrLoad(countingDirectory);
+
+        assertEquals(1, countingDirectory.getCanonicalizationCount());
+    }
+
+    @Test
     void itemCountsAreNormalizedForLookup() throws Exception {
         createRegistry();
         ItemStack one = new ItemStack(Blocks.STONE, 1);
@@ -192,5 +203,24 @@ class QIOResourceTypeRegistryTest {
             }
         }
         Files.deleteIfExists(file.toPath());
+    }
+
+    private static final class CountingCanonicalFile extends File {
+
+        private int canonicalizationCount;
+
+        private CountingCanonicalFile(File file) {
+            super(file.getPath());
+        }
+
+        @Override
+        public File getCanonicalFile() throws java.io.IOException {
+            canonicalizationCount++;
+            return super.getCanonicalFile();
+        }
+
+        private int getCanonicalizationCount() {
+            return canonicalizationCount;
+        }
     }
 }

@@ -19,15 +19,24 @@ import java.util.function.Supplier;
 /** QIO frequency tab that opens the shared selector as an in-place window. */
 public abstract class GuiQIOFrequencyTab<DATA> extends GuiInsetElement<DATA> {
 
-    private static final SelectedWindowData WINDOW_DATA = new SelectedWindowData(WindowType.QIO_FREQUENCY);
+    private static final SelectedWindowData DEFAULT_WINDOW_DATA =
+          new SelectedWindowData(WindowType.QIO_FREQUENCY);
 
     @Nullable
     private final Supplier<? extends GuiQIOFrequencyTab<?>> elementSupplier;
+    private final SelectedWindowData windowData;
 
     protected GuiQIOFrequencyTab(IGuiWrapper gui, DATA data,
           @Nullable Supplier<? extends GuiQIOFrequencyTab<?>> elementSupplier) {
+        this(gui, data, elementSupplier, DEFAULT_WINDOW_DATA);
+    }
+
+    protected GuiQIOFrequencyTab(IGuiWrapper gui, DATA data,
+          @Nullable Supplier<? extends GuiQIOFrequencyTab<?>> elementSupplier,
+          SelectedWindowData windowData) {
         super(MekanismUtils.getResource(MekanismUtils.ResourceType.GUI, "frequency.png"), gui, data, -26, 6, 26, 18, true);
         this.elementSupplier = elementSupplier;
+        this.windowData = windowData;
     }
 
     @Override
@@ -47,7 +56,7 @@ public abstract class GuiQIOFrequencyTab<DATA> extends GuiInsetElement<DATA> {
     }
 
     private void openWindow() {
-        GuiQIOFrequencySelectWindow window = createWindow(WINDOW_DATA);
+        GuiQIOFrequencySelectWindow window = createWindow(windowData);
         adoptWindow(window);
         gui().addWindow(window);
     }
@@ -55,7 +64,7 @@ public abstract class GuiQIOFrequencyTab<DATA> extends GuiInsetElement<DATA> {
     @Override
     public void openPinnedWindows() {
         super.openPinnedWindows();
-        if (WINDOW_DATA.wasPinned()) {
+        if (windowData.wasPinned()) {
             openWindow();
         }
     }

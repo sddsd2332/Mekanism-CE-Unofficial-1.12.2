@@ -1,0 +1,19 @@
+{
+  "forge_marker": 1,
+  "defaults": { "model": "mekanismqioprocessing:qio_crafting_processor" },
+  "variants": {
+    "facing": {
+      "north": {}, "south": { "y": 180 }, "east": { "y": 90 }, "west": { "y": -90 },
+      "up": {}, "down": {}
+    },
+    "active": {
+      "false": { "model": "mekanismqioprocessing:qio_crafting_processor_offline" },
+      "true": {}
+    },
+    "working": {
+      "false": {},
+      "true": { "model": "mekanismqioprocessing:qio_crafting_processor_working" }
+    },
+    "inventory": [ {} ]
+  }
+}

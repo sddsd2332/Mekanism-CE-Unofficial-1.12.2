@@ -1,0 +1,9 @@
+{
+  "type": "forge:ore_shaped", "result": { "item": "mekanismqioprocessing:ultimate_qio_crafting_processor" },
+  "pattern": ["ACA", "CPC", "ACA"],
+  "key": {
+    "A": { "type": "forge:ore_dict", "ore": "alloyUltimate" },
+    "C": { "item": "mekanism:controlcircuit", "data": 3 },
+    "P": { "item": "mekanismqioprocessing:elite_qio_crafting_processor" }
+  }
+}

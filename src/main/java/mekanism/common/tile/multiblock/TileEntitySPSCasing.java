@@ -4,6 +4,7 @@ import io.netty.buffer.ByteBuf;
 import mekanism.api.Coord4D;
 import mekanism.api.TileNetworkList;
 import mekanism.client.render.bloom.BloomRenderSPS;
+import mekanism.client.sound.SoundHandler;
 import mekanism.common.Mekanism;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.content.sps.SPSCache;
@@ -15,10 +16,14 @@ import mekanism.common.multiblock.UpdateProtocol;
 import mekanism.common.particle.SPSOrbitEffect;
 import mekanism.common.util.InventoryUtils;
 import mekanism.common.util.TileUtils;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.audio.ISound;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumHand;
+import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.SoundEvent;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.relauncher.Side;
@@ -32,6 +37,13 @@ import java.util.Queue;
 public class TileEntitySPSCasing extends TileEntityMultiblock<SynchronizedSPSData> {
 
     private static final double RENDER_EFFECT_EXPANSION = 1D;
+    private final SoundEvent soundEvent = new SoundEvent(new ResourceLocation(Mekanism.MODID, "tile.machine.sps"));
+
+    @SideOnly(Side.CLIENT)
+    private ISound activeSound;
+    private int playSoundCooldown;
+    private boolean clientSoundActive;
+    private boolean lastServerSoundActive;
 
     public final Queue<SPSOrbitEffect> orbitEffects = new ArrayDeque<>();
 
@@ -60,6 +72,7 @@ public class TileEntitySPSCasing extends TileEntityMultiblock<SynchronizedSPSDat
     @Override
     public void onUpdateClient() {
         super.onUpdateClient();
+        updateSound();
         if (structure == null || !clientHasStructure || !isRendering || !MekanismConfig.current().client.machineEffects.val() || structure.lastProcessed <= 0) {
             orbitEffects.clear();
         }
@@ -79,6 +92,7 @@ public class TileEntitySPSCasing extends TileEntityMultiblock<SynchronizedSPSDat
     public void onUpdateServer() {
         super.onUpdateServer();
         if (structure == null) {
+            syncSoundState();
             return;
         }
         if (structure.sanitizeStoredGases()) {
@@ -95,6 +109,65 @@ public class TileEntitySPSCasing extends TileEntityMultiblock<SynchronizedSPSDat
             }
             structure.syncPrevTanks();
         }
+        syncSoundState();
+    }
+
+    private boolean isSoundActive() {
+        return structure != null && structure.isFormed() && structure.lastProcessed > 0 && structure.shouldPlaySoundAt(getPos());
+    }
+
+    private void syncSoundState() {
+        boolean soundActive = isSoundActive();
+        if (soundActive != lastServerSoundActive) {
+            lastServerSoundActive = soundActive;
+            Mekanism.packetHandler.sendUpdatePacket(this);
+        }
+    }
+
+    @SideOnly(Side.CLIENT)
+    private void updateSound() {
+        if (!MekanismConfig.current().client.enableMachineSounds.val()) {
+            if (activeSound != null) {
+                stopSound();
+            }
+            return;
+        }
+        if (clientHasStructure && clientSoundActive && !isInvalid()) {
+            if (--playSoundCooldown > 0) {
+                return;
+            }
+            if (activeSound == null || !Minecraft.getMinecraft().getSoundHandler().isSoundPlaying(activeSound)) {
+                activeSound = SoundHandler.startTileSound(soundEvent.getSoundName(), 1.0F, getPos());
+                playSoundCooldown = 20;
+            }
+        } else if (activeSound != null) {
+            stopSound();
+        }
+    }
+
+    @SideOnly(Side.CLIENT)
+    private void stopSound() {
+        SoundHandler.stopTileSound(getPos());
+        activeSound = null;
+        playSoundCooldown = 0;
+    }
+
+    @Override
+    public void invalidate() {
+        super.invalidate();
+        if (isRemote()) {
+            clientSoundActive = false;
+            stopSound();
+        }
+    }
+
+    @Override
+    public void onChunkUnload() {
+        if (isRemote()) {
+            clientSoundActive = false;
+            stopSound();
+        }
+        super.onChunkUnload();
     }
 
     @Override
@@ -148,29 +221,33 @@ public class TileEntitySPSCasing extends TileEntityMultiblock<SynchronizedSPSDat
                 data.add(entry.getValue());
             }
         }
+        data.add(isSoundActive());
         return data;
     }
 
     @Override
     public void handlePacketData(ByteBuf dataStream) {
         super.handlePacketData(dataStream);
-        if (FMLCommonHandler.instance().getEffectiveSide().isClient() && clientHasStructure && structure != null) {
-            structure.lastReceivedEnergy = dataStream.readDouble();
-            structure.lastProcessed = dataStream.readDouble();
-            structure.progress = dataStream.readDouble();
-            structure.inputProcessed = dataStream.readInt();
-            TileUtils.readTankData(dataStream, structure.inputTank);
-            TileUtils.readTankData(dataStream, structure.outputTank);
-            int coilCount = dataStream.readInt();
-            structure.prevCoilLevels.clear();
-            for (int i = 0; i < coilCount; i++) {
-                int x = dataStream.readInt();
-                int y = dataStream.readInt();
-                int z = dataStream.readInt();
-                int dim = dataStream.readInt();
-                int level = dataStream.readInt();
-                structure.prevCoilLevels.put(new Coord4D(x, y, z, dim), level);
+        if (FMLCommonHandler.instance().getEffectiveSide().isClient()) {
+            if (clientHasStructure && structure != null) {
+                structure.lastReceivedEnergy = dataStream.readDouble();
+                structure.lastProcessed = dataStream.readDouble();
+                structure.progress = dataStream.readDouble();
+                structure.inputProcessed = dataStream.readInt();
+                TileUtils.readTankData(dataStream, structure.inputTank);
+                TileUtils.readTankData(dataStream, structure.outputTank);
+                int coilCount = dataStream.readInt();
+                structure.prevCoilLevels.clear();
+                for (int i = 0; i < coilCount; i++) {
+                    int x = dataStream.readInt();
+                    int y = dataStream.readInt();
+                    int z = dataStream.readInt();
+                    int dim = dataStream.readInt();
+                    int level = dataStream.readInt();
+                    structure.prevCoilLevels.put(new Coord4D(x, y, z, dim), level);
+                }
             }
+            clientSoundActive = dataStream.readBoolean();
         }
     }
 

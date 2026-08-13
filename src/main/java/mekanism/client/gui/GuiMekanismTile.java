@@ -36,6 +36,10 @@ public abstract class GuiMekanismTile<TILE extends TileEntityContainerBlock, CON
         return tileEntity;
     }
 
+    public Container getContainer() {
+        return inventorySlots;
+    }
+
     @Override
     protected void addGuiElements() {
         super.addGuiElements();
@@ -51,6 +55,10 @@ public abstract class GuiMekanismTile<TILE extends TileEntityContainerBlock, CON
         }
         if (tileEntity instanceof ISecurityTile) {
             addSecurityTab();
+        }
+        for (mekanism.client.gui.element.Widget extension :
+              MekanismTileGuiExtensionRegistry.createElements(this, tileEntity)) {
+            addButton(extension);
         }
     }
 

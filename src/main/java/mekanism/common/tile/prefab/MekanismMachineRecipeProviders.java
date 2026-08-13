@@ -1,10 +1,14 @@
 package mekanism.common.tile.prefab;
 
 import mekanism.api.processing.MachinePort;
+import mekanism.api.processing.MachinePresentationDescriptor;
 import mekanism.api.processing.MachineRecipeProvider;
 import mekanism.api.processing.MachineRecipeProviderRegistry;
 import mekanism.api.processing.MachineRecipeRoute;
+import mekanism.api.processing.ProviderConformanceDescriptor;
+import mekanism.api.processing.QIOAutomationMode;
 import mekanism.api.AutomationType;
+import mekanism.api.inventory.IInventorySlot;
 import mekanism.common.Mekanism;
 import mekanism.common.MekanismFluids;
 import mekanism.common.base.IFactory.RecipeType;
@@ -29,6 +33,7 @@ import mekanism.common.tile.machine.TileEntityPRC;
 import mekanism.common.tile.machine.TileEntityRotaryCondensentrator;
 import mekanism.common.tile.machine.TileEntitySolarNeutronActivator;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.item.ItemStack;
 import net.minecraft.util.ResourceLocation;
 
 import java.util.ArrayList;
@@ -42,6 +47,14 @@ import java.util.function.ToIntFunction;
 public final class MekanismMachineRecipeProviders {
 
     private static boolean registered;
+    private static final ProviderConformanceDescriptor PROCESSING_CONFORMANCE =
+          ProviderConformanceDescriptor.builder(Mekanism.MODID, "main")
+                .supports(QIOAutomationMode.SCHEDULED, QIOAutomationMode.PASSIVE, QIOAutomationMode.OUTPUT_ONLY)
+                .build();
+    private static final ProviderConformanceDescriptor OUTPUT_CONFORMANCE =
+          ProviderConformanceDescriptor.builder(Mekanism.MODID, "main")
+                .supports(QIOAutomationMode.OUTPUT_ONLY)
+                .build();
 
     private MekanismMachineRecipeProviders() {
     }
@@ -265,16 +278,7 @@ public final class MekanismMachineRecipeProviders {
             case NUCLEOSYNTHESIZER -> MachineRecipeRouteCollectors.collectNucleosynthesizerGasToItem(
                   RecipeHandler.Recipe.ANTIPROTONIC_NUCLEOSYNTHESIZER.get());
         };
-        return MachineRecipeRouteCollectors.expandLanes(routes, tile.getProcessCount(), getFactorySharedPorts(tile.getRecipeType()));
-    }
-
-    private static String[] getFactorySharedPorts(RecipeType type) {
-        return switch (type) {
-            case COMPRESSING, PURIFYING, INJECTING, FARM, NUCLEOSYNTHESIZER -> new String[]{"gas_input"};
-            case COMBINING, INFUSING, AllOY -> new String[]{"extra_item_input"};
-            case PRC -> new String[]{"fluid_input", "gas_input", "gas_output"};
-            default -> new String[0];
-        };
+        return routes;
     }
 
     private static List<MachinePort> getFactoryPorts(TileEntityFactory tile) {
@@ -282,37 +286,51 @@ public final class MekanismMachineRecipeProviders {
         RecipeType type = tile.getRecipeType();
         boolean hasSecondaryOutput = type == RecipeType.SAWING || type == RecipeType.EXTRACTOR ||
               type == RecipeType.SEPARATOR || type == RecipeType.FARM;
+        List<IInventorySlot> inputs = new ArrayList<>();
+        List<IInventorySlot> outputs = new ArrayList<>();
+        List<IInventorySlot> secondaryOutputs = new ArrayList<>();
         for (int process = 0; process < tile.getProcessCount(); process++) {
-            add(ports, MachinePort.item("item_input_" + process, MachinePort.Role.INPUT, tile.getRecipeInputSlot(process)));
-            add(ports, MachinePort.item("item_output_" + process, MachinePort.Role.OUTPUT, tile.getRecipeOutputSlot(process)));
+            inputs.add(tile.getRecipeInputSlot(process));
+            outputs.add(tile.getRecipeOutputSlot(process));
             if (hasSecondaryOutput) {
-                add(ports, MachinePort.item("secondary_item_output_" + process, MachinePort.Role.OUTPUT,
-                      tile.getRecipeSecondaryOutputSlot(process)));
+                secondaryOutputs.add(tile.getRecipeSecondaryOutputSlot(process));
             }
         }
+        add(ports, MachinePort.itemGroup("item_input", MachinePort.Role.INPUT, inputs,
+              "item_input", 0));
+        add(ports, MachinePort.itemGroup("item_output", MachinePort.Role.OUTPUT, outputs,
+              "item_output", 0));
+        if (hasSecondaryOutput) {
+            add(ports, MachinePort.itemGroup("secondary_item_output",
+                  MachinePort.Role.OUTPUT, secondaryOutputs, "secondary_item_output", 0));
+        }
         if (type == RecipeType.COMBINING || type == RecipeType.INFUSING || type == RecipeType.AllOY) {
-            add(ports, MachinePort.item("extra_item_input", MachinePort.Role.INPUT, tile.getRecipeExtraInputSlot()));
+            add(ports, MachinePort.item("extra_item_input", MachinePort.Role.INPUT, tile.getRecipeExtraInputSlot(),
+                  "extra_item_input", MachinePort.SHARED_LANE));
         }
         if (type == RecipeType.COMPRESSING || type == RecipeType.PURIFYING || type == RecipeType.INJECTING ||
             type == RecipeType.FARM || type == RecipeType.NUCLEOSYNTHESIZER || type == RecipeType.PRC) {
-            add(ports, MachinePort.gas("gas_input", MachinePort.Role.INPUT, tile.getInputGasTank()));
+            add(ports, MachinePort.gas("gas_input", MachinePort.Role.INPUT, tile.getInputGasTank(),
+                  "gas_input", MachinePort.SHARED_LANE));
         }
         if (type == RecipeType.PRC) {
-            add(ports, MachinePort.fluid("fluid_input", MachinePort.Role.INPUT, tile.getInputFluidTank()));
-            add(ports, MachinePort.gas("gas_output", MachinePort.Role.OUTPUT, tile.getOutputGasTank()));
+            add(ports, MachinePort.fluid("fluid_input", MachinePort.Role.INPUT, tile.getInputFluidTank(),
+                  "fluid_input", MachinePort.SHARED_LANE));
+            add(ports, MachinePort.gas("gas_output", MachinePort.Role.OUTPUT, tile.getOutputGasTank(),
+                  "gas_output", MachinePort.SHARED_LANE));
         }
         return ports;
     }
 
     private static void registerOutputMachines() {
-        register("electric_pump", TileEntityElectricPump.class, ignored -> null, ignored -> Collections.emptyList(),
+        registerOutput("electric_pump", TileEntityElectricPump.class, ignored -> null, ignored -> Collections.emptyList(),
               tile -> ports(MachinePort.fluid("fluid_output", MachinePort.Role.OUTPUT, tile.fluidTank)));
-        register("ambient_accumulator", TileEntityAmbientAccumulator.class, ignored -> null, ignored -> Collections.emptyList(),
+        registerOutput("ambient_accumulator", TileEntityAmbientAccumulator.class, ignored -> null, ignored -> Collections.emptyList(),
               tile -> ports(MachinePort.gas("gas_output", MachinePort.Role.OUTPUT, tile.collectedGas)));
-        register("ambient_accumulator_energy", TileEntityAmbientAccumulatorEnergy.class, ignored -> null,
+        registerOutput("ambient_accumulator_energy", TileEntityAmbientAccumulatorEnergy.class, ignored -> null,
               ignored -> Collections.emptyList(),
               tile -> ports(MachinePort.gas("gas_output", MachinePort.Role.OUTPUT, tile.outputTank)));
-        register("digital_miner", TileEntityDigitalMiner.class, ignored -> null, ignored -> Collections.emptyList(),
+        registerOutput("digital_miner", TileEntityDigitalMiner.class, ignored -> null, ignored -> Collections.emptyList(),
               MekanismMachineRecipeProviders::getDigitalMinerPorts);
     }
 
@@ -349,6 +367,19 @@ public final class MekanismMachineRecipeProviders {
     private static <TILE extends TileEntity> void register(String path, Class<TILE> tileClass,
           Function<TILE, Object> recipeSource, Function<TILE, List<MachineRecipeRoute>> routes,
           Function<TILE, List<MachinePort>> ports, ToIntFunction<TILE> configurationRevision) {
+        register(path, tileClass, recipeSource, routes, ports, configurationRevision, PROCESSING_CONFORMANCE);
+    }
+
+    private static <TILE extends TileEntity> void registerOutput(String path, Class<TILE> tileClass,
+          Function<TILE, Object> recipeSource, Function<TILE, List<MachineRecipeRoute>> routes,
+          Function<TILE, List<MachinePort>> ports) {
+        register(path, tileClass, recipeSource, routes, ports, ignored -> 0, OUTPUT_CONFORMANCE);
+    }
+
+    private static <TILE extends TileEntity> void register(String path, Class<TILE> tileClass,
+          Function<TILE, Object> recipeSource, Function<TILE, List<MachineRecipeRoute>> routes,
+          Function<TILE, List<MachinePort>> ports, ToIntFunction<TILE> configurationRevision,
+          ProviderConformanceDescriptor conformance) {
         MachineRecipeProviderRegistry.register(new ResourceLocation(Mekanism.MODID, path), tileClass,
               new MachineRecipeProvider<TILE>() {
                   @Override
@@ -369,6 +400,27 @@ public final class MekanismMachineRecipeProviders {
                   @Override
                   public List<MachinePort> getPorts(TILE tile) {
                       return ports.apply(tile);
+                  }
+
+                  @Override
+                  public MachinePresentationDescriptor getPresentation(TILE tile) {
+                      MachinePresentationDescriptor fallback =
+                            MachinePresentationDescriptor.fallback(tile);
+                      if (!(tile instanceof TileEntityFactory factory)) {
+                          return fallback;
+                      }
+                      ItemStack stack = fallback.createStack();
+                      if (!stack.isEmpty() && stack.getItem() instanceof mekanism.common.base.IFactory factoryItem) {
+                          factoryItem.setRecipeType(factory.getRecipeType().ordinal(), stack);
+                          return MachinePresentationDescriptor.fromStack(stack,
+                                factory.getRecipeType().getName());
+                      }
+                      return fallback;
+                  }
+
+                  @Override
+                  public ProviderConformanceDescriptor getQIOConformance(TILE tile) {
+                      return conformance;
                   }
               });
     }

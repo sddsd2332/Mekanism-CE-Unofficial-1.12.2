@@ -51,7 +51,7 @@ public abstract class GuiWindowCreatorTab<DATA_SOURCE, ELEMENT extends GuiWindow
         }
     }
 
-    private void openWindow(SelectedWindowData windowData) {
+    protected final void openWindow(SelectedWindowData windowData) {
         GuiWindow window = createWindow(windowData);
         window.setTabListeners(getCloseListener(), getReAttachListener());
         disableTab();

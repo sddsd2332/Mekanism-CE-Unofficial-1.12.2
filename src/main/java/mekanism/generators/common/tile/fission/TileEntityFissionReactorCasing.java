@@ -45,6 +45,8 @@ public class TileEntityFissionReactorCasing extends TileEntityMultiblock<Synchro
     @SideOnly(Side.CLIENT)
     private ISound activeSound;
     private int playSoundCooldown = 0;
+    private boolean clientSoundActive;
+    private boolean lastServerSoundActive;
 
     public TileEntityFissionReactorCasing() {
         this("FissionReactorCasing");
@@ -61,6 +63,7 @@ public class TileEntityFissionReactorCasing extends TileEntityMultiblock<Synchro
     public void onUpdateServer() {
         super.onUpdateServer();
         if (structure == null) {
+            syncSoundState();
             return;
         }
 
@@ -84,6 +87,19 @@ public class TileEntityFissionReactorCasing extends TileEntityMultiblock<Synchro
             //SynchronizedData has no owning tile listener in the 1.12 multiblock implementation.
             //Ensure runtime heat, fuel, and damage changes cause the current owner chunk to be saved.
             MekanismUtils.saveChunk(this);
+        }
+        syncSoundState();
+    }
+
+    private boolean isSoundActive() {
+        return structure != null && structure.isFormed() && structure.lastBurnRate > 0 && structure.shouldPlaySoundAt(getPos());
+    }
+
+    private void syncSoundState() {
+        boolean soundActive = isSoundActive();
+        if (soundActive != lastServerSoundActive) {
+            lastServerSoundActive = soundActive;
+            Mekanism.packetHandler.sendUpdatePacket(this);
         }
     }
 
@@ -132,22 +148,29 @@ public class TileEntityFissionReactorCasing extends TileEntityMultiblock<Synchro
     public void invalidate() {
         super.invalidate();
         if (isRemote()) {
-            updateSound();
+            clientSoundActive = false;
+            stopSound();
         }
+    }
+
+    @Override
+    public void onChunkUnload() {
+        if (isRemote()) {
+            clientSoundActive = false;
+            stopSound();
+        }
+        super.onChunkUnload();
     }
 
     @SideOnly(Side.CLIENT)
     private void updateSound() {
         if (!MekanismConfig.current().client.enableMachineSounds.val()) {
             if (activeSound != null) {
-                SoundHandler.stopTileSound(getPos());
-                activeSound = null;
-                playSoundCooldown = 0;
+                stopSound();
             }
             return;
         }
-        boolean burning = clientHasStructure && structure != null && structure.lastBurnRate > 0 && structure.shouldPlaySoundAt(getPos());
-        if (burning && !isInvalid()) {
+        if (clientHasStructure && clientSoundActive && !isInvalid()) {
             if (--playSoundCooldown > 0) {
                 return;
             }
@@ -156,10 +179,15 @@ public class TileEntityFissionReactorCasing extends TileEntityMultiblock<Synchro
                 playSoundCooldown = 20;
             }
         } else if (activeSound != null) {
-            SoundHandler.stopTileSound(getPos());
-            activeSound = null;
-            playSoundCooldown = 0;
+            stopSound();
         }
+    }
+
+    @SideOnly(Side.CLIENT)
+    private void stopSound() {
+        SoundHandler.stopTileSound(getPos());
+        activeSound = null;
+        playSoundCooldown = 0;
     }
 
     @Override
@@ -206,6 +234,7 @@ public class TileEntityFissionReactorCasing extends TileEntityMultiblock<Synchro
             TileUtils.addTankData(data, structure.coolantTank);
             TileUtils.addTankData(data, structure.steamTank);
         }
+        data.add(isSoundActive());
         return data;
     }
 
@@ -250,6 +279,7 @@ public class TileEntityFissionReactorCasing extends TileEntityMultiblock<Synchro
             structure.updateCapacities();
             structure.syncPrev();
         }
+        clientSoundActive = dataStream.readBoolean();
     }
 
     @Override

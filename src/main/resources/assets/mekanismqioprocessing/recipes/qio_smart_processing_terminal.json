@@ -1,0 +1,11 @@
+{
+  "type": "forge:ore_shaped", "result": { "item": "mekanismqioprocessing:qio_smart_processing_terminal" },
+  "pattern": ["ACA", "PQP", "ATA"],
+  "key": {
+    "A": { "item": "mekanism:atomicalloy" },
+    "C": { "item": "mekanism:controlcircuit", "data": 3 },
+    "P": { "item": "mekanismqioprocessing:qio_crafting_processor" },
+    "Q": { "item": "mekanism:qio_dashboard" },
+    "T": { "item": "mekanism:teleportationcore" }
+  }
+}

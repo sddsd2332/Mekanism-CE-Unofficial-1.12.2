@@ -1,0 +1,5 @@
+{
+  "type": "forge:ore_shaped", "result": { "item": "mekanismqioprocessing:portable_qio_crafting_monitor" },
+  "pattern": ["AAA", "A#A", "ATA"],
+  "key": { "A": { "item": "mekanism:hdpe_pellet" }, "#": { "item": "mekanismqioprocessing:qio_crafting_monitor" }, "T": { "item": "mekanism:teleportationcore" } }
+}

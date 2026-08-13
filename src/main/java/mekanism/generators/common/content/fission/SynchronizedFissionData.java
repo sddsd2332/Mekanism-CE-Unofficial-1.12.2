@@ -709,7 +709,7 @@ public class SynchronizedFissionData extends SynchronizedData<SynchronizedFissio
 
     public boolean shouldPlaySoundAt(BlockPos pos) {
         if (pos == null || minLocation == null || maxLocation == null) {
-            return true;
+            return false;
         }
         boolean cornerX = pos.getX() == minLocation.x || pos.getX() == maxLocation.x;
         boolean cornerY = pos.getY() == minLocation.y || pos.getY() == maxLocation.y;

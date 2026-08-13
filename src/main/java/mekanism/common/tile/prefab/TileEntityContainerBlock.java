@@ -41,6 +41,7 @@ import mekanism.common.util.ItemDataUtils;
 import mekanism.common.util.HeatCapabilityUtils;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
+import mekanism.qioprocessing.common.machine.QIOAutomationDeviceRegistry;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.inventory.Slot;
 import net.minecraft.item.ItemStack;
@@ -1010,6 +1011,9 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
     @Override
     public void onContentsChanged() {
         markNoUpdateSync();
+        if (world != null && !world.isRemote) {
+            QIOAutomationDeviceRegistry.INSTANCE.notifyContentsChanged(this);
+        }
     }
 
 }

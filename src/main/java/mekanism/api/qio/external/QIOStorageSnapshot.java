@@ -15,6 +15,7 @@ public final class QIOStorageSnapshot {
     private final String frequencyName;
     private final long contentsRevision;
     private final long capacityRevision;
+    private final long claimRevision;
     private final long accessRevision;
     private final List<QIOStorageEntry> entries;
     private final BigInteger finiteCountCapacity;
@@ -26,10 +27,19 @@ public final class QIOStorageSnapshot {
           long capacityRevision, long accessRevision, List<QIOStorageEntry> entries,
           BigInteger finiteCountCapacity, BigInteger finiteTypeCapacity, int unlimitedCountDrives,
           int unlimitedTypeDrives) {
+        this(frequencyUUID, frequencyName, contentsRevision, capacityRevision, 0, accessRevision,
+              entries, finiteCountCapacity, finiteTypeCapacity, unlimitedCountDrives, unlimitedTypeDrives);
+    }
+
+    public QIOStorageSnapshot(UUID frequencyUUID, String frequencyName, long contentsRevision,
+          long capacityRevision, long claimRevision, long accessRevision, List<QIOStorageEntry> entries,
+          BigInteger finiteCountCapacity, BigInteger finiteTypeCapacity, int unlimitedCountDrives,
+          int unlimitedTypeDrives) {
         this.frequencyUUID = Objects.requireNonNull(frequencyUUID, "frequencyUUID");
         this.frequencyName = frequencyName == null ? "" : frequencyName;
         this.contentsRevision = contentsRevision;
         this.capacityRevision = capacityRevision;
+        this.claimRevision = claimRevision;
         this.accessRevision = accessRevision;
         this.entries = Collections.unmodifiableList(new ArrayList<>(Objects.requireNonNull(entries, "entries")));
         this.finiteCountCapacity = requireNonNegative(finiteCountCapacity, "finiteCountCapacity");
@@ -54,6 +64,10 @@ public final class QIOStorageSnapshot {
 
     public long getCapacityRevision() {
         return capacityRevision;
+    }
+
+    public long getClaimRevision() {
+        return claimRevision;
     }
 
     public long getAccessRevision() {

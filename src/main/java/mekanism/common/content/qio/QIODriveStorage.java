@@ -319,11 +319,11 @@ public final class QIODriveStorage {
         return Collections.unmodifiableSet(new HashSet<>(damagedDrives));
     }
 
-    public void flush() {
+    public boolean flush() {
         Map<UUID, QIODriveRecord> pending;
         synchronized (this) {
             if (!loaded) {
-                return;
+                return true;
             }
             pending = new HashMap<>();
             for (UUID uuid : dirtyDrives) {
@@ -347,6 +347,7 @@ public final class QIODriveStorage {
             if (indexDirty && dirtyDrives.isEmpty() && writeIndex()) {
                 indexDirty = false;
             }
+            return dirtyDrives.isEmpty() && !indexDirty;
         }
     }
 

@@ -1,0 +1,5 @@
+{
+  "type": "forge:ore_shaped", "result": { "item": "mekanismqioprocessing:portable_qio_management_terminal" },
+  "pattern": ["AAA", "A#A", "ATA"],
+  "key": { "A": { "item": "mekanism:hdpe_pellet" }, "#": { "item": "mekanismqioprocessing:qio_management_terminal" }, "T": { "item": "mekanism:teleportationcore" } }
+}

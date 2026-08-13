@@ -1,0 +1,11 @@
+{
+  "type": "forge:ore_shaped", "result": { "item": "mekanismqioprocessing:qio_crafting_monitor" },
+  "pattern": ["GCG", "RQR", "GTG"],
+  "key": {
+    "G": { "type": "forge:ore_dict", "ore": "paneGlass" },
+    "C": { "item": "mekanism:controlcircuit", "data": 1 },
+    "R": { "item": "mekanism:qio_redstone_adapter" },
+    "Q": { "item": "mekanism:qio_dashboard" },
+    "T": { "item": "mekanism:teleportationcore" }
+  }
+}

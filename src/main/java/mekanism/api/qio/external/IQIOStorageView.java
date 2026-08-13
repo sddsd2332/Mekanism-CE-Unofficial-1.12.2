@@ -7,6 +7,7 @@ import net.minecraftforge.fluids.FluidStack;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.math.BigInteger;
 import java.util.UUID;
 
 /** Authorized, lifecycle-bound access to one QIO frequency. */
@@ -22,6 +23,8 @@ public interface IQIOStorageView {
 
     long getCapacityRevision();
 
+    long getClaimRevision();
+
     long getAccessRevision();
 
     @Nonnull
@@ -30,11 +33,52 @@ public interface IQIOStorageView {
     @Nullable
     QIOStorageEntry getResource(UUID resourceUUID);
 
+    @Nullable
+    QIOResourceClaim getClaim(UUID claimId);
+
+    /**
+     * Returns the physical support currently assigned to a logical claim.
+     * Implementations predating claim backing may return {@code null}; callers must then wait
+     * for a storage implementation that can prove ownership rather than assume full backing.
+     */
+    @Nullable
+    default QIOClaimBacking getClaimBacking(UUID claimId) {
+        return null;
+    }
+
+    @Nonnull
+    QIOClaimResult submitClaim(QIOClaimRequest request);
+
     long insert(ItemStack stack, long amount, Action action);
 
     long insert(FluidStack stack, long amount, Action action);
 
     long insert(GasStack stack, long amount, Action action);
+
+    /**
+     * Executes or repairs an insertion using the exact amount observed before its durable intent
+     * was saved. Implementations that cannot prove the physical state must fail closed.
+     */
+    @Nonnull
+    default QIOTransferResult insertIdempotent(@Nonnull UUID transferId, ItemStack stack,
+          long amount, @Nonnull BigInteger expectedStoredAmount) {
+        return new QIOTransferResult(transferId, QIOTransferResult.Status.FAILED,
+              Math.max(1, amount), 0);
+    }
+
+    @Nonnull
+    default QIOTransferResult insertIdempotent(@Nonnull UUID transferId, FluidStack stack,
+          long amount, @Nonnull BigInteger expectedStoredAmount) {
+        return new QIOTransferResult(transferId, QIOTransferResult.Status.FAILED,
+              Math.max(1, amount), 0);
+    }
+
+    @Nonnull
+    default QIOTransferResult insertIdempotent(@Nonnull UUID transferId, GasStack stack,
+          long amount, @Nonnull BigInteger expectedStoredAmount) {
+        return new QIOTransferResult(transferId, QIOTransferResult.Status.FAILED,
+              Math.max(1, amount), 0);
+    }
 
     long extract(ItemStack stack, long amount, Action action);
 

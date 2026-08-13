@@ -19,7 +19,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /** Shared six-direction placement and 26.2 model shapes for the thin QIO components. */
-final class QIOBlockShapes {
+public final class QIOBlockShapes {
 
     static final AxisAlignedBB[][] DASHBOARD = createShapes(false,
           box(1, 15, 1, 15, 16, 15));
@@ -87,18 +87,18 @@ final class QIOBlockShapes {
     private QIOBlockShapes() {
     }
 
-    static IBlockState getStateForPlacement(IBlockState state, EnumFacing selectedFace) {
+    public static IBlockState getStateForPlacement(IBlockState state, EnumFacing selectedFace) {
         return state.withProperty(mekanism.common.block.states.BlockStateFacing.facingProperty, selectedFace);
     }
 
-    static void setPlacedFacing(World world, BlockPos pos, IBlockState state) {
+    public static void setPlacedFacing(World world, BlockPos pos, IBlockState state) {
         TileEntityBasicBlock tile = MekanismUtils.getTileEntitySafe(world, pos, TileEntityBasicBlock.class);
         if (tile != null) {
             tile.setFacing(state.getValue(mekanism.common.block.states.BlockStateFacing.facingProperty));
         }
     }
 
-    static EnumFacing[] getValidRotations(World world, BlockPos pos) {
+    public static EnumFacing[] getValidRotations(World world, BlockPos pos) {
         TileEntityBasicBlock tile = MekanismUtils.getTileEntitySafe(world, pos, TileEntityBasicBlock.class);
         EnumFacing[] valid = new EnumFacing[6];
         if (tile != null) {
@@ -111,7 +111,7 @@ final class QIOBlockShapes {
         return valid;
     }
 
-    static boolean rotate(World world, BlockPos pos, EnumFacing facing) {
+    public static boolean rotate(World world, BlockPos pos, EnumFacing facing) {
         TileEntityBasicBlock tile = MekanismUtils.getTileEntitySafe(world, pos, TileEntityBasicBlock.class);
         if (tile != null && tile.canSetFacing(facing)) {
             tile.setFacing(facing);
@@ -160,6 +160,23 @@ final class QIOBlockShapes {
     static RayTraceResult collisionRayTrace(AxisAlignedBB[][] shapes, IBlockState state, World world, BlockPos pos, Vec3d start, Vec3d end) {
         AdvancedRayTraceResult result = MultipartUtils.collisionRayTrace(pos, start, end, Arrays.asList(getBoxes(shapes, state, world, pos)));
         return result == null ? null : result.hit;
+    }
+
+    @Nonnull
+    public static AxisAlignedBB getDashboardBounds(IBlockState state, IBlockAccess world,
+          BlockPos pos) {
+        return getBounds(DASHBOARD, state, world, pos);
+    }
+
+    public static void addDashboardCollisionBoxes(IBlockState state, World world,
+          BlockPos pos, AxisAlignedBB entityBox, List<AxisAlignedBB> collidingBoxes) {
+        addCollisionBoxes(DASHBOARD, state, world, pos, entityBox, collidingBoxes);
+    }
+
+    @Nullable
+    public static RayTraceResult dashboardCollisionRayTrace(IBlockState state, World world,
+          BlockPos pos, Vec3d start, Vec3d end) {
+        return collisionRayTrace(DASHBOARD, state, world, pos, start, end);
     }
 
     private static AxisAlignedBB box(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {

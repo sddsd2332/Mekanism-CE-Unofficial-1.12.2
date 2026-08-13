@@ -6,11 +6,16 @@ import mekanism.api.EnumColor;
 import mekanism.api.NBTConstants;
 import mekanism.api.TileNetworkList;
 import mekanism.api.gas.GasStack;
+import mekanism.api.qio.external.QIOClaimRequest;
+import mekanism.api.qio.external.QIOClaimResult;
+import mekanism.api.qio.external.QIOClaimBacking;
+import mekanism.api.qio.external.QIOResourceClaim;
 import mekanism.api.qio.external.IQIOStorageListener;
 import mekanism.api.qio.external.QIOStorageChange;
 import mekanism.api.qio.external.QIOStorageChangeBatch;
 import mekanism.api.qio.external.QIOStorageEntry;
 import mekanism.api.qio.external.QIOStorageSnapshot;
+import mekanism.api.qio.external.QIOTransferResult;
 import mekanism.common.frequency.Frequency;
 import mekanism.common.frequency.FrequencyType;
 import mekanism.common.frequency.IColorableFrequency;
@@ -66,12 +71,17 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
     private final Set<EntityPlayerMP> viewers = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Map<IQIOStorageListener, StorageListenerRegistration> storageListeners = new IdentityHashMap<>();
     private final Map<UUID, PendingStorageChange> pendingStorageChanges = new LinkedHashMap<>();
+    private final QIOClaimLedger claimLedger = new QIOClaimLedger();
+    private final QIOTransferLedger transferLedger = new QIOTransferLedger();
+    private Map<UUID, Map<UUID, Long>> claimBackingCache = Collections.emptyMap();
+    private boolean claimBackingCacheValid;
     private UUID frequencyUUID = UUID.randomUUID();
     private long contentsRevision;
     private long capacityRevision;
     private long accessRevision;
     private long pendingOldContentsRevision = -1;
     private long pendingOldCapacityRevision = -1;
+    private long pendingOldClaimRevision = -1;
     private boolean pendingFullRescan;
     private long totalCount;
     private long totalStorageUnits;
@@ -331,6 +341,10 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         return capacityRevision;
     }
 
+    public synchronized long getClaimRevision() {
+        return claimLedger.getRevision();
+    }
+
     public synchronized long getAccessRevision() {
         return accessRevision;
     }
@@ -347,7 +361,7 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         }
         entries.sort(Comparator.comparing(entry -> entry.getResourceUUID().toString()));
         return new QIOStorageSnapshot(frequencyUUID, getName(), contentsRevision, capacityRevision,
-              accessRevision, entries, finiteCountCapacity.toBigInteger(), finiteTypeCapacity.toBigInteger(),
+              claimLedger.getRevision(), accessRevision, entries, finiteCountCapacity.toBigInteger(), finiteTypeCapacity.toBigInteger(),
               unlimitedCountDrives, unlimitedTypeDrives);
     }
 
@@ -360,12 +374,118 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         return createExternalEntry(resource, resourceDataMap.getOrDefault(resource, QIOAmount.ZERO));
     }
 
+    @Nullable
+    public synchronized QIOResourceClaim getResourceClaim(@Nullable UUID claimId) {
+        return claimLedger.getClaim(claimId);
+    }
+
+    @Nullable
+    public synchronized QIOClaimBacking getResourceClaimBacking(@Nullable UUID claimId) {
+        ensureFresh();
+        QIOResourceClaim claim = claimLedger.getClaim(claimId);
+        if (claim == null) {
+            return null;
+        }
+        if (!claimBackingCacheValid) {
+            claimBackingCache = claimLedger.calculateBackedAmounts(resource ->
+                  resourceDataMap.getOrDefault(resource, QIOAmount.ZERO));
+            claimBackingCacheValid = true;
+        }
+        return new QIOClaimBacking(claim, contentsRevision, claimLedger.getRevision(),
+              claimBackingCache.getOrDefault(claim.getClaimId(), Collections.emptyMap()));
+    }
+
+    @Nonnull
+    public synchronized List<QIOResourceClaim> getResourceClaims() {
+        return claimLedger.getClaims();
+    }
+
+    @Nonnull
+    public synchronized QIOClaimResult submitClaimRequest(@Nonnull QIOClaimRequest request) {
+        ensureFresh();
+        long oldClaimRevision = claimLedger.getRevision();
+        QIOClaimLedger.Submission submission = claimLedger.submit(request, contentsRevision,
+              new QIOClaimLedger.Storage() {
+                  @Override
+                  public boolean isClaimable(UUID resource) {
+                      return resource != null && QIOResourceTypeRegistry.INSTANCE.getTypeByUUID(resource) != null;
+                  }
+
+                  @Nonnull
+                  @Override
+                  public QIOAmount getStored(UUID resource) {
+                      return resourceDataMap.getOrDefault(resource, QIOAmount.ZERO);
+                  }
+
+                  @Override
+                  public boolean extractClaimed(Map<UUID, Long> resources) {
+                      return extractClaimedBatch(resources);
+                  }
+
+                  @Override
+                  public boolean persistPhysical() {
+                      return QIOStorageManager.flush();
+                  }
+              });
+        // Request receipts are persistent even when a request is stale or a replay makes no resource change.
+        dirty = true;
+        if (claimLedger.getRevision() != oldClaimRevision) {
+            markClaimsChanged(oldClaimRevision, submission.getChangedResources());
+        }
+        return submission.getResult();
+    }
+
+    @Nonnull
+    public synchronized QIOTransferResult insertExternalTransfer(@Nonnull UUID transferId,
+          @Nullable ItemStack stack, long amount, @Nonnull BigInteger expectedStoredAmount) {
+        ensureFresh();
+        if (stack == null || stack.isEmpty() || amount <= 0 || expectedStoredAmount == null ||
+              expectedStoredAmount.signum() < 0) {
+            return invalidTransfer(transferId, amount);
+        }
+        ItemStack normalized = stack.copy();
+        normalized.setCount(1);
+        UUID resource = QIOResourceTypeRegistry.INSTANCE.getOrTrackItem(HashedItem.create(normalized));
+        return submitExternalTransfer(transferId, QIOResourceKind.ITEM, resource, amount,
+              expectedStoredAmount, requested -> massInsert(normalized, requested, Action.EXECUTE));
+    }
+
+    @Nonnull
+    public synchronized QIOTransferResult insertExternalTransfer(@Nonnull UUID transferId,
+          @Nullable FluidStack stack, long amount, @Nonnull BigInteger expectedStoredAmount) {
+        ensureFresh();
+        if (stack == null || stack.getFluid() == null || amount <= 0 || expectedStoredAmount == null ||
+              expectedStoredAmount.signum() < 0) {
+            return invalidTransfer(transferId, amount);
+        }
+        FluidStack normalized = stack.copy();
+        normalized.amount = 1;
+        UUID resource = QIOResourceTypeRegistry.INSTANCE.getOrTrackFluid(normalized);
+        return submitExternalTransfer(transferId, QIOResourceKind.FLUID, resource, amount,
+              expectedStoredAmount, requested -> massInsert(normalized, requested, Action.EXECUTE));
+    }
+
+    @Nonnull
+    public synchronized QIOTransferResult insertExternalTransfer(@Nonnull UUID transferId,
+          @Nullable GasStack stack, long amount, @Nonnull BigInteger expectedStoredAmount) {
+        ensureFresh();
+        if (stack == null || stack.getGas() == null || amount <= 0 || expectedStoredAmount == null ||
+              expectedStoredAmount.signum() < 0) {
+            return invalidTransfer(transferId, amount);
+        }
+        GasStack normalized = stack.copy();
+        normalized.amount = 1;
+        UUID resource = QIOResourceTypeRegistry.INSTANCE.getOrTrackGas(normalized);
+        return submitExternalTransfer(transferId, QIOResourceKind.GAS, resource, amount,
+              expectedStoredAmount, requested -> massInsert(normalized, requested, Action.EXECUTE));
+    }
+
     public synchronized boolean addExternalStorageListener(@Nullable IQIOStorageListener listener) {
         if (listener == null || storageListeners.containsKey(listener) || clientSnapshot || isRemoved()) {
             return false;
         }
         storageListeners.put(listener, new StorageListenerRegistration(contentsRevision, capacityRevision,
-              accessRevision));
+              claimLedger.getRevision(), accessRevision));
         return true;
     }
 
@@ -513,17 +633,21 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         if (stack == null || stack.isEmpty() || amount <= 0 || action == null) {
             return 0;
         }
-        if (action.simulate()) {
-            return simulateExtract(QIOResourceTypeRegistry.INSTANCE.getUUIDForItem(HashedItem.create(stack)), amount);
-        }
         UUID resource = QIOResourceTypeRegistry.INSTANCE.getUUIDForItem(HashedItem.create(stack));
+        long extractable = simulateExtract(resource, amount);
+        if (action.simulate()) {
+            return extractable;
+        }
+        if (extractable <= 0) {
+            return 0;
+        }
         long extracted = 0;
         applyingFrequencyTransaction = true;
         try {
             for (QIODriveData drive : activeDrives.values()) {
-                long current = drive.extract(stack, amount - extracted, action);
+                long current = drive.extract(stack, extractable - extracted, action);
                 extracted += current;
-                if (extracted >= amount) {
+                if (extracted >= extractable) {
                     break;
                 }
             }
@@ -539,17 +663,21 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         if (stack == null || stack.getFluid() == null || amount <= 0 || action == null) {
             return 0;
         }
-        if (action.simulate()) {
-            return simulateExtract(QIOResourceTypeRegistry.INSTANCE.getUUIDForFluid(stack), amount);
-        }
         UUID resource = QIOResourceTypeRegistry.INSTANCE.getUUIDForFluid(stack);
+        long extractable = simulateExtract(resource, amount);
+        if (action.simulate()) {
+            return extractable;
+        }
+        if (extractable <= 0) {
+            return 0;
+        }
         long extracted = 0;
         applyingFrequencyTransaction = true;
         try {
             for (QIODriveData drive : activeDrives.values()) {
-                long current = drive.extract(stack, amount - extracted, action);
+                long current = drive.extract(stack, extractable - extracted, action);
                 extracted += current;
-                if (extracted >= amount) {
+                if (extracted >= extractable) {
                     break;
                 }
             }
@@ -565,17 +693,21 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         if (stack == null || stack.getGas() == null || amount <= 0 || action == null) {
             return 0;
         }
-        if (action.simulate()) {
-            return simulateExtract(QIOResourceTypeRegistry.INSTANCE.getUUIDForGas(stack), amount);
-        }
         UUID resource = QIOResourceTypeRegistry.INSTANCE.getUUIDForGas(stack);
+        long extractable = simulateExtract(resource, amount);
+        if (action.simulate()) {
+            return extractable;
+        }
+        if (extractable <= 0) {
+            return 0;
+        }
         long extracted = 0;
         applyingFrequencyTransaction = true;
         try {
             for (QIODriveData drive : activeDrives.values()) {
-                long current = drive.extract(stack, amount - extracted, action);
+                long current = drive.extract(stack, extractable - extracted, action);
                 extracted += current;
-                if (extracted >= amount) {
+                if (extracted >= extractable) {
                     break;
                 }
             }
@@ -592,8 +724,12 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         if (resource == null || amount <= 0 || action == null || !resourceDataMap.containsKey(resource)) {
             return 0;
         }
+        long extractable = simulateExtract(resource, amount);
         if (action.simulate()) {
-            return simulateExtract(resource, amount);
+            return extractable;
+        }
+        if (extractable <= 0) {
+            return 0;
         }
         QIOResourceKind kind = resourceKinds.get(resource);
         if (kind == null) {
@@ -603,8 +739,8 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         applyingFrequencyTransaction = true;
         try {
             for (QIODriveData drive : activeDrives.values()) {
-                extracted += drive.extract(resource, amount - extracted, action);
-                if (extracted >= amount) {
+                extracted += drive.extract(resource, extractable - extracted, action);
+                if (extracted >= extractable) {
                     break;
                 }
             }
@@ -626,6 +762,89 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
             case FLUID -> massInsert(type.createFluidStack(1), amount, action);
             case GAS -> massInsert(type.createGasStack(1), amount, action);
         };
+    }
+
+    /** Consumes resources owned by a claim, bypassing only that claim's ordinary availability deduction. */
+    private boolean extractClaimedBatch(Map<UUID, Long> resources) {
+        if (resources == null || resources.isEmpty()) {
+            return true;
+        }
+        for (Map.Entry<UUID, Long> entry : resources.entrySet()) {
+            if (entry.getKey() == null || entry.getValue() == null || entry.getValue() <= 0 ||
+                  resourceDataMap.getOrDefault(entry.getKey(), QIOAmount.ZERO)
+                        .compareTo(QIOAmount.of(entry.getValue())) < 0) {
+                return false;
+            }
+        }
+        Map<UUID, Long> extracted = new LinkedHashMap<>();
+        boolean complete = true;
+        applyingFrequencyTransaction = true;
+        try {
+            for (Map.Entry<UUID, Long> entry : resources.entrySet()) {
+                long amount = extractPhysical(entry.getKey(), entry.getValue());
+                if (amount > 0) {
+                    extracted.put(entry.getKey(), amount);
+                }
+                if (amount != entry.getValue()) {
+                    complete = false;
+                    break;
+                }
+            }
+            if (!complete) {
+                for (Map.Entry<UUID, Long> entry : extracted.entrySet()) {
+                    if (insertPhysical(entry.getKey(), entry.getValue()) != entry.getValue()) {
+                        needsRefresh = true;
+                        QIOLog.LOGGER.error("Unable to roll back an incomplete QIO claimed extraction for {}", entry.getKey());
+                    }
+                }
+            }
+        } finally {
+            applyingFrequencyTransaction = false;
+        }
+        if (!complete) {
+            if (needsRefresh) {
+                refresh();
+            }
+            return false;
+        }
+        Map<UUID, AmountChange> changes = new LinkedHashMap<>();
+        for (Map.Entry<UUID, Long> entry : resources.entrySet()) {
+            QIOResourceKind kind = resourceKinds.get(entry.getKey());
+            if (kind == null) {
+                kind = QIOResourceTypeRegistry.INSTANCE.getKindByUUID(entry.getKey());
+            }
+            AmountChange change = mutateAggregate(entry.getKey(), kind, entry.getValue(), false);
+            if (change == null) {
+                needsRefresh = true;
+                refresh();
+                return false;
+            }
+            changes.put(entry.getKey(), change);
+        }
+        queueStorageChanges(changes);
+        return true;
+    }
+
+    private long extractPhysical(UUID resource, long amount) {
+        long extracted = 0;
+        for (QIODriveData drive : activeDrives.values()) {
+            extracted = safeAdd(extracted, drive.extract(resource, amount - extracted, Action.EXECUTE));
+            if (extracted >= amount) {
+                break;
+            }
+        }
+        return extracted;
+    }
+
+    private long insertPhysical(UUID resource, long amount) {
+        long inserted = 0;
+        for (QIODriveData drive : activeDrives.values()) {
+            inserted = safeAdd(inserted, drive.insert(resource, amount - inserted, Action.EXECUTE));
+            if (inserted >= amount) {
+                break;
+            }
+        }
+        return inserted;
     }
 
     public synchronized long getStored(ItemStack stack) {
@@ -662,6 +881,28 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         }
         ensureFresh();
         return resourceDataMap.getOrDefault(resource, QIOAmount.ZERO);
+    }
+
+    public synchronized long getCommitted(@Nullable UUID resource) {
+        return getCommittedExact(resource).longValueClamped();
+    }
+
+    @Nonnull
+    public synchronized QIOAmount getCommittedExact(@Nullable UUID resource) {
+        return claimLedger.getCommitted(resource);
+    }
+
+    public synchronized long getAvailable(@Nullable UUID resource) {
+        return getAvailableExact(resource).longValueClamped();
+    }
+
+    @Nonnull
+    public synchronized QIOAmount getAvailableExact(@Nullable UUID resource) {
+        if (resource == null) {
+            return QIOAmount.ZERO;
+        }
+        ensureFresh();
+        return claimLedger.getAvailable(resource, resourceDataMap.getOrDefault(resource, QIOAmount.ZERO));
     }
 
     public synchronized long getStored(@Nullable QIOFilter filter) {
@@ -920,6 +1161,7 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         hash = 31 * hash + totalTypeCapacity;
         hash = 31 * hash + exactTotalCount.hashCode();
         hash = 31 * hash + capacitySummary.hashCode();
+        hash = 31 * hash + Long.hashCode(claimLedger.getRevision());
         return 31 * hash + color.ordinal();
     }
 
@@ -930,6 +1172,8 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         data.setLong(CONTENTS_REVISION_KEY, contentsRevision);
         data.setLong(CAPACITY_REVISION_KEY, capacityRevision);
         data.setLong(ACCESS_REVISION_KEY, accessRevision);
+        claimLedger.write(data);
+        transferLedger.write(data);
         data.setInteger(NBTConstants.COLOR, color.ordinal());
         // Keep the temporary key readable for worlds written by the initial
         // port; new saves use the shared frequency color field.
@@ -951,6 +1195,8 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         contentsRevision = Math.max(0, data.getLong(CONTENTS_REVISION_KEY));
         capacityRevision = Math.max(0, data.getLong(CAPACITY_REVISION_KEY));
         accessRevision = Math.max(0, data.getLong(ACCESS_REVISION_KEY));
+        claimLedger.read(data);
+        transferLedger.read(data);
         if (data.hasKey(NBTConstants.COLOR) || data.hasKey("qioColor")) {
             int index = data.hasKey(NBTConstants.COLOR) ? data.getInteger(NBTConstants.COLOR) : data.getInteger("qioColor");
             if (index >= 0 && index < EnumColor.values().length) {
@@ -964,6 +1210,7 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         frequencyUUID = parsedUUID == null ? UUID.randomUUID() : parsedUUID;
         contentsRevision = Math.max(0, data.readLong());
         capacityRevision = Math.max(0, data.readLong());
+        claimLedger.setClientRevision(data.readLong());
         accessRevision = Math.max(0, data.readLong());
         totalCount = data.readLong();
         totalCountCapacity = data.readLong();
@@ -992,6 +1239,7 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         data.add(frequencyUUID.toString());
         data.add(contentsRevision);
         data.add(capacityRevision);
+        data.add(claimLedger.getRevision());
         data.add(accessRevision);
         data.add(totalCount);
         data.add(totalCountCapacity);
@@ -1033,11 +1281,20 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
     }
 
     private void applyAggregateChange(UUID resource, QIOResourceKind kind, long amount, boolean insert) {
+        AmountChange change = mutateAggregate(resource, kind, amount, insert);
+        if (change != null) {
+            queueStorageChanges(Collections.singletonMap(resource, change));
+        }
+    }
+
+    @Nullable
+    private AmountChange mutateAggregate(UUID resource, @Nullable QIOResourceKind kind, long amount, boolean insert) {
+        if (resource == null || kind == null || amount <= 0) {
+            return null;
+        }
         QIOAmount oldAmount = resourceDataMap.getOrDefault(resource, QIOAmount.ZERO);
         if (!insert && oldAmount.compareTo(QIOAmount.of(amount)) < 0) {
-            needsRefresh = true;
-            refresh();
-            return;
+            return null;
         }
         QIOAmount newAmount = insert ? oldAmount.add(amount) : oldAmount.subtract(amount);
         QIOAmount storageUnits = QIOAmount.of(amount).multiply(QIOStorageUnits.getUnitsPerResource(kind));
@@ -1067,7 +1324,7 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         totalCount = exactTotalCount.longValueClamped();
         totalTypes = resourceDataMap.size();
         updatedResources.add(resource);
-        queueStorageChanges(Collections.singletonMap(resource, new AmountChange(oldAmount, newAmount)));
+        return new AmountChange(oldAmount, newAmount);
     }
 
     private void recordRefreshChanges(Map<UUID, QIOAmount> previousResources,
@@ -1097,6 +1354,7 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         if (changes.isEmpty()) {
             return;
         }
+        claimBackingCacheValid = false;
         beginPendingStorageBatch();
         contentsRevision = nextRevision(contentsRevision);
         dirty = true;
@@ -1118,7 +1376,22 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         if (pendingOldContentsRevision < 0) {
             pendingOldContentsRevision = contentsRevision;
             pendingOldCapacityRevision = capacityRevision;
+            pendingOldClaimRevision = claimLedger.getRevision();
         }
+    }
+
+    private void markClaimsChanged(long oldClaimRevision, Set<UUID> resources) {
+        claimBackingCacheValid = false;
+        if (pendingOldContentsRevision < 0) {
+            pendingOldContentsRevision = contentsRevision;
+            pendingOldCapacityRevision = capacityRevision;
+            pendingOldClaimRevision = oldClaimRevision;
+        }
+        pendingFullRescan = true;
+        if (resources != null) {
+            updatedResources.addAll(resources);
+        }
+        dirty = true;
     }
 
     private void dispatchStorageChanges() {
@@ -1137,8 +1410,8 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
                   pending.getValue().newAmount.toBigInteger()));
         }
         QIOStorageChangeBatch batch = new QIOStorageChangeBatch(pendingOldContentsRevision,
-              contentsRevision, pendingOldCapacityRevision, capacityRevision, accessRevision, changes,
-              requireFullRescan, false);
+              contentsRevision, pendingOldCapacityRevision, capacityRevision, pendingOldClaimRevision,
+              claimLedger.getRevision(), accessRevision, changes, requireFullRescan, false);
         for (Map.Entry<IQIOStorageListener, StorageListenerRegistration> entry :
               new ArrayList<>(storageListeners.entrySet())) {
             IQIOStorageListener listener = entry.getKey();
@@ -1147,15 +1420,18 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
                 continue;
             }
             if (contentsRevision <= registration.contentsRevision && capacityRevision <= registration.capacityRevision &&
+                  claimLedger.getRevision() <= registration.claimRevision &&
                   accessRevision <= registration.accessRevision) {
                 continue;
             }
             QIOStorageChangeBatch listenerBatch = registration.contentsRevision > pendingOldContentsRevision ||
-                  registration.capacityRevision > pendingOldCapacityRevision ? batch.requiringFullRescan() : batch;
+                  registration.capacityRevision > pendingOldCapacityRevision ||
+                  registration.claimRevision > pendingOldClaimRevision ? batch.requiringFullRescan() : batch;
             try {
                 listener.onQIOStorageChanged(listenerBatch);
                 registration.contentsRevision = contentsRevision;
                 registration.capacityRevision = capacityRevision;
+                registration.claimRevision = claimLedger.getRevision();
                 registration.accessRevision = accessRevision;
             } catch (RuntimeException e) {
                 storageListeners.remove(listener);
@@ -1165,6 +1441,7 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         pendingStorageChanges.clear();
         pendingOldContentsRevision = -1;
         pendingOldCapacityRevision = -1;
+        pendingOldClaimRevision = -1;
         pendingFullRescan = false;
     }
 
@@ -1178,7 +1455,7 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
     private void invalidateStorageListeners() {
         accessRevision = nextRevision(accessRevision);
         QIOStorageChangeBatch invalidation = QIOStorageChangeBatch.invalidated(contentsRevision,
-              capacityRevision, accessRevision);
+              capacityRevision, claimLedger.getRevision(), accessRevision);
         for (IQIOStorageListener listener : new ArrayList<>(storageListeners.keySet())) {
             try {
                 listener.onQIOStorageChanged(invalidation);
@@ -1190,6 +1467,7 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         pendingStorageChanges.clear();
         pendingOldContentsRevision = -1;
         pendingOldCapacityRevision = -1;
+        pendingOldClaimRevision = -1;
         pendingFullRescan = false;
     }
 
@@ -1200,11 +1478,12 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
             return null;
         }
         BigInteger exactAmount = amount.toBigInteger();
+        BigInteger committedAmount = claimLedger.getCommitted(resource).toBigInteger();
         try {
             return switch (type.getKind()) {
-                case ITEM -> QIOStorageEntry.item(resource, exactAmount, type.createItemStack(1));
-                case FLUID -> QIOStorageEntry.fluid(resource, exactAmount, type.createFluidStack(1));
-                case GAS -> QIOStorageEntry.gas(resource, exactAmount, type.createGasStack(1));
+                case ITEM -> QIOStorageEntry.item(resource, exactAmount, committedAmount, type.createItemStack(1));
+                case FLUID -> QIOStorageEntry.fluid(resource, exactAmount, committedAmount, type.createFluidStack(1));
+                case GAS -> QIOStorageEntry.gas(resource, exactAmount, committedAmount, type.createGasStack(1));
             };
         } catch (RuntimeException e) {
             QIOLog.LOGGER.error("Unable to expose QIO resource {} through the external storage API", resource, e);
@@ -1214,6 +1493,29 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
 
     private static long nextRevision(long revision) {
         return revision == Long.MAX_VALUE ? Long.MAX_VALUE : revision + 1;
+    }
+
+    private QIOTransferResult submitExternalTransfer(UUID transferId, QIOResourceKind kind,
+          UUID resource, long amount, BigInteger expectedStoredAmount,
+          java.util.function.LongUnaryOperator insertion) {
+        Objects.requireNonNull(transferId, "Transfer id cannot be null");
+        if (resource == null || expectedStoredAmount == null || expectedStoredAmount.signum() < 0) {
+            return invalidTransfer(transferId, amount);
+        }
+        String digest = kind.name() + '|' + resource + '|' + amount;
+        QIOTransferResult result = transferLedger.submitReconciled(transferId, digest, amount,
+              QIOAmount.of(expectedStoredAmount),
+              () -> resourceDataMap.getOrDefault(resource, QIOAmount.ZERO), insertion,
+              QIOStorageManager::flush);
+        if (result.isSuccess()) {
+            dirty = true;
+        }
+        return result;
+    }
+
+    private static QIOTransferResult invalidTransfer(UUID transferId, long amount) {
+        return new QIOTransferResult(Objects.requireNonNull(transferId, "Transfer id cannot be null"),
+              QIOTransferResult.Status.INVALID_REQUEST, Math.max(1, amount), 0);
     }
 
     /**
@@ -1252,15 +1554,8 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
         if (resource == null || amount <= 0) {
             return 0;
         }
-        long extracted = 0;
-        for (QIODriveData drive : activeDrives.values()) {
-            long current = Math.min(amount - extracted, drive.getRecord().getStored(resource));
-            extracted = safeAdd(extracted, current);
-            if (extracted >= amount) {
-                break;
-            }
-        }
-        return extracted;
+        return Math.min(amount, claimLedger.getAvailable(resource,
+              resourceDataMap.getOrDefault(resource, QIOAmount.ZERO)).longValueClamped());
     }
 
     private void sendViewerUpdates() {
@@ -1376,11 +1671,14 @@ public class QIOFrequency extends Frequency implements IColorableFrequency {
 
         private long contentsRevision;
         private long capacityRevision;
+        private long claimRevision;
         private long accessRevision;
 
-        private StorageListenerRegistration(long contentsRevision, long capacityRevision, long accessRevision) {
+        private StorageListenerRegistration(long contentsRevision, long capacityRevision, long claimRevision,
+              long accessRevision) {
             this.contentsRevision = contentsRevision;
             this.capacityRevision = capacityRevision;
+            this.claimRevision = claimRevision;
             this.accessRevision = accessRevision;
         }
     }

@@ -52,7 +52,7 @@ public final class QIOCraftingResourceTransaction {
             needed.put(request.getResource(), next);
         }
         for (Map.Entry<UUID, Long> entry : needed.entrySet()) {
-            if (frequency.getStored(entry.getKey()) < entry.getValue()) {
+            if (frequency.getAvailable(entry.getKey()) < entry.getValue()) {
                 return false;
             }
         }

@@ -37,6 +37,17 @@ public class EnergyCubeEnergyContainer extends MachineEnergyContainer {
     }
 
     @Override
+    public double getEnergy() {
+        double stored = super.getEnergy();
+        return isCreative() && stored > 0 ? Double.MAX_VALUE : stored;
+    }
+
+    @Override
+    public double getMaxEnergy() {
+        return isCreative() ? Double.MAX_VALUE : super.getMaxEnergy();
+    }
+
+    @Override
     protected double getInsertRate(@Nullable AutomationType automationType) {
         return automationType == AutomationType.INTERNAL ? Math.max(0, tier.get().getOutput()) : super.getInsertRate(automationType);
     }

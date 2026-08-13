@@ -12,7 +12,8 @@ import mekanism.common.frequency.FrequencyType;
 import mekanism.common.frequency.IFrequencyHandler;
 import mekanism.common.security.ISecurityTile;
 import mekanism.common.tile.component.TileComponentSecurity;
-import mekanism.common.tile.prefab.TileEntityContainerBlock;
+import mekanism.common.capabilities.holder.energy.IEnergyContainerHolder;
+import mekanism.common.tile.prefab.TileEntityElectricBlock;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.math.BlockPos;
@@ -25,7 +26,7 @@ import javax.annotation.Nullable;
  * regular 1.12 tile inventory and frequency component rather than a second
  * networking or persistence path.
  */
-public abstract class TileEntityQIOComponent extends TileEntityContainerBlock
+public abstract class TileEntityQIOComponent extends TileEntityElectricBlock
       implements IQIOFrequencyHolder, IFrequencyHandler, ISecurityTile, IActiveState {
 
     protected final TileComponentSecurity securityComponent;
@@ -34,9 +35,19 @@ public abstract class TileEntityQIOComponent extends TileEntityContainerBlock
     private EnumColor lastColor;
 
     protected TileEntityQIOComponent(String name) {
-        super(name);
+        this(name, 0);
+    }
+
+    protected TileEntityQIOComponent(String name, double baseMaxEnergy) {
+        super(name, baseMaxEnergy);
         frequencyComponent.track(FrequencyType.QIO, true, true, true);
         securityComponent = new TileComponentSecurity(this);
+    }
+
+    @Override
+    @Nullable
+    protected IEnergyContainerHolder getInitialEnergyContainers(IContentsListener listener) {
+        return BASE_MAX_ENERGY > 0 ? super.getInitialEnergyContainers(listener) : null;
     }
 
     @Override
@@ -185,5 +196,28 @@ public abstract class TileEntityQIOComponent extends TileEntityContainerBlock
 
     /** Restores data retained by ItemBlockQIOComponent on placement. */
     public void readSustainedQIOData(NBTTagCompound data) {
+    }
+
+    /** Writes only fields needed to render a QIO component, without inventories or frequency lists. */
+    protected final void writeQIOVisualUpdateNBT(NBTTagCompound data) {
+        if (facing != null) {
+            data.setInteger("facing", facing.ordinal());
+        }
+        data.setBoolean("redstone", redstone);
+        data.setBoolean("qioActive", active);
+        if (lastColor != null) {
+            data.setInteger("qioColor", lastColor.ordinal());
+        }
+    }
+
+    /** Reads the bounded visual payload written by {@link #writeQIOVisualUpdateNBT(NBTTagCompound)}. */
+    protected final void readQIOVisualUpdateNBT(NBTTagCompound data) {
+        if (data.hasKey("facing")) {
+            facing = net.minecraft.util.EnumFacing.byIndex(data.getInteger("facing"));
+        }
+        redstone = data.getBoolean("redstone");
+        active = data.getBoolean("qioActive");
+        lastColor = data.hasKey("qioColor") ?
+              MekanismUtils.getByIndex(EnumColor.values(), data.getInteger("qioColor"), null) : null;
     }
 }

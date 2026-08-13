@@ -58,13 +58,26 @@ public class TileEntitySynchronized extends TileEntity implements IOcclusionCull
     public void writeNetNBT(NBTTagCompound compound) {
     }
 
+    /**
+     * Writes the data sent by vanilla chunk/update-tag synchronization. The default preserves the
+     * legacy behavior; tiles with large persistent state may override this with a bounded view.
+     */
+    protected void writeUpdateNBT(NBTTagCompound compound) {
+        writeCustomNBT(compound);
+    }
+
+    /** Reads the bounded counterpart written by {@link #writeUpdateNBT(NBTTagCompound)}. */
+    protected void readUpdateNBT(NBTTagCompound compound) {
+        readCustomNBT(compound);
+    }
+
 
     @Nonnull
     @Override
     public SPacketUpdateTileEntity getUpdatePacket() {
         NBTTagCompound compound = new NBTTagCompound();
         super.writeToNBT(compound);
-        writeCustomNBT(compound);
+        writeUpdateNBT(compound);
         writeNetNBT(compound);
         return new SPacketUpdateTileEntity(getPos(), 255, compound);
     }
@@ -75,7 +88,7 @@ public class TileEntitySynchronized extends TileEntity implements IOcclusionCull
     public NBTTagCompound getUpdateTag() {
         NBTTagCompound compound = new NBTTagCompound();
         super.writeToNBT(compound);
-        writeCustomNBT(compound);
+        writeUpdateNBT(compound);
         super.getUpdateTag();
         return compound;
     }
@@ -95,7 +108,7 @@ public class TileEntitySynchronized extends TileEntity implements IOcclusionCull
         // only has x/y/z/id data, so our readFromNBT will set a bunch of default values which are wrong.
         // So simply call the super's readFromNBT, to let Forge do whatever it wants, but don't treat this like
         // a full NBT object, don't pass it to our custom read methods.
-        readCustomNBT(tag);
+        readUpdateNBT(tag);
         readNetNBT(tag);
         super.readFromNBT(tag);
     }
@@ -104,6 +117,7 @@ public class TileEntitySynchronized extends TileEntity implements IOcclusionCull
     public void markNoUpdate() {
         World world = getWorld();
         if (world == null) {
+            inMarkTask = false;
             return;
         }
         markDirty();
@@ -137,6 +151,7 @@ public class TileEntitySynchronized extends TileEntity implements IOcclusionCull
     public void notifyUpdate() {
         World world = getWorld();
         if (world == null) { //防止世界是无
+            inUpdateTask = false;
             return;
         }
         IBlockState state = world.getBlockState(pos);
@@ -145,6 +160,12 @@ public class TileEntitySynchronized extends TileEntity implements IOcclusionCull
     }
 
     public void markNoUpdateSync() {
+        // Forge can deserialize a tile before assigning its world. Do not enqueue a
+        // mark task in that phase: the queued task cannot mark anything and would
+        // leave inMarkTask latched, suppressing all later updates after placement.
+        if (getWorld() == null) {
+            return;
+        }
         if (FMLCommonHandler.instance().getEffectiveSide().isClient()) {
             markNoUpdate();
             return;
@@ -172,6 +193,9 @@ public class TileEntitySynchronized extends TileEntity implements IOcclusionCull
      * <p>*** 只能保证 mekceu 自身对世界的线程安全 ***</p>
      */
     public void markForUpdateSync() {
+        if (getWorld() == null) {
+            return;
+        }
         if (inUpdateTask) {
             return;
         }
@@ -185,6 +209,9 @@ public class TileEntitySynchronized extends TileEntity implements IOcclusionCull
     }
 
     public void updateComparatorOutputLevelSync() {
+        if (getWorld() == null) {
+            return;
+        }
         if (inMarkTask) {
             return;
         }
@@ -199,7 +226,10 @@ public class TileEntitySynchronized extends TileEntity implements IOcclusionCull
     public void updateComparatorOutputLevel() {
         if (requireUpdateComparatorOutputLevel) {
             requireUpdateComparatorOutputLevel = false;
-            world.updateComparatorOutputLevel(pos, getBlockType());
+            World world = getWorld();
+            if (world != null) {
+                world.updateComparatorOutputLevel(pos, getBlockType());
+            }
         }
     }
 

@@ -390,6 +390,101 @@ public final class MachineRecipeRouteCollectors {
         return routes;
     }
 
+    /**
+     * Publishes every item replicator recipe with a retained, replaceable template. Unlike the
+     * legacy template-filtered collector, this method does not depend on current machine state.
+     */
+    public static List<MachineRecipeRoute> collectConfigurableReplicatorItems(
+          Map<NucleosynthesizerInput, ? extends MachineRecipe<NucleosynthesizerInput, ItemStackOutput, ?>> recipes) {
+        return collectConfigurableReplicatorItems(recipes, "template", "uu_input", "item_output");
+    }
+
+    public static List<MachineRecipeRoute> collectConfigurableReplicatorItems(
+          Map<NucleosynthesizerInput, ? extends MachineRecipe<NucleosynthesizerInput, ItemStackOutput, ?>> recipes,
+          String templatePortId, String uuPortId, String outputPortId) {
+        String templatePort = requirePortId(templatePortId);
+        String uuPort = requirePortId(uuPortId);
+        String outputPort = requirePortId(outputPortId);
+        List<MachineRecipeRoute> routes = new ArrayList<>();
+        for (MachineRecipe<NucleosynthesizerInput, ItemStackOutput, ?> recipe : recipes.values()) {
+            NucleosynthesizerInput input = recipe.getInput();
+            GasStack uu = input == null ? null : input.getGas();
+            ItemStack template = input == null ? ItemStack.EMPTY : input.getSolid();
+            ItemStack output = recipe.getOutput().output;
+            if (!isPositiveItem(template) || !isPositiveGas(uu) || !isPositiveItem(output)) {
+                continue;
+            }
+            for (ItemStack expanded : MachineRecipeItemInputs.expand(template,
+                  candidate -> nucleosynthesizerRecipeMatches(recipes, candidate, uu, output))) {
+                routes.add(MachineRecipeRoute.builder("route:replicator_item.configurable")
+                      .configurationInput(MachineResourceStack.item(templatePort, expanded, 1))
+                      .inputGas(uuPort, uu)
+                      .outputItem(outputPort, output)
+                      .build());
+            }
+        }
+        return routes;
+    }
+
+    /** Publishes every gas replicator recipe with a one-unit retained template. */
+    public static List<MachineRecipeRoute> collectConfigurableReplicatorGases(
+          Map<ChemicalGasInput, ? extends MachineRecipe<ChemicalGasInput, GasOutput, ?>> recipes) {
+        return collectConfigurableReplicatorGases(recipes, "template", "uu_input", "gas_output");
+    }
+
+    public static List<MachineRecipeRoute> collectConfigurableReplicatorGases(
+          Map<ChemicalGasInput, ? extends MachineRecipe<ChemicalGasInput, GasOutput, ?>> recipes,
+          String templatePortId, String uuPortId, String outputPortId) {
+        String templatePort = requirePortId(templatePortId);
+        String uuPort = requirePortId(uuPortId);
+        String outputPort = requirePortId(outputPortId);
+        List<MachineRecipeRoute> routes = new ArrayList<>();
+        for (MachineRecipe<ChemicalGasInput, GasOutput, ?> recipe : recipes.values()) {
+            ChemicalGasInput input = recipe.getInput();
+            GasStack output = recipe.getOutput().output;
+            if (input == null || !isPositiveGas(input.input) || !isPositiveGas(input.uu) ||
+                !isPositiveGas(output)) {
+                continue;
+            }
+            routes.add(MachineRecipeRoute.builder("route:replicator_gas.configurable")
+                  .configurationInput(MachineResourceStack.gas(templatePort, input.input, 1))
+                  .inputGas(uuPort, input.uu)
+                  .outputGas(outputPort, output)
+                  .build());
+        }
+        return routes;
+    }
+
+    /** Publishes every fluid replicator recipe with a one-mB retained template. */
+    public static List<MachineRecipeRoute> collectConfigurableReplicatorFluids(
+          Map<GasAndFluidInput, ? extends MachineRecipe<GasAndFluidInput, FluidOutput, ?>> recipes) {
+        return collectConfigurableReplicatorFluids(recipes, "template", "uu_input", "fluid_output");
+    }
+
+    public static List<MachineRecipeRoute> collectConfigurableReplicatorFluids(
+          Map<GasAndFluidInput, ? extends MachineRecipe<GasAndFluidInput, FluidOutput, ?>> recipes,
+          String templatePortId, String uuPortId, String outputPortId) {
+        String templatePort = requirePortId(templatePortId);
+        String uuPort = requirePortId(uuPortId);
+        String outputPort = requirePortId(outputPortId);
+        List<MachineRecipeRoute> routes = new ArrayList<>();
+        for (MachineRecipe<GasAndFluidInput, FluidOutput, ?> recipe : recipes.values()) {
+            GasAndFluidInput input = recipe.getInput();
+            FluidStack output = recipe.getOutput().output;
+            if (input == null || !isPositiveFluid(input.ingredientFluid) ||
+                !isPositiveGas(input.ingredientGas) || !isPositiveFluid(output)) {
+                continue;
+            }
+            routes.add(MachineRecipeRoute.builder("route:replicator_fluid.configurable")
+                  .configurationInput(MachineResourceStack.fluid(templatePort,
+                        input.ingredientFluid, 1))
+                  .inputGas(uuPort, input.ingredientGas)
+                  .outputFluid(outputPort, output)
+                  .build());
+        }
+        return routes;
+    }
+
     public static List<MachineRecipeRoute> collectChemicalGasToGas(
           Map<ChemicalGasInput, ? extends MachineRecipe<ChemicalGasInput, GasOutput, ?>> recipes) {
         List<MachineRecipeRoute> routes = new ArrayList<>();
@@ -560,7 +655,11 @@ public final class MachineRecipeRouteCollectors {
         for (int lane = 0; lane < lanes; lane++) {
             for (MachineRecipeRoute route : routes) {
                 MachineRecipeRoute.Builder builder = MachineRecipeRoute.builder(route.routeId())
-                      .recipeKey(route.recipeKey() + ":lane_" + lane);
+                      .recipeKey(route.recipeKey() + ":lane_" + lane)
+                      .logicalRecipeKey(route.logicalRecipeKey());
+                for (MachineResourceStack input : route.configurationInputs()) {
+                    builder.configurationInput(withLane(input, lane, sharedPorts));
+                }
                 for (MachineResourceStack input : route.inputs()) {
                     builder.input(withLane(input, lane, sharedPorts));
                 }

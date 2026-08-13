@@ -1,0 +1,9 @@
+{
+  "type": "forge:ore_shaped", "result": { "item": "mekanismqioprocessing:qio_auto_output_upgrade" },
+  "pattern": ["GAG", "ACA", "GAG"],
+  "key": {
+    "G": { "type": "forge:ore_dict", "ore": "ingotLead" },
+    "A": { "item": "mekanism:enrichedalloy" },
+    "C": { "item": "mekanism:qio_exporter" }
+  }
+}

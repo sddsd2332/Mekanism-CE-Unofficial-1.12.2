@@ -34,11 +34,10 @@ public final class QIOStorageManager {
         }
     }
 
-    public static void flush() {
+    public static boolean flush() {
         // A drive file may reference a type created in the same tick, so types
         // are always committed before drive records.
-        QIOResourceTypeRegistry.INSTANCE.flush();
-        QIODriveStorage.INSTANCE.flush();
+        return QIOResourceTypeRegistry.INSTANCE.flush() && QIODriveStorage.INSTANCE.flush();
     }
 
     public static void shutdown() {

@@ -180,6 +180,7 @@ public class Mekanism {
 
     public static Configuration configurationMultiblockMachine;
     public static Configuration configurationMeka;
+    public static Configuration configurationQIOProcessing;
     /**
      * Mekanism version number
      */
@@ -574,6 +575,7 @@ public class Mekanism {
         configurationtools = new Configuration(new File("config/mekanism/MekanismTools.cfg"));
         configurationMultiblockMachine = new Configuration(new File("config/mekanism/MekanismMultiblockMachine.cfg"));
         configurationMeka = new Configuration(new File("config/mekanism/MekaSuitArmor.cfg"));
+        configurationQIOProcessing = new Configuration(new File("config/mekanism/MekanismQIOProcessing.cfg"));
 
 
         //Load configuration

@@ -11,7 +11,8 @@ import net.minecraft.util.EnumHand;
 
 import javax.annotation.Nonnull;
 
-public abstract class MekanismItemContainer extends MekanismContainer {
+public abstract class MekanismItemContainer extends MekanismContainer
+      implements IItemStackBackedContainer {
 
     protected final EnumHand hand;
     protected final ItemStackSlotAccess itemAccess;
@@ -90,6 +91,8 @@ public abstract class MekanismItemContainer extends MekanismContainer {
         return itemAccess.getSlot();
     }
 
+    @Nonnull
+    @Override
     public ItemStackSlotAccess getItemAccess() {
         return itemAccess;
     }

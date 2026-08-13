@@ -9,6 +9,7 @@ import mekanism.generators.common.tile.fission.TileEntityFissionReactorCasing;
 import mekanism.generators.common.tile.fission.TileEntityFissionReactorPort;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.init.Bootstrap;
+import net.minecraft.util.math.BlockPos;
 import net.minecraftforge.fluids.FluidRegistry;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fml.common.Loader;
@@ -152,6 +153,24 @@ class SynchronizedFissionDataTest {
     void fissionCasingsAndPortsDoNotExposeHeatHandlers() {
         assertFalse(new TileEntityFissionReactorCasing().canHandleHeat());
         assertFalse(new TileEntityFissionReactorPort().canHandleHeat());
+    }
+
+    @Test
+    void soundSourcesRequireKnownBoundsAndAreLimitedToCorners() {
+        SynchronizedFissionData data = new SynchronizedFissionData();
+        BlockPos min = new BlockPos(1, 2, 3);
+        BlockPos max = new BlockPos(5, 8, 11);
+
+        assertFalse(data.shouldPlaySoundAt(min));
+
+        data.minLocation = new Coord4D(min, 0);
+        data.maxLocation = new Coord4D(max, 0);
+
+        assertTrue(data.shouldPlaySoundAt(min));
+        assertTrue(data.shouldPlaySoundAt(new BlockPos(min.getX(), max.getY(), max.getZ())));
+        assertTrue(data.shouldPlaySoundAt(max));
+        assertFalse(data.shouldPlaySoundAt(new BlockPos(min.getX(), min.getY(), min.getZ() + 1)));
+        assertFalse(data.shouldPlaySoundAt(new BlockPos(3, 2, 3)));
     }
 
     @Test

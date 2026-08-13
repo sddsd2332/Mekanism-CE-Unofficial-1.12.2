@@ -101,6 +101,16 @@ public abstract class GuiScrollableElement extends GuiTexturedElement {
         return 0;
     }
 
+    public void setCurrentSelection(int selection) {
+        int elements = getElements();
+        if (elements <= 0) {
+            scroll = 0;
+            return;
+        }
+        int clamped = Math.max(0, Math.min(elements, selection));
+        scroll = clamped / (double) elements;
+    }
+
     public boolean adjustScroll(double delta) {
         if (delta != 0 && needsScrollBars()) {
             int elements = (int) Math.ceil(getElements() / (double) getScrollElementScaler());

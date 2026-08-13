@@ -213,9 +213,14 @@ public abstract class GuiQIOViewerScreen<CONTAINER extends QIOItemViewerContaine
             if (window instanceof GuiQIOFrequencySelectWindow && replacement.frequencyTab != null) {
                 replacement.frequencyTab.adoptWindow(window);
             }
+            replacement.adoptTransferredWindow(window);
             window.transferToNewGui(replacement);
             replacement.addWindow(window);
         }
+    }
+
+    /** Extension hook for module-specific viewer windows preserved across a resize. */
+    protected void adoptTransferredWindow(GuiWindow window) {
     }
 
     @Override

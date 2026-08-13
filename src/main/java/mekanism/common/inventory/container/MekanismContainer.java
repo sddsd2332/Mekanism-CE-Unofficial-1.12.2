@@ -21,6 +21,8 @@ import net.minecraft.inventory.EntityEquipmentSlot;
 import net.minecraft.inventory.IContainerListener;
 import net.minecraft.inventory.Slot;
 import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.network.play.server.SPacketSetSlot;
 import net.minecraftforge.fluids.FluidStack;
 
 import javax.annotation.Nonnull;
@@ -244,6 +246,13 @@ public abstract class MekanismContainer extends Container {
         heldStack.shrink(inserted);
         if (heldStack.isEmpty()) {
             player.inventory.setItemStack(ItemStack.EMPTY);
+        }
+        if (player instanceof EntityPlayerMP playerMP) {
+            // This custom insertion can be accepted by the authoritative server while a
+            // client-side dynamic slot validator rejects its prediction. Vanilla suppresses
+            // the cursor update after a successful click transaction, so correct it here.
+            playerMP.connection.sendPacket(new SPacketSetSlot(-1, -1,
+                  player.inventory.getItemStack()));
         }
         return originalSlotStack;
     }
@@ -591,6 +600,13 @@ public abstract class MekanismContainer extends Container {
     public void handleWindowProperty(short property, @Nonnull List<? extends Frequency> value) {
         ISyncableData data = getTrackedData(property);
         if (data instanceof SyncableFrequencyList syncable) {
+            syncable.set(value);
+        }
+    }
+
+    public void handleWindowProperty(short property, @Nonnull NBTTagCompound value) {
+        ISyncableData data = getTrackedData(property);
+        if (data instanceof SyncableNBT syncable) {
             syncable.set(value);
         }
     }

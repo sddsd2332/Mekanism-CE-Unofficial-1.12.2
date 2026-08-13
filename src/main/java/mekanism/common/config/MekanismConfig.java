@@ -43,6 +43,7 @@ public class MekanismConfig {
     public UsageConfig usage = new UsageConfig();
     public StorageConfig storage = new StorageConfig();
     public MekaConfig meka = new MekaConfig();
+    public QIOProcessingConfig qioProcessing = new QIOProcessingConfig();
 
 
     public GeneratorsConfig generators = Loader.isModLoaded(MekanismGenerators.MODID) ? new GeneratorsConfig() : null;

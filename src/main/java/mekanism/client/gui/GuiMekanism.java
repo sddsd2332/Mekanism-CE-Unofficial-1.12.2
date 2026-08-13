@@ -593,6 +593,19 @@ public abstract class GuiMekanism<CONTAINER extends Container> extends VirtualSl
         }
     }
 
+    public void focusWindow(GuiWindow focused) {
+        if (focused == null || !windows.contains(focused)) {
+            return;
+        }
+        GuiWindow top = windows.isEmpty() ? null : windows.iterator().next();
+        if (top == focused) {
+            setFocused(focused);
+            focused.onFocused();
+        } else {
+            focusWindow(focused, top);
+        }
+    }
+
     private void focusWindow(GuiWindow focused, @Nullable GuiWindow top) {
         setFocused(focused);
         if (top != null && top != focused) {

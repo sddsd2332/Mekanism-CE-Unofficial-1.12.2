@@ -6,6 +6,7 @@ import mekanism.common.frequency.FrequencyType;
 import mekanism.common.frequency.IFrequencyItem;
 import mekanism.common.inventory.container.slot.HotBarSlot;
 import mekanism.common.inventory.container.item.ItemStackSlotAccess;
+import mekanism.common.inventory.container.item.IItemStackBackedContainer;
 import mekanism.common.inventory.container.sync.FrequencyContainerSync;
 import mekanism.common.inventory.PortableQIODashboardInventory;
 import mekanism.common.item.ItemPortableQIODashboard;
@@ -24,7 +25,8 @@ import javax.annotation.Nonnull;
 import java.util.function.Supplier;
 
 /** Item-backed viewer container for the portable Dashboard. */
-public class PortableQIODashboardContainer extends QIOItemViewerContainer {
+public class PortableQIODashboardContainer extends QIOItemViewerContainer
+      implements IItemStackBackedContainer {
 
     private final EnumHand hand;
     private final ItemStackSlotAccess itemAccess;
@@ -71,6 +73,8 @@ public class PortableQIODashboardContainer extends QIOItemViewerContainer {
         return itemAccess.getSlot();
     }
 
+    @Nonnull
+    @Override
     public ItemStackSlotAccess getItemAccess() {
         return itemAccess;
     }

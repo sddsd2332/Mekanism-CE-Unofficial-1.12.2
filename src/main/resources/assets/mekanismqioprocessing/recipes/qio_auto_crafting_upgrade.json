@@ -1,0 +1,9 @@
+{
+  "type": "forge:ore_shaped", "result": { "item": "mekanismqioprocessing:qio_auto_crafting_upgrade" },
+  "pattern": ["GAG", "ACA", "GAG"],
+  "key": {
+    "G": { "type": "forge:ore_dict", "ore": "ingotLead" },
+    "A": { "item": "mekanism:atomicalloy" },
+    "C": { "item": "mekanism:controlcircuit", "data": 3 }
+  }
+}

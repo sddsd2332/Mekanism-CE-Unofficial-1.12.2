@@ -198,6 +198,16 @@ public final class QIODriveData {
         return inserted;
     }
 
+    /** Inserts an already registered resource without reconstructing a typed stack. */
+    public long insert(@Nullable UUID resource, long amount, Action action) {
+        if (!isActive() || resource == null || amount <= 0 || action == null || !record.acceptsResource(resource)) {
+            return 0;
+        }
+        long inserted = record.insert(resource, amount, action);
+        changed(action, inserted);
+        return inserted;
+    }
+
     public long extract(ItemStack stack, long amount, Action action) {
         if (!isActive() || stack == null || stack.isEmpty() || amount <= 0) {
             return 0;

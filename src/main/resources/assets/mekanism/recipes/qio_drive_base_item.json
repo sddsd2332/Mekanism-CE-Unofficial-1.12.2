@@ -5,7 +5,7 @@
   "pattern": [
     "ICI",
     "C#C",
-    "ITI"
+    "ICI"
   ],
   "type": "mekanism:ore_shaped",
   "key": {
@@ -18,11 +18,8 @@
       "data": 3
     },
     "#": {
-      "item": "minecraft:ender_pearl"
-    },
-    "T": {
-      "ore": "chestWood",
-      "type": "forge:ore_dict"
+      "item": "mekanism:machineblock",
+      "data": 13
     }
   }
 }

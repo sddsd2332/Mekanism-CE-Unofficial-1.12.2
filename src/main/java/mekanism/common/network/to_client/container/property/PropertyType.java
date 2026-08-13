@@ -60,6 +60,10 @@ public enum PropertyType {
             }
         }
         return new FrequencyListPropertyData(property, type, frequencies);
+    }),
+    NBT((property, buffer) -> {
+        NBTTagCompound value = PacketHandler.readNBT(buffer);
+        return new NBTPropertyData(property, value == null ? new NBTTagCompound() : value);
     });
 
     private static final PropertyType[] VALUES = values();

@@ -16,6 +16,7 @@ import mekanism.common.integration.computer.OCDriver;
 import mekanism.common.integration.crafttweaker.CrafttweakerIntegration;
 import mekanism.common.integration.farmersdelightlegacy.FarmersDelightLegacyIntegration;
 import mekanism.common.integration.fluxnetworks.FluxNetworksIntegration;
+import mekanism.common.integration.groovyscript.DeferredGasFluidMappings;
 import mekanism.common.integration.mysticalagriculture.MysticalAgricultureSeed;
 import mekanism.common.integration.mysticalagriculture.MysticalCreationsSeed;
 import mekanism.common.integration.wrenches.Wrenches;
@@ -136,6 +137,9 @@ public final class MekanismHooks {
         RFLoaded = Loader.isModLoaded(REDSTONEFLUX_MOD_ID);
         TeslaLoaded = Loader.isModLoaded(TESLA_MOD_ID);
         GroovyScriptLoaded = Loader.isModLoaded(GROOVYSCRIPT_MOD_ID);
+        if (GroovyScriptLoaded) {
+            DeferredGasFluidMappings.registerEventHandler();
+        }
         FluxNetWorksLoaded = Loader.isModLoaded(FLUX_NETWORKS_MOD_ID);
         GTCEULoaded = Mods.GTCeU.isPresent();
         LumenizedLoaded = Mods.Lumenized.isPresent();

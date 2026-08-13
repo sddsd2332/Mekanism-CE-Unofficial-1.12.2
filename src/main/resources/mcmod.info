@@ -89,5 +89,24 @@
       "mekanism@[${mod_version}]",
       "mekanismgenerators@[${mod_version}]"
     ]
+  },
+  {
+    "modid": "mekanismqioprocessing",
+    "name": "${mod_name}: QIO Processing",
+    "description": "QIO smart processing module for Mekanism",
+    "version": "${mod_version}",
+    "mcversion": "1.12.2",
+    "authorList": [sddsd2332],
+    "credits": "sddsd2332",
+    "url": "${mod_url}",
+    "updateJSON": "${mod_update_json}",
+    "logoFile": "${mod_logo_path}",
+    "useDependencyInformation": true,
+    "dependencies": [
+      "mekanism@[${mod_version}]"
+    ],
+    "requiredMods": [
+      "mekanism@[${mod_version}]"
+    ]
   }
 ]

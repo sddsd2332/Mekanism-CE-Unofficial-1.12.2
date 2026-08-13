@@ -18,7 +18,8 @@
       "data": 3
     },
     "#": {
-      "item": "minecraft:ender_pearl"
+      "item": "mekanism:machineblock4",
+      "data": 10
     }
   }
 }

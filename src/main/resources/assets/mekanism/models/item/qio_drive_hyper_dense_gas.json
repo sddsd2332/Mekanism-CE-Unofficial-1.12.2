@@ -1,0 +1,6 @@
+{
+  "parent": "mekanism:item/standard_item",
+  "textures": {
+    "layer0": "mekanism:items/qio_drive/gas/qio_drive_hyper_dense"
+  }
+}

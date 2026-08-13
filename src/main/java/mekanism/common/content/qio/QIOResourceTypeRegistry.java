@@ -204,11 +204,11 @@ public final class QIOResourceTypeRegistry {
         }
     }
 
-    public void flush() {
+    public boolean flush() {
         Map<UUID, QIOResourceType> pending;
         synchronized (this) {
             if (!loaded) {
-                return;
+                return true;
             }
             pending = new HashMap<>();
             for (UUID uuid : dirtyTypes) {
@@ -234,6 +234,7 @@ public final class QIOResourceTypeRegistry {
                     indexDirty = false;
                 }
             }
+            return dirtyTypes.isEmpty() && !indexDirty;
         }
     }
 

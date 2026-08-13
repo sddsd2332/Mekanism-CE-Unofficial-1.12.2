@@ -13,6 +13,8 @@ public final class QIOStorageChangeBatch {
     private final long newContentsRevision;
     private final long oldCapacityRevision;
     private final long newCapacityRevision;
+    private final long oldClaimRevision;
+    private final long newClaimRevision;
     private final long accessRevision;
     private final List<QIOStorageChange> changes;
     private final boolean fullRescanRequired;
@@ -21,10 +23,20 @@ public final class QIOStorageChangeBatch {
     public QIOStorageChangeBatch(long oldContentsRevision, long newContentsRevision,
           long oldCapacityRevision, long newCapacityRevision, long accessRevision,
           List<QIOStorageChange> changes, boolean fullRescanRequired, boolean invalidated) {
+        this(oldContentsRevision, newContentsRevision, oldCapacityRevision, newCapacityRevision,
+              0, 0, accessRevision, changes, fullRescanRequired, invalidated);
+    }
+
+    public QIOStorageChangeBatch(long oldContentsRevision, long newContentsRevision,
+          long oldCapacityRevision, long newCapacityRevision, long oldClaimRevision,
+          long newClaimRevision, long accessRevision, List<QIOStorageChange> changes,
+          boolean fullRescanRequired, boolean invalidated) {
         this.oldContentsRevision = oldContentsRevision;
         this.newContentsRevision = newContentsRevision;
         this.oldCapacityRevision = oldCapacityRevision;
         this.newCapacityRevision = newCapacityRevision;
+        this.oldClaimRevision = oldClaimRevision;
+        this.newClaimRevision = newClaimRevision;
         this.accessRevision = accessRevision;
         this.changes = Collections.unmodifiableList(new ArrayList<>(Objects.requireNonNull(changes, "changes")));
         this.fullRescanRequired = fullRescanRequired;
@@ -34,8 +46,14 @@ public final class QIOStorageChangeBatch {
     @Nonnull
     public static QIOStorageChangeBatch invalidated(long contentsRevision, long capacityRevision,
           long accessRevision) {
+        return invalidated(contentsRevision, capacityRevision, 0, accessRevision);
+    }
+
+    @Nonnull
+    public static QIOStorageChangeBatch invalidated(long contentsRevision, long capacityRevision,
+          long claimRevision, long accessRevision) {
         return new QIOStorageChangeBatch(contentsRevision, contentsRevision, capacityRevision,
-              capacityRevision, accessRevision, Collections.emptyList(), true, true);
+              capacityRevision, claimRevision, claimRevision, accessRevision, Collections.emptyList(), true, true);
     }
 
     public long getOldContentsRevision() {
@@ -54,6 +72,14 @@ public final class QIOStorageChangeBatch {
         return newCapacityRevision;
     }
 
+    public long getOldClaimRevision() {
+        return oldClaimRevision;
+    }
+
+    public long getNewClaimRevision() {
+        return newClaimRevision;
+    }
+
     public long getAccessRevision() {
         return accessRevision;
     }
@@ -65,6 +91,10 @@ public final class QIOStorageChangeBatch {
 
     public boolean isCapacityChanged() {
         return oldCapacityRevision != newCapacityRevision;
+    }
+
+    public boolean isClaimChanged() {
+        return oldClaimRevision != newClaimRevision;
     }
 
     public boolean isFullRescanRequired() {
@@ -81,6 +111,7 @@ public final class QIOStorageChangeBatch {
             return this;
         }
         return new QIOStorageChangeBatch(oldContentsRevision, newContentsRevision,
-              oldCapacityRevision, newCapacityRevision, accessRevision, changes, true, invalidated);
+              oldCapacityRevision, newCapacityRevision, oldClaimRevision, newClaimRevision,
+              accessRevision, changes, true, invalidated);
     }
 }

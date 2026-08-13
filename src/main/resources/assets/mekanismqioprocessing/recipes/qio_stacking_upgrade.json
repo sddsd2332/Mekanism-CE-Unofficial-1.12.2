@@ -1,0 +1,10 @@
+{
+  "type": "forge:ore_shaped", "result": { "item": "mekanismqioprocessing:qio_stacking_upgrade" },
+  "pattern": ["GAG", "DCD", "GAG"],
+  "key": {
+    "G": { "type": "forge:ore_dict", "ore": "ingotLead" },
+    "A": { "item": "mekanism:atomicalloy" },
+    "D": { "item": "mekanismmultiblockmachine:threadupgrade" },
+    "C": { "item": "mekanism:controlcircuit", "data": 3 }
+  }
+}

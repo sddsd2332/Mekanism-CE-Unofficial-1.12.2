@@ -74,7 +74,6 @@ public class CommonWorldTickHandler {
         if (!world.isRemote) {
             QIOStorageManager.tick(world);
             MultiblockManager.tick(world);
-            FrequencyManager.tick(world);
             RadiationManager.INSTANCE.tickServerWorld(world);
             if (flushTagAndRecipeCaches) {
                 // Item-backed windows do not tick on their own, so refresh
@@ -124,6 +123,9 @@ public class CommonWorldTickHandler {
     }
 
     private void serverTick() {
+        // Frequencies are global to the save, so tick them once per server tick
+        // instead of once for every loaded dimension.
+        FrequencyManager.tickServer();
         RadiationManager.INSTANCE.tickServer();
     }
 

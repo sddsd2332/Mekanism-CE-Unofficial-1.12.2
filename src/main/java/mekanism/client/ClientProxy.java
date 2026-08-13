@@ -279,18 +279,18 @@ public class ClientProxy extends CommonProxy {
         registerItemRender(MekanismItems.HYPER_DENSE_QIO_DRIVE);
         registerItemRender(MekanismItems.TIME_DILATING_QIO_DRIVE);
         registerItemRender(MekanismItems.SUPERMASSIVE_QIO_DRIVE);
-        registerQIODriveRender(MekanismItems.BASE_ITEM_QIO_DRIVE, "qio_drive_base");
-        registerQIODriveRender(MekanismItems.HYPER_DENSE_ITEM_QIO_DRIVE, "qio_drive_hyper_dense");
-        registerQIODriveRender(MekanismItems.TIME_DILATING_ITEM_QIO_DRIVE, "qio_drive_time_dilating");
-        registerQIODriveRender(MekanismItems.SUPERMASSIVE_ITEM_QIO_DRIVE, "qio_drive_supermassive");
-        registerQIODriveRender(MekanismItems.BASE_FLUID_QIO_DRIVE, "qio_drive_base");
-        registerQIODriveRender(MekanismItems.HYPER_DENSE_FLUID_QIO_DRIVE, "qio_drive_hyper_dense");
-        registerQIODriveRender(MekanismItems.TIME_DILATING_FLUID_QIO_DRIVE, "qio_drive_time_dilating");
-        registerQIODriveRender(MekanismItems.SUPERMASSIVE_FLUID_QIO_DRIVE, "qio_drive_supermassive");
-        registerQIODriveRender(MekanismItems.BASE_GAS_QIO_DRIVE, "qio_drive_base");
-        registerQIODriveRender(MekanismItems.HYPER_DENSE_GAS_QIO_DRIVE, "qio_drive_hyper_dense");
-        registerQIODriveRender(MekanismItems.TIME_DILATING_GAS_QIO_DRIVE, "qio_drive_time_dilating");
-        registerQIODriveRender(MekanismItems.SUPERMASSIVE_GAS_QIO_DRIVE, "qio_drive_supermassive");
+        registerItemRender(MekanismItems.BASE_ITEM_QIO_DRIVE);
+        registerItemRender(MekanismItems.HYPER_DENSE_ITEM_QIO_DRIVE);
+        registerItemRender(MekanismItems.TIME_DILATING_ITEM_QIO_DRIVE);
+        registerItemRender(MekanismItems.SUPERMASSIVE_ITEM_QIO_DRIVE);
+        registerItemRender(MekanismItems.BASE_FLUID_QIO_DRIVE);
+        registerItemRender(MekanismItems.HYPER_DENSE_FLUID_QIO_DRIVE);
+        registerItemRender(MekanismItems.TIME_DILATING_FLUID_QIO_DRIVE);
+        registerItemRender(MekanismItems.SUPERMASSIVE_FLUID_QIO_DRIVE);
+        registerItemRender(MekanismItems.BASE_GAS_QIO_DRIVE);
+        registerItemRender(MekanismItems.HYPER_DENSE_GAS_QIO_DRIVE);
+        registerItemRender(MekanismItems.TIME_DILATING_GAS_QIO_DRIVE);
+        registerItemRender(MekanismItems.SUPERMASSIVE_GAS_QIO_DRIVE);
         registerItemRender(MekanismItems.PORTABLE_QIO_DASHBOARD);
         registerItemRender(Item.getItemFromBlock(MekanismBlocks.QIO_DRIVE_ARRAY));
         registerItemRender(Item.getItemFromBlock(MekanismBlocks.QIO_DASHBOARD));
@@ -728,10 +728,6 @@ public class ClientProxy extends CommonProxy {
 
     public void registerItemRender(Item item) {
         MekanismRenderer.registerItemRender(Mekanism.MODID, item);
-    }
-
-    private void registerQIODriveRender(Item item, String model) {
-        ModelLoader.setCustomModelResourceLocation(item, 0, getInventoryMRL(model));
     }
 
     private String getProperties(List<String> entries) {

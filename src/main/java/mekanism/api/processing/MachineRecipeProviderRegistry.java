@@ -162,6 +162,197 @@ public final class MachineRecipeProviderRegistry {
             return immutableCopy(entry.getPorts(tile));
         }
 
+        public MachinePresentationDescriptor getPresentation() {
+            MachinePresentationDescriptor fallback = MachinePresentationDescriptor.fallback(tile);
+            try {
+                MachinePresentationDescriptor presentation = entry.getPresentation(tile);
+                return presentation == null ? fallback :
+                      MachinePresentationDescriptor.read(presentation.write());
+            } catch (RuntimeException ignored) {
+                return fallback;
+            }
+        }
+
+        public String getRecipeProfileScopeDiscriminator() {
+            try {
+                String value = entry.getRecipeProfileScopeDiscriminator(tile);
+                String checked = value == null ? "" : value.trim();
+                if (checked.length() > 128) return "";
+                for (int index = 0; index < checked.length(); index++) {
+                    char character = checked.charAt(index);
+                    if (!(character >= 'a' && character <= 'z') &&
+                        !(character >= '0' && character <= '9') &&
+                        character != '_' && character != '-' && character != '.' &&
+                        character != '/') return "";
+                }
+                return checked;
+            } catch (RuntimeException ignored) {
+                return "";
+            }
+        }
+
+        public ProviderConformanceDescriptor getQIOConformance() {
+            ProviderConformanceDescriptor descriptor = entry.getQIOConformance(tile);
+            return descriptor == null ? ProviderConformanceDescriptor.unregistered() : descriptor;
+        }
+
+        /**
+         * Validates whether this provider is a structurally usable QIO endpoint. Dynamic
+         * recipe routes may be empty while a template-driven machine is not configured.
+         */
+        public ProviderConformanceReport validateQIOEndpointConformance(
+              QIOAutomationMode mode) {
+            Objects.requireNonNull(mode, "QIO automation mode cannot be null");
+            List<String> errors = new ArrayList<>();
+            validateEndpointStructure(mode, getPorts(), errors);
+            return new ProviderConformanceReport(mode, errors);
+        }
+
+        private void validateEndpointStructure(QIOAutomationMode mode,
+              List<MachinePort> ports, List<String> errors) {
+            ProviderConformanceDescriptor descriptor = getQIOConformance();
+            if (!descriptor.isRegistered()) {
+                errors.add("provider has no explicit QIO conformance declaration");
+                return;
+            }
+            if (descriptor.version() != ProviderConformanceDescriptor.CURRENT_VERSION) {
+                errors.add("unsupported conformance descriptor version " + descriptor.version());
+            }
+            if (!entry.id.getNamespace().equals(descriptor.ownerModId())) {
+                errors.add("provider namespace does not match conformance owner");
+            }
+            if (!descriptor.supports(mode)) {
+                errors.add("provider does not declare mode " + mode);
+            }
+
+            Map<String, MachinePort> portsById = new LinkedHashMap<>();
+            for (MachinePort port : ports) {
+                if (port == null) {
+                    errors.add("provider returned a null port");
+                    continue;
+                }
+                if (portsById.put(port.portId(), port) != null) {
+                    errors.add("duplicate port id " + port.portId());
+                }
+                if (port.portGroupId().isEmpty()) {
+                    errors.add("port " + port.portId() + " has no stable port group");
+                }
+                if (port.laneId() < MachinePort.SHARED_LANE) {
+                    errors.add("port " + port.portId() + " has an invalid lane id");
+                }
+            }
+            if (portsById.isEmpty()) {
+                errors.add("provider exposes no machine ports");
+            }
+
+            boolean hasInput = false;
+            boolean hasOutput = false;
+            for (MachinePort port : portsById.values()) {
+                if (!port.isConfiguration()) {
+                    hasInput |= port.role().acceptsInput();
+                    hasOutput |= port.role().allowsOutput();
+                }
+            }
+            if (mode == QIOAutomationMode.OUTPUT_ONLY) {
+                if (!hasOutput) {
+                    errors.add("output-only provider exposes no output port");
+                }
+            } else {
+                if (!hasInput) {
+                    errors.add("processing provider exposes no input port");
+                }
+                if (!hasOutput) {
+                    errors.add("processing provider exposes no output port");
+                }
+            }
+        }
+
+        /**
+         * Strict runtime validation for consumers that publish, plan, or execute the
+         * provider's current routes.
+         */
+        public ProviderConformanceReport validateQIOConformance(QIOAutomationMode mode) {
+            Objects.requireNonNull(mode, "QIO automation mode cannot be null");
+            List<MachinePort> ports = getPorts();
+            List<String> errors = new ArrayList<>();
+            validateEndpointStructure(mode, ports, errors);
+            if (errors.isEmpty() && mode != QIOAutomationMode.OUTPUT_ONLY) {
+                validateRoutes(getRecipeRoutes(), portsById(ports), errors);
+            }
+            return new ProviderConformanceReport(mode, errors);
+        }
+
+        private static Map<String, MachinePort> portsById(List<MachinePort> ports) {
+            Map<String, MachinePort> portsById = new LinkedHashMap<>();
+            for (MachinePort port : ports) {
+                if (port != null) {
+                    portsById.put(port.portId(), port);
+                }
+            }
+            return portsById;
+        }
+
+        private static void validateRoutes(List<MachineRecipeRoute> routes, Map<String, MachinePort> portsById,
+              List<String> errors) {
+            if (routes.isEmpty()) {
+                errors.add("processing provider exposes no recipe routes");
+                return;
+            }
+            Set<String> recipeKeys = new HashSet<>();
+            for (MachineRecipeRoute route : routes) {
+                if (route == null) {
+                    errors.add("provider returned a null route");
+                    continue;
+                }
+                if (!recipeKeys.add(route.recipeKey())) {
+                    errors.add("duplicate recipe key " + route.recipeKey());
+                }
+                validateConfigurationStacks(route.configurationInputs(), portsById,
+                      route.routeId(), errors);
+                validateRouteStacks(route.inputs(), portsById, true, route.routeId(), errors);
+                validateRouteStacks(route.guaranteedOutputs(), portsById, false, route.routeId(), errors);
+                validateRouteStacks(route.optionalOutputs(), portsById, false, route.routeId(), errors);
+            }
+        }
+
+        private static void validateConfigurationStacks(List<MachineResourceStack> stacks,
+              Map<String, MachinePort> portsById, String routeId, List<String> errors) {
+            Set<String> referencedPorts = new HashSet<>();
+            for (MachineResourceStack stack : stacks) {
+                MachinePort port = portsById.get(stack.portId());
+                if (!referencedPorts.add(stack.portId())) {
+                    errors.add("route " + routeId + " repeats configuration port " +
+                          stack.portId());
+                } else if (port == null) {
+                    errors.add("route " + routeId + " references missing configuration port " +
+                          stack.portId());
+                } else if (!port.isConfiguration()) {
+                    errors.add("route " + routeId + " uses a processing port as configuration " +
+                          stack.portId());
+                } else if (port.kind() != stack.kind()) {
+                    errors.add("route " + routeId + " uses the wrong resource kind for port " +
+                          stack.portId());
+                }
+            }
+        }
+
+        private static void validateRouteStacks(List<MachineResourceStack> stacks, Map<String, MachinePort> portsById,
+              boolean input, String routeId, List<String> errors) {
+            for (MachineResourceStack stack : stacks) {
+                MachinePort port = portsById.get(stack.portId());
+                if (port == null) {
+                    errors.add("route " + routeId + " references missing port " + stack.portId());
+                } else if (port.isConfiguration()) {
+                    errors.add("route " + routeId + " uses configuration port " + stack.portId() +
+                          (input ? " as a consumable input" : " as an output"));
+                } else if (port.kind() != stack.kind()) {
+                    errors.add("route " + routeId + " uses the wrong resource kind for port " + stack.portId());
+                } else if (input && !port.role().acceptsInput() || !input && !port.role().allowsOutput()) {
+                    errors.add("route " + routeId + " uses port " + stack.portId() + " in the wrong direction");
+                }
+            }
+        }
+
         private static <T> List<T> immutableCopy(@Nullable List<T> values) {
             return values == null || values.isEmpty() ? Collections.emptyList() :
                   Collections.unmodifiableList(new ArrayList<>(values));
@@ -204,6 +395,18 @@ public final class MachineRecipeProviderRegistry {
 
         private List<MachinePort> getPorts(TileEntity tile) {
             return provider.getPorts(cast(tile));
+        }
+
+        private MachinePresentationDescriptor getPresentation(TileEntity tile) {
+            return provider.getPresentation(cast(tile));
+        }
+
+        private String getRecipeProfileScopeDiscriminator(TileEntity tile) {
+            return provider.getRecipeProfileScopeDiscriminator(cast(tile));
+        }
+
+        private ProviderConformanceDescriptor getQIOConformance(TileEntity tile) {
+            return provider.getQIOConformance(cast(tile));
         }
     }
 

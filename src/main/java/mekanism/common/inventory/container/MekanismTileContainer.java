@@ -8,10 +8,14 @@ import mekanism.common.util.SecurityUtils;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.inventory.Slot;
+import net.minecraft.util.ResourceLocation;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 public class MekanismTileContainer<TILE extends TileEntityContainerBlock> extends MekanismContainer {
 
@@ -21,6 +25,7 @@ public class MekanismTileContainer<TILE extends TileEntityContainerBlock> extend
     private VirtualInventoryContainerSlot upgradeSlot;
     @Nullable
     private VirtualInventoryContainerSlot upgradeOutputSlot;
+    private final Map<ResourceLocation, Object> extensions = new LinkedHashMap<>();
 
     public MekanismTileContainer(@Nullable TILE tile, InventoryPlayer inv) {
         super(inv);
@@ -33,6 +38,21 @@ public class MekanismTileContainer<TILE extends TileEntityContainerBlock> extend
 
     protected void addContainerTrackers() {
         tile.addContainerTrackers(this);
+        MekanismTileContainerExtensionRegistry.attach(this, tile);
+    }
+
+    void addExtension(@Nonnull ResourceLocation id, @Nonnull Object extension) {
+        if (extensions.putIfAbsent(Objects.requireNonNull(id, "Extension id cannot be null"),
+              Objects.requireNonNull(extension, "Extension cannot be null")) != null) {
+            throw new IllegalArgumentException("Duplicate container extension " + id);
+        }
+    }
+
+    @Nullable
+    public <EXTENSION> EXTENSION getExtension(@Nonnull ResourceLocation id,
+          @Nonnull Class<EXTENSION> type) {
+        Object extension = extensions.get(Objects.requireNonNull(id, "Extension id cannot be null"));
+        return type.isInstance(extension) ? type.cast(extension) : null;
     }
 
     @Nullable

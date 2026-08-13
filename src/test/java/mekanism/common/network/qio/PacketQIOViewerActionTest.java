@@ -18,6 +18,7 @@ import mekanism.common.tier.QIODriveTier;
 import mekanism.common.util.FluidContainerUtils;
 import net.minecraft.init.Blocks;
 import net.minecraft.init.Bootstrap;
+import net.minecraft.init.Items;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -159,6 +160,45 @@ class PacketQIOViewerActionTest {
         assertNotNull(resource);
         assertEquals(7, frequency.getStored(resource));
         assertEquals(5, held.getCount());
+    }
+
+    @Test
+    void shiftTakeMovesOneLegalItemStackPerRequest() throws Exception {
+        QIOFrequency frequency = createFrequency();
+        ItemStack pearls = new ItemStack(Items.ENDER_PEARL, 1);
+        assertEquals(100, frequency.massInsert(pearls, 100, Action.EXECUTE));
+        UUID resource = QIOResourceTypeRegistry.INSTANCE.getUUIDForItem(
+              HashedItem.create(pearls));
+        QIOResourceType type = QIOResourceTypeRegistry.INSTANCE.getTypeByUUID(resource);
+        QIOResourceEntry entry = QIOResourceEntry.create(resource, 100);
+        InventoryPlayer inventory = new InventoryPlayer(null);
+
+        assertNotNull(entry);
+        assertEquals(16, PacketQIOViewerAction.getShiftTakeAmount(entry));
+        assertTrue(PacketQIOViewerAction.takeItemToInventory(inventory, frequency,
+              resource, type, 100));
+        assertEquals(84, frequency.getStored(resource));
+        assertEquals(16, countContainers(inventory, Items.ENDER_PEARL));
+    }
+
+    @Test
+    void shiftTakeSupportsUnstackableItemsWithoutRequiringSixtyFourSlots()
+          throws Exception {
+        QIOFrequency frequency = createFrequency();
+        ItemStack unstackable = new ItemStack(Items.DIAMOND_SWORD, 1);
+        assertEquals(100, frequency.massInsert(unstackable, 100, Action.EXECUTE));
+        UUID resource = QIOResourceTypeRegistry.INSTANCE.getUUIDForItem(
+              HashedItem.create(unstackable));
+        QIOResourceType type = QIOResourceTypeRegistry.INSTANCE.getTypeByUUID(resource);
+        QIOResourceEntry entry = QIOResourceEntry.create(resource, 100);
+        InventoryPlayer inventory = new InventoryPlayer(null);
+
+        assertNotNull(entry);
+        assertEquals(1, PacketQIOViewerAction.getShiftTakeAmount(entry));
+        assertTrue(PacketQIOViewerAction.takeItemToInventory(inventory, frequency,
+              resource, type, 100));
+        assertEquals(99, frequency.getStored(resource));
+        assertEquals(1, countContainers(inventory, Items.DIAMOND_SWORD));
     }
 
     @Test

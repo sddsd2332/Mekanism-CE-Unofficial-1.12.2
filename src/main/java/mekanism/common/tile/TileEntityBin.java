@@ -342,7 +342,9 @@ public class TileEntityBin extends TileEntityContainerBlock implements IActiveSt
     public void onContentsChanged() {
         sortStacks();
         clientLockStack = binSlot.getLockStack();
-        if (!isRemote()) {
+        // Forge deserializes a tile before assigning its world. Inventory restoration invokes
+        // this listener, so avoid getWorldNN/isRemote until the tile has actually been placed.
+        if (world != null && !world.isRemote) {
             markDirty();
         }
     }

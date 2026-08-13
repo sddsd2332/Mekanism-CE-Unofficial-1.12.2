@@ -11,7 +11,7 @@ import mekanism.common.content.qio.QIOResourceType;
 import mekanism.common.content.qio.QIOResourceTypeRegistry;
 import mekanism.common.content.qio.QIORollback;
 import mekanism.common.inventory.container.QIOItemViewerContainer;
-import mekanism.common.inventory.container.PortableQIODashboardContainer;
+import mekanism.common.inventory.container.item.IItemStackBackedContainer;
 import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.util.FluidContainerUtils;
 import mekanism.common.util.GasUtils;
@@ -30,6 +30,7 @@ import net.minecraftforge.items.ItemHandlerHelper;
 import mekanism.api.gas.GasStack;
 
 import javax.annotation.Nullable;
+import javax.annotation.Nonnull;
 import java.util.UUID;
 
 /** Server-authoritative resource viewer action. */
@@ -83,9 +84,9 @@ public class PacketQIOViewerAction implements IMessageHandler<PacketQIOViewerAct
         if (held.isEmpty()) {
             return false;
         }
-        if (player.openContainer instanceof PortableQIODashboardContainer) {
-            PortableQIODashboardContainer portable = (PortableQIODashboardContainer) player.openContainer;
-            if (portable.getStack() == held || portable.getItemAccess().getOpeningStack() == held) {
+        if (player.openContainer instanceof IItemStackBackedContainer portable) {
+            if (portable.getItemAccess().getStack() == held ||
+                portable.getItemAccess().getOpeningStack() == held) {
                 return false;
             }
         }
@@ -165,30 +166,35 @@ public class PacketQIOViewerAction implements IMessageHandler<PacketQIOViewerAct
             }
             return false;
         }
+        return takeItemToInventory(player.inventory, frequency, resource, type, requested);
+    }
+
+    static boolean takeItemToInventory(@Nonnull InventoryPlayer inventory,
+          @Nonnull QIOFrequency frequency, @Nonnull UUID resource,
+          @Nonnull QIOResourceType type, long requested) {
         long remaining = Math.min(requested, frequency.getStored(resource));
-        boolean changed = false;
-        while (remaining > 0) {
-            int batch = (int) Math.min(64, remaining);
-            ItemStack result = type.createItemStack(batch);
-            if (!canAddToInventory(player, result)) {
-                break;
-            }
-            long extracted = frequency.massExtract(resource, batch, Action.EXECUTE);
-            if (extracted <= 0) {
-                break;
-            }
-            ItemStack extractedStack = type.createItemStack((int) extracted);
-            if (!addFullyToInventory(player.inventory, extractedStack)) {
-                QIORollback.restore(frequency, resource, extracted, "item inventory transfer");
-                break;
-            }
-            changed = true;
-            remaining -= extracted;
-            if (extracted < batch) {
-                break;
-            }
+        if (remaining <= 0) return false;
+        ItemStack template = type.createItemStack(1);
+        if (template.isEmpty()) return false;
+        int stackLimit = Math.min(template.getMaxStackSize(),
+              inventory.getInventoryStackLimit());
+        if (stackLimit <= 0) return false;
+        int batch = (int) Math.min(remaining, stackLimit);
+        // A partial inventory slot may have room for less than one full stack. Find the
+        // largest legal transfer instead of rejecting the whole Shift-click.
+        while (batch > 0 && !canAddToInventory(inventory,
+              type.createItemStack(batch))) {
+            batch--;
         }
-        return changed;
+        if (batch <= 0) return false;
+        long extracted = frequency.massExtract(resource, batch, Action.EXECUTE);
+        if (extracted <= 0) return false;
+        ItemStack extractedStack = type.createItemStack((int) extracted);
+        if (!addFullyToInventory(inventory, extractedStack)) {
+            QIORollback.restore(frequency, resource, extracted, "item inventory transfer");
+            return false;
+        }
+        return true;
     }
 
     private static boolean insertHeldFluid(EntityPlayer player, QIOFrequency frequency, ItemStack held, long requested) {
@@ -610,6 +616,15 @@ public class PacketQIOViewerAction implements IMessageHandler<PacketQIOViewerAct
     public static boolean canTakeIntoHeldStack(@Nullable QIOResourceEntry entry, @Nullable ItemStack held) {
         return entry != null && entry.getKind() == QIOResourceKind.ITEM && held != null && !held.isEmpty() &&
               held.getCount() < held.getMaxStackSize() && ItemHandlerHelper.canItemStacksStack(entry.getItem(), held);
+    }
+
+    /** Amount represented by one Shift-click transfer from the viewer. */
+    public static long getShiftTakeAmount(@Nullable QIOResourceEntry entry) {
+        if (entry == null || entry.getAmount() <= 0) return 0;
+        if (entry.getKind() != QIOResourceKind.ITEM) return entry.getAmount();
+        ItemStack item = entry.getItem();
+        int maxStackSize = item.isEmpty() ? 1 : Math.max(1, item.getMaxStackSize());
+        return Math.min(entry.getAmount(), maxStackSize);
     }
 
     public static boolean canTakeFluidIntoHeldStack(@Nullable QIOResourceEntry entry, @Nullable ItemStack held) {

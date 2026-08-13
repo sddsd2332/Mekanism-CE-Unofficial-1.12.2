@@ -1,0 +1,9 @@
+{
+  "type": "forge:ore_shaped", "result": { "item": "mekanismqioprocessing:advanced_qio_crafting_processor" },
+  "pattern": ["ACA", "CPC", "ACA"],
+  "key": {
+    "A": { "item": "mekanism:reinforcedalloy" },
+    "C": { "item": "mekanism:controlcircuit", "data": 1 },
+    "P": { "item": "mekanismqioprocessing:basic_qio_crafting_processor" }
+  }
+}

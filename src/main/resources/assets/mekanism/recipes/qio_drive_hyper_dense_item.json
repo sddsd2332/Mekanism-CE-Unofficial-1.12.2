@@ -10,15 +10,14 @@
   "type": "mekanism:ore_shaped",
   "key": {
     "A": {
-      "ore": "alloyUltimate",
+      "ore": "PlutoniumPellet",
       "type": "forge:ore_dict"
     },
     "C": {
-      "item": "mekanism:controlcircuit",
-      "data": 3
+      "item": "mekanism:qio_drive_base_item"
     },
     "D": {
-      "item": "mekanism:qio_drive_base_item"
+      "item": "mekanism:teleportationcore"
     }
   }
 }

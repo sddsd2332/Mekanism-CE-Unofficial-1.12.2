@@ -14,7 +14,7 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-final class DeferredGasFluidMappings {
+public final class DeferredGasFluidMappings {
 
     private static final DeferredGasFluidMappings INSTANCE = new DeferredGasFluidMappings();
     private static final Map<String, String> PENDING_MAPPINGS = new LinkedHashMap<>();
@@ -23,7 +23,7 @@ final class DeferredGasFluidMappings {
     private DeferredGasFluidMappings() {
     }
 
-    static synchronized void registerEventHandler() {
+    public static synchronized void registerEventHandler() {
         if (!eventHandlerRegistered) {
             MinecraftForge.EVENT_BUS.register(INSTANCE);
             eventHandlerRegistered = true;

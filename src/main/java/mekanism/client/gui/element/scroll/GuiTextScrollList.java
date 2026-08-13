@@ -39,6 +39,18 @@ public class GuiTextScrollList extends GuiScrollList {
         return selected;
     }
 
+    public boolean select(int index) {
+        if (index < 0 || index >= textEntries.size()) {
+            return false;
+        }
+        setSelected(index);
+        if (needsScrollBars()) {
+            int firstVisible = Math.min(index, getElements());
+            scroll = firstVisible / (double) getElements();
+        }
+        return true;
+    }
+
     @Override
     public void clearSelection() {
         this.selected = -1;

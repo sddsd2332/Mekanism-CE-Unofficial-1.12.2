@@ -1,0 +1,11 @@
+{
+  "type": "forge:ore_shaped", "result": { "item": "mekanismqioprocessing:qio_management_terminal" },
+  "pattern": ["ACA", "DQT", "ACA"],
+  "key": {
+    "A": { "item": "mekanism:atomicalloy" },
+    "C": { "item": "mekanism:controlcircuit", "data": 2 },
+    "D": { "item": "mekanism:configurationcard" },
+    "Q": { "item": "mekanism:qio_dashboard" },
+    "T": { "item": "mekanism:teleportationcore" }
+  }
+}

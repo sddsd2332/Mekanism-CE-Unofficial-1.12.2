@@ -2,6 +2,12 @@ package mekanism.common.frequency;
 
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import mekanism.api.NBTConstants;
+import mekanism.api.qio.external.QIOFrequencyDeleteCheck;
+import mekanism.api.qio.external.QIOFrequencyReference;
+import mekanism.common.Mekanism;
+import mekanism.common.content.qio.QIOFrequency;
+import mekanism.common.content.qio.QIOFrequencyLifecycleRegistry;
+import mekanism.common.content.qio.QIOFrequencyStorageAccess;
 import mekanism.common.frequency.Frequency.FrequencyIdentity;
 import mekanism.common.security.ISecurityTile.SecurityMode;
 import mekanism.common.security.SecurityFrequency;
@@ -68,12 +74,23 @@ public class FrequencyManager<FREQ extends Frequency> {
     }
 
     public static void tick(World world) {
+        if (world == null || world.isRemote || world.provider.getDimension() != 0) {
+            return;
+        }
         if (!loaded) {
             load(world);
         }
         currentWorld = world;
+        tickServer();
+    }
+
+    /** Ticks global frequency state once after all server worlds have ticked. */
+    public static void tickServer() {
+        if (!loaded) {
+            return;
+        }
         for (FrequencyManager<?> manager : new ArrayList<>(managers)) {
-            manager.tickSelf(world);
+            manager.tickSelf(currentWorld);
         }
     }
 
@@ -90,9 +107,25 @@ public class FrequencyManager<FREQ extends Frequency> {
     public boolean remove(Object key, UUID ownerUUID) {
         FREQ freq = getFrequency(key);
         if (freq != null && freq.ownerMatches(ownerUUID)) {
+            QIOFrequencyReference reference = null;
+            if (freq instanceof QIOFrequency qioFrequency) {
+                reference = QIOFrequencyStorageAccess.INSTANCE.createReference(qioFrequency,
+                      ownerUUID);
+                QIOFrequencyDeleteCheck check = QIOFrequencyLifecycleRegistry.beforeDelete(
+                      reference, ownerUUID);
+                if (!check.isAllowed()) {
+                    Mekanism.logger.warn("Refusing to delete QIO frequency {} ({}) because: {}",
+                          qioFrequency.getName(), qioFrequency.getFrequencyUUID(),
+                          String.join(", ", check.getBlockers()));
+                    return false;
+                }
+            }
             freq.onRemove();
             frequencies.remove(key);
             markDirty();
+            if (reference != null) {
+                QIOFrequencyLifecycleRegistry.afterDelete(reference, ownerUUID);
+            }
             return true;
         }
         return false;

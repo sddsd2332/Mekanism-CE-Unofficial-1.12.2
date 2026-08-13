@@ -1,0 +1,10 @@
+{
+  "type": "forge:ore_shaped", "result": { "item": "mekanismqioprocessing:qio_crafting_processor" },
+  "pattern": ["ACA", "CQC", "AWA"],
+  "key": {
+    "A": { "type": "forge:ore_dict", "ore": "ingotLead" },
+    "C": { "item": "mekanism:enrichedalloy" },
+    "Q": { "item": "mekanism:machineblock3", "data": 5 },
+    "W": { "item": "mekanism:enrichedalloy" }
+  }
+}

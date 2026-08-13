@@ -1,0 +1,4 @@
+{
+  "parent": "mekanismqioprocessing:block/qio_tier_crafting_processor_offline",
+  "textures": { "4": "mekanism:blocks/models/factory/led/active/elite" }
+}

@@ -18,14 +18,26 @@ import java.util.Objects;
  */
 public final class MachineRecipeRoute {
 
+    private static final char[] LOWER_HEX = "0123456789abcdef".toCharArray();
+    private static final ThreadLocal<MessageDigest> SHA_256 = ThreadLocal.withInitial(() -> {
+        try {
+            return MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is not available", e);
+        }
+    });
+
     private final String routeId;
     private final String recipeKey;
+    private final String logicalRecipeKey;
+    private final List<MachineResourceStack> configurationInputs;
     private final List<MachineResourceStack> inputs;
     private final List<MachineResourceStack> guaranteedOutputs;
     private final List<MachineResourceStack> optionalOutputs;
 
     private MachineRecipeRoute(Builder builder) {
         routeId = builder.routeId;
+        configurationInputs = orderedCopy(builder.configurationInputs);
         inputs = orderedCopy(builder.inputs);
         guaranteedOutputs = orderedCopy(builder.guaranteedOutputs);
         optionalOutputs = orderedCopy(builder.optionalOutputs);
@@ -33,6 +45,8 @@ public final class MachineRecipeRoute {
             throw new IllegalStateException("Machine recipe routes require at least one input and guaranteed output");
         }
         recipeKey = builder.recipeKey == null || builder.recipeKey.isEmpty() ? createRecipeKey() : builder.recipeKey;
+        logicalRecipeKey = builder.logicalRecipeKey == null || builder.logicalRecipeKey.isEmpty() ?
+              recipeKey : builder.logicalRecipeKey;
     }
 
     public static Builder builder(String routeId) {
@@ -47,8 +61,26 @@ public final class MachineRecipeRoute {
         return recipeKey;
     }
 
+    /** Stable recipe identity shared by all physical factory-lane expansions. */
+    public String logicalRecipeKey() {
+        return logicalRecipeKey;
+    }
+
     public List<MachineResourceStack> inputs() {
         return inputs;
+    }
+
+    /**
+     * Retained machine configuration required by this route. These resources are installed once,
+     * are not consumed by an operation, and therefore are never scaled by operation count.
+     */
+    public List<MachineResourceStack> configurationInputs() {
+        return configurationInputs;
+    }
+
+    /** Alias for integrations that describe persistent recipe inputs as retained inputs. */
+    public List<MachineResourceStack> retainedInputs() {
+        return configurationInputs;
     }
 
     public List<MachineResourceStack> guaranteedOutputs() {
@@ -76,23 +108,24 @@ public final class MachineRecipeRoute {
     }
 
     private String createRecipeKey() {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            update(digest, routeId);
-            update(digest, "inputs");
-            inputs.forEach(stack -> update(digest, stack));
-            update(digest, "guaranteed");
-            guaranteedOutputs.forEach(stack -> update(digest, stack));
-            update(digest, "optional");
-            optionalOutputs.forEach(stack -> update(digest, stack));
-            StringBuilder key = new StringBuilder(routeId).append(':');
-            for (byte value : digest.digest()) {
-                key.append(String.format("%02x", value & 0xFF));
-            }
-            return key.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 is not available", e);
+        MessageDigest digest = SHA_256.get();
+        digest.reset();
+        update(digest, routeId);
+        update(digest, "configuration");
+        configurationInputs.forEach(stack -> update(digest, stack));
+        update(digest, "inputs");
+        inputs.forEach(stack -> update(digest, stack));
+        update(digest, "guaranteed");
+        guaranteedOutputs.forEach(stack -> update(digest, stack));
+        update(digest, "optional");
+        optionalOutputs.forEach(stack -> update(digest, stack));
+        byte[] bytes = digest.digest();
+        StringBuilder key = new StringBuilder(routeId).append(':');
+        for (byte value : bytes) {
+            int current = value & 0xFF;
+            key.append(LOWER_HEX[current >>> 4]).append(LOWER_HEX[current & 0x0F]);
         }
+        return key.toString();
     }
 
     private static void update(MessageDigest digest, MachineResourceStack stack) {
@@ -115,10 +148,12 @@ public final class MachineRecipeRoute {
     public static final class Builder {
 
         private final String routeId;
+        private final List<MachineResourceStack> configurationInputs = new ArrayList<>();
         private final List<MachineResourceStack> inputs = new ArrayList<>();
         private final List<MachineResourceStack> guaranteedOutputs = new ArrayList<>();
         private final List<MachineResourceStack> optionalOutputs = new ArrayList<>();
         private String recipeKey;
+        private String logicalRecipeKey;
 
         private Builder(String routeId) {
             this.routeId = Objects.requireNonNull(routeId, "Route id cannot be null");
@@ -132,9 +167,25 @@ public final class MachineRecipeRoute {
             return this;
         }
 
+        public Builder logicalRecipeKey(@Nonnull String logicalRecipeKey) {
+            this.logicalRecipeKey = Objects.requireNonNull(logicalRecipeKey,
+                  "Logical recipe key cannot be null");
+            return this;
+        }
+
         public Builder input(MachineResourceStack stack) {
             inputs.add(Objects.requireNonNull(stack, "Input cannot be null"));
             return this;
+        }
+
+        public Builder configurationInput(MachineResourceStack stack) {
+            configurationInputs.add(Objects.requireNonNull(stack,
+                  "Configuration input cannot be null"));
+            return this;
+        }
+
+        public Builder retainedInput(MachineResourceStack stack) {
+            return configurationInput(stack);
         }
 
         public Builder output(MachineResourceStack stack) {
@@ -157,6 +208,30 @@ public final class MachineRecipeRoute {
 
         public Builder inputGas(String portId, GasStack stack) {
             return input(MachineResourceStack.gas(portId, stack));
+        }
+
+        public Builder configurationItem(String portId, ItemStack stack) {
+            return configurationInput(MachineResourceStack.item(portId, stack, 1));
+        }
+
+        public Builder configurationFluid(String portId, FluidStack stack) {
+            return configurationInput(MachineResourceStack.fluid(portId, stack, 1));
+        }
+
+        public Builder configurationGas(String portId, GasStack stack) {
+            return configurationInput(MachineResourceStack.gas(portId, stack, 1));
+        }
+
+        public Builder retainedItem(String portId, ItemStack stack) {
+            return configurationItem(portId, stack);
+        }
+
+        public Builder retainedFluid(String portId, FluidStack stack) {
+            return configurationFluid(portId, stack);
+        }
+
+        public Builder retainedGas(String portId, GasStack stack) {
+            return configurationGas(portId, stack);
         }
 
         public Builder outputItem(String portId, ItemStack stack) {

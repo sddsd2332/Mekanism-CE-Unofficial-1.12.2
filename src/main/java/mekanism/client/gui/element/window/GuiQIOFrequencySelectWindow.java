@@ -52,7 +52,16 @@ public class GuiQIOFrequencySelectWindow extends GuiWindow {
 
     public static GuiQIOFrequencySelectWindow forTile(IGuiWrapper gui, TileEntityQIOComponent tile,
           SelectedWindowData windowData) {
-        return new GuiQIOFrequencySelectWindow(gui, new TileSelector(tile), windowData);
+        return forTile(gui, tile, windowData, MekanismLang.QIO_FREQUENCY_SELECT.translate());
+    }
+
+    /**
+     * Creates the standard tile selector with a module-specific window title.
+     * The selector and packet behavior remain the native QIO component behavior.
+     */
+    public static GuiQIOFrequencySelectWindow forTile(IGuiWrapper gui, TileEntityQIOComponent tile,
+          SelectedWindowData windowData, ITextComponent title) {
+        return new GuiQIOFrequencySelectWindow(gui, new TileSelector(tile), title, windowData);
     }
 
     public static GuiQIOFrequencySelectWindow forItem(IGuiWrapper gui, PortableQIODashboardContainer container,

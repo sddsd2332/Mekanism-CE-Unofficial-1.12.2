@@ -1,0 +1,12 @@
+{
+  "type": "forge:ore_shaped", "result": { "item": "mekanismqioprocessing:qio_maintenance_terminal" },
+  "pattern": ["ACA", "IQE", "ATA"],
+  "key": {
+    "A": { "item": "mekanism:reinforcedalloy" },
+    "C": { "item": "mekanism:controlcircuit", "data": 1 },
+    "I": { "item": "mekanism:qio_importer" },
+    "Q": { "item": "mekanism:qio_dashboard" },
+    "E": { "item": "mekanism:qio_exporter" },
+    "T": { "item": "mekanism:teleportationcore" }
+  }
+}

@@ -26,6 +26,17 @@ class QIODriveStorageTest {
     }
 
     @Test
+    void repeatedLoadOfCurrentWorldDoesNotCanonicalizeAgain() throws Exception {
+        worldDirectory = Files.createTempDirectory("qio-drive-load-test").toFile();
+        CountingCanonicalFile countingDirectory = new CountingCanonicalFile(worldDirectory);
+
+        QIODriveStorage.INSTANCE.createOrLoad(countingDirectory);
+        QIODriveStorage.INSTANCE.createOrLoad(countingDirectory);
+
+        assertEquals(1, countingDirectory.getCanonicalizationCount());
+    }
+
+    @Test
     void duplicateUuidIsLockedAcrossHoldersAndReleasedOnUnmount() throws Exception {
         worldDirectory = Files.createTempDirectory("qio-mount-test").toFile();
         QIODriveStorage.INSTANCE.createOrLoad(worldDirectory);
@@ -110,6 +121,25 @@ class QIODriveStorageTest {
             }
         }
         Files.deleteIfExists(file.toPath());
+    }
+
+    private static final class CountingCanonicalFile extends File {
+
+        private int canonicalizationCount;
+
+        private CountingCanonicalFile(File file) {
+            super(file.getPath());
+        }
+
+        @Override
+        public File getCanonicalFile() throws java.io.IOException {
+            canonicalizationCount++;
+            return super.getCanonicalFile();
+        }
+
+        private int getCanonicalizationCount() {
+            return canonicalizationCount;
+        }
     }
 
     private static final class TestHolder implements IQIODriveHolder {

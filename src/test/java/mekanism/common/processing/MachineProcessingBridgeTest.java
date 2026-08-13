@@ -8,6 +8,9 @@ import mekanism.api.processing.MachineRecipeRoute;
 import mekanism.api.processing.MachineResourceKind;
 import mekanism.api.processing.MachineResourceStack;
 import mekanism.api.processing.MachineTransferPlan;
+import mekanism.api.processing.ProviderConformanceDescriptor;
+import mekanism.api.processing.ProviderConformanceReport;
+import mekanism.api.processing.QIOAutomationMode;
 import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasRegistry;
 import mekanism.api.gas.GasStack;
@@ -51,6 +54,7 @@ import net.minecraftforge.fluids.FluidStack;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -63,6 +67,12 @@ class MachineProcessingBridgeTest {
 
     private static final ResourceLocation BASE_PROVIDER = new ResourceLocation("mekanism", "test_processing_base");
     private static final ResourceLocation CHILD_PROVIDER = new ResourceLocation("mekanism", "test_processing_child");
+    private static final ResourceLocation MULTI_RECIPE_PROVIDER =
+          new ResourceLocation("test", "multi_recipe_provider");
+    private static final ResourceLocation DYNAMIC_RECIPE_PROVIDER =
+          new ResourceLocation("test", "dynamic_recipe_provider");
+    private static final ResourceLocation INVALID_PORT_PROVIDER =
+          new ResourceLocation("test", "invalid_port_provider");
     private static final ResourceLocation EXTERNAL_SUPPORT = new ResourceLocation("mekanism", "test_external_upgrade_support");
     private static final ResourceLocation BASE_ADAPTER = new ResourceLocation("mekanism", "test_upgrade_base");
     private static final ResourceLocation CHILD_ADAPTER = new ResourceLocation("mekanism", "test_upgrade_child");
@@ -164,6 +174,8 @@ class MachineProcessingBridgeTest {
         assertEquals("item_output_1", lanes.get(1).guaranteedOutputs().get(0).portId());
         assertEquals("secondary_item_output_1", lanes.get(1).optionalOutputs().get(0).portId());
         assertNotEquals(lanes.get(0).recipeKey(), lanes.get(1).recipeKey());
+        assertEquals(lanes.get(0).logicalRecipeKey(), lanes.get(1).logicalRecipeKey());
+        assertEquals(route.logicalRecipeKey(), lanes.get(0).logicalRecipeKey());
     }
 
     @Test
@@ -222,6 +234,42 @@ class MachineProcessingBridgeTest {
         assertEquals(1, fluidRoutes.size());
         assertEquals("uu_input", fluidRoutes.get(0).inputs().get(0).portId());
         assertEquals("fluid_output", fluidRoutes.get(0).guaranteedOutputs().get(0).portId());
+
+        MachineRecipeRoute configurableItem = MachineRecipeRouteCollectors
+              .collectConfigurableReplicatorItems(itemRecipes).get(0);
+        assertEquals(1, configurableItem.configurationInputs().size());
+        assertEquals(1, configurableItem.configurationInputs().get(0).amount());
+        assertEquals(1, configurableItem.inputs().size());
+        assertEquals("uu_input", configurableItem.inputs().get(0).portId());
+
+        MachineRecipeRoute configurableGas = MachineRecipeRouteCollectors
+              .collectConfigurableReplicatorGases(gasRecipes).get(0);
+        assertEquals(1, configurableGas.configurationInputs().get(0).amount());
+        assertEquals(MachineResourceKind.GAS,
+              configurableGas.configurationInputs().get(0).kind());
+
+        MachineRecipeRoute configurableFluid = MachineRecipeRouteCollectors
+              .collectConfigurableReplicatorFluids(fluidRecipes).get(0);
+        assertEquals(1, configurableFluid.configurationInputs().get(0).amount());
+        assertEquals(MachineResourceKind.FLUID,
+              configurableFluid.configurationInputs().get(0).kind());
+    }
+
+    @Test
+    void configurationInputsAreSeparateAndAffectRecipeIdentity() {
+        MachineRecipeRoute iron = MachineRecipeRoute.builder("configurable")
+              .configurationItem("template", new ItemStack(Items.IRON_INGOT, 64))
+              .inputGas("uu", new GasStack(testUUGas, 25))
+              .outputItem("output", new ItemStack(Items.IRON_INGOT)).build();
+        MachineRecipeRoute gold = MachineRecipeRoute.builder("configurable")
+              .configurationItem("template", new ItemStack(Items.GOLD_INGOT))
+              .inputGas("uu", new GasStack(testUUGas, 25))
+              .outputItem("output", new ItemStack(Items.IRON_INGOT)).build();
+
+        assertTrue(iron.retainedInputs() == iron.configurationInputs());
+        assertEquals(1, iron.configurationInputs().get(0).amount());
+        assertEquals(1, iron.inputs().size());
+        assertNotEquals(iron.recipeKey(), gold.recipeKey());
     }
 
     @Test
@@ -236,6 +284,10 @@ class MachineProcessingBridgeTest {
         assertEquals(MachinePort.Role.INPUT, provider.getPorts().get(0).role());
         assertEquals("item_output", provider.getPorts().get(1).portId());
         assertEquals(MachinePort.Role.OUTPUT, provider.getPorts().get(1).role());
+        assertEquals("item_output", provider.getPorts().get(1).portGroupId());
+        assertEquals(0, provider.getPorts().get(1).laneId());
+        assertTrue(provider.getQIOConformance().supports(QIOAutomationMode.SCHEDULED));
+        assertTrue(provider.validateQIOConformance(QIOAutomationMode.OUTPUT_ONLY).isConformant());
     }
 
     @Test
@@ -249,6 +301,8 @@ class MachineProcessingBridgeTest {
         assertEquals(27, provider.getPorts().size());
         assertEquals("item_output_0", provider.getPorts().get(0).portId());
         assertEquals(MachinePort.Role.OUTPUT, provider.getPorts().get(0).role());
+        assertTrue(provider.validateQIOConformance(QIOAutomationMode.OUTPUT_ONLY).isConformant());
+        assertFalse(provider.validateQIOConformance(QIOAutomationMode.SCHEDULED).isConformant());
 
         BasicInventorySlot restricted = BasicInventorySlot.at(
               (stack, automation) -> automation != AutomationType.EXTERNAL,
@@ -378,11 +432,109 @@ class MachineProcessingBridgeTest {
             assertEquals(BASE_PROVIDER, base.id());
             assertEquals(CHILD_PROVIDER, child.id());
             assertEquals("child", child.getRecipeSourceKey());
+            assertFalse(child.getQIOConformance().isRegistered());
+            assertFalse(child.validateQIOConformance(QIOAutomationMode.OUTPUT_ONLY).isConformant());
             assertThrows(IllegalArgumentException.class,
                   () -> MachineRecipeProviderRegistry.register(CHILD_PROVIDER, ChildTile.class, new MarkerProvider<>("duplicate")));
         } finally {
             MachineRecipeProviderRegistry.unregister(BASE_PROVIDER);
             MachineRecipeProviderRegistry.unregister(CHILD_PROVIDER);
+        }
+    }
+
+    @Test
+    void multipleRecipesMayShareOneStableRouteShape() {
+        MachineRecipeProviderRegistry.unregister(MULTI_RECIPE_PROVIDER);
+        try {
+            MachineRecipeProviderRegistry.register(MULTI_RECIPE_PROVIDER, MultiRecipeTile.class,
+                  new MultiRecipeProvider());
+            MachineRecipeProviderRegistry.BoundProvider provider =
+                  MachineRecipeProviderRegistry.find(new MultiRecipeTile());
+
+            assertNotNull(provider);
+            assertTrue(provider.validateQIOConformance(QIOAutomationMode.SCHEDULED).isConformant());
+            assertTrue(provider.validateQIOConformance(QIOAutomationMode.PASSIVE).isConformant());
+        } finally {
+            MachineRecipeProviderRegistry.unregister(MULTI_RECIPE_PROVIDER);
+        }
+    }
+
+    @Test
+    void dynamicEmptyRoutesPassEndpointValidationButFailStrictValidation() {
+        MachineRecipeProviderRegistry.unregister(DYNAMIC_RECIPE_PROVIDER);
+        try {
+            DynamicRecipeTile tile = new DynamicRecipeTile();
+            MachineRecipeProviderRegistry.register(DYNAMIC_RECIPE_PROVIDER,
+                  DynamicRecipeTile.class, new DynamicRecipeProvider());
+            MachineRecipeProviderRegistry.BoundProvider provider =
+                  MachineRecipeProviderRegistry.find(tile);
+
+            assertNotNull(provider);
+            assertTrue(provider.validateQIOEndpointConformance(
+                  QIOAutomationMode.SCHEDULED).isConformant());
+            assertTrue(provider.validateQIOEndpointConformance(
+                  QIOAutomationMode.PASSIVE).isConformant());
+            ProviderConformanceReport scheduled = provider.validateQIOConformance(
+                  QIOAutomationMode.SCHEDULED);
+            ProviderConformanceReport passive = provider.validateQIOConformance(
+                  QIOAutomationMode.PASSIVE);
+            assertFalse(scheduled.isConformant());
+            assertFalse(passive.isConformant());
+            assertTrue(scheduled.errors().contains(
+                  "processing provider exposes no recipe routes"));
+            assertTrue(passive.errors().contains(
+                  "processing provider exposes no recipe routes"));
+            assertFalse(provider.validateQIOEndpointConformance(
+                  QIOAutomationMode.OUTPUT_ONLY).isConformant());
+
+            tile.templateAvailable = true;
+            assertTrue(provider.validateQIOConformance(
+                  QIOAutomationMode.SCHEDULED).isConformant());
+            assertTrue(provider.validateQIOConformance(
+                  QIOAutomationMode.PASSIVE).isConformant());
+        } finally {
+            MachineRecipeProviderRegistry.unregister(DYNAMIC_RECIPE_PROVIDER);
+        }
+    }
+
+    @Test
+    void endpointValidationStillRejectsMissingContractsAndInvalidPorts() {
+        MachineRecipeProviderRegistry.unregister(INVALID_PORT_PROVIDER);
+        try {
+            MachineRecipeProviderRegistry.register(INVALID_PORT_PROVIDER,
+                  InvalidPortTile.class, new MachineRecipeProvider<InvalidPortTile>() {
+                      @Override
+                      public List<MachinePort> getPorts(InvalidPortTile tile) {
+                          return Collections.singletonList(MachinePort.item("input",
+                                MachinePort.Role.INPUT, tile.input));
+                      }
+
+                      @Override
+                      public ProviderConformanceDescriptor getQIOConformance(
+                            InvalidPortTile tile) {
+                          return ProviderConformanceDescriptor.builder("test", "invalid_ports")
+                                .supports(QIOAutomationMode.SCHEDULED).build();
+                      }
+                  });
+            MachineRecipeProviderRegistry.BoundProvider invalid =
+                  MachineRecipeProviderRegistry.find(new InvalidPortTile());
+            assertNotNull(invalid);
+            assertFalse(invalid.validateQIOEndpointConformance(
+                  QIOAutomationMode.SCHEDULED).isConformant());
+            assertTrue(invalid.validateQIOEndpointConformance(
+                  QIOAutomationMode.SCHEDULED).errors().contains(
+                        "processing provider exposes no output port"));
+
+            MachineRecipeProviderRegistry.unregister(INVALID_PORT_PROVIDER);
+            MachineRecipeProviderRegistry.register(INVALID_PORT_PROVIDER,
+                  InvalidPortTile.class, new MarkerProvider<>("unregistered"));
+            MachineRecipeProviderRegistry.BoundProvider unregistered =
+                  MachineRecipeProviderRegistry.find(new InvalidPortTile());
+            assertNotNull(unregistered);
+            assertFalse(unregistered.validateQIOEndpointConformance(
+                  QIOAutomationMode.SCHEDULED).isConformant());
+        } finally {
+            MachineRecipeProviderRegistry.unregister(INVALID_PORT_PROVIDER);
         }
     }
 
@@ -434,6 +586,81 @@ class MachineProcessingBridgeTest {
     }
 
     private static class ChildTile extends BaseTile {
+    }
+
+    private static final class MultiRecipeTile extends TileEntity {
+
+        private final BasicInventorySlot input = BasicInventorySlot.at(null, 0, 0);
+        private final BasicInventorySlot output = BasicInventorySlot.at(null, 0, 0);
+    }
+
+    private static final class DynamicRecipeTile extends TileEntity {
+
+        private final BasicInventorySlot input = BasicInventorySlot.at(null, 0, 0);
+        private final BasicInventorySlot output = BasicInventorySlot.at(null, 0, 0);
+        private boolean templateAvailable;
+    }
+
+    private static final class InvalidPortTile extends TileEntity {
+
+        private final BasicInventorySlot input = BasicInventorySlot.at(null, 0, 0);
+    }
+
+    private static final class DynamicRecipeProvider implements
+          MachineRecipeProvider<DynamicRecipeTile> {
+
+        @Override
+        public List<MachineRecipeRoute> getRecipeRoutes(DynamicRecipeTile tile) {
+            return tile.templateAvailable ? Collections.singletonList(
+                  MachineRecipeRoute.builder("route:item_to_item")
+                        .recipeKey("test:dynamic_template")
+                        .inputItem("input", new ItemStack(Items.IRON_INGOT))
+                        .outputItem("output", new ItemStack(Items.GOLD_INGOT)).build()) :
+                  Collections.emptyList();
+        }
+
+        @Override
+        public List<MachinePort> getPorts(DynamicRecipeTile tile) {
+            return Arrays.asList(
+                  MachinePort.item("input", MachinePort.Role.INPUT, tile.input),
+                  MachinePort.item("output", MachinePort.Role.OUTPUT, tile.output));
+        }
+
+        @Override
+        public ProviderConformanceDescriptor getQIOConformance(DynamicRecipeTile tile) {
+            return ProviderConformanceDescriptor.builder("test", "dynamic_template")
+                  .supports(QIOAutomationMode.SCHEDULED, QIOAutomationMode.PASSIVE)
+                  .build();
+        }
+    }
+
+    private static final class MultiRecipeProvider implements MachineRecipeProvider<MultiRecipeTile> {
+
+        @Override
+        public List<MachineRecipeRoute> getRecipeRoutes(MultiRecipeTile tile) {
+            return Arrays.asList(
+                  MachineRecipeRoute.builder("route:item_to_item")
+                        .recipeKey("test:iron_to_gold")
+                        .inputItem("input", new ItemStack(Items.IRON_INGOT))
+                        .outputItem("output", new ItemStack(Items.GOLD_INGOT)).build(),
+                  MachineRecipeRoute.builder("route:item_to_item")
+                        .recipeKey("test:gold_to_diamond")
+                        .inputItem("input", new ItemStack(Items.GOLD_INGOT))
+                        .outputItem("output", new ItemStack(Items.DIAMOND)).build());
+        }
+
+        @Override
+        public List<MachinePort> getPorts(MultiRecipeTile tile) {
+            return Arrays.asList(
+                  MachinePort.item("input", MachinePort.Role.INPUT, tile.input),
+                  MachinePort.item("output", MachinePort.Role.OUTPUT, tile.output));
+        }
+
+        @Override
+        public ProviderConformanceDescriptor getQIOConformance(MultiRecipeTile tile) {
+            return ProviderConformanceDescriptor.builder("test", "multi_recipe")
+                  .supports(QIOAutomationMode.SCHEDULED, QIOAutomationMode.PASSIVE).build();
+        }
     }
 
     private static class MarkerProvider<TILE extends TileEntity> implements MachineRecipeProvider<TILE> {

@@ -4,6 +4,8 @@ import mekanism.api.processing.MachinePort;
 import mekanism.api.processing.MachineRecipeProvider;
 import mekanism.api.processing.MachineRecipeProviderRegistry;
 import mekanism.api.processing.MachineRecipeRoute;
+import mekanism.api.processing.ProviderConformanceDescriptor;
+import mekanism.api.processing.QIOAutomationMode;
 import mekanism.common.recipe.RecipeHandler;
 import mekanism.common.recipe.processing.MachineRecipeRouteCollectors;
 import mekanism.multiblockmachine.common.MekanismMultiblockMachine;
@@ -22,6 +24,10 @@ import java.util.function.Function;
 public final class MultiblockMachineRecipeProviders {
 
     private static boolean registered;
+    private static final ProviderConformanceDescriptor QIO_CONFORMANCE =
+          ProviderConformanceDescriptor.builder(MekanismMultiblockMachine.MODID, "main")
+                .supports(QIOAutomationMode.SCHEDULED, QIOAutomationMode.PASSIVE, QIOAutomationMode.OUTPUT_ONLY)
+                .build();
 
     private MultiblockMachineRecipeProviders() {
     }
@@ -94,6 +100,11 @@ public final class MultiblockMachineRecipeProviders {
                   @Override
                   public List<MachinePort> getPorts(TILE tile) {
                       return ports.apply(tile);
+                  }
+
+                  @Override
+                  public ProviderConformanceDescriptor getQIOConformance(TILE tile) {
+                      return QIO_CONFORMANCE;
                   }
               });
     }

@@ -210,7 +210,8 @@ public class GuiQIOResourceGrid extends GuiElement implements IJEIIngredientHelp
         // not require an existing resource entry under the clicked grid cell.
         if (shift) {
             if (entry != null) {
-                PacketQIOViewerAction.sendShiftTake(windowId, entry.getUUID(), entry.getAmount());
+                PacketQIOViewerAction.sendShiftTake(windowId, entry.getUUID(),
+                      PacketQIOViewerAction.getShiftTakeAmount(entry));
             }
         } else if (!held.isEmpty()) {
             if (entry != null && (entry.getKind() == QIOResourceKind.FLUID && PacketQIOViewerAction.canTakeFluidIntoHeldStack(entry, held) ||
@@ -226,7 +227,8 @@ public class GuiQIOResourceGrid extends GuiElement implements IJEIIngredientHelp
             if (entry.getKind() != QIOResourceKind.ITEM) {
                 // Mixed resources are moved to a compatible inventory
                 // container when the cursor is empty.
-                PacketQIOViewerAction.sendShiftTake(windowId, entry.getUUID(), entry.getAmount());
+                PacketQIOViewerAction.sendShiftTake(windowId, entry.getUUID(),
+                      PacketQIOViewerAction.getShiftTakeAmount(entry));
             } else if (entry.getAmount() > 0) {
                 int maxStackSize = Math.min(Integer.MAX_VALUE, entry.getItem().getMaxStackSize());
                 long max = Math.min(entry.getAmount(), maxStackSize);

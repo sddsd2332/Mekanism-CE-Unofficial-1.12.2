@@ -74,6 +74,7 @@ public class ItemConfigurationCard extends ItemMekanism {
                         data = special.getConfigurationData(data);
                     }
                     if (data != null) {
+                        data = ConfigurationCardDataExtensionRegistry.collect(tileEntity, player, data);
                         data.setString("dataType", getNameFromTile(tileEntity, side));
                         setData(stack, data);
                         player.sendMessage(new TextComponentString(EnumColor.DARK_BLUE + Mekanism.LOG_TAG + " " + EnumColor.GREY + LangUtils.localize("tooltip.configurationCard.got").replaceAll("%s", EnumColor.INDIGO + LangUtils.localize(data.getString("dataType")) + EnumColor.GREY)));
@@ -89,11 +90,14 @@ public class ItemConfigurationCard extends ItemMekanism {
                 }
                 if (!world.isRemote) {
                     if (getNameFromTile(tileEntity, side).equals(getDataType(stack))) {
+                        data = ConfigurationCardDataExtensionRegistry.filterForApply(tileEntity,
+                              player, data);
                         setBaseData(data, tileEntity, player);
                         if (CapabilityUtils.hasCapability(tileEntity, Capabilities.SPECIAL_CONFIG_DATA_CAPABILITY, side)) {
                             ISpecialConfigData special = CapabilityUtils.getCapability(tileEntity, Capabilities.SPECIAL_CONFIG_DATA_CAPABILITY, side);
                             special.setConfigurationData(data);
                         }
+                        ConfigurationCardDataExtensionRegistry.apply(tileEntity, player, data);
                         updateTile(tileEntity);
                         player.sendMessage(new TextComponentString(EnumColor.DARK_BLUE + Mekanism.LOG_TAG + " " + EnumColor.DARK_GREEN + LangUtils.localize("tooltip.configurationCard.set").replaceAll("%s", EnumColor.INDIGO + LangUtils.localize(getDataType(stack)) + EnumColor.DARK_GREEN)));
                         if (player instanceof EntityPlayerMP playerMP) {

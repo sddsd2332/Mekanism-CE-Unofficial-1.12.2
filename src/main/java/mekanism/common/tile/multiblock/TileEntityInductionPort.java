@@ -109,7 +109,7 @@ public class TileEntityInductionPort extends TileEntityInductionCasing implement
 
     @Method(modid = MekanismHooks.IC2_MOD_ID)
     public void register() {
-        if (!isRemote() && world != null && !ic2Registered) {
+        if (world != null && !world.isRemote && !ic2Registered) {
             MinecraftForge.EVENT_BUS.post(new EnergyTileLoadEvent(this));
             ic2Registered = true;
         }
@@ -117,7 +117,7 @@ public class TileEntityInductionPort extends TileEntityInductionCasing implement
 
     @Method(modid = MekanismHooks.IC2_MOD_ID)
     public void deregister() {
-        if (!isRemote() && world != null && ic2Registered) {
+        if (world != null && !world.isRemote && ic2Registered) {
             MinecraftForge.EVENT_BUS.post(new EnergyTileUnloadEvent(this));
             ic2Registered = false;
         }

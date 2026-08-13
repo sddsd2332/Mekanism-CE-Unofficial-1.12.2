@@ -1,0 +1,7 @@
+{
+  "parent": "mekanismqioprocessing:block/qio_processing_terminal",
+  "textures": {
+    "base": "mekanismqioprocessing:blocks/terminals/qio_crafting_monitor_base",
+    "channel": "mekanismqioprocessing:blocks/terminals/qio_crafting_monitor_channel"
+  }
+}

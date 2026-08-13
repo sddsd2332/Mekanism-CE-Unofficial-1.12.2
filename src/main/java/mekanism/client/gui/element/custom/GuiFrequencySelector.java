@@ -67,7 +67,7 @@ public class GuiFrequencySelector<FREQ extends Frequency> extends GuiElement {
         setButton = addChild(new MekanismButton(gui, relativeX, relativeY + 113, buttonWidth, 18,
               MekanismLang.BUTTON_SET.translate(), this::setSelectedFrequency, null));
         deleteButton = addChild(new MekanismButton(gui, relativeX + buttonWidth + 2, relativeY + 113, buttonWidth, 18,
-              MekanismLang.BUTTON_DELETE.translate(), this::confirmDeleteSelectedFrequency, null));
+              frequencySelector.getSecondaryButtonText(), this::runSecondaryAction, null));
         if (hasColor) {
             addChild(new GuiSlot(SlotType.NORMAL, gui, relativeX + 104, relativeY + 113));
             @SuppressWarnings("unchecked")
@@ -119,7 +119,12 @@ public class GuiFrequencySelector<FREQ extends Frequency> extends GuiElement {
         updateButtons();
     }
 
-    private void confirmDeleteSelectedFrequency() {
+    private void runSecondaryAction() {
+        if (!frequencySelector.supportsFrequencyDeletion()) {
+            frequencySelector.sendUnbindFrequency();
+            updateButtons();
+            return;
+        }
         FREQ selected = getSelectedFrequency();
         if (selected != null) {
             GuiConfirmationDialog.show(gui(), MekanismLang.FREQUENCY_DELETE_CONFIRM.translate(), () -> {
@@ -189,7 +194,9 @@ public class GuiFrequencySelector<FREQ extends Frequency> extends GuiElement {
         FREQ selected = getSelectedFrequency();
         FREQ current = frequencySelector.getFrequency();
         setButton.active = selected != null && (current == null || !current.equals(selected));
-        deleteButton.active = selected != null && minecraft.player != null && selected.ownerMatches(minecraft.player.getUniqueID());
+        deleteButton.active = frequencySelector.supportsFrequencyDeletion() ?
+              selected != null && minecraft.player != null && selected.ownerMatches(minecraft.player.getUniqueID()) :
+              current != null;
         frequencySelector.buttonsUpdated();
     }
 
@@ -234,6 +241,9 @@ public class GuiFrequencySelector<FREQ extends Frequency> extends GuiElement {
 
         void sendRemoveFrequency(FrequencyIdentity identity);
 
+        default void sendUnbindFrequency() {
+        }
+
         @Nullable
         FREQ getFrequency();
 
@@ -254,6 +264,14 @@ public class GuiFrequencySelector<FREQ extends Frequency> extends GuiElement {
 
         default boolean isPortable() {
             return false;
+        }
+
+        default boolean supportsFrequencyDeletion() {
+            return true;
+        }
+
+        default net.minecraft.util.text.ITextComponent getSecondaryButtonText() {
+            return MekanismLang.BUTTON_DELETE.translate();
         }
 
         default void buttonsUpdated() {

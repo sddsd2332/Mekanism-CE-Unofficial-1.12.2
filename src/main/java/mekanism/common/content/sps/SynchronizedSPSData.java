@@ -13,6 +13,7 @@ import net.minecraft.entity.Entity;
 import net.minecraft.util.DamageSource;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.AxisAlignedBB;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
 import java.util.Map;
@@ -154,6 +155,14 @@ public class SynchronizedSPSData extends SynchronizedData<SynchronizedSPSData> {
 
     public double getScaledProgress() {
         return (inputProcessed + progress) / INPUT_PER_ANTIMATTER;
+    }
+
+    public boolean shouldPlaySoundAt(BlockPos pos) {
+        if (pos == null || minLocation == null || maxLocation == null) {
+            return false;
+        }
+        return pos.equals(new BlockPos(minLocation.x + 3, minLocation.y, minLocation.z)) ||
+              pos.equals(new BlockPos(maxLocation.x - 3, maxLocation.y, maxLocation.z));
     }
 
     public boolean sanitizeStoredGases() {
