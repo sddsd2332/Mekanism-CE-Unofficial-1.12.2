@@ -37,43 +37,71 @@ public class LookingAtUtils {
             displayEnergy(info, strictEnergyStorage);
         }
         if (displayTanks) {
-            if (displayFluidTanks && tile instanceof TileEntitySynchronized) {
-                IFluidHandler fluidCapability = CapabilityUtils.getCapability(tile, CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, null);
-                if (fluidCapability != null) {
-                    displayFluid(info, fluidCapability);
-                } else if (tile instanceof IFluidHandler handler) {
-                    displayFluid(info, handler);
-                }
+            IFluidHandler fluidHandler = getFluidHandler(tile, displayFluidTanks);
+            IGasHandler gasHandler = getGasHandler(tile);
+            int fluidTanks = fluidHandler == null ? 0 : FluidContainerUtils.getTankCount(fluidHandler);
+            int gasTanks = gasHandler == null ? 0 : GasInventorySlot.getTankCount(gasHandler);
+            int[] displayLimits = getTankDisplayLimits(fluidTanks, gasTanks);
+            if (fluidTanks > 0) {
+                displayFluid(info, fluidHandler, fluidTanks, displayLimits[0]);
             }
-            IGasHandler gasCapability = CapabilityUtils.getCapability(tile, Capabilities.GAS_HANDLER_CAPABILITY, null);
-            if (gasCapability != null) {
-                displayGas(info, gasCapability);
-            } else if (tile instanceof IGasHandler handler) {
-                displayGas(info, handler);
+            if (gasTanks > 0) {
+                displayGas(info, gasHandler, gasTanks, displayLimits[1]);
             }
         }
     }
 
-    private static void displayFluid(LookingAtHelper info, IFluidHandler fluidHandler) {
-        int tanks = FluidContainerUtils.getTankCount(fluidHandler);
+    private static IFluidHandler getFluidHandler(TileEntity tile, boolean displayFluidTanks) {
+        if (!displayFluidTanks || !(tile instanceof TileEntitySynchronized)) {
+            return null;
+        }
+        IFluidHandler fluidCapability = CapabilityUtils.getCapability(tile, CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, null);
+        if (fluidCapability != null) {
+            return fluidCapability;
+        }
+        return tile instanceof IFluidHandler handler ? handler : null;
+    }
+
+    private static IGasHandler getGasHandler(TileEntity tile) {
+        IGasHandler gasCapability = CapabilityUtils.getCapability(tile, Capabilities.GAS_HANDLER_CAPABILITY, null);
+        if (gasCapability != null) {
+            return gasCapability;
+        }
+        return tile instanceof IGasHandler handler ? handler : null;
+    }
+
+    private static int[] getTankDisplayLimits(int fluidTanks, int gasTanks) {
+        int totalLimit = Math.max(2, MekanismConfig.current().mekce.LookingAtTankDisplayLimit.val());
+        if (fluidTanks == 0) {
+            return new int[]{0, Math.min(gasTanks, totalLimit)};
+        } else if (gasTanks == 0) {
+            return new int[]{Math.min(fluidTanks, totalLimit), 0};
+        }
+        int fluidLimit = Math.min(fluidTanks, totalLimit / 2);
+        int gasLimit = Math.min(gasTanks, totalLimit - fluidLimit);
+        int remaining = totalLimit - fluidLimit - gasLimit;
+        fluidLimit += Math.min(fluidTanks - fluidLimit, remaining);
+        return new int[]{fluidLimit, gasLimit};
+    }
+
+    private static void displayFluid(LookingAtHelper info, IFluidHandler fluidHandler, int tanks, int maxDisplayed) {
         FluidStack[] stored = new FluidStack[tanks];
         int[] capacities = new int[tanks];
         for (int tank = 0; tank < tanks; tank++) {
             stored[tank] = FluidContainerUtils.getFluidInTank(fluidHandler, tank);
             capacities[tank] = FluidContainerUtils.getTankCapacity(fluidHandler, tank);
         }
-        info.addFluidElements(stored, capacities, MekanismConfig.current().mekce.LookingAtTankDisplayLimit.val());
+        info.addFluidElements(stored, capacities, maxDisplayed);
     }
 
-    private static void displayGas(LookingAtHelper info, IGasHandler handler) {
-        int tanks = GasInventorySlot.getTankCount(handler);
+    private static void displayGas(LookingAtHelper info, IGasHandler handler, int tanks, int maxDisplayed) {
         GasStack[] stored = new GasStack[tanks];
         int[] capacities = new int[tanks];
         for (int tank = 0; tank < tanks; tank++) {
             stored[tank] = GasInventorySlot.getGasInTank(handler, tank);
             capacities[tank] = GasInventorySlot.getTankCapacity(handler, tank);
         }
-        info.addChemicalElements(stored, capacities, MekanismConfig.current().mekce.LookingAtTankDisplayLimit.val());
+        info.addChemicalElements(stored, capacities, maxDisplayed);
     }
 
 
