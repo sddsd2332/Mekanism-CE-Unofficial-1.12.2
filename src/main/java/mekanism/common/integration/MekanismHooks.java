@@ -87,7 +87,12 @@ public final class MekanismHooks {
     public static final String CLEANROOM_MOD_ID = "cleanroom";
     public static final String FOOD_SPOILING_MOD_ID = "foodspoiling";
     public static final String FARMERS_DELIGHT_LEGACY_MOD_ID = "farmersdelight";
+    public static final String AE2S_MOD_ID = "ae2";
+    private static final String AE2S_ITEM_P2P_TAG = AE2S_MOD_ID + ":p2p_attunements/item_p2p_tunnel";
+    private static final String AE2S_FLUID_P2P_TAG = AE2S_MOD_ID + ":p2p_attunements/fluid_p2p_tunnel";
+    private static final String AE2S_ENERGY_P2P_TAG = AE2S_MOD_ID + ":p2p_attunements/fe_p2p_tunnel";
 
+    public boolean AE2SLoaded = false;
     public boolean AE2Loaded = false;
     public boolean BuildCraftLoaded = false;
     public boolean CCLoaded = false;
@@ -118,11 +123,13 @@ public final class MekanismHooks {
     public boolean GC = false;
     public boolean AR = false;
     public boolean CLEANROOM = false;
-    public boolean FoodSpoiling= false;
+    public boolean FoodSpoiling = false;
     public boolean FarmersDelightLegacyLoaded = false;
 
     public void hookPreInit() {
-        AE2Loaded = Loader.isModLoaded(APPLIED_ENERGISTICS_2_MOD_ID);
+        AE2SLoaded = Loader.isModLoaded(AE2S_MOD_ID);
+        // AppliedCompatibility exposes the legacy AE2 mod ID while bridging AE2S, so AE2S must take precedence.
+        AE2Loaded = !AE2SLoaded && Loader.isModLoaded(APPLIED_ENERGISTICS_2_MOD_ID);
         BuildCraftLoaded = Loader.isModLoaded(BUILDCRAFT_MOD_ID);
         CCLoaded = Loader.isModLoaded(COMPUTERCRAFT_MOD_ID);
         CraftTweakerLoaded = Loader.isModLoaded(CRAFTTWEAKER_MOD_ID);
@@ -213,9 +220,10 @@ public final class MekanismHooks {
                 return detected = hasClass("mcmultipart.api.multipart.IMultipart");
             }
         },
-        CLR(CLEANROOM_MOD_ID){
+        CLR(CLEANROOM_MOD_ID) {
             private boolean initialized = false;
             private boolean detected = false;
+
             @Override
             public boolean isPresent() {
                 if (initialized) {
@@ -270,6 +278,9 @@ public final class MekanismHooks {
         if (AE2Loaded) {
             registerAE2P2P();
         }
+        if (AE2SLoaded) {
+            registerAE2SP2P();
+        }
         if (FarmersDelightLegacyLoaded) {
             registerFarmersDelightLegacyHeatSources();
             Mekanism.logger.info("Hooked into Farmer's Delight Legacy successfully.");
@@ -284,6 +295,10 @@ public final class MekanismHooks {
         if (AE2Loaded) {
             registerAE2Recipes();
             Mekanism.logger.info("Hooked into AE2 successfully.");
+        }
+        if (AE2SLoaded) {
+            registerAE2SRecipes();
+            Mekanism.logger.info("Hooked into AE2S successfully.");
         }
         if (CCLoaded) {
             loadCCPeripheralProviders();
@@ -460,6 +475,64 @@ public final class MekanismHooks {
             } else if (type.getTransmission().equals(TransmissionType.ENERGY)) {
                 FMLInterModComms.sendMessage(APPLIED_ENERGISTICS_2_MOD_ID, "add-p2p-attunement-fe-power", new ItemStack(MekanismBlocks.Transmitter, 1, type.ordinal()));
             }
+        }
+    }
+
+    private void registerAE2SP2P() {
+        for (TransmitterType type : TransmitterType.values()) {
+            String attunementTag = null;
+            if (type.getTransmission() == TransmissionType.ITEM) {
+                attunementTag = AE2S_ITEM_P2P_TAG;
+            } else if (type.getTransmission() == TransmissionType.FLUID) {
+                attunementTag = AE2S_FLUID_P2P_TAG;
+            } else if (type.getTransmission() == TransmissionType.ENERGY) {
+                attunementTag = AE2S_ENERGY_P2P_TAG;
+            }
+            if (attunementTag != null) {
+                OreDictionary.registerOre(attunementTag, new ItemStack(MekanismBlocks.Transmitter, 1, type.ordinal()));
+            }
+        }
+    }
+
+    private void registerAE2SRecipes() {
+        ItemStack certusCrystal = getAE2SStack("certus_quartz_crystal");
+        ItemStack chargedCertusCrystal = getAE2SStack("charged_certus_quartz_crystal");
+        ItemStack certusDust = getAE2SStack("certus_quartz_dust");
+        ItemStack fluixCrystal = getAE2SStack("fluix_crystal");
+        ItemStack fluixDust = getAE2SStack("fluix_dust");
+        ItemStack skyStone = getAE2SStack("sky_stone_block");
+        ItemStack skyDust = getAE2SStack("sky_dust");
+        ItemStack enderDust = getAE2SStack("ender_dust");
+        ItemStack silicon = getAE2SStack("silicon");
+
+        addAE2SCrusherRecipe(certusCrystal, certusDust);
+        addAE2SCrusherRecipe(chargedCertusCrystal, certusDust);
+        addAE2SCrusherRecipe(fluixCrystal, fluixDust);
+        addAE2SCrusherRecipe(skyStone, skyDust);
+        addAE2SCrusherRecipe(new ItemStack(Items.ENDER_PEARL), enderDust);
+        addAE2SEnrichmentRecipe(skyDust, skyStone);
+        addAE2SEnrichmentRecipe(certusDust, StackUtils.size(silicon, 2));
+    }
+
+    private ItemStack getAE2SStack(String name) {
+        ResourceLocation registryName = new ResourceLocation(AE2S_MOD_ID, name);
+        Item item = ForgeRegistries.ITEMS.getValue(registryName);
+        if (item == null) {
+            Mekanism.logger.warn("Unable to find AE2S item '{}' while registering integration recipes.", registryName);
+            return ItemStack.EMPTY;
+        }
+        return new ItemStack(item);
+    }
+
+    private void addAE2SCrusherRecipe(ItemStack input, ItemStack output) {
+        if (!input.isEmpty() && !output.isEmpty()) {
+            RecipeHandler.addCrusherRecipe(input.copy(), output.copy());
+        }
+    }
+
+    private void addAE2SEnrichmentRecipe(ItemStack input, ItemStack output) {
+        if (!input.isEmpty() && !output.isEmpty()) {
+            RecipeHandler.addEnrichmentChamberRecipe(input.copy(), output.copy());
         }
     }
 

@@ -3,8 +3,8 @@ package mekanism.common.integration.lookingat;
 import mekanism.api.energy.IStrictEnergyStorage;
 import mekanism.api.gas.GasStack;
 import mekanism.api.gas.IGasHandler;
-import mekanism.common.MekanismLang;
 import mekanism.common.capabilities.Capabilities;
+import mekanism.common.config.MekanismConfig;
 import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.tile.TileEntityAdvancedBoundingBlock;
 import mekanism.common.tile.base.TileEntitySynchronized;
@@ -55,29 +55,25 @@ public class LookingAtUtils {
     }
 
     private static void displayFluid(LookingAtHelper info, IFluidHandler fluidHandler) {
-        for (int tank = 0, tanks = FluidContainerUtils.getTankCount(fluidHandler); tank < tanks; tank++) {
-            addFluidInfo(info, FluidContainerUtils.getFluidInTank(fluidHandler, tank), FluidContainerUtils.getTankCapacity(fluidHandler, tank));
+        int tanks = FluidContainerUtils.getTankCount(fluidHandler);
+        FluidStack[] stored = new FluidStack[tanks];
+        int[] capacities = new int[tanks];
+        for (int tank = 0; tank < tanks; tank++) {
+            stored[tank] = FluidContainerUtils.getFluidInTank(fluidHandler, tank);
+            capacities[tank] = FluidContainerUtils.getTankCapacity(fluidHandler, tank);
         }
+        info.addFluidElements(stored, capacities, MekanismConfig.current().mekce.LookingAtTankDisplayLimit.val());
     }
 
     private static void displayGas(LookingAtHelper info, IGasHandler handler) {
-        for (int tank = 0, tanks = GasInventorySlot.getTankCount(handler); tank < tanks; tank++) {
-            addGasInfo(info, GasInventorySlot.getGasInTank(handler, tank), GasInventorySlot.getTankCapacity(handler, tank));
+        int tanks = GasInventorySlot.getTankCount(handler);
+        GasStack[] stored = new GasStack[tanks];
+        int[] capacities = new int[tanks];
+        for (int tank = 0; tank < tanks; tank++) {
+            stored[tank] = GasInventorySlot.getGasInTank(handler, tank);
+            capacities[tank] = GasInventorySlot.getTankCapacity(handler, tank);
         }
-    }
-
-    private static void addFluidInfo(LookingAtHelper info, FluidStack fluidInTank, int capacity) {
-        if (fluidInTank != null) {
-            info.addText(MekanismLang.LIQUID.getTranslationKey() + fluidInTank.getLocalizedName());
-        }
-        info.addFluidElement(fluidInTank, capacity);
-    }
-
-    private static void addGasInfo(LookingAtHelper info, GasStack gasInTank, int capacity) {
-        if (gasInTank != null) {
-            info.addText(MekanismLang.GAS.getTranslationKey() + gasInTank.getGas().getLocalizedName());
-        }
-        info.addChemicalElement(gasInTank, capacity);
+        info.addChemicalElements(stored, capacities, MekanismConfig.current().mekce.LookingAtTankDisplayLimit.val());
     }
 
 

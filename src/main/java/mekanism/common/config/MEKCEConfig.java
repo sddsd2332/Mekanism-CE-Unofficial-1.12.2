@@ -24,6 +24,9 @@ public class MEKCEConfig extends BaseConfig {
 
     public final BooleanOption ShowHiddenGas = new BooleanOption(this,  "ShowHiddenGases", true, "Displays hidden gas in creative gas tanks, which is invalid if PrefilledGasTanks is not enabled");
 
+    public final IntOption LookingAtTankDisplayLimit = new IntOption(this, "LookingAtTankDisplayLimit", 6,
+            "Maximum number of fluid or gas tank slots shown at once by The One Probe. Additional slots scroll vertically.", 1, Integer.MAX_VALUE);
+
     public final BooleanOption EmptyToCreateBin = new BooleanOption(this,  "EmptytoCreateBin", false, "Let Configurator clear Create Bin");
 
     public final BooleanOption EmptyToCreateGasTank = new BooleanOption(this,  "EmptyToCreateGasTank", false, "Let Configurator clear Create Gas Tank");

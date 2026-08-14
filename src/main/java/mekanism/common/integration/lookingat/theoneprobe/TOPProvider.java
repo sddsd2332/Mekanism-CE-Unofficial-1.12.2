@@ -8,6 +8,8 @@ import mekanism.common.block.BlockBounding;
 import mekanism.common.integration.lookingat.LookingAtHelper;
 import mekanism.common.integration.lookingat.LookingAtUtils;
 import mekanism.common.integration.lookingat.theoneprobe.TOPChemicalElement.GasElement;
+import mekanism.common.integration.lookingat.theoneprobe.TOPTankListElement.FluidListElement;
+import mekanism.common.integration.lookingat.theoneprobe.TOPTankListElement.GasListElement;
 import mekanism.common.util.WorldUtils;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.player.EntityPlayer;
@@ -28,6 +30,8 @@ public class TOPProvider implements Function<ITheOneProbe, Void>, IProbeInfoProv
     static int ENERGY_ELEMENT_ID;
     static int FLUID_ELEMENT_ID;
     static int GAS_ELEMENT_ID;
+    static int FLUID_LIST_ELEMENT_ID;
+    static int GAS_LIST_ELEMENT_ID;
 
     @Override
     public Void apply(ITheOneProbe probe) {
@@ -36,6 +40,8 @@ public class TOPProvider implements Function<ITheOneProbe, Void>, IProbeInfoProv
         ENERGY_ELEMENT_ID = probe.registerElementFactory(TOPEnergyElement::new);
         FLUID_ELEMENT_ID = probe.registerElementFactory(TOPFluidElement::new);
         GAS_ELEMENT_ID = probe.registerElementFactory(GasElement::new);
+        FLUID_LIST_ELEMENT_ID = probe.registerElementFactory(FluidListElement::new);
+        GAS_LIST_ELEMENT_ID = probe.registerElementFactory(GasListElement::new);
         //Grab the default view settings
         IProbeConfig probeConfig = probe.createProbeConfig();
         displayFluidTanks = () -> probeConfig.getTankMode() > 0;
@@ -103,6 +109,20 @@ public class TOPProvider implements Function<ITheOneProbe, Void>, IProbeInfoProv
         @Override
         public void addChemicalElement(GasStack stored, int capacity) {
             info.element(new GasElement(stored, capacity));
+        }
+
+        @Override
+        public void addFluidElements(FluidStack[] stored, int[] capacities, int maxDisplayed) {
+            if (stored.length > 0) {
+                info.element(new FluidListElement(stored, capacities, maxDisplayed));
+            }
+        }
+
+        @Override
+        public void addChemicalElements(GasStack[] stored, int[] capacities, int maxDisplayed) {
+            if (stored.length > 0) {
+                info.element(new GasListElement(stored, capacities, maxDisplayed));
+            }
         }
 
     }
