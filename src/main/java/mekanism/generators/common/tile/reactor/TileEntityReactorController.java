@@ -312,7 +312,8 @@ public class TileEntityReactorController extends TileEntityReactorBlock implemen
                 getReactor().setInjectionRate(tag.getInteger("injectionRate"));
             }
             getReactor().setBurning(tag.getBoolean("burning"));
-            getReactor().formed = formed;
+            // Structure members do not persist their reactor reference. Keep the restored reactor unformed so
+            // the normal server-side validation pass rebinds every block and refreshes adjacent connections.
             getReactor().updateTemperatures();
         }
         fuelTank.read(tag.getCompoundTag("fuelTank"));
