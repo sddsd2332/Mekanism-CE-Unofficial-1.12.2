@@ -171,7 +171,7 @@ public abstract class BlockMachine extends BlockMekanismContainer {
         tileEntity.redstone = world.getRedstonePowerFromNeighbors(pos) > 0;
 
         if (tileEntity instanceof TileEntityLogisticalSorter transporter) {
-            if (!transporter.hasInventory()) {
+            if (!transporter.hasConnectedInventory()) {
                 for (EnumFacing dir : EnumFacing.VALUES) {
                     TileEntity tile = Coord4D.get(transporter).offset(dir).getTileEntity(world);
                     if (InventoryUtils.isItemHandler(tile, dir)) {
@@ -314,7 +314,7 @@ public abstract class BlockMachine extends BlockMekanismContainer {
                         if (tileEntity != null) {
                             EnumFacing change = tileEntity.facing.rotateY();
                             if (tileEntity instanceof TileEntityLogisticalSorter sorter) {
-                                if (!sorter.hasInventory()) {
+                                if (!sorter.hasConnectedInventory()) {
                                     for (EnumFacing dir : EnumFacing.VALUES) {
                                         TileEntity tile = Coord4D.get(tileEntity).offset(dir).getTileEntity(world);
                                         if (InventoryUtils.isItemHandler(tile, dir)) {
@@ -474,7 +474,7 @@ public abstract class BlockMachine extends BlockMekanismContainer {
                 block.onNeighborChange(neighborBlock);
             }
             if (tileEntity instanceof TileEntityLogisticalSorter sorter) {
-                if (!sorter.hasInventory()) {
+                if (!sorter.hasConnectedInventory()) {
                     for (EnumFacing dir : EnumFacing.VALUES) {
                         TileEntity tile = Coord4D.get(tileEntity).offset(dir).getTileEntity(world);
                         if (InventoryUtils.isItemHandler(tile, dir)) {

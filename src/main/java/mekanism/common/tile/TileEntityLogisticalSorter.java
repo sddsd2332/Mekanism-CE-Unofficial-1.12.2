@@ -84,6 +84,12 @@ public class TileEntityLogisticalSorter extends TileEntityEffectsBlock implement
     }
 
     @Override
+    public boolean persistInventory() {
+        // The internal slot only exists so transporters can connect visually.
+        return false;
+    }
+
+    @Override
     public void onUpdateServer() {
         super.onUpdateServer();
         delayTicks = Math.max(0, delayTicks - 1);
@@ -358,7 +364,10 @@ public class TileEntityLogisticalSorter extends TileEntityEffectsBlock implement
         return InventoryUtils.canInsert(back, null, stack, facing.getOpposite(), true);
     }
 
-    public boolean hasInventory() {
+    public boolean hasConnectedInventory() {
+        if (world == null) {
+            return false;
+        }
         TileEntity tile = Coord4D.get(this).offset(facing.getOpposite()).getTileEntity(world);
         return TransporterUtils.isValidAcceptorOnSide(tile, facing.getOpposite());
     }
