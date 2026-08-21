@@ -298,6 +298,7 @@ public enum MekanismLang implements ILangEntry {
     ISSUE_REDSTONE_SIGNAL_ABSENT("gui", "issues.redstone_signal_absent"),
     ISSUE_REDSTONE_SIGNAL_PRESENT("gui", "issues.redstone_signal_present"),
     ISSUE_REDSTONE_PULSE_REQUIRED("gui", "issues.redstone_pulse_required"),
+    ISSUE_QIO_AUTOMATION_ERROR("gui", "issues.qio_automation_error"),
     //Laser Amplifier
     ENTITY_DETECTION("laser_amplifier", "entity_detection"),
     ENERGY_CONTENTS("laser_amplifier", "energy_contents"),

@@ -112,14 +112,7 @@ public final class SecurityUtils {
     }
 
     public static SecurityFrequency getFrequency(UUID uuid) {
-        if (uuid != null) {
-            for (SecurityFrequency frequency : Mekanism.securityFrequencies.getFrequencies()) {
-                if (frequency.ownerUUID.equals(uuid)) {
-                    return frequency;
-                }
-            }
-        }
-        return null;
+        return uuid == null ? null : Mekanism.securityFrequencies.getFrequency(uuid);
     }
 
     public static boolean isTrusted(SecurityMode mode, UUID owner, UUID subject) {

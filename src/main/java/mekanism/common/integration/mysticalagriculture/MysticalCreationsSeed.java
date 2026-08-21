@@ -3,9 +3,11 @@ package mekanism.common.integration.mysticalagriculture;
 import mekanism.common.MekanismFluids;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.recipe.RecipeHandler;
-import mekanism.common.recipe.inputs.AdvancedMachineInput;
+import mekanism.common.recipe.inputs.FarmInput;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraftforge.fluids.FluidRegistry;
+import net.minecraftforge.fluids.FluidStack;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -34,12 +36,12 @@ public class MysticalCreationsSeed {
             }
 
             if (RecipeHandler.Recipe.ORGANIC_FARM.containsRecipe(seedStack)) {
-                RecipeHandler.Recipe.ORGANIC_FARM.remove(RecipeHandler.Recipe.ORGANIC_FARM.get().get(new AdvancedMachineInput(seedStack, MekanismFluids.NutrientSolution)));
-                RecipeHandler.Recipe.ORGANIC_FARM.remove(RecipeHandler.Recipe.ORGANIC_FARM.get().get(new AdvancedMachineInput(seedStack, MekanismFluids.Water)));
+                RecipeHandler.Recipe.ORGANIC_FARM.remove(RecipeHandler.Recipe.ORGANIC_FARM.get().get(new FarmInput(seedStack, MekanismFluids.NutrientSolution)));
+                RecipeHandler.Recipe.ORGANIC_FARM.remove(RecipeHandler.Recipe.ORGANIC_FARM.get().get(new FarmInput(seedStack, new FluidStack(FluidRegistry.WATER, 1))));
             }
 
             RecipeHandler.addOrganicFarmRecipe(seedStack, MekanismFluids.NutrientSolution, new ItemStack(essenceStack.getItem(), clampAmount(tier * 10), essenceStack.getMetadata()), new ItemStack(seedStack.getItem(), 4, seedStack.getMetadata()), MekanismConfig.current().mekce.seed.val());
-            RecipeHandler.addOrganicFarmRecipe(seedStack, MekanismFluids.Water, new ItemStack(essenceStack.getItem(), clampAmount(tier * 5), essenceStack.getMetadata()), new ItemStack(seedStack.getItem(), 1, seedStack.getMetadata()), MekanismConfig.current().mekce.seed.val());
+            RecipeHandler.addOrganicFarmRecipe(seedStack, new FluidStack(FluidRegistry.WATER, 1), new ItemStack(essenceStack.getItem(), clampAmount(tier * 5), essenceStack.getMetadata()), new ItemStack(seedStack.getItem(), 1, seedStack.getMetadata()), MekanismConfig.current().mekce.seed.val());
         }
     }
 

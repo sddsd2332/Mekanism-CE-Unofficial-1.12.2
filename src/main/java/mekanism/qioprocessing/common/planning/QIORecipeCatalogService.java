@@ -1,29 +1,74 @@
 package mekanism.qioprocessing.common.planning;
 
 import mekanism.common.Mekanism;
+import mekanism.common.config.MekanismConfig;
+import mekanism.common.config.QIOProcessingConfig;
 import mekanism.qioprocessing.common.content.workbench.QIOWorkbenchConfiguration;
 import net.minecraft.world.World;
 import net.minecraftforge.fml.common.registry.ForgeRegistries;
+import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import net.minecraftforge.fml.common.gameevent.TickEvent;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Objects;
+import java.io.File;
+import java.io.IOException;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /** Server-lifecycle cache of frequency-local, manually encoded workbench snapshots. */
+/**
+ * QIO 处理模块中的 QIORecipeCatalogService 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIORecipeCatalogService {
 
     public static final QIORecipeCatalogService INSTANCE = new QIORecipeCatalogService();
-
     @Nullable
     private QIOWorkbenchRecipeCatalog.Snapshot snapshot;
     @Nullable
     private World world;
     @Nullable
     private QIOWorkbenchRecipeCatalog.RecipeOutputIndex recipeOutputIndex;
+    @Nullable
+    private QIOWorkbenchRecipeCatalog.RecipeOutputIndex.Capture capture;
+    @Nullable
+    private ExecutorService catalogWorkers;
+    @Nullable
+    private CompletableFuture<List<QIORecipeCatalogPersistence.Candidate>> cacheLoadFuture;
+    private List<QIORecipeCatalogPersistence.Candidate> cacheCandidates =
+          Collections.emptyList();
+    private int cacheCandidateIndex;
+    @Nullable
+    private QIORecipeCatalogPersistence.Candidate activeCacheCandidate;
+    @Nullable
+    private QIOWorkbenchRecipeCatalog.RecipeOutputIndex.CacheRestore cacheRestore;
+    @Nullable
+    private CompletableFuture<Boolean> cacheSaveFuture;
+    @Nullable
+    private QIORecipeCatalogPersistence.SaveToken cacheSaveToken;
+    private long captureStartedNanos;
+    private int catalogWorkerCount;
+    private boolean generationTrusted;
+    @Nullable
+    private String loadedCacheGenerationId;
+    @Nullable
+    private String loadedForgeSignature;
+    @Nullable
+    private UUID loadedDiskGeneration;
+    private boolean loadedCacheRequiresRepair;
     private long revision;
     private final Map<SnapshotKey, QIOWorkbenchRecipeCatalog.Snapshot> frequencySnapshots =
           new LinkedHashMap<>(64, 0.75F, true) {
@@ -37,49 +82,130 @@ public final class QIORecipeCatalogService {
     private QIORecipeCatalogService() {
     }
 
+    /**
+     * Starts a non-blocking server-lifecycle rebuild. Forge calls are captured in bounded server
+     * ticks; only frozen symbol and index data is handed to the configured catalog workers.
+     */
+    public synchronized void beginRefresh(@Nonnull World world) {
+        cancelBuild();
+        this.world = Objects.requireNonNull(world, "world");
+        snapshot = null;
+        recipeOutputIndex = QIOWorkbenchRecipeCatalog.RecipeOutputIndex.empty();
+        generationTrusted = false;
+        loadedCacheGenerationId = null;
+        loadedForgeSignature = null;
+        loadedDiskGeneration = null;
+        loadedCacheRequiresRepair = false;
+        frequencySnapshots.clear();
+        incrementRevision();
+        QIOProcessingConfig config = MekanismConfig.local().qioProcessing;
+        catalogWorkerCount = config.recipeCatalogWorkerThreads.val();
+        AtomicInteger workerNumber = new AtomicInteger();
+        catalogWorkers = Executors.newFixedThreadPool(catalogWorkerCount, runnable -> {
+            Thread thread = new Thread(runnable,
+                  "Mekanism-QIO-Recipe-Catalog-" + workerNumber.incrementAndGet());
+            thread.setDaemon(true);
+            return thread;
+        });
+        cacheSaveToken = new QIORecipeCatalogPersistence.SaveToken();
+        File worldDirectory = worldDirectory(world);
+        cacheLoadFuture = worldDirectory == null ? CompletableFuture.completedFuture(
+              Collections.emptyList()) : CompletableFuture.supplyAsync(() ->
+                    QIORecipeCatalogPersistence.loadCandidates(worldDirectory), catalogWorkers);
+        capture = QIOWorkbenchRecipeCatalog.RecipeOutputIndex.beginGlobalCapture(world,
+              ForgeRegistries.RECIPES.getValuesCollection(), loggingListener());
+        captureStartedNanos = System.nanoTime();
+        Mekanism.logger.info(
+              "Starting incremental global QIO workbench recipe capture; players may join while it builds");
+    }
+
     public synchronized void refresh(@Nonnull World world) {
+        cancelBuild();
         this.world = Objects.requireNonNull(world, "world");
         snapshot = null;
         recipeOutputIndex = null;
         frequencySnapshots.clear();
-        if (revision == Long.MAX_VALUE) {
-            throw new IllegalStateException("QIO recipe catalog revision exhausted");
-        }
-        revision++;
+        incrementRevision();
         Mekanism.logger.info("Starting global QIO workbench recipe scan");
         long startedNanos = System.nanoTime();
         recipeOutputIndex = QIOWorkbenchRecipeCatalog.RecipeOutputIndex.build(world,
               ForgeRegistries.RECIPES.getValuesCollection(),
-              new QIOWorkbenchRecipeCatalog.RecipeOutputIndex.BuildListener() {
-                  @Override
-                  public void scanComplete(int recipeCount) {
-                      Mekanism.logger.info(
-                            "Global QIO workbench recipe scan found {} recipes; preparing to cache them",
-                            recipeCount);
-                  }
-
-                  @Override
-                  public void cacheStarted(int recipeCount) {
-                      Mekanism.logger.info("Caching {} global QIO workbench recipes",
-                            recipeCount);
-                  }
-              });
+              loggingListener());
+        generationTrusted = true;
         String elapsedSeconds = String.format(Locale.ROOT, "%.3f",
               (System.nanoTime() - startedNanos) / 1_000_000_000D);
         Mekanism.logger.info("Successfully cached {} global QIO workbench recipes in {} seconds",
               recipeOutputIndex.getRecipeCount(), elapsedSeconds);
     }
 
+    @SubscribeEvent
+    public void onServerTick(TickEvent.ServerTickEvent event) {
+        if (event.phase != TickEvent.Phase.END) return;
+        advanceCapture();
+    }
+
+    /** Advances one bounded capture slice; package-visible for lifecycle tests. */
+    synchronized boolean advanceCapture() {
+        pollCacheLoad();
+        pollCacheSave();
+        if (capture == null) {
+            shutdownWorkersWhenIdle();
+            return false;
+        }
+        try {
+            QIOProcessingConfig config = MekanismConfig.local().qioProcessing;
+            int maximumCaptures = config.recipeCatalogCapturesPerTick.val();
+            long maximumNanos = TimeUnit.MILLISECONDS.toNanos(
+                  config.recipeCatalogCaptureTimePerTick.val());
+            // Cache decoding touches registries and ItemStack capabilities, so it stays on the
+            // server thread and owns this tick's bounded capture slice when active.
+            if (advanceCacheRestore(maximumCaptures, maximumNanos)) {
+                return false;
+            }
+            if (!capture.process(maximumCaptures, maximumNanos, catalogWorkers,
+                  catalogWorkerCount)) {
+                return false;
+            }
+            QIOWorkbenchRecipeCatalog.RecipeOutputIndex next = capture.finish();
+            String previousGeneration = recipeOutputIndex == null ? null :
+                  recipeOutputIndex.getGenerationId();
+            recipeOutputIndex = next;
+            capture = null;
+            generationTrusted = true;
+            frequencySnapshots.clear();
+            if (!next.getGenerationId().equals(previousGeneration)) {
+                incrementRevision();
+            }
+            scheduleCacheSave(next);
+            String elapsedSeconds = String.format(Locale.ROOT, "%.3f",
+                  (System.nanoTime() - captureStartedNanos) / 1_000_000_000D);
+            Mekanism.logger.info(
+                  "Published {} global QIO workbench recipes as one catalog generation in {} seconds",
+                  next.getRecipeCount(), elapsedSeconds);
+            return true;
+        } catch (RuntimeException error) {
+            Mekanism.logger.error("Unable to build the global QIO workbench recipe catalog",
+                  error);
+            cancelBuild();
+            recipeOutputIndex = null;
+            generationTrusted = false;
+            frequencySnapshots.clear();
+            return false;
+        }
+    }
+
+    public synchronized boolean isBuilding() {
+        return capture != null || cacheLoadFuture != null || cacheRestore != null;
+    }
+
     synchronized void observe(@Nonnull QIOWorkbenchRecipeCatalog.Snapshot next) {
         Objects.requireNonNull(next, "next");
         if (snapshot == null || !snapshot.getStructuralSignature().equals(
               next.getStructuralSignature())) {
-            if (revision == Long.MAX_VALUE) {
-                throw new IllegalStateException("QIO recipe catalog revision exhausted");
-            }
-            revision++;
+            incrementRevision();
         }
         snapshot = next;
+        generationTrusted = true;
     }
 
     @Nonnull
@@ -135,7 +261,12 @@ public final class QIORecipeCatalogService {
     }
 
     public synchronized boolean isInitialized() {
-        return snapshot != null || world != null;
+        return snapshot != null || recipeOutputIndex != null;
+    }
+
+    /** True only after the active generation has been atomically published. */
+    public synchronized boolean isReady() {
+        return isInitialized() && generationTrusted && capture == null;
     }
 
     /** Returns the parsed immutable directory built for the active server lifecycle. */
@@ -162,11 +293,207 @@ public final class QIORecipeCatalogService {
     }
 
     public synchronized void clear() {
+        cancelBuild();
         snapshot = null;
         world = null;
         recipeOutputIndex = null;
         frequencySnapshots.clear();
         revision = 0;
+        catalogWorkerCount = 0;
+        generationTrusted = false;
+        loadedCacheGenerationId = null;
+        loadedForgeSignature = null;
+        loadedDiskGeneration = null;
+        loadedCacheRequiresRepair = false;
+        cacheSaveToken = null;
+    }
+
+    private QIOWorkbenchRecipeCatalog.RecipeOutputIndex.BuildListener loggingListener() {
+        return new QIOWorkbenchRecipeCatalog.RecipeOutputIndex.BuildListener() {
+            @Override
+            public void scanComplete(int recipeCount) {
+                Mekanism.logger.info(
+                      "Global QIO workbench recipe scan found {} recipes; preparing numeric tables",
+                      recipeCount);
+            }
+
+            @Override
+            public void cacheStarted(int recipeCount) {
+                Mekanism.logger.info("Caching {} global QIO workbench recipes",
+                      recipeCount);
+            }
+        };
+    }
+
+    private void incrementRevision() {
+        if (revision == Long.MAX_VALUE) {
+            throw new IllegalStateException("QIO recipe catalog revision exhausted");
+        }
+        revision++;
+    }
+
+    private void cancelBuild() {
+        if (cacheSaveToken != null) {
+            cacheSaveToken.invalidate();
+            cacheSaveToken = null;
+        }
+        if (cacheLoadFuture != null) {
+            cacheLoadFuture.cancel(true);
+            cacheLoadFuture = null;
+        }
+        if (cacheSaveFuture != null) {
+            cacheSaveFuture.cancel(true);
+            cacheSaveFuture = null;
+        }
+        if (cacheRestore != null) {
+            cacheRestore.cancel();
+            cacheRestore = null;
+        }
+        activeCacheCandidate = null;
+        cacheCandidates = Collections.emptyList();
+        cacheCandidateIndex = 0;
+        if (capture != null) {
+            capture.cancel();
+            capture = null;
+        }
+        shutdownWorkers();
+    }
+
+    private void pollCacheLoad() {
+        CompletableFuture<List<QIORecipeCatalogPersistence.Candidate>> pending =
+              cacheLoadFuture;
+        if (pending == null || !pending.isDone()) return;
+        cacheLoadFuture = null;
+        if (capture == null) return;
+        List<QIORecipeCatalogPersistence.Candidate> candidates;
+        try {
+            candidates = pending.join();
+        } catch (RuntimeException error) {
+            Mekanism.logger.warn("Unable to load the QIO recipe catalog cache", error);
+            candidates = Collections.emptyList();
+        }
+        cacheCandidates = candidates;
+        cacheCandidateIndex = 0;
+        beginNextCacheRestore();
+    }
+
+    private boolean advanceCacheRestore(int maximumRecords, long maximumNanos) {
+        QIOWorkbenchRecipeCatalog.RecipeOutputIndex.CacheRestore active = cacheRestore;
+        if (active == null) return false;
+        try {
+            if (!active.process(maximumRecords, maximumNanos, catalogWorkers,
+                  catalogWorkerCount)) {
+                return true;
+            }
+            QIOWorkbenchRecipeCatalog.RecipeOutputIndex restored = active.finish();
+            QIORecipeCatalogPersistence.Candidate candidate =
+                  Objects.requireNonNull(activeCacheCandidate, "active cache candidate");
+            recipeOutputIndex = restored;
+            loadedCacheGenerationId = restored.getGenerationId();
+            loadedForgeSignature = candidate.cache.forgeData.structuralSignature;
+            loadedDiskGeneration = candidate.diskGeneration;
+            loadedCacheRequiresRepair = candidate.manifestRepairRequired;
+            frequencySnapshots.clear();
+            incrementRevision();
+            cacheRestore = null;
+            activeCacheCandidate = null;
+            cacheCandidates = Collections.emptyList();
+            cacheCandidateIndex = 0;
+            Mekanism.logger.info(
+                  "Incrementally loaded {} cached QIO workbench recipes; validating Forge data in the background",
+                  restored.getRecipeCount());
+            return true;
+        } catch (RuntimeException error) {
+            Mekanism.logger.warn("Ignoring an incompatible QIO recipe catalog generation",
+                  error);
+            active.cancel();
+            cacheRestore = null;
+            activeCacheCandidate = null;
+            beginNextCacheRestore();
+            return true;
+        }
+    }
+
+    private void beginNextCacheRestore() {
+        while (capture != null && cacheCandidateIndex < cacheCandidates.size()) {
+            QIORecipeCatalogPersistence.Candidate candidate =
+                  cacheCandidates.get(cacheCandidateIndex++);
+            try {
+                activeCacheCandidate = candidate;
+                cacheRestore = QIOWorkbenchRecipeCatalog.RecipeOutputIndex
+                      .beginCacheRestore(candidate.cache);
+                return;
+            } catch (RuntimeException error) {
+                Mekanism.logger.warn("Ignoring an incompatible QIO recipe catalog generation",
+                      error);
+            }
+        }
+        activeCacheCandidate = null;
+        cacheRestore = null;
+        cacheCandidates = Collections.emptyList();
+        cacheCandidateIndex = 0;
+    }
+
+    private void scheduleCacheSave(QIOWorkbenchRecipeCatalog.RecipeOutputIndex next) {
+        ExecutorService workers = catalogWorkers;
+        World activeWorld = world;
+        if (workers == null || activeWorld == null) return;
+        boolean unchanged = next.getGenerationId().equals(loadedCacheGenerationId) &&
+              next.getForgeSignature().equals(loadedForgeSignature) &&
+              !loadedCacheRequiresRepair;
+        if (unchanged) return;
+        File worldDirectory = worldDirectory(activeWorld);
+        if (worldDirectory == null) return;
+        QIORecipeCatalogPersistence.SaveToken token = cacheSaveToken;
+        if (token == null) return;
+        UUID retainedGeneration = loadedDiskGeneration;
+        cacheSaveFuture = CompletableFuture.supplyAsync(() -> {
+            try {
+                return QIORecipeCatalogPersistence.save(worldDirectory, next.writeCache(),
+                      retainedGeneration, token);
+            } catch (IOException error) {
+                throw new java.util.concurrent.CompletionException(error);
+            }
+        }, workers);
+    }
+
+    private void pollCacheSave() {
+        CompletableFuture<Boolean> pending = cacheSaveFuture;
+        if (pending == null || !pending.isDone()) return;
+        cacheSaveFuture = null;
+        try {
+            if (pending.join()) {
+                Mekanism.logger.info("Persisted the validated QIO recipe catalog generation");
+            }
+        } catch (RuntimeException error) {
+            Mekanism.logger.warn("Unable to persist the QIO recipe catalog generation", error);
+        }
+    }
+
+    private void shutdownWorkersWhenIdle() {
+        if (capture == null && cacheLoadFuture == null && cacheRestore == null &&
+            cacheSaveFuture == null) {
+            shutdownWorkers();
+        }
+    }
+
+    @Nullable
+    private static File worldDirectory(World world) {
+        try {
+            return world.getSaveHandler().getWorldDirectory();
+        } catch (RuntimeException error) {
+            Mekanism.logger.debug(
+                  "QIO recipe catalog persistence is unavailable for this server world", error);
+            return null;
+        }
+    }
+
+    private void shutdownWorkers() {
+        if (catalogWorkers != null) {
+            catalogWorkers.shutdownNow();
+            catalogWorkers = null;
+        }
+        catalogWorkerCount = 0;
     }
 
     /** Atomically pairs a catalog snapshot with the revision that describes it. */

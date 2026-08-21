@@ -207,10 +207,16 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
     }
 
     @Override
-    public void addTileSyncTask() {
-        this.gasSpeedController.ensureSize(1, () -> Collections.singletonList(new TankProvider.Gas(outputTank)));
+    protected void onUpdateServerPreComponents() {
+        super.onUpdateServerPreComponents();
+        gasSpeedController.ensureSize(1,
+              () -> Collections.singletonList(new TankProvider.Gas(outputTank)));
         handleTank(outputTank, getRightTankSide(), facing);
         handleTank(outputTank, getRightTankSide(), MekanismUtils.getRight(facing));
+    }
+
+    @Override
+    public void addTileSyncTask() {
         int newRedstoneLevel = getRedstoneLevel();
         if (newRedstoneLevel != currentRedstoneLevel) {
             updateComparatorOutputLevelSync();
@@ -235,7 +241,7 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
 
     private void ejectGas(Set<EnumFacing> outputSides, BasicGasTank tank, EjectSpeedController speedController, TileEntity tile) {
         speedController.record(0);
-        if (tank.getGas() == null || tank.getStored() <= 0 || tank.getGas().getGas() == null) {
+        if (isContainerExtractionGuarded(tank) || tank.getGas() == null || tank.getStored() <= 0 || tank.getGas().getGas() == null) {
             return;
         }
         if (!speedController.canEject(0)) {

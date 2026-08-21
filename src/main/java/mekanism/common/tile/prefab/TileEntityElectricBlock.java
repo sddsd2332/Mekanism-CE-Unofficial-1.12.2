@@ -48,6 +48,22 @@ import java.util.Collections;
 
 public abstract class TileEntityElectricBlock extends TileEntityContainerBlock implements IEnergyWrapper {
 
+    private static final ClassValue<Boolean> HAS_TILE_SYNC_TASK = new ClassValue<Boolean>() {
+        @Override
+        protected Boolean computeValue(Class<?> type) {
+            Class<?> current = type;
+            while (current != null && TileEntityElectricBlock.class.isAssignableFrom(current)) {
+                try {
+                    current.getDeclaredMethod("addTileSyncTask");
+                    return current != TileEntityElectricBlock.class;
+                } catch (NoSuchMethodException ignored) {
+                    current = current.getSuperclass();
+                }
+            }
+            return false;
+        }
+    };
+
     /**
      * How much energy is stored in this block.
      */
@@ -153,7 +169,13 @@ public abstract class TileEntityElectricBlock extends TileEntityContainerBlock i
     @Override
     public void onAsyncUpdateServer(){
         super.onAsyncUpdateServer();
-        Mekanism.EXECUTE_MANAGER.addSyncTask(this::addTileSyncTask);
+        if (hasTileSyncTask()) {
+            Mekanism.EXECUTE_MANAGER.addSyncTask(this::addTileSyncTask);
+        }
+    }
+
+    protected boolean hasTileSyncTask() {
+        return HAS_TILE_SYNC_TASK.get(getClass());
     }
 
 

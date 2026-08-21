@@ -32,7 +32,12 @@ public class RenderFluidTankItem {
 
     private static FluidRenderMap<DisplayInteger[]> cachedCenterFluids = new FluidRenderMap<>();
 
-    private static int stages = 1400;
+    private static final int stages = 64;
+
+    public static void resetDisplayInts() {
+        cachedCenterFluids.values().forEach(DisplayInteger::deleteAll);
+        cachedCenterFluids.clear();
+    }
 
     public static void renderStack(@Nonnull ItemStack stack, TransformType transformType) {
         ItemBlockMachine itemMachine = (ItemBlockMachine) stack.getItem();

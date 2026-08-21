@@ -250,6 +250,58 @@ public final class InputHelper {
         };
     }
 
+    public static IInputHandler<FluidStack, FluidStack> getConstantFluidInputHandler(IExtendedFluidTank tank, RecipeError notEnoughError,
+          boolean resetOnNotEnough) {
+        return getConstantFluidInputHandler(tank, notEnoughError, resetOnNotEnough, () -> true);
+    }
+
+    public static IInputHandler<FluidStack, FluidStack> getConstantFluidInputHandler(IExtendedFluidTank tank, RecipeError notEnoughError,
+          boolean resetOnNotEnough, BooleanSupplier deplete) {
+        return new IInputHandler<>() {
+
+            @Override
+            public FluidStack getInput() {
+                FluidStack stack = tank.getFluid();
+                return stack == null ? null : stack.copy();
+            }
+
+            @Override
+            public FluidStack getRecipeInput(FluidStack recipeIngredient) {
+                FluidStack stack = tank.getFluid();
+                if (stack == null || recipeIngredient == null || !stack.isFluidEqual(recipeIngredient)) {
+                    return null;
+                }
+                return recipeIngredient.copy();
+            }
+
+            @Override
+            public void use(FluidStack recipeInput, int operations) {
+                if (deplete.getAsBoolean() && recipeInput != null && recipeInput.amount > 0 && operations > 0) {
+                    tank.extract(recipeInput.amount * operations, Action.EXECUTE, AutomationType.INTERNAL);
+                }
+            }
+
+            @Override
+            public void calculateOperationsCanSupport(OperationTracker tracker, FluidStack recipeInput, int usageMultiplier) {
+                if (usageMultiplier <= 0) {
+                    return;
+                }
+                if (recipeInput != null && recipeInput.amount > 0) {
+                    int amount = recipeInput.amount * usageMultiplier;
+                    if (tank.getFluidAmount() >= amount) {
+                        tracker.updateOperations(tank.getFluidAmount() / amount);
+                        return;
+                    }
+                }
+                if (resetOnNotEnough) {
+                    tracker.resetProgress(notEnoughError);
+                } else {
+                    tracker.updateOperations(0);
+                }
+            }
+        };
+    }
+
     public static IInputHandler<InfuseStorage, InfuseStorage> getInfuseInputHandler(InfuseStorage storage, RecipeError notEnoughError) {
         return getInfuseInputHandler(storage, notEnoughError, () -> true);
     }

@@ -5,6 +5,8 @@ import mekanism.common.Mekanism;
 import mekanism.common.Version;
 import mekanism.common.base.IModule;
 import mekanism.common.config.MekanismConfig;
+import mekanism.common.tile.prefab.TileEntityBasicBlock;
+import mekanism.common.tile.prefab.TileEntityContainerBlock;
 import mekanism.qioprocessing.api.processor.QIOCraftingProcessorRegistry;
 import mekanism.qioprocessing.api.processor.QIOCraftingProcessorHostRegistry;
 import mekanism.qioprocessing.common.content.QIOProcessingNetworkManager;
@@ -19,7 +21,8 @@ import mekanism.qioprocessing.common.machine.QIOAutomationDeviceRegistry;
 import mekanism.qioprocessing.common.machine.QIOAutomationEventHandler;
 import mekanism.qioprocessing.common.machine.QIOAutomationRecipeConfigService;
 import mekanism.qioprocessing.common.machine.QIOAutomationRecipeConfigCardData;
-import mekanism.qioprocessing.common.machine.QIOAutomaticOutputService;
+import mekanism.qioprocessing.common.machine.QIOAutomationTileTickService;
+import mekanism.qioprocessing.common.machine.QIOAutomationPortGuard;
 import mekanism.qioprocessing.common.machine.QIOAutomationContainerState;
 import mekanism.qioprocessing.common.network.QIOProcessingPacketHandler;
 import mekanism.qioprocessing.common.registries.QIOProcessingItems;
@@ -61,6 +64,12 @@ import net.minecraftforge.fml.common.network.NetworkRegistry;
             @Mod.CustomProperty(k = "iconFile", v = "assets/mekanism/icon.png")
       })
 @Mod.EventBusSubscriber(modid = MekanismQIOProcessing.MODID)
+/**
+ * QIO 处理模块中的 MekanismQIOProcessing 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public class MekanismQIOProcessing implements IModule {
 
     public static final String MODID = "mekanismqioprocessing";
@@ -73,7 +82,7 @@ public class MekanismQIOProcessing implements IModule {
     public static MekanismQIOProcessing instance;
 
     public static  CreativeTabQIOProcessing TAB = new CreativeTabQIOProcessing();
-    public static Version versionNumber = new Version(999, 999, 999);
+    public static Version versionNumber = Version.get(mekanism.mekanism.Tags.VERSION);
 
     @SubscribeEvent
     public static void registerBlocks(RegistryEvent.Register<Block> event) {
@@ -97,6 +106,10 @@ public class MekanismQIOProcessing implements IModule {
         proxy.preInit();
         QIOProcessingWindowTypes.bootstrap();
         QIOAutomationCapabilities.register();
+        TileEntityContainerBlock.setContentsChangedListener(QIOAutomationDeviceRegistry.INSTANCE::notifyContentsChanged);
+        TileEntityContainerBlock.setContainerExtractionGuard(QIOAutomationPortGuard::isExtractionBlocked);
+        TileEntityBasicBlock.setServerPreComponentTickListener(
+              QIOAutomationTileTickService.INSTANCE::tick);
         QIOProcessingPacketHandler.INSTANCE.initialize();
         QIOAutomationEventHandler.INSTANCE.register();
         QIOAutomationContainerState.registerContainerExtension();
@@ -116,9 +129,9 @@ public class MekanismQIOProcessing implements IModule {
         Mekanism.modulesLoaded.add(this);
         QIOFrequencyLifecycleRegistry.register(QIOProcessingFrequencyLifecycle.INSTANCE);
         MinecraftForge.EVENT_BUS.register(QIOPlanningService.INSTANCE);
+        MinecraftForge.EVENT_BUS.register(QIORecipeCatalogService.INSTANCE);
         MinecraftForge.EVENT_BUS.register(QIOWorkbenchClosureService.INSTANCE);
         MinecraftForge.EVENT_BUS.register(QIOProcessingNetworkService.INSTANCE);
-        MinecraftForge.EVENT_BUS.register(QIOAutomaticOutputService.INSTANCE);
         MinecraftForge.EVENT_BUS.register(QIOCraftingProcessorDeviceRegistry.INSTANCE);
         MinecraftForge.EVENT_BUS.register(this);
         proxy.registerClientHandlers();
@@ -132,7 +145,7 @@ public class MekanismQIOProcessing implements IModule {
 
     @Mod.EventHandler
     public void serverStarted(FMLServerStartedEvent event) {
-        QIORecipeCatalogService.INSTANCE.refresh(DimensionManager.getWorld(0));
+        QIORecipeCatalogService.INSTANCE.beginRefresh(DimensionManager.getWorld(0));
     }
 
     @Mod.EventHandler

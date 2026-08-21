@@ -27,9 +27,11 @@ public class RenderFluidTank extends TileEntitySpecialRenderer<TileEntityFluidTa
     private static FluidRenderMap<DisplayInteger[]> cachedCenterFluids = new FluidRenderMap<>();
     private static FluidRenderMap<DisplayInteger[]> cachedValveFluids = new FluidRenderMap<>();
 
-    private static int stages = 1400;
+    private static final int stages = 64;
 
     public static void resetDisplayInts() {
+        cachedCenterFluids.values().forEach(DisplayInteger::deleteAll);
+        cachedValveFluids.values().forEach(DisplayInteger::deleteAll);
         cachedCenterFluids.clear();
         cachedValveFluids.clear();
     }

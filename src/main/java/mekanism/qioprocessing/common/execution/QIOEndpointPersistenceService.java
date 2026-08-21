@@ -31,6 +31,12 @@ import java.util.UUID;
  * Requests are grouped by chunk and acknowledged only after the asynchronous chunk writer has
  * consumed the captured snapshot.
  */
+/**
+ * QIO 处理模块中的 QIOEndpointPersistenceService 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOEndpointPersistenceService {
 
     public static final QIOEndpointPersistenceService INSTANCE =
@@ -50,6 +56,7 @@ public final class QIOEndpointPersistenceService {
     private QIOEndpointPersistenceService() {
     }
 
+    /** 请求在处理器端点快照中持久化一个已完成操作。 */
     public synchronized void requestProcessor(@Nonnull QIOCraftingProcessor processor,
           @Nonnull UUID operationId) {
         UUID checked = Objects.requireNonNull(operationId, "operationId");
@@ -64,6 +71,7 @@ public final class QIOEndpointPersistenceService {
         endpoint.operationIds.add(checked);
     }
 
+    /** 请求在机器主机端点快照中持久化一个已完成操作。 */
     public synchronized void requestAutomationHost(@Nonnull TileEntity tile,
           @Nonnull DefaultQIOAutomationHost host, @Nonnull UUID operationId) {
         UUID checked = Objects.requireNonNull(operationId, "operationId");
@@ -78,6 +86,7 @@ public final class QIOEndpointPersistenceService {
         endpoint.operationIds.add(checked);
     }
 
+    /** 请求在端点快照中持久化一条传输回执。 */
     public synchronized void requestAutomationHostReceipt(@Nonnull TileEntity tile,
           @Nonnull QIOAutomationHost host, @Nonnull UUID operationId,
           @Nonnull UUID receiptId) {
@@ -95,10 +104,7 @@ public final class QIOEndpointPersistenceService {
               .add(checkedReceipt);
     }
 
-    /**
-     * Queues one snapshot per affected chunk and acknowledges only snapshots whose queued write
-     * has finished. The file write itself remains on Minecraft's low-priority IO thread.
-     */
+    /** 按区块合并待写快照，并只确认实际完成写入的快照。 */
     public void flushPending() {
         List<PendingEndpoint> batch;
         synchronized (this) {
@@ -149,6 +155,7 @@ public final class QIOEndpointPersistenceService {
         }
     }
 
+    /** 丢弃指定世界的待写快照，避免卸载世界后访问失效端点。 */
     public synchronized void discardWorld(@Nonnull World world) {
         pending.entrySet().removeIf(entry -> entry.getKey().getWorld() == world);
         writes.values().forEach(value -> value.entrySet().removeIf(entry -> {
@@ -162,6 +169,7 @@ public final class QIOEndpointPersistenceService {
         }
     }
 
+    /** 清空所有待写端点和区块生成记录。 */
     public synchronized void clear() {
         pending.clear();
         writes.clear();

@@ -16,6 +16,12 @@ import org.lwjgl.input.Mouse;
 import javax.annotation.Nullable;
 
 /** Shift-click import from JEI's item and bookmark overlays into the batch target list. */
+/**
+ * QIO 处理模块中的 QIOWorkbenchJEIInputHandler 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOWorkbenchJEIInputHandler {
 
     private static final QIOWorkbenchJEIInputHandler INSTANCE =

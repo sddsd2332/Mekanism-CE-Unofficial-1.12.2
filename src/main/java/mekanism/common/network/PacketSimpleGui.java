@@ -44,6 +44,10 @@ public class PacketSimpleGui implements IMessageHandler<SimpleGuiMessage, IMessa
                     if (message.guiId == -1 || !hasGuiHandler(message.guiHandler)) {
                         return;
                     }
+                    IGuiProvider guiProvider = handlers.get(message.guiHandler);
+                    if (!guiProvider.isValidServerGui(message.guiId, tile)) {
+                        return;
+                    }
                     SimpleGuiMessage.openServerGui(message.guiHandler, message.guiId, (EntityPlayerMP) player, worldServer, message.coord4D);
                 }
             } else {

@@ -2,6 +2,7 @@ package mekanism.common.base;
 
 import io.netty.buffer.ByteBuf;
 import mekanism.api.TileNetworkList;
+import net.minecraft.entity.player.EntityPlayer;
 
 /**
  * Internal interface used for blocks that send data between clients and the server
@@ -9,6 +10,13 @@ import mekanism.api.TileNetworkList;
  * @author AidanBrady
  */
 public interface ITileNetwork {
+
+    /**
+     * Checks whether a client may send mutation data to this tile.
+     */
+    default boolean canHandlePacket(EntityPlayer player) {
+        return true;
+    }
 
     /**
      * Receive and manage a packet's data.

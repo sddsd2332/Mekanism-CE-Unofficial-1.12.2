@@ -25,11 +25,18 @@ import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
 import java.io.IOException;
 import java.util.UUID;
 
+/**
+ * QIO 处理模块中的 PacketQIOCraftingMonitorMutation 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class PacketQIOCraftingMonitorMutation implements
       IMessageHandler<PacketQIOCraftingMonitorMutation.Message, IMessage> {
 
     public enum Action {
-        PRIORITY
+        PRIORITY,
+        REDISPATCH
     }
 
     public enum Status {
@@ -68,12 +75,18 @@ public final class PacketQIOCraftingMonitorMutation implements
         if (network == null) return;
         Status status;
         try {
-            QIOCraftingMonitorService.MutationStatus updated =
-                  QIOCraftingMonitorService.updatePriority(session, network,
-                        session.getAccessRevision(), message.jobId,
-                        message.expectedRuntimeRevision, message.value);
+            QIOCraftingMonitorService.MutationStatus updated = switch (message.action) {
+                case PRIORITY -> QIOCraftingMonitorService.updatePriority(session, network,
+                      session.getAccessRevision(), message.jobId,
+                      message.expectedRuntimeRevision, message.value);
+                case REDISPATCH -> QIOCraftingMonitorService.redispatchAfterForcedRecovery(
+                      session, network, session.getAccessRevision(), message.jobId,
+                      message.expectedRuntimeRevision);
+            };
             status = switch (updated) {
-                case ACCEPTED -> persistPriority(network, session, message.jobId);
+                case ACCEPTED -> message.action == Action.PRIORITY ?
+                      persistPriority(network, session, message.jobId) :
+                      persistRedispatch(network);
                 case UNCHANGED -> Status.UNCHANGED;
                 case REVISION_CONFLICT -> Status.REVISION_CONFLICT;
                 case INVALID_STATE -> Status.INVALID_STATE;
@@ -111,6 +124,15 @@ public final class PacketQIOCraftingMonitorMutation implements
                     }
                 }
             }
+            return Status.ACCEPTED;
+        } catch (IOException | RuntimeException e) {
+            return Status.PERSISTENCE_ERROR;
+        }
+    }
+
+    private static Status persistRedispatch(QIOProcessingNetworkData network) {
+        try {
+            QIOProcessingNetworkManager.INSTANCE.persistenceBarrier().persist(network);
             return Status.ACCEPTED;
         } catch (IOException | RuntimeException e) {
             return Status.PERSISTENCE_ERROR;

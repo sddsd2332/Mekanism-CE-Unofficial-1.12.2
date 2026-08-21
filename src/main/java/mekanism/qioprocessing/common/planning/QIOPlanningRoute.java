@@ -25,6 +25,12 @@ import java.util.Map;
 import java.util.Objects;
 
 /** Pure-data, exact resource projection of one schedulable recipe route. */
+/**
+ * QIO 处理模块中的 QIOPlanningRoute 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOPlanningRoute {
 
     private static final int SCHEMA_VERSION = 3;
@@ -87,6 +93,7 @@ public final class QIOPlanningRoute {
     }
 
     @Nonnull
+    /** 创建路线构建器。 */
     public static Builder builder(@Nonnull ProviderKind providerKind,
           @Nonnull ResourceLocation providerId, @Nonnull String routeId,
           @Nonnull String recipeKey) {
@@ -94,6 +101,7 @@ public final class QIOPlanningRoute {
     }
 
     @Nonnull
+    /** 将机器 API 路线转换为规划路线。 */
     public static QIOPlanningRoute fromMachineRoute(@Nonnull ResourceLocation providerId,
           @Nonnull MachineRecipeRoute route, long routePriority) {
         Objects.requireNonNull(route, "route");
@@ -115,84 +123,101 @@ public final class QIOPlanningRoute {
     }
 
     @Nonnull
+    /** 返回 Provider 类型。 */
     public ProviderKind getProviderKind() {
         return providerKind;
     }
 
     @Nonnull
+    /** 返回 Provider 注册标识。 */
     public String getProviderId() {
         return providerId;
     }
 
     @Nonnull
+    /** 返回路线标识。 */
     public String getRouteId() {
         return routeId;
     }
 
     @Nonnull
+    /** 返回配方键。 */
     public String getRecipeKey() {
         return recipeKey;
     }
 
     @Nonnull
+    /** 返回变体标识。 */
     public String getVariantId() {
         return variantId;
     }
 
     @Nonnull
+    /** 返回逻辑路线标识。 */
     public String getLogicalId() {
         return logicalId;
     }
 
     @Nonnull
+    /** 返回稳定路线标识。 */
     public String getStableId() {
         return stableId;
     }
 
+    /** 返回路线优先级。 */
     public long getRoutePriority() {
         return routePriority;
     }
 
     /** Runtime preference among exact variants of the same logical recipe. */
+    /** 返回变体优先级。 */
     public long getVariantPriority() {
         return variantPriority;
     }
 
     @Nonnull
+    /** 返回精确输入映射。 */
     public Map<PortableResourceDescriptor, Long> getExactInputs() {
         return exactInputs;
     }
 
     @Nonnull
+    /** 返回配置输入映射。 */
     public Map<PortableResourceDescriptor, Long> getConfigurationInputs() {
         return configurationInputs;
     }
 
     @Nonnull
+    /** 返回保证输出映射。 */
     public Map<PortableResourceDescriptor, Long> getGuaranteedOutputs() {
         return guaranteedOutputs;
     }
 
     @Nonnull
+    /** 返回可选输出映射。 */
     public Map<PortableResourceDescriptor, Long> getOptionalOutputs() {
         return optionalOutputs;
     }
 
     @Nonnull
+    /** 返回候选输入组。 */
     public List<QIOCandidateInputGroup> getCandidateInputs() {
         return candidateInputs;
     }
 
     @Nonnull
+    /** 返回由路线内容计算的稳定签名。 */
     public String getSignature() {
         return signature;
     }
 
+    /** 查询某资源的保证输出数量。 */
     public long getGuaranteedOutputAmount(PortableResourceDescriptor resource) {
         return guaranteedOutputs.getOrDefault(resource, 0L);
     }
 
     @Nonnull
+    /** 返回仅替换路线优先级的新路线。 */
     public QIOPlanningRoute withPriority(long priority) {
         if (priority == routePriority) {
             return this;
@@ -201,6 +226,7 @@ public final class QIOPlanningRoute {
     }
 
     @Nonnull
+    /** 返回仅替换变体优先级的新路线。 */
     public QIOPlanningRoute withVariantPriority(long priority) {
         if (priority == variantPriority) {
             return this;
@@ -209,6 +235,7 @@ public final class QIOPlanningRoute {
     }
 
     @Nonnull
+    /** 将路线和所有资源数量写入 NBT。 */
     public NBTTagCompound write() {
         NBTTagCompound data = new NBTTagCompound();
         data.setInteger("planningRouteSchemaVersion", SCHEMA_VERSION);
@@ -230,6 +257,7 @@ public final class QIOPlanningRoute {
     }
 
     @Nonnull
+    /** 从 NBT 读取并校验路线签名。 */
     public static QIOPlanningRoute read(@Nonnull NBTTagCompound data)
           throws QIOProcessingDataException {
         try {

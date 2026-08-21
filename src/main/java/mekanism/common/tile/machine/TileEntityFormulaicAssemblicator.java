@@ -212,8 +212,8 @@ public class TileEntityFormulaicAssemblicator extends TileEntityElectricBlock im
     }
 
     @Override
-    public void onAsyncUpdateServer() {
-        super.onAsyncUpdateServer();
+    protected void onUpdateServer() {
+        super.onUpdateServer();
         if (formula != null && stockControl && needsOrganize) {
             buildStockControlMap();
             organizeStock();
@@ -256,6 +256,11 @@ public class TileEntityFormulaicAssemblicator extends TileEntityElectricBlock im
             operatingTicks = 0;
         }
         this.usedEnergy = usedEnergy;
+    }
+
+    @Override
+    public boolean supportsAsync() {
+        return false;
     }
 
     private void checkFormula() {

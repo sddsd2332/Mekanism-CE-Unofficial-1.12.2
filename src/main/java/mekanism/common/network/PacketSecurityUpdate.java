@@ -18,6 +18,8 @@ import java.util.UUID;
 
 public class PacketSecurityUpdate implements IMessageHandler<SecurityUpdateMessage, IMessage> {
 
+    private static final int MAX_SECURITY_ENTRIES = 65_536;
+
     @Override
     public IMessage onMessage(SecurityUpdateMessage message, MessageContext context) {
         if (message.packetType == SecurityPacket.UPDATE) {
@@ -87,8 +89,11 @@ public class PacketSecurityUpdate implements IMessageHandler<SecurityUpdateMessa
                 }
                 MekanismClient.clientUUIDMap.put(playerUUID, playerUsername);
             } else if (packetType == SecurityPacket.FULL) {
-                MekanismClient.clientSecurityMap.clear();
                 int amount = dataStream.readInt();
+                if (amount < 0 || amount > MAX_SECURITY_ENTRIES) {
+                    throw new IllegalArgumentException("Invalid security entry count: " + amount);
+                }
+                MekanismClient.clientSecurityMap.clear();
                 for (int i = 0; i < amount; i++) {
                     UUID uuid = UUID.fromString(PacketHandler.readString(dataStream));
                     String username = PacketHandler.readString(dataStream);

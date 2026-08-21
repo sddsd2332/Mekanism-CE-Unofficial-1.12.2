@@ -37,6 +37,12 @@ import java.util.Objects;
 import java.util.UUID;
 
 /** Server-side authorization, paging, and CAS mutation for QIO machine recipe profiles. */
+/**
+ * QIO 处理模块中的 QIOAutomationRecipeConfigService 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOAutomationRecipeConfigService {
 
     public static final int MAX_QUERY_LENGTH = 64;
@@ -78,8 +84,7 @@ public final class QIOAutomationRecipeConfigService {
               null);
         if (host == null || host.getEnabledMode() != type.getMode() ||
             host.getState() == QIOAutomationHost.State.DRAINING_CHANGE ||
-            host.getState() == QIOAutomationHost.State.IDENTITY_CONFLICT ||
-            host.getState() == QIOAutomationHost.State.DATA_ERROR) {
+            host.getState() == QIOAutomationHost.State.IDENTITY_CONFLICT) {
             return null;
         }
         QIOFrequencyReference reference = host.getFrequencyReference();

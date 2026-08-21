@@ -16,6 +16,12 @@ import java.util.Set;
 import java.util.UUID;
 
 /** Persistent identity and transfer receipt set for one real machine operation. */
+/**
+ * QIO 处理模块中的 MachineOperationToken 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class MachineOperationToken {
 
     public static final int MAX_TRANSFER_RECEIPTS = 512;
@@ -85,6 +91,7 @@ public final class MachineOperationToken {
         this.transferReceipts = copyReceipts(transferReceipts);
     }
 
+    /** 创建一个计划合成操作 token。参数必须与对应租约和计划版本一致。 */
     @Nonnull
     public static MachineOperationToken job(@Nonnull UUID operationId, @Nonnull UUID leaseId, @Nonnull UUID jobId,
           long planRevision, @Nonnull String routeId, @Nonnull String recipeKey, long laneId) {
@@ -92,6 +99,7 @@ public final class MachineOperationToken {
               laneId, State.ALLOCATED, Collections.emptySet());
     }
 
+    /** 创建一个被动处理操作 token。 */
     @Nonnull
     public static MachineOperationToken passive(@Nonnull UUID operationId, @Nonnull UUID leaseId,
           @Nonnull String routeId, @Nonnull String recipeKey, long laneId) {
@@ -99,64 +107,83 @@ public final class MachineOperationToken {
               laneId, State.ALLOCATED, Collections.emptySet());
     }
 
+    /** 创建一个自动输出排空 token。 */
     @Nonnull
     public static MachineOperationToken outputDrain(@Nonnull UUID operationId, @Nonnull UUID leaseId, long laneId) {
         return new MachineOperationToken(operationId, leaseId, Kind.OUTPUT_DRAIN, null, -1, "", "", laneId,
               State.ALLOCATED, Collections.emptySet());
     }
 
+    /** 返回操作唯一标识。 */
     @Nonnull
     public UUID operationId() {
         return operationId;
     }
 
+    /** 返回关联租约标识。 */
     @Nonnull
     public UUID leaseId() {
         return leaseId;
     }
 
+    /** 返回操作来源类型。 */
     @Nonnull
     public Kind kind() {
         return kind;
     }
 
+    /** 返回关联任务标识；被动和输出操作返回 null。 */
     @Nullable
     public UUID jobId() {
         return jobId;
     }
 
+    /** 返回创建该 token 时使用的计划版本。 */
     public long planRevision() {
         return planRevision;
     }
 
+    /** 返回 Provider 路由标识。 */
     @Nonnull
     public String routeId() {
         return routeId;
     }
 
+    /** 返回配方键。 */
     @Nonnull
     public String recipeKey() {
         return recipeKey;
     }
 
+    /** 返回机器通道编号。 */
     public long laneId() {
         return laneId;
     }
 
+    /** 返回当前操作状态。 */
     @Nonnull
     public State state() {
         return state;
     }
 
+    /** 返回不可修改的 durable transfer 回执集合。 */
     @Nonnull
     public Set<UUID> transferReceipts() {
         return transferReceipts;
     }
 
+    /** 判断 token 是否已经记录指定传输回执。 */
     public boolean hasTransferReceipt(@Nullable UUID transferId) {
         return transferId != null && transferReceipts.contains(transferId);
     }
 
+    /**
+     * 创建目标状态的新 token。
+     *
+     * @param next 目标状态
+     * @return 状态转换后的 token
+     * @throws IllegalStateException 当前状态不允许转换时抛出
+     */
     @Nonnull
     public MachineOperationToken transition(@Nonnull State next) {
         Objects.requireNonNull(next, "Next operation state cannot be null");
@@ -169,6 +196,7 @@ public final class MachineOperationToken {
         return copy(next, transferReceipts);
     }
 
+    /** 添加一个幂等的 durable transfer 回执。 */
     @Nonnull
     public MachineOperationToken withTransferReceipt(@Nonnull UUID transferId) {
         Objects.requireNonNull(transferId, "Transfer id cannot be null");
@@ -183,6 +211,16 @@ public final class MachineOperationToken {
         return copy(state, receipts);
     }
 
+    /** 仅恢复主机已验证匹配的旧版自动输出污染 token。 */
+    @Nonnull
+    public MachineOperationToken recoverCollectingAfterOutputRollback() {
+        if (kind != Kind.OUTPUT_DRAIN || state != State.CONTAMINATED) {
+            throw new IllegalStateException("Only a contaminated output token can be recovered");
+        }
+        return copy(State.COLLECTING, transferReceipts);
+    }
+
+    /** 将 token 和回执按稳定顺序写入 NBT。 */
     @Nonnull
     public NBTTagCompound write() {
         NBTTagCompound data = new NBTTagCompound();
@@ -203,6 +241,7 @@ public final class MachineOperationToken {
         return data;
     }
 
+    /** 从 NBT 读取并校验 token 的所有权字段和回执数量。 */
     @Nonnull
     public static MachineOperationToken read(@Nonnull NBTTagCompound data) {
         Objects.requireNonNull(data, "Operation token data cannot be null");

@@ -212,9 +212,14 @@ public class TileEntityElectrolyticSeparator extends TileEntityBasicMachine<Flui
     }
 
     @Override
-    public void addTileSyncTask() {
+    protected void onUpdateServerPreComponents() {
+        super.onUpdateServerPreComponents();
         handleTank(leftTank, dumpLeft, dumpAmount);
         handleTank(rightTank, dumpRight, dumpAmount);
+    }
+
+    @Override
+    public void addTileSyncTask() {
         int newRedstoneLevel = getRedstoneLevel();
         if (newRedstoneLevel != currentRedstoneLevel) {
             updateComparatorOutputLevelSync();
@@ -224,7 +229,7 @@ public class TileEntityElectrolyticSeparator extends TileEntityBasicMachine<Flui
     }
 
     private void handleTank(BasicGasTank tank, GasMode mode, int dumpAmount) {
-        if (tank.getGas() != null) {
+        if (!isContainerExtractionGuarded(tank) && tank.getGas() != null) {
             if (mode == GasMode.DUMPING) {
                 tank.extract(dumpAmount, Action.EXECUTE, AutomationType.INTERNAL);
             }

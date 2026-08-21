@@ -15,7 +15,7 @@ public final class FactoryRecipeTypeCodec {
     public static final String ORDINAL_KEY = "recipeType";
     public static final String NAME_KEY = "recipeTypeName";
     public static final String VERSION_KEY = "recipeTypeVersion";
-    public static final int FORMAT_VERSION = 1;
+    public static final int FORMAT_VERSION = 2;
 
     private FactoryRecipeTypeCodec() {
     }
@@ -23,6 +23,7 @@ public final class FactoryRecipeTypeCodec {
     public static boolean hasRecipeType(@Nullable NBTTagCompound nbt) {
         return nbt != null && (nbt.hasKey(NAME_KEY, NBT.TAG_STRING) || nbt.hasKey(ORDINAL_KEY, NBT.TAG_ANY_NUMERIC));
     }
+
 
     @Nullable
     public static RecipeType read(@Nullable NBTTagCompound nbt) {
@@ -41,9 +42,7 @@ public final class FactoryRecipeTypeCodec {
             return null;
         }
         if (nbt.hasKey(ORDINAL_KEY, NBT.TAG_ANY_NUMERIC)) {
-            int ordinal = nbt.getInteger(ORDINAL_KEY);
-            RecipeType[] values = RecipeType.values();
-            return ordinal >= 0 && ordinal < values.length ? values[ordinal] : null;
+            return RecipeType.byPersistedId(nbt.getInteger(ORDINAL_KEY));
         }
         return null;
     }
@@ -56,7 +55,7 @@ public final class FactoryRecipeTypeCodec {
 
     public static void write(@Nonnull NBTTagCompound nbt, @Nonnull RecipeType type) {
         nbt.setString(NAME_KEY, type.getName());
-        nbt.setInteger(ORDINAL_KEY, type.ordinal());
+        nbt.setInteger(ORDINAL_KEY, type.getPersistedId());
         nbt.setInteger(VERSION_KEY, FORMAT_VERSION);
     }
 

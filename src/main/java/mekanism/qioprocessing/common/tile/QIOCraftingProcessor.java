@@ -66,6 +66,12 @@ import mekanism.common.util.LangUtils;
  * Reusable root TileEntity implementation for ordinary workbench processors. Tier implementations
  * only select immutable host and processor definitions; they do not replace this state machine.
  */
+/**
+ * QIO 处理模块中的 QIOCraftingProcessor 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implements IUpgradeTile {
 
     private static final int WORKBENCH_BASE_PROCESSING_TICKS = 200;
@@ -113,7 +119,7 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
     protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
         InventorySlotHelper builder = createInventorySlotHelper();
         int slotX = isFactoryProcessor() ? 7 : 143;
-        int slotY = isFactoryProcessor() ? 58 : 57;
+        int slotY = isFactoryProcessor() ? 5 : 57;
         energySlot = builder.addSlot(EnergyInventorySlot.fillOrConvert(getMainEnergyContainer(),
               this::getWorld, listener, slotX, slotY), RelativeSide.BACK);
         return builder.build();
@@ -402,7 +408,7 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
         }
         energySlot.fillContainerOrConvert();
         if (!isActive() || processorState.getState() != QIOCraftingProcessorState.State.ACTIVE ||
-              !QIORecipeCatalogService.INSTANCE.isInitialized()) {
+              !QIORecipeCatalogService.INSTANCE.isReady()) {
             updateWorking(false);
             return;
         }

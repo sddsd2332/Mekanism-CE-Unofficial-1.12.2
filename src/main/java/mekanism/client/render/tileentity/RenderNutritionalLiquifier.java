@@ -31,11 +31,12 @@ public class RenderNutritionalLiquifier extends TileEntitySpecialRenderer<TileEn
 
     private static GasRenderMap<DisplayInteger[]> cachedCenterGas = new GasRenderMap<>();
 
-    private static final int stages = 1000;
+    private static final int stages = 64;
 
     private ModelNutritionalLiquifier model = new ModelNutritionalLiquifier();
 
     public static void resetDisplayInts() {
+        cachedCenterGas.values().forEach(DisplayInteger::deleteAll);
         cachedCenterGas.clear();
     }
 

@@ -38,6 +38,9 @@ public class PacketTileEntity implements IMessageHandler<TileEntityMessage, IMes
                     if (network == null) {
                         return;
                     }
+                    if (serverSide && !network.canHandlePacket(player)) {
+                        return;
+                    }
                     try {
                         network.handlePacketData(message.storedBuffer);
                     } catch (Exception e) {

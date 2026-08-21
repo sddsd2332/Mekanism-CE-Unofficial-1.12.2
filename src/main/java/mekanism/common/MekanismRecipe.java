@@ -8,6 +8,7 @@ import mekanism.api.gas.OreGas;
 import mekanism.api.infuse.InfuseObject;
 import mekanism.api.infuse.InfuseRegistry;
 import mekanism.api.infuse.InfuseType;
+import mekanism.api.recipes.FarmChanceOutput;
 import mekanism.common.block.states.BlockStateMachine;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.content.gear.IModuleContainerItem;
@@ -372,12 +373,12 @@ public class MekanismRecipe {
             RecipeHandler.addOrganicFarmRecipe(new ItemStack(Blocks.SAPLING, 1, 4), MekanismFluids.NutrientSolution, new ItemStack(Blocks.LOG2, 24, 0), new ItemStack(Blocks.SAPLING, 4, 4), MekanismConfig.current().mekce.log.val());
             RecipeHandler.addOrganicFarmRecipe(new ItemStack(Blocks.SAPLING, 1, 5), MekanismFluids.NutrientSolution, new ItemStack(Blocks.LOG2, 24, 1), new ItemStack(Blocks.SAPLING, 4, 5), MekanismConfig.current().mekce.log.val());
 
-            RecipeHandler.addOrganicFarmRecipe(new ItemStack(Blocks.SAPLING, 1, 0), MekanismFluids.Water, new ItemStack(Blocks.LOG, 6, 0), new ItemStack(Blocks.SAPLING, 1, 0), MekanismConfig.current().mekce.log.val());
-            RecipeHandler.addOrganicFarmRecipe(new ItemStack(Blocks.SAPLING, 1, 1), MekanismFluids.Water, new ItemStack(Blocks.LOG, 6, 1), new ItemStack(Blocks.SAPLING, 1, 1), MekanismConfig.current().mekce.log.val());
-            RecipeHandler.addOrganicFarmRecipe(new ItemStack(Blocks.SAPLING, 1, 2), MekanismFluids.Water, new ItemStack(Blocks.LOG, 6, 2), new ItemStack(Blocks.SAPLING, 1, 2), MekanismConfig.current().mekce.log.val());
-            RecipeHandler.addOrganicFarmRecipe(new ItemStack(Blocks.SAPLING, 1, 3), MekanismFluids.Water, new ItemStack(Blocks.LOG, 6, 3), new ItemStack(Blocks.SAPLING, 1, 3), MekanismConfig.current().mekce.log.val());
-            RecipeHandler.addOrganicFarmRecipe(new ItemStack(Blocks.SAPLING, 1, 4), MekanismFluids.Water, new ItemStack(Blocks.LOG2, 6, 0), new ItemStack(Blocks.SAPLING, 1, 4), MekanismConfig.current().mekce.log.val());
-            RecipeHandler.addOrganicFarmRecipe(new ItemStack(Blocks.SAPLING, 1, 5), MekanismFluids.Water, new ItemStack(Blocks.LOG2, 6, 1), new ItemStack(Blocks.SAPLING, 1, 5), MekanismConfig.current().mekce.log.val());
+            RecipeHandler.addOrganicFarmRecipe(new ItemStack(Blocks.SAPLING, 1, 0), new FluidStack(FluidRegistry.WATER, 1), new ItemStack(Blocks.LOG, 6, 0), new ItemStack(Blocks.SAPLING, 1, 0), MekanismConfig.current().mekce.log.val());
+            RecipeHandler.addOrganicFarmRecipe(new ItemStack(Blocks.SAPLING, 1, 1), new FluidStack(FluidRegistry.WATER, 1), new ItemStack(Blocks.LOG, 6, 1), new ItemStack(Blocks.SAPLING, 1, 1), MekanismConfig.current().mekce.log.val());
+            RecipeHandler.addOrganicFarmRecipe(new ItemStack(Blocks.SAPLING, 1, 2), new FluidStack(FluidRegistry.WATER, 1), new ItemStack(Blocks.LOG, 6, 2), new ItemStack(Blocks.SAPLING, 1, 2), MekanismConfig.current().mekce.log.val());
+            RecipeHandler.addOrganicFarmRecipe(new ItemStack(Blocks.SAPLING, 1, 3), new FluidStack(FluidRegistry.WATER, 1), new ItemStack(Blocks.LOG, 6, 3), new ItemStack(Blocks.SAPLING, 1, 3), MekanismConfig.current().mekce.log.val());
+            RecipeHandler.addOrganicFarmRecipe(new ItemStack(Blocks.SAPLING, 1, 4), new FluidStack(FluidRegistry.WATER, 1), new ItemStack(Blocks.LOG2, 6, 0), new ItemStack(Blocks.SAPLING, 1, 4), MekanismConfig.current().mekce.log.val());
+            RecipeHandler.addOrganicFarmRecipe(new ItemStack(Blocks.SAPLING, 1, 5), new FluidStack(FluidRegistry.WATER, 1), new ItemStack(Blocks.LOG2, 6, 1), new ItemStack(Blocks.SAPLING, 1, 5), MekanismConfig.current().mekce.log.val());
 
             // Farm seed
             RecipeHandler.addOrganicFarmRecipe(new ItemStack(Items.NETHER_WART, 1), MekanismFluids.NutrientSolution, new ItemStack(Items.NETHER_WART, 24));
@@ -388,38 +389,49 @@ public class MekanismRecipe {
             RecipeHandler.addOrganicFarmRecipe(new ItemStack(Blocks.BROWN_MUSHROOM, 1), MekanismFluids.NutrientSolution, new ItemStack(Blocks.BROWN_MUSHROOM, 24));
             RecipeHandler.addOrganicFarmRecipe(new ItemStack(Blocks.RED_MUSHROOM, 1), MekanismFluids.NutrientSolution, new ItemStack(Blocks.RED_MUSHROOM, 24));
 
-            RecipeHandler.addOrganicFarmRecipe(new ItemStack(Items.NETHER_WART, 1), MekanismFluids.Water, new ItemStack(Items.NETHER_WART, 3));
-            RecipeHandler.addOrganicFarmRecipe(new ItemStack(Items.REEDS, 1), MekanismFluids.Water, new ItemStack(Items.REEDS, 3));
-            RecipeHandler.addOrganicFarmRecipe(new ItemStack(Items.DYE, 1, 3), MekanismFluids.Water, new ItemStack(Items.DYE, 3, 3));
-            RecipeHandler.addOrganicFarmRecipe(new ItemStack(Items.PUMPKIN_SEEDS, 1), MekanismFluids.Water, new ItemStack(Blocks.PUMPKIN, 3), new ItemStack(Items.PUMPKIN_SEEDS, 1), MekanismConfig.current().mekce.seed.val());
-            RecipeHandler.addOrganicFarmRecipe(new ItemStack(Items.MELON_SEEDS, 1), MekanismFluids.Water, new ItemStack(Blocks.MELON_BLOCK, 3), new ItemStack(Items.MELON_SEEDS, 1), MekanismConfig.current().mekce.seed.val());
-            RecipeHandler.addOrganicFarmRecipe(new ItemStack(Blocks.BROWN_MUSHROOM, 1), MekanismFluids.Water, new ItemStack(Blocks.BROWN_MUSHROOM, 3));
-            RecipeHandler.addOrganicFarmRecipe(new ItemStack(Blocks.RED_MUSHROOM, 1), MekanismFluids.Water, new ItemStack(Blocks.RED_MUSHROOM, 3));
+            RecipeHandler.addOrganicFarmRecipe(new ItemStack(Items.NETHER_WART, 1), new FluidStack(FluidRegistry.WATER, 1), new ItemStack(Items.NETHER_WART, 3));
+            RecipeHandler.addOrganicFarmRecipe(new ItemStack(Items.REEDS, 1), new FluidStack(FluidRegistry.WATER, 1), new ItemStack(Items.REEDS, 3));
+            RecipeHandler.addOrganicFarmRecipe(new ItemStack(Items.DYE, 1, 3), new FluidStack(FluidRegistry.WATER, 1), new ItemStack(Items.DYE, 3, 3));
+            RecipeHandler.addOrganicFarmRecipe(new ItemStack(Items.PUMPKIN_SEEDS, 1), new FluidStack(FluidRegistry.WATER, 1), new ItemStack(Blocks.PUMPKIN, 3), new ItemStack(Items.PUMPKIN_SEEDS, 1), MekanismConfig.current().mekce.seed.val());
+            RecipeHandler.addOrganicFarmRecipe(new ItemStack(Items.MELON_SEEDS, 1), new FluidStack(FluidRegistry.WATER, 1), new ItemStack(Blocks.MELON_BLOCK, 3), new ItemStack(Items.MELON_SEEDS, 1), MekanismConfig.current().mekce.seed.val());
+            RecipeHandler.addOrganicFarmRecipe(new ItemStack(Blocks.BROWN_MUSHROOM, 1), new FluidStack(FluidRegistry.WATER, 1), new ItemStack(Blocks.BROWN_MUSHROOM, 3));
+            RecipeHandler.addOrganicFarmRecipe(new ItemStack(Blocks.RED_MUSHROOM, 1), new FluidStack(FluidRegistry.WATER, 1), new ItemStack(Blocks.RED_MUSHROOM, 3));
 
             ForgeRegistries.BLOCKS.forEach(block -> {
                 if (block instanceof BlockCrops crops) {  //通过方块来获取可以生长的农作物
                     try {
                         Item inputSeed = crops.getSeed();
                         Item primaryOutput = crops.getCrop();
-                        ItemStack secondaryOutput = ItemStack.EMPTY;
-                        List<ItemStack> drops = crops.getDrops(null, null, block.getDefaultState(), 0);
-                        if (drops != null && drops.size() < 2) { //确保掉落物种类不超过2
+                        List<ItemStack> drops = crops.getDrops(null, null, crops.withAge(crops.getMaxAge()), 0);
+                        if (drops != null && drops.size() > 64) {
+                            return;
+                        }
+                        List<FarmChanceOutput> nutrientChanceOutputs = new ArrayList<>();
+                        List<FarmChanceOutput> waterChanceOutputs = new ArrayList<>();
+                        if (drops != null) {
                             for (ItemStack stack : drops) {
-                                if (stack.getItem() != primaryOutput) {
-                                    secondaryOutput = stack;
+                                if (stack.isEmpty() || stack.getItem() == primaryOutput ||
+                                      primaryOutput == Items.POTATO && stack.getItem() == Items.POISONOUS_POTATO) {
+                                    continue;
                                 }
+                                ItemStack nutrientOutput = stack.copy();
+                                nutrientOutput.setCount(4);
+                                double chance = MekanismConfig.current().mekce.seed.val();
+                                nutrientChanceOutputs.add(new FarmChanceOutput(nutrientOutput, chance));
+                                waterChanceOutputs.add(new FarmChanceOutput(stack, chance));
                             }
                         }
-                        if (secondaryOutput != ItemStack.EMPTY) {
-                            RecipeHandler.addOrganicFarmRecipe(new ItemStack(inputSeed), MekanismFluids.NutrientSolution, new ItemStack(primaryOutput, 24), new ItemStack(secondaryOutput.getItem(), 4), MekanismConfig.current().mekce.seed.val());
-                            RecipeHandler.addOrganicFarmRecipe(new ItemStack(inputSeed), MekanismFluids.Water, new ItemStack(primaryOutput, 3), secondaryOutput, MekanismConfig.current().mekce.seed.val());
-                        } else if (primaryOutput == Items.POTATO) {
-                            RecipeHandler.addOrganicFarmRecipe(new ItemStack(inputSeed), MekanismFluids.NutrientSolution, new ItemStack(primaryOutput, 24), new ItemStack(Items.POISONOUS_POTATO), 0.15);
-                            RecipeHandler.addOrganicFarmRecipe(new ItemStack(inputSeed), MekanismFluids.Water, new ItemStack(primaryOutput, 3), new ItemStack(Items.POISONOUS_POTATO), 0.15);
-                        } else {
-                            RecipeHandler.addOrganicFarmRecipe(new ItemStack(inputSeed), MekanismFluids.NutrientSolution, new ItemStack(primaryOutput, 24));
-                            RecipeHandler.addOrganicFarmRecipe(new ItemStack(inputSeed), MekanismFluids.Water, new ItemStack(primaryOutput, 3));
+                        if (primaryOutput == Items.POTATO) {
+                            nutrientChanceOutputs.add(new FarmChanceOutput(new ItemStack(Items.POISONOUS_POTATO), 0.15));
+                            waterChanceOutputs.add(new FarmChanceOutput(new ItemStack(Items.POISONOUS_POTATO), 0.15));
                         }
+                        if (nutrientChanceOutputs.size() > 63) {
+                            return;
+                        }
+                        RecipeHandler.addOrganicFarmRecipe(new ItemStack(inputSeed), MekanismFluids.NutrientSolution,
+                              new ItemStack(primaryOutput, 24), nutrientChanceOutputs);
+                        RecipeHandler.addOrganicFarmRecipe(new ItemStack(inputSeed), new FluidStack(FluidRegistry.WATER, 1),
+                              new ItemStack(primaryOutput, 3), waterChanceOutputs);
                     } catch (Exception e) {
                         Mekanism.logger.error("Unable to add recipe for Organic Farm because {} is entered incorrectly", block);
                     }

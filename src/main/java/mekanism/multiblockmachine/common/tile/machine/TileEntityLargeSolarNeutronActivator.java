@@ -89,6 +89,7 @@ public class TileEntityLargeSolarNeutronActivator extends TileEntityContainerBlo
     public int numPowering;
     private final EjectSpeedController gasSpeedController = new EjectSpeedController();
     private boolean seesSunThisTick;
+    private long serverWorldTime;
     private GasInventorySlot inputSlot;
     private GasInventorySlot outputSlot;
     private final boolean[] trackedErrors = new boolean[TRACKED_ERROR_TYPES.size()];
@@ -194,29 +195,38 @@ public class TileEntityLargeSolarNeutronActivator extends TileEntityContainerBlo
     }
 
     @Override
+    protected void onUpdateServerPreComponents() {
+        super.onUpdateServerPreComponents();
+        gasSpeedController.ensureSize(2,
+              () -> Arrays.asList(new TankProvider.Gas(outputTank), new TankProvider.Gas(outputTank)));
+        handleTank(outputTank, getLeftTankside(), MekanismUtils.getLeft(facing), 0);
+        handleTank(outputTank, getRightTankside(), MekanismUtils.getRight(facing), 1);
+    }
+
+    @Override
+    public void onUpdateServer() {
+        super.onUpdateServer();
+        serverWorldTime = world.getTotalWorldTime();
+        boolean seesSun = world.isDaytime() && world.canSeeSky(getPos().up(2)) && !world.provider.isNether();
+        if (needsRainCheck) {
+            seesSun &= !(world.isRaining() || world.isThundering());
+        }
+        seesSunThisTick = seesSun;
+    }
+
+    @Override
     public void onAsyncUpdateServer() {
         super.onAsyncUpdateServer();
         Mekanism.EXECUTE_MANAGER.addSyncTask(this::addTileSyncTask);
         inputSlot.fillTank();
         outputSlot.drainTank();
-
-        // TODO: Ideally the neutron activator should use the sky brightness to determine throughput; but
-        // changing this would dramatically affect a lot of setups with Fusion reactors which can take
-        // a long time to relight. I don't want to be chased by a mob right now, so just doing basic
-        // rain checks.
-        boolean seesSun = world.isDaytime() && world.canSeeSky(getPos().up(2)) && !world.provider.isNether();
-        if (needsRainCheck) {
-            seesSun &= !(world.isRaining() || world.isThundering());
-        }
-
-        seesSunThisTick = seesSun;
         if (!recipeCacheLookupMonitor.updateAndProcess()) {
             setActive(false);
         }
 
         // Every 20 ticks (once a second), send update to client. Note that this is a 50% reduction in network
         // traffic from previous implementation that send the update every 10 ticks.
-        if (world.getTotalWorldTime() % 20 == 0) {
+        if (serverWorldTime % 20 == 0) {
             Mekanism.packetHandler.sendUpdatePacket(this);
         }
 
@@ -244,9 +254,6 @@ public class TileEntityLargeSolarNeutronActivator extends TileEntityContainerBlo
 
 
     public void addTileSyncTask() {
-        this.gasSpeedController.ensureSize(2, () -> Arrays.asList(new TankProvider.Gas(outputTank), new TankProvider.Gas(outputTank)));
-        handleTank(outputTank, getLeftTankside(), MekanismUtils.getLeft(facing), 0);
-        handleTank(outputTank, getRightTankside(), MekanismUtils.getRight(facing), 1);
         int newRedstoneLevel = getRedstoneLevel();
         if (newRedstoneLevel != currentRedstoneLevel) {
             world.updateComparatorOutputLevel(pos, getBlockType());
@@ -279,7 +286,7 @@ public class TileEntityLargeSolarNeutronActivator extends TileEntityContainerBlo
 
     private void ejectGas(Set<EnumFacing> outputSides, BasicGasTank tank, EjectSpeedController speedController, int tankIdx, TileEntity tile) {
         speedController.record(tankIdx);
-        if (tank.getGas() == null || tank.getStored() <= 0 || tank.getGas().getGas() == null) {
+        if (isContainerExtractionGuarded(tank) || tank.getGas() == null || tank.getStored() <= 0 || tank.getGas().getGas() == null) {
             return;
         }
         if (!speedController.canEject(tankIdx)) {

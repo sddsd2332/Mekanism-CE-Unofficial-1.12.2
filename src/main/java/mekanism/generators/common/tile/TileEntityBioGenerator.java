@@ -22,12 +22,9 @@ import mekanism.generators.common.slot.FluidFuelInventorySlot;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.network.play.server.SPacketUpdateTileEntity;
-import net.minecraft.server.management.PlayerChunkMapEntry;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.IBlockAccess;
-import net.minecraft.world.WorldServer;
 import net.minecraftforge.fluids.Fluid;
 import net.minecraftforge.fluids.FluidRegistry;
 import net.minecraftforge.fluids.FluidStack;
@@ -41,14 +38,14 @@ public class TileEntityBioGenerator extends TileEntityGenerator implements ISust
 
     private static final String[] methods = new String[]{"getEnergy", "getOutput", "getMaxEnergy", "getEnergyNeeded", "getBioFuel", "getBioFuelNeeded"};
     private static final int TANK_CAPACITY = 24000;
+    public static final int RENDER_STAGES = 40;
     private static final ISpecialSelectionWireframeTile.SelectionTransform[] SELECTION_ROTATE_180 = {
             ISpecialSelectionWireframeTile.SelectionTransform.rotateY(180.0D, 0.5D, 0.5D, 0.5D)
     };
     public BasicFluidTank bioFuelTank;
-    private int lastBioFuelAmount;
+    private int lastBioFuelRenderLevel = -1;
     private int currentRedstoneLevel;
-    public int updateDelay;
-    public boolean needsPacket;
+    private boolean activeChanged;
     private FluidFuelInventorySlot fuelSlot;
     private EnergyInventorySlot energySlot;
 
@@ -78,12 +75,6 @@ public class TileEntityBioGenerator extends TileEntityGenerator implements ISust
     @Override
     public void onAsyncUpdateServer() {
         super.onAsyncUpdateServer();
-        if (updateDelay > 0) {
-            updateDelay--;
-            if (updateDelay == 0) {
-                needsPacket = true;
-            }
-        }
         energySlot.drainContainer();
         fuelSlot.fillOrBurn();
         if (canOperate()) {
@@ -98,28 +89,12 @@ public class TileEntityBioGenerator extends TileEntityGenerator implements ISust
             updateComparatorOutputLevelSync();
             currentRedstoneLevel = newRedstoneLevel;
         }
-        if (needsPacket) {
+        int renderLevel = bioFuelTank.isEmpty() ? -1 : getScaledFuelLevel(RENDER_STAGES - 1);
+        if (activeChanged || renderLevel != lastBioFuelRenderLevel) {
             Mekanism.packetHandler.sendUpdatePacket(this);
         }
-        needsPacket = false;
-        if (lastBioFuelAmount != bioFuelTank.getFluidAmount()) {
-            SPacketUpdateTileEntity packet = this.getUpdatePacket();
-            PlayerChunkMapEntry trackingEntry = ((WorldServer) this.world).getPlayerChunkMap().getEntry(this.pos.getX() >> 4, this.pos.getZ() >> 4);
-            if (trackingEntry != null) {
-                trackingEntry.getWatchingPlayers().forEach(player -> player.connection.sendPacket(packet));
-            }
-        }
-        lastBioFuelAmount = bioFuelTank.getFluidAmount();
-    }
-
-    @Override
-    public void onUpdateClient() {
-        if (updateDelay > 0) {
-            updateDelay--;
-            if (updateDelay == 0) {
-                MekanismUtils.updateBlock(world, getPos());
-            }
-        }
+        activeChanged = false;
+        lastBioFuelRenderLevel = renderLevel;
     }
 
     @Override
@@ -195,19 +170,15 @@ public class TileEntityBioGenerator extends TileEntityGenerator implements ISust
         super.handlePacketData(dataStream);
         if (FMLCommonHandler.instance().getEffectiveSide().isClient()) {
             TileUtils.readTankData(dataStream, bioFuelTank);
-            if (updateDelay == 0) {
-                updateDelay = MekanismConfig.current().general.UPDATE_DELAY.val();
-                MekanismUtils.updateBlock(world, getPos());
-            }
+            MekanismUtils.updateBlock(world, getPos());
         }
     }
 
     @Override
     public void setActive(boolean active) {
-        super.setActive(active);
-        if (updateDelay == 0) {
-            Mekanism.packetHandler.sendUpdatePacket(this);
-            updateDelay = 10;
+        if (isActive != active) {
+            isActive = active;
+            activeChanged = true;
         }
     }
 

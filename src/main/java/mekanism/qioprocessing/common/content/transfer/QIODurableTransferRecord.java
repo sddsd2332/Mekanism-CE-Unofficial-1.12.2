@@ -24,6 +24,12 @@ import java.util.Collection;
 import java.math.BigInteger;
 
 /** Crash-recoverable ownership handoff between QIO, a job buffer, and a machine. */
+/**
+ * QIO 处理模块中的 QIODurableTransferRecord 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIODurableTransferRecord {
 
     public static final int SCHEMA_VERSION = 2;
@@ -83,6 +89,7 @@ public final class QIODurableTransferRecord {
     @Nullable
     private UUID compensationTransferId;
 
+    /** 创建不带额外基线的 PREPARED durable transfer。 */
     public QIODurableTransferRecord(@Nonnull UUID transferId, @Nonnull UUID requestId,
           @Nonnull Type type, @Nullable UUID ownerJobId, @Nullable UUID ownerOperationId,
           int planRevision, @Nonnull String nodeId, @Nullable UUID leaseId,
@@ -94,6 +101,7 @@ public final class QIODurableTransferRecord {
               Phase.PREPARED, Resolution.NONE, null, null, -1, null, null);
     }
 
+    /** 创建带 QIO 数量基线的 PREPARED durable transfer。 */
     public QIODurableTransferRecord(@Nonnull UUID transferId, @Nonnull UUID requestId,
           @Nonnull Type type, @Nullable UUID ownerJobId, @Nullable UUID ownerOperationId,
           int planRevision, @Nonnull String nodeId, @Nullable UUID leaseId,
@@ -105,6 +113,7 @@ public final class QIODurableTransferRecord {
               -1, -1, qioBaselines, Phase.PREPARED, Resolution.NONE, null, null, -1, null, null);
     }
 
+    /** 创建带机器端口基线的 PREPARED durable transfer。 */
     public QIODurableTransferRecord(@Nonnull UUID transferId, @Nonnull UUID requestId,
           @Nonnull Type type, @Nullable UUID ownerJobId, @Nullable UUID ownerOperationId,
           int planRevision, @Nonnull String nodeId, @Nullable UUID leaseId,
@@ -116,6 +125,7 @@ public final class QIODurableTransferRecord {
               -1, -1, Collections.emptyMap(), Phase.PREPARED, Resolution.NONE, null, null, -1, null, null);
     }
 
+    /** 创建从 QIO 预留区到任务缓冲的标准 transfer。 */
     @Nonnull
     public static QIODurableTransferRecord qioToJob(@Nonnull UUID transferId,
           @Nonnull UUID requestId, @Nonnull UUID frequencyUUID, @Nonnull UUID ownerJobId,
@@ -182,70 +192,84 @@ public final class QIODurableTransferRecord {
         validatePhase();
     }
 
+    /** 返回传输唯一标识。 */
     @Nonnull
     public UUID getTransferId() {
         return transferId;
     }
 
+    /** 返回请求幂等标识。 */
     @Nonnull
     public UUID getRequestId() {
         return requestId;
     }
 
+    /** 返回传输方向类型。 */
     @Nonnull
     public Type getType() {
         return type;
     }
 
+    /** 返回所属任务标识；独立机器操作时为 null。 */
     @Nullable
     public UUID getOwnerJobId() {
         return ownerJobId;
     }
 
+    /** 返回所属独立操作标识；任务 transfer 时为 null。 */
     @Nullable
     public UUID getOwnerOperationId() {
         return ownerOperationId;
     }
 
+    /** 返回创建 transfer 时使用的计划版本。 */
     public int getPlanRevision() {
         return planRevision;
     }
 
+    /** 返回网络节点标识。 */
     @Nonnull
     public String getNodeId() {
         return nodeId;
     }
 
+    /** 返回机器租约标识；QIO 预留 transfer 可为 null。 */
     @Nullable
     public UUID getLeaseId() {
         return leaseId;
     }
 
+    /** 返回资源来源端点。 */
     @Nonnull
     public String getSource() {
         return source;
     }
 
+    /** 返回资源目标端点。 */
     @Nonnull
     public String getDestination() {
         return destination;
     }
 
+    /** 返回不可修改的资源数量映射。 */
     @Nonnull
     public Map<PortableResourceDescriptor, Long> getResources() {
         return resources;
     }
 
+    /** 返回 QIO 资源条目标识绑定。 */
     @Nonnull
     public Map<PortableResourceDescriptor, UUID> getQIOResourceUUIDs() {
         return qioResourceUUIDs;
     }
 
+    /** 返回创建时捕获的 QIO 数量基线。 */
     @Nonnull
     public Map<PortableResourceDescriptor, BigInteger> getQIOBaselines() {
         return qioBaselines;
     }
 
+    /** 返回机器端口基线快照。 */
     @Nonnull
     public List<MachinePortBaseline> getMachineBaselines() {
         return machineBaselines;
@@ -293,10 +317,12 @@ public final class QIODurableTransferRecord {
         return compensationTransferId;
     }
 
+    /** 记录来源已扣除并进入 SOURCE_DEBITED。 */
     public void markSourceDebited(@Nonnull String receipt) {
         markSourceDebited(receipt, -1);
     }
 
+    /** 记录来源扣除回执及来源状态版本。 */
     public void markSourceDebited(@Nonnull String receipt, long sourceStateRevision) {
         requirePhase(Phase.PREPARED);
         sourceReceipt = requireEndpoint(receipt, "sourceReceipt", false);
@@ -305,18 +331,21 @@ public final class QIODurableTransferRecord {
         phase = Phase.SOURCE_DEBITED;
     }
 
+    /** 记录目标已入账并进入 DESTINATION_CREDITED。 */
     public void markDestinationCredited(@Nonnull String receipt) {
         requirePhase(Phase.SOURCE_DEBITED);
         destinationReceipt = requireEndpoint(receipt, "destinationReceipt", false);
         phase = Phase.DESTINATION_CREDITED;
     }
 
+    /** 正向传输完成，标记为 FORWARD_COMMITTED。 */
     public void commitForward() {
         requirePhase(Phase.DESTINATION_CREDITED);
         phase = Phase.COMMITTED;
         resolution = Resolution.FORWARD_COMMITTED;
     }
 
+    /** 为来源已扣除但目标未确认的传输登记补偿 transfer。 */
     public void requireRollback(@Nonnull UUID compensationTransferId) {
         if (phase != Phase.SOURCE_DEBITED && phase != Phase.DESTINATION_CREDITED) {
             throw new IllegalStateException("Only an in-flight debited transfer can require rollback");
@@ -326,6 +355,7 @@ public final class QIODurableTransferRecord {
         phase = Phase.ROLLBACK_REQUIRED;
     }
 
+    /** 补偿 transfer 完成后结算为 COMPENSATED。 */
     public void commitCompensation() {
         requirePhase(Phase.ROLLBACK_REQUIRED);
         if (compensationTransferId == null) {
@@ -335,11 +365,7 @@ public final class QIODurableTransferRecord {
         resolution = Resolution.COMPENSATED;
     }
 
-    /**
-     * Reopens an endpoint-local transfer after the persistent endpoint proves that both its
-     * source and destination rolled back to the prepared baseline. Cross-storage callers must
-     * never use this as a substitute for a compensating transfer.
-     */
+    /** 端点证明源/目标都回到基线后，重新打开本地机器输出 transfer。 */
     public void restartAfterEndpointRollback() {
         if (type != Type.MACHINE_TO_JOB || ownerJobId != null || machineBaselines.isEmpty() ||
               phase == Phase.ROLLBACK_REQUIRED || resolution == Resolution.COMPENSATED) {
@@ -353,6 +379,7 @@ public final class QIODurableTransferRecord {
         compensationTransferId = null;
     }
 
+    /** 将 transfer、回执、基线和阶段写入 NBT。 */
     @Nonnull
     public NBTTagCompound write() {
         NBTTagCompound data = new NBTTagCompound();
@@ -405,6 +432,7 @@ public final class QIODurableTransferRecord {
         return data;
     }
 
+    /** 从 NBT 读取并校验 schema、摘要、阶段和所有权字段。 */
     @Nonnull
     public static QIODurableTransferRecord read(@Nonnull NBTTagCompound data)
           throws QIOProcessingDataException {

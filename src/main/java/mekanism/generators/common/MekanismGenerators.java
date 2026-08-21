@@ -67,7 +67,7 @@ public class MekanismGenerators implements IModule {
     /**
      * MekanismGenerators version number
      */
-    public static Version versionNumber = new Version(999, 999, 999);
+    public static Version versionNumber = Version.get(mekanism.mekanism.Tags.VERSION);
     public static final int DATA_VERSION = 1;
     public static CreativeTabMekanismGenerators tabMekanismGenerators = new CreativeTabMekanismGenerators();
     public static MultiblockManager<SynchronizedTurbineData> turbineManager = new MultiblockManager<>("industrialTurbine");

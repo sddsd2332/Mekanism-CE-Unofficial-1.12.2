@@ -7,6 +7,7 @@ import mekanism.qioprocessing.common.content.QIOProcessingNetworkData;
 import mekanism.qioprocessing.common.content.QIOProcessingNetworkLifecycle;
 import mekanism.qioprocessing.common.content.QIOProcessingNetworkManager;
 import mekanism.qioprocessing.common.content.workbench.QIOWorkbenchConfiguration;
+import mekanism.qioprocessing.common.planning.QIORecipeCatalogService;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -17,6 +18,12 @@ import java.util.Objects;
 import java.util.UUID;
 
 /** Two-phase, server-side workbench configuration copy coordinator. */
+/**
+ * QIO 处理模块中的 QIOWorkbenchCopyService 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOWorkbenchCopyService {
 
     private static final long PREVIEW_LIFETIME_TICKS = 1_200;
@@ -33,18 +40,23 @@ public final class QIOWorkbenchCopyService {
         INVALID_TARGET,
         EXPIRED,
         SOURCE_CHANGED,
-        TARGET_CHANGED
+        TARGET_CHANGED,
+        UNAVAILABLE
     }
 
     private QIOWorkbenchCopyService() {
     }
 
     @Nonnull
+    /** 预览工作台配置复制并生成短期 token。 */
     public static synchronized PreviewResult preview(
           @Nonnull QIOWorkbenchConfigurationService.Context context,
           @Nonnull QIOProcessingTerminalSession session, @Nonnull UUID playerUUID,
           @Nonnull UUID sourceConfigUUID, long currentTick) {
         Objects.requireNonNull(context, "context");
+        if (!QIORecipeCatalogService.INSTANCE.isReady()) {
+            return new PreviewResult(Status.UNAVAILABLE, null);
+        }
         return preview(context.getNetwork(), context.isEditable(), session, playerUUID,
               sourceConfigUUID, currentTick,
               QIOProcessingNetworkManager.INSTANCE::getByWorkbenchConfigUUID,
@@ -112,11 +124,16 @@ public final class QIOWorkbenchCopyService {
     }
 
     @Nonnull
+    /** 确认带 token 的工作台配置复制。 */
     public static synchronized ConfirmResult confirm(
           @Nonnull QIOWorkbenchConfigurationService.Context context,
           @Nonnull QIOProcessingTerminalSession session, @Nonnull UUID playerUUID,
           @Nonnull UUID confirmationNonce, long currentTick) {
         Objects.requireNonNull(context, "context");
+        if (!QIORecipeCatalogService.INSTANCE.isReady()) {
+            return new ConfirmResult(Status.UNAVAILABLE,
+                  context.getNetwork().getWorkbenchConfiguration().getRevision());
+        }
         return confirm(context.getNetwork(), context.isEditable(), session, playerUUID,
               confirmationNonce, currentTick,
               QIOProcessingNetworkManager.INSTANCE::getByWorkbenchConfigUUID,

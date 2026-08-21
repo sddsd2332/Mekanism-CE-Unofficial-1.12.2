@@ -19,6 +19,7 @@ gui.mekanism.issues.no_space.overflow= - 输出空间不足，内部缓存已满
 gui.mekanism.issues.redstone_pulse_required= - 需要红石脉冲激活
 gui.mekanism.issues.redstone_signal_absent= - 缺少红石信号，需要提供以激活
 gui.mekanism.issues.redstone_signal_present= - 接收到了红石信号，移除以激活
+gui.mekanism.issues.qio_automation_error= - QIO 自动化进入异常状态，请检查 QIO 综合管理终端
 gui.mekanism.rgb=RGB：
 gui.mekanism.rgba=RGBA：
 generic.mekanism.hex=#%s

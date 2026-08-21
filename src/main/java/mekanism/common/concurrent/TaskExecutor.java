@@ -26,7 +26,7 @@ public class TaskExecutor {
 
     public static final int THREAD_COUNT = Math.min(Math.max(Runtime.getRuntime().availableProcessors() / 4, 4), 8);
 
-    public static final ThreadPoolExecutor THREAD_POOL = new ThreadPoolExecutor(4, THREAD_COUNT,
+    public static final ThreadPoolExecutor THREAD_POOL = new ThreadPoolExecutor(THREAD_COUNT, THREAD_COUNT,
             5000, TimeUnit.MILLISECONDS,
             new PriorityBlockingQueue<>(),
             new CustomThreadFactory("MEK-TaskExecutor-%s", SidedThreadGroups.SERVER));
@@ -59,18 +59,6 @@ public class TaskExecutor {
     private volatile boolean inTick = false;
     private volatile boolean shouldUseForkJoinPool = false;
 
-    @SuppressWarnings({"BusyWait", "SameParameterValue"})
-    private static void loopWait(final long nanos) {
-        long startTime = System.nanoTime();
-        while (System.nanoTime() - startTime < nanos) {
-            try {
-                Thread.sleep(0);
-            } catch (InterruptedException e) {
-                break;
-            }
-        }
-    }
-
     public void init() {
         THREAD_POOL.prestartAllCoreThreads();
         submitter.start();
@@ -98,7 +86,9 @@ public class TaskExecutor {
             executedCount++;
         }
 
-        executeGroups.clear();
+        synchronized (executeGroups) {
+            executeGroups.clear();
+        }
         checkShouldUseForkJoinPool();
     }
 
@@ -140,16 +130,15 @@ public class TaskExecutor {
         int executed = 0;
         long time = System.nanoTime() / 1000;
 
-        submitTask();
-        executed += spinAwaitActionExecutor();
+        // Async work may enqueue more async work. Drain it to a fixed point before
+        // running any post-async main-thread action so container/world phases cannot overlap.
+        do {
+            submitTask();
+            executed += awaitActionExecutors();
+        } while (!executors.isEmpty() || !submitted.isEmpty() || hasPendingExecuteGroupTasks());
+
         executed += executeMainThreadActions();
-
         updateTileEntity();
-
-        // Empty Check
-        if (!submitted.isEmpty()) {
-            executed += executeActions();
-        }
 
         totalUsedTime += System.nanoTime() / 1000 - time;
         return executed;
@@ -174,19 +163,14 @@ public class TaskExecutor {
         return executed;
     }
 
-    private int spinAwaitActionExecutor() {
+    private int awaitActionExecutors() {
         int executed = 0;
 
         ActionExecutor executor;
         while ((executor = submitted.poll()) != null) {
-            // Spin up while completing the operation in the queue.
-            while (!executor.isCompleted) {
-                executed += executeMainThreadActions();
-                updateTileEntity();
-                if (!executor.isCompleted) {
-                    loopWait(100_000L);
-                }
-            }
+            // Do not execute main-thread actions here. They are post-async actions
+            // and may read or mutate the same containers owned by this task.
+            executor.awaitCompletion();
 
             taskUsedTime += executor.usedTime;
             executed++;
@@ -237,28 +221,35 @@ public class TaskExecutor {
     public ActionExecutor addTask(final Action action, final int priority) {
         ActionExecutor actionExecutor = new ActionExecutor(action, priority);
         executors.offer(actionExecutor);
+        if (inTick) {
+            submitter.unpark();
+        }
 
         return actionExecutor;
     }
 
     public ActionExecutor addExecuteGroupTask(final Action action, final long groupId) {
-        ExecuteGroup group = executeGroups.get(groupId);
-        if (group == null) {
-            synchronized (executeGroups) {
-                group = executeGroups.get(groupId);
-                if (group == null) {
-                    group = new ExecuteGroup(groupId);
-                    executeGroups.put(groupId, group);
-                }
+        ActionExecutor executor;
+        synchronized (executeGroups) {
+            ExecuteGroup group = executeGroups.get(groupId);
+            if (group == null) {
+                group = new ExecuteGroup(groupId);
+                executeGroups.put(groupId, group);
             }
+            executor = group.offer(new ActionExecutor(action));
         }
-
-        return group.offer(new ActionExecutor(action));
+        if (inTick) {
+            submitter.unpark();
+        }
+        return executor;
     }
 
 
     public <T> ForkJoinTask<T> submitForkJoinTask(final ForkJoinTask<T> task) {
         forkJoinTasks.offer(task);
+        if (inTick) {
+            submitter.unpark();
+        }
         return task;
     }
 
@@ -331,6 +322,17 @@ public class TaskExecutor {
         }
     }
 
+    private boolean hasPendingExecuteGroupTasks() {
+        synchronized (executeGroups) {
+            for (ExecuteGroup group : executeGroups.values()) {
+                if (!group.isSubmitted() && !group.isEmpty()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
     public class TaskSubmitter implements Runnable {
         public Thread thread = null;
 
@@ -353,10 +355,15 @@ public class TaskExecutor {
         public void run() {
             while (!Thread.currentThread().isInterrupted()) {
                 if (inTick) {
-                    if (!executors.isEmpty() || !executeGroups.isEmpty() || !forkJoinTasks.isEmpty()) {
-                        submitTask();
+                    if (!executors.isEmpty() || hasPendingExecuteGroupTasks() || !forkJoinTasks.isEmpty()) {
+                        try {
+                            submitTask();
+                        } catch (Throwable e) {
+                            Mekanism.logger.error("Task submitter failed while dispatching work", e);
+                            LockSupport.parkNanos(1_000_000L);
+                        }
                     } else {
-                        LockSupport.parkNanos(10_000L);
+                        LockSupport.park();
                     }
                 } else {
                     LockSupport.park();

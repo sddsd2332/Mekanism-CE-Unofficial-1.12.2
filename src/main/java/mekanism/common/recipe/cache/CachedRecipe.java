@@ -255,6 +255,10 @@ public abstract class CachedRecipe<RECIPE> {
             return false;
         }
 
+        public int getCurrentMaxOperations() {
+            return currentMax;
+        }
+
         public boolean updateOperations(int max) {
             if (max < currentMax) {
                 currentMax = max;

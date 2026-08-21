@@ -219,6 +219,12 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
     }
 
     public void updateCache(TileEntityMultiblock<T> tile) {
+        boolean syncCanonical = tile.cachedID != null && tile.structure != null && Objects.equals(tile.cachedID, tile.structure.inventoryID) &&
+              tile.getWorld() != null && tryClaimCacheSync(tile.getWorld().provider.getDimension(), tile.cachedID, tile.getWorld().getTotalWorldTime());
+        updateCache(tile, syncCanonical);
+    }
+
+    public void updateCache(TileEntityMultiblock<T> tile, boolean syncCanonical) {
         if (tile.cachedID == null) {
             return;
         }
@@ -230,8 +236,6 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
             return;
         }
         tile.cachedData.locations.add(Coord4D.get(tile));
-        boolean syncCanonical = tile.structure != null && Objects.equals(tile.cachedID, tile.structure.inventoryID) && tile.getWorld() != null &&
-              tryClaimCacheSync(tile.getWorld().provider.getDimension(), tile.cachedID, tile.getWorld().getTotalWorldTime());
         MultiblockCache<T> current = inventories.get(tile.cachedID);
         if (current == null) {
             inventories.put(tile.cachedID, tile.cachedData);
@@ -250,7 +254,8 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
                     if (current != tile.cachedData) {
                         current.sync(tile.structure);
                     }
-                    inventoryTimestamps.put(tile.cachedID, Math.max(currentTimestamp, tile.cachedDataTimestamp));
+                    inventoryTimestamps.put(tile.cachedID, tile.getWorld() == null ? Math.max(currentTimestamp, tile.cachedDataTimestamp) :
+                          tile.getWorld().getTotalWorldTime());
                 }
             }
         }

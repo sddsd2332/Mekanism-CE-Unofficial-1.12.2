@@ -17,6 +17,12 @@ import java.util.Objects;
 import java.util.UUID;
 
 /** Persistent standalone operation created by a QIO automatic-processing upgrade. */
+/**
+ * QIO 处理模块中的 QIOPassiveOperation 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOPassiveOperation {
 
     public static final int SCHEMA_VERSION = 4;
@@ -71,6 +77,7 @@ public final class QIOPassiveOperation {
     @Nullable
     private String diagnostic;
 
+    /** 创建被动处理操作的 claim 阶段记录。 */
     public QIOPassiveOperation(@Nonnull UUID operationId, @Nonnull UUID deviceUUID,
           @Nonnull String providerId, @Nonnull String routeId, @Nonnull String recipeKey,
           long createdAtTick, long expectedContentsRevision, long expectedClaimRevision,
@@ -81,6 +88,7 @@ public final class QIOPassiveOperation {
               requiredInputs);
     }
 
+    /** 创建带资源绑定和输入需求的被动处理记录。 */
     public QIOPassiveOperation(@Nonnull UUID operationId, @Nonnull UUID deviceUUID,
           @Nonnull String providerId, @Nonnull String routeId, @Nonnull String recipeKey,
           long operationCount, long createdAtTick, long expectedContentsRevision,
@@ -125,128 +133,155 @@ public final class QIOPassiveOperation {
     }
 
     @Nonnull
+    /** 返回被动操作标识。 */
     public UUID getOperationId() {
         return operationId;
     }
 
     @Nonnull
+    /** 返回执行设备标识。 */
     public UUID getDeviceUUID() {
         return deviceUUID;
     }
 
     @Nonnull
+    /** 返回 QIO claim 标识。 */
     public UUID getClaimId() {
         return claimId;
     }
 
     @Nonnull
+    /** 返回 claim 请求标识。 */
     public UUID getClaimRequestId() {
         return claimRequestId;
     }
 
     @Nonnull
+    /** 返回消费请求标识。 */
     public UUID getConsumeRequestId() {
         return consumeRequestId;
     }
 
     @Nonnull
+    /** 返回消费 durable transfer 标识。 */
     public UUID getConsumeTransferId() {
         return consumeTransferId;
     }
 
     @Nonnull
+    /** 返回释放 claim 请求标识。 */
     public UUID getReleaseRequestId() {
         return releaseRequestId;
     }
 
     @Nonnull
+    /** 返回 Provider 标识。 */
     public String getProviderId() {
         return providerId;
     }
 
     @Nonnull
+    /** 返回机器路由标识。 */
     public String getRouteId() {
         return routeId;
     }
 
     @Nonnull
+    /** 返回配方键。 */
     public String getRecipeKey() {
         return recipeKey;
     }
 
+    /** 返回该操作承载的批次数。 */
     public long getOperationCount() {
         return operationCount;
     }
 
+    /** 返回创建 tick。 */
     public long getCreatedAtTick() {
         return createdAtTick;
     }
 
+    /** 返回创建时预期的 QIO 内容版本。 */
     public long getExpectedContentsRevision() {
         return expectedContentsRevision;
     }
 
+    /** 返回创建时预期的 claim 版本。 */
     public long getExpectedClaimRevision() {
         return expectedClaimRevision;
     }
 
+    /** 返回最近观测到的 claim 版本。 */
     public long getObservedClaimRevision() {
         return observedClaimRevision;
     }
 
     @Nonnull
+    /** 返回资源到 QIO 条目标识的绑定。 */
     public Map<PortableResourceDescriptor, UUID> getResourceBindings() {
         return resourceBindings;
     }
 
     @Nonnull
+    /** 返回计划输入数量。 */
     public Map<PortableResourceDescriptor, Long> getRequiredInputs() {
         return requiredInputs;
     }
 
     @Nonnull
+    /** 返回已 claim 的输入数量。 */
     public Map<PortableResourceDescriptor, Long> getClaimedInputs() {
         return Collections.unmodifiableMap(new LinkedHashMap<>(claimedInputs));
     }
 
     @Nonnull
+    /** 返回消费前的 QIO 数量基线。 */
     public Map<PortableResourceDescriptor, BigInteger> getConsumeBaselines() {
         return Collections.unmodifiableMap(new LinkedHashMap<>(consumeBaselines));
     }
 
     @Nonnull
+    /** 返回已装入机器前的输入缓冲。 */
     public Map<PortableResourceDescriptor, Long> getInputBuffer() {
         return Collections.unmodifiableMap(new LinkedHashMap<>(inputBuffer));
     }
 
     @Nonnull
+    /** 返回待写回 QIO 的输出缓冲。 */
     public Map<PortableResourceDescriptor, Long> getOutputBuffer() {
         return Collections.unmodifiableMap(new LinkedHashMap<>(outputBuffer));
     }
 
     @Nonnull
+    /** 返回被动操作阶段。 */
     public State getState() {
         return state;
     }
 
     @Nullable
+    /** 返回机器租约标识。 */
     public UUID getLeaseId() {
         return leaseId;
     }
 
+    /** 返回机器通道编号。 */
     public long getLaneId() {
         return laneId;
     }
 
+    /** 返回被动操作运行时版本。 */
     public long getRuntimeRevision() {
         return runtimeRevision;
     }
 
     @Nullable
+    /** 返回失败或恢复诊断。 */
     public String getDiagnostic() {
         return diagnostic;
     }
 
+    /** 记录 claim 已建立。 */
     public void markClaimed(long claimRevision) {
         requireState(State.CLAIM_PREPARED);
         observedClaimRevision = QIOProcessingNbt.requireNonNegative(claimRevision,
@@ -257,6 +292,7 @@ public final class QIOPassiveOperation {
         changed();
     }
 
+    /** 记录部分 claim 结果，等待下一次版本一致性重试。 */
     public void markPartialClaim(@Nonnull Map<PortableResourceDescriptor, Long> amounts,
           long claimRevision, @Nonnull String reason) {
         requireState(State.CLAIM_PREPARED);
@@ -267,6 +303,7 @@ public final class QIOPassiveOperation {
         fail(reason);
     }
 
+    /** 记录消费请求及对应 QIO 数量基线。 */
     public void prepareConsume(@Nonnull Map<PortableResourceDescriptor, BigInteger> baselines) {
         requireState(State.CONFIGURING);
         Map<PortableResourceDescriptor, BigInteger> checked = QIOProcessingNbt.copyExactAmounts(
@@ -286,6 +323,7 @@ public final class QIOPassiveOperation {
         changed();
     }
 
+    /** 记录输入已经预留完成。 */
     public void markReserved(long claimRevision) {
         requireState(State.CONSUME_PREPARED);
         observedClaimRevision = QIOProcessingNbt.requireNonNegative(claimRevision,
@@ -297,6 +335,7 @@ public final class QIOPassiveOperation {
         changed();
     }
 
+    /** 记录机器配置交换已取得租约。 */
     public void markConfiguring(@Nonnull UUID leaseId, long laneId) {
         requireState(State.CLAIMED);
         this.leaseId = Objects.requireNonNull(leaseId, "leaseId");
@@ -305,6 +344,7 @@ public final class QIOPassiveOperation {
         changed();
     }
 
+    /** 记录 claim 已释放。 */
     public void markClaimReleased() {
         requireState(State.RELEASE_PREPARED);
         claimedInputs.clear();
@@ -312,6 +352,7 @@ public final class QIOPassiveOperation {
         changed();
     }
 
+    /** 记录输入正在装入机器。 */
     public void markLoading(@Nonnull UUID leaseId, long laneId) {
         requireState(State.RESERVED);
         this.leaseId = Objects.requireNonNull(leaseId, "leaseId");
@@ -320,6 +361,7 @@ public final class QIOPassiveOperation {
         changed();
     }
 
+    /** 记录机器已经开始运行。 */
     public void markActive() {
         requireState(State.LOADING);
         inputBuffer.clear();
@@ -327,6 +369,7 @@ public final class QIOPassiveOperation {
         changed();
     }
 
+    /** 放弃尚未完成的加载并保存原因。 */
     public void abandonLoading(@Nonnull String reason) {
         requireState(State.LOADING);
         if (inputBuffer.isEmpty()) {
@@ -337,6 +380,7 @@ public final class QIOPassiveOperation {
         fail(reason);
     }
 
+    /** 记录机器完成并进入输出收集阶段。 */
     public void markCollecting(@Nonnull Map<PortableResourceDescriptor, Long> outputs) {
         requireState(State.ACTIVE);
         outputBuffer.clear();
@@ -345,6 +389,7 @@ public final class QIOPassiveOperation {
         changed();
     }
 
+    /** 记录输出正在写回 QIO。 */
     public void markDelivering() {
         if (state != State.COLLECTING && state != State.DELIVERING) {
             throw new IllegalStateException("Passive operation cannot deliver from " + state);
@@ -353,6 +398,7 @@ public final class QIOPassiveOperation {
         changed();
     }
 
+    /** 从输出缓冲扣除已成功写回 QIO 的数量。 */
     public void debitDelivered(@Nonnull PortableResourceDescriptor resource, long amount) {
         if (state != State.DELIVERING || amount <= 0 ||
               outputBuffer.getOrDefault(resource, 0L) < amount) {
@@ -370,6 +416,7 @@ public final class QIOPassiveOperation {
         changed();
     }
 
+    /** 从输入回退缓冲扣除已退回 QIO 的数量。 */
     public void debitReturned(@Nonnull PortableResourceDescriptor resource, long amount) {
         requireState(State.RETURNING);
         Map<PortableResourceDescriptor, Long> buffer = outputBuffer.containsKey(resource) ?
@@ -390,9 +437,54 @@ public final class QIOPassiveOperation {
         changed();
     }
 
+    /** 记录可由任务调度器处理的失败。 */
     public void fail(@Nonnull String reason) {
         diagnostic = checkedText(reason, "diagnostic");
-        if (!claimedInputs.isEmpty()) {
+        if (!claimedInputs.isEmpty() || state == State.CLAIM_PREPARED ||
+              state == State.CLAIMED || state == State.CONFIGURING ||
+              state == State.CONSUME_PREPARED || state == State.RELEASE_PREPARED) {
+            state = State.RELEASE_PREPARED;
+        } else if (!inputBuffer.isEmpty() || !outputBuffer.isEmpty()) {
+            state = State.RETURNING;
+        } else {
+            state = State.FAILED;
+        }
+        changed();
+    }
+
+    /** Explicit force-recovery path: discard operation-owned buffers after the user accepts loss. */
+    /** 在强制恢复路径中终止操作并保留诊断。 */
+    public void forceFail(@Nonnull String reason) {
+        diagnostic = checkedText(reason, "diagnostic");
+        claimedInputs.clear();
+        inputBuffer.clear();
+        outputBuffer.clear();
+        leaseId = null;
+        laneId = -1;
+        state = State.FAILED;
+        changed();
+    }
+
+    /**
+     * Ends a host-owned operation after DATA_ERROR while retaining only buffers whose ownership
+     * is still explicit. Claimed inputs remain in RELEASE_PREPARED so the normal QIO claim
+     * release protocol can finish on a later tick.
+     */
+    /** 主机恢复后取消操作，并按参数决定是否保留输入缓冲。 */
+    public void forceCancelAfterHostRecovery(@Nonnull String reason, boolean retainInput,
+          boolean retainOutput) {
+        diagnostic = checkedText(reason, "diagnostic");
+        if (!retainInput) {
+            inputBuffer.clear();
+        }
+        if (!retainOutput) {
+            outputBuffer.clear();
+        }
+        leaseId = null;
+        laneId = -1;
+        if (!claimedInputs.isEmpty() || state == State.CLAIM_PREPARED ||
+              state == State.CLAIMED || state == State.CONFIGURING ||
+              state == State.CONSUME_PREPARED || state == State.RELEASE_PREPARED) {
             state = State.RELEASE_PREPARED;
         } else if (!inputBuffer.isEmpty() || !outputBuffer.isEmpty()) {
             state = State.RETURNING;
@@ -403,6 +495,7 @@ public final class QIOPassiveOperation {
     }
 
     @Nonnull
+    /** 将被动操作全部阶段和资源缓冲写入 NBT。 */
     public NBTTagCompound write() {
         NBTTagCompound data = new NBTTagCompound();
         data.setInteger("schema", SCHEMA_VERSION);
@@ -447,6 +540,7 @@ public final class QIOPassiveOperation {
     }
 
     @Nonnull
+    /** 从 NBT 读取并校验被动操作状态机。 */
     public static QIOPassiveOperation read(@Nonnull NBTTagCompound data)
           throws QIOProcessingDataException {
         int schema = data.getInteger("schema");

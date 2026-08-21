@@ -35,6 +35,12 @@ import java.util.UUID;
 import java.util.Set;
 
 /** Server-authoritative workbench configuration browsing and mutation. */
+/**
+ * QIO 处理模块中的 QIOWorkbenchConfigurationService 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOWorkbenchConfigurationService {
 
     public static final int MAX_QUERY_LENGTH = 128;
@@ -47,13 +53,15 @@ public final class QIOWorkbenchConfigurationService {
         INVALID_TARGET,
         INVALID_PATTERN,
         READ_ONLY,
-        LAST_CANDIDATE
+        LAST_CANDIDATE,
+        UNAVAILABLE
     }
 
     private QIOWorkbenchConfigurationService() {
     }
 
     @Nonnull
+    /** 打开工作台配置编辑上下文。 */
     public static Context open(@Nonnull QIOProcessingTerminalSession session,
           @Nonnull QIOProcessingNetworkData network, long currentAccessRevision,
           @Nonnull UUID playerUUID) {
@@ -61,6 +69,7 @@ public final class QIOWorkbenchConfigurationService {
     }
 
     @Nonnull
+    /** 按目标版本打开工作台配置编辑上下文。 */
     public static Context open(@Nonnull QIOProcessingTerminalSession session,
           @Nonnull QIOProcessingNetworkData network, long currentAccessRevision,
           @Nonnull UUID playerUUID, @Nullable World world) {
@@ -72,6 +81,7 @@ public final class QIOWorkbenchConfigurationService {
     }
 
     @Nonnull
+    /** 查询工作台配置可用产品分页。 */
     public static QIOWorkbenchConfigurationSnapshot products(@Nonnull Context context,
           int requestedOffset, int requestedPageSize, @Nonnull String query) {
         String checkedQuery = normalizeQuery(query);
@@ -100,6 +110,7 @@ public final class QIOWorkbenchConfigurationService {
     }
 
     @Nonnull
+    /** 查询产品对应的配方分页。 */
     public static QIOWorkbenchConfigurationSnapshot recipes(@Nonnull Context context,
           @Nonnull String productKey, int requestedOffset, int requestedPageSize) {
         String checkedProduct = checkedHash(productKey);
@@ -119,7 +130,7 @@ public final class QIOWorkbenchConfigurationService {
             if (definition == null || !definition.getOutput().equals(output)) {
                 continue;
             }
-            values.add(recipeSnapshot(configuration, definition, index));
+            values.add(recipeSnapshot(configuration, catalog, definition, index));
         }
         return snapshot(context, PageKind.RECIPES, requestedOffset, requestedPageSize,
               values.size(), "", checkedProduct, "", "", -1,
@@ -127,6 +138,7 @@ public final class QIOWorkbenchConfigurationService {
     }
 
     @Nonnull
+    /** 查询指定配方输入槽位的候选资源。 */
     public static QIOWorkbenchConfigurationSnapshot candidates(@Nonnull Context context,
           @Nonnull String productKey, @Nonnull String recipeId,
           @Nonnull String recipeSignature, int ingredientSlot, int requestedOffset,
@@ -142,10 +154,11 @@ public final class QIOWorkbenchConfigurationService {
             throw new IllegalArgumentException("Workbench ingredient slot is empty");
         }
         QIOWorkbenchConfiguration configuration = context.configuration();
-        List<String> defaults = definition.getCandidateIds(ingredientSlot);
+        QIOWorkbenchRecipeCatalog.Snapshot catalog = context.catalog.getSnapshot();
+        List<String> defaults = catalog.getCandidateIds(definition, ingredientSlot);
         List<String> ordered = configuration.orderedCandidates(definition.getRecipeId().toString(),
               definition.getSignature(), ingredientSlot, defaults);
-        Map<String, CandidateDefinition> byId = candidatesById(ingredient);
+        Map<String, CandidateDefinition> byId = candidatesById(catalog, ingredient);
         List<Candidate> values = new ArrayList<>(ordered.size());
         for (int index = 0; index < ordered.size(); index++) {
             CandidateDefinition candidate = byId.get(ordered.get(index));
@@ -164,6 +177,7 @@ public final class QIOWorkbenchConfigurationService {
     }
 
     @Nonnull
+    /** 应用工作台配置变更并检查版本冲突。 */
     public static MutationStatus mutate(@Nonnull Context context,
           long expectedConfigurationRevision, long expectedCatalogRevision,
           @Nonnull QIOWorkbenchConfigurationMutation mutation) {
@@ -171,6 +185,9 @@ public final class QIOWorkbenchConfigurationService {
         Objects.requireNonNull(mutation, "mutation");
         if (!context.editable) {
             return MutationStatus.READ_ONLY;
+        }
+        if (!QIORecipeCatalogService.INSTANCE.isReady()) {
+            return MutationStatus.UNAVAILABLE;
         }
         QIOWorkbenchConfiguration configuration = context.configuration();
         if (configuration.getRevision() != expectedConfigurationRevision) {
@@ -326,8 +343,8 @@ public final class QIOWorkbenchConfigurationService {
             case RESET_RECIPE -> configuration.resetRecipe(recipeId);
             case TOGGLE_CANDIDATE, MOVE_CANDIDATE, MOVE_CANDIDATE_TO_TOP,
                  MOVE_CANDIDATE_TO_BOTTOM, MOVE_CANDIDATE_TO_INDEX,
-                 SYNC_EQUIVALENT_CANDIDATES -> applyCandidate(configuration, definition,
-                       mutation);
+                 SYNC_EQUIVALENT_CANDIDATES -> applyCandidate(configuration, catalog,
+                       definition, mutation);
             default -> throw new IllegalArgumentException("Unsupported workbench mutation");
         }
     }
@@ -344,18 +361,18 @@ public final class QIOWorkbenchConfigurationService {
         for (int gridSlot = 0; gridSlot < grid.size(); gridSlot++) {
             ItemStack selected = grid.get(gridSlot);
             if (selected.isEmpty()) continue;
-            int ingredientSlot = matchingIngredient(definition, selected, gridSlot,
+            int ingredientSlot = matchingIngredient(encoded, definition, selected, gridSlot,
                   assignedIngredients);
             if (ingredientSlot < 0) continue;
             IngredientDefinition ingredient = definition.getIngredients().get(ingredientSlot);
-            for (CandidateDefinition candidate : ingredient.getCandidates()) {
+            for (CandidateDefinition candidate : encoded.getCandidates(ingredient)) {
                 ItemStack display = candidate.getDisplayStack();
                 if (ItemStack.areItemsEqual(selected, display) &&
                     ItemStack.areItemStackTagsEqual(selected, display)) {
                     try {
                         configuration.moveCandidate(pattern.getRecipeId().toString(),
                               pattern.getRecipeSignature(), ingredientSlot,
-                              definition.getCandidateIds(ingredientSlot),
+                              encoded.getCandidateIds(definition, ingredientSlot),
                               candidate.getCandidateId(), -1, true);
                     } catch (IllegalArgumentException | IllegalStateException ignored) {
                         // The validated pattern remains usable even if a sparse preference
@@ -368,23 +385,26 @@ public final class QIOWorkbenchConfigurationService {
         }
     }
 
-    private static int matchingIngredient(RecipeDefinition definition, ItemStack selected,
+    private static int matchingIngredient(QIOWorkbenchRecipeCatalog.Snapshot catalog,
+          RecipeDefinition definition, ItemStack selected,
           int preferredSlot, Set<Integer> assigned) {
         if (preferredSlot >= 0 && preferredSlot < definition.getIngredients().size() &&
-            !assigned.contains(preferredSlot) && matches(
+            !assigned.contains(preferredSlot) && matches(catalog,
                   definition.getIngredients().get(preferredSlot), selected)) {
             return preferredSlot;
         }
         for (IngredientDefinition ingredient : definition.getIngredients()) {
-            if (!assigned.contains(ingredient.getSlot()) && matches(ingredient, selected)) {
+            if (!assigned.contains(ingredient.getSlot()) &&
+                matches(catalog, ingredient, selected)) {
                 return ingredient.getSlot();
             }
         }
         return -1;
     }
 
-    private static boolean matches(IngredientDefinition ingredient, ItemStack selected) {
-        for (CandidateDefinition candidate : ingredient.getCandidates()) {
+    private static boolean matches(QIOWorkbenchRecipeCatalog.Snapshot catalog,
+          IngredientDefinition ingredient, ItemStack selected) {
+        for (CandidateDefinition candidate : catalog.getCandidates(ingredient)) {
             ItemStack display = candidate.getDisplayStack();
             if (ItemStack.areItemsEqual(selected, display) &&
                 ItemStack.areItemStackTagsEqual(selected, display)) return true;
@@ -393,13 +413,14 @@ public final class QIOWorkbenchConfigurationService {
     }
 
     private static void applyCandidate(QIOWorkbenchConfiguration configuration,
-          RecipeDefinition definition, QIOWorkbenchConfigurationMutation mutation) {
+          QIOWorkbenchRecipeCatalog.Snapshot catalog, RecipeDefinition definition,
+          QIOWorkbenchConfigurationMutation mutation) {
         int slot = mutation.getIngredientSlot();
         if (slot < 0 || slot >= definition.getIngredients().size() ||
             definition.getIngredients().get(slot).isEmpty()) {
             throw new IllegalArgumentException("Unknown workbench ingredient");
         }
-        List<String> defaults = definition.getCandidateIds(slot);
+        List<String> defaults = catalog.getCandidateIds(definition, slot);
         String recipeId = definition.getRecipeId().toString();
         String signature = definition.getSignature();
         switch (mutation.getAction()) {
@@ -416,37 +437,29 @@ public final class QIOWorkbenchConfigurationService {
                   signature, slot, defaults, mutation.getCandidateId(),
                   mutation.getTargetIndex());
             case SYNC_EQUIVALENT_CANDIDATES -> configuration.synchronizeEquivalentCandidates(
-                  recipeId, signature, slot, equivalentCandidateDefaults(definition, slot));
+                  recipeId, signature, slot,
+                  equivalentCandidateDefaults(catalog, definition, slot));
             default -> throw new IllegalArgumentException("Unsupported candidate mutation");
         }
     }
 
     private static Map<Integer, List<String>> equivalentCandidateDefaults(
-          RecipeDefinition definition, int sourceSlot) {
+          QIOWorkbenchRecipeCatalog.Snapshot catalog, RecipeDefinition definition,
+          int sourceSlot) {
         IngredientDefinition source = definition.getIngredients().get(sourceSlot);
-        List<String> sourceSignature = candidateSetSignature(source);
         Map<Integer, List<String>> equivalent = new LinkedHashMap<>();
         for (IngredientDefinition ingredient : definition.getIngredients()) {
-            if (!ingredient.isEmpty() && sourceSignature.equals(candidateSetSignature(ingredient))) {
-                equivalent.put(ingredient.getSlot(), definition.getCandidateIds(
+            if (!ingredient.isEmpty() &&
+                source.getMatcherId() == ingredient.getMatcherId()) {
+                equivalent.put(ingredient.getSlot(), catalog.getCandidateIds(definition,
                       ingredient.getSlot()));
             }
         }
         return equivalent;
     }
 
-    private static List<String> candidateSetSignature(IngredientDefinition ingredient) {
-        List<String> signature = new ArrayList<>(ingredient.getCandidates().size());
-        for (CandidateDefinition candidate : ingredient.getCandidates()) {
-            signature.add(candidate.getCandidateId() + '@' + candidate.getAmount() + '@' +
-                  candidate.isVirtualFluid() + '@' + candidate.getResource());
-        }
-        Collections.sort(signature);
-        return signature;
-    }
-
     private static Recipe recipeSnapshot(QIOWorkbenchConfiguration configuration,
-          RecipeDefinition definition, int order) {
+          QIOWorkbenchRecipeCatalog.Snapshot catalog, RecipeDefinition definition, int order) {
         List<Ingredient> ingredients = new ArrayList<>(9);
         for (IngredientDefinition ingredient : definition.getIngredients()) {
             if (ingredient.isEmpty()) {
@@ -454,11 +467,11 @@ public final class QIOWorkbenchConfigurationService {
                       null, 0));
                 continue;
             }
-            List<String> defaults = definition.getCandidateIds(ingredient.getSlot());
+            List<String> defaults = catalog.getCandidateIds(definition, ingredient.getSlot());
             List<String> enabled = configuration.orderedEnabledCandidates(
                   definition.getRecipeId().toString(), definition.getSignature(),
                   ingredient.getSlot(), defaults);
-            Map<String, CandidateDefinition> byId = candidatesById(ingredient);
+            Map<String, CandidateDefinition> byId = candidatesById(catalog, ingredient);
             CandidateDefinition representative = enabled.isEmpty() ? null :
                   byId.get(enabled.get(0));
             if (representative == null) {
@@ -523,9 +536,9 @@ public final class QIOWorkbenchConfigurationService {
     }
 
     private static Map<String, CandidateDefinition> candidatesById(
-          IngredientDefinition ingredient) {
+          QIOWorkbenchRecipeCatalog.Snapshot catalog, IngredientDefinition ingredient) {
         Map<String, CandidateDefinition> result = new LinkedHashMap<>();
-        for (CandidateDefinition candidate : ingredient.getCandidates()) {
+        for (CandidateDefinition candidate : catalog.getCandidates(ingredient)) {
             result.put(candidate.getCandidateId(), candidate);
         }
         return result;

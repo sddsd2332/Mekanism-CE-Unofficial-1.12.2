@@ -17,6 +17,12 @@ import java.util.Map;
 import java.util.Objects;
 
 /** Immutable condensed SCC node whose member routes execute under per-round quotas. */
+/**
+ * QIO 处理模块中的 QIOCyclePlanNode 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOCyclePlanNode {
     private static final int MAX_MEMBERS = 65_536;
     private static final int MAX_RESOURCES = 65_536;

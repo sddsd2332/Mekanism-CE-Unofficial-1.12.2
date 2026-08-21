@@ -47,20 +47,28 @@ public class InventoryNetwork extends DynamicNetwork<TileEntity, InventoryNetwor
                 continue;
             }
 
-            AcceptorData data = null;
+            Map<TransitResponse, AcceptorData> responseData = new HashMap<>();
             for (EnumFacing side : sides) {
                 EnumFacing opposite = side.getOpposite();
                 TransitResponse response = TransporterManager.getPredictedInsert(acceptor, stack.color, request, opposite, additionalFlowingStacks);
                 if (!response.isEmpty()) {
-                    if (data == null) {
-                        toReturn.add(data = new AcceptorData(coord, response, opposite));
-                    } else {
-                        data.sides.add(opposite);
-                    }
+                    addAcceptorData(toReturn, responseData, coord, response, opposite);
                 }
             }
         }
         return toReturn;
+    }
+
+    static void addAcceptorData(List<AcceptorData> acceptors, Map<TransitResponse, AcceptorData> responseData,
+          Coord4D coord, TransitResponse response, EnumFacing side) {
+        AcceptorData data = responseData.get(response);
+        if (data == null) {
+            data = new AcceptorData(coord, response, side);
+            responseData.put(response, data);
+            acceptors.add(data);
+        } else {
+            data.sides.add(side);
+        }
     }
 
     @Override

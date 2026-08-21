@@ -25,6 +25,7 @@ import mekanism.common.tile.prefab.TileEntityContainerBlock;
 import mekanism.common.util.InventoryUtils;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.block.state.IBlockState;
+import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
@@ -39,6 +40,8 @@ import javax.annotation.Nonnull;
 import java.util.UUID;
 
 public class TileEntitySecurityDesk extends TileEntityContainerBlock implements IBoundingBlock, IFrequencyHandler, ISpecialSelectionWireframeTile {
+
+    private static final int MAX_TRUSTED_NAME_LENGTH = 16;
 
     private static final ISpecialSelectionWireframeTile.SelectionTransform[] SELECTION_ROTATE_SOUTH = {
             ISpecialSelectionWireframeTile.SelectionTransform.rotateY(180.0D, 0.5D, 0.5D, 0.5D)
@@ -103,16 +106,40 @@ public class TileEntitySecurityDesk extends TileEntityContainerBlock implements 
     }
 
     @Override
+    public boolean canHandlePacket(EntityPlayer player) {
+        return ownerUUID != null && ownerUUID.equals(player.getUniqueID());
+    }
+
+    private static boolean isValidTrustedName(String name) {
+        if (name == null || name.isEmpty() || name.length() > MAX_TRUSTED_NAME_LENGTH) {
+            return false;
+        }
+        for (int i = 0; i < name.length(); i++) {
+            char c = name.charAt(i);
+            if (c != '_' && !Character.isLetterOrDigit(c)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
     public void handlePacketData(ByteBuf dataStream) {
         if (FMLCommonHandler.instance().getEffectiveSide().isServer()) {
             int type = dataStream.readInt();
             if (type == 0) {
+                String trustedName = PacketHandler.readString(dataStream);
                 if (frequency != null) {
-                    frequency.trusted.add(PacketHandler.readString(dataStream));
+                    if (isValidTrustedName(trustedName) && !frequency.trusted.contains(trustedName)) {
+                        frequency.trusted.add(trustedName);
+                    }
                 }
             } else if (type == 1) {
+                String trustedName = PacketHandler.readString(dataStream);
                 if (frequency != null) {
-                    frequency.trusted.remove(PacketHandler.readString(dataStream));
+                    if (isValidTrustedName(trustedName)) {
+                        frequency.trusted.remove(trustedName);
+                    }
                 }
             } else if (type == 2) {
                 if (frequency != null) {

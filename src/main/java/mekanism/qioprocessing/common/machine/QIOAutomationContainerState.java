@@ -28,6 +28,12 @@ import java.util.Map;
 import java.util.UUID;
 
 /** Container-side client mirror for one machine's QIO automation binding. */
+/**
+ * QIO 处理模块中的 QIOAutomationContainerState 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOAutomationContainerState implements ISpecificContainerTracker {
 
     public static final ResourceLocation EXTENSION_ID = new ResourceLocation("mekanismqioprocessing",
@@ -43,6 +49,10 @@ public final class QIOAutomationContainerState implements ISpecificContainerTrac
     @Nullable
     private QIOAutomationMode mode;
     private QIOAutomationHost.State state = QIOAutomationHost.State.UNBOUND;
+    private QIOAutomationHost.RecoveryState recoveryState = QIOAutomationHost.RecoveryState.NONE;
+    private boolean recoveryPending;
+    @Nullable
+    private String recoveryDiagnostic;
     @Nullable
     private QIOFrequency displayFrequency;
 
@@ -85,6 +95,25 @@ public final class QIOAutomationContainerState implements ISpecificContainerTrac
     @Nonnull
     public QIOAutomationHost.State getState() {
         return state;
+    }
+
+    @Nonnull
+    public QIOAutomationHost.RecoveryState getRecoveryState() {
+        return recoveryState;
+    }
+
+    /** True only when the server has retained an ownership quarantine that may be force-cleared. */
+    public boolean isRecoveryQuarantined() {
+        return recoveryState == QIOAutomationHost.RecoveryState.QUARANTINED;
+    }
+
+    public boolean hasRecoveryPending() {
+        return recoveryPending;
+    }
+
+    @Nullable
+    public String getRecoveryDiagnostic() {
+        return recoveryDiagnostic;
     }
 
     @Nullable
@@ -139,6 +168,11 @@ public final class QIOAutomationContainerState implements ISpecificContainerTrac
             return data;
         }
         data.setString("state", host.getState().name());
+        data.setString("recoveryState", host.getRecoveryState().name());
+        data.setBoolean("recoveryPending", host.hasRecoveryPending());
+        if (host.getRecoveryDiagnostic() != null) {
+            data.setString("recoveryDiagnostic", host.getRecoveryDiagnostic());
+        }
         if (host.getEnabledMode() != null) {
             data.setString("mode", host.getEnabledMode().name());
         }
@@ -150,14 +184,45 @@ public final class QIOAutomationContainerState implements ISpecificContainerTrac
 
     void readSummary(NBTTagCompound data) {
         try {
-            state = data.hasKey("state") ? QIOAutomationHost.State.valueOf(data.getString("state")) :
+            QIOAutomationHost.State reportedState = data.hasKey("state") ?
+                  QIOAutomationHost.State.valueOf(data.getString("state")) :
                   QIOAutomationHost.State.UNBOUND;
+            // DATA_ERROR was serialized by older hosts. It is not a lifecycle state
+            // anymore; keep the diagnostic/recovery bit while showing the normal
+            // access lifecycle to the client.
+            recoveryPending = data.getBoolean("recoveryPending") ||
+                  reportedState == QIOAutomationHost.State.DATA_ERROR;
+            recoveryDiagnostic = data.hasKey("recoveryDiagnostic", 8) ?
+                  data.getString("recoveryDiagnostic") : null;
+            recoveryState = data.hasKey("recoveryState", 8) ?
+                  QIOAutomationHost.RecoveryState.valueOf(data.getString("recoveryState")) :
+                  (reportedState == QIOAutomationHost.State.DATA_ERROR ||
+                        recoveryDiagnostic != null ?
+                        QIOAutomationHost.RecoveryState.QUARANTINED :
+                        QIOAutomationHost.RecoveryState.NONE);
+            if (recoveryState == QIOAutomationHost.RecoveryState.NONE &&
+                  (reportedState == QIOAutomationHost.State.DATA_ERROR ||
+                        recoveryDiagnostic != null)) {
+                // Be defensive about old clients/packets that carried a diagnostic without its
+                // companion recovery marker.
+                recoveryState = QIOAutomationHost.RecoveryState.QUARANTINED;
+            }
+            if (recoveryState != QIOAutomationHost.RecoveryState.NONE) {
+                recoveryPending = true;
+            }
             mode = data.hasKey("mode") ? QIOAutomationMode.valueOf(data.getString("mode")) : null;
             reference = data.hasKey("reference", 10) ?
                   QIOFrequencyReference.read(data.getCompoundTag("reference")) : null;
+            state = reportedState == QIOAutomationHost.State.DATA_ERROR ?
+                  (reference == null ? QIOAutomationHost.State.UNBOUND :
+                        QIOAutomationHost.State.WAITING_ACCESS) : reportedState;
             displayFrequency = createDisplayFrequency(reference);
         } catch (RuntimeException e) {
-            state = QIOAutomationHost.State.DATA_ERROR;
+            state = QIOAutomationHost.State.UNBOUND;
+            recoveryState = QIOAutomationHost.RecoveryState.QUARANTINED;
+            recoveryPending = true;
+            recoveryDiagnostic = e.getMessage() == null ? "Invalid QIO automation state" :
+                  e.getMessage();
             mode = null;
             reference = null;
             displayFrequency = null;

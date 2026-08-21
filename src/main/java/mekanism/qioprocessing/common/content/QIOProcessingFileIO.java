@@ -18,6 +18,12 @@ import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.UUID;
 
+/**
+ * QIO 处理模块中的 QIOProcessingFileIO 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 final class QIOProcessingFileIO {
 
     private static final long MAX_COMPRESSED_FILE_SIZE = 64L * 1024 * 1024;
@@ -38,7 +44,7 @@ final class QIOProcessingFileIO {
             return null;
         }
         if (file.length() > MAX_COMPRESSED_FILE_SIZE) {
-            throw new IOException("QIO Processing file exceeds 64 MiB: " + file);
+            throw new FileTooLargeException("QIO Processing file exceeds 64 MiB: " + file);
         }
         try (FileInputStream input = new FileInputStream(file)) {
             return CompressedStreamTools.readCompressed(input);
@@ -173,11 +179,23 @@ final class QIOProcessingFileIO {
             syncIfSupported(output, temporary);
         }
         if (temporary.length() > MAX_COMPRESSED_FILE_SIZE) {
-            throw new IOException("QIO Processing file would exceed 64 MiB: " + target);
+            throw new FileTooLargeException(
+                  "QIO Processing file would exceed 64 MiB: " + target);
         }
         NBTTagCompound verified = read(temporary);
         if (verified == null || !verified.equals(data)) {
             throw new IOException("QIO Processing write verification failed: " + target);
+        }
+    }
+
+    static boolean isFileTooLarge(IOException error) {
+        return error instanceof FileTooLargeException;
+    }
+
+    private static final class FileTooLargeException extends IOException {
+
+        private FileTooLargeException(String message) {
+            super(message);
         }
     }
 

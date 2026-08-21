@@ -27,6 +27,8 @@ import mekanism.common.tile.laser.TileEntityLaserTractorBeam;
 import mekanism.common.tile.machine.*;
 import mekanism.common.tile.multiblock.TileEntityDynamicTank;
 import mekanism.common.tile.multiblock.TileEntityInductionCasing;
+import mekanism.common.tile.multiblock.TileEntityBoilerCasing;
+import mekanism.common.tile.multiblock.TileEntitySPSCasing;
 import mekanism.common.tile.multiblock.TileEntityThermalEvaporationController;
 import mekanism.common.tile.qio.TileEntityQIODriveArray;
 import mekanism.common.tile.qio.TileEntityQIODashboard;
@@ -326,6 +328,73 @@ public class CommonProxy implements IGuiProvider {
             case QIOGuiConstants.REDSTONE_ADAPTER -> new ContainerQIORedstoneAdapter(player.inventory, (TileEntityQIORedstoneAdapter) tileEntity);
             case QIOGuiConstants.COMPONENT_FREQUENCY -> new ContainerQIOFrequencySelect(player.inventory, (TileEntityQIOComponent) tileEntity);
             default -> null;
+        };
+    }
+
+    @Override
+    public boolean isValidServerGui(int ID, TileEntity tile) {
+        return switch (ID) {
+            case 2 -> tile instanceof TileEntityDigitalMiner;
+            case 3, 6, 16, 64, 65, 66, 67 -> tile instanceof TileEntityElectricMachine;
+            case 4, 15, 31 -> tile instanceof TileEntityAdvancedElectricMachine;
+            case 5, 68 -> tile instanceof TileEntityDoubleElectricMachine;
+            case 7 -> tile instanceof TileEntityRotaryCondensentrator;
+            case 8 -> tile instanceof TileEntityEnergyCube;
+            case 10 -> tile instanceof TileEntityGasTank;
+            case 11 -> tile instanceof TileEntityFactory;
+            case 12 -> tile instanceof TileEntityMetallurgicInfuser;
+            case 13 -> tile instanceof TileEntityTeleporter;
+            case 17 -> tile instanceof TileEntityElectricPump;
+            case 18 -> tile instanceof TileEntityDynamicTank;
+            case 19 -> tile instanceof TileEntityPersonalChest;
+            case 26, 27, 28 -> tile instanceof TileEntityContainerBlock;
+            case 29 -> tile instanceof TileEntityChemicalOxidizer;
+            case 30 -> tile instanceof TileEntityChemicalInfuser;
+            case 32 -> tile instanceof TileEntityElectrolyticSeparator;
+            case 33 -> tile instanceof TileEntityThermalEvaporationController;
+            case 34 -> tile instanceof TileEntityPrecisionSawmill;
+            case 35 -> tile instanceof TileEntityChemicalDissolutionChamber;
+            case 36 -> tile instanceof TileEntityChemicalWasher;
+            case 37 -> tile instanceof TileEntityChemicalCrystallizer;
+            case 39 -> tile instanceof TileEntitySeismicVibrator;
+            case 40 -> tile instanceof TileEntityPRC;
+            case 41 -> tile instanceof TileEntityFluidTank;
+            case 42 -> tile instanceof TileEntityFluidicPlenisher;
+            case 44 -> tile instanceof TileEntityLaserAmplifier;
+            case 45 -> tile instanceof TileEntityLaserTractorBeam;
+            case 46 -> tile instanceof TileEntityQuantumEntangloporter;
+            case 47 -> tile instanceof TileEntitySolarNeutronActivator;
+            case 48 -> tile instanceof TileEntityAmbientAccumulator;
+            case 49, 50 -> tile instanceof TileEntityInductionCasing;
+            case 52 -> tile instanceof TileEntityOredictionificator;
+            case 53 -> tile instanceof TileEntityResistiveHeater;
+            case 54, 55 -> tile instanceof TileEntityBoilerCasing;
+            case 56 -> tile instanceof TileEntityFormulaicAssemblicator;
+            case 57 -> tile instanceof TileEntitySecurityDesk;
+            case 58 -> tile instanceof TileEntityFuelwoodHeater;
+            case 59 -> tile instanceof TileEntityLogisticalSorter;
+            case 60 -> tile instanceof TileEntityIsotopicCentrifuge;
+            case 61 -> tile instanceof TileEntityNutritionalLiquifier;
+            case 62 -> tile instanceof TileEntityOrganicFarm;
+            case 63 -> tile instanceof TileEntityAntiprotonicNucleosynthesizer;
+            case 70 -> tile instanceof TileEntityCellExtractor;
+            case 71 -> tile instanceof TileEntityCellSeparator;
+            case 72 -> tile instanceof TileEntityRecycler;
+            case 73 -> tile instanceof TileEntityAmbientAccumulatorEnergy;
+            case 74 -> tile instanceof TileEntityHybridStorage;
+            case 75 -> tile instanceof TileEntityModificationStation;
+            case 76 -> tile instanceof TileEntitySPS;
+            // Module Tweaker is opened through the separately restricted PacketOpenGui path.
+            case 77 -> false;
+            case 78 -> tile instanceof TileEntitySPSCasing;
+            case 79 -> tile instanceof TileEntityDimensionalStabilizer;
+            case QIOGuiConstants.DRIVE_ARRAY, QIOGuiConstants.DRIVE_ARRAY_FREQUENCY -> tile instanceof TileEntityQIODriveArray;
+            case QIOGuiConstants.DASHBOARD -> tile instanceof TileEntityQIODashboard;
+            case QIOGuiConstants.IMPORTER -> tile instanceof TileEntityQIOImporter;
+            case QIOGuiConstants.EXPORTER -> tile instanceof TileEntityQIOExporter;
+            case QIOGuiConstants.REDSTONE_ADAPTER -> tile instanceof TileEntityQIORedstoneAdapter;
+            case QIOGuiConstants.COMPONENT_FREQUENCY -> tile instanceof TileEntityQIOComponent;
+            default -> false;
         };
     }
 

@@ -16,6 +16,12 @@ import java.util.Set;
 import java.util.UUID;
 
 /** Persistent exclusive ownership of one machine lane and its shared port groups. */
+/**
+ * QIO 处理模块中的 MachineOperationLease 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class MachineOperationLease {
 
     public static final int MAX_BASELINES = 256;
@@ -78,6 +84,17 @@ public final class MachineOperationLease {
         this.contaminationReason = contaminationReason;
     }
 
+    /**
+     * 创建处于 ACQUIRED 状态的新租约。
+     *
+     * @param leaseId 租约唯一标识
+     * @param ownerOperationId 所属操作标识
+     * @param mode 租约用途
+     * @param laneId 机器通道编号
+     * @param createdAt 创建时的游戏 tick
+     * @param baselines 端口内容基线
+     * @return 新租约
+     */
     @Nonnull
     public static MachineOperationLease acquire(@Nonnull UUID leaseId, @Nonnull UUID ownerOperationId,
           @Nonnull Mode mode, long laneId, long createdAt, @Nonnull Collection<MachinePortBaseline> baselines) {
@@ -85,39 +102,47 @@ public final class MachineOperationLease {
               baselines, null);
     }
 
+    /** 返回租约唯一标识。 */
     @Nonnull
     public UUID leaseId() {
         return leaseId;
     }
 
+    /** 返回拥有该租约的操作标识。 */
     @Nonnull
     public UUID ownerOperationId() {
         return ownerOperationId;
     }
 
+    /** 返回租约用途。 */
     @Nonnull
     public Mode mode() {
         return mode;
     }
 
+    /** 返回租约占用的机器通道编号。 */
     public long laneId() {
         return laneId;
     }
 
+    /** 返回租约创建时的游戏 tick。 */
     public long createdAt() {
         return createdAt;
     }
 
+    /** 返回当前租约状态。 */
     @Nonnull
     public State state() {
         return state;
     }
 
+    /** 返回排序且不可修改的端口基线列表。 */
     @Nonnull
     public List<MachinePortBaseline> baselines() {
         return baselines;
     }
 
+    /** 返回租约涉及的端口组标识集合。 */
     @Nonnull
     public Set<String> portGroupIds() {
         Set<String> groups = new HashSet<>();
@@ -127,11 +152,19 @@ public final class MachineOperationLease {
         return Collections.unmodifiableSet(groups);
     }
 
+    /** 返回污染诊断；未污染时返回 null。 */
     @Nullable
     public String contaminationReason() {
         return contaminationReason;
     }
 
+    /**
+     * 创建目标状态的新租约实例。
+     *
+     * @param next 目标状态
+     * @return 状态转换后的租约
+     * @throws IllegalStateException 当前状态不允许转换时抛出
+     */
     @Nonnull
     public MachineOperationLease transition(@Nonnull State next) {
         Objects.requireNonNull(next, "Next lease state cannot be null");
@@ -145,6 +178,7 @@ public final class MachineOperationLease {
               next == State.CONTAMINATED ? "unspecified contamination" : contaminationReason);
     }
 
+    /** 将租约标记为污染并保留原因文本。 */
     @Nonnull
     public MachineOperationLease contaminate(@Nonnull String reason) {
         Objects.requireNonNull(reason, "Contamination reason cannot be null");
@@ -158,6 +192,17 @@ public final class MachineOperationLease {
               baselines, reason);
     }
 
+    /** 仅恢复主机已验证过的旧版自动输出 PREPARED 状态。 */
+    @Nonnull
+    public MachineOperationLease recoverCollectingAfterOutputRollback() {
+        if (mode != Mode.OUTPUT_DRAIN || state != State.CONTAMINATED) {
+            throw new IllegalStateException("Only a contaminated output lease can be recovered");
+        }
+        return new MachineOperationLease(leaseId, ownerOperationId, mode, laneId, createdAt,
+              State.COLLECTING, baselines, null);
+    }
+
+    /** 将租约写入稳定字段顺序的 NBT。 */
     @Nonnull
     public NBTTagCompound write() {
         NBTTagCompound data = new NBTTagCompound();
@@ -178,6 +223,7 @@ public final class MachineOperationLease {
         return data;
     }
 
+    /** 从 NBT 读取并校验租约及其全部端口基线。 */
     @Nonnull
     public static MachineOperationLease read(@Nonnull NBTTagCompound data) {
         Objects.requireNonNull(data, "Lease data cannot be null");

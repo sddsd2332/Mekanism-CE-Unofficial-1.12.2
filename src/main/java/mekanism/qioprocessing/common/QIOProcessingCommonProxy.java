@@ -32,6 +32,12 @@ import net.minecraft.world.World;
 import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.fml.common.registry.GameRegistry;
 
+/**
+ * QIO 处理模块中的 QIOProcessingCommonProxy 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public class QIOProcessingCommonProxy implements IGuiProvider {
 
     public static final int GUI_CRAFTING_PROCESSOR = 0;
@@ -104,6 +110,12 @@ public class QIOProcessingCommonProxy implements IGuiProvider {
                   new ContainerQIOProcessingTerminal(player.inventory, terminal);
         }
         return null;
+    }
+
+    @Override
+    public boolean isValidServerGui(int id, TileEntity tile) {
+        return id == GUI_CRAFTING_PROCESSOR && tile instanceof TileEntityQIOCraftingProcessor ||
+              id == GUI_TERMINAL && tile instanceof QIOProcessingTerminal;
     }
 
     @Override

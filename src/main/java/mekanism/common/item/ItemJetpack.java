@@ -84,7 +84,6 @@ public class ItemJetpack extends ItemArmor implements ILegacyGasItem, ISpecialAr
     public int getRGBDurabilityForDisplay(@Nonnull ItemStack stack) {
         GasStack gas = getStoredGas(stack);
         if (gas != null) {
-            MekanismRenderer.color(gas);
             return gas.getGas().getTint();
         } else {
             return MathHelper.hsvToRGB(Math.max(0.0F, (float) (1 - getDurabilityForDisplay(stack))) / 3.0F, 1.0F, 1.0F);
@@ -272,19 +271,24 @@ public class ItemJetpack extends ItemArmor implements ILegacyGasItem, ISpecialAr
     @Override
     @Optional.Method(modid = MekanismHooks.Baubles_MOD_ID)
     public void onPlayerBaubleRender(ItemStack itemStack, EntityPlayer entityPlayer, RenderType renderType, float v) {
-        ModelJetpack jetpack = new ModelJetpack();
-        ModelArmoredJetpack armoredJetpack = new ModelArmoredJetpack();
         if (renderType == RenderType.BODY) {
             GlStateManager.pushMatrix();
             GlStateManager.translate(0, 0, 0.06F);
             MekanismRenderer.bindTexture(MekanismUtils.getResource(MekanismUtils.ResourceType.RENDER, "Jetpack.png"));
             if (this == MekanismItems.Jetpack) {
-                jetpack.render(0.0625F);
+                BaubleModels.JETPACK.render(0.0625F);
             } else if (this == MekanismItems.ArmoredJetpack) {
-                armoredJetpack.render(0.0625F);
+                BaubleModels.ARMORED_JETPACK.render(0.0625F);
             }
             GlStateManager.popMatrix();
         }
+    }
+
+    @SideOnly(Side.CLIENT)
+    private static final class BaubleModels {
+
+        private static final ModelJetpack JETPACK = new ModelJetpack();
+        private static final ModelArmoredJetpack ARMORED_JETPACK = new ModelArmoredJetpack();
     }
 
 

@@ -22,6 +22,12 @@ import java.util.Objects;
 import java.util.TreeMap;
 import java.util.UUID;
 
+/**
+ * QIO 处理模块中的 QIOCraftingMonitorService 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOCraftingMonitorService {
 
     public enum CancelStatus {
@@ -44,6 +50,7 @@ public final class QIOCraftingMonitorService {
     }
 
     @Nonnull
+    /** 查询合成监控任务分页。 */
     public static QIOPage<QIOCraftingMonitorEntry> getPage(
           @Nonnull QIOProcessingTerminalSession session,
           @Nonnull QIOProcessingNetworkData network, long currentAccessRevision,
@@ -57,6 +64,7 @@ public final class QIOCraftingMonitorService {
     }
 
     @Nonnull
+    /** 取消指定合成任务。 */
     public static CancelStatus cancel(@Nonnull QIOProcessingTerminalSession session,
           @Nonnull QIOProcessingNetworkData network, long currentAccessRevision,
           @Nonnull UUID jobId, long expectedRuntimeRevision) {
@@ -74,6 +82,7 @@ public final class QIOCraftingMonitorService {
     }
 
     @Nonnull
+    /** 查询任务计划步骤分页。 */
     public static QIOPage<QIOCraftingMonitorPlanEntry> getPlanPage(
           @Nonnull QIOProcessingTerminalSession session,
           @Nonnull QIOProcessingNetworkData network, long currentAccessRevision,
@@ -97,6 +106,7 @@ public final class QIOCraftingMonitorService {
     }
 
     @Nonnull
+    /** 查询任务运行时、执行槽和恢复状态快照。 */
     public static QIOCraftingMonitorRuntimeSnapshot getRuntimeSnapshot(
           @Nonnull QIOProcessingTerminalSession session,
           @Nonnull QIOProcessingNetworkData network, long currentAccessRevision,
@@ -190,6 +200,7 @@ public final class QIOCraftingMonitorService {
     }
 
     @Nonnull
+    /** 在版本匹配时更新任务优先级。 */
     public static MutationStatus updatePriority(@Nonnull QIOProcessingTerminalSession session,
           @Nonnull QIOProcessingNetworkData network, long currentAccessRevision,
           @Nonnull UUID jobId, long expectedRuntimeRevision, long priority) {
@@ -203,6 +214,31 @@ public final class QIOCraftingMonitorService {
         if (job.getBasePriority() == priority) return MutationStatus.UNCHANGED;
         return network.updateJobPriority(jobId, expectedRuntimeRevision, priority) ?
               MutationStatus.ACCEPTED : MutationStatus.REVISION_CONFLICT;
+    }
+
+    @Nonnull
+    /** 接受强制恢复后的任务重新派发。 */
+    public static MutationStatus redispatchAfterForcedRecovery(
+          @Nonnull QIOProcessingTerminalSession session,
+          @Nonnull QIOProcessingNetworkData network, long currentAccessRevision,
+          @Nonnull UUID jobId, long expectedRuntimeRevision) {
+        validateSession(session, network, currentAccessRevision);
+        QIOCraftingJob job = network.getJob(Objects.requireNonNull(jobId, "jobId"));
+        if (job == null) return MutationStatus.NOT_FOUND;
+        if (job.getRuntimeRevision() != expectedRuntimeRevision) {
+            return MutationStatus.REVISION_CONFLICT;
+        }
+        if (job.getState() !=
+              mekanism.qioprocessing.common.content.job.QIOCraftingJobState.OPERATION_CONTAMINATED ||
+              job.getRecoveryDiagnostic() == null || job.isCancellationRequested() ||
+              job.hasActiveOperations()) {
+            return MutationStatus.INVALID_STATE;
+        }
+        if (!network.acceptForcedRecoveryRedispatch(jobId, expectedRuntimeRevision)) {
+            return MutationStatus.REVISION_CONFLICT;
+        }
+        QIOProcessingExecutionService.INSTANCE.wakeJob(jobId);
+        return MutationStatus.ACCEPTED;
     }
 
     private static List<QIOCraftingJob> orderedJobs(QIOProcessingNetworkData network) {
@@ -227,7 +263,8 @@ public final class QIOCraftingMonitorService {
             long total = 0;
             long completed = 0;
             int active = 0;
-            String diagnostic = "";
+            String diagnostic = job.getRecoveryDiagnostic() == null ? "" :
+                  job.getRecoveryDiagnostic();
             for (QIOStepRuntime runtime : job.getStepRuntimes().values()) {
                 total = Math.addExact(total, runtime.getRequiredOperations());
                 completed = Math.addExact(completed, runtime.getCompletedOperations());

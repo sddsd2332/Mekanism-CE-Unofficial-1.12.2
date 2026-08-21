@@ -19,6 +19,7 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 
 import javax.annotation.Nonnull;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 可异步类型tile方块。
@@ -26,11 +27,11 @@ import java.util.Objects;
 //TODO：需要让它正确的运行，虽然可以运行
 public class TileEntitySynchronized extends TileEntity implements IOcclusionCulling {
 
-    private boolean inUpdateTask = false;
-    private boolean inMarkTask = false;
+    private final AtomicBoolean inUpdateTask = new AtomicBoolean();
+    private final AtomicBoolean inMarkTask = new AtomicBoolean();
 
-    private boolean requireUpdateLight = false;
-    private boolean requireUpdateComparatorOutputLevel = false;
+    private volatile boolean requireUpdateLight = false;
+    private volatile boolean requireUpdateComparatorOutputLevel = false;
 
     private long lastUpdateTick = 0;
 
@@ -89,7 +90,6 @@ public class TileEntitySynchronized extends TileEntity implements IOcclusionCull
         NBTTagCompound compound = new NBTTagCompound();
         super.writeToNBT(compound);
         writeUpdateNBT(compound);
-        super.getUpdateTag();
         return compound;
     }
 
@@ -117,12 +117,12 @@ public class TileEntitySynchronized extends TileEntity implements IOcclusionCull
     public void markNoUpdate() {
         World world = getWorld();
         if (world == null) {
-            inMarkTask = false;
+            inMarkTask.set(false);
             return;
         }
         markDirty();
         updateLight();
-        inMarkTask = false;
+        inMarkTask.set(false);
         lastUpdateTick = world.getTotalWorldTime();
     }
 
@@ -151,12 +151,12 @@ public class TileEntitySynchronized extends TileEntity implements IOcclusionCull
     public void notifyUpdate() {
         World world = getWorld();
         if (world == null) { //防止世界是无
-            inUpdateTask = false;
+            inUpdateTask.set(false);
             return;
         }
         IBlockState state = world.getBlockState(pos);
         world.notifyBlockUpdate(pos, state, state, 3);
-        inUpdateTask = false;
+        inUpdateTask.set(false);
     }
 
     public void markNoUpdateSync() {
@@ -170,11 +170,15 @@ public class TileEntitySynchronized extends TileEntity implements IOcclusionCull
             markNoUpdate();
             return;
         }
-        if (inMarkTask) {
+        if (!inMarkTask.compareAndSet(false, true)) {
             return;
         }
-        Mekanism.EXECUTE_MANAGER.addTEMarkNoUpdateTask(this);
-        inMarkTask = true;
+        try {
+            Mekanism.EXECUTE_MANAGER.addTEMarkNoUpdateTask(this);
+        } catch (RuntimeException e) {
+            inMarkTask.set(false);
+            throw e;
+        }
     }
 
     public void markChunkDirty() {
@@ -196,13 +200,18 @@ public class TileEntitySynchronized extends TileEntity implements IOcclusionCull
         if (getWorld() == null) {
             return;
         }
-        if (inUpdateTask) {
-            return;
-        }
         if (FMLCommonHandler.instance().getEffectiveSide().isServer()) {
-            Mekanism.EXECUTE_MANAGER.addTEUpdateTask(this);
-            inUpdateTask = true;
-            inMarkTask = true;
+            if (!inUpdateTask.compareAndSet(false, true)) {
+                return;
+            }
+            inMarkTask.set(true);
+            try {
+                Mekanism.EXECUTE_MANAGER.addTEUpdateTask(this);
+            } catch (RuntimeException e) {
+                inUpdateTask.set(false);
+                inMarkTask.set(false);
+                throw e;
+            }
         } else {
             markForUpdate();
         }
@@ -212,7 +221,7 @@ public class TileEntitySynchronized extends TileEntity implements IOcclusionCull
         if (getWorld() == null) {
             return;
         }
-        if (inMarkTask) {
+        if (inMarkTask.get()) {
             return;
         }
         if (FMLCommonHandler.instance().getEffectiveSide().isServer()) {
@@ -234,7 +243,7 @@ public class TileEntitySynchronized extends TileEntity implements IOcclusionCull
     }
 
     public boolean isInUpdateTask() {
-        return inUpdateTask;
+        return inUpdateTask.get();
     }
 
     public long getLastUpdateTick() {

@@ -43,7 +43,9 @@ public class Version {
      */
     public static Version get(String s) {
         String[] split = s.replace('.', ':').split(":");
-        if (split.length != 3) {
+        // Published builds append a fourth packaging revision (for example 10.0.3.550).
+        // The legacy Version type represents the semantic major/minor/patch portion.
+        if (split.length != 3 && split.length != 4) {
             return null;
         }
         for (String i : split) {

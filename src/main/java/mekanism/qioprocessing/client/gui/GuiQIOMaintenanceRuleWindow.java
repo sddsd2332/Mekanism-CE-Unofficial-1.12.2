@@ -25,6 +25,12 @@ import java.util.Objects;
 import java.util.UUID;
 
 /** Resource picker and compact target/batch editor for one maintenance rule. */
+/**
+ * QIO 处理模块中的 GuiQIOMaintenanceRuleWindow 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 final class GuiQIOMaintenanceRuleWindow extends GuiWindow {
 
     private static final int COLUMNS = 11;

@@ -20,6 +20,12 @@ import java.util.Locale;
 import java.util.Objects;
 
 /** Session-bound reads and compare-and-set mutations for central management policies. */
+/**
+ * QIO 处理模块中的 QIOManagementPolicyService 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOManagementPolicyService {
 
     public static final int MAX_QUERY_LENGTH = 128;
@@ -47,6 +53,7 @@ public final class QIOManagementPolicyService {
     }
 
     @Nonnull
+    /** 查询策略条目分页。 */
     public static QIOPage<QIOPolicyEntrySnapshot> getPage(
           @Nonnull QIOProcessingTerminalSession session,
           @Nonnull QIOProcessingNetworkData network, long currentAccessRevision,
@@ -69,6 +76,7 @@ public final class QIOManagementPolicyService {
     }
 
     @Nonnull
+    /** 查询设备和工作台策略目录分页。 */
     public static DirectoryPage getDirectoryPage(
           @Nonnull QIOProcessingTerminalSession session,
           @Nonnull QIOProcessingNetworkData network, long currentAccessRevision,
@@ -133,6 +141,7 @@ public final class QIOManagementPolicyService {
     }
 
     @Nonnull
+    /** 应用策略修改并返回版本冲突结果。 */
     public static MutationResult mutate(
           @Nonnull QIOProcessingTerminalSession session,
           @Nonnull QIOProcessingNetworkData network, long currentAccessRevision,
@@ -160,6 +169,7 @@ public final class QIOManagementPolicyService {
     }
 
     @Nonnull
+    /** 查询设备默认策略。 */
     public static QIOPolicyEntrySnapshot getDeviceDefault(
           @Nonnull QIOProcessingTerminalSession session,
           @Nonnull QIOProcessingNetworkData network, long currentAccessRevision,

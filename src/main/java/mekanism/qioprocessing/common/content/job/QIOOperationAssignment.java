@@ -11,6 +11,12 @@ import java.util.Objects;
 import java.util.UUID;
 
 /** Persistent assignment of one real recipe operation to one physical provider lane. */
+/**
+ * QIO 处理模块中的 QIOOperationAssignment 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOOperationAssignment {
 
     private static final int SCHEMA_VERSION = 2;
@@ -36,17 +42,20 @@ public final class QIOOperationAssignment {
     @Nullable
     private String diagnostic;
 
+    /** 创建机器/处理器操作分配的初始状态。 */
     public QIOOperationAssignment(@Nonnull UUID operationId, @Nonnull ProviderKind providerKind,
           @Nonnull UUID deviceUUID, long laneId, long dispatchedAtTick) {
         this(operationId, providerKind, deviceUUID, laneId, 1, dispatchedAtTick);
     }
 
+    /** 创建带路由键的操作分配。 */
     public QIOOperationAssignment(@Nonnull UUID operationId, @Nonnull ProviderKind providerKind,
           @Nonnull UUID deviceUUID, long laneId, long operationCount, long dispatchedAtTick) {
         this(operationId, providerKind, deviceUUID, laneId, operationCount, dispatchedAtTick,
               "");
     }
 
+    /** 创建完整操作分配并恢复其运行计数。 */
     public QIOOperationAssignment(@Nonnull UUID operationId,
           @Nonnull ProviderKind providerKind, @Nonnull UUID deviceUUID, long laneId,
           long operationCount, long dispatchedAtTick,
@@ -71,55 +80,67 @@ public final class QIOOperationAssignment {
     }
 
     @Nonnull
+    /** 返回操作标识。 */
     public UUID getOperationId() {
         return operationId;
     }
 
     @Nonnull
+    /** 返回 Provider 类型。 */
     public ProviderKind getProviderKind() {
         return providerKind;
     }
 
     @Nonnull
+    /** 返回执行设备标识。 */
     public UUID getDeviceUUID() {
         return deviceUUID;
     }
 
+    /** 返回设备通道编号。 */
     public long getLaneId() {
         return laneId;
     }
 
+    /** 返回派发时刻。 */
     public long getDispatchedAtTick() {
         return dispatchedAtTick;
     }
 
+    /** 返回该分配承载的批次数。 */
     public long getOperationCount() {
         return operationCount;
     }
 
     @Nonnull
+    /** 返回执行路由键。 */
     public String getExecutionRouteKey() {
         return executionRouteKey;
     }
 
     @Nonnull
+    /** 返回操作状态。 */
     public State getState() {
         return state;
     }
 
+    /** 返回当前运行 tick。 */
     public long getCurrentTick() {
         return currentTick;
     }
 
+    /** 返回预计总 tick。 */
     public long getTotalTicks() {
         return totalTicks;
     }
 
     @Nullable
+    /** 返回阻塞/失败诊断文本。 */
     public String getDiagnostic() {
         return diagnostic;
     }
 
+    /** 更新运行状态和计数器；参数不一致时返回 false。 */
     public boolean update(@Nonnull State state, long currentTick, long totalTicks,
           @Nullable String diagnostic) {
         State checkedState = Objects.requireNonNull(state, "state");
@@ -145,6 +166,7 @@ public final class QIOOperationAssignment {
     }
 
     @Nonnull
+    /** 将操作分配写入 NBT。 */
     public NBTTagCompound write() {
         NBTTagCompound data = new NBTTagCompound();
         data.setInteger("operationAssignmentSchemaVersion", SCHEMA_VERSION);
@@ -165,6 +187,7 @@ public final class QIOOperationAssignment {
     }
 
     @Nonnull
+    /** 从 NBT 读取并校验操作分配。 */
     public static QIOOperationAssignment read(@Nonnull NBTTagCompound data)
           throws QIOProcessingDataException {
         try {

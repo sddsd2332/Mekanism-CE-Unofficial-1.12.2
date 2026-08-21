@@ -22,6 +22,12 @@ import java.util.List;
 import java.util.Map;
 
 /** JEI transfer target for the frequency-local 3x3 workbench pattern encoder. */
+/**
+ * QIO 处理模块中的 QIOWorkbenchRecipeTransferHandler 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOWorkbenchRecipeTransferHandler<CONTAINER extends MekanismContainer & QIOWorkbenchConfigurationContainer>
       implements IRecipeTransferHandler<CONTAINER> {
 

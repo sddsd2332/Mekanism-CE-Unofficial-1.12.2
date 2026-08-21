@@ -30,9 +30,10 @@ public class RenderBioGenerator extends TileEntitySpecialRenderer<TileEntityBioG
 
     private ModelBioGenerator model = new ModelBioGenerator();
 
-    private static final int stages = 800;
+    private static final int stages = TileEntityBioGenerator.RENDER_STAGES;
 
     public static void resetDisplayInts() {
+        energyDisplays.values().forEach(DisplayInteger::deleteAll);
         energyDisplays.clear();
     }
     @Override

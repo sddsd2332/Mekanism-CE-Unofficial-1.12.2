@@ -18,12 +18,19 @@ import java.util.Set;
 import java.util.UUID;
 
 /** Sparse execution-slot ownership; its memory use follows active jobs, not the configured limit. */
+/**
+ * QIO 处理模块中的 QIOExecutionSlotPool 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOExecutionSlotPool {
 
     private static final int MAX_PERSISTED_ACTIVE_SLOTS = 1_000_000;
 
     private final Map<UUID, ActiveExecutionSlot> activeByJob = new LinkedHashMap<>();
 
+    /** 在配置上限内为任务取得或复用执行槽。 */
     @Nullable
     public ActiveExecutionSlot acquire(@Nonnull QIOCraftingJob job, int configuredLimit,
           long schedulerClock) {
@@ -45,6 +52,7 @@ public final class QIOExecutionSlotPool {
         return slot;
     }
 
+    /** 释放任务持有的执行槽。 */
     public boolean release(@Nonnull QIOCraftingJob job) {
         Objects.requireNonNull(job, "job");
         ActiveExecutionSlot slot = activeByJob.get(job.getJobId());
@@ -56,20 +64,24 @@ public final class QIOExecutionSlotPool {
         return true;
     }
 
+    /** 按任务标识查询活动执行槽。 */
     @Nullable
     public ActiveExecutionSlot get(UUID jobId) {
         return jobId == null ? null : activeByJob.get(jobId);
     }
 
+    /** 返回当前活动槽数量。 */
     public int size() {
         return activeByJob.size();
     }
 
+    /** 返回活动执行槽的只读快照。 */
     @Nonnull
     public Collection<ActiveExecutionSlot> getActiveSlots() {
         return Collections.unmodifiableList(new ArrayList<>(activeByJob.values()));
     }
 
+    /** 将活动执行槽按任务 UUID 排序写入 NBT 列表。 */
     @Nonnull
     public NBTTagList write() {
         NBTTagList list = new NBTTagList();
@@ -80,6 +92,7 @@ public final class QIOExecutionSlotPool {
         return list;
     }
 
+    /** 从 NBT 读取槽池并拒绝重复任务/重复 token。 */
     @Nonnull
     public static QIOExecutionSlotPool read(@Nonnull NBTTagList list)
           throws QIOProcessingDataException {
@@ -102,6 +115,7 @@ public final class QIOExecutionSlotPool {
         return pool;
     }
 
+    /** 校验槽池与任务中的执行槽引用双向一致。 */
     public void validateAgainst(@Nonnull Map<UUID, QIOCraftingJob> jobs)
           throws QIOProcessingDataException {
         Objects.requireNonNull(jobs, "jobs");

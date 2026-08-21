@@ -3,6 +3,7 @@ package mekanism.common.integration.crafttweaker.commands;
 import crafttweaker.CraftTweakerAPI;
 import crafttweaker.mc1120.commands.CraftTweakerCommand;
 import crafttweaker.mc1120.commands.SpecialMessagesChat;
+import mekanism.api.recipes.FarmChanceOutput;
 import mekanism.common.integration.crafttweaker.helpers.RecipeInfoHelper;
 import mekanism.common.recipe.GasStackFuelToEnergyRecipe;
 import mekanism.common.recipe.ItemStackToEnergyRecipe;
@@ -310,12 +311,20 @@ public class MekRecipesCommand extends CraftTweakerCommand {
             case "organicfarm" -> {
                 type = Recipe.ORGANIC_FARM;
                 for (FarmRecipe recipe : Recipe.ORGANIC_FARM.get().values()) {
+                    List<FarmChanceOutput> chanceOutputs = recipe.getOutput().getChanceOutputs();
+                    String itemOutputs = chanceOutputs.stream()
+                          .map(FarmChanceOutput::getOutput)
+                          .map(RecipeInfoHelper::getItemName)
+                          .collect(Collectors.joining(", ", "[", "]"));
+                    String chances = chanceOutputs.stream()
+                          .map(output -> Double.toString(output.getChance()))
+                          .collect(Collectors.joining(", ", "[", "]"));
                     CraftTweakerAPI.logCommand(String.format("mods.mekanism.organicfarm.addRecipe(%s, %s, %s, %s, %s)",
                             RecipeInfoHelper.getItemName(recipe.getInput().itemStack),
-                            RecipeInfoHelper.getGasName(recipe.getInput().gasType),
-                            RecipeInfoHelper.getItemName(recipe.getOutput().primaryOutput),
-                            RecipeInfoHelper.getItemName(recipe.getOutput().secondaryOutput),
-                            recipe.getOutput().secondaryChance
+                            recipe.getInput().isGasInput() ? RecipeInfoHelper.getGasName(recipe.getInput().gasInput) : RecipeInfoHelper.getFluidName(recipe.getInput().fluidInput),
+                            RecipeInfoHelper.getItemName(recipe.getOutput().getGuaranteedOutput()),
+                            itemOutputs,
+                            chances
                     ));
                 }
             }

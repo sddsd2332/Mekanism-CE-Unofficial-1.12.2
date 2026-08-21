@@ -5,7 +5,6 @@ import mekanism.api.Coord4D;
 import mekanism.api.MekanismAPI;
 import net.minecraft.util.EnumFacing;
 import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent.Phase;
 import net.minecraftforge.fml.common.gameevent.TickEvent.ServerTickEvent;
@@ -84,23 +83,28 @@ public class TransmitterNetworkRegistry {
         removeInvalidTransmitters();
         assignOrphans();
         commitChanges();
-        networks.forEach(DynamicNetwork::preTick);
-        // ForkJoinThread cannot use getEffectiveSide().
-        // 为什么会崩溃？
-        if (FMLCommonHandler.instance().getEffectiveSide() != null && FMLCommonHandler.instance().getEffectiveSide().isServer()) {
+        ObjectArrayList<DynamicNetwork<?, ?, ?>> networkSnapshot = new ObjectArrayList<>(networks);
+        for (DynamicNetwork<?, ?, ?> network : networkSnapshot) {
             try {
-                networks.parallelStream().forEach(DynamicNetwork::onParallelTick);
-            } catch (Exception ignored) {
-
+                network.preTick();
+            } catch (Exception e) {
+                logger.error("Transmitter network pre-tick failed for {}", network, e);
             }
         }
-        // 为什么会崩溃2？
-        try {
-            networks.forEach(DynamicNetwork::tick);
-        } catch (Exception ignored) {
-
+        for (DynamicNetwork<?, ?, ?> network : networkSnapshot) {
+            try {
+                network.onParallelTick();
+            } catch (Exception e) {
+                logger.error("Transmitter network update failed for {}", network, e);
+            }
         }
-
+        for (DynamicNetwork<?, ?, ?> network : networkSnapshot) {
+            try {
+                network.tick();
+            } catch (Exception e) {
+                logger.error("Transmitter network tick failed for {}", network, e);
+            }
+        }
     }
 
     public void removeInvalidTransmitters() {

@@ -1,6 +1,5 @@
 package mekanism.client.render;
 
-import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import mekanism.client.render.MekanismRenderer.DisplayInteger;
 import mekanism.client.render.MekanismRenderer.GlowInfo;
 import mekanism.client.render.MekanismRenderer.Model3D;
@@ -14,13 +13,29 @@ import net.minecraft.client.renderer.tileentity.TileEntityRendererDispatcher;
 import net.minecraft.init.Blocks;
 import org.lwjgl.opengl.GL11;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 public final class MinerVisualRenderer {
 
     private static final double offset = 0.01;
+    private static final int MAX_CACHED_VISUALS = 256;
     private static Minecraft mc = Minecraft.getMinecraft();
-    private static Map<MinerRenderData, DisplayInteger> cachedVisuals = new Object2ObjectOpenHashMap<>();
+    private static Map<MinerRenderData, DisplayInteger> cachedVisuals = new LinkedHashMap<MinerRenderData, DisplayInteger>(32, 0.75F, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<MinerRenderData, DisplayInteger> eldest) {
+            if (size() > MAX_CACHED_VISUALS) {
+                eldest.getValue().delete();
+                return true;
+            }
+            return false;
+        }
+    };
+
+    public static void resetDisplayInts() {
+        cachedVisuals.values().forEach(DisplayInteger::delete);
+        cachedVisuals.clear();
+    }
 
     public static void render(TileEntityDigitalMiner miner) {
         GlStateManager.pushMatrix();
@@ -48,7 +63,6 @@ public final class MinerVisualRenderer {
             return cachedVisuals.get(data);
         }
         DisplayInteger display = DisplayInteger.createAndStart();
-        cachedVisuals.put(data, display);
 
         Model3D toReturn = new Model3D();
         if (data.radius <= 64) {
@@ -59,6 +73,7 @@ public final class MinerVisualRenderer {
         }
 
         DisplayInteger.endList();
+        cachedVisuals.put(data, display);
 
         return display;
     }

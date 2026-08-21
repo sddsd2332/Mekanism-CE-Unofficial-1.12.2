@@ -1,7 +1,6 @@
 package mekanism.common;
 
 import com.mojang.authlib.GameProfile;
-import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import mekanism.api.Coord4D;
 import mekanism.api.MekanismAPI;
 import mekanism.api.MekanismAPI.BoxBlacklistEvent;
@@ -129,6 +128,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.File;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Mod(modid = Tags.MOD_ID,
         useMetadata = true,
@@ -184,7 +184,7 @@ public class Mekanism {
     /**
      * Mekanism version number
      */
-    public static Version versionNumber = new Version(999, 999, 999);
+    public static Version versionNumber = Version.get(Tags.VERSION);
     /**
      * MultiblockManagers for various structrures
      */
@@ -229,7 +229,7 @@ public class Mekanism {
      */
     public static GameProfile gameProfile = new GameProfile(UUID.nameUUIDFromBytes("mekanism.common".getBytes()), Mekanism.LOG_TAG);
     public static KeySync keyMap = new KeySync();
-    public static Set<Coord4D> activeVibrators = new ObjectOpenHashSet<>();
+    public static Set<Coord4D> activeVibrators = ConcurrentHashMap.newKeySet();
 
     public static final TaskExecutor EXECUTE_MANAGER = new TaskExecutor();
 
@@ -633,7 +633,7 @@ public class Mekanism {
         MinecraftForge.EVENT_BUS.register(RadiationManager.INSTANCE);
 
         //Initialization notification
-        logger.info("Version " + versionNumber + " initializing...");
+        logger.info("Version " + Tags.VERSION + " initializing...");
 
         //Register with ForgeChunkManager
         ForgeChunkManager.setForcedChunkLoadingCallback(this, new ChunkManager());
@@ -661,7 +661,9 @@ public class Mekanism {
                 if (biome.getSpawnableList(EnumCreatureType.MONSTER) != null && !biome.getSpawnableList(EnumCreatureType.MONSTER).isEmpty()) {
                     EntityRegistry.addSpawn(EntityBabySkeleton.class, 40, 1, 3, EnumCreatureType.MONSTER, biome);
                     EntityRegistry.addSpawn(EntityBabyCreeper.class, 40, 1, 3, EnumCreatureType.MONSTER, biome);
-                    EntityRegistry.addSpawn(EntityBabyEnderman.class, 5, 1, 3, EnumCreatureType.MONSTER, biome);
+                    if (!(biome instanceof BiomeEnd) && !(biome instanceof BiomeHell)) {
+                        EntityRegistry.addSpawn(EntityBabyEnderman.class, 5, 1, 3, EnumCreatureType.MONSTER, biome);
+                    }
                 }
             });
             ForgeRegistries.BIOMES.forEach(biome -> {

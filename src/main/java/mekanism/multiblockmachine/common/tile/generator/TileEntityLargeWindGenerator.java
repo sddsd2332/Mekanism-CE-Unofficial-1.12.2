@@ -111,10 +111,6 @@ public class TileEntityLargeWindGenerator extends TileEntityGenerator implements
         if (isBlacklistDimension) {
             return;
         }
-        if (ticker % 20 == 0) {
-            currentMultiplier = getMultiplier();
-            setActive(MekanismUtils.canFunction(this) && currentMultiplier > 0);
-        }
         if (getActive()) {
             getEnergyContainer().insert(getEnergyAdd(), Action.EXECUTE, AutomationType.INTERNAL);
         }
@@ -127,6 +123,12 @@ public class TileEntityLargeWindGenerator extends TileEntityGenerator implements
     @Override
     public void onUpdateServer() {
         super.onUpdateServer();
+        if (isBlacklistDimension) {
+            setActive(false);
+        } else if (ticker % 20 == 0) {
+            currentMultiplier = getMultiplier();
+            setActive(MekanismUtils.canFunction(this) && currentMultiplier > 0);
+        }
         if (ticker % 200 == 0 && MekanismConfig.current().multiblock.LargeWindGenerationRangeStops.val() && !machineStop2) {
             RangeStops();
         }

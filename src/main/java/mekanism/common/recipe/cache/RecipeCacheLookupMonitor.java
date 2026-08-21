@@ -73,6 +73,9 @@ public class RecipeCacheLookupMonitor<RECIPE> implements ICachedRecipeHolder<REC
             if (cached instanceof ItemStackConstantGasCachedRecipe<?, ?> constantGasCached &&
                 handler instanceof IRecipeLookupHandler.ConstantUsageRecipeLookupHandler constantUsageHandler) {
                 constantGasCached.loadSavedUsageSoFar(constantUsageHandler.getSavedUsedSoFar(cacheIndex));
+            } else if (cached instanceof ItemStackConstantFarmCachedRecipe<?> constantFarmCached &&
+                handler instanceof IRecipeLookupHandler.ConstantUsageRecipeLookupHandler constantUsageHandler) {
+                constantFarmCached.loadSavedUsageSoFar(constantUsageHandler.getSavedUsedSoFar(cacheIndex));
             }
         }
     }

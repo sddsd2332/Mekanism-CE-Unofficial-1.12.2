@@ -13,6 +13,11 @@ import mekanism.common.util.FluidContainerUtils;
 import mekanism.common.util.StackUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.fluids.FluidStack;
+import net.minecraftforge.items.ItemHandlerHelper;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 public final class OutputHelper {
 
@@ -95,6 +100,149 @@ public final class OutputHelper {
                 OutputHelper.calculateOperationsCanSupport(tracker, notEnoughSpaceError, slot, toOutput.getMaxPrimaryOutput());
             }
         };
+    }
+
+    public static IOutputHandler<FarmOutput> getFarmOutputHandler(IInventorySlot primarySlot, IInventorySlot secondarySlot,
+          RecipeError notEnoughSpaceError) {
+        return getFarmOutputHandler(Arrays.asList(primarySlot, secondarySlot), notEnoughSpaceError);
+    }
+
+    public static IOutputHandler<FarmOutput> getFarmOutputHandler(List<? extends IInventorySlot> outputSlots,
+          RecipeError notEnoughSpaceError) {
+        return new IOutputHandler<>() {
+
+            @Override
+            public void handleOutput(FarmOutput toOutput, int operations) {
+                for (int i = 0; i < operations; i++) {
+                    insertFarmOutputs(outputSlots, mergeFarmOutputs(toOutput.getOutputs()));
+                }
+            }
+
+            @Override
+            public void calculateOperationsCanSupport(OperationTracker tracker, FarmOutput toOutput) {
+                int operations = getFarmOutputOperations(outputSlots, toOutput, Math.max(1, tracker.getCurrentMaxOperations()));
+                tracker.updateOperations(operations);
+                if (operations == 0) {
+                    tracker.addError(notEnoughSpaceError);
+                }
+            }
+        };
+    }
+
+    public static boolean canFitFarmOutput(List<? extends IInventorySlot> outputSlots, FarmOutput output) {
+        return getFarmOutputOperations(outputSlots, output, 1) > 0;
+    }
+
+    private static int getFarmOutputOperations(List<? extends IInventorySlot> outputSlots, FarmOutput output, int operationLimit) {
+        if (operationLimit <= 0 || outputSlots.isEmpty() || output == null || !output.isValid()) {
+            return 0;
+        }
+        List<ItemStack> worstCaseOutputs = mergeFarmOutputs(output.getMaxOutputs());
+        List<ItemStack> virtualSlots = new ArrayList<>(outputSlots.size());
+        for (IInventorySlot slot : outputSlots) {
+            virtualSlots.add(slot.getStack().copy());
+        }
+        int maxOperations = Math.min(operationLimit,
+              getGuaranteedOutputUpperBound(outputSlots, virtualSlots, output.getGuaranteedOutput()));
+        int operations = 0;
+        while (operations < maxOperations && insertFarmOutputsVirtual(outputSlots, virtualSlots, worstCaseOutputs)) {
+            operations++;
+        }
+        return operations;
+    }
+
+    private static int getGuaranteedOutputUpperBound(List<? extends IInventorySlot> outputSlots, List<ItemStack> virtualSlots,
+          ItemStack guaranteedOutput) {
+        int capacity = 0;
+        for (int i = 0; i < outputSlots.size(); i++) {
+            IInventorySlot slot = outputSlots.get(i);
+            ItemStack stored = virtualSlots.get(i);
+            if (slot.isItemValid(guaranteedOutput) && (stored.isEmpty() || ItemHandlerHelper.canItemStacksStack(stored, guaranteedOutput))) {
+                capacity += Math.max(0, slot.getLimit(guaranteedOutput) - stored.getCount());
+            }
+        }
+        return guaranteedOutput.isEmpty() ? 0 : capacity / guaranteedOutput.getCount();
+    }
+
+    private static List<ItemStack> mergeFarmOutputs(List<ItemStack> outputs) {
+        List<ItemStack> merged = new ArrayList<>();
+        for (ItemStack output : outputs) {
+            if (output == null || output.isEmpty()) {
+                continue;
+            }
+            ItemStack matching = null;
+            for (ItemStack existing : merged) {
+                if (ItemHandlerHelper.canItemStacksStack(existing, output)) {
+                    matching = existing;
+                    break;
+                }
+            }
+            if (matching == null) {
+                merged.add(output.copy());
+            } else {
+                matching.grow(output.getCount());
+            }
+        }
+        return merged;
+    }
+
+    private static boolean insertFarmOutputsVirtual(List<? extends IInventorySlot> outputSlots, List<ItemStack> virtualSlots,
+          List<ItemStack> outputs) {
+        for (ItemStack output : outputs) {
+            int remaining = output.getCount();
+            remaining = insertFarmOutputVirtual(outputSlots, virtualSlots, output, remaining, false);
+            remaining = insertFarmOutputVirtual(outputSlots, virtualSlots, output, remaining, true);
+            if (remaining > 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static int insertFarmOutputVirtual(List<? extends IInventorySlot> outputSlots, List<ItemStack> virtualSlots,
+          ItemStack output, int remaining, boolean emptySlots) {
+        for (int i = 0; i < outputSlots.size() && remaining > 0; i++) {
+            IInventorySlot slot = outputSlots.get(i);
+            ItemStack stored = virtualSlots.get(i);
+            if (stored.isEmpty() != emptySlots || !slot.isItemValid(output) ||
+                  !stored.isEmpty() && !ItemHandlerHelper.canItemStacksStack(stored, output)) {
+                continue;
+            }
+            int accepted = Math.min(remaining, Math.max(0, slot.getLimit(output) - stored.getCount()));
+            if (accepted <= 0) {
+                continue;
+            }
+            if (stored.isEmpty()) {
+                ItemStack inserted = output.copy();
+                inserted.setCount(accepted);
+                virtualSlots.set(i, inserted);
+            } else {
+                stored.grow(accepted);
+            }
+            remaining -= accepted;
+        }
+        return remaining;
+    }
+
+    private static void insertFarmOutputs(List<? extends IInventorySlot> outputSlots, List<ItemStack> outputs) {
+        for (ItemStack output : outputs) {
+            ItemStack remainder = output.copy();
+            remainder = insertFarmOutput(outputSlots, remainder, false);
+            insertFarmOutput(outputSlots, remainder, true);
+        }
+    }
+
+    private static ItemStack insertFarmOutput(List<? extends IInventorySlot> outputSlots, ItemStack stack, boolean emptySlots) {
+        for (IInventorySlot slot : outputSlots) {
+            if (slot.isEmpty() != emptySlots) {
+                continue;
+            }
+            stack = slot.insertItem(stack, Action.EXECUTE, AutomationType.INTERNAL);
+            if (stack.isEmpty()) {
+                break;
+            }
+        }
+        return stack;
     }
 
     public static IOutputHandler<GasStack> getGasOutputHandler(IExtendedGasTank tank, RecipeError notEnoughSpaceError) {

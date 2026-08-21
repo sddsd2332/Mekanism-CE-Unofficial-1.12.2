@@ -142,6 +142,10 @@ public class TileComponentEjector implements ITileComponent, ISpecificContainerT
     private void ejectGas(Set<EnumFacing> outputSides, IExtendedGasTank tank, EjectSpeedController speedController, int tankIdx) {
         speedController.record(tankIdx);
 
+        if (tileEntity.isContainerExtractionGuarded(tank)) {
+            return;
+        }
+
         if (tank.getGas() == null || tank.getGasAmount() <= 0 || tank.getGas().getGas() == null) {
             return;
         }
@@ -166,6 +170,10 @@ public class TileComponentEjector implements ITileComponent, ISpecificContainerT
      */
     private void ejectFluid(Set<EnumFacing> outputSides, IExtendedFluidTank tank, EjectSpeedController speedController, int tankIdx) {
         speedController.record(tankIdx);
+
+        if (tileEntity.isContainerExtractionGuarded(tank)) {
+            return;
+        }
 
         if (tank.getFluid() == null || tank.getFluidAmount() <= 0) {
             return;
@@ -428,6 +436,9 @@ public class TileComponentEjector implements ITileComponent, ISpecificContainerT
     }
 
     private void addToEjectItemMap(HandlerTransitRequest request, IInventorySlot slot, int index) {
+        if (tileEntity.isContainerExtractionGuarded(slot)) {
+            return;
+        }
         ItemStack stack = slot.getStack();
         if (!stack.isEmpty() && !slot.extractItem(1, mekanism.api.Action.SIMULATE, mekanism.api.AutomationType.EXTERNAL).isEmpty()) {
             request.addItem(stack, index);

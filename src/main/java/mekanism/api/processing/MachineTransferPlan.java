@@ -81,22 +81,28 @@ public final class MachineTransferPlan {
         for (Entry entry : entries) {
             snapshots.add(entry.port.snapshot());
         }
-        for (Entry entry : entries) {
-            boolean success;
-            if (entry.operation == Operation.INSERT) {
-                success = entry.port.insert(entry.stack);
-            } else {
-                MachineResourceStack value = entry.port.extract(entry.stack);
-                success = value != null;
-                if (success) {
-                    extracted.add(value);
+        try {
+            for (Entry entry : entries) {
+                boolean success;
+                if (entry.operation == Operation.INSERT) {
+                    success = entry.port.insert(entry.stack);
+                } else {
+                    MachineResourceStack value = entry.port.extract(entry.stack);
+                    success = value != null;
+                    if (success) {
+                        extracted.add(value);
+                    }
+                }
+                if (!success) {
+                    restore(snapshots);
+                    extracted.clear();
+                    return false;
                 }
             }
-            if (!success) {
-                restore(snapshots);
-                extracted.clear();
-                return false;
-            }
+        } catch (RuntimeException | Error failure) {
+            restoreAfterFailure(snapshots, failure);
+            extracted.clear();
+            throw failure;
         }
         return true;
     }
@@ -114,6 +120,17 @@ public final class MachineTransferPlan {
     private static void restore(List<MachinePort.Snapshot> snapshots) {
         for (int i = snapshots.size() - 1; i >= 0; i--) {
             snapshots.get(i).restore();
+        }
+    }
+
+    private static void restoreAfterFailure(List<MachinePort.Snapshot> snapshots,
+          Throwable failure) {
+        for (int i = snapshots.size() - 1; i >= 0; i--) {
+            try {
+                snapshots.get(i).restore();
+            } catch (RuntimeException | Error restoreFailure) {
+                failure.addSuppressed(restoreFailure);
+            }
         }
     }
 

@@ -7,6 +7,7 @@ import mekanism.api.gas.GasStack;
 import mekanism.api.infuse.InfuseRegistry;
 import mekanism.api.transmitters.TransmissionType;
 import mekanism.client.render.obj.TransmitterModel;
+import mekanism.client.render.item.machine.RenderFluidTankItem;
 import mekanism.client.render.tileentity.*;
 import mekanism.client.render.transmitter.RenderLogisticalTransporter;
 import mekanism.client.render.transmitter.RenderMechanicalPipe;
@@ -464,7 +465,11 @@ public class MekanismRenderer {
         InfuseRegistry.getInfuseMap().values().forEach(type -> type.setIcon(event.getMap().registerSprite(type.iconResource)));
 
         FluidRenderer.resetDisplayInts();
+        MinerVisualRenderer.resetDisplayInts();
         RenderFluidTank.resetDisplayInts();
+        RenderFluidTankItem.resetDisplayInts();
+        RenderTeleporter.resetDisplayInts();
+        RenderConfigurableMachine.resetDisplayInts();
         RenderNutritionalLiquifier.resetDisplayInts();
         RenderIsotopicCentrifuge.resetDisplayInts();
         RenderChemicalCrystallizer.resetDisplayInts();
@@ -570,6 +575,23 @@ public class MekanismRenderer {
 
         public static void endList() {
             GlStateManager.glEndList();
+        }
+
+        public static void deleteAll(DisplayInteger[] displays) {
+            if (displays != null) {
+                for (DisplayInteger display : displays) {
+                    if (display != null) {
+                        display.delete();
+                    }
+                }
+            }
+        }
+
+        public void delete() {
+            if (display != 0) {
+                GLAllocation.deleteDisplayLists(display);
+                display = 0;
+            }
         }
 
         @Override

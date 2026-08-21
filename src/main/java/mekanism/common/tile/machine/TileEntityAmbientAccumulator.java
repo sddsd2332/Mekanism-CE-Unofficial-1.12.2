@@ -57,6 +57,7 @@ import javax.annotation.Nonnull;
     public int cachedDimensionId;
     public AmbientGasRecipe cachedRecipe;
     private int cachedRecipeVersion = -1;
+    private long serverWorldTime;
     private GasInventorySlot gasSlot;
 
     public TileEntityAmbientAccumulator() {
@@ -101,6 +102,19 @@ import javax.annotation.Nonnull;
     }
 
     @Override
+    public void onLoad() {
+        super.onLoad();
+        cachedDimensionId = world.provider.getDimension();
+        cachedRecipe = null;
+    }
+
+    @Override
+    public void onUpdateServer() {
+        super.onUpdateServer();
+        serverWorldTime = world.getTotalWorldTime();
+    }
+
+    @Override
     public void onAsyncUpdateServer() {
         gasSlot.drainTank();
         AmbientGasRecipe recipe = getRecipe();
@@ -112,7 +126,7 @@ import javax.annotation.Nonnull;
             recipeCacheLookupMonitor.updateAndProcess();
         }
 
-        if (world.getTotalWorldTime() % 20 == 0) {
+        if (serverWorldTime % 20 == 0) {
             Mekanism.packetHandler.sendUpdatePacket(this);
         }
 
@@ -134,8 +148,7 @@ import javax.annotation.Nonnull;
 
     public IntegerInput getInput() {
         refreshRecipeLookupCache();
-        if (cachedRecipe == null || world.provider.getDimension() != cachedDimensionId) {
-            cachedDimensionId = world.provider.getDimension();
+        if (cachedRecipe == null) {
             cachedRecipe = RecipeHandler.getDimensionGas(new IntegerInput(cachedDimensionId));
         }
         return new IntegerInput(cachedDimensionId);

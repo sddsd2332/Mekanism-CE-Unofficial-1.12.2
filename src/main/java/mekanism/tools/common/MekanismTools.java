@@ -52,7 +52,7 @@ public class MekanismTools implements IModule {
     /**
      * MekanismTools version number
      */
-    public static Version versionNumber = new Version(999, 999, 999);
+    public static Version versionNumber = Version.get(mekanism.mekanism.Tags.VERSION);
 
     public static CreativeTabMekanismTools tabMekanismTools = new CreativeTabMekanismTools();
 

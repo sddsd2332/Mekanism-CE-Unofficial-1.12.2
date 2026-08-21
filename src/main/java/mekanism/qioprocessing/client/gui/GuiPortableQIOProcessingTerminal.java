@@ -2,6 +2,7 @@ package mekanism.qioprocessing.client.gui;
 
 import mekanism.client.gui.GuiMekanism;
 import mekanism.client.gui.element.GuiInnerScreen;
+import mekanism.client.gui.warning.WarningTracker.WarningType;
 import mekanism.common.MekanismLang;
 import mekanism.common.content.qio.QIOFrequency;
 import mekanism.qioprocessing.common.inventory.container.ContainerPortableQIOProcessingTerminal;
@@ -19,6 +20,12 @@ import java.util.List;
 
 /** Portable screen for management, maintenance and monitor responsibilities. */
 @SideOnly(Side.CLIENT)
+/**
+ * QIO 处理模块中的 GuiPortableQIOProcessingTerminal 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class GuiPortableQIOProcessingTerminal extends
       GuiMekanism<ContainerPortableQIOProcessingTerminal> {
 
@@ -32,6 +39,7 @@ public final class GuiPortableQIOProcessingTerminal extends
     private GuiQIOWorkbenchConfigurationTab workbenchConfigurationTab;
     private final ContainerPortableQIOProcessingTerminal container;
     private GuiQIOManagementPanel managementPanel;
+    private GuiQIOAutomationRecoveryTab recoveryTab;
     private GuiQIOMaintenanceRulesPanel maintenancePanel;
     private GuiQIOCraftingMonitorPanel craftingMonitorPanel;
 
@@ -88,6 +96,23 @@ public final class GuiPortableQIOProcessingTerminal extends
                         mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT) {
             managementPanel = addButton(new GuiQIOManagementPanel(this, container,
                   container, 8, 31, xSize - 16, ySize - 39));
+            trackWarning(WarningType.QIO_AUTOMATION_ERROR,
+                  () -> container.getDeviceClientCache().getDevices().stream()
+                        .anyMatch(device -> "DATA_ERROR".equals(device.getStateName()) ||
+                              "IDENTITY_CONFLICT".equals(device.getStateName()) ||
+                              device.hasRecoveryPending() ||
+                              !device.getDiagnostic().isEmpty()));
+            // 频率 Tab 为 y=6，工作台配置 Tab 为 y=32；按同样间距放在其下方。
+            recoveryTab = addButton(new GuiQIOAutomationRecoveryTab(this, -26, 58,
+                  () -> managementPanel != null && managementPanel.hasSelectedDataError(),
+                  () -> managementPanel == null ? null : managementPanel.getSelectedDataErrorMode(),
+                  () -> managementPanel == null ? null :
+                        managementPanel.getSelectedDataErrorDiagnostic(),
+                  () -> {
+                      if (managementPanel != null) {
+                          managementPanel.recoverSelectedDataError();
+                      }
+                  }, true));
         } else if (container.getTerminalState().getTerminalType() ==
               mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MAINTENANCE ||
               container.getPortableStack().getItem() instanceof

@@ -118,6 +118,13 @@ public class TileEntityAmbientAccumulatorEnergy extends TileEntityMachine implem
     }
 
     @Override
+    public void onLoad() {
+        super.onLoad();
+        cachedDimensionId = world.provider.getDimension();
+        cachedRecipe = null;
+    }
+
+    @Override
     public void onAsyncUpdateServer() {
         super.onAsyncUpdateServer();
         energySlot.fillContainerOrConvert();
@@ -150,8 +157,7 @@ public class TileEntityAmbientAccumulatorEnergy extends TileEntityMachine implem
 
     public IntegerInput getInput() {
         refreshRecipeLookupCache();
-        if (cachedRecipe == null || world.provider.getDimension() != cachedDimensionId) {
-            cachedDimensionId = world.provider.getDimension();
+        if (cachedRecipe == null) {
             cachedRecipe = RecipeHandler.getDimensionGas(new IntegerInput(cachedDimensionId));
         }
         return new IntegerInput(cachedDimensionId);

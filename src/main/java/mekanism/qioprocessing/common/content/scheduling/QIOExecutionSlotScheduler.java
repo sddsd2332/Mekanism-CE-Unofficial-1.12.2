@@ -10,11 +10,18 @@ import java.util.List;
 import java.util.Objects;
 
 /** Deterministic, bounded selector for frequency-level execution slots. */
+/**
+ * QIO 处理模块中的 QIOExecutionSlotScheduler 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOExecutionSlotScheduler {
 
     private QIOExecutionSlotScheduler() {
     }
 
+    /** 按优先级和老化策略为等待任务授予有限执行槽。 */
     public static int grantAvailableSlots(@Nonnull QIOProcessingNetworkData network,
           int configuredLimit, int maximumGrants, long agingInterval, long agingCap) {
         Objects.requireNonNull(network, "network");

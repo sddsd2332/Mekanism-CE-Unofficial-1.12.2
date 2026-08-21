@@ -18,6 +18,12 @@ import java.util.Objects;
 import java.util.UUID;
 
 /** Durable progress for one immutable plan node. */
+/**
+ * QIO 处理模块中的 QIOStepRuntime 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOStepRuntime {
 
     private final long nodeId;
@@ -28,6 +34,7 @@ public final class QIOStepRuntime {
     private long activeOperationCount;
     private final Map<UUID, QIOOperationAssignment> activeOperations = new LinkedHashMap<>();
 
+    /** 创建计划步骤的运行时计数器。 */
     public QIOStepRuntime(long nodeId, long requiredOperations) {
         this.nodeId = QIOProcessingNbt.requireNonNegative(nodeId, "nodeId");
         if (requiredOperations <= 0) {
@@ -37,58 +44,71 @@ public final class QIOStepRuntime {
     }
 
     @Nonnull
+    /** 从计划步骤创建对应运行时。 */
     public static QIOStepRuntime create(@Nonnull QIOPlanStep step) {
         return new QIOStepRuntime(step.getNodeId(), step.getOperations());
     }
 
+    /** 返回计划节点标识。 */
     public long getNodeId() {
         return nodeId;
     }
 
+    /** 返回所需总批次数。 */
     public long getRequiredOperations() {
         return requiredOperations;
     }
 
+    /** 返回已完成批次数。 */
     public long getCompletedOperations() {
         return completedOperations;
     }
 
+    /** 返回失败尝试次数。 */
     public long getFailedAttempts() {
         return failedAttempts;
     }
 
+    /** 返回运行时版本号。 */
     public long getRuntimeRevision() {
         return runtimeRevision;
     }
 
+    /** 返回尚未完成批次数。 */
     public long getRemainingOperations() {
         return requiredOperations - completedOperations - activeOperationCount;
     }
 
+    /** 判断步骤是否已完成且没有活动操作。 */
     public boolean isComplete() {
         return completedOperations == requiredOperations && activeOperations.isEmpty();
     }
 
+    /** 判断是否存在活动操作分配。 */
     public boolean hasActiveAssignments() {
         return !activeOperations.isEmpty();
     }
 
+    /** 返回活动分配数量。 */
     public int getActiveAssignmentCount() {
         return activeOperations.size();
     }
 
     /** Number of real recipe operations represented by all active lane assignments. */
+    /** 返回活动分配承载的批次数。 */
     public long getActiveOperationCount() {
         return activeOperationCount;
     }
 
     @Nonnull
+    /** 返回活动操作的只读视图。 */
     public Map<UUID, QIOOperationAssignment> getActiveOperations() {
         return Collections.unmodifiableMap(new LinkedHashMap<>(activeOperations));
     }
 
     /** Returns a stable prefix without copying assignments that cannot be visited this tick. */
     @Nonnull
+    /** 按派发顺序返回不超过上限的活动操作。 */
     public List<QIOOperationAssignment> getActiveOperations(int maximum) {
         if (maximum < 0) {
             throw new IllegalArgumentException("Maximum active operation snapshot is negative");
@@ -105,10 +125,12 @@ public final class QIOStepRuntime {
     }
 
     @Nullable
+    /** 按操作标识取得活动分配。 */
     public QIOOperationAssignment getOperation(UUID operationId) {
         return operationId == null ? null : activeOperations.get(operationId);
     }
 
+    /** 注册一个新的活动操作分配。 */
     public void start(@Nonnull QIOOperationAssignment assignment) {
         Objects.requireNonNull(assignment, "assignment");
         long nextActive = Math.addExact(activeOperationCount, assignment.getOperationCount());
@@ -120,6 +142,7 @@ public final class QIOStepRuntime {
         incrementRevision();
     }
 
+    /** 更新指定活动操作的状态和进度。 */
     public boolean update(@Nonnull UUID operationId, @Nonnull QIOOperationAssignment.State state,
           long currentTick, long totalTicks, @Nullable String diagnostic) {
         QIOOperationAssignment assignment = requireOperation(operationId);
@@ -130,6 +153,7 @@ public final class QIOStepRuntime {
         return true;
     }
 
+    /** 结算指定操作并累计完成批次。 */
     public void complete(@Nonnull UUID operationId) {
         QIOOperationAssignment assignment = requireOperation(operationId);
         long nextCompleted = Math.addExact(completedOperations, assignment.getOperationCount());
@@ -143,6 +167,7 @@ public final class QIOStepRuntime {
         incrementRevision();
     }
 
+    /** 记录指定操作失败及诊断，同时增加失败次数。 */
     public void fail(@Nonnull UUID operationId, @Nonnull String diagnostic) {
         QIOOperationAssignment assignment = requireOperation(operationId);
         assignment.update(QIOOperationAssignment.State.FAILED, assignment.getCurrentTick(),
@@ -155,6 +180,7 @@ public final class QIOStepRuntime {
     }
 
     @Nonnull
+    /** 将步骤运行时和活动分配写入 NBT。 */
     public NBTTagCompound write() {
         NBTTagCompound data = new NBTTagCompound();
         data.setLong("nodeId", nodeId);
@@ -171,6 +197,7 @@ public final class QIOStepRuntime {
     }
 
     @Nonnull
+    /** 从 NBT 读取并校验步骤运行时。 */
     public static QIOStepRuntime read(@Nonnull NBTTagCompound data)
           throws QIOProcessingDataException {
         try {

@@ -259,7 +259,6 @@ public class ItemBlockGasTank extends ItemBlock implements ILegacyGasItem, IItem
     public int getRGBDurabilityForDisplay(@Nonnull ItemStack stack) {
         GasStack gas = getStoredGas(stack);
         if (gas != null) {
-            MekanismRenderer.color(gas);
             return gas.getGas().getTint();
         } else {
             return MathHelper.hsvToRGB(Math.max(0.0F, (float) (1 - getDurabilityForDisplay(stack))) / 3.0F, 1.0F, 1.0F);

@@ -9,6 +9,12 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Objects;
 
 /** Immutable identity and logical lane capacity of a QIO workbench processor. */
+/**
+ * QIO 处理模块中的 QIOCraftingProcessorDefinition 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOCraftingProcessorDefinition {
 
     private static final char[] LOWER_HEX = "0123456789abcdef".toCharArray();
@@ -29,10 +35,22 @@ public final class QIOCraftingProcessorDefinition {
     private final int stackingUpgradeLimit;
     private final String signature;
 
+    /** 使用默认能耗和升级上限创建处理器定义。 */
     public QIOCraftingProcessorDefinition(@Nonnull ResourceLocation id, long laneCount) {
         this(id, laneCount, 50, 100_000, 8, 8, 8);
     }
 
+    /**
+     * 创建完整的处理器定义。
+     *
+     * @param id 定义注册标识
+     * @param laneCount 逻辑通道数量
+     * @param baseEnergyUsage 每通道基础能耗
+     * @param energyCapacity 能量容量
+     * @param speedUpgradeLimit 速度升级上限
+     * @param energyUpgradeLimit 节能升级上限
+     * @param stackingUpgradeLimit 堆叠升级上限
+     */
     public QIOCraftingProcessorDefinition(@Nonnull ResourceLocation id, long laneCount,
           double baseEnergyUsage, double energyCapacity, int speedUpgradeLimit,
           int energyUpgradeLimit, int stackingUpgradeLimit) {
@@ -57,35 +75,43 @@ public final class QIOCraftingProcessorDefinition {
               speedUpgradeLimit, energyUpgradeLimit, stackingUpgradeLimit);
     }
 
+    /** 返回处理器定义标识。 */
     @Nonnull
     public ResourceLocation getId() {
         return id;
     }
 
+    /** 返回逻辑通道数量。 */
     public long getLaneCount() {
         return laneCount;
     }
 
+    /** 返回基础能耗。 */
     public double getBaseEnergyUsage() {
         return baseEnergyUsage;
     }
 
+    /** 返回能量容量。 */
     public double getEnergyCapacity() {
         return energyCapacity;
     }
 
+    /** 返回速度升级上限。 */
     public int getSpeedUpgradeLimit() {
         return speedUpgradeLimit;
     }
 
+    /** 返回节能升级上限。 */
     public int getEnergyUpgradeLimit() {
         return energyUpgradeLimit;
     }
 
+    /** 返回堆叠升级上限。 */
     public int getStackingUpgradeLimit() {
         return stackingUpgradeLimit;
     }
 
+    /** 返回由全部定义字段计算出的稳定签名。 */
     @Nonnull
     public String getSignature() {
         return signature;

@@ -17,6 +17,12 @@ import java.util.Objects;
 import java.util.UUID;
 
 /** Session-aware bounded page cache for the smart-processing order window. */
+/**
+ * QIO 处理模块中的 QIOSmartProcessingClientCache 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOSmartProcessingClientCache {
 
     private static final int MAX_CACHED_PAGES = 8;

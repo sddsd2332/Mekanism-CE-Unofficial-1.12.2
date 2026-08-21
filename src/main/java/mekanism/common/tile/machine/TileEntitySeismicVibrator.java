@@ -103,11 +103,21 @@ public class TileEntitySeismicVibrator extends TileEntityElectricBlock implement
         } else {
             setActive(false);
         }
+        Mekanism.EXECUTE_MANAGER.addSyncTask(this::updateActiveVibrator);
     }
 
     @Override
     public void onUpdate() {
         super.onUpdate();
+        if (isRemote()) {
+            updateActiveVibrator();
+        }
+    }
+
+    private void updateActiveVibrator() {
+        if (isInvalid()) {
+            return;
+        }
         if (getActive()) {
             Mekanism.activeVibrators.add(Coord4D.get(this));
         } else {

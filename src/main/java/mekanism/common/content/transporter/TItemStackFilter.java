@@ -17,6 +17,8 @@ import javax.annotation.Nonnull;
 
 public class TItemStackFilter extends TransporterFilter implements IItemStackFilter {
 
+    private static final int MAX_TRANSFER_SIZE = 64;
+
     public boolean sizeMode;
 
     public int min;
@@ -58,9 +60,11 @@ public class TItemStackFilter extends TransporterFilter implements IItemStackFil
     protected void read(NBTTagCompound nbtTags) {
         super.read(nbtTags);
         sizeMode = nbtTags.getBoolean("sizeMode");
-        min = nbtTags.getInteger("min");
-        max = nbtTags.getInteger("max");
+        setTransferRange(nbtTags.getInteger("min"), nbtTags.getInteger("max"));
         itemType = new ItemStack(nbtTags);
+        if (!itemType.isEmpty()) {
+            itemType.setCount(Math.max(1, Math.min(MAX_TRANSFER_SIZE, itemType.getCount())));
+        }
     }
 
     @Override
@@ -82,9 +86,16 @@ public class TItemStackFilter extends TransporterFilter implements IItemStackFil
     protected void read(ByteBuf dataStream) {
         super.read(dataStream);
         sizeMode = dataStream.readBoolean();
-        min = dataStream.readInt();
-        max = dataStream.readInt();
-        itemType = new ItemStack(Item.getItemById(dataStream.readInt()), dataStream.readInt(), dataStream.readInt());
+        setTransferRange(dataStream.readInt(), dataStream.readInt());
+        Item item = Item.getItemById(dataStream.readInt());
+        int count = Math.max(1, Math.min(MAX_TRANSFER_SIZE, dataStream.readInt()));
+        int damage = dataStream.readInt();
+        itemType = item == null ? ItemStack.EMPTY : new ItemStack(item, count, damage);
+    }
+
+    private void setTransferRange(int requestedMin, int requestedMax) {
+        min = Math.max(0, Math.min(MAX_TRANSFER_SIZE, requestedMin));
+        max = Math.max(min, Math.min(MAX_TRANSFER_SIZE, requestedMax));
     }
 
     @Override
@@ -125,6 +136,9 @@ public class TItemStackFilter extends TransporterFilter implements IItemStackFil
 
     @Override
     public void setItemStack(@Nonnull ItemStack stack) {
-        itemType = stack;
+        itemType = stack.copy();
+        if (!itemType.isEmpty()) {
+            itemType.setCount(Math.max(1, Math.min(MAX_TRANSFER_SIZE, itemType.getCount())));
+        }
     }
 }

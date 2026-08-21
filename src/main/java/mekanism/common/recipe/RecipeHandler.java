@@ -5,6 +5,7 @@ import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasRegistry;
 import mekanism.api.gas.GasStack;
 import mekanism.api.infuse.InfuseType;
+import mekanism.api.recipes.FarmChanceOutput;
 import mekanism.common.CommonWorldTickHandler;
 import mekanism.common.MekanismFluids;
 import mekanism.common.MekanismItems;
@@ -309,6 +310,22 @@ public final class RecipeHandler {
         addRecipe(Recipe.ORGANIC_FARM, new FarmRecipe(input, gas, primaryOutput));
     }
 
+    public static void addOrganicFarmRecipe(ItemStack input, Gas gas, ItemStack primaryOutput, List<FarmChanceOutput> chanceOutputs) {
+        addRecipe(Recipe.ORGANIC_FARM, new FarmRecipe(input, new GasStack(gas, 1), primaryOutput, chanceOutputs));
+    }
+
+    public static void addOrganicFarmRecipe(ItemStack input, FluidStack fluid, ItemStack primaryOutput, ItemStack secondaryOutput, double chance) {
+        addRecipe(Recipe.ORGANIC_FARM, new FarmRecipe(new FarmInput(input, fluid), new FarmOutput(primaryOutput, secondaryOutput, chance)));
+    }
+
+    public static void addOrganicFarmRecipe(ItemStack input, FluidStack fluid, ItemStack primaryOutput) {
+        addRecipe(Recipe.ORGANIC_FARM, new FarmRecipe(new FarmInput(input, fluid), new FarmOutput(primaryOutput)));
+    }
+
+    public static void addOrganicFarmRecipe(ItemStack input, FluidStack fluid, ItemStack primaryOutput, List<FarmChanceOutput> chanceOutputs) {
+        addRecipe(Recipe.ORGANIC_FARM, new FarmRecipe(input, fluid, primaryOutput, chanceOutputs));
+    }
+
 
     public static void addNucleosynthesizerRecipe(ItemStack inputSolid, GasStack inputGas, ItemStack outputSolid, double extraEnergy, int ticks) {
         addRecipe(Recipe.ANTIPROTONIC_NUCLEOSYNTHESIZER, new NucleosynthesizerRecipe(inputSolid, inputGas, outputSolid, extraEnergy, ticks));
@@ -488,7 +505,7 @@ public final class RecipeHandler {
 
 
     @Nullable
-    public static <RECIPE extends FarmMachineRecipe<RECIPE>> RECIPE getFarmRecipe(@Nonnull AdvancedMachineInput input, @Nonnull Map<AdvancedMachineInput, RECIPE> recipes) {
+    public static <RECIPE extends FarmMachineRecipe<RECIPE>> RECIPE getFarmRecipe(@Nonnull FarmInput input, @Nonnull Map<FarmInput, RECIPE> recipes) {
         return getRecipe(input, recipes);
     }
 
@@ -806,8 +823,8 @@ public final class RecipeHandler {
         public static final Recipe<ItemStackInput, GasOutput, NutritionalRecipe> NUTRITIONAL_LIQUIFIER = new Recipe<>(
                 MachineType.NUTRITIONAL_LIQUIFIER, ItemStackInput.class, GasOutput.class, NutritionalRecipe.class);
 
-        public static final Recipe<AdvancedMachineInput, ChanceOutput, FarmRecipe> ORGANIC_FARM = new Recipe<>(
-                MachineType.ORGANIC_FARM, AdvancedMachineInput.class, ChanceOutput.class, FarmRecipe.class);
+        public static final Recipe<FarmInput, FarmOutput, FarmRecipe> ORGANIC_FARM = new Recipe<>(
+                MachineType.ORGANIC_FARM, FarmInput.class, FarmOutput.class, FarmRecipe.class);
 
         public static final Recipe<NucleosynthesizerInput, ItemStackOutput, NucleosynthesizerRecipe> ANTIPROTONIC_NUCLEOSYNTHESIZER = new Recipe<>(
                 MachineType.ANTIPROTONIC_NUCLEOSYNTHESIZER, NucleosynthesizerInput.class, ItemStackOutput.class, NucleosynthesizerRecipe.class);
@@ -950,6 +967,10 @@ public final class RecipeHandler {
                     if (StackUtils.equalsWildcard(stack, input)) {
                         return true;
                     }
+                } else if (entry.getKey() instanceof FarmInput farmInput) {
+                    if (StackUtils.equalsWildcard(farmInput.itemStack, input)) {
+                        return true;
+                    }
                 } else if (entry.getKey() instanceof FluidInput fluidInput) {
                     if (fluidInput.ingredient.isFluidEqual(input)) {
                         return true;
@@ -975,6 +996,10 @@ public final class RecipeHandler {
                     if (fluidInput.ingredient.getFluid() == input) {
                         return true;
                     }
+                } else if (entry.getKey() instanceof FarmInput farmInput) {
+                    if (farmInput.isFluidInput() && farmInput.fluidInput.getFluid() == input) {
+                        return true;
+                    }
                 } else if (entry.getKey() instanceof GasAndFluidInput gasAndFluidInput) {
                     if (gasAndFluidInput.ingredientFluid.getFluid() == input) {
                         return true;
@@ -990,6 +1015,10 @@ public final class RecipeHandler {
                 Gas toCheck = null;
                 if (entry.getKey() instanceof GasInput gasInput) {
                     toCheck = gasInput.ingredient.getGas();
+                } else if (entry.getKey() instanceof FarmInput farmInput) {
+                    if (farmInput.isGasInput()) {
+                        toCheck = farmInput.gasInput.getGas();
+                    }
                 } else if (entry.getKey() instanceof AdvancedMachineInput advancedMachineInput) {
                     toCheck = advancedMachineInput.gasType;
                 } else if (entry.getKey() instanceof PressurizedInput pressurizedInput) {

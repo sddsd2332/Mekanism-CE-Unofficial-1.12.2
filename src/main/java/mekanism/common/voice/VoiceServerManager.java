@@ -1,6 +1,5 @@
 package mekanism.common.voice;
 
-import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import mekanism.common.Mekanism;
 import mekanism.common.config.MekanismConfig;
 
@@ -8,42 +7,45 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class VoiceServerManager {
 
-    private Set<VoiceConnection> connections = new ObjectOpenHashSet<>();
+    private final Set<VoiceConnection> connections = ConcurrentHashMap.newKeySet();
     private ServerSocket serverSocket;
     private Thread listenThread;
-    private boolean foundLocal = false;
-    private boolean running;
+    private volatile boolean foundLocal = false;
+    private volatile boolean running;
 
     public void start() {
         Mekanism.logger.info("VoiceServer: Starting up server...");
         try {
-            running = true;
             serverSocket = new ServerSocket(MekanismConfig.current().general.VOICE_PORT.val());
+            running = true;
             (listenThread = new ListenThread()).start();
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            running = false;
+            Mekanism.logger.error("VoiceServer: Failed to start server.", e);
         }
     }
 
     public void stop() {
         try {
             Mekanism.logger.info("VoiceServer: Shutting down server...");
-            try {
+            if (listenThread != null) {
                 listenThread.interrupt();
-            } catch (Exception ignored) {
+                listenThread = null;
             }
             foundLocal = false;
-            try {
+            if (serverSocket != null) {
                 serverSocket.close();
                 serverSocket = null;
-            } catch (Exception ignored) {
             }
         } catch (Exception e) {
             Mekanism.logger.error("VoiceServer: Error while shutting down server.", e);
         }
         running = false;
+        connections.clear();
     }
 
     public void removeConnection(VoiceConnection connection) {
@@ -66,11 +68,11 @@ public class VoiceServerManager {
         if (channel == 0) {
             return;
         }
-        connections.forEach(iterConn -> {
+        for (VoiceConnection iterConn : connections) {
             if (iterConn.getPlayer() != null && iterConn != connection && iterConn.canListen(channel)) {
                 iterConn.sendToPlayer(byteCount, audioData, connection);
             }
-        });
+        }
     }
 
     private class ListenThread extends Thread {

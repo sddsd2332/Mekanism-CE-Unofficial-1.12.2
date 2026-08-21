@@ -25,6 +25,12 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /** AE-style route-policy tab for one installed QIO automation mode. */
+/**
+ * QIO 处理模块中的 GuiQIOAutomationRecipeConfigTab 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class GuiQIOAutomationRecipeConfigTab extends
       GuiWindowCreatorTab<QIOAutomationContainerState, GuiQIOAutomationRecipeConfigTab> {
 
@@ -55,8 +61,7 @@ public final class GuiQIOAutomationRecipeConfigTab extends
           @Nonnull QIOAutomationRecipeConfigType type) {
         return type.isInstalledIn(tile) && state != null && state.getMode() == type.getMode() &&
               state.getState() != QIOAutomationHost.State.DRAINING_CHANGE &&
-              state.getState() != QIOAutomationHost.State.IDENTITY_CONFLICT &&
-              state.getState() != QIOAutomationHost.State.DATA_ERROR;
+              state.getState() != QIOAutomationHost.State.IDENTITY_CONFLICT;
     }
 
     @Override

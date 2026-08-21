@@ -191,7 +191,7 @@ public class MekanismJEI implements IModPlugin {
          */
         addRecipeCategory(registry, MachineType.ISOTOPIC_CENTRIFUGE, new ChemicalToChemicalRecipeCategory(guiHelper, RecipeViewerRecipeType.CENTRIFUGING));
         addRecipeCategory(registry, MachineType.NUTRITIONAL_LIQUIFIER, new ItemStackToFluidOptionalItemRecipeCategory(guiHelper, RecipeViewerRecipeType.NUTRITIONAL_LIQUIFICATION, false));
-        addRecipeCategory(registry, MachineType.ORGANIC_FARM, new FarmMachineRecipeCategory(guiHelper, Recipe.ORGANIC_FARM.getJEICategory(), "tile.MachineBlock3.OrganicFarm.name", ProgressType.BAR));
+        addRecipeCategory(registry, MachineType.ORGANIC_FARM, new FarmMachineRecipeCategory(guiHelper, Recipe.ORGANIC_FARM.getJEICategory(), "tile.MachineBlock3.OrganicFarm.name", ProgressType.TALL_RIGHT));
         addRecipeCategory(registry, MachineType.ANTIPROTONIC_NUCLEOSYNTHESIZER, new NucleosynthesizingRecipeCategory(guiHelper, RecipeViewerRecipeType.NUCLEOSYNTHESIZING));
         addRecipeCategory(registry, MachineType.STAMPING, new ItemStackToItemStackRecipeCategory(guiHelper, RecipeViewerRecipeType.STAMPING));
         addRecipeCategory(registry, MachineType.ROLLING, new ItemStackToItemStackRecipeCategory(guiHelper, RecipeViewerRecipeType.ROLLING));

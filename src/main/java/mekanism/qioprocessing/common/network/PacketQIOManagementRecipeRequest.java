@@ -28,6 +28,12 @@ import javax.annotation.Nullable;
 import java.util.UUID;
 
 /** Reads or mutates a retained machine recipe profile through a management session. */
+/**
+ * QIO 处理模块中的 PacketQIOManagementRecipeRequest 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class PacketQIOManagementRecipeRequest implements
       IMessageHandler<PacketQIOManagementRecipeRequest.Message, IMessage> {
 

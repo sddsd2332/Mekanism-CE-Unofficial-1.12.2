@@ -52,6 +52,7 @@ public class RenderLogisticalTransporter extends RenderTransmitterBase<TileEntit
     private boolean renderBuffersInUse;
 
     public static void onStitch(TextureMap map) {
+        cachedOverlays.values().forEach(overlays -> overlays.values().forEach(DisplayInteger::delete));
         cachedOverlays.clear();
 
         gunpowderIcon = map.getTextureExtry("minecraft:items/gunpowder");

@@ -1,6 +1,12 @@
 package mekanism.qioprocessing.common.inventory.container;
 
 /** Independent one-request-per-tick guards for management request streams. */
+/**
+ * QIO 处理模块中的 QIOManagementPageRequestThrottle 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 final class QIOManagementPageRequestThrottle {
 
     private long lastDeviceRequestTick = Long.MIN_VALUE;

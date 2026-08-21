@@ -33,6 +33,7 @@ public class RenderMechanicalPipe extends RenderTransmitterBase<TileEntityMechan
     private static Int2ObjectMap<FluidRenderMap<DisplayInteger[]>> cachedLiquids = new Int2ObjectArrayMap<>(7);
 
     public static void onStitch() {
+        cachedLiquids.values().forEach(fluids -> fluids.values().forEach(DisplayInteger::deleteAll));
         cachedLiquids.clear();
     }
 

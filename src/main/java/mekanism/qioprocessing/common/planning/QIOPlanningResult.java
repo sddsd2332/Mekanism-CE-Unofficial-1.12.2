@@ -7,6 +7,12 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 
 /** Bounded result published by a pure-data QIO planning worker. */
+/**
+ * QIO 处理模块中的 QIOPlanningResult 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOPlanningResult {
 
     public enum Status {
@@ -43,6 +49,7 @@ public final class QIOPlanningResult {
         }
     }
 
+    /** 创建成功规划结果。 */
     @Nonnull
     public static QIOPlanningResult success(@Nonnull QIOCraftPlan plan, int exploredNodes,
           long plannedOperations) {
@@ -50,6 +57,7 @@ public final class QIOPlanningResult {
               QIOPlanningTrace.empty(), "", exploredNodes, plannedOperations);
     }
 
+    /** 创建带诊断和探索统计的失败结果。 */
     @Nonnull
     public static QIOPlanningResult failure(@Nonnull Status status, String diagnostic,
           int exploredNodes, long plannedOperations) {
@@ -57,6 +65,7 @@ public final class QIOPlanningResult {
               QIOPlanningTrace.empty());
     }
 
+    /** 创建带默认空 trace 的失败结果。 */
     @Nonnull
     public static QIOPlanningResult failure(@Nonnull Status status, String diagnostic,
           int exploredNodes, long plannedOperations, @Nonnull QIOPlanningTrace trace) {
@@ -68,29 +77,35 @@ public final class QIOPlanningResult {
     }
 
     @Nonnull
+    /** 返回规划状态。 */
     public Status getStatus() {
         return status;
     }
 
     @Nullable
+    /** 返回成功时的合成计划；失败时为 null。 */
     public QIOCraftPlan getPlan() {
         return plan;
     }
 
     @Nonnull
+    /** 返回规划追踪信息。 */
     public QIOPlanningTrace getTrace() {
         return trace;
     }
 
     @Nonnull
+    /** 返回失败诊断文本。 */
     public String getDiagnostic() {
         return diagnostic;
     }
 
+    /** 返回探索过的节点数。 */
     public int getExploredNodes() {
         return exploredNodes;
     }
 
+    /** 返回计划批次数。 */
     public long getPlannedOperations() {
         return plannedOperations;
     }

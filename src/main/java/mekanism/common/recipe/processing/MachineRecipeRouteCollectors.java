@@ -6,6 +6,7 @@ import mekanism.api.infuse.InfuseObject;
 import mekanism.api.infuse.InfuseRegistry;
 import mekanism.api.processing.MachineRecipeRoute;
 import mekanism.api.processing.MachineResourceStack;
+import mekanism.api.recipes.FarmChanceOutput;
 import mekanism.common.recipe.RecipeHandler;
 import mekanism.common.recipe.inputs.*;
 import mekanism.common.recipe.machines.*;
@@ -250,26 +251,38 @@ public final class MachineRecipeRouteCollectors {
     }
 
     public static List<MachineRecipeRoute> collectFarmGasToItem(
-          Map<AdvancedMachineInput, ? extends FarmMachineRecipe<?>> recipes, int gasPerOperation) {
-        if (gasPerOperation <= 0) {
+          Map<FarmInput, ? extends FarmMachineRecipe<?>> recipes, int secondaryPerOperation) {
+        if (secondaryPerOperation <= 0) {
             return Collections.emptyList();
         }
         List<MachineRecipeRoute> routes = new ArrayList<>();
         for (FarmMachineRecipe<?> recipe : recipes.values()) {
-            AdvancedMachineInput input = recipe.getInput();
-            ChanceOutput output = recipe.getOutput();
-            if (input.gasType == null || !isPositiveItem(output.getMainOutput())) {
+            FarmInput input = recipe.getInput();
+            FarmOutput output = recipe.getOutput();
+            if (!input.isValid() || !isPositiveItem(output.getGuaranteedOutput())) {
                 continue;
             }
             for (ItemStack itemInput : MachineRecipeItemInputs.expand(input.itemStack,
-                  candidate -> farmRecipeMatches(recipes, candidate, input.gasType, output.getMainOutput()))) {
-                MachineRecipeRoute.Builder builder = MachineRecipeRoute.builder("route:item_gas_to_item_chance")
+                  candidate -> farmRecipeMatches(recipes, candidate, input, output.getGuaranteedOutput()))) {
+                MachineRecipeRoute.Builder builder = MachineRecipeRoute.builder(input.isGasInput() ?
+                            "route:item_gas_to_item_chance" : "route:item_fluid_to_item_chance")
                       .inputItem("item_input", itemInput)
-                      .inputGas("gas_input", new GasStack(input.gasType, gasPerOperation))
-                      .outputItem("item_output", output.getMainOutput());
-                ItemStack secondary = output.getMaxSecondaryOutput();
-                if (isPositiveItem(secondary)) {
-                    builder.optionalOutputItem("secondary_item_output", secondary);
+                      .outputItem("item_output", output.getGuaranteedOutput());
+                if (input.isGasInput()) {
+                    builder.inputGas("gas_input", input.gasInput.copy().withAmount(input.gasInput.amount * secondaryPerOperation));
+                } else {
+                    builder.inputFluid("fluid_input", new FluidStack(input.fluidInput, input.fluidInput.amount * secondaryPerOperation));
+                }
+                for (FarmChanceOutput chanceOutput : output.getChanceOutputs()) {
+                    ItemStack secondary = chanceOutput.getOutput();
+                    double chance = chanceOutput.getChance();
+                    if (chance > 0 && isPositiveItem(secondary)) {
+                        if (chance == 1) {
+                            builder.outputItem("item_output", secondary);
+                        } else {
+                            builder.optionalOutputItem("item_output", secondary);
+                        }
+                    }
                 }
                 routes.add(builder.build());
             }
@@ -748,10 +761,12 @@ public final class MachineRecipeRouteCollectors {
         return matched instanceof AdvancedMachineRecipe<?> recipe && ItemStack.areItemStacksEqual(recipe.getOutput().output, output);
     }
 
-    private static boolean farmRecipeMatches(Map<AdvancedMachineInput, ? extends FarmMachineRecipe<?>> recipes,
-          ItemStack input, Gas gas, ItemStack output) {
-        Object matched = getRecipe(recipes, new AdvancedMachineInput(input.copy(), gas));
-        return matched instanceof FarmMachineRecipe<?> recipe && ItemStack.areItemStacksEqual(recipe.getOutput().getMainOutput(), output);
+    private static boolean farmRecipeMatches(Map<FarmInput, ? extends FarmMachineRecipe<?>> recipes,
+          ItemStack itemInput, FarmInput recipeInput, ItemStack output) {
+        FarmInput input = recipeInput.isGasInput() ? new FarmInput(itemInput.copy(), recipeInput.gasInput) :
+              new FarmInput(itemInput.copy(), recipeInput.fluidInput);
+        Object matched = getRecipe(recipes, input);
+        return matched instanceof FarmMachineRecipe<?> recipe && ItemStack.areItemStacksEqual(recipe.getOutput().getGuaranteedOutput(), output);
     }
 
     private static boolean nucleosynthesizerRecipeMatches(

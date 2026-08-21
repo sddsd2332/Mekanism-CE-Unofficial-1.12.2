@@ -5,10 +5,11 @@ import mekanism.client.gui.element.GuiInnerScreen;
 import mekanism.client.gui.element.bar.GuiVerticalPowerBar;
 import mekanism.client.gui.element.progress.GuiProgress;
 import mekanism.client.gui.element.progress.ProgressType;
+import mekanism.client.gui.element.slot.GuiDynamicResourceSlot;
 import mekanism.client.gui.element.slot.GuiSlot;
 import mekanism.client.gui.element.slot.SlotType;
 import mekanism.client.gui.element.tab.GuiEnergyTab;
-import mekanism.client.render.IFancyFontRenderer.TextAlignment;
+import mekanism.api.processing.MachineResourceStack;
 import mekanism.common.MekanismLang;
 import mekanism.common.content.qio.QIOFrequency;
 import mekanism.common.inventory.container.SelectedWindowData;
@@ -32,11 +33,17 @@ import java.util.List;
 import java.util.Map;
 
 @SideOnly(Side.CLIENT)
+/**
+ * QIO 处理模块中的 GuiQIOCraftingProcessor 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class GuiQIOCraftingProcessor extends
       GuiMekanismTile<QIOCraftingProcessor, ContainerQIOCraftingProcessor> {
 
     private static final int ORDINARY_HEIGHT = 193;
-    private static final int FACTORY_HEIGHT = 183;
+    private static final int FACTORY_HEIGHT = 193;
 
     private GuiQIOCraftingProcessorFrequencyTab frequencyTab;
     private final Map<Integer, GuiQIOCraftingProcessorRecipeWindow> recipeWindows =
@@ -52,7 +59,7 @@ public final class GuiQIOCraftingProcessor extends
         xSize = factory && processor.getVisibleLaneCount() >= 9 ? 210 : 176;
         ySize = factory ? FACTORY_HEIGHT : ORDINARY_HEIGHT;
         inventoryLabelX = factory && processor.getVisibleLaneCount() >= 9 ? 26 : 8;
-        inventoryLabelY = factory ? 91 : 101;
+        inventoryLabelY = 101;
         titleLabelY = 6;
     }
 
@@ -85,8 +92,19 @@ public final class GuiQIOCraftingProcessor extends
               getXSize() - 12, 36, 52));
         for (int lane = 0; lane < tileEntity.getVisibleLaneCount(); lane++) {
             final int laneId = lane;
-            GuiSlot laneSlot = new GuiSlot(SlotType.NORMAL, this,
-                  factoryLaneSlotX(lane), 39) {
+            GuiDynamicResourceSlot inputSlot = new GuiDynamicResourceSlot(this,
+                  factoryLaneSlotX(lane), 39, 1, 1,
+                  () -> laneInputs(laneId)).click((element, mouseX, mouseY) ->
+                        openLaneWindow(laneId))
+                  .borderColor(GuiDynamicResourceSlot.BorderColor.INPUT);
+            addButton(inputSlot);
+
+            addButton(new GuiProgress(() -> tileEntity.getScaledLaneProgress(laneId),
+                  ProgressType.DOWN, this, factoryLaneProgressX(lane), 59)
+                  .recipeViewerCrafting());
+
+            GuiSlot outputSlot = new GuiSlot(SlotType.OUTPUT, this,
+                  factoryLaneSlotX(lane), 83) {
                 @Override
                 public void renderToolTip(int mouseX, int mouseY) {
                     super.renderToolTip(mouseX, mouseY);
@@ -105,26 +123,14 @@ public final class GuiQIOCraftingProcessor extends
                 }
             }.stored(() -> laneOutput(laneId)).setRenderHover(true)
                   .click((element, mouseX, mouseY) -> openLaneWindow(laneId));
-            laneSlot.active = true;
-            addButton(laneSlot);
-            addButton(new GuiProgress(() -> tileEntity.getScaledLaneProgress(laneId),
-                  ProgressType.DOWN, this, factoryLaneProgressX(lane), 58)
-                  .recipeViewerCrafting());
+            outputSlot.active = true;
+            addButton(outputSlot);
         }
     }
 
     @Override
     protected void drawForegroundText(int mouseX, int mouseY) {
         drawTitleText(new TextComponentString(tileEntity.getName()), 6);
-        if (factory) {
-            for (int lane = 0; lane < tileEntity.getVisibleLaneCount(); lane++) {
-                QIOProcessorDisplaySnapshot.Lane display = tileEntity.getLaneDisplay(lane);
-                drawScaledScrollingString(QIOProcessorGuiText.laneState(
-                            display == null ? null : display.getState()),
-                      factoryLaneSlotX(lane) - 3, 80, TextAlignment.CENTER,
-                      titleTextColor(), 24, 0, false, 0.6F, getTimeOpened());
-            }
-        }
         renderInventoryText();
         super.drawForegroundText(mouseX, mouseY);
     }
@@ -154,6 +160,22 @@ public final class GuiQIOCraftingProcessor extends
     private ItemStack laneOutput(int lane) {
         QIOProcessorDisplaySnapshot.Lane display = tileEntity.getLaneDisplay(lane);
         return display == null ? ItemStack.EMPTY : display.getOutput();
+    }
+
+    private List<MachineResourceStack> laneInputs(int lane) {
+        QIOProcessorDisplaySnapshot.Lane display = tileEntity.getLaneDisplay(lane);
+        if (display == null) {
+            return Collections.emptyList();
+        }
+        List<MachineResourceStack> inputs = new ArrayList<>();
+        List<ItemStack> grid = display.getGrid();
+        for (int slot = 0; slot < grid.size(); slot++) {
+            ItemStack input = grid.get(slot);
+            if (!input.isEmpty()) {
+                inputs.add(MachineResourceStack.item("lane_input_" + slot, input));
+            }
+        }
+        return inputs;
     }
 
     private boolean openLaneWindow(int lane) {
@@ -198,4 +220,5 @@ public final class GuiQIOCraftingProcessor extends
     private int factoryLaneProgressX(int lane) {
         return factoryLaneSlotX(lane) + 5;
     }
+
 }

@@ -17,7 +17,7 @@ import java.util.Map;
 
 public final class FluidRenderer {
 
-    private static final int BLOCK_STAGES = 1000;
+    private static final int BLOCK_STAGES = 64;
 
     private static Map<RenderData, DisplayInteger[]> cachedCenterFluids = new Object2ObjectOpenHashMap<>();
     private static Map<ValveRenderData, DisplayInteger> cachedValveFluids = new Object2ObjectOpenHashMap<>();
@@ -175,6 +175,8 @@ public final class FluidRenderer {
     }
 
     public static void resetDisplayInts() {
+        cachedCenterFluids.values().forEach(DisplayInteger::deleteAll);
+        cachedValveFluids.values().forEach(DisplayInteger::delete);
         cachedCenterFluids.clear();
         cachedValveFluids.clear();
     }
@@ -192,7 +194,6 @@ public final class FluidRenderer {
         @Override
         public int hashCode() {
             int code = 1;
-            code = 31 * code + location.hashCode();
             code = 31 * code + height;
             code = 31 * code + length;
             code = 31 * code + width;
@@ -238,7 +239,6 @@ public final class FluidRenderer {
             int code = 1;
             code = 31 * code + super.hashCode();
             code = 31 * code + side.ordinal();
-            code = 31 * code + valveLocation.hashCode();
             return code;
         }
     }

@@ -4,6 +4,7 @@ import mekanism.api.processing.QIOAutomationMode;
 import mekanism.api.processing.MachinePresentationDescriptor;
 import mekanism.client.gui.GuiUtils;
 import mekanism.client.gui.IGuiWrapper;
+import mekanism.api.processing.QIOAutomationMode;
 import mekanism.client.gui.element.GuiElement;
 import mekanism.client.gui.element.GuiInnerScreen;
 import mekanism.client.gui.element.button.MekanismButton;
@@ -20,7 +21,9 @@ import mekanism.qioprocessing.common.inventory.container.QIOManagementRecipeCont
 import mekanism.qioprocessing.common.inventory.container.QIOProcessingTerminalContainerState;
 import mekanism.qioprocessing.common.network.PacketQIOManagementDeviceGroupPageRequest;
 import mekanism.qioprocessing.common.network.PacketQIOManagementDevicePageRequest;
+import mekanism.qioprocessing.common.network.PacketQIODeviceCommand;
 import mekanism.qioprocessing.common.network.QIOProcessingPacketHandler;
+import mekanism.qioprocessing.common.terminal.QIODeviceCommandService;
 import mekanism.qioprocessing.common.terminal.QIOManagementDeviceGroupSnapshot;
 import mekanism.qioprocessing.common.terminal.QIOPageCursor;
 import net.minecraft.client.gui.GuiScreen;
@@ -40,6 +43,12 @@ import java.util.Objects;
 import java.util.UUID;
 
 /** Two-column management browser for machine types and their persisted device records. */
+/**
+ * QIO 处理模块中的 GuiQIOManagementMachinePanel 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class GuiQIOManagementMachinePanel extends GuiElement {
 
     private static final int PAGE_SIZE = 48;
@@ -84,12 +93,14 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
     @Nullable private String pendingLocateTypeKey;
     @Nullable private Pending groupRequest;
     @Nullable private Pending deviceRequest;
+    @Nullable private UUID pendingRecoveryRequestId;
     private boolean groupRequestFirstPage;
     private boolean deviceRequestFirstPage;
     private long lastGroupGeneration = Long.MIN_VALUE;
     private long lastDeviceGeneration = Long.MIN_VALUE;
     private long lastDirectoryRevision = Long.MIN_VALUE;
     private long lastRecipeProfileRevision = Long.MIN_VALUE;
+    private long lastCommandGeneration;
     private boolean directoryReloadPending;
     private boolean recipeProfileReloadPending;
     private long initialRequestNotBeforeTick;
@@ -157,7 +168,57 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
         ensureCurrentSessionPages();
         requestPagesNearScrollEnd();
         advancePendingGroupLocate();
+        refreshAfterCommand();
         categoryButton.setMessage(new TextComponentTranslation(category.key));
+    }
+
+    boolean hasSelectedDataError() {
+        QIOAutomationDeviceSnapshot selected = selectedDevice();
+        return selected != null && selected.isOnline() &&
+              selected.getKind() == QIOAutomationDeviceSnapshot.Kind.AUTOMATION_MACHINE &&
+              ("DATA_ERROR".equals(selected.getStateName()) ||
+                    selected.getRecoveryState() ==
+                          mekanism.qioprocessing.api.machine.QIOAutomationHost.RecoveryState.QUARANTINED);
+    }
+
+    boolean hasSelectedRecoveryPending() {
+        QIOAutomationDeviceSnapshot selected = selectedDevice();
+        return selected != null && selected.isOnline() &&
+              selected.getKind() == QIOAutomationDeviceSnapshot.Kind.AUTOMATION_MACHINE &&
+              selected.hasRecoveryPending();
+    }
+
+    @Nullable
+    QIOAutomationMode getSelectedDataErrorMode() {
+        QIOAutomationDeviceSnapshot selected = selectedDevice();
+        if (selected == null || !hasSelectedDataError()) {
+            return null;
+        }
+        return selected.getMode();
+    }
+
+    @Nullable
+    String getSelectedDataErrorDiagnostic() {
+        QIOAutomationDeviceSnapshot selected = selectedDevice();
+        return selected == null ? null : selected.getDiagnostic();
+    }
+
+    void recoverSelectedDataError() {
+        QIOAutomationDeviceSnapshot selected = selectedDevice();
+        if (selected == null || !hasSelectedDataError() || pendingRecoveryRequestId != null ||
+            !terminalState.isValid() ||
+            deviceContainer.getDeviceClientCache().getSourceRevision() < 0) {
+            return;
+        }
+        UUID requestId = UUID.randomUUID();
+        pendingRecoveryRequestId = requestId;
+        QIOProcessingPacketHandler.INSTANCE.sendToServer(
+              PacketQIODeviceCommand.Message.create(
+                    deviceContainer.getTerminalWindowId(), terminalState, requestId,
+                    selected.getDeviceUUID(),
+                    deviceContainer.getDeviceClientCache().getSourceRevision(),
+                    selected.getConfigurationRevision(),
+                    QIODeviceCommandService.Command.RECOVER));
     }
 
     @Override
@@ -437,6 +498,7 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
         emptyGroupPageAtTick = -1;
         emptyGroupPageRechecked = false;
         groupSearchText.clear();
+        pendingRecoveryRequestId = null;
         resetDoubleClick();
         typeList.resetScroll();
         deviceList.resetScroll();
@@ -460,6 +522,33 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
 
     private void selectDevice(@Nullable QIOAutomationDeviceSnapshot device) {
         selectedDeviceUUID = device == null ? null : device.getDeviceUUID();
+        pendingRecoveryRequestId = null;
+    }
+
+    @Nullable
+    private QIOAutomationDeviceSnapshot selectedDevice() {
+        if (selectedDeviceUUID == null) {
+            return null;
+        }
+        for (QIOAutomationDeviceSnapshot device : devices()) {
+            if (selectedDeviceUUID.equals(device.getDeviceUUID())) {
+                return device;
+            }
+        }
+        return null;
+    }
+
+    private void refreshAfterCommand() {
+        long generation = deviceContainer.getDeviceClientCache().getCommandGeneration();
+        if (generation == lastCommandGeneration) {
+            return;
+        }
+        lastCommandGeneration = generation;
+        pendingRecoveryRequestId = null;
+        if (selectedTypeKey != null && deviceRequest == null) {
+            deviceContainer.getDeviceClientCache().clear();
+            requestDevices(null);
+        }
     }
 
     private void resetDoubleClick() {
@@ -605,6 +694,19 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
     }
 
     private String deviceStatus(QIOAutomationDeviceSnapshot device) {
+        if ("DATA_ERROR".equals(device.getStateName()) ||
+              "IDENTITY_CONFLICT".equals(device.getStateName()) ||
+              device.getRecoveryState() ==
+                    mekanism.qioprocessing.api.machine.QIOAutomationHost.RecoveryState.QUARANTINED ||
+              !device.getDiagnostic().isEmpty()) {
+            String diagnostic = device.getDiagnostic();
+            return diagnostic.isEmpty() ? device.getStateName() :
+                  device.getStateName() + ": " + diagnostic;
+        }
+        if (device.getRecoveryState() ==
+              mekanism.qioprocessing.api.machine.QIOAutomationHost.RecoveryState.RETRY_PENDING) {
+            return localize("gui.mekanismqioprocessing.management_status_recovery_retry");
+        }
         if (device.hasRecipeProfile()) {
             String filter = localize(device.getRecipeRouteFilterMode() == RouteFilterMode.WHITELIST ?
                   "gui.mekanismqioprocessing.config_filter_whitelist" :

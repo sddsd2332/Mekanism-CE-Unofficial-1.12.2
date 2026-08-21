@@ -36,7 +36,12 @@ public class RenderConfigurableMachine<S extends TileEntity & ISideConfiguration
 
     private Minecraft mc = FMLClientHandler.instance().getClient();
 
-    private Map<EnumFacing, Map<TransmissionType, DisplayInteger>> cachedOverlays = new EnumMap<>(EnumFacing.class);
+    private static final Map<EnumFacing, Map<TransmissionType, DisplayInteger>> cachedOverlays = new EnumMap<>(EnumFacing.class);
+
+    public static void resetDisplayInts() {
+        cachedOverlays.values().forEach(overlays -> overlays.values().forEach(DisplayInteger::delete));
+        cachedOverlays.clear();
+    }
 
     public RenderConfigurableMachine() {
         rendererDispatcher = TileEntityRendererDispatcher.instance;

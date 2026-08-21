@@ -81,6 +81,7 @@ public class TileEntitySolarNeutronActivator extends TileEntityContainerBlock im
     public TileComponentSecurity securityComponent = new TileComponentSecurity(this);
     private RedstoneControl controlType = RedstoneControl.DISABLED;
     private boolean seesSunThisTick;
+    private long serverWorldTime;
     private GasInventorySlot inputSlot;
     private GasInventorySlot outputSlot;
 
@@ -164,28 +165,28 @@ public class TileEntitySolarNeutronActivator extends TileEntityContainerBlock im
     }
 
     @Override
-    public void onAsyncUpdateServer() {
-        super.onAsyncUpdateServer();
-        inputSlot.fillTank();
-        outputSlot.drainTank();
-
-        // TODO: Ideally the neutron activator should use the sky brightness to determine throughput; but
-        // changing this would dramatically affect a lot of setups with Fusion reactors which can take
-        // a long time to relight. I don't want to be chased by a mob right now, so just doing basic
-        // rain checks.
+    public void onUpdateServer() {
+        super.onUpdateServer();
+        serverWorldTime = world.getTotalWorldTime();
         boolean seesSun = world.isDaytime() && world.canSeeSky(getPos().up()) && !world.provider.isNether();
         if (needsRainCheck) {
             seesSun &= !(world.isRaining() || world.isThundering());
         }
-
         seesSunThisTick = seesSun;
+    }
+
+    @Override
+    public void onAsyncUpdateServer() {
+        super.onAsyncUpdateServer();
+        inputSlot.fillTank();
+        outputSlot.drainTank();
         if (!recipeCacheLookupMonitor.updateAndProcess()) {
             setActive(false);
         }
 
         // Every 20 ticks (once a second), send update to client. Note that this is a 50% reduction in network
         // traffic from previous implementation that send the update every 10 ticks.
-        if (world.getTotalWorldTime() % 20 == 0) {
+        if (serverWorldTime % 20 == 0) {
             Mekanism.packetHandler.sendUpdatePacket(this);
         }
 

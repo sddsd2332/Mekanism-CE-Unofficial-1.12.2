@@ -139,6 +139,8 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
     private final boolean[] activeStates;
     private final FactoryInvSorter inventorySorter = new FactoryInvSorter(this);
     private final List<ItemStack> legacyTypeSlotDrops = new ArrayList<>();
+    private long serverWorldTime;
+    private boolean hasGuiUsers;
     private BasicGasTank gasTank;
     private BasicGasTank gasOutTank;
     private BasicFluidTank fluidTank;
@@ -972,12 +974,19 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
     }
 
     @Override
-    public void onAsyncUpdateServer() {
-        super.onAsyncUpdateServer();
+    protected void onUpdateServer() {
+        super.onUpdateServer();
+        serverWorldTime = world.getTotalWorldTime();
+        hasGuiUsers = !playersUsing.isEmpty();
         if (ticker == 1) {
-            Mekanism.EXECUTE_MANAGER.addSyncTask(() -> world.notifyNeighborsOfStateChange(getPos(), getBlockType(), true));
+            world.notifyNeighborsOfStateChange(getPos(), getBlockType(), true);
         }
         dropLegacyTypeSlotItems();
+    }
+
+    @Override
+    public void onAsyncUpdateServer() {
+        super.onAsyncUpdateServer();
         fillEnergySlot();
         handleSecondaryFuel();
         if (shouldSortInventory()) {
@@ -1754,7 +1763,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
     }
 
     private boolean shouldRecheckAllRecipeErrors(int checkOffset) {
-        return !playersUsing.isEmpty() && world != null && world.getTotalWorldTime() % RECIPE_CHECK_FREQUENCY == checkOffset;
+        return hasGuiUsers && serverWorldTime % RECIPE_CHECK_FREQUENCY == checkOffset;
     }
 
     private boolean depleteRecipeInput() {
@@ -2852,122 +2861,6 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
                       input -> chanceRecipe.getOutput().copy(), ItemStack::isEmpty, output -> false), processInfo);
             }
         },
-        FARM {
-            @Override
-            boolean matchesRecipe(MachineRecipe<?, ?, ?> recipe) {
-                return recipe instanceof FarmMachineRecipe<?>;
-            }
-
-            @Override
-            MachineRecipe<?, ?, ?> findRecipe(TileEntityFactory factory, ItemStack input, ItemStack extra) {
-                return getFactoryRecipe(factory, new AdvancedMachineInput(input, factory.gasTank.getGasType()));
-            }
-
-            @Override
-            boolean isItemValid(TileEntityFactory factory, ItemStack stack) {
-                Gas gasType = factory.gasTank.getGasType();
-                return gasType == null ? hasRecipeForItemInput(factory, stack) : getFactoryRecipe(factory, new AdvancedMachineInput(stack, gasType)) != null;
-            }
-
-            @Override
-            boolean isExtraSlotVisible(TileEntityFactory factory) {
-                return true;
-            }
-
-            @Override
-            boolean hasGasInput() {
-                return true;
-            }
-
-            @Override
-            boolean isValidExtraSlotItem(TileEntityFactory factory, ItemStack stack) {
-                return isValidGasExtraSlotItem(factory, stack);
-            }
-
-            @Override
-            boolean isFarm() {
-                return true;
-            }
-
-            @Override
-            int getInputGasGaugeY(TileEntityFactory factory) {
-                return 34;
-            }
-
-            @Override
-            int getSecondaryResourceClickYOffset() {
-                return 21;
-            }
-
-            @Override
-            boolean hasSecondaryItemOutput() {
-                return true;
-            }
-
-            @Override
-            boolean recipeMatchesOutputSlots(MachineRecipe<?, ?, ?> recipe, @Nullable IInventorySlot outputSlot, @Nullable IInventorySlot secondaryOutputSlot) {
-                return super.recipeMatchesOutputSlots(recipe, outputSlot, secondaryOutputSlot) &&
-                      recipeMatchesSecondaryOutputSlot(recipe, secondaryOutputSlot);
-            }
-
-            @Override
-            int getFactoryGuiHeightExtra() {
-                return 21;
-            }
-
-            @Override
-            int getExtraSlotY() {
-                return 68;
-            }
-
-            @Override
-            boolean usesSecondaryGasInput() {
-                return true;
-            }
-
-            @Override
-            boolean supportsGasUpgrade(TileEntityFactory factory) {
-                return true;
-            }
-
-            @Override
-            boolean usesStatisticalSecondaryFuel(TileEntityFactory factory) {
-                return true;
-            }
-
-            @Override
-            double getSecondaryEnergyPerTick(TileEntityFactory factory) {
-                return MekanismUtils.getSecondaryEnergyPerTickMean(factory, 1);
-            }
-
-            @Override
-            boolean recipeMatchesCurrentInput(TileEntityFactory factory, MachineRecipe<?, ?, ?> recipe, ItemStack input, ItemStack extra) {
-                return super.recipeMatchesCurrentInput(factory, recipe, input, extra) &&
-                      recipeMatchesGasInput(factory, (AdvancedMachineInput) recipe.recipeInput);
-            }
-
-            @Override
-            int getNeededInput(MachineRecipe<?, ?, ?> recipe, ItemStack inputStack) {
-                return Math.max(1, ((AdvancedMachineInput) recipe.recipeInput).itemStack.getCount());
-            }
-
-            @Override
-            boolean canOperate(TileEntityFactory factory, ProcessInfo processInfo, MachineRecipe<?, ?, ?> recipe) {
-                return ((FarmMachineRecipe<?>) recipe).canOperate(processInfo.inputSlot(), factory.gasTank, factory.secondaryEnergyThisTick,
-                      processInfo.outputSlot(), processInfo.secondaryOutputSlot());
-            }
-
-            @Override
-            CachedRecipe<MachineRecipe<?, ?, ?>> createCachedRecipe(TileEntityFactory factory, ProcessInfo processInfo, MachineRecipe<?, ?, ?> recipe) {
-                FarmMachineRecipe<?> farmRecipe = (FarmMachineRecipe<?>) recipe;
-                return factory.setupFactoryCachedRecipe(new ItemStackConstantGasCachedRecipe<>(farmRecipe, factory.getRecheckAllRecipeErrors(processInfo),
-                        factory.getItemInputHandler(processInfo),
-                        factory.constantGasInputHandler,
-                        factory.getChanceOutputHandler(processInfo),
-                        factory.gasUsageMultiplier,
-                      used -> factory.setSavedUsedSoFar(processInfo, used)), processInfo);
-            }
-        },
         CHANCE2 {
             @Override
             boolean matchesRecipe(MachineRecipe<?, ?, ?> recipe) {
@@ -3447,7 +3340,6 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
                 case COMPRESSING, PURIFYING, INJECTING -> ADVANCED;
                 case COMBINING, AllOY -> DOUBLE;
                 case SAWING, EXTRACTOR, SEPARATOR -> CHANCE;
-                case FARM -> FARM;
                 case RECYCLER -> CHANCE2;
                 case INFUSING -> INFUSING;
                 case PRC -> PRESSURIZED;
@@ -3477,7 +3369,6 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
             registries.put(RecipeType.AllOY, RecipeHandler.Recipe.ALLOY);
             registries.put(RecipeType.EXTRACTOR, RecipeHandler.Recipe.CELL_EXTRACTOR);
             registries.put(RecipeType.SEPARATOR, RecipeHandler.Recipe.CELL_SEPARATOR);
-            registries.put(RecipeType.FARM, RecipeHandler.Recipe.ORGANIC_FARM);
             registries.put(RecipeType.RECYCLER, RecipeHandler.Recipe.RECYCLER);
             registries.put(RecipeType.PRC, RecipeHandler.Recipe.PRESSURIZED_REACTION_CHAMBER);
             registries.put(RecipeType.NUCLEOSYNTHESIZER, RecipeHandler.Recipe.ANTIPROTONIC_NUCLEOSYNTHESIZER);

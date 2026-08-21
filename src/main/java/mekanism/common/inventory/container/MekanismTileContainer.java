@@ -3,6 +3,7 @@ package mekanism.common.inventory.container;
 import mekanism.api.inventory.IInventorySlot;
 import mekanism.common.base.IUpgradeTile;
 import mekanism.common.inventory.container.slot.VirtualInventoryContainerSlot;
+import mekanism.common.inventory.container.slot.InventoryContainerSlot;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
 import mekanism.common.util.SecurityUtils;
 import net.minecraft.entity.player.EntityPlayer;
@@ -101,6 +102,10 @@ public class MekanismTileContainer<TILE extends TileEntityContainerBlock> extend
             for (IInventorySlot inventorySlot : inventorySlots) {
                 Slot containerSlot = inventorySlot.createContainerSlot();
                 if (containerSlot != null) {
+                    if (containerSlot instanceof InventoryContainerSlot inventoryContainerSlot) {
+                        inventoryContainerSlot.setExtractionGuard(() ->
+                              tile.isContainerExtractionGuarded(inventorySlot));
+                    }
                     addSlot(containerSlot);
                 }
             }

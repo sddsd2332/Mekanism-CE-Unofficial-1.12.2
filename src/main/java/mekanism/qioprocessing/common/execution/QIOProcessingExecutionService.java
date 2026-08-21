@@ -69,6 +69,7 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -76,6 +77,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -83,7 +85,13 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
 
-/** Bounded main-thread scheduler and transfer driver for persisted QIO jobs. */
+/**
+ * 已持久化 QIO 任务的有界主线程调度器和传输驱动。
+ *
+ * <p>服务按频率轮转，在预算内推进合成任务、被动处理和机器输入/输出。Provider、
+ * 存储或容量暂时不可用时由重试跟踪器延后再次尝试；只有端点基线、传输身份或资源
+ * 所有权结构无法确认时才进入隔离。</p>
+ */
 public final class QIOProcessingExecutionService {
 
     public static final QIOProcessingExecutionService INSTANCE =
@@ -92,34 +100,224 @@ public final class QIOProcessingExecutionService {
     private static final long AGING_CAP = 1_000;
     private static final long PROVIDER_FALLBACK_SCAN_TICKS =
           QIOAdaptiveRetryTracker.MAX_RETRY_TICKS;
+    private static final int PRE_EJECTION_UNAVAILABLE_GRACE_TICKS = 2;
 
     private int networkCursor;
     private final Map<UUID, ProviderWakeStamp> providerWakeStamps = new LinkedHashMap<>();
     private final Map<ProviderCursorKey, UUID> providerCursors = new LinkedHashMap<>();
     private final QIOAdaptiveRetryTracker retryTracker = new QIOAdaptiveRetryTracker();
     private final Set<UUID> providerWakeFrequencies = ConcurrentHashMap.newKeySet();
+    private final Map<UUID, PreEjectionUnavailableStamp> preEjectionUnavailable =
+          new LinkedHashMap<>();
 
     private QIOProcessingExecutionService() {
     }
 
+    /** 清空调度游标、唤醒标记和重试跟踪器，供服务停止或测试隔离使用。 */
     public void shutdown() {
         networkCursor = 0;
         providerWakeStamps.clear();
         providerCursors.clear();
         retryTracker.clear();
         providerWakeFrequencies.clear();
+        preEjectionUnavailable.clear();
     }
 
-    /** Wakes blocked jobs and provider waiters after a device lane was released. */
+    /** 机器通道释放后唤醒被阻塞任务和 Provider 等待者。 */
     public void wakeDevice(@Nonnull UUID frequencyUUID, @Nonnull UUID deviceUUID) {
         providerWakeFrequencies.add(Objects.requireNonNull(frequencyUUID, "frequencyUUID"));
         retryTracker.wakeDevice(Objects.requireNonNull(deviceUUID, "deviceUUID"));
     }
 
-    /** Wakes active jobs and requeues provider waiters after observable machine contents change. */
+    /** 机器内容发生可观测变化后唤醒活动任务并重新排队 Provider 等待者。 */
     public void wakeDeviceContents(@Nonnull UUID frequencyUUID, @Nonnull UUID deviceUUID) {
         providerWakeFrequencies.add(Objects.requireNonNull(frequencyUUID, "frequencyUUID"));
         retryTracker.wakeDevice(Objects.requireNonNull(deviceUUID, "deviceUUID"));
+    }
+
+    /**
+     * Advances machine-owned output before the tile's ordinary ejector can observe it.
+     * Frequency-wide order selection remains centralized; only operations which already own
+     * this endpoint are driven here.
+     *
+     * @return {@code true} while an exclusive processing lease still owns the machine and its
+     * ordinary ejector must remain paused for this tick
+     */
+    public boolean onMachinePreComponentTick(@Nonnull DefaultQIOAutomationHost host) {
+        Objects.requireNonNull(host, "host");
+        if (host.isProcessingOutputCollectionPaused()) {
+            preEjectionUnavailable.remove(host.getPersistentDeviceUUID());
+            return false;
+        }
+        MachineOperationLease contaminated = firstContaminatedProcessingLease(host);
+        if (contaminated != null) {
+            host.pauseProcessingOutputCollection("operation " +
+                  contaminated.ownerOperationId() + " was contaminated: " +
+                  (contaminated.contaminationReason() == null ? "unknown failure" :
+                        contaminated.contaminationReason()));
+            return false;
+        }
+        QIOAutomationMode mode = host.getEnabledMode();
+        QIOFrequencyReference reference = host.getFrequencyReference();
+        if (reference == null ||
+            (mode != QIOAutomationMode.SCHEDULED && mode != QIOAutomationMode.PASSIVE) ||
+            host.getOperationTokens().isEmpty()) {
+            preEjectionUnavailable.remove(host.getPersistentDeviceUUID());
+            return hasExclusiveMachineOwnership(host);
+        }
+        wakeDeviceContents(reference.getFrequencyUUID(), host.getPersistentDeviceUUID());
+        if (QIOProcessingNetworkManager.INSTANCE.getIsolationStatus(
+              reference.getFrequencyUUID()) != null) {
+            return handlePreEjectionUnavailable(host, "processing network is isolated");
+        }
+        QIOProcessingNetworkData network = QIOProcessingNetworkManager.INSTANCE.get(
+              reference.getFrequencyUUID());
+        if (network == null) {
+            return handlePreEjectionUnavailable(host, "processing network is unavailable");
+        }
+        LoadedDevice device = QIOAutomationDeviceRegistry.INSTANCE.findLoadedDevice(
+              host.getPersistentDeviceUUID());
+        if (device == null || device.mutableHost() != host) {
+            return handlePreEjectionUnavailable(host, "machine registry entry is unavailable");
+        }
+        MachineOperationToken.Kind expectedKind = mode == QIOAutomationMode.SCHEDULED ?
+              MachineOperationToken.Kind.JOB : MachineOperationToken.Kind.PASSIVE;
+        MachineOperationToken[] tokens = host.getOperationTokens().values().toArray(
+              new MachineOperationToken[0]);
+        for (MachineOperationToken snapshot : tokens) {
+            MachineOperationToken token = host.getOperationTokens().get(snapshot.operationId());
+            if (token == null || token.kind() != expectedKind ||
+                  token.state() != MachineOperationToken.State.ACTIVE &&
+                        token.state() != MachineOperationToken.State.COLLECTING) {
+                continue;
+            }
+            try {
+                int result = driveOwnedMachineOutput(network, host, token, device);
+                if (result < 0) {
+                    return handlePreEjectionUnavailable(host,
+                          "owned machine provider endpoint is unavailable");
+                }
+                contaminated = firstContaminatedProcessingLease(host);
+                if (contaminated != null) {
+                    host.pauseProcessingOutputCollection("operation " +
+                          contaminated.ownerOperationId() + " was contaminated: " +
+                          (contaminated.contaminationReason() == null ? "unknown failure" :
+                                contaminated.contaminationReason()));
+                    break;
+                }
+            } catch (IOException | RuntimeException e) {
+                host.pauseProcessingOutputCollection("operation " + token.operationId() +
+                      " failed: " + diagnostic(e));
+                Mekanism.logger.warn("QIO machine output collection {} was paused and reported; " +
+                      "ordinary ejection remains enabled", token.operationId(), e);
+                break;
+            }
+        }
+        preEjectionUnavailable.remove(host.getPersistentDeviceUUID());
+        return hasExclusiveMachineOwnership(host);
+    }
+
+    /** Applies a short consecutive-tick grace before yielding an unavailable owned endpoint. */
+    private boolean handlePreEjectionUnavailable(DefaultQIOAutomationHost host, String reason) {
+        UUID deviceUUID = host.getPersistentDeviceUUID();
+        PreEjectionUnavailableStamp previous = preEjectionUnavailable.get(deviceUUID);
+        int count;
+        if (previous == null) {
+            count = 1;
+        } else {
+            // The hook is invoked once from the tile's server tick. A successful endpoint
+            // observation clears this stamp, so each retained stamp represents consecutive
+            // unavailable invocations without relying on host internals for the world tick.
+            count = Math.min(Integer.MAX_VALUE, previous.count + 1);
+        }
+        preEjectionUnavailable.put(deviceUUID, new PreEjectionUnavailableStamp(count));
+        host.markRetryPending();
+        if (count <= PRE_EJECTION_UNAVAILABLE_GRACE_TICKS) {
+            return hasExclusiveMachineOwnership(host);
+        }
+        host.pauseProcessingOutputCollection(reason + " for " + count + " consecutive ticks");
+        preEjectionUnavailable.remove(deviceUUID);
+        return false;
+    }
+
+    /** Drives only the output phase of one operation already owned by this exact device. */
+    int driveOwnedMachineOutput(QIOProcessingNetworkData network,
+          DefaultQIOAutomationHost host, MachineOperationToken token,
+          LoadedDevice device) throws IOException {
+        if (device.mutableHost() != host || token.state() != MachineOperationToken.State.ACTIVE &&
+              token.state() != MachineOperationToken.State.COLLECTING) {
+            return 0;
+        }
+        if (token.kind() == MachineOperationToken.Kind.PASSIVE) {
+            QIOPassiveOperation operation = network.getPassiveOperation(token.operationId());
+            if (operation == null) {
+                return -1;
+            }
+            MachineEndpoint endpoint = passiveEndpoint(network, operation, false, device);
+            MachineOperationLease lease = host.getLeases().get(token.leaseId());
+            if (endpoint == null || lease == null) {
+                return -1;
+            }
+            return driveOwnedPassiveMachineOutput(network, operation,
+                  withBaselines(endpoint, lease.baselines()));
+        }
+        if (token.kind() != MachineOperationToken.Kind.JOB) {
+            return 0;
+        }
+        UUID jobId = token.jobId();
+        QIOCraftingJob job = jobId == null ? null : network.getJob(jobId);
+        if (job == null) {
+            return -1;
+        }
+        for (QIOStepRuntime runtime : job.getStepRuntimes().values()) {
+            QIOOperationAssignment assignment = runtime.getOperation(token.operationId());
+            if (assignment == null || assignment.getProviderKind() != ProviderKind.MEKANISM ||
+                  !assignment.getDeviceUUID().equals(host.getPersistentDeviceUUID())) {
+                continue;
+            }
+            QIOPlanStep step = planStep(job, runtime.getNodeId());
+            MachineOperationLease lease = host.getLeases().get(token.leaseId());
+            if (step == null || lease == null) {
+                return -1;
+            }
+            MachineEndpoint endpoint = findMachineEndpoint(network, step, token,
+                  assignment.getDeviceUUID(), assignment.getOperationId(), false, device);
+            if (endpoint == null) {
+                return -1;
+            }
+            endpoint = withBaselines(scaleEndpoint(endpoint,
+                  assignment.getOperationCount()), lease.baselines());
+            return driveOwnedScheduledMachineOutput(network, job, runtime, assignment,
+                  endpoint);
+        }
+        return -1;
+    }
+
+    /** Exclusive QIO processing ownership blocks ordinary auto-pull/ejection until settled. */
+    private static boolean hasExclusiveMachineOwnership(DefaultQIOAutomationHost host) {
+        if (host.isProcessingOutputCollectionPaused()) {
+            return false;
+        }
+        for (MachineOperationLease lease : host.getLeases().values()) {
+            if (lease.mode() == MachineOperationLease.Mode.PROCESSING_EXCLUSIVE &&
+                  lease.state() != MachineOperationLease.State.RELEASED &&
+                  lease.state() != MachineOperationLease.State.CONTAMINATED) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Nullable
+    private static MachineOperationLease firstContaminatedProcessingLease(
+          DefaultQIOAutomationHost host) {
+        for (MachineOperationLease lease : host.getLeases().values()) {
+            if (lease.mode() == MachineOperationLease.Mode.PROCESSING_EXCLUSIVE &&
+                  lease.state() == MachineOperationLease.State.CONTAMINATED) {
+                return lease;
+            }
+        }
+        return null;
     }
 
     boolean hasPendingProviderWake(@Nonnull UUID frequencyUUID) {
@@ -127,16 +325,21 @@ public final class QIOProcessingExecutionService {
               "frequencyUUID"));
     }
 
-    /** Wakes delivery jobs when QIO contents, capacity, claims, or access changed. */
+    /** QIO 内容、容量、claim 或访问权限变化后唤醒投递任务。 */
     public void wakeStorage(@Nonnull UUID frequencyUUID) {
         retryTracker.wakeFrequency(Objects.requireNonNull(frequencyUUID, "frequencyUUID"));
     }
 
-    /** Wakes one job after a direct user mutation such as cancellation. */
+    /** 玩家取消等直接修改后唤醒指定任务。 */
     public void wakeJob(@Nonnull UUID jobId) {
         retryTracker.wakeJob(Objects.requireNonNull(jobId, "jobId"));
     }
 
+    /**
+     * 执行一次世界 tick 的频率轮转和任务推进。
+     *
+     * @param world 当前世界；客户端或非主维度调用会直接返回
+     */
     public void tick(@Nonnull World world) {
         if (world.isRemote || world.provider.getDimension() != 0) {
             return;
@@ -187,10 +390,15 @@ public final class QIOProcessingExecutionService {
         networkCursor = start + Math.max(1, visited);
     }
 
+    /** 在单个频率预算内依次处理恢复、预留、派发和被动操作。 */
     private int tickNetwork(QIOProcessingNetworkData network, long gameTick, int budget,
           QIOProcessingConfig config) {
         int actions = 0;
         try {
+            actions += cleanupForcedConfigurationClaims(network, budget - actions);
+            if (actions >= budget) {
+                return actions;
+            }
             actions += pruneSettledHistory(network, budget - actions);
             if (actions >= budget) {
                 return actions;
@@ -258,6 +466,40 @@ public final class QIOProcessingExecutionService {
         return actions;
     }
 
+    /** 清理恢复界面确认过的配置 claim。 */
+    private int cleanupForcedConfigurationClaims(QIOProcessingNetworkData network, int budget)
+          throws IOException {
+        if (budget <= 0) return 0;
+        List<QIOConfigurationExchangeRecord> pending = new ArrayList<>();
+        for (QIOConfigurationExchangeRecord exchange : network.getConfigurationExchanges()) {
+            if (exchange.getPhase() == QIOConfigurationExchangeRecord.Phase.CONTAMINATED &&
+                  exchange.isForceRecoveryPending()) {
+                pending.add(exchange);
+            }
+        }
+        pending.sort(Comparator.comparing(exchange -> exchange.getExchangeId().toString()));
+        IQIOStorageView view = null;
+        try {
+            for (QIOConfigurationExchangeRecord exchange : pending) {
+                if (view == null) {
+                    view = openPassive(network);
+                    if (view == null) return 0;
+                }
+                if (!settleContaminatedConfigurationExchange(network, exchange, view)) {
+                    continue;
+                }
+                if (network.removeForcedRecoveryConfigurationExchange(
+                      exchange.getExchangeId())) {
+                    persist(network);
+                    return 1;
+                }
+            }
+            return 0;
+        } finally {
+            if (view != null) view.close();
+        }
+    }
+
     private static long activeOperationCount(QIOCraftingJob job, ProviderKind providerKind) {
         long active = 0;
         for (QIOStepRuntime runtime : job.getStepRuntimes().values()) {
@@ -295,6 +537,7 @@ public final class QIOProcessingExecutionService {
         return Math.max(1, limit);
     }
 
+    /** 根据在线 Provider 容量计算本次允许的最大并发数。 */
     static long effectiveConcurrencyLimit(boolean limited, int configuredMaximum,
           long onlineCapacity) {
         if (configuredMaximum <= 0) {
@@ -552,95 +795,113 @@ public final class QIOProcessingExecutionService {
               .reversed().thenComparing(device ->
                     device.host().getPersistentDeviceUUID().toString()));
         for (LoadedDevice device : devices) {
-            MachineRecipeProviderRegistry.BoundProvider provider =
-                  MachineRecipeProviderRegistry.find(device.tile());
-            if (!acceptsCurrentRoutes(provider, QIOAutomationMode.PASSIVE)) {
-                continue;
-            }
-            List<MachineRecipeRoute> routes = new ArrayList<>(provider.getRecipeRoutes());
-            UUID deviceUUID = device.host().getPersistentDeviceUUID();
-            routes.removeIf(route -> !network.getPolicies().isRouteEnabled(deviceUUID,
-                  provider.id().toString(), route.routeId(), route.logicalRecipeKey()));
-            QIOAutomationRecipeProfileCatalog profiles = network.getAutomationRecipeProfiles();
-            QIOAutomationRecipeProfile profile = profiles.getActiveProfile(deviceUUID,
-                  QIOAutomationMode.PASSIVE,
-                  QIOAutomationRecipeProfileScope.resolve(provider));
-            QIOAutomationRecipeProfileLayout profileLayout =
-                  new QIOAutomationRecipeProfileLayout(routes);
-            routes = new ArrayList<>();
-            for (QIOAutomationRecipeProfileLayout.Route route :
-                  profileLayout.ordered(profile, true)) {
-                routes.add(route.getMachineRoute());
-            }
-            if (!profile.hasCustomOrder()) {
-                routes.sort(Comparator.comparingLong((MachineRecipeRoute route) ->
-                      network.getPolicies().passiveRoutePriority(deviceUUID,
-                            provider.id().toString(), route.routeId(),
-                            route.logicalRecipeKey())).reversed()
-                      .thenComparing(Comparator.comparingLong((MachineRecipeRoute route) ->
-                            network.getPolicies().routePriority(deviceUUID,
-                                  provider.id().toString(), route.routeId(),
-                                  route.logicalRecipeKey())).reversed())
-                      .thenComparing(MachineRecipeRoute::routeId)
-                      .thenComparing(MachineRecipeRoute::recipeKey));
-            }
-            Map<String, MachinePort> currentPorts = ports(provider);
-            routes.sort(Comparator.comparingInt(route ->
-                  configurationAffinity(route, currentPorts)));
-            IQIOStorageView view = openPassive(network);
-            if (view == null) {
-                return 0;
-            }
             try {
-                QIOStorageSnapshot snapshot = view.getSnapshot();
-                for (MachineRecipeRoute route : routes) {
-                    Map<String, MachinePort> ports = ports(provider);
-                    MachineEndpoint endpoint = endpoint(device, provider, route, ports);
-                    if (endpoint == null || !machineReadyForInput(endpoint)) {
-                        continue;
-                    }
-                    if (!configurationPreflight(endpoint, snapshot, view)) {
-                        continue;
-                    }
-                    String profileRouteKey = QIOAutomationRecipeProfileLayout.routeKey(
-                          route.routeId(), route.logicalRecipeKey());
-                    long operationCount = profile.getEffectiveCraftAmount(profileRouteKey,
-                          profileLayout.getRoute(profileRouteKey) == null ? 1 :
-                                profileLayout.getRoute(profileRouteKey).getMaximumCraftAmount());
-                    operationCount = maxMachineOperations(endpoint, operationCount);
-                    Map<PortableResourceDescriptor, Long> baseInputs = aggregate(route.inputs());
-                    operationCount = maxAvailableOperations(snapshot, baseInputs,
-                          operationCount);
-                    if (operationCount <= 0) {
-                        continue;
-                    }
-                    Map<PortableResourceDescriptor, Long> inputs = scaleAmounts(
-                          baseInputs, operationCount);
-                    Map<PortableResourceDescriptor, UUID> bindings = resolveAvailableBindings(
-                          snapshot, inputs);
-                    if (bindings == null) {
-                        continue;
-                    }
-                    QIOPassiveOperation operation = new QIOPassiveOperation(UUID.randomUUID(),
-                          device.host().getPersistentDeviceUUID(), provider.id().toString(),
-                          route.routeId(), route.recipeKey(), operationCount, gameTick,
-                          snapshot.getContentsRevision(), snapshot.getClaimRevision(), bindings,
-                          inputs);
-                    network.addPassiveOperation(operation);
-                    persist(network);
-                    return drivePassiveClaim(network, operation, view);
+                MachineRecipeProviderRegistry.BoundProvider provider =
+                      MachineRecipeProviderRegistry.find(device.tile());
+                if (!acceptsCurrentRoutes(provider, QIOAutomationMode.PASSIVE)) {
+                    continue;
                 }
-            } finally {
-                view.close();
+                List<MachineRecipeRoute> routes = new ArrayList<>(provider.getRecipeRoutes());
+                UUID deviceUUID = device.host().getPersistentDeviceUUID();
+                routes.removeIf(route -> !network.getPolicies().isRouteEnabled(deviceUUID,
+                      provider.id().toString(), route.routeId(), route.logicalRecipeKey()));
+                QIOAutomationRecipeProfileCatalog profiles = network.getAutomationRecipeProfiles();
+                QIOAutomationRecipeProfile profile = profiles.getActiveProfile(deviceUUID,
+                      QIOAutomationMode.PASSIVE,
+                      QIOAutomationRecipeProfileScope.resolve(provider));
+                QIOAutomationRecipeProfileLayout profileLayout =
+                      new QIOAutomationRecipeProfileLayout(routes);
+                routes = new ArrayList<>();
+                for (QIOAutomationRecipeProfileLayout.Route route :
+                      profileLayout.ordered(profile, true)) {
+                    routes.add(route.getMachineRoute());
+                }
+                if (!profile.hasCustomOrder()) {
+                    routes.sort(Comparator.comparingLong((MachineRecipeRoute route) ->
+                          network.getPolicies().passiveRoutePriority(deviceUUID,
+                                provider.id().toString(), route.routeId(),
+                                route.logicalRecipeKey())).reversed()
+                          .thenComparing(Comparator.comparingLong((MachineRecipeRoute route) ->
+                                network.getPolicies().routePriority(deviceUUID,
+                                      provider.id().toString(), route.routeId(),
+                                      route.logicalRecipeKey())).reversed())
+                          .thenComparing(MachineRecipeRoute::routeId)
+                          .thenComparing(MachineRecipeRoute::recipeKey));
+                }
+                Map<String, MachinePort> currentPorts = ports(provider);
+                routes.sort(Comparator.comparingInt(route ->
+                      configurationAffinity(route, currentPorts)));
+                device.host().clearRetryPending();
+                IQIOStorageView view = openPassive(network);
+                if (view == null) {
+                    return 0;
+                }
+                try {
+                    QIOStorageSnapshot snapshot = view.getSnapshot();
+                    for (MachineRecipeRoute route : routes) {
+                        Map<String, MachinePort> ports = ports(provider);
+                        MachineEndpoint endpoint = endpoint(device, provider, route, ports);
+                        if (endpoint == null || !machineReadyForInput(endpoint)) {
+                            continue;
+                        }
+                        if (!configurationPreflight(endpoint, snapshot, view)) {
+                            continue;
+                        }
+                        String profileRouteKey = QIOAutomationRecipeProfileLayout.routeKey(
+                              route.routeId(), route.logicalRecipeKey());
+                        long operationCount = profile.getEffectiveCraftAmount(profileRouteKey,
+                              profileLayout.getRoute(profileRouteKey) == null ? 1 :
+                                    profileLayout.getRoute(profileRouteKey).getMaximumCraftAmount());
+                        operationCount = maxMachineOperations(endpoint, operationCount);
+                        Map<PortableResourceDescriptor, Long> baseInputs = aggregate(route.inputs());
+                        operationCount = maxAvailableOperations(snapshot, baseInputs,
+                              operationCount);
+                        if (operationCount <= 0) {
+                            continue;
+                        }
+                        Map<PortableResourceDescriptor, Long> inputs = scaleAmounts(
+                              baseInputs, operationCount);
+                        Map<PortableResourceDescriptor, UUID> bindings = resolveAvailableBindings(
+                              snapshot, inputs);
+                        if (bindings == null) {
+                            continue;
+                        }
+                        QIOPassiveOperation operation = new QIOPassiveOperation(UUID.randomUUID(),
+                              device.host().getPersistentDeviceUUID(), provider.id().toString(),
+                              route.routeId(), route.recipeKey(), operationCount, gameTick,
+                              snapshot.getContentsRevision(), snapshot.getClaimRevision(), bindings,
+                              inputs);
+                        network.addPassiveOperation(operation);
+                        persist(network);
+                        return drivePassiveClaim(network, operation, view);
+                    }
+                } finally {
+                    view.close();
+                }
+            } catch (RuntimeException ignored) {
+                // A provider or storage implementation can be transiently unavailable while
+                // its dynamic inventory is rebuilt. The passive operation remains durable (if
+                // it was created) and will be driven again on the next scheduler pass.
+                device.host().markRetryPending();
             }
         }
         return 0;
     }
 
+    /** 判断机器当前 Provider 路由是否仍与计划步骤匹配。 */
     static boolean acceptsCurrentRoutes(
           @Nullable MachineRecipeProviderRegistry.BoundProvider provider,
           @Nonnull QIOAutomationMode mode) {
-        return provider != null && provider.validateQIOConformance(mode).isConformant();
+        if (provider == null) {
+            return false;
+        }
+        try {
+            return provider.validateQIOConformance(mode).isConformant();
+        } catch (RuntimeException ignored) {
+            // Provider ports/routes are addon-owned and may be rebuilt between scheduler
+            // passes. Treat that observation as unavailable; the next tick will retry.
+            return false;
+        }
     }
 
     private int drivePassiveOperation(QIOProcessingNetworkData network,
@@ -724,15 +985,37 @@ public final class QIOProcessingExecutionService {
             String reason = contaminated != null && contaminated.contaminationReason() != null ?
                   contaminated.contaminationReason() : "Passive machine operation was contaminated";
             IQIOStorageView view = openPassive(network);
-            if (view == null || !releaseConfigurationClaims(network,
+            if (view == null || !settleContaminatedConfigurationExchanges(network,
                   operation.getOperationId(), view)) {
                 if (view != null) view.close();
                 return 0;
             }
             view.close();
-            operation.fail(reason);
-            network.markPassiveOperationChanged(operation.getOperationId());
+            // Resolve the physical handoff before releasing the contaminated lease. A prepared
+            // transfer without a machine receipt is still local QIO intent and may be discarded;
+            // a debited/credited transfer is already an ownership claim and must be retained in
+            // the passive buffer or left for the recovery driver.
+            if (!settleContaminatedPassiveMachineTransfers(network, operation, host, endpoint)) {
+                if (host instanceof DefaultQIOAutomationHost mutableHost) {
+                    mutableHost.pauseProcessingOutputCollection("operation " +
+                          operation.getOperationId() + " has an unconfirmed machine transfer");
+                }
+                persist(network);
+                return 0;
+            }
+            // Mark the user-visible failure only after any debited machine output has been
+            // restored into the operation buffer; fail() chooses RETURNING/FAILED from those
+            // buffers and would otherwise erase the recovery route.
+            if (!operation.getState().isTerminal()) {
+                operation.fail(reason);
+                network.markPassiveOperationChanged(operation.getOperationId());
+            }
+            network.forceDiscardPassiveMachineOwnership(operation.getOperationId());
             persist(network);
+            if (endpoint.device.host() instanceof DefaultQIOAutomationHost mutable &&
+                  mutable.releaseContaminatedOperation(operation.getOperationId())) {
+                mutable.forgetSettledOperation(operation.getOperationId());
+            }
             return 1;
         }
         if (restoredToken != null) {
@@ -822,26 +1105,187 @@ public final class QIOProcessingExecutionService {
                 return 1;
             }
         }
-        if (operation.getState() == QIOPassiveOperation.State.ACTIVE) {
-            if (host.getOperationTokens().get(operation.getOperationId()) == null) {
-                QIODurableTransferRecord transfer = firstOperationTransferAny(network, operation,
-                      QIODurableTransferRecord.Type.JOB_TO_MACHINE);
-                if (transfer != null && ensurePassiveMachineOperation(operation, endpoint,
-                  transfer)) {
-                    IQIOStorageView view = openPassive(network);
-                    if (view != null) {
-                        try {
-                            if (driveConfigurationExchanges(network, endpoint,
-                                  operation.getOperationId(), null, view)) {
-                                drivePassiveInputTransfer(network, operation, endpoint, transfer);
-                            }
-                        } finally {
-                            view.close();
+        if (operation.getState() == QIOPassiveOperation.State.ACTIVE ||
+              operation.getState() == QIOPassiveOperation.State.COLLECTING) {
+            // The machine's pre-component tick is the sole physical output collector. The
+            // frequency-wide END tick may dispatch inputs and settle durable state, but it must
+            // never race TileComponentEjector for a completed machine result.
+            return 0;
+        }
+        return 0;
+    }
+
+    /**
+     * 结算被动操作污染时仍存在的机器 transfer。
+     *
+     * <p>这里故意不把“端点看起来已经回到基线”当作 PREPARED 输出的收取回执：
+     * 污染后普通弹出器可以继续运行，若无 durable 回执就必须放弃 QIO 对该输出的
+     * 所有权，否则下一 tick 可能把外部已经取走的物品再次记入 QIO。</p>
+     */
+    private boolean settleContaminatedPassiveMachineTransfers(
+          QIOProcessingNetworkData network, QIOPassiveOperation operation,
+          QIOAutomationHost host, MachineEndpoint endpoint) {
+        MachineOperationToken token = host.getOperationTokens().get(operation.getOperationId());
+        if (token == null) {
+            return false;
+        }
+
+        QIODurableTransferRecord input = firstOperationTransferAny(network, operation,
+              QIODurableTransferRecord.Type.JOB_TO_MACHINE);
+        if (input != null && input.getResolution() == QIODurableTransferRecord.Resolution.NONE) {
+            switch (input.getPhase()) {
+                case PREPARED -> network.discardPreparedGenericTransfer(input.getTransferId());
+                case SOURCE_DEBITED -> {
+                    boolean received = token.hasTransferReceipt(input.getTransferId()) ||
+                          endpoint != null && machineMatchesAfterInput(endpoint);
+                    if (received) {
+                        if (operation.getState() == QIOPassiveOperation.State.LOADING) {
+                            operation.markActive();
+                            network.markPassiveOperationChanged(operation.getOperationId());
                         }
+                        network.markGenericTransferDestinationCredited(input.getTransferId(),
+                              "passive-input-machine-received");
+                        network.commitGenericTransfer(input.getTransferId());
+                    } else if (endpoint != null && machineMatchesLeaseBaseline(endpoint)) {
+                        // The source was staged in the operation buffer, but the machine still
+                        // matches its pre-input baseline. It is safe to remove only the log record;
+                        // the passive inputBuffer remains the owner and can be returned to QIO.
+                        network.discardUnconfirmedPassiveMachineTransfer(input.getTransferId());
+                    } else {
+                        return false;
                     }
-                    return 1;
                 }
-                return 0;
+                case DESTINATION_CREDITED -> {
+                    if (operation.getState() == QIOPassiveOperation.State.LOADING) {
+                        operation.markActive();
+                        network.markPassiveOperationChanged(operation.getOperationId());
+                    }
+                    network.commitGenericTransfer(input.getTransferId());
+                }
+                case COMMITTED -> {
+                    if (operation.getState() == QIOPassiveOperation.State.LOADING) {
+                        operation.markActive();
+                        network.markPassiveOperationChanged(operation.getOperationId());
+                    }
+                }
+                case ROLLBACK_REQUIRED -> {
+                    return false;
+                }
+            }
+        }
+
+        QIODurableTransferRecord output = firstOperationTransferAny(network, operation,
+              QIODurableTransferRecord.Type.MACHINE_TO_JOB);
+        if (output != null && output.getResolution() == QIODurableTransferRecord.Resolution.NONE) {
+            switch (output.getPhase()) {
+                case PREPARED -> {
+                    if (token.hasTransferReceipt(output.getTransferId())) {
+                        if (operation.getState() == QIOPassiveOperation.State.ACTIVE) {
+                            operation.markCollecting(output.getResources());
+                            network.markPassiveOperationChanged(operation.getOperationId());
+                        }
+                        network.markGenericTransferSourceDebited(output.getTransferId(),
+                              "passive-output-machine-receipt", host.getConfigurationRevision());
+                        network.markGenericTransferDestinationCredited(output.getTransferId(),
+                              "passive-output-buffer");
+                        network.commitGenericTransfer(output.getTransferId());
+                        if (operation.getState() == QIOPassiveOperation.State.COLLECTING) {
+                            operation.markDelivering();
+                            network.markPassiveOperationChanged(operation.getOperationId());
+                        }
+                    } else {
+                        // No physical receipt: ordinary ejection may own whatever remains in the
+                        // machine, so this QIO intent must be discarded rather than inferred.
+                        network.discardPreparedGenericTransfer(output.getTransferId());
+                    }
+                }
+                case SOURCE_DEBITED -> {
+                    if (operation.getState() == QIOPassiveOperation.State.ACTIVE) {
+                        operation.markCollecting(output.getResources());
+                        network.markPassiveOperationChanged(operation.getOperationId());
+                    }
+                    network.markGenericTransferDestinationCredited(output.getTransferId(),
+                          "passive-output-buffer");
+                    network.commitGenericTransfer(output.getTransferId());
+                    if (operation.getState() == QIOPassiveOperation.State.COLLECTING) {
+                        operation.markDelivering();
+                        network.markPassiveOperationChanged(operation.getOperationId());
+                    }
+                }
+                case DESTINATION_CREDITED -> {
+                    if (operation.getState() == QIOPassiveOperation.State.ACTIVE) {
+                        operation.markCollecting(output.getResources());
+                        network.markPassiveOperationChanged(operation.getOperationId());
+                    }
+                    network.commitGenericTransfer(output.getTransferId());
+                    if (operation.getState() == QIOPassiveOperation.State.COLLECTING) {
+                        operation.markDelivering();
+                        network.markPassiveOperationChanged(operation.getOperationId());
+                    }
+                }
+                case COMMITTED -> {
+                    if (operation.getState() == QIOPassiveOperation.State.ACTIVE) {
+                        operation.markCollecting(output.getResources());
+                        network.markPassiveOperationChanged(operation.getOperationId());
+                    }
+                    if (operation.getState() == QIOPassiveOperation.State.COLLECTING) {
+                        operation.markDelivering();
+                        network.markPassiveOperationChanged(operation.getOperationId());
+                    }
+                }
+                case ROLLBACK_REQUIRED -> {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /** Collects a passive machine result while the endpoint's exclusive lease is held. */
+    private int driveOwnedPassiveMachineOutput(QIOProcessingNetworkData network,
+          QIOPassiveOperation operation, MachineEndpoint endpoint) throws IOException {
+        QIOAutomationHost host = endpoint.device.host();
+        MachineOperationToken token = host.getOperationTokens().get(operation.getOperationId());
+        QIODurableTransferRecord recoveredOutput = firstOperationTransferAny(network, operation,
+              QIODurableTransferRecord.Type.MACHINE_TO_JOB);
+        if (operation.getState() == QIOPassiveOperation.State.DELIVERING &&
+              recoveredOutput != null && recoveredOutput.getPhase() ==
+                    QIODurableTransferRecord.Phase.COMMITTED && token != null) {
+            // The network may have checkpointed the output buffer before the tile checkpointed
+            // its completed token. Reconcile that physical boundary here, before ordinary
+            // ejection, rather than from the central world tick.
+            if (token.state() == MachineOperationToken.State.ACTIVE &&
+                  (machineOutputsReady(endpoint) || machineMatchesLeaseBaseline(endpoint))) {
+                host.transitionOperation(operation.getOperationId(),
+                      MachineOperationToken.State.COLLECTING,
+                      MachineOperationLease.State.COLLECTING);
+                token = host.getOperationTokens().get(operation.getOperationId());
+            }
+            if (token != null && token.state() == MachineOperationToken.State.COLLECTING) {
+                return drivePassiveMachineOutput(network, operation, endpoint, recoveredOutput);
+            }
+            return 0;
+        }
+        if (operation.getState() == QIOPassiveOperation.State.ACTIVE) {
+            if (token == null) {
+                QIODurableTransferRecord input = firstOperationTransferAny(network, operation,
+                      QIODurableTransferRecord.Type.JOB_TO_MACHINE);
+                if (input == null || !ensurePassiveMachineOperation(operation, endpoint,
+                      input)) {
+                    return 0;
+                }
+                IQIOStorageView view = openPassive(network);
+                if (view != null) {
+                    try {
+                        if (driveConfigurationExchanges(network, endpoint,
+                              operation.getOperationId(), null, view)) {
+                            drivePassiveInputTransfer(network, operation, endpoint, input);
+                        }
+                    } finally {
+                        view.close();
+                    }
+                }
+                return 1;
             }
             if (!configurationStillMatches(endpoint)) {
                 contaminateConfigurationOperation(network, endpoint,
@@ -849,11 +1293,8 @@ public final class QIOProcessingExecutionService {
                       "Passive configuration changed while the lease was active");
                 return 1;
             }
-            if (!machineOutputsReady(endpoint)) {
-                return 0;
-            }
-            if (!host.transitionOperation(operation.getOperationId(),
-                  MachineOperationToken.State.COLLECTING,
+            if (!machineOutputsReady(endpoint) || !host.transitionOperation(
+                  operation.getOperationId(), MachineOperationToken.State.COLLECTING,
                   MachineOperationLease.State.COLLECTING)) {
                 return 0;
             }
@@ -867,19 +1308,19 @@ public final class QIOProcessingExecutionService {
             persist(network);
             return drivePassiveMachineOutput(network, operation, endpoint, transfer);
         }
-        if (operation.getState() == QIOPassiveOperation.State.COLLECTING) {
-            if (!configurationStillMatches(endpoint)) {
-                contaminateConfigurationOperation(network, endpoint,
-                      operation.getOperationId(),
-                      "Passive configuration changed before output collection");
-                return 1;
-            }
-            QIODurableTransferRecord transfer = firstOperationTransferAny(network, operation,
-                  QIODurableTransferRecord.Type.MACHINE_TO_JOB);
-            return transfer == null ? 0 : drivePassiveMachineOutput(network, operation, endpoint,
-                  transfer);
+        if (operation.getState() != QIOPassiveOperation.State.COLLECTING) {
+            return 0;
         }
-        return 0;
+        if (!configurationStillMatches(endpoint)) {
+            contaminateConfigurationOperation(network, endpoint,
+                  operation.getOperationId(),
+                  "Passive configuration changed before output collection");
+            return 1;
+        }
+        QIODurableTransferRecord transfer = firstOperationTransferAny(network, operation,
+              QIODurableTransferRecord.Type.MACHINE_TO_JOB);
+        return transfer == null ? 0 : drivePassiveMachineOutput(network, operation, endpoint,
+              transfer);
     }
 
     private int drivePassiveClaim(QIOProcessingNetworkData network,
@@ -956,11 +1397,23 @@ public final class QIOProcessingExecutionService {
             for (MachineResourceStack input : endpoint.route.inputs()) {
                 insertion.addInsert(endpoint.ports.get(input.portId()), input);
             }
+            List<MachinePort.Snapshot> snapshots = snapshotPortsForStacks(endpoint,
+                  endpoint.route.inputs());
             boolean inserted = insertion.execute();
-            if ((!inserted && !machineMatchesAfterInput(endpoint) &&
-                  !machineMatchesCompletedOperation(endpoint)) ||
-                  !host.recordTransferReceipt(operation.getOperationId(),
-                        transfer.getTransferId())) {
+            if (!inserted && !machineMatchesAfterInput(endpoint) &&
+                  !machineMatchesCompletedOperation(endpoint)) {
+                return;
+            }
+            boolean recorded;
+            try {
+                recorded = host.recordTransferReceipt(operation.getOperationId(),
+                      transfer.getTransferId());
+            } catch (RuntimeException | Error failure) {
+                restorePortSnapshotsAfterFailure(snapshots, failure);
+                throw failure;
+            }
+            if (!recorded) {
+                restorePortSnapshots(snapshots);
                 return;
             }
         }
@@ -1000,11 +1453,28 @@ public final class QIOProcessingExecutionService {
         }
         if (!token.hasTransferReceipt(transfer.getTransferId())) {
             MachineTransferPlan extraction = outputExtraction(endpoint);
+            // Optional outputs may be part of the same plan; snapshot every endpoint port so a
+            // provider which allocates an optional lane cannot leave a partial debit behind.
+            List<MachinePort.Snapshot> snapshots = snapshotPorts(endpoint.ports.values());
             boolean extracted = extraction.execute();
             boolean exact = extracted ? aggregate(extraction.getExtracted()).equals(
                   transfer.getResources()) : machineMatchesLeaseBaseline(endpoint);
-            if (!exact || !host.recordTransferReceipt(operation.getOperationId(),
-                  transfer.getTransferId())) {
+            if (!exact) {
+                if (extracted) {
+                    restorePortSnapshots(snapshots);
+                }
+                return 0;
+            }
+            boolean recorded;
+            try {
+                recorded = host.recordTransferReceipt(operation.getOperationId(),
+                      transfer.getTransferId());
+            } catch (RuntimeException | Error failure) {
+                restorePortSnapshotsAfterFailure(snapshots, failure);
+                throw failure;
+            }
+            if (!recorded) {
+                restorePortSnapshots(snapshots);
                 return 0;
             }
         }
@@ -1070,15 +1540,10 @@ public final class QIOProcessingExecutionService {
                 if (ensurePassiveMachineOperation(operation, endpoint, input)) {
                     drivePassiveInputTransfer(network, operation, endpoint, input);
                 }
-            } else if (token.state() == MachineOperationToken.State.ACTIVE &&
-                  (machineOutputsReady(endpoint) || machineMatchesLeaseBaseline(endpoint))) {
-                if (host.transitionOperation(operation.getOperationId(),
-                      MachineOperationToken.State.COLLECTING,
-                      MachineOperationLease.State.COLLECTING)) {
-                    drivePassiveMachineOutput(network, operation, endpoint, output);
-                }
-            } else if (token.state() == MachineOperationToken.State.COLLECTING) {
-                drivePassiveMachineOutput(network, operation, endpoint, output);
+            } else if (token.state() == MachineOperationToken.State.ACTIVE ||
+                  token.state() == MachineOperationToken.State.COLLECTING) {
+                // A loaded machine will reconcile this boundary from its pre-component tick.
+                return false;
             } else if (token.state() == MachineOperationToken.State.COMPLETED) {
                 if (host instanceof DefaultQIOAutomationHost mutable &&
                       mutable.isPersistedCompletedOperation(operation.getOperationId())) {
@@ -1091,9 +1556,12 @@ public final class QIOProcessingExecutionService {
             return true;
         }
         if (machineMatchesCompletedOperation(endpoint)) {
-            MachineTransferPlan extraction = outputExtraction(endpoint);
-            return extraction.execute() && aggregate(extraction.getExtracted()).equals(
-                  output.getResources());
+            // Rebuild only the durable local owner. The next machine pre-component tick will
+            // remove the rolled-back physical output before its ordinary ejector runs.
+            if (ensurePassiveMachineOperation(operation, endpoint, input)) {
+                drivePassiveInputTransfer(network, operation, endpoint, input);
+            }
+            return false;
         }
         if (machineMatchesAfterInput(endpoint) &&
               ensurePassiveMachineOperation(operation, endpoint, input)) {
@@ -1218,10 +1686,26 @@ public final class QIOProcessingExecutionService {
                 if (actions >= activeBudget) {
                     break;
                 }
-                actions += Math.max(1, driveOperation(network, job, runtime, assignment));
+                try {
+                    actions += Math.max(1, driveOperation(network, job, runtime, assignment));
+                } catch (RuntimeException e) {
+                    // A dynamic machine/provider can fail between endpoint discovery and its
+                    // port operation. Keep the durable assignment intact and retry it without
+                    // converting a transient addon failure into a host quarantine.
+                    markDeviceRetryOrQuarantine(assignment, e);
+                    Mekanism.logger.warn("Unable to advance QIO machine operation {}; retrying",
+                          assignment.getOperationId(), e);
+                    actions++;
+                }
             }
         }
         if (actions >= budget) {
+            return actions;
+        }
+        if (job.getState() == QIOCraftingJobState.OPERATION_CONTAMINATED &&
+              (job.hasActiveOperations() || !job.isCancellationRequested())) {
+            // Existing operations on other machines may settle, but no replacement work is
+            // dispatched until the player chooses redispatch or cancellation.
             return actions;
         }
         if (job.getState() == QIOCraftingJobState.PLANNING ||
@@ -1252,6 +1736,15 @@ public final class QIOProcessingExecutionService {
               job.getState() == QIOCraftingJobState.RETURNING ||
               job.areAllStepsComplete()) {
             return actions + deliver(network, job, budget - actions);
+        }
+        if (!QIORecipeCatalogService.INSTANCE.isReady() &&
+            job.getActivePlan().hasWorkbenchSteps()) {
+            if (job.getState() != QIOCraftingJobState.WAITING_PROVIDER) {
+                network.transitionJobState(job.getJobId(), QIOCraftingJobState.WAITING_PROVIDER);
+                persist(network);
+                actions++;
+            }
+            return actions;
         }
         int delivered = deliverProgressiveRoot(network, job, budget - actions);
         actions += delivered;
@@ -1298,10 +1791,47 @@ public final class QIOProcessingExecutionService {
               state != QIOCraftingJobState.PLANNING &&
               state != QIOCraftingJobState.REPLAN_DRAINING &&
               state != QIOCraftingJobState.REPLAN_REQUIRED &&
+              state != QIOCraftingJobState.OPERATION_CONTAMINATED &&
               state != QIOCraftingJobState.DELIVERING &&
               state != QIOCraftingJobState.RETURNING && !job.areAllStepsComplete();
     }
 
+    private static void markDeviceRetryOrQuarantine(QIOOperationAssignment assignment,
+          RuntimeException error) {
+        LoadedDevice device = QIOAutomationDeviceRegistry.INSTANCE.findLoadedDevice(
+              assignment.getDeviceUUID());
+        if (device == null) {
+            return;
+        }
+        if (isStructuralFailure(error)) {
+            MachineOperationToken token = device.host().getOperationTokens().get(
+                  assignment.getOperationId());
+            if (token != null) {
+                device.host().contaminateLease(token.leaseId(),
+                      "Machine operation execution failed: " + diagnostic(error));
+                return;
+            }
+        }
+        device.host().markRetryPending();
+    }
+
+    private static boolean isStructuralFailure(Throwable error) {
+        String message = diagnostic(error).toLowerCase(java.util.Locale.ROOT);
+        return message.contains("multiple transfer") || message.contains("missing plan") ||
+              message.contains("identity") || message.contains("mismatch") ||
+              message.contains("baseline") || message.contains("ownership") ||
+              message.contains("invalid request") || message.contains("reconciliation conflict");
+    }
+
+    private static String diagnostic(Throwable error) {
+        String message = error.getMessage();
+        if (message == null || message.isEmpty()) {
+            message = error.getClass().getSimpleName();
+        }
+        return message.substring(0, Math.min(384, message.length()));
+    }
+
+    /** 将调度预算分配给已有操作和新操作，保证活动操作优先完成。 */
     static int activeOperationBudget(int totalBudget, boolean hasActiveOperations,
           boolean mayDispatchNewOperations) {
         if (totalBudget < 0) {
@@ -1358,7 +1888,7 @@ public final class QIOProcessingExecutionService {
     private int dispatchWorkbench(QIOProcessingNetworkData network, QIOCraftingJob job,
           QIOPlanStep step, long gameTick) throws IOException {
         if (step.getProviderKind() != ProviderKind.WORKBENCH ||
-              !QIORecipeCatalogService.INSTANCE.isInitialized()) {
+              !QIORecipeCatalogService.INSTANCE.isReady()) {
             if (job.getState() != QIOCraftingJobState.WAITING_PROVIDER) {
                 network.transitionJobState(job.getJobId(), QIOCraftingJobState.WAITING_PROVIDER);
                 persist(network);
@@ -1686,6 +2216,18 @@ public final class QIOProcessingExecutionService {
         }
         MachineOperationLease activeLease = device.host().getLeases().get(token.leaseId());
         if (token.state() == MachineOperationToken.State.CONTAMINATED) {
+            if (job.isCancellationRequested()) {
+                return cancelScheduledMachineOperation(network, job, runtime, assignment,
+                      device.host(), token, endpoint);
+            }
+            if (!settleContaminatedScheduledMachineTransfers(network, job, runtime, assignment,
+                  token, endpoint)) {
+                // Keep the assignment active while the smart recovery path waits for a
+                // definitive physical observation. The ordinary ejector is already allowed to
+                // run because the lease is contaminated; no QIO ownership is guessed here.
+                persist(network);
+                return 0;
+            }
             IQIOStorageView view = open(network, job);
             if (view == null || !releaseConfigurationClaims(network,
                   assignment.getOperationId(), view)) {
@@ -1698,6 +2240,9 @@ public final class QIOProcessingExecutionService {
                         activeLease.contaminationReason() != null ?
                         activeLease.contaminationReason() : "Machine operation was contaminated");
             persist(network);
+            if (device.host() instanceof DefaultQIOAutomationHost mutable) {
+                mutable.releaseContaminatedOperation(assignment.getOperationId());
+            }
             return 1;
         }
         if (job.isCancellationRequested() &&
@@ -1751,36 +2296,12 @@ public final class QIOProcessingExecutionService {
             }
         }
         if (token != null && token.state() == MachineOperationToken.State.ACTIVE) {
-            if (!configurationStillMatches(endpoint)) {
-                contaminateConfigurationOperation(network, endpoint,
-                      assignment.getOperationId(), "Configuration changed while the lease was active");
-                return 1;
-            }
-            if (machineOutputsReady(endpoint)) {
-                if (!device.host().transitionOperation(assignment.getOperationId(),
-                      MachineOperationToken.State.COLLECTING,
-                      MachineOperationLease.State.COLLECTING)) {
-                    return 0;
-                }
-                return collectMachineOutput(network, job, runtime, assignment, endpoint);
-            }
-            MachineActivitySnapshot activity = device.host().getActivitySnapshots().get(
-                  assignment.getLaneId());
-            long current = activity != null && assignment.getOperationId().equals(
-                  activity.operationId()) ? activity.currentTick() : 0;
-            long total = activity != null && assignment.getOperationId().equals(
-                  activity.operationId()) ? activity.totalTicks() : 0;
-            return network.updateStepOperation(job.getJobId(), runtime.getNodeId(),
-                  assignment.getOperationId(), QIOOperationAssignment.State.PROCESSING,
-                  current, total, null) ? 1 : 0;
+            return updateScheduledMachineActivity(network, job, runtime, assignment,
+                  device.host());
         }
         if (token != null && token.state() == MachineOperationToken.State.COLLECTING) {
-            if (!configurationStillMatches(endpoint)) {
-                contaminateConfigurationOperation(network, endpoint,
-                      assignment.getOperationId(), "Configuration changed before output collection");
-                return 1;
-            }
-            return collectMachineOutput(network, job, runtime, assignment, endpoint);
+            // Collection is driven only by onMachinePreComponentTick.
+            return 0;
         }
         if (token != null && token.state() == MachineOperationToken.State.COMPLETED) {
             if (!(device.host() instanceof DefaultQIOAutomationHost mutable) ||
@@ -1794,6 +2315,59 @@ public final class QIOProcessingExecutionService {
         return 0;
     }
 
+    /** Collects a scheduled machine result while the endpoint's exclusive lease is held. */
+    private int driveOwnedScheduledMachineOutput(QIOProcessingNetworkData network,
+          QIOCraftingJob job, QIOStepRuntime runtime, QIOOperationAssignment assignment,
+          MachineEndpoint endpoint) throws IOException {
+        QIOAutomationHost host = endpoint.device.host();
+        MachineOperationToken token = host.getOperationTokens().get(
+              assignment.getOperationId());
+        if (token == null) {
+            return 0;
+        }
+        if (token.state() == MachineOperationToken.State.ACTIVE) {
+            if (!configurationStillMatches(endpoint)) {
+                contaminateConfigurationOperation(network, endpoint,
+                      assignment.getOperationId(),
+                      "Configuration changed while the lease was active");
+                return 1;
+            }
+            if (machineOutputsReady(endpoint)) {
+                if (!host.transitionOperation(assignment.getOperationId(),
+                      MachineOperationToken.State.COLLECTING,
+                      MachineOperationLease.State.COLLECTING)) {
+                    return 0;
+                }
+                return collectMachineOutput(network, job, runtime, assignment, endpoint);
+            }
+            return updateScheduledMachineActivity(network, job, runtime, assignment, host);
+        }
+        if (token.state() != MachineOperationToken.State.COLLECTING) {
+            return 0;
+        }
+        if (!configurationStillMatches(endpoint)) {
+            contaminateConfigurationOperation(network, endpoint,
+                  assignment.getOperationId(),
+                  "Configuration changed before output collection");
+            return 1;
+        }
+        return collectMachineOutput(network, job, runtime, assignment, endpoint);
+    }
+
+    private static int updateScheduledMachineActivity(QIOProcessingNetworkData network,
+          QIOCraftingJob job, QIOStepRuntime runtime, QIOOperationAssignment assignment,
+          QIOAutomationHost host) {
+        MachineActivitySnapshot activity = host.getActivitySnapshots().get(
+              assignment.getLaneId());
+        long current = activity != null && assignment.getOperationId().equals(
+              activity.operationId()) ? activity.currentTick() : 0;
+        long total = activity != null && assignment.getOperationId().equals(
+              activity.operationId()) ? activity.totalTicks() : 0;
+        return network.updateStepOperation(job.getJobId(), runtime.getNodeId(),
+              assignment.getOperationId(), QIOOperationAssignment.State.PROCESSING,
+              current, total, null) ? 1 : 0;
+    }
+
     private int cancelScheduledMachineOperation(QIOProcessingNetworkData network,
           QIOCraftingJob job, QIOStepRuntime runtime, QIOOperationAssignment assignment,
           @Nullable QIOAutomationHost host, @Nullable MachineOperationToken token,
@@ -1802,6 +2376,19 @@ public final class QIOProcessingExecutionService {
               QIODurableTransferRecord.Type.MACHINE_TO_JOB, runtime.getNodeId(),
               assignment.getOperationId());
         if (output != null) {
+            if (token != null && token.state() == MachineOperationToken.State.CONTAMINATED) {
+                if (!settleContaminatedScheduledMachineTransfers(network, job, runtime, assignment,
+                      token, endpoint)) {
+                    return 0;
+                }
+                output = findOperationTransferAny(network, job.getJobId(),
+                      QIODurableTransferRecord.Type.MACHINE_TO_JOB, runtime.getNodeId(),
+                      assignment.getOperationId());
+            }
+            if (output == null) {
+                // The contaminated recovery path may have discarded an unreceipted PREPARED
+                // output, leaving ordinary ejection responsible for whatever is still physical.
+            } else {
             if (output.getPhase() == QIODurableTransferRecord.Phase.COMMITTED &&
                   output.getResolution() == QIODurableTransferRecord.Resolution.FORWARD_COMMITTED) {
                 return settleCompletedJobOperation(network, job, runtime, assignment);
@@ -1809,6 +2396,7 @@ public final class QIOProcessingExecutionService {
             // A machine output handoff already owns physical output. Finish that handoff before
             // cancellation so neither side can receive a duplicate or lose a receipted result.
             return 0;
+            }
         }
 
         QIODurableTransferRecord input = findOperationTransferAny(network, job.getJobId(),
@@ -1819,6 +2407,30 @@ public final class QIOProcessingExecutionService {
               endpoint != null && token != null &&
               !token.hasTransferReceipt(input.getTransferId()) &&
               machineMatchesLeaseBaseline(endpoint);
+
+        // A contaminated token can reach cancellation after the normal LOADING branch has
+        // already been skipped.  Settle every configuration exchange before abandoning the
+        // operation; otherwise a target template debited from QIO would be removed with the
+        // job record and become an unaccounted loss.
+        if (!network.getOperationConfigurationExchanges(assignment.getOperationId()).isEmpty()) {
+            IQIOStorageView view = open(network, job);
+            if (view == null) {
+                return 0;
+            }
+            try {
+                boolean settled = endpoint != null && token != null &&
+                      token.state() == MachineOperationToken.State.LOADING ?
+                      settleConfigurationCancellation(network, endpoint,
+                            assignment.getOperationId(), view) :
+                      settleContaminatedConfigurationExchanges(network,
+                            assignment.getOperationId(), view);
+                if (!settled) {
+                    return 0;
+                }
+            } finally {
+                view.close();
+            }
+        }
 
         if (host != null && token != null &&
               !host.abandonJobOperation(assignment.getOperationId())) {
@@ -1865,6 +2477,73 @@ public final class QIOProcessingExecutionService {
         return 1;
     }
 
+    /**
+     * 结算 scheduled/合成操作在污染或取消边界留下的机器 transfer。
+     * 该方法只依据 durable phase 和机器回执推进；没有回执的 PREPARED 输出绝不从机器
+     * 基线反推“已经被 QIO 收取”，因为污染后普通弹出器可以合法地先拿走它。
+     */
+    private boolean settleContaminatedScheduledMachineTransfers(
+          QIOProcessingNetworkData network, QIOCraftingJob job, QIOStepRuntime runtime,
+          QIOOperationAssignment assignment, MachineOperationToken token,
+          @Nullable MachineEndpoint endpoint) throws IOException {
+        UUID operationId = assignment.getOperationId();
+        QIODurableTransferRecord input = findOperationTransferAny(network, job.getJobId(),
+              QIODurableTransferRecord.Type.JOB_TO_MACHINE, runtime.getNodeId(), operationId);
+        if (input != null && input.getResolution() == QIODurableTransferRecord.Resolution.NONE) {
+            switch (input.getPhase()) {
+                case PREPARED -> network.discardPreparedGenericTransfer(input.getTransferId());
+                case SOURCE_DEBITED -> {
+                    boolean received = token.hasTransferReceipt(input.getTransferId()) ||
+                          endpoint != null && machineMatchesAfterInput(endpoint);
+                    if (received) {
+                        network.markGenericTransferDestinationCredited(input.getTransferId(),
+                              "cancelled-machine-input-received");
+                        network.completeJobMachineTransfer(input.getTransferId());
+                    } else if (endpoint != null && machineMatchesLeaseBaseline(endpoint)) {
+                        network.rollbackUncreditedJobMachineTransfer(input.getTransferId());
+                    } else {
+                        return false;
+                    }
+                }
+                case DESTINATION_CREDITED -> network.completeJobMachineTransfer(input.getTransferId());
+                case COMMITTED -> {
+                }
+                case ROLLBACK_REQUIRED -> {
+                    return false;
+                }
+            }
+        }
+
+        QIODurableTransferRecord output = findOperationTransferAny(network, job.getJobId(),
+              QIODurableTransferRecord.Type.MACHINE_TO_JOB, runtime.getNodeId(), operationId);
+        if (output != null && output.getResolution() == QIODurableTransferRecord.Resolution.NONE) {
+            switch (output.getPhase()) {
+                case PREPARED -> {
+                    if (token.hasTransferReceipt(output.getTransferId())) {
+                        network.markGenericTransferSourceDebited(output.getTransferId(),
+                              "machine-output-receipted", 0);
+                        network.creditMachineOutputTransfer(output.getTransferId());
+                        network.commitGenericTransfer(output.getTransferId());
+                    } else {
+                        network.discardPreparedGenericTransfer(output.getTransferId());
+                    }
+                }
+                case SOURCE_DEBITED -> {
+                    network.creditMachineOutputTransfer(output.getTransferId());
+                    network.commitGenericTransfer(output.getTransferId());
+                }
+                case DESTINATION_CREDITED -> network.commitGenericTransfer(output.getTransferId());
+                case COMMITTED -> {
+                }
+                case ROLLBACK_REQUIRED -> {
+                    return false;
+                }
+            }
+        }
+        persist(network);
+        return true;
+    }
+
     private void driveJobToMachineTransfer(QIOProcessingNetworkData network,
           QIODurableTransferRecord transfer, MachineEndpoint endpoint) throws IOException {
         QIOAutomationHost host = endpoint.device.host();
@@ -1883,10 +2562,23 @@ public final class QIOProcessingExecutionService {
             for (MachineResourceStack input : endpoint.route.inputs()) {
                 insertion.addInsert(endpoint.ports.get(input.portId()), input);
             }
+            List<MachinePort.Snapshot> snapshots = snapshotPortsForStacks(endpoint,
+                  endpoint.route.inputs());
             boolean inserted = insertion.execute();
-            if ((!inserted && !machineMatchesAfterInput(endpoint) &&
-                  !machineMatchesCompletedOperation(endpoint)) ||
-                  !host.recordTransferReceipt(token.operationId(), transfer.getTransferId())) {
+            if (!inserted && !machineMatchesAfterInput(endpoint) &&
+                  !machineMatchesCompletedOperation(endpoint)) {
+                return;
+            }
+            boolean recorded;
+            try {
+                recorded = host.recordTransferReceipt(token.operationId(),
+                      transfer.getTransferId());
+            } catch (RuntimeException | Error failure) {
+                restorePortSnapshotsAfterFailure(snapshots, failure);
+                throw failure;
+            }
+            if (!recorded) {
+                restorePortSnapshots(snapshots);
                 return;
             }
         }
@@ -1935,11 +2627,26 @@ public final class QIOProcessingExecutionService {
         }
         if (!token.hasTransferReceipt(transfer.getTransferId())) {
             MachineTransferPlan extraction = outputExtraction(endpoint);
+            List<MachinePort.Snapshot> snapshots = snapshotPorts(endpoint.ports.values());
             boolean extracted = extraction.execute();
             boolean exact = extracted ? aggregate(extraction.getExtracted()).equals(
                   transfer.getResources()) : machineMatchesLeaseBaseline(endpoint);
-            if (!exact || !endpoint.device.host().recordTransferReceipt(
-                  assignment.getOperationId(), transfer.getTransferId())) {
+            if (!exact) {
+                if (extracted) {
+                    restorePortSnapshots(snapshots);
+                }
+                return 0;
+            }
+            boolean recorded;
+            try {
+                recorded = endpoint.device.host().recordTransferReceipt(
+                      assignment.getOperationId(), transfer.getTransferId());
+            } catch (RuntimeException | Error failure) {
+                restorePortSnapshotsAfterFailure(snapshots, failure);
+                throw failure;
+            }
+            if (!recorded) {
+                restorePortSnapshots(snapshots);
                 return 0;
             }
         }
@@ -2211,10 +2918,21 @@ public final class QIOProcessingExecutionService {
           QIOPlanStep step,
           @Nullable MachineOperationToken token, @Nullable UUID requiredDeviceUUID,
           @Nullable UUID operationId, boolean requireReadyWithoutToken) {
-        List<LoadedDevice> devices = new ArrayList<>(
+        return findMachineEndpoint(network, step, token, requiredDeviceUUID, operationId,
+              requireReadyWithoutToken, null);
+    }
+
+    @Nullable
+    private static MachineEndpoint findMachineEndpoint(QIOProcessingNetworkData network,
+          QIOPlanStep step,
+          @Nullable MachineOperationToken token, @Nullable UUID requiredDeviceUUID,
+          @Nullable UUID operationId, boolean requireReadyWithoutToken,
+          @Nullable LoadedDevice preferredDevice) {
+        List<LoadedDevice> devices = preferredDevice == null ? new ArrayList<>(
               operationId == null ?
                     QIOAutomationDeviceRegistry.INSTANCE.getUsableDevices(QIOAutomationMode.SCHEDULED) :
-                    QIOAutomationDeviceRegistry.INSTANCE.getOperationalDevices(QIOAutomationMode.SCHEDULED));
+                    QIOAutomationDeviceRegistry.INSTANCE.getOperationalDevices(QIOAutomationMode.SCHEDULED)) :
+              new ArrayList<>(Collections.singletonList(preferredDevice));
         if (token == null && requiredDeviceUUID == null) {
             devices.removeIf(device -> {
                 UUID deviceUUID = device.host().getPersistentDeviceUUID();
@@ -2253,42 +2971,50 @@ public final class QIOProcessingExecutionService {
             if (provider == null || !provider.id().toString().equals(step.getProviderId())) {
                 continue;
             }
-            if (token == null && requiredDeviceUUID == null &&
-                !network.getAutomationRecipeProfiles().getActiveProfile(
-                      device.host().getPersistentDeviceUUID(), QIOAutomationMode.SCHEDULED,
-                      QIOAutomationRecipeProfileScope.resolve(provider)).isRouteEnabled(
-                      QIOAutomationRecipeProfileLayout.routeKey(step.getRouteId(),
-                            step.getRecipeKey()))) {
-                continue;
-            }
-            Map<String, MachinePort> ports = new LinkedHashMap<>();
-            for (MachinePort port : provider.getPorts()) {
-                if (port != null) {
-                    ports.put(port.portId(), port);
-                }
-            }
-            for (MachineRecipeRoute route : provider.getRecipeRoutes()) {
-                if (!route.routeId().equals(step.getRouteId()) ||
-                      (token == null ? !route.logicalRecipeKey().equals(step.getRecipeKey()) :
-                            !route.recipeKey().equals(token.recipeKey()))) {
+            try {
+                if (token == null && requiredDeviceUUID == null &&
+                    !network.getAutomationRecipeProfiles().getActiveProfile(
+                          device.host().getPersistentDeviceUUID(), QIOAutomationMode.SCHEDULED,
+                          QIOAutomationRecipeProfileScope.resolve(provider)).isRouteEnabled(
+                          QIOAutomationRecipeProfileLayout.routeKey(step.getRouteId(),
+                                step.getRecipeKey()))) {
                     continue;
                 }
-                QIOPlanningRoute projection = QIOPlanningRoute.fromMachineRoute(provider.id(),
-                      route, 0);
-                if (!projection.getSignature().equals(step.getRouteSignature())) {
-                    continue;
+                Map<String, MachinePort> ports = new LinkedHashMap<>();
+                for (MachinePort port : provider.getPorts()) {
+                    if (port != null) {
+                        ports.put(port.portId(), port);
+                    }
                 }
-                MachineEndpoint endpoint = endpoint(device, provider, route, ports);
-                if (endpoint == null || token != null && endpoint.laneId != token.laneId()) {
-                    continue;
+                for (MachineRecipeRoute route : provider.getRecipeRoutes()) {
+                    if (!route.routeId().equals(step.getRouteId()) ||
+                          (token == null ? !route.logicalRecipeKey().equals(step.getRecipeKey()) :
+                                !route.recipeKey().equals(token.recipeKey()))) {
+                        continue;
+                    }
+                    QIOPlanningRoute projection = QIOPlanningRoute.fromMachineRoute(provider.id(),
+                          route, 0);
+                    if (!projection.getSignature().equals(step.getRouteSignature())) {
+                        continue;
+                    }
+                    MachineEndpoint endpoint = endpoint(device, provider, route, ports);
+                    if (endpoint == null || token != null && endpoint.laneId != token.laneId()) {
+                        continue;
+                    }
+                    if (token == null && requireReadyWithoutToken && !machineReadyForInput(endpoint)) {
+                        continue;
+                    }
+                    if (affinityPasses > 1 && configurationAffinity(route, ports) != affinity) {
+                        continue;
+                    }
+                    device.host().clearRetryPending();
+                    return endpoint;
                 }
-                if (token == null && requireReadyWithoutToken && !machineReadyForInput(endpoint)) {
-                    continue;
-                }
-                if (affinityPasses > 1 && configurationAffinity(route, ports) != affinity) {
-                    continue;
-                }
-                return endpoint;
+            } catch (RuntimeException ignored) {
+                // Dynamic providers may throw while their ports or recipe routes are being
+                // rebuilt. Skip this endpoint for the current pass; the operation remains
+                // durable and the scheduler will retry it on a later tick.
+                device.host().markRetryPending();
             }
         }
         }
@@ -2331,6 +3057,88 @@ public final class QIOProcessingExecutionService {
         return machineReadyForInput(endpoint.device.tile(), endpoint.route, endpoint.ports);
     }
 
+    /** Captures the physical containers touched by one route insertion. */
+    private static List<MachinePort.Snapshot> snapshotPortsForStacks(MachineEndpoint endpoint,
+          Collection<MachineResourceStack> stacks) {
+        List<MachinePort> ports = new ArrayList<>();
+        if (stacks != null) {
+            for (MachineResourceStack stack : stacks) {
+                if (stack != null) {
+                    MachinePort port = endpoint.ports.get(stack.portId());
+                    if (port != null) {
+                        ports.add(port);
+                    }
+                }
+            }
+        }
+        return snapshotPorts(ports);
+    }
+
+    /** Captures each physical port container at most once. */
+    private static List<MachinePort.Snapshot> snapshotPorts(Collection<MachinePort> ports) {
+        List<MachinePort.Snapshot> snapshots = new ArrayList<>();
+        IdentityHashMap<Object, Boolean> seen = new IdentityHashMap<>();
+        if (ports == null) {
+            return snapshots;
+        }
+        for (MachinePort port : ports) {
+            if (port == null) {
+                continue;
+            }
+            Object container = port.container();
+            if (container != null && seen.put(container, Boolean.TRUE) != null) {
+                continue;
+            }
+            snapshots.add(port.snapshot());
+        }
+        return snapshots;
+    }
+
+    /** Restores snapshots in reverse order and reports any restore failure on the original. */
+    private static void restorePortSnapshotsAfterFailure(List<MachinePort.Snapshot> snapshots,
+          Throwable failure) {
+        for (int index = snapshots.size() - 1; index >= 0; index--) {
+            try {
+                snapshots.get(index).restore();
+            } catch (RuntimeException | Error restoreFailure) {
+                failure.addSuppressed(restoreFailure);
+            }
+        }
+    }
+
+    /** Restores snapshots, propagating the first restore failure. */
+    private static void restorePortSnapshots(List<MachinePort.Snapshot> snapshots) {
+        RuntimeException first = null;
+        Error firstError = null;
+        for (int index = snapshots.size() - 1; index >= 0; index--) {
+            try {
+                snapshots.get(index).restore();
+            } catch (RuntimeException failure) {
+                if (first == null) {
+                    first = failure;
+                } else {
+                    first.addSuppressed(failure);
+                }
+            } catch (Error failure) {
+                if (firstError == null) {
+                    firstError = failure;
+                } else {
+                    firstError.addSuppressed(failure);
+                }
+            }
+        }
+        if (first != null) {
+            if (firstError != null) {
+                first.addSuppressed(firstError);
+            }
+            throw first;
+        }
+        if (firstError != null) {
+            throw firstError;
+        }
+    }
+
+    /** 检查机器是否能接收指定路线的输入。 */
     static boolean machineReadyForInput(TileEntity tile, MachineRecipeRoute route,
           Map<String, MachinePort> ports) {
         MachineTransferPlan insertion = MachineTransferPlan.create(tile);
@@ -2378,6 +3186,7 @@ public final class QIOProcessingExecutionService {
               requested);
     }
 
+    /** 计算机器在当前容量下可接受的最大批次数。 */
     static long maxMachineOperations(TileEntity tile, MachineRecipeRoute route,
           Map<String, MachinePort> ports, long requested) {
         if (requested <= 0) {
@@ -2422,6 +3231,7 @@ public final class QIOProcessingExecutionService {
               endpoint.ports, endpoint.laneId, endpoint.baselines);
     }
 
+    /** 按批次数缩放机器路线的输入/输出数量。 */
     static MachineRecipeRoute scaleRoute(MachineRecipeRoute route, long operations) {
         if (operations <= 0) {
             throw new IllegalArgumentException("Machine route operation count must be positive");
@@ -2448,6 +3258,7 @@ public final class QIOProcessingExecutionService {
         return machineOutputsReady(endpoint.route, endpoint.ports, endpoint.baselines);
     }
 
+    /** 判断机器输出端口是否有足够空间接收计划产物。 */
     static boolean machineOutputsReady(MachineRecipeRoute route,
           Map<String, MachinePort> ports, List<MachinePortBaseline> baselines) {
         return collectMachineOutputs(route, ports, baselines) != null;
@@ -2471,6 +3282,7 @@ public final class QIOProcessingExecutionService {
     }
 
     @Nonnull
+    /** 汇总机器路线对应的输出资源和数量。 */
     static Map<PortableResourceDescriptor, Long> machineOutputAmounts(
           MachineRecipeRoute route, Map<String, MachinePort> ports,
           List<MachinePortBaseline> baselines) {
@@ -2498,6 +3310,7 @@ public final class QIOProcessingExecutionService {
     }
 
     @Nonnull
+    /** 模拟并生成从机器抽取产物的传输计划。 */
     static MachineTransferPlan outputExtraction(TileEntity tile, MachineRecipeRoute route,
           Map<String, MachinePort> ports, List<MachinePortBaseline> baselines) {
         MachineTransferPlan extraction = MachineTransferPlan.create(tile);
@@ -2529,6 +3342,7 @@ public final class QIOProcessingExecutionService {
         return machineMatchesAfterInput(endpoint.route, endpoint.ports, endpoint.baselines);
     }
 
+    /** 校验机器已接收输入后的状态是否符合路线预期。 */
     static boolean machineMatchesAfterInput(MachineRecipeRoute route,
           Map<String, MachinePort> ports, List<MachinePortBaseline> baselines) {
         Map<String, MachineResourceStack> inputs = new LinkedHashMap<>();
@@ -2556,6 +3370,7 @@ public final class QIOProcessingExecutionService {
         return machineMatchesLeaseBaseline(endpoint.route, endpoint.ports, endpoint.baselines);
     }
 
+    /** 校验机器当前内容是否仍符合租约记录的端口基线。 */
     static boolean machineMatchesLeaseBaseline(MachineRecipeRoute route,
           Map<String, MachinePort> ports, List<MachinePortBaseline> baselines) {
         Map<String, MachineResourceStack> configuration = configurationByPort(route);
@@ -2586,6 +3401,7 @@ public final class QIOProcessingExecutionService {
               endpoint.baselines);
     }
 
+    /** 校验已完成机器操作的内容是否符合结算前提。 */
     static boolean machineMatchesCompletedOperation(MachineRecipeRoute route,
           Map<String, MachinePort> ports, List<MachinePortBaseline> baselines) {
         List<MachineResourceStack> collected = collectMachineOutputs(route, ports, baselines);
@@ -2712,6 +3528,7 @@ public final class QIOProcessingExecutionService {
     }
 
     @Nullable
+    /** 从机器路线中收集可转移的输出资源栈。 */
     static List<MachineResourceStack> collectMachineOutputs(MachineRecipeRoute route,
           Map<String, MachinePort> ports, List<MachinePortBaseline> baselines) {
         Map<String, MachinePortBaseline> baselineByPort = new LinkedHashMap<>();
@@ -2778,12 +3595,21 @@ public final class QIOProcessingExecutionService {
 
     private static long producedSinceBaseline(MachinePort port,
           MachineResourceStack expected, @Nullable MachinePortBaseline baseline) {
-        MachineResourceStack current = port.peek();
-        if (current == null || !current.sameResource(expected)) return 0;
-        if (baseline == null || baseline.contents() == null) return current.amount();
-        MachineResourceStack previous = baseline.contents();
-        if (!previous.sameResource(current) || previous.amount() > current.amount()) return 0;
-        return current.amount() - previous.amount();
+        long currentAmount = amountOf(port.peekAll(), expected);
+        if (currentAmount <= 0) return 0;
+        long previousAmount = baseline == null ? 0 : baseline.amountOf(expected);
+        return previousAmount > currentAmount ? 0 : currentAmount - previousAmount;
+    }
+
+    private static long amountOf(Collection<MachineResourceStack> contents,
+          MachineResourceStack expected) {
+        long amount = 0;
+        for (MachineResourceStack current : contents) {
+            if (current.sameResource(expected)) {
+                amount = Math.addExact(amount, current.amount());
+            }
+        }
+        return amount;
     }
 
     private static Map<String, MachineResourceStack> mergeByPort(
@@ -3082,8 +3908,16 @@ public final class QIOProcessingExecutionService {
     @Nullable
     private static MachineEndpoint passiveEndpoint(QIOProcessingNetworkData network,
           QIOPassiveOperation operation, boolean requireReady) {
-        LoadedDevice device = QIOAutomationDeviceRegistry.INSTANCE.findLoadedDevice(
-              operation.getDeviceUUID());
+        return passiveEndpoint(network, operation, requireReady, null);
+    }
+
+    @Nullable
+    private static MachineEndpoint passiveEndpoint(QIOProcessingNetworkData network,
+          QIOPassiveOperation operation, boolean requireReady,
+          @Nullable LoadedDevice preferredDevice) {
+        LoadedDevice device = preferredDevice != null && operation.getDeviceUUID().equals(
+              preferredDevice.host().getPersistentDeviceUUID()) ? preferredDevice :
+              QIOAutomationDeviceRegistry.INSTANCE.findLoadedDevice(operation.getDeviceUUID());
         if (device == null || device.host().getEnabledMode() != QIOAutomationMode.PASSIVE ||
               !matchesFrequencyOrOwnedDrain(network, device.host(), QIOAutomationMode.PASSIVE,
                     operation.getOperationId())) {
@@ -3094,17 +3928,21 @@ public final class QIOProcessingExecutionService {
         if (provider == null || !provider.id().toString().equals(operation.getProviderId())) {
             return null;
         }
-        Map<String, MachinePort> ports = ports(provider);
-        for (MachineRecipeRoute route : provider.getRecipeRoutes()) {
-            if (route.routeId().equals(operation.getRouteId()) &&
-                  route.recipeKey().equals(operation.getRecipeKey())) {
-                MachineEndpoint endpoint = endpoint(device, provider, route, ports);
-                if (endpoint == null) {
-                    return null;
+        try {
+            Map<String, MachinePort> ports = ports(provider);
+            for (MachineRecipeRoute route : provider.getRecipeRoutes()) {
+                if (route.routeId().equals(operation.getRouteId()) &&
+                      route.recipeKey().equals(operation.getRecipeKey())) {
+                    MachineEndpoint endpoint = endpoint(device, provider, route, ports);
+                    if (endpoint == null) {
+                        return null;
+                    }
+                    endpoint = scaleEndpoint(endpoint, operation.getOperationCount());
+                    return !requireReady || machineReadyForInput(endpoint) ? endpoint : null;
                 }
-                endpoint = scaleEndpoint(endpoint, operation.getOperationCount());
-                return !requireReady || machineReadyForInput(endpoint) ? endpoint : null;
             }
+        } catch (RuntimeException ignored) {
+            // Dynamic provider state is retried by the passive operation driver.
         }
         return null;
     }
@@ -3144,7 +3982,12 @@ public final class QIOProcessingExecutionService {
           QIODurableTransferRecord.Type type) {
         List<QIODurableTransferRecord> transfers = network.getActiveOperationTransfers(
               operation.getOperationId(), type);
-        return transfers.isEmpty() ? null : transfers.get(0);
+        for (QIODurableTransferRecord transfer : transfers) {
+            if (!isConfigurationTargetReturnTransfer(transfer)) {
+                return transfer;
+            }
+        }
+        return null;
     }
 
     @Nullable
@@ -3154,7 +3997,7 @@ public final class QIOProcessingExecutionService {
         QIODurableTransferRecord found = null;
         for (QIODurableTransferRecord transfer : network.getDurableTransfers()) {
             if (operation.getOperationId().equals(transfer.getOwnerOperationId()) &&
-                  transfer.getType() == type) {
+                  transfer.getType() == type && !isConfigurationTargetReturnTransfer(transfer)) {
                 if (found != null) {
                     throw new IllegalStateException(
                           "Passive operation has multiple transfers of the same type");
@@ -3163,6 +4006,11 @@ public final class QIOProcessingExecutionService {
             }
         }
         return found;
+    }
+
+    private static boolean isConfigurationTargetReturnTransfer(
+          QIODurableTransferRecord transfer) {
+        return transfer.getNodeId().startsWith("configuration-return/");
     }
 
     @Nonnull
@@ -3265,9 +4113,13 @@ public final class QIOProcessingExecutionService {
     private static IQIOStorageView openPassive(QIOProcessingNetworkData network) {
         QIOFrequencyIdentitySnapshot identity = network.getLastKnownFrequencyIdentity();
         UUID requester = identity.getOwnerUUID();
-        return QIOFrequencyStorageAccess.INSTANCE.open(new QIOFrequencyReference(
-              network.getFrequencyUUID(), identity.getName(), identity.getOwnerUUID(),
-              identity.getSecurityMode(), requester), requester);
+        try {
+            return QIOFrequencyStorageAccess.INSTANCE.open(new QIOFrequencyReference(
+                  network.getFrequencyUUID(), identity.getName(), identity.getOwnerUUID(),
+                  identity.getSecurityMode(), requester), requester);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
     }
 
     private static String passiveOwner(QIOPassiveOperation operation) {
@@ -3286,6 +4138,7 @@ public final class QIOProcessingExecutionService {
     }
 
     @Nullable
+    /** 返回任务中下一个可运行且材料已满足的计划步骤。 */
     static QIOPlanStep nextRunnableStep(QIOCraftingJob job, QIOJobBuffer buffer) {
         return nextRunnableStep(job, buffer, step -> true);
     }
@@ -3308,6 +4161,7 @@ public final class QIOProcessingExecutionService {
     }
 
     @Nonnull
+    /** 按持久化游标对 Provider 候选进行轮转排序，避免单一设备饥饿。 */
     static <T> List<T> orderProvidersRoundRobin(@Nonnull List<T> candidates,
           @Nonnull Function<T, UUID> identity, @Nonnull ToLongFunction<T> priority,
           @Nonnull Function<Long, UUID> lastProviderByPriority) {
@@ -3587,9 +4441,19 @@ public final class QIOProcessingExecutionService {
                           "Configuration changed before the exact old template extraction");
                     return false;
                 }
+                MachinePort.Snapshot extractionSnapshot = port.snapshot();
                 if (token.transferReceipts().size() >= MachineOperationToken.MAX_TRANSFER_RECEIPTS ||
                       port.extract(exchange.getOriginal()) == null) return false;
-                if (!host.recordTransferReceipt(operationId, receipt)) {
+                boolean recorded;
+                try {
+                    recorded = host.recordTransferReceipt(operationId, receipt);
+                } catch (RuntimeException | Error failure) {
+                    restorePortSnapshotsAfterFailure(
+                          Collections.singletonList(extractionSnapshot), failure);
+                    throw failure;
+                }
+                if (!recorded) {
+                    restorePortSnapshots(Collections.singletonList(extractionSnapshot));
                     throw new IllegalStateException(
                           "Configuration extraction could not persist its reserved receipt");
                 }
@@ -3630,9 +4494,23 @@ public final class QIOProcessingExecutionService {
                           "Configuration port was no longer empty before target installation");
                     return false;
                 }
-                if (token.transferReceipts().size() >= MachineOperationToken.MAX_TRANSFER_RECEIPTS ||
-                      !port.insert(exchange.getTarget())) return false;
-                if (!host.recordTransferReceipt(operationId, receipt)) {
+                if (token.transferReceipts().size() >= MachineOperationToken.MAX_TRANSFER_RECEIPTS) {
+                    return false;
+                }
+                MachinePort.Snapshot insertionSnapshot = port.snapshot();
+                if (!port.insert(exchange.getTarget())) {
+                    return false;
+                }
+                boolean recorded;
+                try {
+                    recorded = host.recordTransferReceipt(operationId, receipt);
+                } catch (RuntimeException | Error failure) {
+                    restorePortSnapshotsAfterFailure(
+                          Collections.singletonList(insertionSnapshot), failure);
+                    throw failure;
+                }
+                if (!recorded) {
+                    restorePortSnapshots(Collections.singletonList(insertionSnapshot));
                     throw new IllegalStateException(
                           "Configuration installation could not persist its reserved receipt");
                 }
@@ -3766,13 +4644,193 @@ public final class QIOProcessingExecutionService {
         return true;
     }
 
+    /**
+     * Settles a contaminated configuration exchange without dropping a target which was
+     * already debited from QIO.  The return leg is represented by a normal durable QIO transfer
+     * whose source is the exchange ledger, so every boundary is replayable after a restart.
+     * Exchanges which were contaminated while the old template was physically extracted are
+     * resumed only when the persisted machine receipt (or an exact loaded-port check) proves
+     * which side owns that template; ambiguous observations remain quarantined.
+     */
+    /**
+     * 结算一个已污染且允许强制恢复的配置交换。
+     *
+     * @param network 所属 QIO 网络
+     * @param exchange 要结算的配置交换记录
+     * @param view 已打开的 QIO 存储视图
+     * @return 交换已安全结算时返回 true
+     */
+    public static boolean settleContaminatedConfigurationExchange(
+          @Nonnull QIOProcessingNetworkData network,
+          @Nonnull QIOConfigurationExchangeRecord exchange,
+          @Nonnull IQIOStorageView view) throws IOException {
+        return settleContaminatedConfigurationExchange(network, exchange, view, null);
+    }
+
+    private static boolean settleContaminatedConfigurationExchange(
+          QIOProcessingNetworkData network, QIOConfigurationExchangeRecord exchange,
+          IQIOStorageView view, @Nullable MachineEndpoint endpoint) throws IOException {
+        Objects.requireNonNull(network, "network");
+        Objects.requireNonNull(exchange, "exchange");
+        Objects.requireNonNull(view, "view");
+        if (exchange.getPhase() != QIOConfigurationExchangeRecord.Phase.CONTAMINATED) {
+            return exchange.getPhase().isSettled();
+        }
+        if (!exchange.canCancelAfterRecovery() && exchange.getContaminatedFromPhase() !=
+              QIOConfigurationExchangeRecord.Phase.OLD_EXTRACTED) {
+            if (exchange.getContaminatedFromPhase() !=
+                  QIOConfigurationExchangeRecord.Phase.OLD_RETURN_PREPARED || endpoint == null) {
+                return false;
+            }
+            MachinePort port = endpoint.ports.get(exchange.getPortId());
+            MachineResourceStack original = exchange.getOriginal();
+            if (port == null || original == null) {
+                return false;
+            }
+            if (exactMachineStack(port.peek(), original)) {
+                exchange.recoverOldReturnNotExtracted();
+                network.markConfigurationExchangeChanged(exchange.getExchangeId());
+                persist(network);
+            } else if (port.peek() == null) {
+                MachineOperationToken token = endpoint.device.host().getOperationTokens().get(
+                      exchange.getOperationId());
+                if (token == null || !token.hasTransferReceipt(exchange.getOldExtractionReceiptId()) ||
+                      !endpoint.device.host().isTransferReceiptPersisted(
+                            exchange.getOperationId(), exchange.getOldExtractionReceiptId())) {
+                    return false;
+                }
+                exchange.recoverOldReturnExtracted();
+                network.markConfigurationExchangeChanged(exchange.getExchangeId());
+                persist(network);
+            } else {
+                return false;
+            }
+        }
+        if (exchange.hasOutstandingClaim()) {
+            QIOClaimResult result = view.submitClaim(QIOClaimRequest.release(
+                  exchange.getReleaseRequestId(), exchange.getClaimId(),
+                  MekanismQIOProcessing.MODID,
+                  "configuration/" + exchange.getOperationId() + "/" + exchange.getPortId(),
+                  QIOClaimRequest.ANY_REVISION, Collections.emptyMap()));
+            if (!result.isSuccess() && result.getStatus() != QIOClaimResult.Status.NOT_FOUND) {
+                return false;
+            }
+            exchange.markClaimReleased();
+            network.markConfigurationExchangeChanged(exchange.getExchangeId());
+            persist(network);
+        }
+
+        if (exchange.getContaminatedFromPhase() ==
+              QIOConfigurationExchangeRecord.Phase.OLD_EXTRACTED) {
+            PortableResourceDescriptor oldResource = exchange.getOriginalResource();
+            BigInteger oldBaseline = exchange.getOldQioBaseline();
+            if (oldResource == null || oldBaseline == null || exchange.getOriginal() == null) {
+                return false;
+            }
+            QIOTransferResult oldCredit = insert(view, exchange.getOldQioTransferId(), oldResource,
+                  exchange.getOriginal().amount(), oldBaseline);
+            if (!oldCredit.isSuccess() || oldCredit.getTransferredAmount() !=
+                  exchange.getOriginal().amount()) {
+                return false;
+            }
+            exchange.recoverOldQioCredited();
+            network.markConfigurationExchangeChanged(exchange.getExchangeId());
+            persist(network);
+        }
+
+        if (exchange.requiresTargetReturn()) {
+            QIODurableTransferRecord transfer = network.getDurableTransfer(
+                  exchange.getTargetReturnTransferId());
+            if (transfer != null && transfer.getResolution() ==
+                  QIODurableTransferRecord.Resolution.FORWARD_COMMITTED) {
+                if (!exchange.isTargetReturned()) {
+                    exchange.markTargetReturned();
+                    network.markConfigurationExchangeChanged(exchange.getExchangeId());
+                    persist(network);
+                }
+            } else if (transfer == null) {
+                BigInteger baseline = exchange.getTargetReturnQioBaseline();
+                if (baseline == null) {
+                    BigInteger expectedAfterDebit = exchange.getTargetQioBaseline().subtract(
+                          BigInteger.ONE);
+                    baseline = storedAmount(view, exchange.getTargetResource());
+                    // Do not choose an arbitrary new baseline after an unrelated QIO mutation.
+                    // The saved consume baseline proves the exact post-debit amount which a
+                    // compensating return is allowed to advance.
+                    if (!expectedAfterDebit.equals(baseline)) {
+                        return false;
+                    }
+                    exchange.prepareTargetReturn(baseline);
+                    network.markConfigurationExchangeChanged(exchange.getExchangeId());
+                }
+                transfer = network.ensureConfigurationTargetReturnTransfer(exchange, baseline);
+                persist(network);
+            } else if (exchange.getTargetReturnQioBaseline() == null) {
+                BigInteger baseline = transfer.getQIOBaselines().get(exchange.getTargetResource());
+                if (baseline == null) {
+                    return false;
+                }
+                exchange.prepareTargetReturn(baseline);
+                network.markConfigurationExchangeChanged(exchange.getExchangeId());
+                persist(network);
+                network.ensureConfigurationTargetReturnTransfer(exchange, baseline);
+            } else {
+                // Re-validate the persisted transfer before replaying any external mutation.
+                network.ensureConfigurationTargetReturnTransfer(exchange,
+                      exchange.getTargetReturnQioBaseline());
+            }
+            if (transfer != null && transfer.getPhase() == QIODurableTransferRecord.Phase.PREPARED) {
+                network.markGenericTransferSourceDebited(transfer.getTransferId(),
+                      "configuration-target-held", network.getNetworkRevision());
+                persist(network);
+            }
+            if (transfer != null && transfer.getPhase() == QIODurableTransferRecord.Phase.SOURCE_DEBITED) {
+                QIOTransferResult result = insert(view, transfer.getTransferId(),
+                      exchange.getTargetResource(), 1,
+                      transfer.getQIOBaselines().get(exchange.getTargetResource()));
+                if (!result.isSuccess() || result.getTransferredAmount() != 1) {
+                    return false;
+                }
+                network.markGenericTransferDestinationCredited(transfer.getTransferId(),
+                      result.getStatus().name());
+                persist(network);
+            }
+            if (transfer != null && transfer.getPhase() == QIODurableTransferRecord.Phase.DESTINATION_CREDITED) {
+                network.commitGenericTransfer(transfer.getTransferId());
+                persist(network);
+            }
+            transfer = network.getDurableTransfer(exchange.getTargetReturnTransferId());
+            if (transfer == null || transfer.getResolution() !=
+                  QIODurableTransferRecord.Resolution.FORWARD_COMMITTED) {
+                return false;
+            }
+            if (!exchange.isTargetReturned()) {
+                exchange.markTargetReturned();
+                network.markConfigurationExchangeChanged(exchange.getExchangeId());
+                persist(network);
+            }
+        } else if (network.getDurableTransfer(exchange.getTargetReturnTransferId()) != null &&
+              !exchange.isTargetReturned()) {
+            // A transfer without a matching target disposition is ambiguous; retain it for
+            // diagnostics rather than deleting a possible physical copy.
+            return false;
+        }
+        exchange.cancelAfterRecovery();
+        network.markConfigurationExchangeChanged(exchange.getExchangeId());
+        persist(network);
+        return true;
+    }
+
     private static boolean settleConfigurationCancellation(QIOProcessingNetworkData network,
           MachineEndpoint endpoint, UUID operationId, IQIOStorageView view) throws IOException {
         for (QIOConfigurationExchangeRecord exchange :
               network.getOperationConfigurationExchanges(operationId)) {
             if (exchange.getPhase().isSettled()) continue;
             if (exchange.getPhase() == QIOConfigurationExchangeRecord.Phase.CONTAMINATED) {
-                return false;
+                if (!settleContaminatedConfigurationExchange(network, exchange, view, endpoint)) {
+                    return false;
+                }
+                continue;
             }
             if (exchange.getPhase() == QIOConfigurationExchangeRecord.Phase.CLAIM_PREPARED ||
                   exchange.getPhase() == QIOConfigurationExchangeRecord.Phase.CLAIMED ||
@@ -3798,13 +4856,66 @@ public final class QIOProcessingExecutionService {
               exchange -> exchange.getPhase().isSettled());
     }
 
+    private static boolean settleContaminatedConfigurationExchanges(
+          QIOProcessingNetworkData network, UUID operationId, IQIOStorageView view)
+          throws IOException {
+        for (QIOConfigurationExchangeRecord exchange :
+              network.getOperationConfigurationExchanges(operationId)) {
+            if (exchange.getPhase().isSettled()) {
+                continue;
+            }
+            if (exchange.getPhase() != QIOConfigurationExchangeRecord.Phase.CONTAMINATED) {
+                switch (exchange.getPhase()) {
+                    case CLAIM_PREPARED, CLAIMED, TARGET_DEBIT_PREPARED -> {
+                        if (exchange.hasOutstandingClaim()) {
+                            QIOClaimResult result = view.submitClaim(QIOClaimRequest.release(
+                                  exchange.getReleaseRequestId(), exchange.getClaimId(),
+                                  MekanismQIOProcessing.MODID,
+                                  "configuration/" + operationId + "/" + exchange.getPortId(),
+                                  QIOClaimRequest.ANY_REVISION, Collections.emptyMap()));
+                            if (!result.isSuccess() &&
+                                  result.getStatus() != QIOClaimResult.Status.NOT_FOUND) {
+                                return false;
+                            }
+                            exchange.markClaimReleased();
+                        }
+                        exchange.cancelBeforeTargetDebit();
+                        network.markConfigurationExchangeChanged(exchange.getExchangeId());
+                        persist(network);
+                        continue;
+                    }
+                    case TARGET_DEBITED, OLD_RETURN_PREPARED, OLD_EXTRACTED,
+                          OLD_QIO_CREDITED, NEW_INSTALLED -> exchange.contaminate(
+                                QIOConfigurationExchangeRecord.FORCE_RECOVERY_PENDING_PREFIX +
+                                      "operation cancellation after contamination");
+                    default -> {
+                        return false;
+                    }
+                }
+                network.markConfigurationExchangeChanged(exchange.getExchangeId());
+                persist(network);
+            }
+            if (!settleContaminatedConfigurationExchange(network, exchange, view)) {
+                return false;
+            }
+        }
+        return network.getOperationConfigurationExchanges(operationId).stream().allMatch(
+              exchange -> exchange.getPhase().isSettled());
+    }
+
     @Nullable
     private static IQIOStorageView open(QIOProcessingNetworkData network, QIOCraftingJob job) {
         QIOFrequencyIdentitySnapshot identity = network.getLastKnownFrequencyIdentity();
         UUID requester = job.getRequester() == null ? identity.getOwnerUUID() : job.getRequester();
-        return QIOFrequencyStorageAccess.INSTANCE.open(new QIOFrequencyReference(
-              network.getFrequencyUUID(), identity.getName(), identity.getOwnerUUID(),
-              identity.getSecurityMode(), requester), requester);
+        try {
+            return QIOFrequencyStorageAccess.INSTANCE.open(new QIOFrequencyReference(
+                  network.getFrequencyUUID(), identity.getName(), identity.getOwnerUUID(),
+                  identity.getSecurityMode(), requester), requester);
+        } catch (RuntimeException ignored) {
+            // Storage access can be unavailable while the frequency is being rebuilt. Callers
+            // already interpret a null view as WAITING_ACCESS/blocked and will retry.
+            return null;
+        }
     }
 
     private static long simulateInsert(IQIOStorageView view,
@@ -3891,9 +5002,19 @@ public final class QIOProcessingExecutionService {
         QIOProcessingNetworkManager.INSTANCE.checkpointNetwork(network.getFrequencyUUID());
     }
 
+    /** Consecutive pre-ejection endpoint availability observations for one machine. */
+    private static final class PreEjectionUnavailableStamp {
+
+        private final int count;
+
+        private PreEjectionUnavailableStamp(int count) {
+            this.count = count;
+        }
+    }
+
     private static final class ProviderWakeStamp {
 
-        private final boolean recipeCatalogInitialized;
+        private final boolean recipeCatalogReady;
         private final long recipeCatalogRevision;
         private final long deviceRevision;
         private final long providerRevision;
@@ -3902,10 +5023,10 @@ public final class QIOProcessingExecutionService {
         private final long profileRevision;
         private final long workbenchRevision;
 
-        private ProviderWakeStamp(boolean recipeCatalogInitialized, long recipeCatalogRevision,
+        private ProviderWakeStamp(boolean recipeCatalogReady, long recipeCatalogRevision,
               long deviceRevision, long providerRevision, long providerAvailabilityRevision,
               long policyRevision, long profileRevision, long workbenchRevision) {
-            this.recipeCatalogInitialized = recipeCatalogInitialized;
+            this.recipeCatalogReady = recipeCatalogReady;
             this.recipeCatalogRevision = recipeCatalogRevision;
             this.deviceRevision = deviceRevision;
             this.providerRevision = providerRevision;
@@ -3916,7 +5037,7 @@ public final class QIOProcessingExecutionService {
         }
 
         private static ProviderWakeStamp capture(QIOProcessingNetworkData network) {
-            return new ProviderWakeStamp(QIORecipeCatalogService.INSTANCE.isInitialized(),
+            return new ProviderWakeStamp(QIORecipeCatalogService.INSTANCE.isReady(),
                   QIORecipeCatalogService.INSTANCE.getRevision(
                         network.getWorkbenchConfiguration()),
                   network.getAutomationDevices().getRevision(),
@@ -3935,7 +5056,7 @@ public final class QIOProcessingExecutionService {
             if (!(other instanceof ProviderWakeStamp stamp)) {
                 return false;
             }
-            return recipeCatalogInitialized == stamp.recipeCatalogInitialized &&
+            return recipeCatalogReady == stamp.recipeCatalogReady &&
                   recipeCatalogRevision == stamp.recipeCatalogRevision &&
                   deviceRevision == stamp.deviceRevision &&
                   providerRevision == stamp.providerRevision &&
@@ -3947,7 +5068,7 @@ public final class QIOProcessingExecutionService {
 
         @Override
         public int hashCode() {
-            return Objects.hash(recipeCatalogInitialized, recipeCatalogRevision, deviceRevision,
+            return Objects.hash(recipeCatalogReady, recipeCatalogRevision, deviceRevision,
                   providerRevision, providerAvailabilityRevision, policyRevision,
                   profileRevision, workbenchRevision);
         }

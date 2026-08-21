@@ -5,11 +5,14 @@ import mekanism.api.MekanismRecipeHelper;
 import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasStack;
 import mekanism.api.infuse.InfuseType;
+import mekanism.api.recipes.FarmChanceOutput;
 import net.minecraft.init.Blocks;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fml.common.Loader;
 import net.minecraftforge.fml.common.LoaderState;
+
+import java.util.List;
 
 public class APIHandler implements MekanismRecipeHelper {
 
@@ -164,6 +167,30 @@ public class APIHandler implements MekanismRecipeHelper {
     public void addOrganicFarmRecipe(ItemStack input, Gas gas, ItemStack primaryOutput) {
         checkPhase();
         RecipeHandler.addOrganicFarmRecipe(input, gas, primaryOutput);
+    }
+
+    @Override
+    public void addOrganicFarmRecipe(ItemStack input, Gas gas, ItemStack primaryOutput, List<FarmChanceOutput> chanceOutputs) {
+        checkPhase();
+        RecipeHandler.addOrganicFarmRecipe(input, gas, primaryOutput, chanceOutputs);
+    }
+
+    @Override
+    public void addOrganicFarmRecipe(ItemStack input, FluidStack fluid, ItemStack primaryOutput, ItemStack secondaryOutput, double chance) {
+        checkPhase();
+        RecipeHandler.addOrganicFarmRecipe(input, fluid, primaryOutput, secondaryOutput, chance);
+    }
+
+    @Override
+    public void addOrganicFarmRecipe(ItemStack input, FluidStack fluid, ItemStack primaryOutput) {
+        checkPhase();
+        RecipeHandler.addOrganicFarmRecipe(input, fluid, primaryOutput);
+    }
+
+    @Override
+    public void addOrganicFarmRecipe(ItemStack input, FluidStack fluid, ItemStack primaryOutput, List<FarmChanceOutput> chanceOutputs) {
+        checkPhase();
+        RecipeHandler.addOrganicFarmRecipe(input, fluid, primaryOutput, chanceOutputs);
     }
 
     @Override

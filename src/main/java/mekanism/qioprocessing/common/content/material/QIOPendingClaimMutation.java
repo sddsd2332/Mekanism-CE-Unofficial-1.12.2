@@ -11,6 +11,12 @@ import java.util.Objects;
 import java.util.UUID;
 
 /** Durable intent written before a QIO claim mutation is submitted. */
+/**
+ * QIO 处理模块中的 QIOPendingClaimMutation 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOPendingClaimMutation {
 
     public enum Mode {

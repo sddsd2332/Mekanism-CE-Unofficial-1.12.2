@@ -15,6 +15,8 @@ import java.util.List;
 
 public class PacketUpdateContainer implements IMessageHandler<UpdateContainerMessage, IMessage> {
 
+    private static final int MAX_PROPERTY_COUNT = 4_096;
+
     @Override
     public IMessage onMessage(UpdateContainerMessage message, MessageContext context) {
         EntityPlayer player = PacketHandler.getPlayer(context);
@@ -46,6 +48,9 @@ public class PacketUpdateContainer implements IMessageHandler<UpdateContainerMes
         public void fromBytes(ByteBuf buffer) {
             windowId = buffer.readUnsignedByte();
             int size = buffer.readInt();
+            if (size < 0 || size > MAX_PROPERTY_COUNT) {
+                throw new IllegalArgumentException("Invalid container property count: " + size);
+            }
             data = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 data.add(PropertyData.fromBuffer(buffer));
@@ -54,6 +59,9 @@ public class PacketUpdateContainer implements IMessageHandler<UpdateContainerMes
 
         @Override
         public void toBytes(ByteBuf buffer) {
+            if (data.size() > MAX_PROPERTY_COUNT) {
+                throw new IllegalArgumentException("Too many container properties: " + data.size());
+            }
             buffer.writeByte(windowId);
             buffer.writeInt(data.size());
             for (PropertyData propertyData : data) {

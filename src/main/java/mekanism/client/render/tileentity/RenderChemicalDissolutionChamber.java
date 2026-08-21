@@ -24,11 +24,12 @@ public class RenderChemicalDissolutionChamber extends TileEntitySpecialRenderer<
 
     private static GasRenderMap<DisplayInteger[]> cachedCenterGas = new GasRenderMap<>();
 
-    private static final int stages = 500;
+    private static final int stages = 64;
 
     private ModelChemicalDissolutionChamber model = new ModelChemicalDissolutionChamber();
 
     public static void resetDisplayInts() {
+        cachedCenterGas.values().forEach(DisplayInteger::deleteAll);
         cachedCenterGas.clear();
     }
 

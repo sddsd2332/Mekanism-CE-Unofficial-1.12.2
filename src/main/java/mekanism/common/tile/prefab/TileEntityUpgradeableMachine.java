@@ -79,7 +79,6 @@ public abstract class TileEntityUpgradeableMachine<INPUT extends MachineInput<IN
             case ALLOY -> RecipeType.AllOY;
             case CELL_EXTRACTOR -> RecipeType.EXTRACTOR;
             case CELL_SEPARATOR -> RecipeType.SEPARATOR;
-            case ORGANIC_FARM -> RecipeType.FARM;
             case RECYCLER -> RecipeType.RECYCLER;
             case PRESSURIZED_REACTION_CHAMBER -> RecipeType.PRC;
             case ANTIPROTONIC_NUCLEOSYNTHESIZER -> RecipeType.NUCLEOSYNTHESIZER;

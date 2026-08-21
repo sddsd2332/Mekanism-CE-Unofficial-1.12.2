@@ -22,6 +22,12 @@ import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 /** Transient crafting-tree projection used to review one completed order analysis. */
+/**
+ * QIO 处理模块中的 GuiQIOSmartProcessingAnalysisWindow 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class GuiQIOSmartProcessingAnalysisWindow extends GuiWindow {
 
     public static final int WIDTH = 488;

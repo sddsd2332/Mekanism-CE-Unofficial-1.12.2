@@ -16,6 +16,12 @@ import java.util.Map;
 import java.util.Objects;
 
 /** Session-bound machine-type aggregation for the management terminal. */
+/**
+ * QIO 处理模块中的 QIOManagementDeviceGroupService 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOManagementDeviceGroupService {
 
     private QIOManagementDeviceGroupService() {

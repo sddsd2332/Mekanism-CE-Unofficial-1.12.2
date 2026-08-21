@@ -19,6 +19,12 @@ import java.util.Objects;
 import java.util.UUID;
 
 /** Persistent online/offline device directory owned by one QIO processing frequency. */
+/**
+ * QIO 处理模块中的 QIOAutomationDeviceCatalog 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOAutomationDeviceCatalog {
 
     private static final int MAX_PERSISTED_DEVICES = 1_000_000;

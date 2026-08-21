@@ -198,13 +198,16 @@ public class TileEntityBin extends TileEntityContainerBlock implements IActiveSt
     public void onAsyncUpdateServer() {
         super.onAsyncUpdateServer();
         addTicks = Math.max(0, addTicks - 1);
-        delayTicks = Math.max(0, delayTicks - 1);
         sortStacks();
         if (getItemCount() != prevCount) {
             markNoUpdateSync();
-            MekanismUtils.saveChunk(this);
         }
+    }
 
+    @Override
+    protected void onUpdateServer() {
+        super.onUpdateServer();
+        delayTicks = Math.max(0, delayTicks - 1);
         if (delayTicks == 0) {
             if (!bottomStack.isEmpty() && isActive) {
                 TileEntity tile = Coord4D.get(this).offset(EnumFacing.DOWN).getTileEntity(world);
@@ -224,11 +227,6 @@ public class TileEntityBin extends TileEntityContainerBlock implements IActiveSt
         } else {
             delayTicks--;
         }
-    }
-
-    @Override
-    protected boolean hasCrossMachineAsyncOperations() {
-        return true;
     }
 
 

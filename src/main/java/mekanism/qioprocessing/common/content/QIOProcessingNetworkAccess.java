@@ -13,6 +13,12 @@ import java.util.Objects;
 import java.util.UUID;
 
 /** Resolves the live frequency behind an open terminal and materializes its processing network. */
+/**
+ * QIO 处理模块中的 QIOProcessingNetworkAccess 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOProcessingNetworkAccess {
 
     private QIOProcessingNetworkAccess() {
@@ -24,6 +30,7 @@ public final class QIOProcessingNetworkAccess {
      * request by creating the otherwise absent network record.
      */
     @Nullable
+    /** 通过频率引用取得或创建网络，并在访问失败时返回隔离结果。 */
     public static QIOProcessingNetworkData getOrCreate(
           @Nonnull QIOProcessingTerminalFrequencyContainer container,
           @Nonnull QIOProcessingTerminalSession session, @Nonnull EntityPlayer player) {

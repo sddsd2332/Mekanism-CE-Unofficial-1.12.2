@@ -8,7 +8,11 @@ import mekanism.common.item.interfaces.IColoredItem;
 import mekanism.qioprocessing.common.QIOProcessingCommonProxy;
 import mekanism.qioprocessing.common.machine.QIOAutomationContainerState;
 import mekanism.qioprocessing.client.gui.GuiQIOAutomationFrequencyTab;
+import mekanism.qioprocessing.client.gui.GuiQIOAutomationRecoveryTab;
 import mekanism.qioprocessing.client.gui.GuiQIOAutomationRecipeConfigTab;
+import mekanism.qioprocessing.api.machine.QIOAutomationHost;
+import mekanism.qioprocessing.common.network.PacketQIOAutomationRecovery;
+import mekanism.qioprocessing.common.network.QIOProcessingPacketHandler;
 import mekanism.qioprocessing.common.config.QIOAutomationRecipeConfigType;
 import mekanism.qioprocessing.common.registries.QIOProcessingBlocks;
 import mekanism.qioprocessing.common.registries.QIOProcessingItems;
@@ -40,6 +44,12 @@ import net.minecraft.world.World;
 import net.minecraftforge.common.MinecraftForge;
 
 @SideOnly(Side.CLIENT)
+/**
+ * QIO 处理模块中的 QIOProcessingClientProxy 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public class QIOProcessingClientProxy extends QIOProcessingCommonProxy {
 
     private boolean clientHandlersRegistered;
@@ -63,6 +73,28 @@ public class QIOProcessingClientProxy extends QIOProcessingCommonProxy {
                   holder[0] = new GuiQIOAutomationFrequencyTab(gui, tile, container, state,
                         () -> holder[0]);
                   return holder[0];
+              });
+        MekanismTileGuiExtensionRegistry.register(
+              new net.minecraft.util.ResourceLocation(
+                    mekanism.qioprocessing.common.MekanismQIOProcessing.MODID,
+                    "automation_recovery_tab"),
+              (gui, tile) -> {
+                  if (!(gui.getContainer() instanceof MekanismTileContainer<?> container)) {
+                      return null;
+                  }
+                  QIOAutomationContainerState state = QIOAutomationContainerState.get(container);
+                  if (state == null) {
+                      return null;
+                  }
+                  // 普通机器的警告 Tab 使用左侧 x=-26、y=109；恢复 Tab 放在其左边。
+                  return new GuiQIOAutomationRecoveryTab(gui, -52, 109,
+                        () -> state.isRecoveryQuarantined() ||
+                              state.getState() == QIOAutomationHost.State.DATA_ERROR,
+                        state::getMode,
+                        state::getRecoveryDiagnostic,
+                        () -> QIOProcessingPacketHandler.INSTANCE.sendToServer(
+                              PacketQIOAutomationRecovery.Message.create(
+                                    container.windowId, tile)), true);
               });
         registerRecipeConfigTab(QIOAutomationRecipeConfigType.SCHEDULED, "automation_crafting_config_tab");
         registerRecipeConfigTab(QIOAutomationRecipeConfigType.PASSIVE, "automation_processing_config_tab");

@@ -41,7 +41,7 @@ public class MekanismMultiblockMachine implements IModule {
     @Mod.Instance(MekanismMultiblockMachine.MODID)
     public static MekanismMultiblockMachine instance;
 
-    public static Version versionNumber = new Version(999, 999, 999);
+    public static Version versionNumber = Version.get(mekanism.mekanism.Tags.VERSION);
 
     public static CreativeTabMekanismMultiblockMachine tabMekanismMultiblockMachine = new CreativeTabMekanismMultiblockMachine();
 

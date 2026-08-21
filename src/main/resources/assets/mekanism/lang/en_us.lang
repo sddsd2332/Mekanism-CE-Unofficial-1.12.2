@@ -19,6 +19,7 @@ gui.mekanism.issues.no_space.overflow= - Not enough output space, internal buffe
 gui.mekanism.issues.redstone_pulse_required= - Redstone pulse required to activate
 gui.mekanism.issues.redstone_signal_absent= - Missing redstone signal, provide one to activate
 gui.mekanism.issues.redstone_signal_present= - Redstone signal present, remove it to activate
+gui.mekanism.issues.qio_automation_error= - QIO automation has entered an error state; check the QIO management terminal
 gui.mekanism.rgb=RGB:
 gui.mekanism.rgba=RGBA:
 generic.mekanism.hex=#%s

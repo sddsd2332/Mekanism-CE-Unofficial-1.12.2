@@ -15,12 +15,19 @@ import java.util.List;
 import java.util.Objects;
 
 /** Session-bound paged read service for the management terminal's device directory. */
+/**
+ * QIO 处理模块中的 QIOManagementDeviceDirectoryService 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOManagementDeviceDirectoryService {
 
     private QIOManagementDeviceDirectoryService() {
     }
 
     @Nonnull
+    /** 查询自动化设备目录分页。 */
     public static QIOPage<QIOAutomationDeviceSnapshot> getPage(
           @Nonnull QIOProcessingTerminalSession session,
           @Nonnull QIOProcessingNetworkData network, long currentAccessRevision,
@@ -58,6 +65,7 @@ public final class QIOManagementDeviceDirectoryService {
     }
 
     @Nonnull
+    /** 按自动化模式查询设备目录分页。 */
     public static QIOPage<QIOAutomationDeviceSnapshot> getPageForType(
           @Nonnull QIOProcessingTerminalSession session,
           @Nonnull QIOProcessingNetworkData network, long currentAccessRevision,

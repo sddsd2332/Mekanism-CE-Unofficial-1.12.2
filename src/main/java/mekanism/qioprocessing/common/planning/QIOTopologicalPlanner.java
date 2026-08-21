@@ -28,6 +28,12 @@ import java.util.TreeMap;
  * Optional acyclic fast path that aggregates shared demands in topological order.
  * Structure is cached independently from per-request storage and claim state.
  */
+/**
+ * QIO 处理模块中的 QIOTopologicalPlanner 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 final class QIOTopologicalPlanner {
 
     static final QIOTopologicalPlanner INSTANCE = new QIOTopologicalPlanner();

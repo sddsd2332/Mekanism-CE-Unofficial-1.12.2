@@ -16,6 +16,12 @@ import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 
 /** Read-only 3x3 workbench pattern, progress arrow and large primary output. */
+/**
+ * QIO 处理模块中的 GuiQIOVirtualWorkbenchRecipe 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 final class GuiQIOVirtualWorkbenchRecipe extends GuiElement implements IJEIIngredientHelper {
 
     static final int WIDTH = 136;

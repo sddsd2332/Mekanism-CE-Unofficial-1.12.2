@@ -25,6 +25,12 @@ import java.util.UUID;
  * AE-style single-message protocol for QIO machine route configuration.
  * Requests, mutations, and bounded snapshots deliberately share one wire shape.
  */
+/**
+ * QIO 处理模块中的 PacketQIOAutomationRecipeConfig 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class PacketQIOAutomationRecipeConfig implements
       IMessageHandler<PacketQIOAutomationRecipeConfig.QIOAutomationRecipeConfigMessage, IMessage> {
 

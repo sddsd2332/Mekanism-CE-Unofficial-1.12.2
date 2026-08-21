@@ -202,10 +202,16 @@ public class TileEntityLargeChemicalInfuser extends TileEntityBasicMachine<Chemi
 
 
     @Override
-    public void addTileSyncTask() {
-        this.gasSpeedController.ensureSize(2, () -> Arrays.asList(new TankProvider.Gas(centerTank), new TankProvider.Gas(centerTank)));
+    protected void onUpdateServerPreComponents() {
+        super.onUpdateServerPreComponents();
+        gasSpeedController.ensureSize(2,
+              () -> Arrays.asList(new TankProvider.Gas(centerTank), new TankProvider.Gas(centerTank)));
         handleTank(centerTank, getLeftTankside(), 0);
         handleTank(centerTank, getRightTankside(), 1);
+    }
+
+    @Override
+    public void addTileSyncTask() {
         int newRedstoneLevel = getRedstoneLevel();
         if (newRedstoneLevel != currentRedstoneLevel) {
             world.updateComparatorOutputLevel(pos, getBlockType());
@@ -237,7 +243,7 @@ public class TileEntityLargeChemicalInfuser extends TileEntityBasicMachine<Chemi
 
     private void ejectGas(Set<EnumFacing> outputSides, BasicGasTank tank, EjectSpeedController speedController, int tankIdx, TileEntity tile) {
         speedController.record(tankIdx);
-        if (tank.getGas() == null || tank.getStored() <= 0 || tank.getGas().getGas() == null) {
+        if (isContainerExtractionGuarded(tank) || tank.getGas() == null || tank.getStored() <= 0 || tank.getGas().getGas() == null) {
             return;
         }
         if (!speedController.canEject(tankIdx)) {

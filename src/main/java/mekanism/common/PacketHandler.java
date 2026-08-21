@@ -340,6 +340,18 @@ public class PacketHandler {
     }
 
     public <TILE extends TileEntity & ITileNetwork> void sendUpdatePacket(TILE tile) {
+        MinecraftServer server = FMLCommonHandler.instance().getMinecraftServerInstance();
+        if (server != null && !server.isCallingFromMinecraftThread()) {
+            Mekanism.EXECUTE_MANAGER.addSyncTask(() -> sendUpdatePacketNow(tile));
+            return;
+        }
+        sendUpdatePacketNow(tile);
+    }
+
+    private <TILE extends TileEntity & ITileNetwork> void sendUpdatePacketNow(TILE tile) {
+        if (tile == null || tile.isInvalid() || tile.getWorld() == null || tile.getWorld().isRemote) {
+            return;
+        }
         sendToAllTracking(new TileEntityMessage(tile), tile);
     }
 

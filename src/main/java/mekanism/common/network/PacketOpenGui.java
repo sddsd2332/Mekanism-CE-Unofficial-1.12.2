@@ -22,6 +22,8 @@ import static mekanism.common.network.PacketSimpleGui.hasGuiHandler;
 
 public class PacketOpenGui implements IMessageHandler<OpenGui, IMessage> {
 
+    private static final int CORE_GUI_HANDLER = 0;
+    private static final int MODULE_TWEAKER_GUI = 77;
 
     @Override
     public IMessage onMessage(OpenGui message, MessageContext context) {
@@ -31,7 +33,12 @@ public class PacketOpenGui implements IMessageHandler<OpenGui, IMessage> {
         }
         PacketHandler.handlePacket(() -> {
             if (!player.world.isRemote) {
-                OpenGui.openServerGui(message.guiHandler, message.guiId, (EntityPlayerMP) player, player.world, message.coord4D);
+                // The only client-initiated OpenGui request is the item-independent module tweaker.
+                // Block and entity GUIs are opened by the server through Forge's GUI handler.
+                if (message.guiHandler == CORE_GUI_HANDLER && message.guiId == MODULE_TWEAKER_GUI) {
+                    OpenGui.openServerGui(message.guiHandler, message.guiId, (EntityPlayerMP) player, player.world,
+                          Coord4D.get(player));
+                }
             } else {
                 GuiScreen gui = OpenGui.getGui(message.guiHandler, message.guiId, player, player.world, message.coord4D);
                 if (gui != null) {

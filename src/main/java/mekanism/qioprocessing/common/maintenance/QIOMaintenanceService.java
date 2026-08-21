@@ -57,6 +57,12 @@ import java.util.Set;
 import java.util.UUID;
 
 /** Frequency-owned inventory maintenance evaluation and automatic order coordinator. */
+/**
+ * QIO 处理模块中的 QIOMaintenanceService 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOMaintenanceService {
 
     public static final QIOMaintenanceService INSTANCE = new QIOMaintenanceService();

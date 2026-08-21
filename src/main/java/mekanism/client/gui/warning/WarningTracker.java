@@ -73,6 +73,7 @@ public class WarningTracker implements IWarningTracker {
         REDSTONE_SIGNAL_ABSENT(MekanismLang.ISSUE_REDSTONE_SIGNAL_ABSENT),
         REDSTONE_SIGNAL_PRESENT(MekanismLang.ISSUE_REDSTONE_SIGNAL_PRESENT),
         REDSTONE_PULSE_REQUIRED(MekanismLang.ISSUE_REDSTONE_PULSE_REQUIRED),
+        QIO_AUTOMATION_ERROR(MekanismLang.ISSUE_QIO_AUTOMATION_ERROR),
         ;
 
         private final ILangEntry langEntry;

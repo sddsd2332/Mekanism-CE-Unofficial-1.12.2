@@ -22,7 +22,12 @@ import org.lwjgl.opengl.GL11;
 
 public class RenderTeleporter extends TileEntitySpecialRenderer<TileEntityTeleporter> {
 
-    private Int2ObjectMap<DisplayInteger> cachedOverlays = new Int2ObjectOpenHashMap<>();
+    private static final Int2ObjectMap<DisplayInteger> cachedOverlays = new Int2ObjectOpenHashMap<>();
+
+    public static void resetDisplayInts() {
+        cachedOverlays.values().forEach(DisplayInteger::delete);
+        cachedOverlays.clear();
+    }
 
     @Override
     public void render(TileEntityTeleporter tileEntity, double x, double y, double z, float partialTick, int destroyStage, float alpha) {

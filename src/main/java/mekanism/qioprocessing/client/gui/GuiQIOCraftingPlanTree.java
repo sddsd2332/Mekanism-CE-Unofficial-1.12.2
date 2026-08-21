@@ -37,6 +37,12 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /** AE-style expanded tree projection of one persisted plan DAG with condensed cycles. */
+/**
+ * QIO 处理模块中的 GuiQIOCraftingPlanTree 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class GuiQIOCraftingPlanTree extends GuiElement implements IJEIIngredientHelper {
 
     public enum Filter {

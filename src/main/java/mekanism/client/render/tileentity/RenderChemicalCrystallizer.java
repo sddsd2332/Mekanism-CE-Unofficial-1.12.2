@@ -25,10 +25,11 @@ public class RenderChemicalCrystallizer extends TileEntitySpecialRenderer<TileEn
 
     private static GasRenderMap<DisplayInteger[]> cachedCenterGas = new GasRenderMap<>();
 
-    private static final int stages = 700;
+    private static final int stages = 64;
     private ModelChemicalCrystallizer model = new ModelChemicalCrystallizer();
 
     public static void resetDisplayInts() {
+        cachedCenterGas.values().forEach(DisplayInteger::deleteAll);
         cachedCenterGas.clear();
     }
 

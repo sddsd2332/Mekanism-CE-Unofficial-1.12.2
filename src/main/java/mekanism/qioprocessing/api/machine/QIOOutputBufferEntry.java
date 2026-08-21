@@ -11,6 +11,12 @@ import java.util.Objects;
 import java.util.UUID;
 
 /** Persistent machine-to-QIO intermediate ownership for one output port extraction. */
+/**
+ * QIO 处理模块中的 QIOOutputBufferEntry 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOOutputBufferEntry {
 
     public enum Phase {
@@ -41,10 +47,10 @@ public final class QIOOutputBufferEntry {
         this.leaseId = Objects.requireNonNull(leaseId, "Output lease id cannot be null");
         this.baseline = Objects.requireNonNull(baseline, "Output baseline cannot be null");
         this.extraction = Objects.requireNonNull(extraction, "Output extraction cannot be null");
-        MachineResourceStack baselineContents = baseline.contents();
-        if (baselineContents == null || extraction.kind() != baseline.kind() ||
+        long baselineAmount = baseline.amountOf(extraction);
+        if (baselineAmount <= 0 || extraction.kind() != baseline.kind() ||
             !extraction.portId().equals(baseline.portId()) ||
-            extraction.amount() > baselineContents.amount() || !extraction.sameResource(baselineContents)) {
+            extraction.amount() > baselineAmount) {
             throw new IllegalArgumentException("Output extraction does not belong to its prepared baseline");
         }
         if (createdAt < 0) {
@@ -75,6 +81,7 @@ public final class QIOOutputBufferEntry {
         this.qioRequestedAmount = qioRequestedAmount;
     }
 
+    /** 创建只包含机器抽取意图、尚未实际取出资源的 PREPARED 缓冲。 */
     @Nonnull
     public static QIOOutputBufferEntry prepared(@Nonnull UUID bufferId, @Nonnull UUID operationId,
           @Nonnull UUID leaseId, @Nonnull MachinePortBaseline baseline, long createdAt) {
@@ -85,6 +92,7 @@ public final class QIOOutputBufferEntry {
         return prepared(bufferId, operationId, leaseId, baseline, contents, createdAt);
     }
 
+    /** 使用指定抽取栈创建 PREPARED 缓冲。 */
     @Nonnull
     public static QIOOutputBufferEntry prepared(@Nonnull UUID bufferId, @Nonnull UUID operationId,
           @Nonnull UUID leaseId, @Nonnull MachinePortBaseline baseline,
@@ -93,58 +101,70 @@ public final class QIOOutputBufferEntry {
               null, 0, null, 0);
     }
 
+    /** 返回缓冲唯一标识。 */
     @Nonnull
     public UUID bufferId() {
         return bufferId;
     }
 
+    /** 返回所属操作标识。 */
     @Nonnull
     public UUID operationId() {
         return operationId;
     }
 
+    /** 返回所属租约标识。 */
     @Nonnull
     public UUID leaseId() {
         return leaseId;
     }
 
+    /** 返回创建缓冲时记录的端口基线。 */
     @Nonnull
     public MachinePortBaseline baseline() {
         return baseline;
     }
 
+    /** 返回计划从机器抽取的资源栈。 */
     @Nonnull
     public MachineResourceStack extraction() {
         return extraction;
     }
 
+    /** 返回缓冲创建时的游戏 tick。 */
     public long createdAt() {
         return createdAt;
     }
 
+    /** 返回缓冲阶段：PREPARED、HELD 或 DELIVERING。 */
     @Nonnull
     public Phase phase() {
         return phase;
     }
 
+    /** 返回已从机器取出的资源；PREPARED 阶段为 null。 */
     @Nullable
     public PortableResourceDescriptor resource() {
         return resource;
     }
 
+    /** 返回缓冲中尚未投递的数量。 */
     public long amount() {
         return amount;
     }
 
+    /** 返回当前 QIO 投递标识；未进入 DELIVERING 时为 null。 */
     @Nullable
     public UUID qioTransferId() {
         return qioTransferId;
     }
 
+    /** 返回当前投递请求数量。 */
     public long qioRequestedAmount() {
         return qioRequestedAmount;
     }
 
+    /** 将 PREPARED 缓冲推进为 HELD，并记录实际抽取资源。 */
     @Nonnull
     public QIOOutputBufferEntry hold(@Nonnull PortableResourceDescriptor resource, long amount) {
         if (phase != Phase.PREPARED) {
@@ -154,6 +174,7 @@ public final class QIOOutputBufferEntry {
               resource, amount, null, 0);
     }
 
+    /** 为 HELD 缓冲建立一次 QIO 投递并进入 DELIVERING。 */
     @Nonnull
     public QIOOutputBufferEntry beginDelivery(@Nonnull UUID transferId, long requestedAmount) {
         if (phase != Phase.HELD) {
@@ -163,6 +184,7 @@ public final class QIOOutputBufferEntry {
               resource, amount, transferId, requestedAmount);
     }
 
+    /** 应用完整投递回执；全部完成时返回 null，否则返回剩余资源的 HELD 缓冲。 */
     @Nullable
     public QIOOutputBufferEntry applyDeliveryReceipt(@Nonnull UUID transferId, long transferredAmount) {
         if (phase != Phase.DELIVERING || !Objects.requireNonNull(transferId, "Transfer id cannot be null").equals(qioTransferId)) {
@@ -176,6 +198,7 @@ public final class QIOOutputBufferEntry {
               Phase.HELD, resource, remaining, null, 0);
     }
 
+    /** 将缓冲阶段和所有权字段写入 NBT。 */
     @Nonnull
     public NBTTagCompound write() {
         NBTTagCompound data = new NBTTagCompound();
@@ -197,6 +220,7 @@ public final class QIOOutputBufferEntry {
         return data;
     }
 
+    /** 从 NBT 读取并验证缓冲阶段、资源数量和投递字段组合。 */
     @Nonnull
     public static QIOOutputBufferEntry read(@Nonnull NBTTagCompound data) {
         Objects.requireNonNull(data, "Output buffer data cannot be null");

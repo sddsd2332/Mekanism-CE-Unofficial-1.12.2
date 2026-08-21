@@ -29,6 +29,8 @@ public class RecipeInfoHelper {
             return "[" + getGasName(out.leftGas) + ", " + getGasName(out.rightGas) + "]";
         } else if (output instanceof ChanceOutput chanceOutput) {
             return getItemName(chanceOutput.primaryOutput);
+        } else if (output instanceof FarmOutput farmOutput) {
+            return getItemName(farmOutput.getGuaranteedOutput());
         } else if (output instanceof PressurizedOutput out) {
             return "[" + getItemName(out.getItemOutput()) + ", " + getGasName(out.getGasOutput()) + "]";
         }

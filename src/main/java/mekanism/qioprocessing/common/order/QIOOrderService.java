@@ -56,6 +56,12 @@ import java.util.UUID;
 import java.util.function.BooleanSupplier;
 
 /** Main-thread preview and formal order submission coordinator. */
+/**
+ * QIO 处理模块中的 QIOOrderService 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOOrderService {
 
     public static final QIOOrderService INSTANCE = new QIOOrderService();
@@ -72,7 +78,8 @@ public final class QIOOrderService {
         ACCESS_DENIED,
         NO_PROCESSOR_OR_PROVIDER,
         TOO_MANY_PREVIEWS,
-        SERVICE_STOPPED
+        SERVICE_STOPPED,
+        CATALOG_LOADING
     }
 
     public enum ConfirmStatus {
@@ -596,7 +603,10 @@ public final class QIOOrderService {
             throw new IllegalArgumentException("Invalid QIO planning capture");
         }
         if (!QIORecipeCatalogService.INSTANCE.isInitialized()) {
-            QIORecipeCatalogService.INSTANCE.refresh(world);
+            QIORecipeCatalogService.INSTANCE.beginRefresh(world);
+        }
+        if (!QIORecipeCatalogService.INSTANCE.isReady()) {
+            return new PlanningCaptureResult(RequestStatus.CATALOG_LOADING, null);
         }
         QIOWorkbenchConfiguration workbenchConfiguration =
               network.getWorkbenchConfiguration().copy();

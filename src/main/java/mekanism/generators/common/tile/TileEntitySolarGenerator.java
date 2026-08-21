@@ -31,6 +31,7 @@ public class TileEntitySolarGenerator extends TileEntityGenerator implements ISp
     private boolean seesSun;
     private boolean needsRainCheck = true;
     private float peakOutput;
+    private double productionThisTick;
     private EnergyInventorySlot energySlot;
 
     public TileEntitySolarGenerator() {
@@ -83,16 +84,19 @@ public class TileEntitySolarGenerator extends TileEntityGenerator implements ISp
     public void onAsyncUpdateServer() {
         super.onAsyncUpdateServer();
         energySlot.drainContainer();
-        // Sort out if the generator can see the sun; we no longer check if it's raining here,
-        // since under the new rules, we can still generate power when it's raining, albeit at a
-        // significant penalty.
-        seesSun = world.isDaytime() && canSeeSky() && !world.provider.isNether();
         if (canOperate()) {
             setActive(true);
-            getEnergyContainer().insert(getProduction(), Action.EXECUTE, AutomationType.INTERNAL);
+            getEnergyContainer().insert(productionThisTick, Action.EXECUTE, AutomationType.INTERNAL);
         } else {
             setActive(false);
         }
+    }
+
+    @Override
+    public void onUpdateServer() {
+        super.onUpdateServer();
+        seesSun = world.isDaytime() && canSeeSky() && !world.provider.isNether();
+        productionThisTick = getProduction();
     }
 
     protected boolean canSeeSky() {

@@ -17,6 +17,7 @@ import net.minecraft.nbt.NBTTagCompound;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Objects;
+import java.util.function.Supplier;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
@@ -42,6 +43,27 @@ public class HybridInventorySlot extends MergedGasInventorySlot<MergedTank> impl
         };
         return new HybridInventorySlot(mergedTank, (stack, automationType) -> automationType == AutomationType.MANUAL || !insertPredicate.test(stack, automationType),
               insertPredicate, HybridInventorySlot::hasCapability, listener, x, y);
+    }
+
+    public static HybridInventorySlot inputOrDrainOrConvert(MergedTank mergedTank, Supplier<?> worldSupplier,
+          @Nullable IContentsListener listener, int x, int y) {
+        Objects.requireNonNull(mergedTank, "Merged tank cannot be null");
+        Objects.requireNonNull(worldSupplier, "World supplier cannot be null");
+        Predicate<ItemStack> fluidInsertPredicate = FluidInventorySlot.getFillPredicate(mergedTank.getFluidTank());
+        Predicate<ItemStack> gasInsertPredicate = stack -> GasInventorySlot.fillOrConvertInsertCheck(mergedTank.getGasTank(), worldSupplier, stack);
+        BiPredicate<ItemStack, AutomationType> insertPredicate = (stack, automationType) -> {
+            CurrentType currentType = mergedTank.getCurrentType();
+            if (currentType == CurrentType.FLUID) {
+                return fluidInsertPredicate.test(stack);
+            }
+            if (currentType.isGas()) {
+                return gasInsertPredicate.test(stack);
+            }
+            return fluidInsertPredicate.test(stack) || gasInsertPredicate.test(stack);
+        };
+        Predicate<ItemStack> validator = stack -> hasCapability(stack) || gasInsertPredicate.test(stack);
+        return new HybridInventorySlot(mergedTank, (stack, automationType) -> automationType == AutomationType.MANUAL ||
+              !insertPredicate.test(stack, automationType), insertPredicate, validator, listener, x, y);
     }
 
     public static HybridInventorySlot outputOrFill(MergedTank mergedTank, @Nullable IContentsListener listener, int x, int y) {

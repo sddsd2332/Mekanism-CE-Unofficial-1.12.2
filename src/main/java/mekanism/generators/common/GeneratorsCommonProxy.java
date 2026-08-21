@@ -124,4 +124,21 @@ public class GeneratorsCommonProxy implements IGuiProvider {
         };
 
     }
+
+    @Override
+    public boolean isValidServerGui(int ID, TileEntity tile) {
+        return switch (ID) {
+            case 0 -> tile instanceof TileEntityHeatGenerator;
+            case 1 -> tile instanceof TileEntitySolarGenerator;
+            case 3 -> tile instanceof TileEntityGasGenerator;
+            case 4 -> tile instanceof TileEntityBioGenerator;
+            case 5 -> tile instanceof TileEntityWindGenerator;
+            case 6, 7 -> tile instanceof TileEntityTurbineCasing;
+            case 10, 11, 12, 13 -> tile instanceof TileEntityReactorController;
+            case 15 -> tile instanceof TileEntityReactorLogicAdapter;
+            case 16, 17 -> tile instanceof TileEntityFissionReactorCasing;
+            case 18 -> tile instanceof TileEntityFissionReactorLogicAdapter;
+            default -> false;
+        };
+    }
 }

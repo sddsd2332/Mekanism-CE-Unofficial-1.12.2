@@ -19,6 +19,12 @@ import java.util.HashSet;
 import java.util.Set;
 
 /** Persistent runtime envelope for one frequency-level order. */
+/**
+ * QIO 处理模块中的 QIOCraftingJob 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOCraftingJob {
 
     private final UUID jobId;
@@ -43,13 +49,16 @@ public final class QIOCraftingJob {
     private long slotAcquiredAtSchedulerClock;
     private boolean cancellationRequested;
     private long deliveredRootAmount;
+    @Nullable
+    private String recoveryDiagnostic;
 
+    /** 创建一个新的 QIO 合成任务。 */
     public QIOCraftingJob(@Nonnull UUID jobId, @Nonnull QIOCraftingJobSource source,
           @Nullable UUID requester, long basePriority, long enqueueSequence, long createdAtTick,
           @Nonnull QIOCraftPlan activePlan) {
         this(jobId, source, requester, basePriority, enqueueSequence, createdAtTick, activePlan,
               QIOCraftingJobState.QUEUED, 0, -1, -1, null, -1, false, 0,
-              activePlan.getRootAmount(), null, null, null);
+              activePlan.getRootAmount(), null, null, null, null);
     }
 
     private QIOCraftingJob(UUID jobId, QIOCraftingJobSource source, @Nullable UUID requester,
@@ -60,7 +69,8 @@ public final class QIOCraftingJob {
           long deliveredRootAmount, long requestedRootAmount,
           @Nullable Map<Long, QIOStepRuntime> restoredRuntimes,
           @Nullable QIOPlanRevisionTransition revisionTransition,
-          @Nullable Map<Long, QIOCycleRuntime> restoredCycleRuntimes) {
+          @Nullable Map<Long, QIOCycleRuntime> restoredCycleRuntimes,
+          @Nullable String recoveryDiagnostic) {
         this.jobId = Objects.requireNonNull(jobId, "jobId");
         this.source = Objects.requireNonNull(source, "source");
         this.requester = requester;
@@ -84,6 +94,8 @@ public final class QIOCraftingJob {
         this.cancellationRequested = cancellationRequested;
         this.deliveredRootAmount = QIOProcessingNbt.requireNonNegative(deliveredRootAmount,
               "deliveredRootAmount");
+        this.recoveryDiagnostic = recoveryDiagnostic == null ? null : checkedDiagnostic(
+              recoveryDiagnostic);
         if (this.deliveredRootAmount > requestedRootAmount) {
             throw new IllegalArgumentException("Delivered QIO root amount exceeds the request");
         }
@@ -93,24 +105,29 @@ public final class QIOCraftingJob {
     }
 
     @Nonnull
+    /** 返回任务唯一标识。 */
     public UUID getJobId() {
         return jobId;
     }
 
     @Nonnull
+    /** 返回任务来源。 */
     public QIOCraftingJobSource getSource() {
         return source;
     }
 
     @Nullable
+    /** 返回请求者 UUID；系统任务可能为 null。 */
     public UUID getRequester() {
         return requester;
     }
 
+    /** 返回调度基础优先级。 */
     public long getBasePriority() {
         return basePriority;
     }
 
+    /** 更新调度基础优先级。 */
     public void updateBasePriority(long priority) {
         if (state.isTerminal()) {
             throw new IllegalStateException("A terminal QIO job cannot change priority");
@@ -121,33 +138,40 @@ public final class QIOCraftingJob {
         }
     }
 
+    /** 返回进入调度队列的序号。 */
     public long getEnqueueSequence() {
         return enqueueSequence;
     }
 
+    /** 返回任务创建 tick。 */
     public long getCreatedAtTick() {
         return createdAtTick;
     }
 
+    /** 返回根产物请求数量。 */
     public long getRequestedRootAmount() {
         return requestedRootAmount;
     }
 
     @Nonnull
+    /** 返回当前生效的合成计划。 */
     public QIOCraftPlan getActivePlan() {
         return activePlan;
     }
 
     @Nullable
+    /** 返回待处理的计划版本迁移；没有迁移时为 null。 */
     public QIOPlanRevisionTransition getRevisionTransition() {
         return revisionTransition;
     }
 
+    /** 判断任意步骤是否仍有活动操作。 */
     public boolean hasActiveOperations() {
         return stepRuntimes.values().stream().anyMatch(runtime ->
               runtime.hasActiveAssignments());
     }
 
+    /** 提交新的计划版本，等待当前操作安全边界后切换。 */
     public void requestReplan(@Nonnull QIOCraftPlan nextPlan) {
         QIOCraftPlan checked = Objects.requireNonNull(nextPlan, "nextPlan");
         if (state.isTerminal() || cancellationRequested || revisionTransition != null ||
@@ -160,6 +184,7 @@ public final class QIOCraftingJob {
         incrementRuntimeRevision();
     }
 
+    /** 激活已准备好的待切换计划。 */
     public void activatePendingPlan() {
         if (revisionTransition == null || hasActiveOperations()) {
             throw new IllegalStateException("QIO plan revision is not ready to activate");
@@ -173,6 +198,7 @@ public final class QIOCraftingJob {
         incrementRuntimeRevision();
     }
 
+    /** 取消尚未激活的计划迁移。 */
     public void cancelPendingReplan() {
         if (revisionTransition != null) {
             revisionTransition = null;
@@ -181,25 +207,30 @@ public final class QIOCraftingJob {
     }
 
     @Nonnull
+    /** 返回步骤运行时的只读视图。 */
     public Map<Long, QIOStepRuntime> getStepRuntimes() {
         return Collections.unmodifiableMap(new LinkedHashMap<>(stepRuntimes));
     }
 
     @Nullable
+    /** 按节点标识取得步骤运行时。 */
     public QIOStepRuntime getStepRuntime(long nodeId) {
         return stepRuntimes.get(nodeId);
     }
 
+    /** 判断计划中所有步骤是否已完成。 */
     public boolean areAllStepsComplete() {
         return stepRuntimes.values().stream().allMatch(QIOStepRuntime::isComplete) &&
               cycleRuntimes.values().stream().allMatch(QIOCycleRuntime::isComplete);
     }
 
     @Nonnull
+    /** 返回循环节点运行时的只读视图。 */
     public Map<Long, QIOCycleRuntime> getCycleRuntimes() {
         return Collections.unmodifiableMap(new LinkedHashMap<>(cycleRuntimes));
     }
 
+    /** 返回循环调度允许给指定成员的批次数。 */
     public long getCycleDispatchAllowance(long memberNodeId) {
         QIOCyclePlanNode cycle = activePlan.getCycleForMember(memberNodeId);
         if (cycle == null) return Long.MAX_VALUE;
@@ -209,6 +240,7 @@ public final class QIOCraftingJob {
               runtime.allowance(cycle, memberNodeId, member);
     }
 
+    /** 判断指定节点的所有依赖是否已完成。 */
     public boolean areDependenciesComplete(long nodeId) {
         mekanism.qioprocessing.common.content.plan.QIOPlanStep step = activePlan.getSteps().stream()
               .filter(candidate -> candidate.getNodeId() == nodeId).findFirst().orElse(null);
@@ -224,11 +256,13 @@ public final class QIOCraftingJob {
         return true;
     }
 
+    /** 在指定步骤登记一个新的操作分配。 */
     public void startStepOperation(long nodeId, @Nonnull QIOOperationAssignment assignment) {
         requireStepRuntime(nodeId).start(assignment);
         incrementRuntimeRevision();
     }
 
+    /** 更新指定步骤操作的执行进度。 */
     public boolean updateStepOperation(long nodeId, @Nonnull UUID operationId,
           @Nonnull QIOOperationAssignment.State state, long currentTick, long totalTicks,
           @Nullable String diagnostic) {
@@ -240,6 +274,7 @@ public final class QIOCraftingJob {
         return true;
     }
 
+    /** 结算指定步骤操作。 */
     public void completeStepOperation(long nodeId, @Nonnull UUID operationId) {
         QIOStepRuntime runtime = requireStepRuntime(nodeId);
         QIOOperationAssignment assignment = runtime.getOperation(operationId);
@@ -252,6 +287,7 @@ public final class QIOCraftingJob {
         incrementRuntimeRevision();
     }
 
+    /** 记录指定步骤操作失败。 */
     public void failStepOperation(long nodeId, @Nonnull UUID operationId,
           @Nonnull String diagnostic) {
         requireStepRuntime(nodeId).fail(operationId, diagnostic);
@@ -259,43 +295,80 @@ public final class QIOCraftingJob {
     }
 
     @Nonnull
+    /** 返回任务生命周期状态。 */
     public QIOCraftingJobState getState() {
         return state;
     }
 
+    /** 返回任务运行时版本号。 */
     public long getRuntimeRevision() {
         return runtimeRevision;
     }
 
+    /** 返回进入可运行状态时的调度时钟。 */
     public long getReadySinceSchedulerClock() {
         return readySinceSchedulerClock;
     }
 
+    /** 返回最近一次派发序号。 */
     public long getLastDispatchSequence() {
         return lastDispatchSequence;
     }
 
     @Nullable
+    /** 返回当前执行槽 token。 */
     public UUID getExecutionSlotToken() {
         return executionSlotToken;
     }
 
+    /** 返回执行槽取得时的调度时钟。 */
     public long getSlotAcquiredAtSchedulerClock() {
         return slotAcquiredAtSchedulerClock;
     }
 
+    /** 返回是否收到取消请求。 */
     public boolean isCancellationRequested() {
         return cancellationRequested;
     }
 
+    @Nullable
+    /** 返回任务恢复诊断文本。 */
+    public String getRecoveryDiagnostic() {
+        return recoveryDiagnostic;
+    }
+
+    /** Holds a job at a durable player-decision point after forced machine recovery. */
+    /** 标记任务经历强制恢复并保存诊断。 */
+    public void markForcedRecovery(@Nonnull String diagnostic) {
+        if (state.isTerminal() || cancellationRequested) {
+            throw new IllegalStateException("A terminal/cancelling QIO job cannot await recovery");
+        }
+        recoveryDiagnostic = checkedDiagnostic(diagnostic);
+        transitionTo(QIOCraftingJobState.OPERATION_CONTAMINATED);
+    }
+
+    /** Accepts the player's explicit redispatch decision and starts asynchronous replanning. */
+    /** 接受强制恢复后的重新派发。 */
+    public void acceptForcedRecoveryRedispatch() {
+        if (state != QIOCraftingJobState.OPERATION_CONTAMINATED ||
+            recoveryDiagnostic == null || hasActiveOperations() || cancellationRequested) {
+            throw new IllegalStateException("QIO job is not ready for recovery redispatch");
+        }
+        recoveryDiagnostic = null;
+        transitionTo(QIOCraftingJobState.PLANNING);
+    }
+
+    /** 返回已交付根产物数量。 */
     public long getDeliveredRootAmount() {
         return deliveredRootAmount;
     }
 
+    /** 返回仍需保证交付的根产物数量。 */
     public long getRemainingGuaranteedRootAmount() {
         return requestedRootAmount - deliveredRootAmount;
     }
 
+    /** 记录一次根产物交付数量。 */
     public void recordRootDelivery(long amount) {
         if (amount <= 0) {
             throw new IllegalArgumentException("Delivered QIO root amount must be positive");
@@ -308,6 +381,7 @@ public final class QIOCraftingJob {
         incrementRuntimeRevision();
     }
 
+    /** 请求取消任务；已终止任务不会重复变更。 */
     public boolean requestCancellation() {
         if (state.isTerminal() || cancellationRequested) {
             return false;
@@ -328,6 +402,7 @@ public final class QIOCraftingJob {
         return jobId + "/plan/" + revisionTransition.getPendingPlan().getRevision();
     }
 
+    /** 按任务状态机推进到目标状态。 */
     public void transitionTo(@Nonnull QIOCraftingJobState nextState) {
         Objects.requireNonNull(nextState, "nextState");
         if (isRunnableState(nextState) && state != nextState) {
@@ -339,6 +414,7 @@ public final class QIOCraftingJob {
         }
     }
 
+    /** 推进到可调度状态并记录调度时钟。 */
     public void transitionToRunnable(@Nonnull QIOCraftingJobState nextState,
           long schedulerClock) {
         Objects.requireNonNull(nextState, "nextState");
@@ -354,6 +430,7 @@ public final class QIOCraftingJob {
         }
     }
 
+    /** 记录一次调度派发序号。 */
     public void recordDispatch(long dispatchSequence) {
         long checkedSequence = QIOProcessingNbt.requireNonNegative(dispatchSequence,
               "dispatchSequence");
@@ -374,6 +451,7 @@ public final class QIOCraftingJob {
         }
     }
 
+    /** 为任务分配执行槽。 */
     public void assignExecutionSlot(@Nonnull UUID slotToken, long schedulerClock) {
         if (executionSlotToken != null) {
             throw new IllegalStateException("QIO job already owns an execution slot");
@@ -387,6 +465,7 @@ public final class QIOCraftingJob {
         incrementRuntimeRevision();
     }
 
+    /** 清除指定 token 对应的执行槽。 */
     public void clearExecutionSlot(@Nonnull UUID expectedToken) {
         if (!Objects.equals(executionSlotToken, Objects.requireNonNull(expectedToken, "expectedToken"))) {
             throw new IllegalStateException("QIO execution slot token does not match its job");
@@ -397,6 +476,7 @@ public final class QIOCraftingJob {
     }
 
     @Nonnull
+    /** 将任务、计划、步骤运行时和调度字段写入 NBT。 */
     public NBTTagCompound write() {
         NBTTagCompound data = new NBTTagCompound();
         QIOProcessingNbt.writeUUID(data, "jobId", jobId);
@@ -413,6 +493,9 @@ public final class QIOCraftingJob {
         data.setLong("lastDispatchSequence", lastDispatchSequence);
         data.setBoolean("cancellationRequested", cancellationRequested);
         data.setLong("deliveredRootAmount", deliveredRootAmount);
+        if (recoveryDiagnostic != null) {
+            data.setString("recoveryDiagnostic", recoveryDiagnostic);
+        }
         data.setLong("requestedRootAmount", requestedRootAmount);
         data.setTag("activePlan", activePlan.write());
         if (revisionTransition != null) {
@@ -436,6 +519,7 @@ public final class QIOCraftingJob {
     }
 
     @Nonnull
+    /** 从 NBT 读取并校验任务状态、计划版本和活动操作。 */
     public static QIOCraftingJob read(@Nonnull NBTTagCompound data) throws QIOProcessingDataException {
         try {
             if (!data.hasKey("readySinceSchedulerClock", NBT.TAG_LONG) ||
@@ -488,7 +572,9 @@ public final class QIOCraftingJob {
                   data.getLong("requestedRootAmount"), runtimes,
                   data.hasKey("revisionTransition", NBT.TAG_COMPOUND) ?
                         QIOPlanRevisionTransition.read(data.getCompoundTag("revisionTransition")) : null,
-                  cycleRuntimes);
+                  cycleRuntimes,
+                  data.hasKey("recoveryDiagnostic", NBT.TAG_STRING) ?
+                        data.getString("recoveryDiagnostic") : null);
         } catch (QIOProcessingDataException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -592,5 +678,13 @@ public final class QIOCraftingJob {
     private static boolean isRunnableState(QIOCraftingJobState state) {
         return state == QIOCraftingJobState.WAITING_EXECUTION_SLOT ||
               state == QIOCraftingJobState.READY;
+    }
+
+    private static String checkedDiagnostic(String value) {
+        String checked = Objects.requireNonNull(value, "recovery diagnostic").trim();
+        if (checked.isEmpty()) {
+            throw new IllegalArgumentException("QIO recovery diagnostic cannot be empty");
+        }
+        return checked.substring(0, Math.min(512, checked.length()));
     }
 }

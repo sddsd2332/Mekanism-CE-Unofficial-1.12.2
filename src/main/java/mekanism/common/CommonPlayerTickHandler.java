@@ -57,12 +57,8 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 public class CommonPlayerTickHandler {
-
-    public static final List<UUID> FLYING_PLAYERS = new ArrayList<>();
-
 
     public static boolean isOnGroundOrSleeping(EntityPlayer player) {
         return player.onGround || player.isSneaking() || player.capabilities.isFlying;
@@ -360,16 +356,6 @@ public class CommonPlayerTickHandler {
             }
         }
         return null;
-    }
-
-
-    @SubscribeEvent
-    public static void playerLoggedOut(net.minecraftforge.fml.common.gameevent.PlayerEvent.PlayerLoggedOutEvent event) {
-        removeFlyingPlayer(event.player.getUniqueID());
-    }
-
-    private static void removeFlyingPlayer(UUID playerUUID) {
-        FLYING_PLAYERS.removeIf(uuid -> uuid.equals(playerUUID));
     }
 
 

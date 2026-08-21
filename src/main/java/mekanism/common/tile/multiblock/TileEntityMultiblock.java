@@ -156,7 +156,7 @@ public abstract class TileEntityMultiblock<T extends SynchronizedData<T>> extend
         if (structure != null) {
             structure.didTick = false;
             if (structure.inventoryID != null) {
-                syncCachedDataFromStructure();
+                syncCanonicalCacheFromStructure();
             }
         }
     }
@@ -199,6 +199,21 @@ public abstract class TileEntityMultiblock<T extends SynchronizedData<T>> extend
             }
             getManager().updateCache(this);
         }
+    }
+
+    /** Keeps the runtime cache current once per structure tick without copying every casing replica. */
+    private void syncCanonicalCacheFromStructure() {
+        if (structure == null || structure.inventoryID == null || world == null) {
+            return;
+        }
+        cachedID = structure.inventoryID;
+        long gameTime = world.getTotalWorldTime();
+        boolean syncCanonical = getManager().tryClaimCacheSync(world.provider.getDimension(), cachedID, gameTime);
+        if (syncCanonical) {
+            cachedData.sync(structure);
+            cachedDataTimestamp = gameTime;
+        }
+        getManager().updateCache(this, syncCanonical);
     }
 
     public void sendPacketToRenderer() {

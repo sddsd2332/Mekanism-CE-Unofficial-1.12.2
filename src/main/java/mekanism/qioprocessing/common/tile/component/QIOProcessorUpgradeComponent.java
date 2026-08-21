@@ -9,6 +9,12 @@ import mekanism.qioprocessing.common.tile.QIOCraftingProcessor;
 import javax.annotation.Nonnull;
 
 /** Applies definition-specific upgrade limits on top of Mekanism's shared upgrade component. */
+/**
+ * QIO 处理模块中的 QIOProcessorUpgradeComponent 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOProcessorUpgradeComponent extends TileComponentUpgrade {
 
     private final QIOCraftingProcessor processor;

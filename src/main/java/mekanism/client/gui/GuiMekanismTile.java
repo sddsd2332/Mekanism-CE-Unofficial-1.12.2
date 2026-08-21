@@ -13,6 +13,8 @@ import mekanism.common.security.ISecurityTile;
 import mekanism.common.tile.component.config.DataType;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
 import mekanism.common.util.MekanismUtils;
+import mekanism.qioprocessing.api.machine.QIOAutomationHost;
+import mekanism.qioprocessing.common.machine.QIOAutomationCapabilities;
 import net.minecraft.inventory.Container;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraftforge.fml.relauncher.Side;
@@ -47,6 +49,7 @@ public abstract class GuiMekanismTile<TILE extends TileEntityContainerBlock, CON
     }
 
     protected void addGenericTabs() {
+        addQIOAutomationWarning();
         if (tileEntity instanceof IUpgradeTile upgradeTile && upgradeTile.supportsUpgrades()) {
             upgradeWindowTab = addButton(new GuiUpgradeWindowTab(this, tileEntity, () -> upgradeWindowTab));
         }
@@ -60,6 +63,18 @@ public abstract class GuiMekanismTile<TILE extends TileEntityContainerBlock, CON
               MekanismTileGuiExtensionRegistry.createElements(this, tileEntity)) {
             addButton(extension);
         }
+    }
+
+    private void addQIOAutomationWarning() {
+        if (!tileEntity.hasCapability(QIOAutomationCapabilities.AUTOMATION_HOST, null)) {
+            return;
+        }
+        trackWarning(mekanism.client.gui.warning.WarningTracker.WarningType.QIO_AUTOMATION_ERROR, () -> {
+            QIOAutomationHost host = tileEntity.getCapability(
+                  QIOAutomationCapabilities.AUTOMATION_HOST, null);
+            return host != null && (host.getState() == QIOAutomationHost.State.IDENTITY_CONFLICT ||
+                  host.hasRecoveryPending() || host.getRecoveryDiagnostic() != null);
+        });
     }
 
     protected <REDSTONE_TILE extends TileEntity & IRedstoneControl> void addRedstoneControlTab(REDSTONE_TILE tile) {

@@ -5,6 +5,7 @@ import mekanism.common.config.MekanismConfig;
 import mekanism.qioprocessing.common.content.QIOProcessingNetworkData;
 import mekanism.qioprocessing.common.content.device.QIOAutomationDeviceSnapshot;
 import mekanism.qioprocessing.common.machine.QIOAutomationDeviceRegistry;
+import mekanism.qioprocessing.common.machine.QIOAutomationForcedRecoveryService;
 import mekanism.qioprocessing.common.processor.QIOCraftingProcessorDeviceRegistry;
 
 import javax.annotation.Nonnull;
@@ -12,11 +13,18 @@ import java.util.Objects;
 import java.util.UUID;
 
 /** Loaded-only machine command service. It never resolves worlds or loads chunks. */
+/**
+ * QIO 处理模块中的 QIODeviceCommandService 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIODeviceCommandService {
 
     public enum Command {
         PAUSE,
-        RESUME
+        RESUME,
+        RECOVER
     }
 
     private QIODeviceCommandService() {
@@ -51,6 +59,44 @@ public final class QIODeviceCommandService {
         if (!snapshot.isOnline()) return result(requestId, deviceUUID,
               QIODeviceCommandResult.Status.OFFLINE, network,
               snapshot.getConfigurationRevision(), snapshot.isManagementPaused());
+
+        if (command == Command.RECOVER) {
+            if (snapshot.getKind() != QIOAutomationDeviceSnapshot.Kind.AUTOMATION_MACHINE) {
+                return result(requestId, deviceUUID, QIODeviceCommandResult.Status.INVALID_STATE,
+                      network, snapshot.getConfigurationRevision(), snapshot.isManagementPaused());
+            }
+            QIOAutomationDeviceRegistry.LoadedDevice loaded =
+                  QIOAutomationDeviceRegistry.INSTANCE.findLoadedDeviceForRecovery(deviceUUID);
+            if (loaded == null || !loaded.location().equals(snapshot.getLocation())) {
+                return result(requestId, deviceUUID, QIODeviceCommandResult.Status.IDENTITY_MISMATCH,
+                      network, snapshot.getConfigurationRevision(), snapshot.isManagementPaused());
+            }
+            if (loaded.host().getFrequencyReference() == null ||
+                !network.getFrequencyUUID().equals(
+                      loaded.host().getFrequencyReference().getFrequencyUUID())) {
+                return result(requestId, deviceUUID, QIODeviceCommandResult.Status.IDENTITY_MISMATCH,
+                      network, snapshot.getConfigurationRevision(), snapshot.isManagementPaused());
+            }
+            if (loaded.host().getConfigurationRevision() != expectedConfigurationRevision) {
+                return result(requestId, deviceUUID, QIODeviceCommandResult.Status.REVISION_CONFLICT,
+                      network, loaded.host().getConfigurationRevision(), loaded.host().isManagementPaused());
+            }
+            if (loaded.host().getRecoveryState() !=
+                  mekanism.qioprocessing.api.machine.QIOAutomationHost.RecoveryState.QUARANTINED &&
+                  loaded.host().getState() !=
+                        mekanism.qioprocessing.api.machine.QIOAutomationHost.State.DATA_ERROR) {
+                return result(requestId, deviceUUID, QIODeviceCommandResult.Status.UNCHANGED,
+                      network, loaded.host().getConfigurationRevision(), loaded.host().isManagementPaused());
+            }
+            if (!QIOAutomationForcedRecoveryService.forceClear(loaded.mutableHost())) {
+                return result(requestId, deviceUUID, QIODeviceCommandResult.Status.INVALID_STATE,
+                      network, loaded.host().getConfigurationRevision(), loaded.host().isManagementPaused());
+            }
+            QIOAutomationDeviceRegistry.INSTANCE.refreshHost(loaded.mutableHost());
+            return result(requestId, deviceUUID, QIODeviceCommandResult.Status.ACCEPTED,
+                  network, loaded.host().getConfigurationRevision(), loaded.host().isManagementPaused());
+        }
+
         boolean paused = command == Command.PAUSE;
         long updatedRevision;
         if (snapshot.getKind() == QIOAutomationDeviceSnapshot.Kind.CRAFTING_PROCESSOR) {

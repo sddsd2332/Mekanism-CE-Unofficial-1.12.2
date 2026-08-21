@@ -15,6 +15,8 @@ import java.util.Set;
 
 public class PacketBoxBlacklist implements IMessageHandler<BoxBlacklistMessage, IMessage> {
 
+    private static final int MAX_BLACKLIST_ENTRIES = 65_536;
+
     @Override
     public IMessage onMessage(BoxBlacklistMessage message, MessageContext context) {
         return null;
@@ -37,12 +39,18 @@ public class PacketBoxBlacklist implements IMessageHandler<BoxBlacklistMessage, 
 
         @Override
         public void fromBytes(ByteBuf dataStream) {
-            MekanismAPI.getBoxIgnore().clear();
             int amount = dataStream.readInt();
+            if (amount < 0 || amount > MAX_BLACKLIST_ENTRIES || (long) amount * 8 > dataStream.readableBytes()) {
+                throw new IllegalArgumentException("Invalid explicit box blacklist size: " + amount);
+            }
+            MekanismAPI.getBoxIgnore().clear();
             for (int i = 0; i < amount; i++) {
                 MekanismAPI.addBoxBlacklist(Block.getBlockById(dataStream.readInt()), dataStream.readInt());
             }
             int amountMods = dataStream.readInt();
+            if (amountMods < 0 || amountMods > MAX_BLACKLIST_ENTRIES) {
+                throw new IllegalArgumentException("Invalid mod box blacklist size: " + amountMods);
+            }
             for (int i = 0; i < amountMods; i++) {
                 MekanismAPI.addBoxBlacklistMod(ByteBufUtils.readUTF8String(dataStream));
             }

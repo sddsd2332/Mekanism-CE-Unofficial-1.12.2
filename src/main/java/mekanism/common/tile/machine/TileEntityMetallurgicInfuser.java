@@ -344,10 +344,10 @@ public class TileEntityMetallurgicInfuser extends TileEntityUpgradeableMachine<I
     public void handlePacketData(ByteBuf dataStream) {
         if (FMLCommonHandler.instance().getEffectiveSide().isServer()) {
             int amount = dataStream.readInt();
-            if (amount == 0) {
+            if (amount <= 0) {
                 infuseStored.setEmpty();
             } else {
-                infuseStored.setAmount(amount);
+                infuseStored.setAmount(Math.min(amount, MAX_INFUSE));
             }
             return;
         }

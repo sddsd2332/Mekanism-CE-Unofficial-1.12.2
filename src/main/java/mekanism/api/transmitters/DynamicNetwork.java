@@ -205,7 +205,7 @@ public abstract class DynamicNetwork<ACCEPTOR, NETWORK extends DynamicNetwork<AC
             }
             if (coord.z < minZ) {
                 minZ = coord.z;
-            } else if (coord.x > maxZ) {
+            } else if (coord.z > maxZ) {
                 maxZ = coord.z;
             }
         }

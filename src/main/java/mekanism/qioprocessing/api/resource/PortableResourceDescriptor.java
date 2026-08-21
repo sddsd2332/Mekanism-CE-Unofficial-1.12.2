@@ -25,6 +25,12 @@ import java.util.Objects;
 /**
  * World-independent, amount-free identity used by QIO processing plans and persistence.
  */
+/**
+ * QIO 处理模块中的 PortableResourceDescriptor 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class PortableResourceDescriptor implements Comparable<PortableResourceDescriptor> {
 
     public enum Kind {
@@ -73,12 +79,14 @@ public final class PortableResourceDescriptor implements Comparable<PortableReso
               Objects.hash(kind, this.registryName, metadata, this.tag, this.capabilities);
     }
 
+    /** 根据资源种类、注册名、元数据和标签创建数量无关的资源身份。 */
     @Nonnull
     public static PortableResourceDescriptor named(@Nonnull Kind kind,
           @Nonnull String registryName, int metadata, @Nullable NBTTagCompound tag) {
         return new PortableResourceDescriptor(kind, registryName, metadata, tag);
     }
 
+    /** 从物品堆提取包含 ForgeCaps 的可持久化资源身份。 */
     @Nonnull
     public static PortableResourceDescriptor item(@Nonnull ItemStack stack) {
         Objects.requireNonNull(stack, "stack");
@@ -96,6 +104,7 @@ public final class PortableResourceDescriptor implements Comparable<PortableReso
               stack.getMetadata(), stack.getTagCompound(), capabilities);
     }
 
+    /** 从流体堆提取注册名和标签。 */
     @Nonnull
     public static PortableResourceDescriptor fluid(@Nonnull FluidStack stack) {
         Objects.requireNonNull(stack, "stack");
@@ -109,6 +118,7 @@ public final class PortableResourceDescriptor implements Comparable<PortableReso
         return new PortableResourceDescriptor(Kind.FLUID, registryName, 0, stack.tag);
     }
 
+    /** 从气体堆提取气体注册名。 */
     @Nonnull
     public static PortableResourceDescriptor gas(@Nonnull GasStack stack) {
         Objects.requireNonNull(stack, "stack");
@@ -118,6 +128,7 @@ public final class PortableResourceDescriptor implements Comparable<PortableReso
         return new PortableResourceDescriptor(Kind.GAS, stack.getGas().getName(), 0, null);
     }
 
+    /** 将 QIO 存储条目转换为统一资源身份。 */
     @Nonnull
     public static PortableResourceDescriptor fromStorageEntry(@Nonnull QIOStorageEntry entry) {
         Objects.requireNonNull(entry, "entry");
@@ -128,25 +139,30 @@ public final class PortableResourceDescriptor implements Comparable<PortableReso
         };
     }
 
+    /** 返回资源种类。 */
     @Nonnull
     public Kind getKind() {
         return kind;
     }
 
+    /** 返回 Forge 注册表名称。 */
     @Nonnull
     public String getRegistryName() {
         return registryName;
     }
 
+    /** 返回物品元数据；流体和气体固定为零。 */
     public int getMetadata() {
         return metadata;
     }
 
+    /** 返回标签副本，调用方修改不会影响描述符。 */
     @Nullable
     public NBTTagCompound getTag() {
         return tag == null ? null : tag.copy();
     }
 
+    /** 尝试按当前注册表解析物品；无法解析时返回空堆。 */
     @Nonnull
     public ItemStack resolveItem() {
         if (kind != Kind.ITEM) {
@@ -169,6 +185,7 @@ public final class PortableResourceDescriptor implements Comparable<PortableReso
         return stack;
     }
 
+    /** 尝试按当前注册表解析流体；无法解析时返回 null。 */
     @Nullable
     public FluidStack resolveFluid() {
         if (kind != Kind.FLUID) {
@@ -178,6 +195,7 @@ public final class PortableResourceDescriptor implements Comparable<PortableReso
         return fluid == null ? null : new FluidStack(fluid, 1, tag == null ? null : tag.copy());
     }
 
+    /** 尝试按当前注册表解析气体；无法解析时返回 null。 */
     @Nullable
     public GasStack resolveGas() {
         if (kind != Kind.GAS) {
@@ -187,6 +205,7 @@ public final class PortableResourceDescriptor implements Comparable<PortableReso
         return gas == null ? null : new GasStack(gas, 1);
     }
 
+    /** 将资源身份写入稳定的 NBT 表示。 */
     @Nonnull
     public NBTTagCompound write() {
         NBTTagCompound data = new NBTTagCompound();
@@ -204,6 +223,7 @@ public final class PortableResourceDescriptor implements Comparable<PortableReso
         return data;
     }
 
+    /** 从 NBT 读取资源身份并校验种类/元数据约束。 */
     @Nonnull
     public static PortableResourceDescriptor read(@Nonnull NBTTagCompound data) {
         Objects.requireNonNull(data, "data");

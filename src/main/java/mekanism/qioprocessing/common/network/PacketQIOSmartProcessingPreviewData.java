@@ -17,6 +17,12 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.UUID;
 
+/**
+ * QIO 处理模块中的 PacketQIOSmartProcessingPreviewData 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class PacketQIOSmartProcessingPreviewData implements IMessageHandler<PacketQIOSmartProcessingPreviewData.Message,IMessage>{
     @Override public IMessage onMessage(Message message,MessageContext context){EntityPlayer p=PacketHandler.getPlayer(context);if(p==null||!p.world.isRemote)return null;PacketHandler.handlePacket(()->{if(!message.valid||!(p.openContainer instanceof QIOSmartProcessingPageContainer c)||p.openContainer.windowId!=message.windowId)return;QIOProcessingTerminalContainerState s=c.getTerminalState();if(s.matches(message.sessionNonce,message.terminalUUID,message.targetRevision,message.frequencyUUID,message.accessRevision))c.getSmartProcessingClientCache().applyPreview(message.sessionNonce,message.requestId,message.actionStatus,message.snapshot);},p);return null;}
     public static final class Message implements IMessage{

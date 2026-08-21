@@ -109,9 +109,9 @@ public final class MekanismMachineRecipeProviders {
               tile -> MachineRecipeRouteCollectors.collectFarmGasToItem(tile.getRecipes(), tile.getRecipeGasUsagePerOperation()),
               tile -> ports(
                     MachinePort.item("item_input", MachinePort.Role.INPUT, tile.inputSlot),
-                    MachinePort.gas("gas_input", MachinePort.Role.INPUT, tile.gasTank),
-                    MachinePort.item("item_output", MachinePort.Role.OUTPUT, tile.outputSlot),
-                    MachinePort.item("secondary_item_output", MachinePort.Role.OUTPUT, tile.secondaryOutputSlot)),
+                    MachinePort.gas("gas_input", MachinePort.Role.INPUT, tile.mergedTank.getGasTank()),
+                    MachinePort.fluid("fluid_input", MachinePort.Role.INPUT, tile.mergedTank.getFluidTank()),
+                    MachinePort.itemGroup("item_output", MachinePort.Role.OUTPUT, new ArrayList<>(tile.getOutputSlots()), "item_output", 0)),
               TileEntityFarmMachine::getRecipeGasUsagePerOperation);
     }
 
@@ -243,7 +243,6 @@ public final class MekanismMachineRecipeProviders {
             case AllOY -> RecipeHandler.Recipe.ALLOY.get();
             case EXTRACTOR -> RecipeHandler.Recipe.CELL_EXTRACTOR.get();
             case SEPARATOR -> RecipeHandler.Recipe.CELL_SEPARATOR.get();
-            case FARM -> RecipeHandler.Recipe.ORGANIC_FARM.get();
             case RECYCLER -> RecipeHandler.Recipe.RECYCLER.get();
             case PRC -> RecipeHandler.Recipe.PRESSURIZED_REACTION_CHAMBER.get();
             case NUCLEOSYNTHESIZER -> RecipeHandler.Recipe.ANTIPROTONIC_NUCLEOSYNTHESIZER.get();
@@ -271,8 +270,6 @@ public final class MekanismMachineRecipeProviders {
             case AllOY -> MachineRecipeRouteCollectors.collectDoubleItem(RecipeHandler.Recipe.ALLOY.get());
             case EXTRACTOR -> MachineRecipeRouteCollectors.collectChanceItem(RecipeHandler.Recipe.CELL_EXTRACTOR.get());
             case SEPARATOR -> MachineRecipeRouteCollectors.collectChanceItem(RecipeHandler.Recipe.CELL_SEPARATOR.get());
-            case FARM -> MachineRecipeRouteCollectors.collectFarmGasToItem(
-                  RecipeHandler.Recipe.ORGANIC_FARM.get(), tile.getRecipeGasUsagePerOperation());
             case RECYCLER -> MachineRecipeRouteCollectors.collectGuaranteedChanceItem(RecipeHandler.Recipe.RECYCLER.get());
             case PRC -> MachineRecipeRouteCollectors.collectPressurized(RecipeHandler.Recipe.PRESSURIZED_REACTION_CHAMBER.get());
             case NUCLEOSYNTHESIZER -> MachineRecipeRouteCollectors.collectNucleosynthesizerGasToItem(
@@ -284,8 +281,7 @@ public final class MekanismMachineRecipeProviders {
     private static List<MachinePort> getFactoryPorts(TileEntityFactory tile) {
         List<MachinePort> ports = new ArrayList<>();
         RecipeType type = tile.getRecipeType();
-        boolean hasSecondaryOutput = type == RecipeType.SAWING || type == RecipeType.EXTRACTOR ||
-              type == RecipeType.SEPARATOR || type == RecipeType.FARM;
+        boolean hasSecondaryOutput = type == RecipeType.SAWING || type == RecipeType.EXTRACTOR || type == RecipeType.SEPARATOR;
         List<IInventorySlot> inputs = new ArrayList<>();
         List<IInventorySlot> outputs = new ArrayList<>();
         List<IInventorySlot> secondaryOutputs = new ArrayList<>();
@@ -309,7 +305,7 @@ public final class MekanismMachineRecipeProviders {
                   "extra_item_input", MachinePort.SHARED_LANE));
         }
         if (type == RecipeType.COMPRESSING || type == RecipeType.PURIFYING || type == RecipeType.INJECTING ||
-            type == RecipeType.FARM || type == RecipeType.NUCLEOSYNTHESIZER || type == RecipeType.PRC) {
+            type == RecipeType.NUCLEOSYNTHESIZER || type == RecipeType.PRC) {
             add(ports, MachinePort.gas("gas_input", MachinePort.Role.INPUT, tile.getInputGasTank(),
                   "gas_input", MachinePort.SHARED_LANE));
         }

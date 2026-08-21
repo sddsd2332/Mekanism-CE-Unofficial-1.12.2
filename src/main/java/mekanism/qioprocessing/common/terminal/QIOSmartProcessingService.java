@@ -23,6 +23,12 @@ import java.util.Objects;
 import java.util.UUID;
 
 /** Main-thread smart-processing catalog and bounded preview projection. */
+/**
+ * QIO 处理模块中的 QIOSmartProcessingService 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOSmartProcessingService {
 
     private static final int MAX_CACHED_CATALOGS = 8;
@@ -39,6 +45,7 @@ public final class QIOSmartProcessingService {
     }
 
     @Nonnull
+    /** 查询智能处理终端的资源分页。 */
     public static QIOPage<QIOSmartProcessingResourceEntry> getResourcePage(
           @Nonnull QIOProcessingTerminalSession session, @Nonnull QIOProcessingNetworkData network,
           @Nonnull QIOStorageSnapshot storage, @Nonnull World world, @Nonnull UUID requester,
@@ -110,16 +117,19 @@ public final class QIOSmartProcessingService {
     }
 
     @Nonnull
+    /** 将订单预览转换为终端可显示的快照。 */
     public static QIOSmartProcessingPreviewSnapshot previewSnapshot(@Nonnull QIOOrderPreview preview) {
         return QIOSmartProcessingPreviewSnapshot.fromPreview(preview, null);
     }
 
     @Nonnull
+    /** 将订单预览转换为带版本和筛选信息的快照。 */
     public static QIOSmartProcessingPreviewSnapshot previewSnapshot(@Nonnull QIOOrderPreview preview,
           @Nullable UUID jobId) {
         return QIOSmartProcessingPreviewSnapshot.fromPreview(preview, jobId);
     }
 
+    /** 校验智能处理请求会话和频率访问权限。 */
     public static void validate(@Nonnull QIOProcessingTerminalSession session,
           @Nonnull QIOProcessingNetworkData network, @Nonnull QIOStorageSnapshot storage) {
         Objects.requireNonNull(session, "session"); Objects.requireNonNull(network, "network");

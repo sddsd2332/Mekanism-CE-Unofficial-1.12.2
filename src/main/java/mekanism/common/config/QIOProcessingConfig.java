@@ -4,6 +4,7 @@ import io.netty.buffer.ByteBuf;
 import mekanism.common.config.options.BooleanOption;
 import mekanism.common.config.options.IntOption;
 import mekanism.common.config.options.LongOption;
+import net.minecraftforge.common.config.ConfigCategory;
 import net.minecraftforge.common.config.Configuration;
 
 /** Server-authoritative QIO Processing module settings managed by Mekanism's config system. */
@@ -22,7 +23,6 @@ public class QIOProcessingConfig extends BaseConfig {
     public static final int DEFAULT_EXECUTION_SLOTS = 64;
     public static final int MIN_EXECUTION_SLOTS = 8;
     public static final int DEFAULT_CLAIM_REFRESHES_PER_TICK = 32;
-    public static final long DEFAULT_AUTOMATIC_OUTPUT_TRANSFER_LIMIT = 1_024;
     public static final int DEFAULT_MAINTENANCE_EVALUATION_INTERVAL = 100;
     public static final int DEFAULT_MAINTENANCE_GROUPS_PER_TICK = 16;
     public static final int DEFAULT_MAINTENANCE_RULES_PER_FREQUENCY = 4_096;
@@ -32,6 +32,9 @@ public class QIOProcessingConfig extends BaseConfig {
     public static final int DEFAULT_TERMINAL_PAGE_SIZE = 128;
     public static final int MIN_TERMINAL_PAGE_SIZE = 16;
     public static final int MAX_TERMINAL_PAGE_SIZE = 1_024;
+    public static final int DEFAULT_RECIPE_CATALOG_CAPTURES_PER_TICK = 128;
+    public static final int DEFAULT_RECIPE_CATALOG_CAPTURE_TIME_PER_TICK = 5;
+    public static final int DEFAULT_RECIPE_CATALOG_WORKER_THREADS = 4;
 
     public final IntOption planningTimePerTick = new IntOption(this, "planning",
           "planningTimePerTick", DEFAULT_PLANNING_TIME_PER_TICK,
@@ -88,10 +91,6 @@ public class QIOProcessingConfig extends BaseConfig {
           "processorLaneLimit", Long.MAX_VALUE,
           "Maximum logical lane count accepted from a processor definition. Uses a signed long.",
           9, Long.MAX_VALUE).setRequiresGameRestart();
-    public final LongOption automaticOutputTransferLimit = new LongOption(this, "automation",
-          "automaticOutputTransferLimit", DEFAULT_AUTOMATIC_OUTPUT_TRANSFER_LIMIT,
-          "Maximum amount one automatic output device may extract or deliver per server tick.",
-          1, Long.MAX_VALUE);
     public final IntOption maintenanceEvaluationInterval = new IntOption(this, "maintenance",
           "evaluationInterval", DEFAULT_MAINTENANCE_EVALUATION_INTERVAL,
           "Ticks between complete inventory-maintenance evaluation passes.", 20, 72_000);
@@ -117,10 +116,26 @@ public class QIOProcessingConfig extends BaseConfig {
           "maximumPageSize", DEFAULT_TERMINAL_PAGE_SIZE,
           "Maximum number of records returned by one QIO Processing terminal page.",
           MIN_TERMINAL_PAGE_SIZE, MAX_TERMINAL_PAGE_SIZE);
+    public final IntOption recipeCatalogCapturesPerTick = new IntOption(NULL_OWNER,
+          "recipe_catalog", "capturesPerTick", DEFAULT_RECIPE_CATALOG_CAPTURES_PER_TICK,
+          "Maximum Forge item, ore-dictionary, or workbench recipe records captured per tick.",
+          1, Integer.MAX_VALUE);
+    public final IntOption recipeCatalogCaptureTimePerTick = new IntOption(NULL_OWNER,
+          "recipe_catalog", "captureTimePerTick", DEFAULT_RECIPE_CATALOG_CAPTURE_TIME_PER_TICK,
+          "Maximum milliseconds spent capturing Forge recipe data on one server tick.",
+          1, 1_000);
+    public final IntOption recipeCatalogWorkerThreads = new IntOption(NULL_OWNER,
+          "recipe_catalog", "workerThreads", DEFAULT_RECIPE_CATALOG_WORKER_THREADS,
+          "Dedicated worker threads used to compile frozen QIO recipe catalog data.", 1, 32)
+          .setRequiresGameRestart();
 
     @Override
     public void load(Configuration config) {
         super.load(config);
+        recipeCatalogCapturesPerTick.load(config);
+        recipeCatalogCaptureTimePerTick.load(config);
+        recipeCatalogWorkerThreads.load(config);
+        removeLegacyAutomaticOutputLimit(config);
         validate();
     }
 
@@ -149,7 +164,6 @@ public class QIOProcessingConfig extends BaseConfig {
               executionSlotsPerFrequency.val()));
         claimRefreshesPerTick.set(Math.max(1, claimRefreshesPerTick.val()));
         processorLaneLimit.set(Math.max(9, processorLaneLimit.val()));
-        automaticOutputTransferLimit.set(Math.max(1, automaticOutputTransferLimit.val()));
         maintenanceEvaluationInterval.set(Math.max(20, maintenanceEvaluationInterval.val()));
         maintenanceGroupsPerTick.set(Math.max(1, maintenanceGroupsPerTick.val()));
         maintenanceRulesPerFrequency.set(Math.max(1, maintenanceRulesPerFrequency.val()));
@@ -158,9 +172,25 @@ public class QIOProcessingConfig extends BaseConfig {
         providerRoutesPerFrequency.set(Math.max(1, providerRoutesPerFrequency.val()));
         terminalPageSize.set(clamp(terminalPageSize.val(), MIN_TERMINAL_PAGE_SIZE,
               MAX_TERMINAL_PAGE_SIZE));
+        recipeCatalogCapturesPerTick.set(Math.max(1, recipeCatalogCapturesPerTick.val()));
+        recipeCatalogCaptureTimePerTick.set(clamp(recipeCatalogCaptureTimePerTick.val(), 1,
+              1_000));
+        recipeCatalogWorkerThreads.set(clamp(recipeCatalogWorkerThreads.val(), 1, 32));
     }
 
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    /** 删除旧版按资源数量限制自动输出的配置项；自动输出现在按实际槽位数调度。 */
+    private static void removeLegacyAutomaticOutputLimit(Configuration config) {
+        if (!config.hasCategory("automation")) {
+            return;
+        }
+        ConfigCategory automation = config.getCategory("automation");
+        automation.remove("automaticOutputTransferLimit");
+        if (automation.isEmpty()) {
+            config.removeCategory(automation);
+        }
     }
 }

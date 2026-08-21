@@ -31,6 +31,12 @@ import java.math.BigInteger;
  * operation schedule. Each emitted node is one real recipe operation and only depends on nodes
  * that have already produced an input consumed by that operation.
  */
+/**
+ * QIO 处理模块中的 QIOSeededCyclePlanner 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOSeededCyclePlanner implements
       QIOPlanningExecutor.PlanningTask<QIOPlanningRequest, QIOPlanningResult> {
 

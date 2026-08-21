@@ -25,16 +25,24 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 
 public class ThreadMinerSearch extends Thread {
+
+    private static final int SNAPSHOT_BATCH_SIZE = 4_096;
+    private static final int MAX_PENDING_SNAPSHOT_BATCHES = 4;
+    private static final SnapshotBatch SNAPSHOT_END = new SnapshotBatch(-1, new int[0]);
 
     private final TileEntityDigitalMiner tileEntity;
     private final Map<Chunk3D, BitSet> oresToMine = new HashMap<>();
     private final Int2ObjectOpenHashMap<MinerFilter> replaceMap = new Int2ObjectOpenHashMap<>();
+    private final BlockingQueue<SnapshotBatch> snapshotBatches = new ArrayBlockingQueue<>(MAX_PENDING_SNAPSHOT_BATCHES);
 
-    private volatile ChunkCache chunkCache;
     private volatile SearchConfig searchConfig;
     private volatile boolean cancelled;
+    private int captureIndex;
+    private boolean captureEndQueued;
 
     public volatile State state = State.IDLE;
     public volatile int found;
@@ -45,19 +53,14 @@ public class ThreadMinerSearch extends Thread {
         setDaemon(true);
     }
 
-    /**
-     * Captures all mutable miner settings and builds the read-only region cache on the server thread.
-     */
+    /** Captures all mutable miner settings before the main thread starts producing immutable block-state batches. */
     public boolean prepare() {
         if (state != State.IDLE || !(tileEntity.getWorld() instanceof WorldServer world)) {
             return false;
         }
         SearchConfig config = SearchConfig.capture(tileEntity, world);
         searchConfig = config;
-        if (config.valid && config.requiresScan()) {
-            BlockPos start = new BlockPos(config.startX, config.startY, config.startZ);
-            chunkCache = new MinerChunkCache(world, start, start.add(config.diameter, config.height, config.diameter), 0);
-        }
+        resetSnapshotCapture();
         state = State.SEARCHING;
         return true;
     }
@@ -66,42 +69,43 @@ public class ThreadMinerSearch extends Thread {
      * Legacy setup entry point retained for addons that construct the region cache themselves.
      */
     @Deprecated
-    public void setChunkCache(ChunkCache chunkCache) {
+    public void setChunkCache(ChunkCache ignored) {
         if (state == State.IDLE && tileEntity.getWorld() instanceof WorldServer world) {
             searchConfig = SearchConfig.capture(tileEntity, world);
-            this.chunkCache = chunkCache;
+            resetSnapshotCapture();
             state = State.SEARCHING;
         }
     }
 
-    @Override
-    public void run() {
+    private void resetSnapshotCapture() {
+        snapshotBatches.clear();
+        captureIndex = 0;
+        captureEndQueued = false;
+    }
+
+    /**
+     * Reads a bounded number of live block states on the server thread and publishes only immutable state IDs to the
+     * search worker. The worker never dereferences World, Chunk, or IBlockAccess while filtering.
+     */
+    public void captureSnapshotBatch() {
         SearchConfig config = searchConfig;
-        ChunkCache cache = chunkCache;
-        if (config == null || isCancelled()) {
+        if (config == null || state != State.SEARCHING || cancelled || !config.valid || !config.requiresScan() || captureEndQueued) {
             return;
         }
-        if (!config.valid) {
-            Mekanism.logger.error("Digital Miner search region at {} is too large or invalid; aborting search.", config.minerPos);
-            publishResults(config);
+        if (captureIndex >= config.size) {
+            captureEndQueued = snapshotBatches.offer(SNAPSHOT_END);
             return;
         }
-        if (!config.requiresScan() || cache == null || cache instanceof MinerChunkCache minerCache && minerCache.isRegionEmpty()) {
-            publishResults(config);
+        if (snapshotBatches.remainingCapacity() == 0) {
             return;
         }
 
-        StateMatchCache stateMatches = new StateMatchCache(config.inverse, config.inverseReplaceTarget, config.filters);
+        int batchStart = captureIndex;
+        int batchSize = Math.min(SNAPSHOT_BATCH_SIZE, config.size - batchStart);
+        int[] stateIds = new int[batchSize];
         BlockPos.MutableBlockPos testPos = new BlockPos.MutableBlockPos();
-        int foundCount = 0;
-        for (int index = 0; index < config.size; index++) {
-            if ((index & 0xFF) == 0) {
-                found = foundCount;
-            }
-            if (isCancelled() || tileEntity.isInvalid()) {
-                return;
-            }
-
+        for (int offset = 0; offset < batchSize; offset++) {
+            int index = batchStart + offset;
             int x = config.startX + index % config.diameter;
             int z = config.startZ + (index / config.diameter) % config.diameter;
             int y = config.startY + index / config.diameter / config.diameter;
@@ -110,24 +114,78 @@ public class ThreadMinerSearch extends Thread {
             }
 
             testPos.setPos(x, y, z);
-            IBlockState blockState = cache.getBlockState(testPos);
+            IBlockState blockState = config.world.getBlockState(testPos);
             Block block = blockState.getBlock();
             if (block == MekanismBlocks.BoundingBlock || block instanceof BlockLiquid || block instanceof IFluidBlock ||
-                  block.isAir(blockState, cache, testPos)) {
+                  block.isAir(blockState, config.world, testPos)) {
                 continue;
             }
+            stateIds[offset] = Block.getStateId(blockState);
+        }
 
-            StateMatch match = stateMatches.get(Block.getStateId(blockState), block, block.getMetaFromState(blockState));
-            if (match.replacement) {
-                continue;
+        if (snapshotBatches.offer(new SnapshotBatch(batchStart, stateIds))) {
+            captureIndex += batchSize;
+            if (captureIndex >= config.size) {
+                captureEndQueued = snapshotBatches.offer(SNAPSHOT_END);
             }
-            if (config.inverse == (match.filter == null)) {
-                set(index, x, z, config.dimension);
-                if (match.filter != null) {
-                    replaceMap.put(index, match.filter);
+        }
+    }
+
+    @Override
+    public void run() {
+        SearchConfig config = searchConfig;
+        if (config == null || isCancelled()) {
+            return;
+        }
+        if (!config.valid) {
+            Mekanism.logger.error("Digital Miner search region at {} is too large or invalid; aborting search.", config.minerPos);
+            publishResults(config);
+            return;
+        }
+        if (!config.requiresScan()) {
+            publishResults(config);
+            return;
+        }
+
+        StateMatchCache stateMatches = new StateMatchCache(config.inverse, config.inverseReplaceTarget, config.filters);
+        int foundCount = 0;
+        while (!isCancelled()) {
+            SnapshotBatch batch;
+            try {
+                batch = snapshotBatches.take();
+            } catch (InterruptedException e) {
+                interrupt();
+                return;
+            }
+            if (batch == SNAPSHOT_END) {
+                break;
+            }
+            for (int offset = 0; offset < batch.stateIds.length; offset++) {
+                if (isCancelled()) {
+                    return;
                 }
-                foundCount++;
+                int stateId = batch.stateIds[offset];
+                if (stateId == 0) {
+                    continue;
+                }
+                int index = batch.startIndex + offset;
+                IBlockState blockState = Block.getStateById(stateId);
+                Block block = blockState.getBlock();
+                StateMatch match = stateMatches.get(stateId, block, block.getMetaFromState(blockState));
+                if (match.replacement) {
+                    continue;
+                }
+                if (config.inverse == (match.filter == null)) {
+                    int x = config.startX + index % config.diameter;
+                    int z = config.startZ + (index / config.diameter) % config.diameter;
+                    set(index, x, z, config.dimension);
+                    if (match.filter != null) {
+                        replaceMap.put(index, match.filter);
+                    }
+                    foundCount++;
+                }
             }
+            found = foundCount;
         }
 
         found = foundCount;
@@ -135,8 +193,8 @@ public class ThreadMinerSearch extends Thread {
     }
 
     private void publishResults(SearchConfig config) {
-        chunkCache = null;
         searchConfig = null;
+        snapshotBatches.clear();
         if (isCancelled()) {
             return;
         }
@@ -167,8 +225,8 @@ public class ThreadMinerSearch extends Thread {
     public void cancel() {
         cancelled = true;
         interrupt();
-        chunkCache = null;
         searchConfig = null;
+        snapshotBatches.clear();
     }
 
     @Deprecated
@@ -255,6 +313,17 @@ public class ThreadMinerSearch extends Thread {
         private StateMatch(MinerFilter filter, boolean replacement) {
             this.filter = filter;
             this.replacement = replacement;
+        }
+    }
+
+    static final class SnapshotBatch {
+
+        final int startIndex;
+        final int[] stateIds;
+
+        SnapshotBatch(int startIndex, int[] stateIds) {
+            this.startIndex = startIndex;
+            this.stateIds = stateIds;
         }
     }
 

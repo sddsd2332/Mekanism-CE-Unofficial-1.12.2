@@ -37,11 +37,11 @@ import mekanism.common.capabilities.resolver.manager.*;
 import mekanism.common.frequency.TileComponentFrequency;
 import mekanism.common.inventory.ISlotBackedInventory;
 import mekanism.common.inventory.slot.BasicInventorySlot;
+import mekanism.common.inventory.container.slot.InventoryContainerSlot;
 import mekanism.common.util.ItemDataUtils;
 import mekanism.common.util.HeatCapabilityUtils;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
-import mekanism.qioprocessing.common.machine.QIOAutomationDeviceRegistry;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.inventory.Slot;
 import net.minecraft.item.ItemStack;
@@ -65,7 +65,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiPredicate;
+import java.util.function.Consumer;
 
 /**
  * 带有可已存储类型的方块
@@ -73,6 +76,17 @@ import java.util.Set;
 
 public abstract class TileEntityContainerBlock extends TileEntityBasicBlock implements ISustainedInventory, IToggleableCapability,
         ISlotBackedInventory, IMekanismFluidHandler, IMekanismGasHandler, IMekanismStrictEnergyHandler, ITileHeatHandler {
+
+    private static volatile Consumer<TileEntityContainerBlock> contentsChangedListener = tile -> {
+    };
+
+    /**
+     * Optional module hook used to deny extraction from one physical container while a
+     * higher-level transfer owns it.  The base Mekanism module deliberately knows nothing
+     * about QIO (or any other optional module); an unset hook is therefore completely inert.
+     */
+    private static volatile BiPredicate<TileEntityContainerBlock, Object> containerExtractionGuard =
+          (tile, container) -> false;
 
     private IInventorySlotHolder inventorySlotHolder;
     private IFluidTankHolder fluidTankHolder;
@@ -83,6 +97,7 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
     protected final TileComponentFrequency frequencyComponent = new TileComponentFrequency(this);
     private ItemHandlerManager itemHandlerManager;
     private FluidHandlerManager fluidHandlerManager;
+
     private GasHandlerManager gasHandlerManager;
     private EnergyHandlerManager energyHandlerManager;
     private HeatHandlerManager heatHandlerManager;
@@ -93,6 +108,22 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
     private final List<IEnergyContainer> noEnergyContainers = Collections.emptyList();
     private final List<IHeatCapacitor> noHeatCapacitors = Collections.emptyList();
     private boolean recalculatingAllUpgradables;
+
+    public static void setContentsChangedListener(Consumer<TileEntityContainerBlock> listener) {
+        contentsChangedListener = Objects.requireNonNull(listener, "Contents changed listener cannot be null");
+    }
+
+    /** Installs an optional predicate which returns true when extraction must be denied. */
+    public static void setContainerExtractionGuard(
+          BiPredicate<TileEntityContainerBlock, Object> guard) {
+        containerExtractionGuard = Objects.requireNonNull(guard,
+              "Container extraction guard cannot be null");
+    }
+
+    /** Returns whether the supplied physical slot/tank is currently protected. */
+    public final boolean isContainerExtractionGuarded(@Nullable Object container) {
+        return container != null && containerExtractionGuard.test(this, container);
+    }
 
     /**
      * The full name of this machine.
@@ -564,7 +595,8 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
     }
 
     protected boolean canExtractItem(@Nonnull IInventorySlot slot, @Nonnull ItemStack stack, @Nullable EnumFacing side) {
-        return side == null || inventorySlotHolder == null || inventorySlotHolder.canExtract(side, slot);
+        return !isContainerExtractionGuarded(slot) &&
+              (side == null || inventorySlotHolder == null || inventorySlotHolder.canExtract(side, slot));
     }
 
     @Nonnull
@@ -665,7 +697,8 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
     }
 
     protected boolean canExtractFluid(@Nonnull IExtendedFluidTank tank, @Nullable EnumFacing side) {
-        return side == null || fluidTankHolder == null || fluidTankHolder.canExtract(side, tank);
+        return !isContainerExtractionGuarded(tank) &&
+              (side == null || fluidTankHolder == null || fluidTankHolder.canExtract(side, tank));
     }
 
     @Override
@@ -781,7 +814,8 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
     }
 
     protected boolean canExtractGas(@Nonnull IExtendedGasTank tank, @Nullable EnumFacing side) {
-        return side == null || gasTankHolder == null || gasTankHolder.canExtract(side, tank);
+        return !isContainerExtractionGuarded(tank) &&
+              (side == null || gasTankHolder == null || gasTankHolder.canExtract(side, tank));
     }
 
     @Override
@@ -997,6 +1031,10 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
         for (IInventorySlot inventorySlot : getInventorySlots(null)) {
             Slot slot = inventorySlot.createContainerSlot();
             if (slot != null) {
+                if (slot instanceof InventoryContainerSlot inventoryContainerSlot) {
+                    inventoryContainerSlot.setExtractionGuard(() ->
+                          isContainerExtractionGuarded(inventorySlot));
+                }
                 slots.add(slot);
             }
         }
@@ -1012,7 +1050,7 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
     public void onContentsChanged() {
         markNoUpdateSync();
         if (world != null && !world.isRemote) {
-            QIOAutomationDeviceRegistry.INSTANCE.notifyContentsChanged(this);
+            contentsChangedListener.accept(this);
         }
     }
 

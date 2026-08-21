@@ -26,6 +26,12 @@ import java.util.UUID;
  * Immutable first-version plan envelope. DAG nodes are added by the route planner without changing
  * the material and identity contract established here.
  */
+/**
+ * QIO 处理模块中的 QIOCraftPlan 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOCraftPlan {
 
     public static final int SCHEMA_VERSION = 3;
@@ -41,6 +47,7 @@ public final class QIOCraftPlan {
     private final List<QIOPlanStep> steps;
     private final List<QIOCyclePlanNode> cycleNodes;
     private final QIOPlanMaterialRequirements materialRequirements;
+    private final boolean hasWorkbenchSteps;
     private final String structuralSignature;
 
     public QIOCraftPlan(@Nonnull UUID planId, int revision,
@@ -80,6 +87,8 @@ public final class QIOCraftPlan {
         this.cycleNodes = checkedCycles(cycleNodes, this.steps);
         materialRequirements = QIOPlanMaterialRequirements.derive(this.externalRequirements,
               this.steps);
+        hasWorkbenchSteps = this.steps.stream().anyMatch(step ->
+              step.getProviderKind() == QIOPlanStep.ProviderKind.WORKBENCH);
         structuralSignature = calculateSignature();
     }
 
@@ -124,6 +133,10 @@ public final class QIOCraftPlan {
     @Nonnull
     public QIOPlanMaterialRequirements getMaterialRequirements() {
         return materialRequirements;
+    }
+
+    public boolean hasWorkbenchSteps() {
+        return hasWorkbenchSteps;
     }
 
     @Nullable

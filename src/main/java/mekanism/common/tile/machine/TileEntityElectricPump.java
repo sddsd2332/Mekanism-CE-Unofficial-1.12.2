@@ -132,6 +132,15 @@ public class TileEntityElectricPump extends TileEntityElectricBlock implements I
     }
 
     @Override
+    protected void onUpdateServerPreComponents() {
+        super.onUpdateServerPreComponents();
+        if (fluidTank.getFluid() != null && !isContainerExtractionGuarded(fluidTank)) {
+            FluidUtils.emit(Collections.singleton(EnumFacing.UP), fluidTank, this,
+                  Math.min(256 * (getInstalledUpgrades(Upgrade.SPEED) + 1), fluidTank.getFluidAmount()));
+        }
+    }
+
+    @Override
     public void onUpdateServer() {
         super.onUpdateServer();
         usedEnergy = false;
@@ -158,10 +167,6 @@ public class TileEntityElectricPump extends TileEntityElectricBlock implements I
         }
         usedEnergy = clientEnergyUsed > 0;
 
-        if (fluidTank.getFluid() != null) {
-            FluidUtils.emit(Collections.singleton(EnumFacing.UP), fluidTank, this,
-                  Math.min(256 * (getInstalledUpgrades(Upgrade.SPEED) + 1), fluidTank.getFluidAmount()));
-        }
         int newRedstoneLevel = getRedstoneLevel();
         if (newRedstoneLevel != currentRedstoneLevel) {
             updateComparatorOutputLevelSync();

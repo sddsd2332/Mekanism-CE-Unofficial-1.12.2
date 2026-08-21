@@ -86,7 +86,6 @@ public class ItemGaugeDropper extends ItemMekanism implements ILegacyGasItem {
         GasStack gas = getStoredGas(stack);
         FluidStack fluidStack = FluidContainerUtils.getFluidContained(stack);
         if (gas != null) {
-            MekanismRenderer.color(gas);
             return gas.getGas().getTint();
         } else if (fluidStack != null && fluidStack.getFluid().getColor() != 0xFFFFFFFF) { //Because it is possible that the liquid is not colored
             return fluidStack.getFluid().getColor();

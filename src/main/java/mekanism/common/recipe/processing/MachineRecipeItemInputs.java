@@ -1,16 +1,17 @@
 package mekanism.common.recipe.processing;
 
 import net.minecraft.creativetab.CreativeTabs;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.NonNullList;
-import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.oredict.OreDictionary;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -19,23 +20,33 @@ import java.util.function.Predicate;
  */
 public final class MachineRecipeItemInputs {
 
+    private static final int BOUNDED_SCAN_MULTIPLIER = 8;
+    private static final int MIN_BOUNDED_SCAN_LIMIT = 64;
+
     private MachineRecipeItemInputs() {
     }
 
     public static List<ItemStack> expand(ItemStack input, Predicate<ItemStack> accepts) {
+        return expand(input, accepts, Integer.MAX_VALUE);
+    }
+
+    /**
+     * Expands at most {@code maxResults} concrete candidates without first materializing every
+     * creative-tab and ore-dictionary variant.
+     */
+    public static List<ItemStack> expand(ItemStack input, Predicate<ItemStack> accepts,
+          int maxResults) {
+        if (maxResults <= 0) {
+            throw new IllegalArgumentException("Maximum expanded item candidates must be positive");
+        }
         if (input == null || input.isEmpty() || input.getCount() <= 0) {
             return Collections.emptyList();
         }
         Predicate<ItemStack> filter = accepts == null ? stack -> true : accepts;
-        List<ItemStack> expanded = new ArrayList<>();
-        Set<String> seen = new LinkedHashSet<>();
-        for (ItemStack candidate : rawCandidates(input)) {
-            ItemStack normalized = normalizeCandidate(input, candidate);
-            if (isConcreteInput(normalized) && filter.test(normalized) && seen.add(identity(normalized))) {
-                expanded.add(normalized);
-            }
-        }
-        return expanded;
+        ExpansionCollector collector = new ExpansionCollector(input, filter, maxResults,
+              boundedScanLimit(maxResults));
+        collectRawCandidates(input, collector);
+        return collector.results;
     }
 
     public static List<List<ItemStack>> expandCombinations(List<ItemStack> inputs, Predicate<List<ItemStack>> accepts) {
@@ -75,26 +86,35 @@ public final class MachineRecipeItemInputs {
         }
     }
 
-    private static List<ItemStack> rawCandidates(ItemStack input) {
+    private static void collectRawCandidates(ItemStack input, ExpansionCollector collector) {
         if (input.getMetadata() != OreDictionary.WILDCARD_VALUE) {
-            return Collections.singletonList(input.copy());
+            collector.offer(input.copy());
+            return;
         }
-        List<ItemStack> candidates = new ArrayList<>();
-        addCreativeSubItems(input, candidates);
-        addFallbackMetaZero(input, candidates);
-        addOreDictionaryCandidates(input, candidates);
-        for (ItemStack candidate : new ArrayList<>(candidates)) {
-            addOreDictionaryCandidates(candidate, candidates);
+        List<ItemStack> firstPass = new ArrayList<>();
+        if (!addCreativeSubItems(input, collector, firstPass) ||
+            !addFallbackMetaZero(input, collector, firstPass) ||
+            !addOreDictionaryCandidates(input, collector, firstPass)) {
+            return;
         }
-        return candidates;
+        int firstPassSize = firstPass.size();
+        for (int index = 0; index < firstPassSize && collector.canContinue(); index++) {
+            if (!addOreDictionaryCandidates(firstPass.get(index), collector, null)) {
+                return;
+            }
+        }
     }
 
-    private static void addOreDictionaryCandidates(ItemStack input, List<ItemStack> candidates) {
+    private static boolean addOreDictionaryCandidates(ItemStack input,
+          ExpansionCollector collector, List<ItemStack> firstPass) {
+        if (!collector.canContinue()) {
+            return false;
+        }
         int[] oreIds;
         try {
             oreIds = OreDictionary.getOreIDs(input);
         } catch (IllegalArgumentException ignored) {
-            return;
+            return true;
         }
         for (int oreId : oreIds) {
             String oreName = OreDictionary.getOreName(oreId);
@@ -106,31 +126,53 @@ public final class MachineRecipeItemInputs {
                     continue;
                 }
                 if (oreStack.getMetadata() == OreDictionary.WILDCARD_VALUE) {
-                    addCreativeSubItems(oreStack, candidates);
-                    addFallbackMetaZero(oreStack, candidates);
+                    if (!addCreativeSubItems(oreStack, collector, firstPass) ||
+                        !addFallbackMetaZero(oreStack, collector, firstPass)) {
+                        return false;
+                    }
                 } else {
-                    candidates.add(oreStack.copy());
+                    if (!offerRawCandidate(oreStack.copy(), collector, firstPass)) {
+                        return false;
+                    }
                 }
             }
         }
+        return true;
     }
 
-    private static void addCreativeSubItems(ItemStack input, List<ItemStack> candidates) {
+    private static boolean addCreativeSubItems(ItemStack input,
+          ExpansionCollector collector, List<ItemStack> firstPass) {
+        if (!collector.canContinue()) {
+            return false;
+        }
         NonNullList<ItemStack> subItems = NonNullList.create();
         try {
             input.getItem().getSubItems(CreativeTabs.SEARCH, subItems);
         } catch (RuntimeException | LinkageError ignored) {
-            return;
+            return true;
         }
         for (ItemStack subItem : subItems) {
             if (!subItem.isEmpty() && subItem.getItem() == input.getItem() && subItem.getMetadata() != OreDictionary.WILDCARD_VALUE) {
-                candidates.add(subItem.copy());
+                if (!offerRawCandidate(subItem.copy(), collector, firstPass)) {
+                    return false;
+                }
             }
         }
+        return true;
     }
 
-    private static void addFallbackMetaZero(ItemStack input, List<ItemStack> candidates) {
-        candidates.add(new ItemStack(input.getItem(), 1, 0));
+    private static boolean addFallbackMetaZero(ItemStack input,
+          ExpansionCollector collector, List<ItemStack> firstPass) {
+        return collector.canContinue() && offerRawCandidate(
+              new ItemStack(input.getItem(), 1, 0), collector, firstPass);
+    }
+
+    private static boolean offerRawCandidate(ItemStack candidate,
+          ExpansionCollector collector, List<ItemStack> firstPass) {
+        if (firstPass != null) {
+            firstPass.add(candidate);
+        }
+        return collector.offer(candidate);
     }
 
     private static ItemStack normalizeCandidate(ItemStack recipeInput, ItemStack candidate) {
@@ -154,9 +196,85 @@ public final class MachineRecipeItemInputs {
         return copied;
     }
 
-    private static String identity(ItemStack stack) {
-        ResourceLocation name = stack.getItem().getRegistryName();
-        return (name == null ? stack.getItem().getClass().getName() : name.toString()) + '@' + stack.getMetadata() + 'x' + stack.getCount() +
-              (stack.hasTagCompound() ? '#' + stack.getTagCompound().toString() : "");
+    private static int boundedScanLimit(int maxResults) {
+        if (maxResults == Integer.MAX_VALUE) {
+            return Integer.MAX_VALUE;
+        }
+        long scaled = (long) maxResults * BOUNDED_SCAN_MULTIPLIER;
+        return (int) Math.min(Integer.MAX_VALUE,
+              Math.max(MIN_BOUNDED_SCAN_LIMIT, scaled));
+    }
+
+    private static final class ExpansionCollector {
+
+        private final ItemStack recipeInput;
+        private final Predicate<ItemStack> filter;
+        private final int maxResults;
+        private final int maxScanned;
+        private final List<ItemStack> results = new ArrayList<>();
+        private final Set<StackIdentity> seen = new LinkedHashSet<>();
+        private int scanned;
+
+        private ExpansionCollector(ItemStack recipeInput, Predicate<ItemStack> filter,
+              int maxResults, int maxScanned) {
+            this.recipeInput = recipeInput;
+            this.filter = filter;
+            this.maxResults = maxResults;
+            this.maxScanned = maxScanned;
+        }
+
+        private boolean offer(ItemStack candidate) {
+            if (!canContinue()) {
+                return false;
+            }
+            scanned++;
+            ItemStack normalized = normalizeCandidate(recipeInput, candidate);
+            if (isConcreteInput(normalized) && filter.test(normalized) &&
+                seen.add(new StackIdentity(normalized))) {
+                results.add(normalized);
+            }
+            return canContinue();
+        }
+
+        private boolean canContinue() {
+            return results.size() < maxResults && scanned < maxScanned;
+        }
+    }
+
+    private static final class StackIdentity {
+
+        private final Item item;
+        private final int metadata;
+        private final int count;
+        private final NBTTagCompound tag;
+        private final int hashCode;
+
+        private StackIdentity(ItemStack stack) {
+            item = stack.getItem();
+            metadata = stack.getMetadata();
+            count = stack.getCount();
+            tag = stack.getTagCompound();
+            int hash = System.identityHashCode(item);
+            hash = 31 * hash + metadata;
+            hash = 31 * hash + count;
+            hashCode = 31 * hash + (tag == null ? 0 : tag.hashCode());
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (!(obj instanceof StackIdentity other)) {
+                return false;
+            }
+            return item == other.item && metadata == other.metadata && count == other.count &&
+                  Objects.equals(tag, other.tag);
+        }
+
+        @Override
+        public int hashCode() {
+            return hashCode;
+        }
     }
 }

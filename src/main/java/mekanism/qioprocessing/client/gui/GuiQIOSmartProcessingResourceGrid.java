@@ -30,6 +30,12 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /** Presentation-only, virtualized grid for resources that can be ordered. */
+/**
+ * QIO 处理模块中的 GuiQIOSmartProcessingResourceGrid 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 final class GuiQIOSmartProcessingResourceGrid extends GuiElement
       implements IJEIIngredientHelper {
 

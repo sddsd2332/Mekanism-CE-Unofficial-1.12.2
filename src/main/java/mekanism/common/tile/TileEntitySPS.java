@@ -138,7 +138,7 @@ public class TileEntitySPS extends TileEntityMachine implements ISideConfigurati
             inputProcessed %= inputPerAntimatter;
         }
         if (lastInputProcessed != inputProcessed) {
-            markDirty();
+            markNoUpdateSync();
         }
         return processed;
     }

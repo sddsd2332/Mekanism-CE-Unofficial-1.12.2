@@ -37,6 +37,12 @@ import java.util.Objects;
 import java.util.UUID;
 
 /** Server-authoritative remote recipe-profile access for management terminals. */
+/**
+ * QIO 处理模块中的 QIOManagementRecipeService 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOManagementRecipeService {
 
     public static final int MAX_QUERY_LENGTH = 64;
@@ -60,6 +66,7 @@ public final class QIOManagementRecipeService {
     }
 
     @Nullable
+    /** 打开管理配方查询上下文。 */
     public static Context open(@Nonnull QIOProcessingTerminalSession session,
           @Nonnull QIOProcessingNetworkData network, long currentAccessRevision,
           @Nonnull UUID playerUUID, @Nonnull UUID deviceUUID) {
@@ -101,6 +108,7 @@ public final class QIOManagementRecipeService {
     }
 
     @Nonnull
+    /** 查询管理端产品目录分页。 */
     public static QIOManagementRecipeSnapshot products(@Nonnull Context context,
           int requestedOffset, int requestedPageSize, @Nonnull String query,
           @Nonnull ProductFilter filter) {
@@ -148,6 +156,7 @@ public final class QIOManagementRecipeService {
     }
 
     @Nonnull
+    /** 查询指定产品的路线分页。 */
     public static QIOManagementRecipeSnapshot routes(@Nonnull Context context,
           @Nonnull String productKey, int requestedOffset, int requestedPageSize,
           @Nonnull String query) {
@@ -192,6 +201,7 @@ public final class QIOManagementRecipeService {
     }
 
     @Nonnull
+    /** 修改管理端配方配置并校验目标版本。 */
     public static MutationStatus mutate(@Nonnull Context context, long expectedRevision,
           @Nonnull QIOAutomationRecipeProfileMutation mutation) {
         Objects.requireNonNull(context, "context");

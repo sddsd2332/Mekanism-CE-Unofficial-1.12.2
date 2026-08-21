@@ -24,6 +24,12 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /** Bounded main-thread audit plus worker-pool replanning for stale active plans. */
+/**
+ * QIO 处理模块中的 QIOReplanningService 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOReplanningService {
     public static final QIOReplanningService INSTANCE = new QIOReplanningService();
     private static final int AUDITS_PER_TICK = 8;
@@ -149,6 +155,7 @@ public final class QIOReplanningService {
 
     private static boolean eligible(QIOCraftingJob job) {
         return !job.getState().isTerminal() && !job.isCancellationRequested() &&
+              job.getState() != QIOCraftingJobState.OPERATION_CONTAMINATED &&
               job.getRevisionTransition() == null && job.getRemainingGuaranteedRootAmount() > 0;
     }
 

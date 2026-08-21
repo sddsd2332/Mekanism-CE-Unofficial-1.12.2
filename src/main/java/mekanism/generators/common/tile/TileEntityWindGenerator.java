@@ -70,12 +70,19 @@ public class TileEntityWindGenerator extends TileEntityGenerator implements IBou
             return;
         }
 
-        if (ticker % 20 == 0) {
-            currentMultiplier = getMultiplier();
-            setActive(MekanismUtils.canFunction(this) && currentMultiplier > 0);
-        }
         if (getActive()) {
             getEnergyContainer().insert(getEnergyAdd(), Action.EXECUTE, AutomationType.INTERNAL);
+        }
+    }
+
+    @Override
+    public void onUpdateServer() {
+        super.onUpdateServer();
+        if (isBlacklistDimension) {
+            setActive(false);
+        } else if (ticker % 20 == 0) {
+            currentMultiplier = getMultiplier();
+            setActive(MekanismUtils.canFunction(this) && currentMultiplier > 0);
         }
     }
 

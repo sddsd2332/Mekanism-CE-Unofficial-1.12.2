@@ -78,5 +78,18 @@ public class MultiblockMachineCommonProxy implements IGuiProvider {
         };
     }
 
+    @Override
+    public boolean isValidServerGui(int ID, TileEntity tile) {
+        return switch (ID) {
+            case 0 -> tile instanceof TileEntityLargeElectrolyticSeparator;
+            case 1 -> tile instanceof TileEntityLargeChemicalInfuser;
+            case 2 -> tile instanceof TileEntityLargeChemicalWasher;
+            case 3 -> tile instanceof TileEntityLargeWindGenerator;
+            case 4 -> tile instanceof TileEntityLargeGasGenerator;
+            case 5 -> tile instanceof TileEntityLargeSolarNeutronActivator;
+            default -> false;
+        };
+    }
+
 
 }

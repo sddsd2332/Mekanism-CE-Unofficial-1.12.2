@@ -14,6 +14,12 @@ import mekanism.qioprocessing.common.planning.QIOReplanningService;
 import mekanism.qioprocessing.common.maintenance.QIOMaintenanceService;
 
 /** Connects the independent QIO Processing store to the overworld/server lifecycle. */
+/**
+ * QIO 处理模块中的 QIOProcessingNetworkService 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOProcessingNetworkService {
 
     public static final QIOProcessingNetworkService INSTANCE = new QIOProcessingNetworkService();
@@ -22,11 +28,13 @@ public final class QIOProcessingNetworkService {
     }
 
     @SubscribeEvent
+    /** 世界加载时初始化 QIO 网络管理器。 */
     public void onWorldLoad(WorldEvent.Load event) {
         QIOProcessingNetworkManager.INSTANCE.createOrLoad(event.getWorld());
     }
 
     @SubscribeEvent
+    /** 世界 tick 中推进网络调度。 */
     public void onWorldTick(TickEvent.WorldTickEvent event) {
         if (event.phase == TickEvent.Phase.END && !event.world.isRemote &&
               event.world.provider.getDimension() == 0) {
@@ -46,6 +54,7 @@ public final class QIOProcessingNetworkService {
     }
 
     @SubscribeEvent
+    /** 世界卸载时刷新并关闭网络管理器。 */
     public void onWorldUnload(WorldEvent.Unload event) {
         if (!event.getWorld().isRemote) {
             QIOEndpointPersistenceService.INSTANCE.discardWorld(event.getWorld());

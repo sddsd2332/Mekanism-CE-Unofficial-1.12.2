@@ -13,6 +13,7 @@ import mekanism.client.gui.element.progress.IProgressInfoHandler;
 import mekanism.client.gui.element.progress.ProgressType;
 import mekanism.client.gui.element.slot.GuiSlot;
 import mekanism.client.gui.element.slot.SlotType;
+import mekanism.client.gui.element.window.GuiWindow;
 import mekanism.client.jei.gas.GasStackRenderer;
 import mekanism.client.recipe_viewer.type.IRecipeViewerRecipeType;
 import mekanism.client.recipe_viewer.type.RecipeViewerRecipeType;
@@ -195,6 +196,18 @@ public abstract class BaseRecipeCategory<WRAPPER extends IRecipeWrapper> impleme
     @Override
     public int getTop() {
         return -yOffset;
+    }
+
+    /**
+     * JEI recipe categories do not host movable Mekanism windows. GuiElement
+     * still performs the normal window-occlusion check while rendering slot
+     * hover states, so provide the empty result explicitly instead of falling
+     * through to IGuiWrapper's diagnostic default implementation every frame.
+     */
+    @Override
+    @Nullable
+    public GuiWindow getWindowHovering(double mouseX, double mouseY) {
+        return null;
     }
 
     @Override

@@ -23,6 +23,12 @@ import java.util.List;
 import java.util.Map;
 
 /** Routes JEI transfer to exactly the QIO window that owned focus before JEI opened. */
+/**
+ * QIO 处理模块中的 QIOProcessingRecipeTransferHandler 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOProcessingRecipeTransferHandler<CONTAINER extends QIOItemViewerContainer & QIOSmartProcessingPageContainer>
       implements IRecipeTransferHandler<CONTAINER> {
 

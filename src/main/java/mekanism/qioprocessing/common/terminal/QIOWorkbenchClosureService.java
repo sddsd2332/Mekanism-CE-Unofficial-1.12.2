@@ -23,6 +23,12 @@ import java.util.UUID;
 import java.util.function.Consumer;
 
 /** Asynchronous, two-phase coordinator for rooted workbench dependency imports. */
+/**
+ * QIO 处理模块中的 QIOWorkbenchClosureService 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOWorkbenchClosureService {
 
     public static final QIOWorkbenchClosureService INSTANCE =
@@ -71,6 +77,10 @@ public final class QIOWorkbenchClosureService {
         Objects.requireNonNull(mode, "mode");
         Objects.requireNonNull(world, "world");
         Objects.requireNonNull(completion, "completion");
+        if (!QIORecipeCatalogService.INSTANCE.isReady()) {
+            completion.accept(new PreviewResult(Status.UNAVAILABLE, null));
+            return;
+        }
         QIOProcessingNetworkData network = context.getNetwork();
         QIOWorkbenchConfiguration configuration = network.getWorkbenchConfiguration();
         if (!context.isEditable()) {
@@ -210,6 +220,9 @@ public final class QIOWorkbenchClosureService {
         Objects.requireNonNull(playerUUID, "playerUUID");
         Objects.requireNonNull(confirmationNonce, "confirmationNonce");
         Objects.requireNonNull(world, "world");
+        if (!QIORecipeCatalogService.INSTANCE.isReady()) {
+            return new ConfirmResult(Status.UNAVAILABLE);
+        }
         cleanup(currentTick);
         PendingClosure pending = PENDING.remove(confirmationNonce);
         if (pending == null || pending.expiresAt < currentTick) {

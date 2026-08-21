@@ -36,6 +36,7 @@ public class VoiceInput extends Thread {
             targetLine.open(voiceClient.getAudioFormat(), 2200);
             targetLine.start();
             AudioInputStream audioInput = new AudioInputStream(targetLine);
+            byte[] audioData = new byte[2200];
 
             boolean doFlush = false;
 
@@ -46,12 +47,15 @@ public class VoiceInput extends Thread {
                     while (voiceClient.isRunning() && MekanismKeyHandler.voiceKey.isPressed()) {
                         try {
                             int availableBytes = audioInput.available();
-                            byte[] audioData = new byte[Math.min(availableBytes, 2200)];
-                            int bytesRead = audioInput.read(audioData, 0, audioData.length);
+                            if (availableBytes <= 0) {
+                                Thread.sleep(5L);
+                                continue;
+                            }
+                            int bytesRead = audioInput.read(audioData, 0, Math.min(availableBytes, audioData.length));
 
                             if (bytesRead > 0) {
-                                voiceClient.getOutputStream().writeShort(audioData.length);
-                                voiceClient.getOutputStream().write(audioData);
+                                voiceClient.getOutputStream().writeShort(bytesRead);
+                                voiceClient.getOutputStream().write(audioData, 0, bytesRead);
                             }
                         } catch (Exception ignored) {
                         }

@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -49,7 +50,37 @@ import java.util.function.Supplier;
 @Interface(iface = "ic2.api.tile.IWrenchable", modid = MekanismHooks.IC2_MOD_ID)
 public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick implements ITileNetwork, ITrackableContainer, IContainerTransaction {
 
+    private static volatile Consumer<TileEntityBasicBlock> serverPreComponentTickListener = tile -> {
+    };
+
+    private static final ClassValue<Class<?>> ASYNC_UPDATE_DECLARING_CLASS = new ClassValue<Class<?>>() {
+        @Override
+        protected Class<?> computeValue(Class<?> type) {
+            Class<?> current = type;
+            while (current != null && TileEntityBasicBlock.class.isAssignableFrom(current)) {
+                try {
+                    current.getDeclaredMethod("onAsyncUpdateServer");
+                    return current;
+                } catch (NoSuchMethodException ignored) {
+                    current = current.getSuperclass();
+                }
+            }
+            return TileEntityBasicBlock.class;
+        }
+    };
+
     private final ReentrantLock containerTransactionLock = new ReentrantLock();
+    private boolean serverEjectionSuppressedForCurrentTick;
+
+    /**
+     * Installs the optional-module callback which runs immediately before tile components.
+     * The callback is server-only and therefore observes the stable result of the previous
+     * tick before ejectors and asynchronous machine work begin for the current tick.
+     */
+    public static void setServerPreComponentTickListener(Consumer<TileEntityBasicBlock> listener) {
+        serverPreComponentTickListener = Objects.requireNonNull(listener,
+              "Server pre-component tick listener cannot be null");
+    }
 
     /**
      * The direction this block is facing.
@@ -93,10 +124,14 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
 
     @Override
     public void doRestrictedTick() {
+        beginServerTick();
         if (checkInvalidBlock()) {
             return;
         }
 
+        if (!isRemote()) {
+            tickServerPreComponents();
+        }
         tickComponents();
         //TODO：切换为四种状态：同时更新,客户端更新,服务端更新，服务端异步更新
         if (!isRemote()) {
@@ -140,6 +175,34 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
 
     protected void tickComponents() {
         components.forEach(ITileComponent::tick);
+    }
+
+    /** Runs optional-module machine work before ordinary ejector/configuration components. */
+    void tickServerPreComponents() {
+        serverPreComponentTickListener.accept(this);
+        onUpdateServerPreComponents();
+    }
+
+    /**
+     * Server-side extension point for tile-owned output work which must run after optional
+     * modules have inspected the previous tick's result, but before ordinary components eject.
+     */
+    protected void onUpdateServerPreComponents() {
+    }
+
+    /** Clears transient component guards before the current server tick is evaluated. */
+    void beginServerTick() {
+        serverEjectionSuppressedForCurrentTick = false;
+    }
+
+    /** Prevents this tile's ordinary ejector from racing an owned server-side transfer. */
+    public final void suppressServerEjectionForCurrentTick() {
+        serverEjectionSuppressedForCurrentTick = true;
+    }
+
+    /** Returns whether an earlier server pre-component hook retained output ownership. */
+    public final boolean isServerEjectionSuppressedForCurrentTick() {
+        return serverEjectionSuppressedForCurrentTick;
     }
 
     @Override
@@ -210,16 +273,12 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
         components.forEach(ITileComponent::invalidate);
     }
 
-    @Override
-    public void validate() {
-        super.validate();
-        if (isRemote()) {
-            Mekanism.packetHandler.sendToServer(new DataRequestMessage(Coord4D.get(this)));
-        }
-    }
-
     public boolean supportsAsync() {
-        return true;
+        Class<?> declaringClass = ASYNC_UPDATE_DECLARING_CLASS.get(getClass());
+        if (declaringClass == TileEntityBasicBlock.class) {
+            return false;
+        }
+        return declaringClass != TileEntityElectricBlock.class || ((TileEntityElectricBlock) this).hasTileSyncTask();
     }
 
     private void runAsyncUpdateServer() {

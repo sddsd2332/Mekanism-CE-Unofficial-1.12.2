@@ -3,10 +3,12 @@ package mekanism.common.integration.actuallyadditions;
 import mekanism.common.MekanismFluids;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.recipe.RecipeHandler;
-import mekanism.common.recipe.inputs.AdvancedMachineInput;
+import mekanism.common.recipe.inputs.FarmInput;
 import net.minecraft.init.Items;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ResourceLocation;
+import net.minecraftforge.fluids.FluidRegistry;
+import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fml.common.registry.ForgeRegistries;
 
 /**
@@ -28,12 +30,12 @@ public class ActuallyAdditionsSeed {
         }
 
         if (RecipeHandler.Recipe.ORGANIC_FARM.containsRecipe(seedStack)) {
-            RecipeHandler.Recipe.ORGANIC_FARM.remove(RecipeHandler.Recipe.ORGANIC_FARM.get().get(new AdvancedMachineInput(seedStack, MekanismFluids.NutrientSolution)));
-            RecipeHandler.Recipe.ORGANIC_FARM.remove(RecipeHandler.Recipe.ORGANIC_FARM.get().get(new AdvancedMachineInput(seedStack, MekanismFluids.Water)));
+            RecipeHandler.Recipe.ORGANIC_FARM.remove(RecipeHandler.Recipe.ORGANIC_FARM.get().get(new FarmInput(seedStack, MekanismFluids.NutrientSolution)));
+            RecipeHandler.Recipe.ORGANIC_FARM.remove(RecipeHandler.Recipe.ORGANIC_FARM.get().get(new FarmInput(seedStack, new FluidStack(FluidRegistry.WATER, 1))));
         }
 
         RecipeHandler.addOrganicFarmRecipe(seedStack, MekanismFluids.NutrientSolution, nutrientOutput, new ItemStack(seedStack.getItem(), seedReturnAmount), MekanismConfig.current().mekce.seed.val());
-        RecipeHandler.addOrganicFarmRecipe(seedStack, MekanismFluids.Water, waterOutput, new ItemStack(seedStack.getItem(), 1), MekanismConfig.current().mekce.seed.val());
+        RecipeHandler.addOrganicFarmRecipe(seedStack, new FluidStack(FluidRegistry.WATER, 1), waterOutput, new ItemStack(seedStack.getItem(), 1), MekanismConfig.current().mekce.seed.val());
     }
 
     private static ItemStack getItemStack(String id, int amount, int meta) {

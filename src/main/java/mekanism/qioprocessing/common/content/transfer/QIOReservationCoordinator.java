@@ -25,6 +25,12 @@ import java.util.Objects;
 import java.util.UUID;
 
 /** Converts a complete logical claim into a durable job-owned resource buffer. */
+/**
+ * QIO 处理模块中的 QIOReservationCoordinator 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOReservationCoordinator {
 
     public enum Outcome {
@@ -37,6 +43,15 @@ public final class QIOReservationCoordinator {
     private QIOReservationCoordinator() {
     }
 
+    /**
+     * 将已完成逻辑 claim 转换为任务拥有的 durable 资源预留。
+     *
+     * @param network 所属 QIO 网络
+     * @param jobId 任务标识
+     * @param view 当前 QIO 存储视图
+     * @param persistenceBarrier 网络持久化屏障
+     * @return READY、等待材料/访问或需要重试的结果
+     */
     @Nonnull
     public static Outcome reserve(@Nonnull QIOProcessingNetworkData network,
           @Nonnull UUID jobId, @Nonnull IQIOStorageView view,

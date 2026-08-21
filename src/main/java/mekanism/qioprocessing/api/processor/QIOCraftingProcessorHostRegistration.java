@@ -12,6 +12,12 @@ import java.util.function.Function;
  * Immutable registration describing one concrete family of QIO crafting processor hosts.
  * The resolver may select between registered definitions, but cannot create definitions at runtime.
  */
+/**
+ * QIO 处理模块中的 QIOCraftingProcessorHostRegistration 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOCraftingProcessorHostRegistration<T extends TileEntity> {
 
     private final ResourceLocation hostId;
@@ -19,6 +25,14 @@ public final class QIOCraftingProcessorHostRegistration<T extends TileEntity> {
     private final Class<T> tileClass;
     private final Function<? super T, ResourceLocation> definitionResolver;
 
+    /**
+     * 创建一个处理器主机注册描述。
+     *
+     * @param hostId 主机注册标识
+     * @param ownerModId 所属模组 ID
+     * @param tileClass 主机方块类型
+     * @param definitionResolver 根据方块解析处理器定义的函数
+     */
     public QIOCraftingProcessorHostRegistration(@Nonnull ResourceLocation hostId,
           @Nonnull String ownerModId, @Nonnull Class<T> tileClass,
           @Nonnull Function<? super T, ResourceLocation> definitionResolver) {
@@ -31,6 +45,7 @@ public final class QIOCraftingProcessorHostRegistration<T extends TileEntity> {
         this.definitionResolver = Objects.requireNonNull(definitionResolver, "definitionResolver");
     }
 
+    /** 为固定处理器定义创建注册描述。 */
     @Nonnull
     public static <T extends TileEntity> QIOCraftingProcessorHostRegistration<T> fixed(
           @Nonnull ResourceLocation hostId, @Nonnull String ownerModId,
@@ -40,21 +55,25 @@ public final class QIOCraftingProcessorHostRegistration<T extends TileEntity> {
               ignored -> definitionId);
     }
 
+    /** 返回主机注册标识。 */
     @Nonnull
     public ResourceLocation getHostId() {
         return hostId;
     }
 
+    /** 返回所属模组 ID。 */
     @Nonnull
     public String getOwnerModId() {
         return ownerModId;
     }
 
+    /** 返回主机方块类型。 */
     @Nonnull
     public Class<T> getTileClass() {
         return tileClass;
     }
 
+    /** 根据实际方块解析定义标识，并校验类型匹配。 */
     @Nonnull
     ResourceLocation resolveDefinitionId(@Nonnull TileEntity tile) {
         if (!tileClass.isInstance(tile)) {

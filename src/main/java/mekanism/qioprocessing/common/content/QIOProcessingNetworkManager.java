@@ -23,6 +23,12 @@ import java.util.Set;
 import java.util.UUID;
 
 /** World owner of independently persisted, frequency-level QIO Processing networks. */
+/**
+ * QIO 处理模块中的 QIOProcessingNetworkManager 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOProcessingNetworkManager {
 
     public static final QIOProcessingNetworkManager INSTANCE = new QIOProcessingNetworkManager();
@@ -47,12 +53,14 @@ public final class QIOProcessingNetworkManager {
     private QIOProcessingNetworkManager() {
     }
 
+    /** 按世界目录创建或加载 QIO 网络索引。 */
     public synchronized void createOrLoad(@Nullable World world) {
         if (world != null && !world.isRemote && world.provider.getDimension() == 0) {
             createOrLoad(world.getSaveHandler().getWorldDirectory());
         }
     }
 
+    /** 按指定目录创建或加载 QIO 网络索引。 */
     public synchronized void createOrLoad(@Nullable File worldDirectory) {
         if (worldDirectory == null) {
             return;
@@ -90,21 +98,25 @@ public final class QIOProcessingNetworkManager {
         }
     }
 
+    /** 返回网络管理器是否已加载。 */
     public synchronized boolean isLoaded() {
         return loaded;
     }
 
+    /** 返回当前索引是否因未来 schema 而只读。 */
     public synchronized boolean isReadOnlyFutureIndex() {
         return readOnlyFutureIndex;
     }
 
     @Nullable
+    /** 按频率 UUID 查询已加载网络。 */
     public synchronized QIOProcessingNetworkData get(@Nullable UUID frequencyUUID) {
         return frequencyUUID == null ? null : networks.get(frequencyUUID);
     }
 
     /** Resolves one unique workbench configuration without exposing frequency file paths. */
     @Nullable
+    /** 按工作台配置 UUID 查询所属网络。 */
     public synchronized QIOProcessingNetworkData getByWorkbenchConfigUUID(
           @Nullable UUID configUUID) {
         if (configUUID == null) {
@@ -125,21 +137,25 @@ public final class QIOProcessingNetworkManager {
     }
 
     @Nonnull
+    /** 返回已加载网络的只读快照。 */
     public synchronized Collection<QIOProcessingNetworkData> getNetworks() {
         return Collections.unmodifiableList(new ArrayList<>(networks.values()));
     }
 
     @Nonnull
+    /** 返回损坏网络 UUID 的只读快照。 */
     public synchronized Set<UUID> getDamagedNetworks() {
         return Collections.unmodifiableSet(new HashSet<>(damagedNetworks));
     }
 
     @Nonnull
+    /** 返回未来 schema 网络 UUID 的只读快照。 */
     public synchronized Set<UUID> getFutureNetworks() {
         return Collections.unmodifiableSet(new HashSet<>(futureNetworks));
     }
 
     @Nullable
+    /** 返回指定频率的隔离状态；未隔离时返回 null。 */
     public synchronized IsolationStatus getIsolationStatus(@Nullable UUID frequencyUUID) {
         if (frequencyUUID == null) {
             return null;
@@ -151,6 +167,7 @@ public final class QIOProcessingNetworkManager {
     }
 
     @Nonnull
+    /** 获取已加载网络，或使用最新频率身份创建网络。 */
     public synchronized QIOProcessingNetworkData getOrCreate(@Nonnull UUID frequencyUUID,
           @Nonnull QIOFrequencyIdentitySnapshot identity) {
         requireWritable();
@@ -235,6 +252,7 @@ public final class QIOProcessingNetworkManager {
         return archive;
     }
 
+    /** 处理 QIO 频率删除并清理对应网络文件。 */
     public synchronized void frequencyDeleted(@Nonnull UUID frequencyUUID) {
         if (!loaded || readOnlyFutureIndex) {
             return;
@@ -254,6 +272,7 @@ public final class QIOProcessingNetworkManager {
     }
 
     @Nonnull
+    /** 返回用于网络快照持久化的屏障实现。 */
     public QIOMaterialClaimCoordinator.PersistenceBarrier persistenceBarrier() {
         return network -> checkpointNetwork(network.getFrequencyUUID());
     }
@@ -266,6 +285,7 @@ public final class QIOProcessingNetworkManager {
      * backup rotation out of every transfer phase avoids copying and re-reading the same (often
      * large) network file several times in one server tick.</p>
      */
+    /** 对指定网络执行带备份的检查点写入。 */
     public synchronized void checkpointNetwork(@Nonnull UUID frequencyUUID) throws IOException {
         requireWritable();
         QIOProcessingNetworkData network = networks.get(Objects.requireNonNull(frequencyUUID,
@@ -280,6 +300,7 @@ public final class QIOProcessingNetworkManager {
         dirtyNetworks.add(frequencyUUID);
     }
 
+    /** 将指定网络当前脏状态刷新到持久层。 */
     public synchronized void flushNetwork(@Nonnull UUID frequencyUUID) throws IOException {
         requireWritable();
         QIOProcessingNetworkData network = networks.get(Objects.requireNonNull(frequencyUUID,
@@ -295,6 +316,7 @@ public final class QIOProcessingNetworkManager {
         }
     }
 
+    /** 刷新所有脏网络和世界索引。 */
     public void flush() {
         Map<UUID, QIOProcessingNetworkData> pending;
         synchronized (this) {
@@ -331,6 +353,7 @@ public final class QIOProcessingNetworkManager {
         }
     }
 
+    /** 世界 tick 中执行网络维护、自动化调度和持久化刷新。 */
     public void tick(@Nullable World world) {
         if (world != null && !world.isRemote && world.provider.getDimension() == 0) {
             if (world.getTotalWorldTime() % STORAGE_MAINTENANCE_INTERVAL == 0) {
@@ -342,6 +365,7 @@ public final class QIOProcessingNetworkManager {
         }
     }
 
+    /** 关闭管理器并清空运行时索引。 */
     public void shutdown() {
         flush();
         synchronized (this) {
@@ -349,6 +373,7 @@ public final class QIOProcessingNetworkManager {
         }
     }
 
+    /** 测试专用：清空网络管理器状态。 */
     public synchronized void resetForTests() {
         clearRuntimeState();
     }

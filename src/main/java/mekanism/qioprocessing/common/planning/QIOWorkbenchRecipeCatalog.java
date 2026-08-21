@@ -14,10 +14,13 @@ import mekanism.qioprocessing.common.MekanismQIOProcessing;
 import mekanism.qioprocessing.common.content.plan.QIOPlanStep.ProviderKind;
 import mekanism.qioprocessing.common.util.QIOHashing;
 import net.minecraft.inventory.InventoryCrafting;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.crafting.IRecipe;
 import net.minecraft.item.crafting.Ingredient;
 import net.minecraft.item.crafting.CraftingManager;
+import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.nbt.NBTTagList;
 import net.minecraft.util.NonNullList;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.world.World;
@@ -26,27 +29,41 @@ import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.capability.IFluidHandlerItem;
 import net.minecraftforge.fluids.capability.IFluidTankProperties;
 import net.minecraftforge.fml.common.registry.ForgeRegistries;
+import net.minecraftforge.oredict.OreDictionary;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.ArrayDeque;
+import java.util.AbstractList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 /** Captures a compact logical workbench directory and materializes exact variants on demand. */
+/**
+ * QIO 处理模块中的 QIOWorkbenchRecipeCatalog 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOWorkbenchRecipeCatalog {
 
     public static final ResourceLocation PROVIDER_ID =
@@ -69,6 +86,15 @@ public final class QIOWorkbenchRecipeCatalog {
     public interface PriorityResolver {
 
         long priority(@Nonnull ResourceLocation recipeId);
+    }
+
+    /** Semantic class of one frozen ingredient matcher. */
+    public enum MatcherKind {
+        EMPTY,
+        EXACT,
+        ORE,
+        WILDCARD,
+        ANY_OF
     }
 
     private QIOWorkbenchRecipeCatalog() {
@@ -152,7 +178,7 @@ public final class QIOWorkbenchRecipeCatalog {
           @Nonnull World world, @Nonnull Collection<ItemStack> targets) {
         return resolveEncodedTargets(world, targets,
               QIORecipeCatalogService.INSTANCE.getRecipeOutputIndex(world),
-              DEFAULT_BATCH_COMBINATION_BUDGET);
+              DEFAULT_BATCH_COMBINATION_BUDGET, true);
     }
 
     @Nonnull
@@ -161,13 +187,14 @@ public final class QIOWorkbenchRecipeCatalog {
           @Nonnull Collection<? extends IRecipe> recipes, int combinationBudget) {
         Objects.requireNonNull(recipes, "recipes");
         return resolveEncodedTargets(world, targets, RecipeOutputIndex.build(world, recipes),
-              combinationBudget);
+              combinationBudget, false);
     }
 
     @Nonnull
     private static List<QIOWorkbenchConfiguration.EncodedPattern> resolveEncodedTargets(
           @Nonnull World world, @Nonnull Collection<ItemStack> targets,
-          @Nonnull RecipeOutputIndex recipeIndex, int combinationBudget) {
+          @Nonnull RecipeOutputIndex recipeIndex, int combinationBudget,
+          boolean validateCurrentRegistry) {
         Objects.requireNonNull(world, "world");
         Objects.requireNonNull(targets, "targets");
         Objects.requireNonNull(recipeIndex, "recipeIndex");
@@ -207,10 +234,46 @@ public final class QIOWorkbenchRecipeCatalog {
                     throw new IllegalStateException(
                           "Workbench batch combination budget exhausted");
                 }
-                result.add(recipe.newPattern());
+                QIOWorkbenchConfiguration.EncodedPattern pattern = recipe.newPattern();
+                result.add(validateCurrentRegistry ? validateEncodedPattern(world, pattern) :
+                      pattern);
             }
         }
         return Collections.unmodifiableList(result);
+    }
+
+    @Nonnull
+    private static QIOWorkbenchConfiguration.EncodedPattern validateEncodedPattern(
+          @Nonnull World world,
+          @Nonnull QIOWorkbenchConfiguration.EncodedPattern expected) {
+        IRecipe recipe = ForgeRegistries.RECIPES.getValue(expected.getRecipeId());
+        if (recipe == null || recipe.isDynamic() || recipe.getRegistryName() == null) {
+            throw new IllegalArgumentException("Selected workbench recipe is no longer registered");
+        }
+        InventoryCrafting inventory = MekanismUtils.getDummyCraftingInv();
+        List<ItemStack> grid = expected.getGrid();
+        for (int slot = 0; slot < 9; slot++) {
+            inventory.setInventorySlotContents(slot, grid.get(slot).copy());
+        }
+        if (!recipe.matches(inventory, world)) {
+            throw new IllegalArgumentException("Selected workbench recipe no longer matches");
+        }
+        ItemStack result = concreteStack(recipe.getCraftingResult(inventory));
+        if (result.isEmpty() || result.getCount() != expected.getOutputAmount() ||
+            !PortableResourceDescriptor.item(result).equals(expected.getOutput())) {
+            throw new IllegalArgumentException("Selected workbench recipe output changed");
+        }
+        Snapshot current = capture(world, Collections.singletonList(recipe), ignored -> 0,
+              DEFAULT_MAX_CANDIDATES_PER_INGREDIENT, DEFAULT_MAX_VARIANTS_PER_RECIPE,
+              DEFAULT_MAX_MATERIALIZED_VARIANTS);
+        RecipeDefinition definition = current.getRecipeDefinition(expected.getRecipeId());
+        if (definition == null ||
+            !definition.getSignature().equals(expected.getRecipeSignature())) {
+            throw new IllegalArgumentException("Selected workbench recipe structure changed");
+        }
+        return new QIOWorkbenchConfiguration.EncodedPattern(UUID.randomUUID(),
+              expected.getRecipeId(), definition.getSignature(), definition.getOutput(),
+              definition.getOutputAmount(), grid);
     }
 
     /**
@@ -365,7 +428,7 @@ public final class QIOWorkbenchRecipeCatalog {
     private static ItemStack concreteStack(@Nullable ItemStack stack) {
         if (stack == null || stack.isEmpty()) return ItemStack.EMPTY;
         if (MachineRecipeItemInputs.isConcreteInput(stack)) return stack.copy();
-        List<ItemStack> expanded = MachineRecipeItemInputs.expand(stack, null);
+        List<ItemStack> expanded = MachineRecipeItemInputs.expand(stack, null, 1);
         return expanded.isEmpty() ? ItemStack.EMPTY : expanded.get(0).copy();
     }
 
@@ -394,19 +457,34 @@ public final class QIOWorkbenchRecipeCatalog {
         private final World world;
         private final PriorityResolver priorityResolver;
         private final int maxCandidatesPerIngredient;
+        private final int candidateScanLimit;
         private final int maxVariantsPerRecipe;
         private final int maxMaterializedVariants;
-        private final Map<ResourceLocation, LogicalRecipe> recipes = new LinkedHashMap<>();
+        @Nullable
+        private final QIOForgeRecipeData forgeData;
+        private final Map<ResourceLocation, LogicalRecipe> recipes = new TreeMap<>();
+        private final Map<CandidateExpansionKey, List<ItemStack>> wildcardExpansionCache =
+              new LinkedHashMap<>();
         private final List<String> diagnostics = new ArrayList<>();
 
         private Builder(@Nullable World world, PriorityResolver priorityResolver,
               int maxCandidatesPerIngredient, int maxVariantsPerRecipe,
               int maxMaterializedVariants) {
+            this(world, priorityResolver, maxCandidatesPerIngredient, maxVariantsPerRecipe,
+                  maxMaterializedVariants, null);
+        }
+
+        private Builder(@Nullable World world, PriorityResolver priorityResolver,
+              int maxCandidatesPerIngredient, int maxVariantsPerRecipe,
+              int maxMaterializedVariants, @Nullable QIOForgeRecipeData forgeData) {
             this.world = world;
             this.priorityResolver = priorityResolver;
             this.maxCandidatesPerIngredient = maxCandidatesPerIngredient;
+            candidateScanLimit = maxCandidatesPerIngredient > Integer.MAX_VALUE / 8 ?
+                  Integer.MAX_VALUE : maxCandidatesPerIngredient * 8;
             this.maxVariantsPerRecipe = maxVariantsPerRecipe;
             this.maxMaterializedVariants = maxMaterializedVariants;
+            this.forgeData = forgeData;
         }
 
         private void add(@Nullable IRecipe recipe) {
@@ -420,7 +498,7 @@ public final class QIOWorkbenchRecipeCatalog {
                 return;
             }
             ItemStack declaredOutput;
-            List<List<IngredientChoice>> slots;
+            GridCandidates slots;
             try {
                 declaredOutput = recipe.getRecipeOutput();
                 if (declaredOutput == null || declaredOutput.isEmpty()) {
@@ -431,7 +509,8 @@ public final class QIOWorkbenchRecipeCatalog {
                 declaredOutput = declaredOutput.copy();
                 slots = exactGridCandidates(recipe, ingredients);
                 if (!MachineRecipeItemInputs.isConcreteInput(declaredOutput)) {
-                    declaredOutput = firstConcreteRecipeOutput(recipe, declaredOutput, slots);
+                    declaredOutput = firstConcreteRecipeOutput(recipe, declaredOutput,
+                          slots.candidates);
                     if (declaredOutput.isEmpty()) {
                         throw new IllegalArgumentException(
                               "Recipe output has no concrete item variant");
@@ -486,11 +565,11 @@ public final class QIOWorkbenchRecipeCatalog {
             }
         }
 
-        private List<List<IngredientChoice>> exactGridCandidates(IRecipe recipe,
+        private GridCandidates exactGridCandidates(IRecipe recipe,
               NonNullList<Ingredient> ingredients) {
-            List<List<IngredientChoice>> grid = new ArrayList<>(9);
+            List<MatcherSeed> grid = new ArrayList<>(9);
             for (int slot = 0; slot < 9; slot++) {
-                grid.add(Collections.singletonList(IngredientChoice.empty()));
+                grid.add(MatcherSeed.empty());
             }
             if (recipe instanceof IShapedRecipe shaped) {
                 int width = shaped.getRecipeWidth();
@@ -510,24 +589,31 @@ public final class QIOWorkbenchRecipeCatalog {
                     grid.set(slot, candidates(ingredients.get(slot)));
                 }
             }
-            return grid;
+            return new GridCandidates(grid);
         }
 
-        private List<IngredientChoice> candidates(Ingredient ingredient) {
+        private MatcherSeed candidates(Ingredient ingredient) {
             if (ingredient == null || ingredient == Ingredient.EMPTY) {
-                return Collections.singletonList(IngredientChoice.empty());
+                return MatcherSeed.empty();
             }
             ItemStack[] matching = ingredient.getMatchingStacks();
             if (matching == null || matching.length == 0) {
                 throw new IllegalArgumentException("Ingredient has no exact item candidates");
             }
             Map<String, IngredientChoice> unique = new LinkedHashMap<>();
+            int scanned = 0;
+            candidateLoop:
             for (ItemStack candidate : matching) {
                 if (candidate == null || candidate.isEmpty()) {
                     continue;
                 }
-                for (ItemStack concrete : MachineRecipeItemInputs.expand(candidate,
-                      ingredient::apply)) {
+                for (ItemStack concrete : expandedCandidate(candidate)) {
+                    if (scanned++ >= candidateScanLimit) {
+                        break candidateLoop;
+                    }
+                    if (!ingredient.apply(concrete)) {
+                        continue;
+                    }
                     ItemStack copy = concrete.copy();
                     copy.setCount(1);
                     try {
@@ -541,6 +627,9 @@ public final class QIOWorkbenchRecipeCatalog {
                             unique.putIfAbsent(fluidChoice.sortKey(), fluidChoice);
                         }
                     } catch (RuntimeException ignored) {
+                    }
+                    if (unique.size() >= maxCandidatesPerIngredient) {
+                        break candidateLoop;
                     }
                 }
             }
@@ -556,7 +645,60 @@ public final class QIOWorkbenchRecipeCatalog {
             if (ordered.isEmpty()) {
                 throw new IllegalArgumentException("Ingredient has no registered exact item candidates");
             }
-            return Collections.unmodifiableList(ordered);
+            MatcherKind kind = matcherKind(ingredient, matching);
+            List<String> source = new ArrayList<>(matching.length);
+            for (ItemStack stack : matching) {
+                source.add(stackIdentity(stack));
+            }
+            Collections.sort(source);
+            StringBuilder semantic = new StringBuilder(ingredient.getClass().getName())
+                  .append('|').append(kind.name()).append('|');
+            source.forEach(key -> semantic.append(key).append(';'));
+            return new MatcherSeed(new MatcherKey(kind, sha256(semantic.toString()), ordered),
+                  ordered);
+        }
+
+        private static MatcherKind matcherKind(Ingredient ingredient, ItemStack[] matching) {
+            String className = ingredient.getClass().getName();
+            if (className.equals("net.minecraftforge.oredict.OreIngredient") ||
+                className.endsWith(".OreIngredient")) {
+                return MatcherKind.ORE;
+            }
+            for (ItemStack stack : matching) {
+                if (stack != null && !stack.isEmpty() &&
+                    stack.getMetadata() == OreDictionary.WILDCARD_VALUE) {
+                    return MatcherKind.WILDCARD;
+                }
+            }
+            return matching.length == 1 ? MatcherKind.EXACT : MatcherKind.ANY_OF;
+        }
+
+        private static String stackIdentity(@Nullable ItemStack stack) {
+            if (stack == null || stack.isEmpty()) return "";
+            try {
+                return PortableResourceDescriptor.item(stack) + "@" + stack.getCount();
+            } catch (RuntimeException ignored) {
+                ResourceLocation name = stack.getItem().getRegistryName();
+                return String.valueOf(name) + '|' + stack.getMetadata() + '|' +
+                      stack.getCount() + '|' + String.valueOf(stack.getTagCompound());
+            }
+        }
+
+        private List<ItemStack> expandedCandidate(ItemStack candidate) {
+            if (MachineRecipeItemInputs.isConcreteInput(candidate)) {
+                return Collections.singletonList(candidate.copy());
+            }
+            CandidateExpansionKey key = new CandidateExpansionKey(candidate);
+            List<ItemStack> expanded = wildcardExpansionCache.get(key);
+            if (expanded == null) {
+                List<ItemStack> captured = forgeData == null ? Collections.emptyList() :
+                      forgeData.expand(candidate, maxCandidatesPerIngredient);
+                expanded = captured.isEmpty() ? Collections.unmodifiableList(
+                      MachineRecipeItemInputs.expand(candidate, null,
+                            maxCandidatesPerIngredient)) : captured;
+                wildcardExpansionCache.put(key, expanded);
+            }
+            return expanded;
         }
 
         @Nonnull
@@ -598,9 +740,11 @@ public final class QIOWorkbenchRecipeCatalog {
         private Snapshot build() {
             Map<ResourceLocation, CompiledRecipe> compiled = new LinkedHashMap<>();
             List<String> compiledDiagnostics = new ArrayList<>(diagnostics);
+            CatalogSymbols symbols = CatalogSymbols.build(new SymbolCatalogInput(
+                  recipes.values()));
             for (LogicalRecipe recipe : recipes.values()) {
                 try {
-                    CompiledRecipe template = recipe.compile();
+                    CompiledRecipe template = recipe.compile(symbols);
                     if (template != null) {
                         compiled.put(recipe.recipeId, template);
                     } else {
@@ -612,7 +756,511 @@ public final class QIOWorkbenchRecipeCatalog {
                           recipe.recipeId + ": " + diagnostic(error));
                 }
             }
-            return new Snapshot(compiled, compiledDiagnostics, DEFAULT_PATTERN_CACHE_SIZE);
+            return new Snapshot(compiled, compiledDiagnostics, DEFAULT_PATTERN_CACHE_SIZE,
+                  symbols.generation(compiled.values()));
+        }
+    }
+
+    private static final class CandidateExpansionKey {
+
+        private final Item item;
+        private final int metadata;
+        private final int count;
+        @Nullable
+        private final NBTTagCompound tag;
+        private final int hashCode;
+
+        private CandidateExpansionKey(ItemStack stack) {
+            item = stack.getItem();
+            metadata = stack.getMetadata();
+            count = stack.getCount();
+            tag = stack.getTagCompound();
+            int hash = System.identityHashCode(item);
+            hash = 31 * hash + metadata;
+            hash = 31 * hash + count;
+            hashCode = 31 * hash + (tag == null ? 0 : tag.hashCode());
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (!(obj instanceof CandidateExpansionKey other)) {
+                return false;
+            }
+            return item == other.item && metadata == other.metadata && count == other.count &&
+                  Objects.equals(tag, other.tag);
+        }
+
+        @Override
+        public int hashCode() {
+            return hashCode;
+        }
+    }
+
+    private static final class GridCandidates {
+
+        private final List<MatcherSeed> matchers;
+        private final List<List<IngredientChoice>> candidates;
+
+        private GridCandidates(List<MatcherSeed> matchers) {
+            this.matchers = Collections.unmodifiableList(new ArrayList<>(matchers));
+            List<List<IngredientChoice>> choices = new ArrayList<>(matchers.size());
+            for (MatcherSeed matcher : matchers) {
+                choices.add(matcher.choices);
+            }
+            candidates = Collections.unmodifiableList(choices);
+        }
+    }
+
+    private static final class MatcherSeed {
+
+        private static final MatcherSeed EMPTY = new MatcherSeed(MatcherKey.EMPTY,
+              Collections.singletonList(IngredientChoice.empty()));
+        private final MatcherKey key;
+        private final List<IngredientChoice> choices;
+
+        private MatcherSeed(MatcherKey key, List<IngredientChoice> choices) {
+            this.key = Objects.requireNonNull(key, "key");
+            this.choices = Collections.unmodifiableList(new ArrayList<>(choices));
+        }
+
+        private static MatcherSeed empty() {
+            return EMPTY;
+        }
+    }
+
+    private static final class MatcherKey implements Comparable<MatcherKey> {
+
+        private static final MatcherKey EMPTY = new MatcherKey();
+        private final MatcherKind kind;
+        private final String canonical;
+        private final int hashCode;
+
+        private MatcherKey() {
+            kind = MatcherKind.EMPTY;
+            canonical = "EMPTY";
+            hashCode = canonical.hashCode();
+        }
+
+        private MatcherKey(MatcherKind kind, String sourceSignature,
+              List<IngredientChoice> choices) {
+            this.kind = Objects.requireNonNull(kind, "kind");
+            StringBuilder value = new StringBuilder(kind.name()).append('|')
+                  .append(Objects.requireNonNull(sourceSignature, "sourceSignature"))
+                  .append('|');
+            for (IngredientChoice choice : choices) {
+                value.append(choice.sortKey()).append(';');
+            }
+            canonical = value.toString();
+            hashCode = canonical.hashCode();
+        }
+
+        @Override
+        public int compareTo(MatcherKey other) {
+            return canonical.compareTo(Objects.requireNonNull(other, "other").canonical);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof MatcherKey key && canonical.equals(key.canonical);
+        }
+
+        @Override
+        public int hashCode() {
+            return hashCode;
+        }
+    }
+
+    private static final class FrozenItemType {
+
+        private final PortableResourceDescriptor descriptor;
+        private final int runtimeItemId;
+        private final ItemStack prototype;
+        private final NBTTagCompound serializedPrototype;
+
+        private FrozenItemType(PortableResourceDescriptor descriptor, int runtimeItemId,
+              ItemStack prototype) {
+            this.descriptor = descriptor;
+            this.runtimeItemId = runtimeItemId;
+            this.prototype = prototype.copy();
+            serializedPrototype = prototype.writeToNBT(new NBTTagCompound());
+        }
+
+        private static FrozenItemType capture(ItemStack stack) {
+            ItemStack prototype = stack.copy();
+            prototype.setCount(1);
+            PortableResourceDescriptor descriptor;
+            try {
+                descriptor = PortableResourceDescriptor.item(prototype);
+            } catch (RuntimeException error) {
+                ResourceLocation registryName = prototype.getItem().getRegistryName();
+                if (registryName == null) throw error;
+                // Test and compatibility containers may carry a stable name without being in
+                // Item.REGISTRY. Preserve their full serialized identity for this generation.
+                descriptor = PortableResourceDescriptor.named(
+                      PortableResourceDescriptor.Kind.ITEM, registryName.toString(),
+                      prototype.getMetadata(), prototype.writeToNBT(new NBTTagCompound()));
+            }
+            return new FrozenItemType(descriptor, Item.getIdFromItem(prototype.getItem()),
+                  prototype);
+        }
+    }
+
+    /** One concrete item/NBT/ForgeCaps identity in a catalog generation. */
+    public static final class ItemTypeDefinition {
+
+        private final int itemTypeId;
+        private final int runtimeItemId;
+        private final PortableResourceDescriptor descriptor;
+        private final ItemStack prototype;
+        private final NBTTagCompound serializedPrototype;
+
+        private ItemTypeDefinition(int itemTypeId, FrozenItemType frozen) {
+            this.itemTypeId = itemTypeId;
+            runtimeItemId = frozen.runtimeItemId;
+            descriptor = frozen.descriptor;
+            prototype = frozen.prototype;
+            serializedPrototype = frozen.serializedPrototype.copy();
+        }
+
+        public int getItemTypeId() { return itemTypeId; }
+        public int getRuntimeItemId() { return runtimeItemId; }
+        @Nonnull public PortableResourceDescriptor getDescriptor() { return descriptor; }
+        @Nonnull public ItemStack getDisplayStack() { return prototype.copy(); }
+    }
+
+    /** Immutable numeric lookup for every concrete item identity used by this generation. */
+    public static final class ItemTypeTable {
+
+        private final List<ItemTypeDefinition> entries;
+        private final Map<PortableResourceDescriptor, Integer> ids;
+
+        private ItemTypeTable(List<ItemTypeDefinition> entries,
+              Map<PortableResourceDescriptor, Integer> ids) {
+            this(entries, ids, false);
+        }
+
+        private ItemTypeTable(List<ItemTypeDefinition> entries,
+              Map<PortableResourceDescriptor, Integer> ids, boolean owned) {
+            this.entries = Collections.unmodifiableList(owned ? entries :
+                  new ArrayList<>(entries));
+            this.ids = Collections.unmodifiableMap(owned ? ids :
+                  new LinkedHashMap<>(ids));
+        }
+
+        public int size() { return entries.size(); }
+
+        @Nonnull
+        public ItemTypeDefinition get(int itemTypeId) {
+            if (itemTypeId < 0 || itemTypeId >= entries.size()) {
+                throw new IllegalArgumentException("Unknown QIO item type ID: " + itemTypeId);
+            }
+            return entries.get(itemTypeId);
+        }
+
+        public int getId(@Nonnull PortableResourceDescriptor descriptor) {
+            Integer id = ids.get(Objects.requireNonNull(descriptor, "descriptor"));
+            if (id == null) {
+                throw new IllegalArgumentException("Item type is not part of this catalog generation");
+            }
+            return id;
+        }
+    }
+
+    /** One shared ingredient matcher and its selectable concrete variants. */
+    public static final class MatcherDefinition {
+
+        private final int matcherId;
+        private final MatcherKind kind;
+        private final List<IngredientChoice> choices;
+        private final List<CandidateDefinition> candidates;
+        private final List<String> candidateIds;
+
+        private MatcherDefinition(int matcherId, MatcherKey key,
+              List<IngredientChoice> choices, ItemTypeTable itemTypes) {
+            this.matcherId = matcherId;
+            kind = key.kind;
+            this.choices = choices;
+            List<CandidateDefinition> definitions = new ArrayList<>();
+            List<String> ids = new ArrayList<>();
+            for (IngredientChoice choice : choices) {
+                if (!choice.isEmpty()) {
+                    CandidateDefinition definition = choice.definition(itemTypes);
+                    definitions.add(definition);
+                    ids.add(definition.getCandidateId());
+                }
+            }
+            candidates = Collections.unmodifiableList(definitions);
+            candidateIds = Collections.unmodifiableList(ids);
+        }
+
+        public int getMatcherId() { return matcherId; }
+        @Nonnull public MatcherKind getKind() { return kind; }
+        public boolean isEmpty() { return matcherId == IngredientVariantTable.EMPTY_MATCHER_ID; }
+        @Nonnull public List<CandidateDefinition> getCandidates() { return candidates; }
+        @Nonnull public List<String> getCandidateIds() { return candidateIds; }
+    }
+
+    /** Immutable MatcherId to variant-set table shared by every recipe in one generation. */
+    public static final class IngredientVariantTable {
+
+        public static final int EMPTY_MATCHER_ID = 0;
+        private final List<MatcherDefinition> matchers;
+
+        private IngredientVariantTable(List<MatcherDefinition> matchers) {
+            this(matchers, false);
+        }
+
+        private IngredientVariantTable(List<MatcherDefinition> matchers, boolean owned) {
+            this.matchers = Collections.unmodifiableList(owned ? matchers :
+                  new ArrayList<>(matchers));
+        }
+
+        public int size() { return matchers.size(); }
+
+        @Nonnull
+        public MatcherDefinition get(int matcherId) {
+            if (matcherId < 0 || matcherId >= matchers.size()) {
+                throw new IllegalArgumentException("Unknown QIO ingredient matcher ID: " + matcherId);
+            }
+            return matchers.get(matcherId);
+        }
+
+        @Nonnull
+        private List<IngredientChoice> choices(int matcherId) {
+            return get(matcherId).choices;
+        }
+    }
+
+    /** Immutable numeric recipe-skeleton directory for one catalog generation. */
+    public static final class RecipeSkeletonTable {
+
+        private final List<RecipeDefinition> recipes;
+        private final Map<ResourceLocation, RecipeDefinition> recipesById;
+
+        private RecipeSkeletonTable(Collection<CompiledRecipe> compiled) {
+            List<RecipeDefinition> ordered = new ArrayList<>(compiled.size());
+            Map<ResourceLocation, RecipeDefinition> byId = new LinkedHashMap<>();
+            for (CompiledRecipe recipe : compiled) {
+                ordered.add(recipe.definition);
+                byId.put(recipe.definition.getRecipeId(), recipe.definition);
+            }
+            recipes = Collections.unmodifiableList(ordered);
+            recipesById = Collections.unmodifiableMap(byId);
+        }
+
+        public int size() { return recipes.size(); }
+        @Nonnull public List<RecipeDefinition> getRecipes() { return recipes; }
+        @Nullable public RecipeDefinition get(@Nonnull ResourceLocation recipeId) {
+            return recipesById.get(Objects.requireNonNull(recipeId, "recipeId"));
+        }
+    }
+
+    /** Atomically published set of all three numeric tables. */
+    public static final class CatalogGeneration {
+
+        private final ItemTypeTable itemTypes;
+        private final IngredientVariantTable ingredientVariants;
+        private final RecipeSkeletonTable recipeSkeletons;
+        private final String generationId;
+        private final Object generationToken;
+
+        private CatalogGeneration(ItemTypeTable itemTypes,
+              IngredientVariantTable ingredientVariants,
+              RecipeSkeletonTable recipeSkeletons, String generationId,
+              Object generationToken) {
+            this.itemTypes = itemTypes;
+            this.ingredientVariants = ingredientVariants;
+            this.recipeSkeletons = recipeSkeletons;
+            this.generationId = generationId;
+            this.generationToken = generationToken;
+        }
+
+        @Nonnull public ItemTypeTable getItemTypes() { return itemTypes; }
+        @Nonnull public IngredientVariantTable getIngredientVariants() {
+            return ingredientVariants;
+        }
+        @Nonnull public RecipeSkeletonTable getRecipeSkeletons() { return recipeSkeletons; }
+        @Nonnull public String getGenerationId() { return generationId; }
+    }
+
+    /** Pure-data projection used by the background symbol-table builder. */
+    private static final class SymbolCatalogInput {
+
+        private final List<SymbolRecipe> recipes;
+
+        private SymbolCatalogInput(Collection<LogicalRecipe> recipes) {
+            List<SymbolRecipe> frozen = new ArrayList<>(recipes.size());
+            for (LogicalRecipe recipe : recipes) {
+                frozen.add(new SymbolRecipe(recipe));
+            }
+            this.recipes = Collections.unmodifiableList(frozen);
+        }
+
+        private SymbolCatalogInput(List<SymbolRecipe> recipes, boolean owned) {
+            this.recipes = Collections.unmodifiableList(owned ? recipes :
+                  new ArrayList<>(recipes));
+        }
+    }
+
+    private static final class SymbolRecipe {
+
+        private final FrozenItemType output;
+        private final List<MatcherSeed> matchers;
+
+        private SymbolRecipe(LogicalRecipe recipe) {
+            output = recipe.declaredOutputType;
+            List<MatcherSeed> frozen = new ArrayList<>(recipe.candidates.size());
+            for (int slot = 0; slot < recipe.candidates.size(); slot++) {
+                frozen.add(new MatcherSeed(recipe.matcherKeys.get(slot),
+                      recipe.candidates.get(slot)));
+            }
+            matchers = Collections.unmodifiableList(frozen);
+        }
+    }
+
+    private static final class SymbolShard {
+
+        private final Map<PortableResourceDescriptor, FrozenItemType> itemTypes =
+              new LinkedHashMap<>();
+        private final Map<MatcherKey, MatcherSeed> matchers = new LinkedHashMap<>();
+
+        private static SymbolShard scan(SymbolCatalogInput input, int from, int to) {
+            SymbolShard shard = new SymbolShard();
+            shard.matchers.put(MatcherKey.EMPTY, MatcherSeed.empty());
+            for (int index = from; index < to; index++) {
+                SymbolRecipe recipe = input.recipes.get(index);
+                shard.itemTypes.putIfAbsent(recipe.output.descriptor, recipe.output);
+                for (MatcherSeed matcher : recipe.matchers) {
+                    shard.matchers.putIfAbsent(matcher.key, matcher);
+                    for (IngredientChoice choice : matcher.choices) {
+                        if (!choice.isEmpty()) {
+                            shard.itemTypes.putIfAbsent(choice.itemType.descriptor,
+                                  choice.itemType);
+                        }
+                    }
+                }
+            }
+            return shard;
+        }
+    }
+
+    private static final class CatalogSymbols {
+
+        private final ItemTypeTable itemTypes;
+        private final IngredientVariantTable ingredientVariants;
+        private final Map<MatcherKey, Integer> matcherIds;
+        private final Object generationToken = new Object();
+
+        private CatalogSymbols(ItemTypeTable itemTypes,
+              IngredientVariantTable ingredientVariants,
+              Map<MatcherKey, Integer> matcherIds) {
+            this.itemTypes = itemTypes;
+            this.ingredientVariants = ingredientVariants;
+            this.matcherIds = matcherIds;
+        }
+
+        private static CatalogSymbols build(SymbolCatalogInput input) {
+            return merge(Collections.singletonList(SymbolShard.scan(input, 0,
+                  input.recipes.size())));
+        }
+
+        private static CompletableFuture<CatalogSymbols> buildAsync(SymbolCatalogInput input,
+              Executor executor) {
+            return buildAsync(input, executor, 2);
+        }
+
+        private static CompletableFuture<CatalogSymbols> buildAsync(SymbolCatalogInput input,
+              Executor executor, int workerCount) {
+            Objects.requireNonNull(executor, "executor");
+            if (workerCount <= 0) {
+                throw new IllegalArgumentException("Catalog worker count must be positive");
+            }
+            int shards = Math.min(workerCount, Math.max(1, input.recipes.size()));
+            int baseSize = input.recipes.size() / shards;
+            List<CompletableFuture<SymbolShard>> futures = new ArrayList<>(shards);
+            for (int shard = 0; shard < shards; shard++) {
+                int from = shard * baseSize;
+                int to = shard == shards - 1 ? input.recipes.size() : from + baseSize;
+                futures.add(CompletableFuture.supplyAsync(() ->
+                      SymbolShard.scan(input, from, to), executor));
+            }
+            CompletableFuture<?>[] pending = futures.toArray(new CompletableFuture<?>[0]);
+            return CompletableFuture.allOf(pending).thenApplyAsync(ignored -> {
+                List<SymbolShard> completed = new ArrayList<>(futures.size());
+                futures.forEach(future -> completed.add(future.join()));
+                return merge(completed);
+            }, executor);
+        }
+
+        private static CatalogSymbols merge(Collection<SymbolShard> shards) {
+            Map<PortableResourceDescriptor, FrozenItemType> frozenItems = new TreeMap<>();
+            Map<MatcherKey, MatcherSeed> frozenMatchers = new TreeMap<>();
+            frozenMatchers.put(MatcherKey.EMPTY, MatcherSeed.empty());
+            for (SymbolShard shard : shards) {
+                shard.itemTypes.forEach(frozenItems::putIfAbsent);
+                shard.matchers.forEach(frozenMatchers::putIfAbsent);
+            }
+            List<ItemTypeDefinition> itemDefinitions = new ArrayList<>(frozenItems.size());
+            Map<PortableResourceDescriptor, Integer> itemIds = new LinkedHashMap<>();
+            for (FrozenItemType item : frozenItems.values()) {
+                int id = itemDefinitions.size();
+                itemDefinitions.add(new ItemTypeDefinition(id, item));
+                itemIds.put(item.descriptor, id);
+            }
+            ItemTypeTable itemTypes = new ItemTypeTable(itemDefinitions, itemIds);
+
+            List<MatcherDefinition> matcherDefinitions = new ArrayList<>(frozenMatchers.size());
+            Map<MatcherKey, Integer> matcherIds = new HashMap<>();
+            MatcherSeed empty = frozenMatchers.remove(MatcherKey.EMPTY);
+            matcherDefinitions.add(new MatcherDefinition(
+                  IngredientVariantTable.EMPTY_MATCHER_ID, MatcherKey.EMPTY,
+                  empty == null ? MatcherSeed.empty().choices : empty.choices, itemTypes));
+            matcherIds.put(MatcherKey.EMPTY, IngredientVariantTable.EMPTY_MATCHER_ID);
+            for (Map.Entry<MatcherKey, MatcherSeed> entry : frozenMatchers.entrySet()) {
+                int id = matcherDefinitions.size();
+                matcherDefinitions.add(new MatcherDefinition(id, entry.getKey(),
+                      entry.getValue().choices, itemTypes));
+                matcherIds.put(entry.getKey(), id);
+            }
+            return new CatalogSymbols(itemTypes,
+                  new IngredientVariantTable(matcherDefinitions),
+                  Collections.unmodifiableMap(matcherIds));
+        }
+
+        private int matcherId(MatcherKey key) {
+            Integer matcherId = matcherIds.get(key);
+            if (matcherId == null) {
+                throw new IllegalStateException("Recipe matcher belongs to another catalog generation");
+            }
+            return matcherId;
+        }
+
+        private CatalogGeneration generation(Collection<CompiledRecipe> recipes) {
+            RecipeSkeletonTable skeletons = new RecipeSkeletonTable(recipes);
+            return new CatalogGeneration(itemTypes, ingredientVariants, skeletons,
+                  generationSignature(recipes), generationToken);
+        }
+
+        private String generationSignature(Collection<CompiledRecipe> recipes) {
+            StringBuilder canonical = new StringBuilder();
+            for (ItemTypeDefinition itemType : itemTypes.entries) {
+                canonical.append("I|").append(itemType.itemTypeId).append('|')
+                      .append(itemType.descriptor).append('\n');
+            }
+            for (MatcherDefinition matcher : ingredientVariants.matchers) {
+                canonical.append("M|").append(matcher.matcherId).append('|')
+                      .append(matcher.kind).append('|');
+                for (CandidateDefinition candidate : matcher.candidates) {
+                    canonical.append(candidate.candidateId).append('@')
+                          .append(candidate.itemTypeId).append(';');
+                }
+                canonical.append('\n');
+            }
+            canonical.append("R|").append(compiledCatalogSignature(recipes));
+            return sha256(canonical.toString());
         }
     }
 
@@ -625,14 +1273,16 @@ public final class QIOWorkbenchRecipeCatalog {
         private final Set<PortableResourceDescriptor> declaredOutputs;
         private final List<String> diagnostics;
         private final String structuralSignature;
+        private final CatalogGeneration generation;
         private final Map<String, QIOWorkbenchRecipePattern> patterns;
 
         private Snapshot(Map<ResourceLocation, CompiledRecipe> recipes, List<String> diagnostics,
-              int maximumCachedPatterns) {
+              int maximumCachedPatterns, CatalogGeneration generation) {
             this.recipes = Collections.unmodifiableMap(new LinkedHashMap<>(recipes));
             this.recipeIds = Collections.unmodifiableList(new ArrayList<>(recipes.keySet()));
             this.recipeIdSet = Collections.unmodifiableSet(new LinkedHashSet<>(recipes.keySet()));
             this.diagnostics = Collections.unmodifiableList(new ArrayList<>(diagnostics));
+            this.generation = Objects.requireNonNull(generation, "generation");
             Map<PortableResourceDescriptor, List<CompiledRecipe>> outputIndex = new LinkedHashMap<>();
             for (CompiledRecipe recipe : recipes.values()) {
                 outputIndex.computeIfAbsent(recipe.definition.getOutput(),
@@ -648,7 +1298,8 @@ public final class QIOWorkbenchRecipeCatalog {
             }
             recipesByOutput = Collections.unmodifiableMap(orderedIndex);
             declaredOutputs = Collections.unmodifiableSet(new LinkedHashSet<>(outputs));
-            structuralSignature = compiledCatalogSignature(recipes.values());
+            structuralSignature = sha256(compiledCatalogSignature(recipes.values()) + '|' +
+                  generation.getGenerationId());
             patterns = new LinkedHashMap<>(128, 0.75F, true) {
                 @Override
                 protected boolean removeEldestEntry(
@@ -878,6 +1529,40 @@ public final class QIOWorkbenchRecipeCatalog {
         }
 
         @Nonnull
+        public CatalogGeneration getGeneration() {
+            return generation;
+        }
+
+        @Nonnull
+        public MatcherDefinition getMatcher(@Nonnull IngredientDefinition ingredient) {
+            IngredientDefinition checked = Objects.requireNonNull(ingredient, "ingredient");
+            if (checked.generationToken != generation.generationToken) {
+                throw new IllegalArgumentException(
+                      "Ingredient matcher belongs to another catalog generation");
+            }
+            return generation.ingredientVariants.get(checked.getMatcherId());
+        }
+
+        @Nonnull
+        public List<CandidateDefinition> getCandidates(
+              @Nonnull IngredientDefinition ingredient) {
+            return getMatcher(ingredient).getCandidates();
+        }
+
+        @Nonnull
+        public List<String> getCandidateIds(@Nonnull RecipeDefinition recipe, int slot) {
+            Objects.requireNonNull(recipe, "recipe");
+            if (recipe.generationToken != generation.generationToken) {
+                throw new IllegalArgumentException(
+                      "Recipe skeleton belongs to another catalog generation");
+            }
+            if (slot < 0 || slot >= recipe.getIngredients().size()) {
+                return Collections.emptyList();
+            }
+            return getMatcher(recipe.getIngredients().get(slot)).getCandidateIds();
+        }
+
+        @Nonnull
         public Set<PortableResourceDescriptor> getDeclaredOutputs(
               @Nonnull Set<ResourceLocation> enabledRecipes) {
             Objects.requireNonNull(enabledRecipes, "enabledRecipes");
@@ -935,83 +1620,93 @@ public final class QIOWorkbenchRecipeCatalog {
 
         private final ResourceLocation recipeId;
         private final PortableResourceDescriptor output;
+        private final int outputItemTypeId;
         private final int outputAmount;
         private final boolean shaped;
         private final int width;
         private final int height;
         private final String signature;
         private final List<IngredientDefinition> ingredients;
+        private final Map<Integer, Integer> condensedInputs;
+        private final Object generationToken;
 
         private RecipeDefinition(ResourceLocation recipeId,
-              PortableResourceDescriptor output, int outputAmount, boolean shaped,
+              PortableResourceDescriptor output, int outputItemTypeId, int outputAmount,
+              boolean shaped,
               int width, int height, String signature,
-              List<IngredientDefinition> ingredients) {
+              List<IngredientDefinition> ingredients, Object generationToken) {
             this.recipeId = recipeId;
             this.output = output;
+            this.outputItemTypeId = outputItemTypeId;
             this.outputAmount = outputAmount;
             this.shaped = shaped;
             this.width = width;
             this.height = height;
             this.signature = signature;
             this.ingredients = Collections.unmodifiableList(new ArrayList<>(ingredients));
+            this.generationToken = generationToken;
+            Map<Integer, Integer> condensed = new LinkedHashMap<>();
+            for (IngredientDefinition ingredient : ingredients) {
+                if (!ingredient.isEmpty()) {
+                    condensed.merge(ingredient.getMatcherId(), 1, Math::addExact);
+                }
+            }
+            condensedInputs = Collections.unmodifiableMap(condensed);
         }
 
         @Nonnull public ResourceLocation getRecipeId() { return recipeId; }
         @Nonnull public PortableResourceDescriptor getOutput() { return output; }
+        public int getOutputItemTypeId() { return outputItemTypeId; }
         public int getOutputAmount() { return outputAmount; }
         public boolean isShaped() { return shaped; }
         public int getWidth() { return width; }
         public int getHeight() { return height; }
         @Nonnull public String getSignature() { return signature; }
         @Nonnull public List<IngredientDefinition> getIngredients() { return ingredients; }
-
-        @Nonnull
-        public List<String> getCandidateIds(int slot) {
-            if (slot < 0 || slot >= ingredients.size()) {
-                return Collections.emptyList();
-            }
-            List<String> result = new ArrayList<>();
-            for (CandidateDefinition candidate : ingredients.get(slot).getCandidates()) {
-                result.add(candidate.getCandidateId());
-            }
-            return Collections.unmodifiableList(result);
-        }
+        @Nonnull public Map<Integer, Integer> getCondensedInputs() { return condensedInputs; }
     }
 
     public static final class IngredientDefinition {
 
         private final int slot;
-        private final List<CandidateDefinition> candidates;
+        private final int matcherId;
+        private final Object generationToken;
 
-        private IngredientDefinition(int slot, List<CandidateDefinition> candidates) {
+        private IngredientDefinition(int slot, int matcherId, Object generationToken) {
             this.slot = slot;
-            this.candidates = Collections.unmodifiableList(new ArrayList<>(candidates));
+            this.matcherId = matcherId;
+            this.generationToken = generationToken;
         }
 
         public int getSlot() { return slot; }
-        public boolean isEmpty() { return candidates.isEmpty(); }
-        @Nonnull public List<CandidateDefinition> getCandidates() { return candidates; }
+        public int getMatcherId() { return matcherId; }
+        public boolean isEmpty() {
+            return matcherId == IngredientVariantTable.EMPTY_MATCHER_ID;
+        }
     }
 
     public static final class CandidateDefinition {
 
         private final String candidateId;
-        private final ItemStack displayStack;
+        private final int itemTypeId;
+        private final ItemTypeDefinition itemType;
         private final PortableResourceDescriptor resource;
         private final long amount;
         private final boolean virtualFluid;
 
-        private CandidateDefinition(String candidateId, ItemStack displayStack,
+        private CandidateDefinition(String candidateId, ItemTypeDefinition itemType,
               PortableResourceDescriptor resource, long amount, boolean virtualFluid) {
             this.candidateId = candidateId;
-            this.displayStack = displayStack.copy();
+            this.itemType = itemType;
+            itemTypeId = itemType.getItemTypeId();
             this.resource = resource;
             this.amount = amount;
             this.virtualFluid = virtualFluid;
         }
 
         @Nonnull public String getCandidateId() { return candidateId; }
-        @Nonnull public ItemStack getDisplayStack() { return displayStack.copy(); }
+        public int getItemTypeId() { return itemTypeId; }
+        @Nonnull public ItemStack getDisplayStack() { return itemType.getDisplayStack(); }
         @Nonnull public PortableResourceDescriptor getResource() { return resource; }
         public long getAmount() { return amount; }
         public boolean isVirtualFluid() { return virtualFluid; }
@@ -1024,8 +1719,10 @@ public final class QIOWorkbenchRecipeCatalog {
         private final IRecipe recipe;
         private final ResourceLocation recipeId;
         private final PortableResourceDescriptor declaredOutput;
+        private final FrozenItemType declaredOutputType;
         private final int declaredOutputAmount;
         private final List<List<IngredientChoice>> candidates;
+        private final List<MatcherKey> matcherKeys;
         private final boolean shaped;
         private final int width;
         private final int height;
@@ -1037,18 +1734,24 @@ public final class QIOWorkbenchRecipeCatalog {
         private List<Map<String, Map<PortableResourceDescriptor, Long>>> candidateOutputProfiles;
 
         private LogicalRecipe(@Nullable World world, IRecipe recipe, ResourceLocation recipeId,
-              ItemStack declaredOutput, List<List<IngredientChoice>> candidates,
+              ItemStack declaredOutput, GridCandidates grid,
               long capturedPriority, int maxVariants, int maxRetained) {
             this.world = world;
             this.recipe = recipe;
             this.recipeId = recipeId;
             this.declaredOutput = PortableResourceDescriptor.item(declaredOutput);
+            declaredOutputType = FrozenItemType.capture(declaredOutput);
             this.declaredOutputAmount = declaredOutput.getCount();
-            List<List<IngredientChoice>> copied = new ArrayList<>(candidates.size());
-            for (List<IngredientChoice> slot : candidates) {
+            List<List<IngredientChoice>> copied = new ArrayList<>(grid.candidates.size());
+            for (List<IngredientChoice> slot : grid.candidates) {
                 copied.add(Collections.unmodifiableList(new ArrayList<>(slot)));
             }
             this.candidates = Collections.unmodifiableList(copied);
+            List<MatcherKey> copiedKeys = new ArrayList<>(grid.matchers.size());
+            for (MatcherSeed matcher : grid.matchers) {
+                copiedKeys.add(matcher.key);
+            }
+            matcherKeys = Collections.unmodifiableList(copiedKeys);
             shaped = recipe instanceof IShapedRecipe;
             width = shaped ? ((IShapedRecipe) recipe).getRecipeWidth() : 0;
             height = shaped ? ((IShapedRecipe) recipe).getRecipeHeight() : 0;
@@ -1059,7 +1762,7 @@ public final class QIOWorkbenchRecipeCatalog {
         }
 
         @Nullable
-        private CompiledRecipe compile() {
+        private CompiledRecipe compile(CatalogSymbols symbols) {
             BatchCombinationBudget budget = new BatchCombinationBudget(maxVariants);
             QIOWorkbenchRecipePattern representative = representativePattern(budget);
             if (representative == null) {
@@ -1075,7 +1778,8 @@ public final class QIOWorkbenchRecipeCatalog {
                 return null;
             }
             int combinationCost = Math.max(1, maxVariants - budget.remaining);
-            return new CompiledRecipe(definition(), candidates, baseline, outputs,
+            return new CompiledRecipe(definition(symbols), symbols.ingredientVariants,
+                  baseline, outputs,
                   Objects.requireNonNull(candidateOutputProfiles,
                         "candidate output profiles"), structuralSignature(), maxVariants,
                   maxRetained, combinationCost);
@@ -1270,19 +1974,15 @@ public final class QIOWorkbenchRecipeCatalog {
             return Collections.unmodifiableList(effective);
         }
 
-        private RecipeDefinition definition() {
+        private RecipeDefinition definition(CatalogSymbols symbols) {
             List<IngredientDefinition> ingredients = new ArrayList<>(9);
-            for (int slot = 0; slot < candidates.size(); slot++) {
-                List<CandidateDefinition> definitions = new ArrayList<>();
-                for (IngredientChoice candidate : candidates.get(slot)) {
-                    if (!candidate.isEmpty()) {
-                        definitions.add(candidate.definition());
-                    }
-                }
-                ingredients.add(new IngredientDefinition(slot, definitions));
+            for (int slot = 0; slot < matcherKeys.size(); slot++) {
+                ingredients.add(new IngredientDefinition(slot,
+                      symbols.matcherId(matcherKeys.get(slot)), symbols.generationToken));
             }
-            return new RecipeDefinition(recipeId, declaredOutput, declaredOutputAmount,
-                  shaped, width, height, signature, ingredients);
+            return new RecipeDefinition(recipeId, declaredOutput,
+                  symbols.itemTypes.getId(declaredOutput), declaredOutputAmount,
+                  shaped, width, height, signature, ingredients, symbols.generationToken);
         }
 
         private void addBounded(List<ScoredPattern> retained, ScoredPattern candidate) {
@@ -1478,6 +2178,8 @@ public final class QIOWorkbenchRecipeCatalog {
     private static final class CompiledRecipe {
 
         private final RecipeDefinition definition;
+        private final int[] matcherIds;
+        private final IngredientVariantTable ingredientVariants;
         private final List<List<IngredientChoice>> candidates;
         private final List<IngredientChoice> baselineGrid;
         private final Map<PortableResourceDescriptor, Long> baselineOutputs;
@@ -1499,19 +2201,39 @@ public final class QIOWorkbenchRecipeCatalog {
               };
 
         private CompiledRecipe(RecipeDefinition definition,
-              List<List<IngredientChoice>> candidates, List<IngredientChoice> baselineGrid,
+              IngredientVariantTable ingredientVariants,
+              List<IngredientChoice> baselineGrid,
               Map<PortableResourceDescriptor, Long> baselineOutputs,
               List<Map<String, Map<PortableResourceDescriptor, Long>>>
                     candidateOutputProfiles,
               String structuralSignature, int maxVariants, int maxRetained,
               int combinationCost) {
             this.definition = Objects.requireNonNull(definition, "definition");
-            List<List<IngredientChoice>> copiedCandidates = new ArrayList<>(candidates.size());
-            for (List<IngredientChoice> slot : candidates) {
-                copiedCandidates.add(Collections.unmodifiableList(new ArrayList<>(slot)));
+            this.ingredientVariants = Objects.requireNonNull(ingredientVariants,
+                  "ingredientVariants");
+            matcherIds = new int[definition.getIngredients().size()];
+            for (int slot = 0; slot < matcherIds.length; slot++) {
+                matcherIds[slot] = definition.getIngredients().get(slot).getMatcherId();
             }
-            this.candidates = Collections.unmodifiableList(copiedCandidates);
-            this.baselineGrid = Collections.unmodifiableList(new ArrayList<>(baselineGrid));
+            candidates = Collections.unmodifiableList(new MatcherGrid(ingredientVariants,
+                  matcherIds));
+            List<IngredientChoice> sharedBaseline = new ArrayList<>(baselineGrid.size());
+            for (int slot = 0; slot < baselineGrid.size(); slot++) {
+                IngredientChoice original = baselineGrid.get(slot);
+                IngredientChoice shared = null;
+                for (IngredientChoice choice : candidates.get(slot)) {
+                    if (choice.candidateId().equals(original.candidateId())) {
+                        shared = choice;
+                        break;
+                    }
+                }
+                if (shared == null) {
+                    throw new IllegalStateException(
+                          "Baseline candidate is absent from its shared matcher");
+                }
+                sharedBaseline.add(shared);
+            }
+            this.baselineGrid = Collections.unmodifiableList(sharedBaseline);
             this.baselineOutputs = Collections.unmodifiableMap(new LinkedHashMap<>(
                   baselineOutputs));
             List<Map<String, Map<PortableResourceDescriptor, Long>>> copiedProfiles =
@@ -1530,6 +2252,27 @@ public final class QIOWorkbenchRecipeCatalog {
             this.maxVariants = maxVariants;
             this.maxRetained = maxRetained;
             this.combinationCost = combinationCost;
+        }
+
+        private static final class MatcherGrid extends AbstractList<List<IngredientChoice>> {
+
+            private final IngredientVariantTable variants;
+            private final int[] matcherIds;
+
+            private MatcherGrid(IngredientVariantTable variants, int[] matcherIds) {
+                this.variants = variants;
+                this.matcherIds = matcherIds;
+            }
+
+            @Override
+            public List<IngredientChoice> get(int index) {
+                return variants.choices(matcherIds[index]);
+            }
+
+            @Override
+            public int size() {
+                return matcherIds.length;
+            }
         }
 
         private List<QIOWorkbenchRecipePattern> materialize(
@@ -2120,13 +2863,18 @@ public final class QIOWorkbenchRecipeCatalog {
         private final Map<PortableResourceDescriptor, List<CachedRecipe>> recipesByOutput;
         private final Map<ResourceLocation, CachedRecipe> recipesById;
         private final int recipeCount;
+        private final CatalogGeneration generation;
+        private final QIOForgeRecipeData forgeData;
 
         private RecipeOutputIndex(
               Map<PortableResourceDescriptor, List<CachedRecipe>> recipesByOutput,
-              Map<ResourceLocation, CachedRecipe> recipesById, int recipeCount) {
+              Map<ResourceLocation, CachedRecipe> recipesById, int recipeCount,
+              CatalogGeneration generation, QIOForgeRecipeData forgeData) {
             this.recipesByOutput = recipesByOutput;
             this.recipesById = recipesById;
             this.recipeCount = recipeCount;
+            this.generation = generation;
+            this.forgeData = Objects.requireNonNull(forgeData, "forgeData");
         }
 
         @Nonnull
@@ -2158,23 +2906,102 @@ public final class QIOWorkbenchRecipeCatalog {
             }
             listener.scanComplete(builder.recipes.size());
             listener.cacheStarted(builder.recipes.size());
-            Map<PortableResourceDescriptor, List<CachedRecipe>> grouped =
-                  new LinkedHashMap<>();
-            Map<ResourceLocation, CachedRecipe> byId = new LinkedHashMap<>();
-            int recipeCount = 0;
+            CatalogSymbols symbols = CatalogSymbols.build(new SymbolCatalogInput(
+                  builder.recipes.values()));
+            Map<ResourceLocation, CompiledRecipe> compiledRecipes = new LinkedHashMap<>();
             for (LogicalRecipe logical : builder.recipes.values()) {
                 CompiledRecipe compiled;
                 try {
-                    compiled = logical.compile();
+                    compiled = logical.compile(symbols);
                 } catch (RuntimeException ignored) {
                     continue;
                 }
                 if (compiled == null) continue;
-                CachedRecipe cached = new CachedRecipe(compiled);
-                grouped.computeIfAbsent(compiled.definition.getOutput(),
-                      ignored -> new ArrayList<>()).add(cached);
-                byId.put(compiled.definition.getRecipeId(), cached);
-                recipeCount++;
+                compiledRecipes.put(compiled.definition.getRecipeId(), compiled);
+            }
+            return fromCompiled(symbols, compiledRecipes);
+        }
+
+        @Nonnull
+        static RecipeOutputIndex empty() {
+            CatalogSymbols symbols = CatalogSymbols.build(new SymbolCatalogInput(
+                  Collections.emptyList()));
+            return fromCompiled(symbols, Collections.emptyMap());
+        }
+
+        @Nonnull
+        static Capture beginCapture(@Nullable World world,
+              @Nonnull Collection<? extends IRecipe> recipes,
+              @Nonnull BuildListener listener) {
+            return new Capture(world, recipes, listener, false);
+        }
+
+        @Nonnull
+        static Capture beginGlobalCapture(@Nullable World world,
+              @Nonnull Collection<? extends IRecipe> recipes,
+              @Nonnull BuildListener listener) {
+            return new Capture(world, recipes, listener, true);
+        }
+
+        @Nonnull
+        private static RecipeOutputIndex fromCompiled(CatalogSymbols symbols,
+              Map<ResourceLocation, CompiledRecipe> compiledRecipes) {
+            return fromCompiled(symbols, compiledRecipes, QIOForgeRecipeData.empty());
+        }
+
+        private static RecipeOutputIndex fromCompiled(CatalogSymbols symbols,
+              Map<ResourceLocation, CompiledRecipe> compiledRecipes,
+              QIOForgeRecipeData forgeData) {
+            return mergeIndexShards(symbols, Collections.singletonList(
+                  IndexShard.scan(new ArrayList<>(compiledRecipes.values()), 0,
+                        compiledRecipes.size())), forgeData);
+        }
+
+        private static CompletableFuture<RecipeOutputIndex> fromCompiledAsync(
+              CatalogSymbols symbols, Collection<CompiledRecipe> compiledRecipes,
+              Executor executor, int workerCount, QIOForgeRecipeData forgeData) {
+            Objects.requireNonNull(executor, "executor");
+            if (workerCount <= 0) {
+                throw new IllegalArgumentException("Catalog worker count must be positive");
+            }
+            return CompletableFuture.supplyAsync(() -> Collections.unmodifiableList(
+                  new ArrayList<>(compiledRecipes)), executor).thenCompose(ordered -> {
+                int shards = Math.min(workerCount, Math.max(1, ordered.size()));
+                int baseSize = ordered.size() / shards;
+                List<CompletableFuture<IndexShard>> futures = new ArrayList<>(shards);
+                for (int shard = 0; shard < shards; shard++) {
+                    int from = shard * baseSize;
+                    int to = shard == shards - 1 ? ordered.size() : from + baseSize;
+                    futures.add(CompletableFuture.supplyAsync(() ->
+                          IndexShard.scan(ordered, from, to), executor));
+                }
+                CompletableFuture<?>[] pending = futures.toArray(
+                      new CompletableFuture<?>[0]);
+                return CompletableFuture.allOf(pending).thenApplyAsync(ignored -> {
+                    List<IndexShard> completed = new ArrayList<>(futures.size());
+                    futures.forEach(future -> completed.add(future.join()));
+                    return mergeIndexShards(symbols, completed, forgeData);
+                }, executor);
+            });
+        }
+
+        private static RecipeOutputIndex mergeIndexShards(CatalogSymbols symbols,
+              List<IndexShard> shards, QIOForgeRecipeData forgeData) {
+            Map<PortableResourceDescriptor, List<CachedRecipe>> grouped =
+                  new LinkedHashMap<>();
+            Map<ResourceLocation, CachedRecipe> byId = new LinkedHashMap<>();
+            List<CompiledRecipe> compiledRecipes = new ArrayList<>();
+            for (IndexShard shard : shards) {
+                for (Map.Entry<PortableResourceDescriptor, List<CachedRecipe>> entry :
+                      shard.recipesByOutput.entrySet()) {
+                    grouped.computeIfAbsent(entry.getKey(), ignored -> new ArrayList<>())
+                          .addAll(entry.getValue());
+                }
+                for (Map.Entry<ResourceLocation, CachedRecipe> entry :
+                      shard.recipesById.entrySet()) {
+                    byId.put(entry.getKey(), entry.getValue());
+                    compiledRecipes.add(entry.getValue().compiled);
+                }
             }
             List<PortableResourceDescriptor> outputs = new ArrayList<>(grouped.keySet());
             Collections.sort(outputs);
@@ -2186,7 +3013,28 @@ public final class QIOWorkbenchRecipeCatalog {
                       new ArrayList<>(outputRecipes)));
             }
             return new RecipeOutputIndex(Collections.unmodifiableMap(ordered),
-                  Collections.unmodifiableMap(new LinkedHashMap<>(byId)), recipeCount);
+                  Collections.unmodifiableMap(new LinkedHashMap<>(byId)), byId.size(),
+                  symbols.generation(compiledRecipes), forgeData);
+        }
+
+        private static final class IndexShard {
+
+            private final Map<PortableResourceDescriptor, List<CachedRecipe>> recipesByOutput =
+                  new LinkedHashMap<>();
+            private final Map<ResourceLocation, CachedRecipe> recipesById =
+                  new LinkedHashMap<>();
+
+            private static IndexShard scan(List<CompiledRecipe> recipes, int from, int to) {
+                IndexShard shard = new IndexShard();
+                for (int index = from; index < to; index++) {
+                    CompiledRecipe compiled = recipes.get(index);
+                    CachedRecipe cached = new CachedRecipe(compiled);
+                    shard.recipesByOutput.computeIfAbsent(compiled.definition.getOutput(),
+                          ignored -> new ArrayList<>()).add(cached);
+                    shard.recipesById.put(compiled.definition.getRecipeId(), cached);
+                }
+                return shard;
+            }
         }
 
         @Nonnull
@@ -2214,16 +3062,849 @@ public final class QIOWorkbenchRecipeCatalog {
                     selected.put(pattern.getRecipeId(), cached.compiled);
                 }
             }
-            return new Snapshot(selected, diagnostics, DEFAULT_PATTERN_CACHE_SIZE);
+            return new Snapshot(selected, diagnostics, DEFAULT_PATTERN_CACHE_SIZE,
+                  generation);
         }
 
         int getRecipeCount() {
             return recipeCount;
         }
 
+        @Nonnull
+        String getGenerationId() {
+            return generation.getGenerationId();
+        }
+
+        @Nonnull
+        String getForgeSignature() {
+            return forgeData.getStructuralSignature();
+        }
+
+        @Nonnull
+        CacheData writeCache() {
+            List<NBTTagCompound> itemRecords = new ArrayList<>(
+                  generation.itemTypes.entries.size());
+            for (ItemTypeDefinition itemType : generation.itemTypes.entries) {
+                NBTTagCompound record = new NBTTagCompound();
+                record.setInteger("itemTypeId", itemType.itemTypeId);
+                record.setInteger("runtimeItemId", itemType.runtimeItemId);
+                record.setTag("descriptor", itemType.descriptor.write());
+                record.setTag("stack", itemType.serializedPrototype.copy());
+                itemRecords.add(record);
+            }
+            List<NBTTagCompound> matcherRecords = new ArrayList<>(
+                  generation.ingredientVariants.matchers.size());
+            for (MatcherDefinition matcher : generation.ingredientVariants.matchers) {
+                NBTTagCompound record = new NBTTagCompound();
+                record.setInteger("matcherId", matcher.matcherId);
+                record.setString("kind", matcher.kind.name());
+                NBTTagList choices = new NBTTagList();
+                matcher.choices.forEach(choice -> choices.appendTag(writeChoice(choice)));
+                record.setTag("choices", choices);
+                matcherRecords.add(record);
+            }
+            List<NBTTagCompound> recipeRecords = new ArrayList<>(recipesById.size());
+            List<NBTTagCompound> outputProfiles = new ArrayList<>(recipesById.size());
+            for (CachedRecipe cached : recipesById.values()) {
+                CompiledRecipe recipe = cached.compiled;
+                RecipeDefinition definition = recipe.definition;
+                NBTTagCompound record = new NBTTagCompound();
+                record.setString("recipeId", definition.recipeId.toString());
+                record.setTag("output", definition.output.write());
+                record.setInteger("outputItemTypeId", definition.outputItemTypeId);
+                record.setInteger("outputAmount", definition.outputAmount);
+                record.setBoolean("shaped", definition.shaped);
+                record.setInteger("width", definition.width);
+                record.setInteger("height", definition.height);
+                record.setString("signature", definition.signature);
+                record.setIntArray("matcherIds", recipe.matcherIds.clone());
+                recipeRecords.add(record);
+
+                NBTTagCompound profiles = new NBTTagCompound();
+                profiles.setString("recipeId", definition.recipeId.toString());
+                profiles.setString("structuralSignature", recipe.structuralSignature);
+                profiles.setInteger("maxVariants", recipe.maxVariants);
+                profiles.setInteger("maxRetained", recipe.maxRetained);
+                profiles.setInteger("combinationCost", recipe.combinationCost);
+                NBTTagList baseline = new NBTTagList();
+                recipe.baselineGrid.forEach(choice -> baseline.appendTag(
+                      stringTag(choice.candidateId())));
+                profiles.setTag("baseline", baseline);
+                profiles.setTag("baselineOutputs", writeAmounts(recipe.baselineOutputs));
+                NBTTagList slots = new NBTTagList();
+                for (int slot = 0; slot < recipe.candidateOutputProfiles.size(); slot++) {
+                    NBTTagCompound slotRecord = new NBTTagCompound();
+                    slotRecord.setInteger("slot", slot);
+                    NBTTagList candidates = new NBTTagList();
+                    for (Map.Entry<String, Map<PortableResourceDescriptor, Long>> entry :
+                          recipe.candidateOutputProfiles.get(slot).entrySet()) {
+                        NBTTagCompound candidate = new NBTTagCompound();
+                        candidate.setString("candidateId", entry.getKey());
+                        candidate.setTag("outputs", writeAmounts(entry.getValue()));
+                        candidates.appendTag(candidate);
+                    }
+                    slotRecord.setTag("candidates", candidates);
+                    slots.appendTag(slotRecord);
+                }
+                profiles.setTag("slots", slots);
+                outputProfiles.add(profiles);
+            }
+            List<NBTTagCompound> reverseIndexes = new ArrayList<>(recipesByOutput.size());
+            for (Map.Entry<PortableResourceDescriptor, List<CachedRecipe>> entry :
+                  recipesByOutput.entrySet()) {
+                NBTTagCompound record = new NBTTagCompound();
+                record.setTag("output", entry.getKey().write());
+                NBTTagList recipes = new NBTTagList();
+                entry.getValue().forEach(recipe -> recipes.appendTag(
+                      stringTag(recipe.definition.recipeId.toString())));
+                record.setTag("recipes", recipes);
+                reverseIndexes.add(record);
+            }
+            return new CacheData(generation.getGenerationId(), recipeCount,
+                  forgeData.writeCache(), itemRecords, matcherRecords, recipeRecords,
+                  outputProfiles, reverseIndexes);
+        }
+
+        @Nonnull
+        static RecipeOutputIndex readCache(@Nonnull CacheData data) {
+            CacheRestore restore = beginCacheRestore(data);
+            while (!restore.process(Integer.MAX_VALUE, Long.MAX_VALUE, null, 1)) {
+                Thread.yield();
+            }
+            return restore.finish();
+        }
+
+        @Nonnull
+        static CacheRestore beginCacheRestore(@Nonnull CacheData data) {
+            return new CacheRestore(data);
+        }
+
+        /** Bounded server-thread decoding followed by worker-only immutable index assembly. */
+        static final class CacheRestore {
+
+            private enum Stage {
+                ITEM_TYPES,
+                MATCHERS,
+                OUTPUT_PROFILES,
+                RECIPES,
+                FORGE_DATA,
+                INDEX,
+                COMPLETE
+            }
+
+            private final CacheData data;
+            private final List<ItemTypeDefinition> itemDefinitions = new ArrayList<>();
+            private final Map<PortableResourceDescriptor, Integer> itemIds =
+                  new LinkedHashMap<>();
+            private final List<MatcherDefinition> matchers = new ArrayList<>();
+            private final Map<String, NBTTagCompound> profilesByRecipe = new LinkedHashMap<>();
+            private final Map<ResourceLocation, CompiledRecipe> compiled =
+                  new LinkedHashMap<>();
+            private final QIOForgeRecipeData.CacheRestore forgeRestore;
+            private Stage stage = Stage.ITEM_TYPES;
+            private int itemIndex;
+            private int matcherIndex;
+            private int profileIndex;
+            private int recipeIndex;
+            @Nullable private ItemTypeTable itemTypes;
+            @Nullable private IngredientVariantTable variants;
+            @Nullable private CatalogSymbols symbols;
+            @Nullable private QIOForgeRecipeData forgeData;
+            @Nullable private CompletableFuture<RecipeOutputIndex> indexFuture;
+            @Nullable private RecipeOutputIndex result;
+
+            private CacheRestore(CacheData data) {
+                this.data = Objects.requireNonNull(data, "data");
+                if (data.itemTypes.size() > 4_000_000 ||
+                    data.matchers.size() > 4_000_000 || data.recipes.size() > 4_000_000 ||
+                    data.outputProfiles.size() > 4_000_000) {
+                    throw new IllegalArgumentException(
+                          "QIO recipe cache exceeds structural limits");
+                }
+                forgeRestore = QIOForgeRecipeData.beginCacheRestore(data.forgeData);
+            }
+
+            boolean process(int maximumRecords, long maximumNanos,
+                  @Nullable Executor worker, int workerCount) {
+                if (maximumRecords <= 0 || maximumNanos <= 0 || workerCount <= 0) {
+                    throw new IllegalArgumentException(
+                          "QIO recipe cache restore slice must be positive");
+                }
+                long deadline = maximumNanos == Long.MAX_VALUE ? Long.MAX_VALUE :
+                      saturatedAdd(System.nanoTime(), maximumNanos);
+                int processed = 0;
+                while (stage != Stage.COMPLETE && processed < maximumRecords &&
+                      (deadline == Long.MAX_VALUE || System.nanoTime() < deadline)) {
+                    switch (stage) {
+                        case ITEM_TYPES -> {
+                            if (itemIndex >= data.itemTypes.size()) {
+                                itemTypes = new ItemTypeTable(itemDefinitions, itemIds, true);
+                                stage = Stage.MATCHERS;
+                                continue;
+                            }
+                            restoreItemType(data.itemTypes.get(itemIndex), itemIndex);
+                            itemIndex++;
+                        }
+                        case MATCHERS -> {
+                            if (matcherIndex >= data.matchers.size()) {
+                                variants = new IngredientVariantTable(matchers, true);
+                                symbols = new CatalogSymbols(
+                                      Objects.requireNonNull(itemTypes, "item types"),
+                                      variants, Collections.emptyMap());
+                                stage = Stage.OUTPUT_PROFILES;
+                                continue;
+                            }
+                            restoreMatcher(data.matchers.get(matcherIndex), matcherIndex);
+                            matcherIndex++;
+                        }
+                        case OUTPUT_PROFILES -> {
+                            if (profileIndex >= data.outputProfiles.size()) {
+                                stage = Stage.RECIPES;
+                                continue;
+                            }
+                            NBTTagCompound profile = data.outputProfiles.get(profileIndex++);
+                            String recipeId = profile.getString("recipeId");
+                            if (profilesByRecipe.put(recipeId, profile) != null) {
+                                throw new IllegalArgumentException(
+                                      "Cached QIO output profile is duplicated");
+                            }
+                        }
+                        case RECIPES -> {
+                            if (recipeIndex >= data.recipes.size()) {
+                                if (!profilesByRecipe.isEmpty() ||
+                                    compiled.size() != data.recipeCount) {
+                                    throw new IllegalArgumentException(
+                                          "Cached QIO recipe/profile count is invalid");
+                                }
+                                stage = Stage.FORGE_DATA;
+                                continue;
+                            }
+                            restoreRecipe(data.recipes.get(recipeIndex++));
+                        }
+                        case FORGE_DATA -> {
+                            if (!forgeRestore.process(maximumRecords - processed, deadline,
+                                  worker, workerCount)) {
+                                return false;
+                            }
+                            forgeData = forgeRestore.finish();
+                            stage = Stage.INDEX;
+                            return false;
+                        }
+                        case INDEX -> {
+                            CatalogSymbols activeSymbols = Objects.requireNonNull(symbols,
+                                  "catalog symbols");
+                            QIOForgeRecipeData activeForgeData = Objects.requireNonNull(
+                                  forgeData, "Forge recipe data");
+                            if (worker == null) {
+                                result = validate(fromCompiled(activeSymbols, compiled,
+                                      activeForgeData));
+                                stage = Stage.COMPLETE;
+                                continue;
+                            }
+                            if (indexFuture == null) {
+                                indexFuture = fromCompiledAsync(activeSymbols,
+                                      compiled.values(), worker,
+                                      workerCount, activeForgeData)
+                                      .thenApplyAsync(this::validate, worker);
+                                return false;
+                            }
+                            if (!indexFuture.isDone()) return false;
+                            result = indexFuture.join();
+                            indexFuture = null;
+                            stage = Stage.COMPLETE;
+                            continue;
+                        }
+                        default -> throw new IllegalStateException(
+                              "Unexpected QIO cache restore stage");
+                    }
+                    processed++;
+                }
+                return stage == Stage.COMPLETE;
+            }
+
+            @Nonnull
+            RecipeOutputIndex finish() {
+                if (stage != Stage.COMPLETE || result == null) {
+                    throw new IllegalStateException("QIO recipe cache restore is incomplete");
+                }
+                return result;
+            }
+
+            void cancel() {
+                forgeRestore.cancel();
+                if (indexFuture != null) indexFuture.cancel(true);
+            }
+
+            private void restoreItemType(NBTTagCompound record, int index) {
+                if (record.getInteger("itemTypeId") != index) {
+                    throw new IllegalArgumentException(
+                          "Cached QIO item IDs are not contiguous");
+                }
+                ItemStack stack = new ItemStack(record.getCompoundTag("stack"));
+                if (stack.isEmpty()) {
+                    throw new IllegalArgumentException("Cached QIO item is unresolved");
+                }
+                FrozenItemType frozen = FrozenItemType.capture(stack);
+                PortableResourceDescriptor expected = PortableResourceDescriptor.read(
+                      record.getCompoundTag("descriptor"));
+                if (!expected.equals(frozen.descriptor)) {
+                    throw new IllegalArgumentException("Cached QIO item identity changed");
+                }
+                itemDefinitions.add(new ItemTypeDefinition(index, frozen));
+                if (itemIds.put(expected, index) != null) {
+                    throw new IllegalArgumentException(
+                          "Cached QIO item identity is duplicated");
+                }
+            }
+
+            private void restoreMatcher(NBTTagCompound record, int index) {
+                if (record.getInteger("matcherId") != index) {
+                    throw new IllegalArgumentException(
+                          "Cached QIO matcher IDs are not contiguous");
+                }
+                MatcherKind kind;
+                try {
+                    kind = MatcherKind.valueOf(record.getString("kind"));
+                } catch (RuntimeException error) {
+                    throw new IllegalArgumentException(
+                          "Cached QIO matcher kind is invalid", error);
+                }
+                NBTTagList storedChoices = record.getTagList("choices", 10);
+                if (storedChoices.tagCount() > DEFAULT_MAX_CANDIDATES_PER_INGREDIENT) {
+                    throw new IllegalArgumentException(
+                          "Cached QIO matcher has too many choices");
+                }
+                List<IngredientChoice> choices = new ArrayList<>(storedChoices.tagCount());
+                for (int choice = 0; choice < storedChoices.tagCount(); choice++) {
+                    choices.add(readChoice(storedChoices.getCompoundTagAt(choice)));
+                }
+                if (index == IngredientVariantTable.EMPTY_MATCHER_ID &&
+                    (kind != MatcherKind.EMPTY || choices.size() != 1 ||
+                     !choices.get(0).isEmpty())) {
+                    throw new IllegalArgumentException("Cached empty QIO matcher is invalid");
+                }
+                MatcherKey key = kind == MatcherKind.EMPTY ? MatcherKey.EMPTY :
+                      new MatcherKey(kind, "cache", choices);
+                matchers.add(new MatcherDefinition(index, key, choices,
+                      Objects.requireNonNull(itemTypes, "item types")));
+            }
+
+            private void restoreRecipe(NBTTagCompound record) {
+                ItemTypeTable activeItemTypes = Objects.requireNonNull(itemTypes,
+                      "item types");
+                IngredientVariantTable activeVariants = Objects.requireNonNull(variants,
+                      "ingredient variants");
+                CatalogSymbols activeSymbols = Objects.requireNonNull(symbols,
+                      "catalog symbols");
+                ResourceLocation recipeId = new ResourceLocation(
+                      record.getString("recipeId"));
+                if (compiled.containsKey(recipeId)) {
+                    throw new IllegalArgumentException("Cached QIO recipe is duplicated");
+                }
+                PortableResourceDescriptor output = PortableResourceDescriptor.read(
+                      record.getCompoundTag("output"));
+                int outputItemTypeId = record.getInteger("outputItemTypeId");
+                if (outputItemTypeId < 0 || outputItemTypeId >= activeItemTypes.size() ||
+                    !activeItemTypes.get(outputItemTypeId).descriptor.equals(output)) {
+                    throw new IllegalArgumentException(
+                          "Cached QIO recipe output ID is invalid");
+                }
+                int[] matcherIds = record.getIntArray("matcherIds");
+                if (matcherIds.length != 9) {
+                    throw new IllegalArgumentException("Cached QIO recipe grid is invalid");
+                }
+                List<IngredientDefinition> ingredients = new ArrayList<>(9);
+                for (int slot = 0; slot < matcherIds.length; slot++) {
+                    activeVariants.get(matcherIds[slot]);
+                    ingredients.add(new IngredientDefinition(slot, matcherIds[slot],
+                          activeSymbols.generationToken));
+                }
+                RecipeDefinition definition = new RecipeDefinition(recipeId, output,
+                      outputItemTypeId, positiveInt(record, "outputAmount"),
+                      record.getBoolean("shaped"), record.getInteger("width"),
+                      record.getInteger("height"), hash(record.getString("signature"),
+                      "recipe signature"), ingredients, activeSymbols.generationToken);
+                NBTTagCompound profile = profilesByRecipe.remove(recipeId.toString());
+                if (profile == null) {
+                    throw new IllegalArgumentException(
+                          "Cached QIO recipe has no output profile");
+                }
+                List<IngredientChoice> baseline = readBaseline(profile, definition,
+                      activeVariants);
+                Map<PortableResourceDescriptor, Long> baselineOutputs = readAmounts(
+                      profile.getTagList("baselineOutputs", 10));
+                List<Map<String, Map<PortableResourceDescriptor, Long>>> candidateProfiles =
+                      readOutputProfiles(profile, definition, activeVariants);
+                compiled.put(recipeId, new CompiledRecipe(definition, activeVariants,
+                      baseline, baselineOutputs, candidateProfiles,
+                      structuralSignature(profile.getString("structuralSignature")),
+                      positiveInt(profile, "maxVariants"),
+                      positiveInt(profile, "maxRetained"),
+                      positiveInt(profile, "combinationCost")));
+            }
+
+            private RecipeOutputIndex validate(RecipeOutputIndex restored) {
+                if (!restored.getGenerationId().equals(data.generationId) ||
+                    !restored.matchesReverseIndex(data.reverseIndexes)) {
+                    throw new IllegalArgumentException(
+                          "Cached QIO catalog signature is invalid");
+                }
+                return restored;
+            }
+        }
+
+        private boolean matchesReverseIndex(List<NBTTagCompound> expected) {
+            if (expected.size() != recipesByOutput.size()) return false;
+            int outputIndex = 0;
+            for (Map.Entry<PortableResourceDescriptor, List<CachedRecipe>> entry :
+                  recipesByOutput.entrySet()) {
+                NBTTagCompound record = expected.get(outputIndex++);
+                if (!entry.getKey().equals(PortableResourceDescriptor.read(
+                      record.getCompoundTag("output")))) return false;
+                NBTTagList recipes = record.getTagList("recipes", 10);
+                if (recipes.tagCount() != entry.getValue().size()) return false;
+                for (int index = 0; index < recipes.tagCount(); index++) {
+                    if (!entry.getValue().get(index).definition.recipeId.toString().equals(
+                          recipes.getCompoundTagAt(index).getString("value"))) return false;
+                }
+            }
+            return true;
+        }
+
+        private static NBTTagCompound writeChoice(IngredientChoice choice) {
+            NBTTagCompound data = new NBTTagCompound();
+            data.setBoolean("empty", choice.isEmpty());
+            if (choice.isEmpty()) return data;
+            data.setTag("stack", Objects.requireNonNull(choice.itemType,
+                  "ingredient item type").serializedPrototype.copy());
+            data.setTag("resource", choice.resource().write());
+            data.setLong("amount", choice.amount);
+            data.setBoolean("virtualFluid", choice.virtualFluid);
+            data.setString("sortKey", choice.sortKey);
+            data.setString("candidateId", choice.candidateId);
+            return data;
+        }
+
+        private static IngredientChoice readChoice(NBTTagCompound data) {
+            if (data.getBoolean("empty")) return IngredientChoice.empty();
+            ItemStack stack = new ItemStack(data.getCompoundTag("stack"));
+            if (stack.isEmpty()) {
+                throw new IllegalArgumentException("Cached QIO ingredient stack is unresolved");
+            }
+            PortableResourceDescriptor resource = PortableResourceDescriptor.read(
+                  data.getCompoundTag("resource"));
+            long amount = data.getLong("amount");
+            String sortKey = data.getString("sortKey");
+            if (amount <= 0 || sortKey.isEmpty()) {
+                throw new IllegalArgumentException("Cached QIO ingredient choice is invalid");
+            }
+            IngredientChoice choice = new IngredientChoice(stack, resource, amount,
+                  data.getBoolean("virtualFluid"), sortKey);
+            if (!choice.candidateId.equals(data.getString("candidateId"))) {
+                throw new IllegalArgumentException("Cached QIO ingredient signature changed");
+            }
+            return choice;
+        }
+
+        private static List<IngredientChoice> readBaseline(NBTTagCompound profile,
+              RecipeDefinition definition, IngredientVariantTable variants) {
+            NBTTagList baseline = profile.getTagList("baseline", 10);
+            if (baseline.tagCount() != 9) {
+                throw new IllegalArgumentException("Cached QIO baseline grid is invalid");
+            }
+            List<IngredientChoice> result = new ArrayList<>(9);
+            for (int slot = 0; slot < 9; slot++) {
+                String candidateId = baseline.getCompoundTagAt(slot).getString("value");
+                List<IngredientChoice> choices = variants.choices(
+                      definition.ingredients.get(slot).matcherId);
+                IngredientChoice selected = null;
+                for (IngredientChoice choice : choices) {
+                    if (choice.candidateId().equals(candidateId)) {
+                        selected = choice;
+                        break;
+                    }
+                }
+                if (selected == null) {
+                    throw new IllegalArgumentException("Cached QIO baseline choice is missing");
+                }
+                result.add(selected);
+            }
+            return result;
+        }
+
+        private static List<Map<String, Map<PortableResourceDescriptor, Long>>>
+              readOutputProfiles(NBTTagCompound profile, RecipeDefinition definition,
+              IngredientVariantTable variants) {
+            NBTTagList slots = profile.getTagList("slots", 10);
+            if (slots.tagCount() != 9) {
+                throw new IllegalArgumentException("Cached QIO output profiles are invalid");
+            }
+            List<Map<String, Map<PortableResourceDescriptor, Long>>> result =
+                  new ArrayList<>(9);
+            for (int slot = 0; slot < 9; slot++) result.add(null);
+            for (int index = 0; index < slots.tagCount(); index++) {
+                NBTTagCompound slotRecord = slots.getCompoundTagAt(index);
+                int slot = slotRecord.getInteger("slot");
+                if (slot < 0 || slot >= 9 || result.get(slot) != null) {
+                    throw new IllegalArgumentException("Cached QIO output profile slot is invalid");
+                }
+                Set<String> allowed = new LinkedHashSet<>();
+                variants.choices(definition.ingredients.get(slot).matcherId)
+                      .forEach(choice -> allowed.add(choice.candidateId()));
+                Map<String, Map<PortableResourceDescriptor, Long>> candidates =
+                      new LinkedHashMap<>();
+                NBTTagList stored = slotRecord.getTagList("candidates", 10);
+                if (stored.tagCount() > DEFAULT_MAX_CANDIDATES_PER_INGREDIENT) {
+                    throw new IllegalArgumentException("Cached QIO output profile is too large");
+                }
+                for (int candidateIndex = 0; candidateIndex < stored.tagCount();
+                     candidateIndex++) {
+                    NBTTagCompound candidate = stored.getCompoundTagAt(candidateIndex);
+                    String candidateId = candidate.getString("candidateId");
+                    if (!allowed.contains(candidateId) || candidates.put(candidateId,
+                          readAmounts(candidate.getTagList("outputs", 10))) != null) {
+                        throw new IllegalArgumentException(
+                              "Cached QIO candidate output profile is invalid");
+                    }
+                }
+                result.set(slot, Collections.unmodifiableMap(candidates));
+            }
+            for (Map<String, Map<PortableResourceDescriptor, Long>> slot : result) {
+                if (slot == null) {
+                    throw new IllegalArgumentException("Cached QIO output profile slot is absent");
+                }
+            }
+            return Collections.unmodifiableList(result);
+        }
+
+        private static NBTTagList writeAmounts(Map<PortableResourceDescriptor, Long> values) {
+            NBTTagList result = new NBTTagList();
+            List<PortableResourceDescriptor> ordered = new ArrayList<>(values.keySet());
+            Collections.sort(ordered);
+            for (PortableResourceDescriptor resource : ordered) {
+                NBTTagCompound entry = new NBTTagCompound();
+                entry.setTag("resource", resource.write());
+                entry.setLong("amount", values.get(resource));
+                result.appendTag(entry);
+            }
+            return result;
+        }
+
+        private static Map<PortableResourceDescriptor, Long> readAmounts(NBTTagList values) {
+            if (values.tagCount() > 1_000_000) {
+                throw new IllegalArgumentException("Cached QIO amount map is too large");
+            }
+            Map<PortableResourceDescriptor, Long> result = new LinkedHashMap<>();
+            for (int index = 0; index < values.tagCount(); index++) {
+                NBTTagCompound entry = values.getCompoundTagAt(index);
+                PortableResourceDescriptor resource = PortableResourceDescriptor.read(
+                      entry.getCompoundTag("resource"));
+                long amount = entry.getLong("amount");
+                if (amount <= 0 || result.put(resource, amount) != null) {
+                    throw new IllegalArgumentException("Cached QIO amount entry is invalid");
+                }
+            }
+            return Collections.unmodifiableMap(result);
+        }
+
+        private static NBTTagCompound stringTag(String value) {
+            NBTTagCompound data = new NBTTagCompound();
+            data.setString("value", value);
+            return data;
+        }
+
+        private static int positiveInt(NBTTagCompound data, String key) {
+            int value = data.getInteger(key);
+            if (value <= 0) {
+                throw new IllegalArgumentException("Cached QIO " + key + " must be positive");
+            }
+            return value;
+        }
+
+        private static String hash(String value, String description) {
+            if (value == null || value.length() != 64) {
+                throw new IllegalArgumentException("Cached QIO " + description + " is invalid");
+            }
+            for (int index = 0; index < value.length(); index++) {
+                char character = value.charAt(index);
+                if (!((character >= '0' && character <= '9') ||
+                      (character >= 'a' && character <= 'f'))) {
+                    throw new IllegalArgumentException(
+                          "Cached QIO " + description + " is invalid");
+                }
+            }
+            return value;
+        }
+
+        private static String structuralSignature(String value) {
+            if (value == null || value.isEmpty() || value.length() > 16 * 1024 * 1024) {
+                throw new IllegalArgumentException(
+                      "Cached QIO recipe structural signature is invalid");
+            }
+            return value;
+        }
+
+        static final class CacheData {
+
+            final String generationId;
+            final int recipeCount;
+            final QIOForgeRecipeData.CacheData forgeData;
+            final List<NBTTagCompound> itemTypes;
+            final List<NBTTagCompound> matchers;
+            final List<NBTTagCompound> recipes;
+            final List<NBTTagCompound> outputProfiles;
+            final List<NBTTagCompound> reverseIndexes;
+
+            CacheData(String generationId, int recipeCount,
+                  QIOForgeRecipeData.CacheData forgeData,
+                  List<NBTTagCompound> itemTypes, List<NBTTagCompound> matchers,
+                  List<NBTTagCompound> recipes, List<NBTTagCompound> outputProfiles,
+                  List<NBTTagCompound> reverseIndexes) {
+                this.generationId = hash(generationId, "generation signature");
+                if (recipeCount < 0) {
+                    throw new IllegalArgumentException("Cached QIO recipe count is negative");
+                }
+                this.recipeCount = recipeCount;
+                this.forgeData = Objects.requireNonNull(forgeData, "forgeData");
+                this.itemTypes = immutableTags(itemTypes);
+                this.matchers = immutableTags(matchers);
+                this.recipes = immutableTags(recipes);
+                this.outputProfiles = immutableTags(outputProfiles);
+                this.reverseIndexes = immutableTags(reverseIndexes);
+            }
+
+            private static List<NBTTagCompound> immutableTags(List<NBTTagCompound> values) {
+                List<NBTTagCompound> copied = new ArrayList<>(values.size());
+                values.forEach(value -> copied.add(value.copy()));
+                return Collections.unmodifiableList(copied);
+            }
+        }
+
         interface BuildListener {
             void scanComplete(int recipeCount);
             void cacheStarted(int recipeCount);
+        }
+
+        /**
+         * Server-thread Forge capture with worker-only symbol/index phases. A worker never sees
+         * IRecipe or World; it receives only SymbolCatalogInput or compiled immutable templates.
+         */
+        static final class Capture {
+
+            private enum Stage {
+                FORGE_CAPTURE,
+                FORGE_INDEX,
+                RECIPE_SNAPSHOT,
+                SCAN,
+                SYMBOL_INPUT,
+                SYMBOLS,
+                COMPILE,
+                INDEX,
+                COMPLETE
+            }
+
+            @Nullable private Builder builder;
+            @Nullable private final World world;
+            private final List<IRecipe> recipes = new ArrayList<>();
+            @Nullable private Iterator<? extends IRecipe> recipeSource;
+            private final BuildListener listener;
+            private final Map<ResourceLocation, CompiledRecipe> compiled = new LinkedHashMap<>();
+            private Stage stage = Stage.SCAN;
+            private int recipeIndex;
+            private int compileIndex;
+            private List<LogicalRecipe> logicalRecipes = new ArrayList<>();
+            private List<SymbolRecipe> symbolRecipes = new ArrayList<>();
+            @Nullable private Iterator<LogicalRecipe> logicalSource;
+            @Nullable private CatalogSymbols symbols;
+            @Nullable private CompletableFuture<CatalogSymbols> symbolFuture;
+            @Nullable private CompletableFuture<RecipeOutputIndex> indexFuture;
+            @Nullable private QIOForgeRecipeData.Capture forgeCapture;
+            @Nullable private CompletableFuture<QIOForgeRecipeData> forgeFuture;
+            private QIOForgeRecipeData forgeData = QIOForgeRecipeData.empty();
+            @Nullable private RecipeOutputIndex result;
+
+            private Capture(@Nullable World world,
+                  Collection<? extends IRecipe> recipes, BuildListener listener,
+                  boolean captureGlobalForgeData) {
+                Objects.requireNonNull(recipes, "recipes");
+                this.world = world;
+                this.listener = Objects.requireNonNull(listener, "listener");
+                recipeSource = recipes.iterator();
+                if (captureGlobalForgeData) {
+                    forgeCapture = QIOForgeRecipeData.beginCapture();
+                    stage = Stage.FORGE_CAPTURE;
+                } else {
+                    builder = newBuilder(world, QIOForgeRecipeData.empty());
+                    stage = Stage.RECIPE_SNAPSHOT;
+                }
+            }
+
+            private static Builder newBuilder(@Nullable World world,
+                  QIOForgeRecipeData forgeData) {
+                return new Builder(world, ignored -> 0,
+                      DEFAULT_MAX_CANDIDATES_PER_INGREDIENT,
+                      DEFAULT_MAX_VARIANTS_PER_RECIPE,
+                      DEFAULT_MAX_MATERIALIZED_VARIANTS, forgeData);
+            }
+
+            boolean process(int maximumRecipes, long maximumNanos,
+                  @Nullable Executor worker) {
+                return process(maximumRecipes, maximumNanos, worker, 2);
+            }
+
+            boolean process(int maximumRecipes, long maximumNanos,
+                  @Nullable Executor worker, int workerCount) {
+                if (maximumRecipes <= 0 || maximumNanos <= 0) {
+                    throw new IllegalArgumentException(
+                          "Recipe catalog capture slice must be positive");
+                }
+                long deadline = maximumNanos == Long.MAX_VALUE ? Long.MAX_VALUE :
+                      saturatedAdd(System.nanoTime(), maximumNanos);
+                int processed = 0;
+                while (stage != Stage.COMPLETE) {
+                    if (stage == Stage.FORGE_CAPTURE) {
+                        QIOForgeRecipeData.Capture active = Objects.requireNonNull(forgeCapture,
+                              "forgeCapture");
+                        processed += active.process(maximumRecipes - processed, deadline);
+                        if (!active.isComplete()) return false;
+                        if (worker == null) {
+                            forgeData = active.finish();
+                            builder = newBuilder(world, forgeData);
+                            forgeCapture = null;
+                            stage = Stage.RECIPE_SNAPSHOT;
+                        } else {
+                            forgeFuture = active.finishAsync(worker, workerCount);
+                            stage = Stage.FORGE_INDEX;
+                            return false;
+                        }
+                    }
+                    if (stage == Stage.FORGE_INDEX) {
+                        CompletableFuture<QIOForgeRecipeData> pending = Objects.requireNonNull(
+                              forgeFuture, "forgeFuture");
+                        if (!pending.isDone()) return false;
+                        forgeData = pending.join();
+                        forgeFuture = null;
+                        forgeCapture = null;
+                        builder = newBuilder(world, forgeData);
+                        stage = Stage.RECIPE_SNAPSHOT;
+                    }
+                    if (stage == Stage.RECIPE_SNAPSHOT) {
+                        Iterator<? extends IRecipe> source = Objects.requireNonNull(
+                              recipeSource, "recipe source");
+                        while (source.hasNext() && processed < maximumRecipes &&
+                              (deadline == Long.MAX_VALUE || System.nanoTime() < deadline)) {
+                            recipes.add(source.next());
+                            processed++;
+                        }
+                        if (source.hasNext()) return false;
+                        recipeSource = null;
+                        stage = Stage.SCAN;
+                    }
+                    if (stage == Stage.SCAN) {
+                        Builder activeBuilder = Objects.requireNonNull(builder, "builder");
+                        while (recipeIndex < recipes.size() && processed < maximumRecipes &&
+                              (deadline == Long.MAX_VALUE || System.nanoTime() < deadline)) {
+                            try {
+                                activeBuilder.add(recipes.get(recipeIndex));
+                            } catch (RuntimeException ignored) {
+                                // A broken third-party recipe cannot abort the directory.
+                            }
+                            recipeIndex++;
+                            processed++;
+                        }
+                        if (recipeIndex < recipes.size()) return false;
+                        listener.scanComplete(activeBuilder.recipes.size());
+                        listener.cacheStarted(activeBuilder.recipes.size());
+                        logicalSource = activeBuilder.recipes.values().iterator();
+                        stage = Stage.SYMBOL_INPUT;
+                    }
+                    if (stage == Stage.SYMBOL_INPUT) {
+                        Iterator<LogicalRecipe> source = Objects.requireNonNull(logicalSource,
+                              "logical recipe source");
+                        while (source.hasNext() && processed < maximumRecipes &&
+                              (deadline == Long.MAX_VALUE || System.nanoTime() < deadline)) {
+                            LogicalRecipe logical = source.next();
+                            logicalRecipes.add(logical);
+                            symbolRecipes.add(new SymbolRecipe(logical));
+                            processed++;
+                        }
+                        if (source.hasNext()) return false;
+                        logicalSource = null;
+                        builder = null;
+                        SymbolCatalogInput input = new SymbolCatalogInput(symbolRecipes, true);
+                        if (worker == null) {
+                            symbols = CatalogSymbols.build(input);
+                            stage = Stage.COMPILE;
+                        } else {
+                            symbolFuture = CatalogSymbols.buildAsync(input, worker, workerCount);
+                            stage = Stage.SYMBOLS;
+                            return false;
+                        }
+                    }
+                    if (stage == Stage.SYMBOLS) {
+                        CompletableFuture<CatalogSymbols> pending = Objects.requireNonNull(
+                              symbolFuture, "symbolFuture");
+                        if (!pending.isDone()) return false;
+                        symbols = pending.join();
+                        symbolFuture = null;
+                        stage = Stage.COMPILE;
+                    }
+                    if (stage == Stage.COMPILE) {
+                        CatalogSymbols activeSymbols = Objects.requireNonNull(symbols,
+                              "symbols");
+                        while (compileIndex < logicalRecipes.size() &&
+                              processed < maximumRecipes &&
+                              (deadline == Long.MAX_VALUE || System.nanoTime() < deadline)) {
+                            LogicalRecipe logical = logicalRecipes.get(compileIndex++);
+                            try {
+                                CompiledRecipe recipe = logical.compile(activeSymbols);
+                                if (recipe != null) {
+                                    compiled.put(recipe.definition.getRecipeId(), recipe);
+                                }
+                            } catch (RuntimeException ignored) {
+                                // Keep the remaining catalog usable when one recipe is broken.
+                            }
+                            processed++;
+                        }
+                        if (compileIndex < logicalRecipes.size()) return false;
+                        logicalRecipes = Collections.emptyList();
+                        symbolRecipes = Collections.emptyList();
+                        if (worker == null) {
+                            result = fromCompiled(activeSymbols, compiled, forgeData);
+                            stage = Stage.COMPLETE;
+                        } else {
+                            indexFuture = fromCompiledAsync(activeSymbols,
+                                  compiled.values(), worker,
+                                  workerCount, forgeData);
+                            stage = Stage.INDEX;
+                            return false;
+                        }
+                    }
+                    if (stage == Stage.INDEX) {
+                        CompletableFuture<RecipeOutputIndex> pending = Objects.requireNonNull(
+                              indexFuture, "indexFuture");
+                        if (!pending.isDone()) return false;
+                        result = pending.join();
+                        indexFuture = null;
+                        stage = Stage.COMPLETE;
+                    }
+                }
+                return true;
+            }
+
+            @Nonnull
+            RecipeOutputIndex finish() {
+                if (stage != Stage.COMPLETE || result == null) {
+                    throw new IllegalStateException("Recipe catalog capture is incomplete");
+                }
+                return result;
+            }
+
+            void cancel() {
+                if (forgeFuture != null) forgeFuture.cancel(true);
+                if (symbolFuture != null) symbolFuture.cancel(true);
+                if (indexFuture != null) indexFuture.cancel(true);
+            }
         }
     }
 
@@ -2807,6 +4488,8 @@ public final class QIOWorkbenchRecipeCatalog {
               0, false, "");
         private final ItemStack matchingStack;
         @Nullable
+        private final FrozenItemType itemType;
+        @Nullable
         private final PortableResourceDescriptor resource;
         private final long amount;
         private final boolean virtualFluid;
@@ -2817,6 +4500,7 @@ public final class QIOWorkbenchRecipeCatalog {
               @Nullable PortableResourceDescriptor resource, long amount, boolean virtualFluid,
               String sortKey) {
             this.matchingStack = matchingStack.copy();
+            itemType = matchingStack.isEmpty() ? null : FrozenItemType.capture(matchingStack);
             this.resource = resource;
             this.amount = amount;
             this.virtualFluid = virtualFluid;
@@ -2865,8 +4549,10 @@ public final class QIOWorkbenchRecipeCatalog {
         private boolean isVirtualFluid() { return virtualFluid; }
         private String sortKey() { return sortKey; }
         private String candidateId() { return candidateId; }
-        private CandidateDefinition definition() {
-            return new CandidateDefinition(candidateId, matchingStack,
+        private CandidateDefinition definition(ItemTypeTable itemTypes) {
+            FrozenItemType frozen = Objects.requireNonNull(itemType, "itemType");
+            ItemTypeDefinition itemType = itemTypes.get(itemTypes.getId(frozen.descriptor));
+            return new CandidateDefinition(candidateId, itemType,
                   Objects.requireNonNull(resource, "resource"), amount, virtualFluid);
         }
     }

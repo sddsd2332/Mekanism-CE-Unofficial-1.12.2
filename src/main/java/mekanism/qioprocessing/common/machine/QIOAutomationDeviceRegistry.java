@@ -45,6 +45,12 @@ import java.util.UUID;
 /**
  * Server-side online directory for QIO automation hosts. It never chooses one endpoint when a UUID is duplicated.
  */
+/**
+ * QIO 处理模块中的 QIOAutomationDeviceRegistry 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOAutomationDeviceRegistry {
 
     public static final QIOAutomationDeviceRegistry INSTANCE = new QIOAutomationDeviceRegistry();
@@ -77,6 +83,10 @@ public final class QIOAutomationDeviceRegistry {
         }
         QIOAutomationHost host = tile.getCapability(
               QIOAutomationCapabilities.AUTOMATION_HOST, null);
+        if (host instanceof DefaultQIOAutomationHost mutable &&
+              mutable.hasDeferredOutputRecovery()) {
+            trackPending(mutable);
+        }
         QIOFrequencyReference reference = host == null ? null : host.getFrequencyReference();
         if (host != null && reference != null) {
             QIOProcessingExecutionService.INSTANCE.wakeDeviceContents(
@@ -167,7 +177,8 @@ public final class QIOAutomationDeviceRegistry {
         }
         return endpoint.host.getState() == QIOAutomationHost.State.ACTIVE &&
               !endpoint.host.isManagementPaused() &&
-              QIOAutomationUpgradeSupport.isModeInstalled(tile, endpoint.host.getEnabledMode()) ? endpoint.host : null;
+              QIOAutomationUpgradeSupport.isModeInstalled(tile, endpoint.host.getEnabledMode()) &&
+              validateEndpointForRegistration(endpoint.host, tile) ? endpoint.host : null;
     }
 
     @Nullable
@@ -184,8 +195,41 @@ public final class QIOAutomationDeviceRegistry {
         boolean draining = endpoint.host.getState() == QIOAutomationHost.State.DRAINING_CHANGE;
         return isOperational(endpoint.host) && tile != null &&
               (draining || QIOAutomationUpgradeSupport.isModeInstalled(tile, endpoint.host.getEnabledMode())) &&
+              validateEndpointForRegistration(endpoint.host, tile) &&
               !tile.isInvalid() && tile.getWorld() != null && !tile.getWorld().isRemote ?
               new LoadedDevice(endpoint.host, tile, endpoint.location) : null;
+    }
+
+    /**
+     * Resolves a unique loaded automation machine for an explicit recovery command.
+     * Unlike the operational lookup, this intentionally accepts quarantined hosts,
+     * but still rejects duplicate identities and unloaded or replaced tiles.
+     */
+    @Nullable
+    public synchronized LoadedDevice findLoadedDeviceForRecovery(@Nonnull UUID deviceUUID) {
+        LinkedHashMap<QIOAutomationDeviceLocation, Endpoint> endpoints = byUUID.get(deviceUUID);
+        if (endpoints == null || endpoints.size() != 1 || quarantinedUUIDs.contains(deviceUUID)) {
+            return null;
+        }
+        Endpoint endpoint = endpoints.values().iterator().next();
+        TileEntity tile = endpoint.host.tile();
+        return tile != null && !tile.isInvalid() && tile.getWorld() != null &&
+              !tile.getWorld().isRemote &&
+              tile.getWorld().isBlockLoaded(endpoint.location.position(), false) &&
+              tile.getWorld().getTileEntity(endpoint.location.position()) == tile ?
+              new LoadedDevice(endpoint.host, tile, endpoint.location) : null;
+    }
+
+    /** Publishes an already registered host immediately after an explicit recovery. */
+    public synchronized void refreshHost(@Nonnull DefaultQIOAutomationHost host) {
+        for (LinkedHashMap<QIOAutomationDeviceLocation, Endpoint> endpoints : byUUID.values()) {
+            for (Endpoint endpoint : endpoints.values()) {
+                if (endpoint.host == host) {
+                    publishSnapshot(endpoint);
+                    return;
+                }
+            }
+        }
     }
 
     @Nonnull
@@ -201,6 +245,22 @@ public final class QIOAutomationDeviceRegistry {
 
     public synchronized boolean isQuarantined(@Nonnull UUID deviceUUID) {
         return quarantinedUUIDs.contains(deviceUUID);
+    }
+
+    /**
+     * Checks whether a recovery candidate identifies no loaded endpoint other than the host
+     * performing the recovery. Deferred legacy state must never be installed while the same
+     * persistent UUID belongs to another loaded machine.
+     */
+    synchronized boolean isRecoveryIdentityUnique(@Nonnull UUID deviceUUID,
+          @Nonnull DefaultQIOAutomationHost host) {
+        LinkedHashMap<QIOAutomationDeviceLocation, Endpoint> endpoints = byUUID.get(
+              Objects.requireNonNull(deviceUUID, "deviceUUID"));
+        if (endpoints == null || endpoints.isEmpty()) {
+            return true;
+        }
+        return endpoints.size() == 1 && endpoints.values().iterator().next().host ==
+              Objects.requireNonNull(host, "host");
     }
 
     @Nonnull
@@ -230,9 +290,12 @@ public final class QIOAutomationDeviceRegistry {
             TileEntity tile = endpointTile;
             QIOAutomationHost.State hostState = endpoint.host.getState();
             boolean draining = includeDraining && hostState == QIOAutomationHost.State.DRAINING_CHANGE;
+            boolean endpointValid = tile != null &&
+                  validateEndpointForRegistration(endpoint.host, tile);
             if ((hostState == QIOAutomationHost.State.ACTIVE || draining) &&
                 !endpoint.host.isManagementPaused() && endpoint.host.getEnabledMode() == mode &&
                 (draining || QIOAutomationUpgradeSupport.isModeInstalled(tile, mode)) &&
+                endpointValid &&
                 tile != null && !tile.isInvalid() && tile.getWorld() != null && !tile.getWorld().isRemote) {
                 devices.add(new LoadedDevice(endpoint.host, tile, endpoint.location));
             }
@@ -320,9 +383,40 @@ public final class QIOAutomationDeviceRegistry {
                 }
                 continue;
             }
-            register(host, tile.getWorld(), tile.getPos());
+            DefaultQIOAutomationHost.DeferredOutputRecoveryResult recovery;
+            try {
+                recovery = host.attemptDeferredOutputRecovery();
+            } catch (RuntimeException e) {
+                // Provider ports are addon-owned and may be unavailable while a tile is
+                // restoring its custom inventory. Recovery must never escape into the
+                // server tick; keep the host pending and retry against the next stable view.
+                host.markRetryPending();
+                Mekanism.logger.warn("Unable to inspect deferred QIO output recovery for {}",
+                      host.getPersistentDeviceUUID(), e);
+                continue;
+            }
+            if (recovery == DefaultQIOAutomationHost.DeferredOutputRecoveryResult.RETRY_LATER) {
+                continue;
+            }
+            // A blocked deferred handoff is a quarantined, ownership-bearing record. Keep it
+            // in the bounded retry queue so a later inventory/tank update can make the exact
+            // baseline recoverable; removing it here used to make a valid post-load recovery
+            // depend on an unrelated output-service tick.
+            boolean retryRecovery = recovery == DefaultQIOAutomationHost.DeferredOutputRecoveryResult.BLOCKED &&
+                  host.hasDeferredOutputRecovery();
+            try {
+                register(host, tile.getWorld(), tile.getPos());
+            } catch (RuntimeException e) {
+                // Provider/configuration code is addon-owned. One malformed endpoint must not
+                // abort the server tick or lose the pending recovery record.
+                Mekanism.logger.warn("Unable to register QIO automation device {}", 
+                      host.getPersistentDeviceUUID(), e);
+                retryRecovery = true;
+            }
             synchronized (this) {
-                pending.remove(host);
+                if (!retryRecovery) {
+                    pending.remove(host);
+                }
             }
         }
     }
@@ -348,7 +442,11 @@ public final class QIOAutomationDeviceRegistry {
                   new Endpoint(host, location);
             endpoints.put(location, endpoint);
             QIOAutomationUpgradeSupport.reconcile(host.tile(), host);
-            validateEndpointForRegistration(host, host.tile());
+            if (!validateEndpointForRegistration(host, host.tile())) {
+                // Keep the endpoint visible for diagnostics/offline management, but do not let
+                // an invalid dynamic provider be mistaken for an executable route publisher.
+                directoryRejectedDevices.add(host.getPersistentDeviceUUID());
+            }
             if (endpoints.size() > 1 || quarantinedUUIDs.contains(host.getPersistentDeviceUUID())) {
                 quarantinedUUIDs.add(host.getPersistentDeviceUUID());
                 for (Endpoint conflictingEndpoint : endpoints.values()) {
@@ -369,14 +467,17 @@ public final class QIOAutomationDeviceRegistry {
         MachineRecipeProviderRegistry.BoundProvider provider =
               MachineRecipeProviderRegistry.find(tile);
         if (provider == null) {
-            host.enterDataError("Bound machine provider disappeared before device registration");
             return false;
         }
-        ProviderConformanceReport report = provider.validateQIOEndpointConformance(
-              host.getEnabledMode());
-        if (!report.isConformant()) {
-            host.enterDataError("Provider conformance failed: " +
-                  String.join("; ", report.errors()));
+        try {
+            ProviderConformanceReport report = provider.validateQIOEndpointConformance(
+                  host.getEnabledMode());
+            if (!report.isConformant()) {
+                return false;
+            }
+        } catch (RuntimeException ignored) {
+            // Dynamic providers may transiently fail while their tile configuration is being
+            // restored. Registration must not leak that exception into the server tick.
             return false;
         }
         return true;
@@ -439,7 +540,6 @@ public final class QIOAutomationDeviceRegistry {
              offset++, checked++) {
             Endpoint endpoint = candidates.get((start + offset) % candidates.size());
             if (!quarantinedUUIDs.contains(endpoint.host.getPersistentDeviceUUID()) &&
-                endpoint.host.getState() != QIOAutomationHost.State.DATA_ERROR &&
                 endpoint.host.getState() != QIOAutomationHost.State.IDENTITY_CONFLICT) {
                 QIOAutomationUpgradeSupport.reconcile(endpoint.host.tile(), endpoint.host);
                 QIOAutomationBindingService.refreshAccess(endpoint.host);
@@ -498,7 +598,7 @@ public final class QIOAutomationDeviceRegistry {
             boolean publishableRoutes = !providerRoutes.isEmpty() &&
                   hasPublishableRoutes(provider, mode);
             QIOAutomationDeviceSnapshot snapshot = new QIOAutomationDeviceSnapshot(
-                  endpoint.host.getPersistentDeviceUUID(), endpoint.location,
+                   endpoint.host.getPersistentDeviceUUID(), endpoint.location,
                   QIOAutomationDeviceSnapshot.Kind.AUTOMATION_MACHINE,
                   blockId == null ? "minecraft:air" : blockId.toString(),
                   Math.max(0, tile.getBlockMetadata()),
@@ -507,8 +607,9 @@ public final class QIOAutomationDeviceRegistry {
                   Math.max(0, tile.getWorld().getTotalWorldTime()),
                   endpoint.host.getConfigurationRevision(),
                   providerRevision, providerRoutes.size(),
-                  endpoint.host.getActivitySnapshots().size(),
-                  endpoint.host.isManagementPaused(), endpoint.host.getDataError());
+                   endpoint.host.getActivitySnapshots().size(),
+                    endpoint.host.isManagementPaused(), endpoint.host.getRecoveryDiagnostic())
+                  .withRecoveryState(endpoint.host.getRecoveryState());
             network.observeAutomationDevice(snapshot,
                   MekanismConfig.current().qioProcessing.deviceRecordsPerFrequency.val());
             RoutePublicationAction routeAction = routePublicationAction(publishableRoutes,
@@ -680,7 +781,8 @@ public final class QIOAutomationDeviceRegistry {
             return host;
         }
 
-        DefaultQIOAutomationHost mutableHost() {
+        @Nonnull
+        public DefaultQIOAutomationHost mutableHost() {
             return host;
         }
 

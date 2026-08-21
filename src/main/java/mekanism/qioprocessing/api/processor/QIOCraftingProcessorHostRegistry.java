@@ -13,6 +13,12 @@ import java.util.Map;
 import java.util.Objects;
 
 /** Explicit, frozen registration boundary for built-in and addon processor TileEntity families. */
+/**
+ * QIO 处理模块中的 QIOCraftingProcessorHostRegistry 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOCraftingProcessorHostRegistry {
 
     public static final class ResolvedHost {
@@ -26,21 +32,25 @@ public final class QIOCraftingProcessorHostRegistry {
             this.definition = definition;
         }
 
+        /** 返回已解析主机的注册标识。 */
         @Nonnull
         public ResourceLocation getHostId() {
             return registration.getHostId();
         }
 
+        /** 返回已解析主机的所属模组。 */
         @Nonnull
         public String getOwnerModId() {
             return registration.getOwnerModId();
         }
 
+        /** 返回已解析主机的方块类型。 */
         @Nonnull
         public Class<? extends TileEntity> getTileClass() {
             return registration.getTileClass();
         }
 
+        /** 返回已解析的处理器定义。 */
         @Nonnull
         public QIOCraftingProcessorDefinition getDefinition() {
             return definition;
@@ -56,6 +66,7 @@ public final class QIOCraftingProcessorHostRegistry {
     private QIOCraftingProcessorHostRegistry() {
     }
 
+    /** 注册一个主机描述；注册冻结后或重复标识会抛出异常。 */
     @Nonnull
     public static synchronized <T extends TileEntity> QIOCraftingProcessorHostRegistration<T> register(
           @Nonnull QIOCraftingProcessorHostRegistration<T> registration) {
@@ -76,24 +87,29 @@ public final class QIOCraftingProcessorHostRegistry {
         return registration;
     }
 
+    /** 冻结注册表，阻止运行时继续新增主机。 */
     public static synchronized void freeze() {
         frozen = true;
     }
 
+    /** 返回注册表是否已经冻结。 */
     public static synchronized boolean isFrozen() {
         return frozen;
     }
 
+    /** 按主机标识查找注册描述。 */
     @Nullable
     public static synchronized QIOCraftingProcessorHostRegistration<?> get(ResourceLocation hostId) {
         return hostId == null ? null : BY_ID.get(hostId);
     }
 
+    /** 返回当前注册描述的不可修改快照。 */
     @Nonnull
     public static synchronized List<QIOCraftingProcessorHostRegistration<?>> getRegistrations() {
         return Collections.unmodifiableList(new ArrayList<>(BY_ID.values()));
     }
 
+    /** 根据方块实际类型解析最具体的处理器主机及其定义。 */
     @Nullable
     public static synchronized ResolvedHost resolve(@Nullable TileEntity tile) {
         if (tile == null) {

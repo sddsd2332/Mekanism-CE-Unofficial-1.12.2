@@ -1,6 +1,7 @@
 package mekanism.common.config.options;
 
 import io.netty.buffer.ByteBuf;
+import mekanism.common.Mekanism;
 import mekanism.common.config.BaseConfig;
 import net.minecraftforge.common.config.Configuration;
 import net.minecraftforge.common.config.Property;
@@ -63,7 +64,14 @@ public class EnumOption<T extends Enum<T>> extends Option<EnumOption<T>> {
         final Property prop = config.get(this.category, this.key, this.defaultValue.name(), this.comment);
         prop.setRequiresMcRestart(this.requiresGameRestart);
         prop.setRequiresWorldRestart(this.requiresWorldRestart);
-        this.value = Enum.valueOf(this.enumClass, prop.getString());
+        try {
+            this.value = Enum.valueOf(this.enumClass, prop.getString());
+        } catch (IllegalArgumentException e) {
+            Mekanism.logger.warn("Invalid value '{}' for config option '{}'; using default '{}'.", prop.getString(), this.key,
+                  this.defaultValue.name());
+            this.value = this.defaultValue;
+            prop.set(this.defaultValue.name());
+        }
     }
 
     @Override
@@ -73,6 +81,7 @@ public class EnumOption<T extends Enum<T>> extends Option<EnumOption<T>> {
 
     @Override
     public void read(ByteBuf buf) {
-        this.value = this.enumValues[buf.readInt()];
+        int ordinal = buf.readInt();
+        this.value = ordinal >= 0 && ordinal < this.enumValues.length ? this.enumValues[ordinal] : this.defaultValue;
     }
 }

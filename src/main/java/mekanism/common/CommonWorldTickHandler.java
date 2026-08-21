@@ -61,7 +61,7 @@ public class CommonWorldTickHandler {
 
     public void tickStart(World world) {
         if (!world.isRemote) {
-            if (!FrequencyManager.loaded) {
+            if (!FrequencyManager.loaded && world.provider.getDimension() == 0) {
                 FrequencyManager.load(world);
             }
             if (!RadiationManager.loaded){

@@ -3,8 +3,11 @@ package mekanism.api;
 import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasStack;
 import mekanism.api.infuse.InfuseType;
+import mekanism.api.recipes.FarmChanceOutput;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.fluids.FluidStack;
+
+import java.util.List;
 
 public interface MekanismRecipeHelper {
 
@@ -180,6 +183,14 @@ public interface MekanismRecipeHelper {
     void addOrganicFarmRecipe(ItemStack input, Gas gas, ItemStack primaryOutput, ItemStack secondaryOutput, double chance);
 
     void addOrganicFarmRecipe(ItemStack input, Gas gas, ItemStack primaryOutput);
+
+    void addOrganicFarmRecipe(ItemStack input, Gas gas, ItemStack primaryOutput, List<FarmChanceOutput> chanceOutputs);
+
+    void addOrganicFarmRecipe(ItemStack input, FluidStack fluid, ItemStack primaryOutput, ItemStack secondaryOutput, double chance);
+
+    void addOrganicFarmRecipe(ItemStack input, FluidStack fluid, ItemStack primaryOutput);
+
+    void addOrganicFarmRecipe(ItemStack input, FluidStack fluid, ItemStack primaryOutput, List<FarmChanceOutput> chanceOutputs);
 
     void addAntiprotonicNucleosynthesizerRecipe(ItemStack inputSolid, GasStack inputGas, ItemStack outputSolid, double extraEnergy, int ticks);
 

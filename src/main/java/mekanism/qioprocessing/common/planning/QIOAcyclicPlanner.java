@@ -25,6 +25,12 @@ import java.util.TreeMap;
  * <p>Cycles are deliberately surfaced as {@link Status#CYCLE_REQUIRES_SCC}; a lower-priority
  * route is never selected merely because the SCC solver has not handled the preferred route yet.</p>
  */
+/**
+ * QIO 处理模块中的 QIOAcyclicPlanner 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOAcyclicPlanner implements
       QIOPlanningExecutor.PlanningTask<QIOPlanningRequest, QIOPlanningResult> {
 
@@ -35,6 +41,7 @@ public final class QIOAcyclicPlanner implements
 
     @Nonnull
     @Override
+    /** 对无环依赖图执行确定性规划。 */
     public QIOPlanningResult plan(@Nonnull QIOPlanningRequest request,
           @Nonnull CancellationToken cancellationToken) {
         Objects.requireNonNull(request, "request");

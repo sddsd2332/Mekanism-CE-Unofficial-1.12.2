@@ -41,6 +41,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.math.BigInteger;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -50,6 +51,12 @@ import java.util.Set;
 import java.util.UUID;
 
 /** Authoritative, serially-mutated QIO Processing state for one stable frequency UUID. */
+/**
+ * QIO 处理模块中的 QIOProcessingNetworkData 类型。
+ *
+ * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
+ * 实现负责保持状态与持久化表示的一致。</p>
+ */
 public final class QIOProcessingNetworkData {
 
     public static final int SCHEMA_VERSION = 7;
@@ -103,6 +110,7 @@ public final class QIOProcessingNetworkData {
     private Runnable dirtyListener;
     private boolean repairedOnLoad;
 
+    /** 创建指定频率的空网络状态。 */
     public QIOProcessingNetworkData(@Nonnull UUID frequencyUUID,
           @Nonnull QIOFrequencyIdentitySnapshot lastKnownFrequencyIdentity) {
         this.frequencyUUID = Objects.requireNonNull(frequencyUUID, "frequencyUUID");
@@ -112,85 +120,103 @@ public final class QIOProcessingNetworkData {
     }
 
     @Nonnull
+    /** 返回网络所属频率 UUID。 */
     public UUID getFrequencyUUID() {
         return frequencyUUID;
     }
 
     @Nonnull
+    /** 返回最近一次观测到的频率身份。 */
     public QIOFrequencyIdentitySnapshot getLastKnownFrequencyIdentity() {
         return lastKnownFrequencyIdentity;
     }
 
     @Nonnull
+    /** 返回网络生命周期。 */
     public QIOProcessingNetworkLifecycle getLifecycle() {
         return lifecycle;
     }
 
+    /** 返回网络结构版本。 */
     public long getNetworkRevision() {
         return networkRevision;
     }
 
+    /** 返回任务材料承诺版本。 */
     public long getTaskCommitmentRevision() {
         return taskCommitmentRevision;
     }
 
+    /** 返回调度时钟。 */
     public long getSchedulerClock() {
         return schedulerClock;
     }
 
+    /** 返回任务入队计数器。 */
     public long getEnqueueCounter() {
         return enqueueCounter;
     }
 
+    /** 返回任务派发计数器。 */
     public long getDispatchCounter() {
         return dispatchCounter;
     }
 
+    /** 返回加载时是否执行过结构修复。 */
     public boolean wasRepairedOnLoad() {
         return repairedOnLoad;
     }
 
     @Nullable
+    /** 按任务 UUID 查询任务。 */
     public QIOCraftingJob getJob(UUID jobId) {
         return jobId == null ? null : jobs.get(jobId);
     }
 
     @Nullable
+    /** 按任务 UUID 查询材料承诺。 */
     public QIOMaterialCommitment getCommitment(UUID jobId) {
         return jobId == null ? null : commitments.get(jobId);
     }
 
     @Nullable
+    /** 按任务 UUID 查询任务资源缓冲。 */
     public QIOJobBuffer getJobBuffer(UUID jobId) {
         return jobId == null ? null : jobBuffers.get(jobId);
     }
 
     @Nullable
+    /** 按传输 UUID 查询 durable transfer。 */
     public QIODurableTransferRecord getDurableTransfer(UUID transferId) {
         return transferId == null ? null : durableTransfers.get(transferId);
     }
 
     @Nonnull
+    /** 返回任务的只读集合视图。 */
     public Collection<QIOCraftingJob> getJobs() {
         return Collections.unmodifiableList(new ArrayList<>(jobs.values()));
     }
 
     @Nonnull
+    /** 返回材料承诺的只读集合视图。 */
     public Collection<QIOMaterialCommitment> getCommitments() {
         return Collections.unmodifiableList(new ArrayList<>(commitments.values()));
     }
 
     @Nonnull
+    /** 返回 durable transfer 的只读集合视图。 */
     public Collection<QIODurableTransferRecord> getDurableTransfers() {
         return Collections.unmodifiableList(new ArrayList<>(durableTransfers.values()));
     }
 
     @Nullable
+    /** 按交换 UUID 查询配置交换记录。 */
     public QIOConfigurationExchangeRecord getConfigurationExchange(UUID exchangeId) {
         return exchangeId == null ? null : configurationExchanges.get(exchangeId);
     }
 
     @Nonnull
+    /** 返回配置交换记录的只读集合视图。 */
     public Collection<QIOConfigurationExchangeRecord> getConfigurationExchanges() {
         return Collections.unmodifiableList(new ArrayList<>(configurationExchanges.values()));
     }
@@ -208,6 +234,7 @@ public final class QIOProcessingNetworkData {
         return Collections.unmodifiableList(result);
     }
 
+    /** 添加配置交换并更新网络索引。 */
     public void addConfigurationExchange(@Nonnull QIOConfigurationExchangeRecord exchange) {
         Objects.requireNonNull(exchange, "exchange");
         if (configurationExchanges.size() >= MAX_PERSISTED_TRANSFERS ||
@@ -227,9 +254,23 @@ public final class QIOProcessingNetworkData {
 
     public void removeCommittedConfigurationExchanges(@Nonnull UUID operationId) {
         UUID checked = Objects.requireNonNull(operationId, "operationId");
-        configurationExchanges.entrySet().removeIf(entry ->
-                    entry.getValue().getOperationId().equals(checked) &&
-                    entry.getValue().getPhase().isSettled());
+        List<UUID> removedExchanges = new ArrayList<>();
+        configurationExchanges.entrySet().removeIf(entry -> {
+            QIOConfigurationExchangeRecord exchange = entry.getValue();
+            boolean remove = exchange.getOperationId().equals(checked) &&
+                  exchange.getPhase().isSettled();
+            if (remove) {
+                removedExchanges.add(exchange.getTargetReturnTransferId());
+            }
+            return remove;
+        });
+        for (UUID transferId : removedExchanges) {
+            QIODurableTransferRecord transfer = durableTransfers.get(transferId);
+            if (transfer != null && transfer.getResolution() ==
+                  QIODurableTransferRecord.Resolution.FORWARD_COMMITTED) {
+                durableTransfers.remove(transferId);
+            }
+        }
         markDirty();
     }
 
@@ -250,6 +291,7 @@ public final class QIOProcessingNetworkData {
         return Collections.unmodifiableList(new ArrayList<>(passiveOperations.values()));
     }
 
+    /** 添加被动处理操作并更新活动索引。 */
     public void addPassiveOperation(@Nonnull QIOPassiveOperation operation) {
         Objects.requireNonNull(operation, "operation");
         if (passiveOperations.size() >= MAX_PERSISTED_PASSIVE_OPERATIONS ||
@@ -272,6 +314,7 @@ public final class QIOProcessingNetworkData {
 
     /** Returns and rotates a bounded batch of non-terminal passive operations. */
     @Nonnull
+    /** 按稳定顺序取出不超过上限的活动被动操作。 */
     public List<QIOPassiveOperation> pollActivePassiveOperations(int maximum) {
         return pollIndexed(activePassiveOperations, passiveOperations, maximum);
     }
@@ -281,6 +324,7 @@ public final class QIOProcessingNetworkData {
         return pollIndexed(terminalPassiveHistory, passiveOperations, maximum);
     }
 
+    /** 判断设备是否已有活动被动操作。 */
     public boolean hasActivePassiveOperation(@Nonnull UUID deviceUUID) {
         return activePassiveDeviceCounts.containsKey(
               Objects.requireNonNull(deviceUUID, "deviceUUID"));
@@ -291,6 +335,7 @@ public final class QIOProcessingNetworkData {
     }
 
     @Nonnull
+    /** 返回活动执行槽的只读快照。 */
     public Collection<ActiveExecutionSlot> getActiveExecutionSlots() {
         return executionSlots.getActiveSlots();
     }
@@ -520,17 +565,20 @@ public final class QIOProcessingNetworkData {
     }
 
     @Nonnull
+    /** 返回当前可派发任务的稳定快照。 */
     public List<QIOCraftingJob> getDispatchCandidates() {
         return getDispatchCandidates(Integer.MAX_VALUE);
     }
 
     /** Returns a bounded round-robin slice without scanning terminal job history. */
     @Nonnull
+    /** 取出不超过上限的派发候选任务。 */
     public List<QIOCraftingJob> getDispatchCandidates(int maximum) {
         return peekIndexed(dispatchCandidateJobs, jobs, maximum);
     }
 
     /** Requeues idle provider waiters only when provider-relevant state changed. */
+    /** 将等待 Provider 的任务重新加入派发候选。 */
     public void wakeWaitingProviderJobs() {
         if (!waitingProviderJobs.isEmpty()) {
             dispatchCandidateJobs.addAll(waitingProviderJobs);
@@ -538,6 +586,7 @@ public final class QIOProcessingNetworkData {
         }
     }
 
+    /** 将暂时没有 Provider 的任务延后等待。 */
     public void deferWaitingProviderJob(@Nonnull UUID jobId) {
         QIOCraftingJob job = requireJob(jobId);
         if (job.getState() == QIOCraftingJobState.WAITING_PROVIDER &&
@@ -555,11 +604,13 @@ public final class QIOProcessingNetworkData {
     }
 
     @Nonnull
+    /** 取出等待材料预留的任务。 */
     public List<QIOCraftingJob> pollReservingJobs(int maximum) {
         return pollIndexed(reservingJobs, jobs, maximum);
     }
 
     @Nonnull
+    /** 取出终止任务历史供清理或诊断。 */
     public List<QIOCraftingJob> pollTerminalJobHistory(int maximum) {
         return pollIndexed(terminalJobHistory, jobs, maximum);
     }
@@ -572,6 +623,7 @@ public final class QIOProcessingNetworkData {
      * Drops a fully settled terminal job and all of its persisted planning/runtime state.
      * Returns false while any resource ownership or durable handoff can still reference it.
      */
+    /** 删除已完成且无剩余所有权的终止任务。 */
     public boolean removeSettledTerminalJob(@Nonnull UUID jobId) {
         UUID checkedJobId = Objects.requireNonNull(jobId, "jobId");
         QIOCraftingJob job = jobs.get(checkedJobId);
@@ -613,6 +665,7 @@ public final class QIOProcessingNetworkData {
         return true;
     }
 
+    /** 在任务步骤中登记机器/处理器操作分配。 */
     public void startStepOperation(@Nonnull UUID jobId, long nodeId,
           @Nonnull QIOOperationAssignment assignment) {
         QIOCraftingJob job = requireJob(jobId);
@@ -625,6 +678,7 @@ public final class QIOProcessingNetworkData {
         markDirty();
     }
 
+    /** 更新任务步骤操作的状态和进度。 */
     public boolean updateStepOperation(@Nonnull UUID jobId, long nodeId,
           @Nonnull UUID operationId, @Nonnull QIOOperationAssignment.State state,
           long currentTick, long totalTicks, @Nullable String diagnostic) {
@@ -641,6 +695,7 @@ public final class QIOProcessingNetworkData {
         return true;
     }
 
+    /** 结算任务步骤操作。 */
     public void completeStepOperation(@Nonnull UUID jobId, long nodeId,
           @Nonnull UUID operationId) {
         QIOCraftingJob job = requireJob(jobId);
@@ -651,6 +706,7 @@ public final class QIOProcessingNetworkData {
         markDirty();
     }
 
+    /** 记录任务步骤操作失败。 */
     public void failStepOperation(@Nonnull UUID jobId, long nodeId,
           @Nonnull UUID operationId, @Nonnull String diagnostic) {
         QIOCraftingJob job = requireJob(jobId);
@@ -659,20 +715,69 @@ public final class QIOProcessingNetworkData {
         markDirty();
     }
 
+    /** 将任务步骤操作标记为污染并保留恢复诊断。 */
     public void contaminateStepOperation(@Nonnull UUID jobId, long nodeId,
           @Nonnull UUID operationId, @Nonnull String diagnostic) {
         QIOCraftingJob job = requireJob(jobId);
-        job.updateStepOperation(nodeId, operationId, QIOOperationAssignment.State.FAILED,
-              0, 0, diagnostic);
-        transitionJob(job, QIOCraftingJobState.OPERATION_CONTAMINATED);
+        job.failStepOperation(nodeId, operationId, diagnostic);
+        job.markForcedRecovery(diagnostic);
+        waitingExecutionSlotJobs.remove(jobId);
+        refreshJobIndexes(job);
         markDirty();
     }
 
+    /** Records a forced machine recovery as a player-decision point for one job operation. */
+    /** 将任务操作标记为强制恢复后的可重派发状态。 */
+    public boolean markForcedRecoveryOperation(@Nonnull UUID jobId, long nodeId,
+          @Nonnull UUID operationId, @Nonnull String diagnostic) {
+        QIOCraftingJob job = requireJob(jobId);
+        QIOStepRuntime runtime = job.getStepRuntime(nodeId);
+        if (runtime == null || runtime.getOperation(operationId) == null) {
+            return false;
+        }
+        job.failStepOperation(nodeId, operationId, diagnostic);
+        job.markForcedRecovery(diagnostic);
+        refreshJobIndexes(job);
+        markDirty();
+        return true;
+    }
+
+    /** Marks a job as awaiting a player's redispatch decision when its operation record is missing. */
+    /** 记录任务级强制恢复诊断。 */
+    public boolean markForcedRecoveryJob(@Nonnull UUID jobId, @Nonnull String diagnostic) {
+        QIOCraftingJob job = requireJob(jobId);
+        if (job.getState().isTerminal() || job.isCancellationRequested()) {
+            return false;
+        }
+        job.markForcedRecovery(diagnostic);
+        refreshJobIndexes(job);
+        markDirty();
+        return true;
+    }
+
+    /** Accepts the monitor's explicit redispatch decision after a forced recovery. */
+    /** 接受任务强制恢复后的重新派发。 */
+    public boolean acceptForcedRecoveryRedispatch(@Nonnull UUID jobId,
+          long expectedRuntimeRevision) {
+        QIOCraftingJob job = requireJob(jobId);
+        if (job.getRuntimeRevision() != expectedRuntimeRevision ||
+            job.getState() != QIOCraftingJobState.OPERATION_CONTAMINATED ||
+            job.hasActiveOperations()) {
+            return false;
+        }
+        job.acceptForcedRecoveryRedispatch();
+        refreshJobIndexes(job);
+        markDirty();
+        return true;
+    }
+
+    /** 推进任务生命周期状态并刷新调度索引。 */
     public void transitionJobState(@Nonnull UUID jobId, @Nonnull QIOCraftingJobState state) {
         transitionJob(requireJob(jobId), Objects.requireNonNull(state, "state"));
         markDirty();
     }
 
+    /** 在版本匹配时更新任务优先级。 */
     public boolean updateJobPriority(@Nonnull UUID jobId, long expectedRuntimeRevision,
           long priority) {
         QIOCraftingJob job = requireJob(jobId);
@@ -692,6 +797,7 @@ public final class QIOProcessingNetworkData {
     }
 
     /** Begins a durable plan transition while the old plan remains authoritative. */
+    /** 请求任务在安全边界切换到新的合成计划。 */
     public void requestJobReplan(@Nonnull UUID jobId, @Nonnull QIOCraftPlan nextPlan) {
         QIOCraftingJob job = requireJob(jobId);
         job.requestReplan(nextPlan);
@@ -847,6 +953,7 @@ public final class QIOProcessingNetworkData {
         markDirty();
     }
 
+    /** 请求取消任务并加入取消队列。 */
     public boolean requestJobCancellation(@Nonnull UUID jobId) {
         QIOCraftingJob job = requireJob(jobId);
         boolean wasWakeCandidate = isClaimWakeCandidate(jobId);
@@ -973,6 +1080,7 @@ public final class QIOProcessingNetworkData {
               resources);
     }
 
+    /** 绑定网络状态变化回调。 */
     public void bindDirtyListener(@Nullable Runnable dirtyListener) {
         this.dirtyListener = dirtyListener;
         if (repairedOnLoad && dirtyListener != null) {
@@ -980,6 +1088,7 @@ public final class QIOProcessingNetworkData {
         }
     }
 
+    /** 更新网络最近观测的频率身份。 */
     public void updateFrequencyIdentity(@Nonnull QIOFrequencyIdentitySnapshot identity) {
         QIOFrequencyIdentitySnapshot next = Objects.requireNonNull(identity, "identity");
         if (!sameIdentity(lastKnownFrequencyIdentity, next)) {
@@ -988,6 +1097,7 @@ public final class QIOProcessingNetworkData {
         }
     }
 
+    /** 设置网络生命周期并触发对应索引刷新。 */
     public void setLifecycle(@Nonnull QIOProcessingNetworkLifecycle lifecycle) {
         QIOProcessingNetworkLifecycle next = Objects.requireNonNull(lifecycle, "lifecycle");
         if (this.lifecycle != next) {
@@ -1003,6 +1113,7 @@ public final class QIOProcessingNetworkData {
     }
 
     @Nonnull
+    /** 创建并登记一个新的合成任务。 */
     public QIOCraftingJob createJob(@Nonnull QIOCraftingJobSource source, @Nullable UUID requester,
           long priority, long createdAtTick, @Nonnull QIOCraftPlan plan, int maximumNonTerminalJobs) {
         return createJob(UUID.randomUUID(), source, requester, priority, createdAtTick, plan,
@@ -1010,6 +1121,7 @@ public final class QIOProcessingNetworkData {
     }
 
     @Nonnull
+    /** 从持久化标识创建并登记任务。 */
     public QIOCraftingJob createJob(@Nonnull UUID jobId, @Nonnull QIOCraftingJobSource source,
           @Nullable UUID requester, long priority, long createdAtTick, @Nonnull QIOCraftPlan plan,
           int maximumNonTerminalJobs) {
@@ -1261,6 +1373,7 @@ public final class QIOProcessingNetworkData {
         return true;
     }
 
+    /** 添加 durable transfer 并按其所有者更新网络索引。 */
     public void addDurableTransfer(@Nonnull QIODurableTransferRecord transfer) {
         Objects.requireNonNull(transfer, "transfer");
         if (durableTransfers.putIfAbsent(transfer.getTransferId(), transfer) != null) {
@@ -1284,7 +1397,83 @@ public final class QIOProcessingNetworkData {
         markDirty();
     }
 
+    /**
+     * Creates the durable QIO return leg for a configuration target which was already debited
+     * but has not reached the machine.  The record is written before any insertion is attempted;
+     * a crash can therefore only replay the same idempotent transfer, never create an unowned
+     * template debit.
+     */
+    @Nonnull
+    public QIODurableTransferRecord ensureConfigurationTargetReturnTransfer(
+          @Nonnull QIOConfigurationExchangeRecord exchange, @Nonnull BigInteger qioBaseline) {
+        Objects.requireNonNull(exchange, "exchange");
+        Objects.requireNonNull(qioBaseline, "qioBaseline");
+        if (!exchange.requiresTargetReturn()) {
+            throw new IllegalStateException("Configuration exchange has no target return obligation");
+        }
+        if (exchange.getTargetQioBaseline() == null ||
+              !qioBaseline.equals(exchange.getTargetQioBaseline().subtract(BigInteger.ONE))) {
+            throw new IllegalStateException(
+                  "Configuration target return baseline disagrees with the target debit");
+        }
+        QIODurableTransferRecord existing = durableTransfers.get(
+              exchange.getTargetReturnTransferId());
+        if (existing != null) {
+            if (!isConfigurationTargetReturnTransfer(existing, exchange, qioBaseline, false)) {
+                throw new IllegalStateException(
+                      "Configuration target return transfer disagrees with its exchange");
+            }
+            return existing;
+        }
+        if (qioBaseline.signum() < 0) {
+            throw new IllegalArgumentException("Configuration target return baseline cannot be negative");
+        }
+        Map<PortableResourceDescriptor, Long> resources = Collections.singletonMap(
+              exchange.getTargetResource(), 1L);
+        Map<PortableResourceDescriptor, BigInteger> baselines = Collections.singletonMap(
+              exchange.getTargetResource(), qioBaseline);
+        UUID ownerOperationId = exchange.getOwnerJobId() == null ? exchange.getOperationId() : null;
+        UUID ownerJobId = exchange.getOwnerJobId();
+        int planRevision = ownerJobId == null ? 0 :
+              getJob(ownerJobId) == null ? 1 : getJob(ownerJobId).getActivePlan().getRevision();
+        QIODurableTransferRecord transfer = new QIODurableTransferRecord(
+              exchange.getTargetReturnTransferId(), UUID.randomUUID(),
+              QIODurableTransferRecord.Type.JOB_TO_QIO, ownerJobId, ownerOperationId,
+              planRevision, "configuration-return/" + exchange.getExchangeId() + "/" +
+                    exchange.getOperationId(),
+              exchange.getLeaseId(),
+              "configuration-held/" + exchange.getDeviceUUID() + "/" + exchange.getExchangeId() +
+                    "/" + exchange.getOperationId(),
+              "qio/" + frequencyUUID, resources, baselines);
+        addDurableTransfer(transfer);
+        return transfer;
+    }
+
+    private boolean isConfigurationTargetReturnTransfer(
+          QIODurableTransferRecord transfer, QIOConfigurationExchangeRecord exchange,
+          BigInteger baseline, boolean allowCommitted) {
+        return transfer.getType() == QIODurableTransferRecord.Type.JOB_TO_QIO &&
+              transfer.getTransferId().equals(exchange.getTargetReturnTransferId()) &&
+              Objects.equals(transfer.getOwnerJobId(), exchange.getOwnerJobId()) &&
+              Objects.equals(transfer.getOwnerOperationId(),
+                    exchange.getOwnerJobId() == null ? exchange.getOperationId() : null) &&
+              transfer.getLeaseId() != null && transfer.getLeaseId().equals(exchange.getLeaseId()) &&
+              transfer.getNodeId().equals("configuration-return/" + exchange.getExchangeId() + "/" +
+                    exchange.getOperationId()) &&
+              transfer.getSource().equals("configuration-held/" + exchange.getDeviceUUID() + "/" +
+                    exchange.getExchangeId() + "/" + exchange.getOperationId()) &&
+              transfer.getDestination().equals("qio/" + frequencyUUID) &&
+              transfer.getResources().equals(Collections.singletonMap(
+                    exchange.getTargetResource(), 1L)) &&
+              transfer.getQIOBaselines().equals(Collections.singletonMap(
+                    exchange.getTargetResource(), baseline)) &&
+              (allowCommitted && transfer.getResolution() ==
+                    QIODurableTransferRecord.Resolution.FORWARD_COMMITTED ||
+                    transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE);
+    }
+
     @Nullable
+    /** 查询任务当前的 QIO 预留 transfer。 */
     public QIODurableTransferRecord getReservationTransfer(@Nonnull UUID jobId) {
         QIODurableTransferRecord found = null;
         for (QIODurableTransferRecord transfer : durableTransfers.values()) {
@@ -1301,6 +1490,7 @@ public final class QIOProcessingNetworkData {
     }
 
     @Nonnull
+    /** 返回任务拥有的未结算 transfer。 */
     public List<QIODurableTransferRecord> getActiveJobTransfers(@Nonnull UUID jobId,
           @Nonnull QIODurableTransferRecord.Type type) {
         List<QIODurableTransferRecord> result = new ArrayList<>();
@@ -1315,6 +1505,7 @@ public final class QIOProcessingNetworkData {
     }
 
     @Nonnull
+    /** 返回独立机器操作拥有的未结算 transfer。 */
     public List<QIODurableTransferRecord> getActiveOperationTransfers(
           @Nonnull UUID operationId, @Nonnull QIODurableTransferRecord.Type type) {
         List<QIODurableTransferRecord> result = new ArrayList<>();
@@ -1329,6 +1520,7 @@ public final class QIOProcessingNetworkData {
         return Collections.unmodifiableList(result);
     }
 
+    /** 记录通用 transfer 来源已扣除。 */
     public void markGenericTransferSourceDebited(@Nonnull UUID transferId,
           @Nonnull String receipt, long sourceRevision) {
         QIODurableTransferRecord transfer = requireGenericTransfer(transferId);
@@ -1336,6 +1528,7 @@ public final class QIOProcessingNetworkData {
         markDirty();
     }
 
+    /** 记录通用 transfer 目标已入账。 */
     public void markGenericTransferDestinationCredited(@Nonnull UUID transferId,
           @Nonnull String receipt) {
         QIODurableTransferRecord transfer = requireGenericTransfer(transferId);
@@ -1343,12 +1536,14 @@ public final class QIOProcessingNetworkData {
         markDirty();
     }
 
+    /** 结算通用 transfer 的正向路径。 */
     public void commitGenericTransfer(@Nonnull UUID transferId) {
         QIODurableTransferRecord transfer = requireGenericTransfer(transferId);
         transfer.commitForward();
         markDirty();
     }
 
+    /** 删除尚未扣除来源的 PREPARED 通用 transfer。 */
     public void discardPreparedGenericTransfer(@Nonnull UUID transferId) {
         QIODurableTransferRecord transfer = requireGenericTransfer(transferId);
         if (transfer.getPhase() != QIODurableTransferRecord.Phase.PREPARED) {
@@ -1358,7 +1553,26 @@ public final class QIOProcessingNetworkData {
         markDirty();
     }
 
+    /**
+     * 丢弃被动输入在“仅网络侧暂存、尚未确认机器收取”阶段的 ownership。
+     * 该操作不会触碰被动操作自己的 inputBuffer；调用方必须先用机器基线证明
+     * 物理端点仍未变化，才能把 SOURCE_DEBITED 记录安全地移除。
+     */
+    public void discardUnconfirmedPassiveMachineTransfer(@Nonnull UUID transferId) {
+        QIODurableTransferRecord transfer = requireGenericTransfer(transferId);
+        if (transfer.getType() != QIODurableTransferRecord.Type.JOB_TO_MACHINE ||
+              transfer.getOwnerJobId() != null || transfer.getOwnerOperationId() == null ||
+              transfer.getPhase() != QIODurableTransferRecord.Phase.SOURCE_DEBITED ||
+              transfer.getResolution() != QIODurableTransferRecord.Resolution.NONE) {
+            throw new IllegalStateException(
+                  "Only an unconfirmed passive machine input can be discarded");
+        }
+        durableTransfers.remove(transferId);
+        markDirty();
+    }
+
     /** Removes only fully settled transfers after their external operation owner was durably acknowledged. */
+    /** 删除指定操作已经结算且无回退需求的 transfer。 */
     public int removeCommittedOperationTransfers(@Nonnull UUID operationId) {
         Objects.requireNonNull(operationId, "operationId");
         for (QIODurableTransferRecord transfer : durableTransfers.values()) {
@@ -1386,6 +1600,200 @@ public final class QIOProcessingNetworkData {
             markDirty();
         }
         return removed;
+    }
+
+    /**
+     * Explicitly discards durable ownership records for a force-cleared machine operation.
+     * Inputs already staged in the job's in-process compartment are removed as the user-visible
+     * lost-material consequence of this action; configuration exchanges with an outstanding QIO
+     * claim remain as marked cleanup records until that claim is released.
+     */
+    /** 强制恢复中清理指定操作的本地 transfer 所有权。 */
+    public int forceDiscardOperationOwnership(@Nonnull UUID operationId) {
+        Objects.requireNonNull(operationId, "operationId");
+        int removed = 0;
+        for (QIODurableTransferRecord transfer : new ArrayList<>(durableTransfers.values())) {
+            if (!ownsOperation(transfer, operationId)) {
+                continue;
+            }
+            // A configuration target may already have been debited from QIO.  Its return leg
+            // is an independent durable ownership record and must survive a host force-clear
+            // until the idempotent QIO credit has completed.
+            if (isPendingConfigurationTargetReturn(transfer)) {
+                continue;
+            }
+            if (transfer.getType() == QIODurableTransferRecord.Type.JOB_TO_MACHINE &&
+                transfer.getOwnerJobId() != null) {
+                QIOJobBuffer buffer = jobBuffers.get(transfer.getOwnerJobId());
+                if (buffer != null) {
+                    for (Map.Entry<PortableResourceDescriptor, Long> resource :
+                          transfer.getResources().entrySet()) {
+                        long staged = Math.min(resource.getValue(), buffer.get(
+                              QIOJobBuffer.Compartment.IN_PROCESS_RETURN, resource.getKey()));
+                        if (staged > 0) {
+                            buffer.remove(QIOJobBuffer.Compartment.IN_PROCESS_RETURN,
+                                  resource.getKey(), staged);
+                        }
+                    }
+                }
+            }
+            durableTransfers.remove(transfer.getTransferId());
+            removed++;
+        }
+        int exchangesBefore = configurationExchanges.size();
+        configurationExchanges.entrySet().removeIf(entry -> {
+            QIOConfigurationExchangeRecord exchange = entry.getValue();
+            if (!operationId.equals(exchange.getOperationId())) {
+                return false;
+            }
+            if (exchange.requiresTargetReturn()) {
+                if (!exchange.isForceRecoveryPending()) {
+                    exchange.contaminate(QIOConfigurationExchangeRecord.FORCE_RECOVERY_PENDING_PREFIX +
+                          "operation ownership was explicitly cleared");
+                    markConfigurationExchangeChanged(exchange.getExchangeId());
+                }
+                return false;
+            }
+            return !exchange.hasOutstandingClaim();
+        });
+        removed = Math.addExact(removed, exchangesBefore - configurationExchanges.size());
+        if (removed > 0) {
+            markDirty();
+        }
+        return removed;
+    }
+
+    private boolean isPendingConfigurationTargetReturn(QIODurableTransferRecord transfer) {
+        if (transfer.getResolution() != QIODurableTransferRecord.Resolution.NONE ||
+              transfer.getType() != QIODurableTransferRecord.Type.JOB_TO_QIO) {
+            return false;
+        }
+        for (QIOConfigurationExchangeRecord exchange : configurationExchanges.values()) {
+            if (exchange.getTargetReturnTransferId().equals(transfer.getTransferId()) &&
+                  exchange.requiresTargetReturn()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * A scheduled machine transfer stores its job as the durable owner and embeds the
+     * operation UUID in its operation-key node. Treat that form as the same ownership
+     * record when a host is explicitly force-cleared.
+     */
+    private static boolean ownsOperation(QIODurableTransferRecord transfer, UUID operationId) {
+        if (operationId.equals(transfer.getOwnerOperationId())) {
+            return true;
+        }
+        return transfer.getOwnerJobId() != null &&
+              transfer.getNodeId().endsWith("/" + operationId);
+    }
+
+    /**
+     * Drops machine-side passive transfer records while retaining an in-flight QIO return
+     * transfer. The passive operation owns the retained return buffer and can finish it without
+     * the machine host after a force-clear.
+     */
+    /**
+     * 清理被动机器操作中尚未跨过物理边界的 transfer 所有权。
+     * 已扣源或已入账的记录必须保留给阶段化恢复，不能因普通污染处理而删除。
+     */
+    public int forceDiscardPassiveMachineOwnership(@Nonnull UUID operationId) {
+        Objects.requireNonNull(operationId, "operationId");
+        int removed = 0;
+        for (QIODurableTransferRecord transfer : new ArrayList<>(durableTransfers.values())) {
+            if (operationId.equals(transfer.getOwnerOperationId()) &&
+                  transfer.getType() != QIODurableTransferRecord.Type.JOB_TO_QIO &&
+                  transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE &&
+                  transfer.getPhase() == QIODurableTransferRecord.Phase.PREPARED) {
+                durableTransfers.remove(transfer.getTransferId());
+                removed++;
+            }
+        }
+        int before = configurationExchanges.size();
+        configurationExchanges.entrySet().removeIf(entry -> {
+            QIOConfigurationExchangeRecord exchange = entry.getValue();
+            if (!operationId.equals(exchange.getOperationId())) {
+                return false;
+            }
+            if (exchange.requiresTargetReturn()) {
+                if (!exchange.isForceRecoveryPending()) {
+                    exchange.contaminate(QIOConfigurationExchangeRecord.FORCE_RECOVERY_PENDING_PREFIX +
+                          "operation ownership was explicitly cleared");
+                    markConfigurationExchangeChanged(exchange.getExchangeId());
+                }
+                return false;
+            }
+            return !exchange.hasOutstandingClaim();
+        });
+        removed = Math.addExact(removed, before - configurationExchanges.size());
+        if (removed > 0) {
+            markDirty();
+        }
+        return removed;
+    }
+
+    /**
+     * 用户明确接受材料损失后，删除被动操作的全部机器侧 ownership 记录。
+     * 普通污染和自动重试路径不得调用此方法。
+     */
+    public int forceDiscardPassiveMachineOwnershipAfterLossAccepted(@Nonnull UUID operationId) {
+        Objects.requireNonNull(operationId, "operationId");
+        int removed = 0;
+        for (QIODurableTransferRecord transfer : new ArrayList<>(durableTransfers.values())) {
+            if (operationId.equals(transfer.getOwnerOperationId()) &&
+                  transfer.getType() != QIODurableTransferRecord.Type.JOB_TO_QIO) {
+                durableTransfers.remove(transfer.getTransferId());
+                removed++;
+            }
+        }
+        int before = configurationExchanges.size();
+        configurationExchanges.entrySet().removeIf(entry -> {
+            QIOConfigurationExchangeRecord exchange = entry.getValue();
+            if (!operationId.equals(exchange.getOperationId())) {
+                return false;
+            }
+            if (exchange.requiresTargetReturn()) {
+                if (!exchange.isForceRecoveryPending()) {
+                    exchange.contaminate(QIOConfigurationExchangeRecord.FORCE_RECOVERY_PENDING_PREFIX +
+                          "operation ownership was explicitly cleared");
+                    markConfigurationExchangeChanged(exchange.getExchangeId());
+                }
+                return false;
+            }
+            return !exchange.hasOutstandingClaim();
+        });
+        removed = Math.addExact(removed, before - configurationExchanges.size());
+        if (removed > 0) {
+            markDirty();
+        }
+        return removed;
+    }
+
+    /** Removes a force-recovery exchange after its outstanding claim has been released. */
+    /** 删除已由恢复服务结算的配置交换记录。 */
+    public boolean removeForcedRecoveryConfigurationExchange(@Nonnull UUID exchangeId) {
+        QIOConfigurationExchangeRecord exchange = configurationExchanges.get(
+              Objects.requireNonNull(exchangeId, "exchangeId"));
+        if (exchange == null || exchange.hasOutstandingClaim() ||
+              exchange.getPhase() != QIOConfigurationExchangeRecord.Phase.CANCELLED &&
+                    (exchange.getPhase() != QIOConfigurationExchangeRecord.Phase.CONTAMINATED ||
+                          !exchange.isForceRecoveryPending())) {
+            return false;
+        }
+        QIODurableTransferRecord returnTransfer = durableTransfers.get(
+              exchange.getTargetReturnTransferId());
+        if (returnTransfer != null && returnTransfer.getResolution() !=
+              QIODurableTransferRecord.Resolution.FORWARD_COMMITTED) {
+            return false;
+        }
+        configurationExchanges.remove(exchangeId);
+        if (returnTransfer != null) {
+            durableTransfers.remove(returnTransfer.getTransferId());
+        }
+        markDirty();
+        return true;
     }
 
     /** Removes one settled job operation's handoff history after its endpoint was saved. */
@@ -1444,6 +1852,7 @@ public final class QIOProcessingNetworkData {
     }
 
     /** Best-effort history compaction for a terminal job. Active handoffs remain untouched. */
+    /** 删除任务所有已经结算的 transfer。 */
     public int removeCommittedJobTransfers(@Nonnull UUID jobId) {
         Objects.requireNonNull(jobId, "jobId");
         QIOCraftingJob job = jobs.get(jobId);
@@ -1465,6 +1874,7 @@ public final class QIOProcessingNetworkData {
         return removed;
     }
 
+    /** 记录任务向机器发送输入已扣除。 */
     public void debitJobMachineTransfer(@Nonnull UUID transferId) {
         QIODurableTransferRecord transfer = requireGenericTransfer(transferId);
         if (transfer.getType() != QIODurableTransferRecord.Type.JOB_TO_MACHINE ||
@@ -1480,6 +1890,7 @@ public final class QIOProcessingNetworkData {
         markDirty();
     }
 
+    /** 记录机器输出 transfer 已写入任务缓冲。 */
     public void creditMachineOutputTransfer(@Nonnull UUID transferId) {
         QIODurableTransferRecord transfer = requireGenericTransfer(transferId);
         if (transfer.getType() != QIODurableTransferRecord.Type.MACHINE_TO_JOB ||
@@ -1493,6 +1904,7 @@ public final class QIOProcessingNetworkData {
         markDirty();
     }
 
+    /** 完成任务到机器的输入 transfer。 */
     public void completeJobMachineTransfer(@Nonnull UUID transferId) {
         QIODurableTransferRecord transfer = requireGenericTransfer(transferId);
         if (transfer.getType() != QIODurableTransferRecord.Type.JOB_TO_MACHINE ||
@@ -1513,6 +1925,7 @@ public final class QIOProcessingNetworkData {
      * still match their pre-transfer baselines. Both the source buffer and transfer record are
      * local to this persisted network, so the rollback is committed as one network mutation.
      */
+    /** 回滚尚未入账机器输入 transfer。 */
     public void rollbackUncreditedJobMachineTransfer(@Nonnull UUID transferId) {
         QIODurableTransferRecord transfer = requireGenericTransfer(transferId);
         if (transfer.getType() != QIODurableTransferRecord.Type.JOB_TO_MACHINE ||
@@ -1530,6 +1943,7 @@ public final class QIOProcessingNetworkData {
         markDirty();
     }
 
+    /** 暂存机器输入回退 transfer。 */
     public void stageJobReturnTransfer(@Nonnull UUID transferId) {
         QIODurableTransferRecord transfer = requireGenericTransfer(transferId);
         if (transfer.getType() != QIODurableTransferRecord.Type.JOB_TO_QIO ||
@@ -1552,6 +1966,7 @@ public final class QIOProcessingNetworkData {
         markDirty();
     }
 
+    /** 完成机器输入回退 transfer。 */
     public void completeJobReturnTransfer(@Nonnull UUID transferId) {
         QIODurableTransferRecord transfer = requireGenericTransfer(transferId);
         if (transfer.getType() != QIODurableTransferRecord.Type.JOB_TO_QIO ||
@@ -1573,6 +1988,7 @@ public final class QIOProcessingNetworkData {
         markDirty();
     }
 
+    /** 记录 QIO 预留来源扣除回执。 */
     public void markReservationSourceDebited(@Nonnull UUID transferId, @Nonnull String receipt,
           long claimRevision) {
         QIODurableTransferRecord transfer = requireReservationTransfer(transferId);
@@ -1580,6 +1996,7 @@ public final class QIOProcessingNetworkData {
         markDirty();
     }
 
+    /** 将预留 transfer 标记为目标已入账。 */
     public void creditReservationDestination(@Nonnull UUID transferId) {
         QIODurableTransferRecord transfer = requireReservationTransfer(transferId);
         if (transfer.getPhase() != QIODurableTransferRecord.Phase.SOURCE_DEBITED) {
@@ -1596,6 +2013,7 @@ public final class QIOProcessingNetworkData {
         markDirty();
     }
 
+    /** 完成预留 transfer 并推进任务到 READY。 */
     public void completeReservation(@Nonnull UUID transferId) {
         QIODurableTransferRecord transfer = requireReservationTransfer(transferId);
         if (transfer.getPhase() != QIODurableTransferRecord.Phase.DESTINATION_CREDITED) {
@@ -1619,6 +2037,7 @@ public final class QIOProcessingNetworkData {
         markDirty();
     }
 
+    /** 完成无需扣除资源的空预留。 */
     public void completeEmptyReservation(@Nonnull UUID jobId, long claimRevision) {
         QIOCraftingJob job = requireJob(jobId);
         QIOMaterialCommitment commitment = requireCommitment(jobId);
@@ -1631,6 +2050,7 @@ public final class QIOProcessingNetworkData {
         markDirty();
     }
 
+    /** 放弃尚未扣除来源的预留并把任务转入等待状态。 */
     public void abortPreparedReservation(@Nonnull UUID transferId,
           @Nonnull QIOCraftingJobState nextState) {
         QIODurableTransferRecord transfer = requireReservationTransfer(transferId);
@@ -1648,6 +2068,7 @@ public final class QIOProcessingNetworkData {
         markDirty();
     }
 
+    /** 标记 transfer 发生持久化变化。 */
     public void markTransferChanged(@Nonnull UUID transferId) {
         if (!durableTransfers.containsKey(Objects.requireNonNull(transferId, "transferId"))) {
             throw new IllegalArgumentException("Unknown durable QIO transfer " + transferId);
@@ -1655,6 +2076,7 @@ public final class QIOProcessingNetworkData {
         markDirty();
     }
 
+    /** 分配下一个稳定派发序号。 */
     public long nextDispatchSequence() {
         if (dispatchCounter == Long.MAX_VALUE) {
             throw new IllegalStateException("QIO dispatch sequence exhausted and requires rebaselining");
@@ -1664,6 +2086,7 @@ public final class QIOProcessingNetworkData {
         return sequence;
     }
 
+    /** 推进频率级调度时钟。 */
     public void advanceSchedulerClock() {
         if (schedulerClock == Long.MAX_VALUE) {
             throw new IllegalStateException("QIO scheduler clock exhausted and requires rebaselining");
@@ -1673,6 +2096,7 @@ public final class QIOProcessingNetworkData {
     }
 
     @Nonnull
+    /** 返回等待执行槽的任务候选。 */
     public List<QIOCraftingJob> getExecutionSlotCandidates() {
         List<QIOCraftingJob> candidates = new ArrayList<>(waitingExecutionSlotJobs.size());
         for (UUID jobId : waitingExecutionSlotJobs) {
@@ -1685,11 +2109,13 @@ public final class QIOProcessingNetworkData {
         return Collections.unmodifiableList(candidates);
     }
 
+    /** 返回当前活动执行槽数量。 */
     public int getActiveExecutionSlotCount() {
         return executionSlots.size();
     }
 
     @Nonnull
+    /** 返回阻止频率删除的外部所有权说明列表。 */
     public List<String> getFrequencyDeletionBlockers() {
         List<String> blockers = new ArrayList<>();
         if (jobs.values().stream().anyMatch(job -> !job.getState().isTerminal())) {
@@ -1727,6 +2153,7 @@ public final class QIOProcessingNetworkData {
     }
 
     @Nonnull
+    /** 将网络所有任务、传输、策略和索引写入 NBT。 */
     public NBTTagCompound write() {
         NBTTagCompound data = new NBTTagCompound();
         data.setInteger("networkDataSchemaVersion", SCHEMA_VERSION);
@@ -1758,6 +2185,7 @@ public final class QIOProcessingNetworkData {
     }
 
     @Nonnull
+    /** 从 NBT 读取网络并验证所有交叉引用。 */
     public static QIOProcessingNetworkData read(@Nonnull NBTTagCompound data,
           @Nullable UUID expectedFrequencyUUID) throws QIOProcessingDataException {
         int schema = data.getInteger("networkDataSchemaVersion");
@@ -1941,6 +2369,35 @@ public final class QIOProcessingNetworkData {
                       "Configuration exchange references unknown passive operation " +
                             exchange.getOperationId());
             }
+            QIODurableTransferRecord targetReturn = durableTransfers.get(
+                  exchange.getTargetReturnTransferId());
+            if (targetReturn != null) {
+                BigInteger baseline = exchange.getTargetReturnQioBaseline();
+                if (baseline == null && exchange.requiresTargetReturn()) {
+                    BigInteger persistedBaseline = targetReturn.getQIOBaselines().get(
+                          exchange.getTargetResource());
+                    if (persistedBaseline != null && persistedBaseline.equals(
+                          exchange.getTargetQioBaseline().subtract(BigInteger.ONE))) {
+                        exchange.prepareTargetReturn(persistedBaseline);
+                        baseline = persistedBaseline;
+                        repairedOnLoad = true;
+                    }
+                }
+                if (baseline == null || !isConfigurationTargetReturnTransfer(targetReturn,
+                      exchange, baseline, true)) {
+                    throw new QIOProcessingDataException(
+                          "Configuration target return transfer disagrees with its exchange " +
+                                exchange.getExchangeId());
+                }
+            }
+            if (exchange.isTargetReturned() && targetReturn == null) {
+                // A settled exchange may have had its historical return transfer compacted;
+                // the explicit disposition remains the authoritative ownership marker.
+                if (exchange.getPhase() != QIOConfigurationExchangeRecord.Phase.CANCELLED) {
+                    throw new QIOProcessingDataException(
+                          "Returned configuration target is missing its durable transfer");
+                }
+            }
         }
     }
 
@@ -2063,6 +2520,13 @@ public final class QIOProcessingNetworkData {
               nextState != QIOCraftingJobState.PLANNING) {
             nextState = QIOCraftingJobState.PLANNING;
         }
+        if (job.getState() == QIOCraftingJobState.OPERATION_CONTAMINATED &&
+              job.getRecoveryDiagnostic() != null &&
+              nextState != QIOCraftingJobState.OPERATION_CONTAMINATED &&
+              nextState != QIOCraftingJobState.CANCEL_REQUESTED &&
+              nextState != QIOCraftingJobState.RETURNING && !nextState.isTerminal()) {
+            nextState = QIOCraftingJobState.OPERATION_CONTAMINATED;
+        }
         if (nextState == QIOCraftingJobState.WAITING_EXECUTION_SLOT ||
               nextState == QIOCraftingJobState.READY) {
             job.transitionToRunnable(nextState, schedulerClock);
@@ -2117,8 +2581,10 @@ public final class QIOProcessingNetworkData {
 
     private void refreshJobIndexes(QIOCraftingJob job) {
         UUID jobId = job.getJobId();
-        boolean dispatchable = job.getExecutionSlotToken() != null && isDispatchState(
-              job.getState());
+        boolean dispatchable = job.getExecutionSlotToken() != null &&
+              (isDispatchState(job.getState()) ||
+                    job.getState() == QIOCraftingJobState.OPERATION_CONTAMINATED &&
+                          job.hasActiveOperations());
         if (!dispatchable) {
             dispatchCandidateJobs.remove(jobId);
             waitingProviderJobs.remove(jobId);
