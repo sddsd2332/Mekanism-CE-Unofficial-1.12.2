@@ -45,6 +45,7 @@ setDefaultProperty 'change_minecraft_sources', false, false
 
 version = propertyString('mod_version')
 group = propertyString('root_package')
+def modAuthorsJson = groovy.json.JsonOutput.toJson(propertyStringList('mod_authors', ','))
 
 base {
     archivesName.set(propertyString('mod_name') + "-All")
@@ -174,7 +175,7 @@ processResources {
                 'mod_name': propertyString('mod_name'),
                 'mod_version': propertyString('mod_version'),
                 'mod_description': propertyString('mod_description'),
-                'mod_authors': "[${propertyStringList('mod_authors', ',').join(', ')}]",
+                'mod_authors': modAuthorsJson,
                 'mod_credits': propertyString('mod_credits'),
                 'mod_url': propertyString('mod_url'),
                 'mod_update_json': propertyString('mod_update_json'),

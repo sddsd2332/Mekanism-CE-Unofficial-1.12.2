@@ -4,6 +4,7 @@ import mekanism.common.Mekanism;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.config.QIOProcessingConfig;
 import mekanism.qioprocessing.common.content.workbench.QIOWorkbenchConfiguration;
+import net.minecraft.item.crafting.IRecipe;
 import net.minecraft.world.World;
 import net.minecraftforge.fml.common.registry.ForgeRegistries;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
@@ -13,6 +14,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -36,6 +38,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class QIORecipeCatalogService {
 
     public static final QIORecipeCatalogService INSTANCE = new QIORecipeCatalogService();
+    private static final double SERVER_TICKS_PER_SECOND = 20D;
     @Nullable
     private QIOWorkbenchRecipeCatalog.Snapshot snapshot;
     @Nullable
@@ -59,7 +62,7 @@ public final class QIORecipeCatalogService {
     private CompletableFuture<Boolean> cacheSaveFuture;
     @Nullable
     private QIORecipeCatalogPersistence.SaveToken cacheSaveToken;
-    private long captureStartedNanos;
+    private long captureActiveTicks;
     private int catalogWorkerCount;
     private boolean generationTrusted;
     @Nullable
@@ -112,11 +115,13 @@ public final class QIORecipeCatalogService {
         cacheLoadFuture = worldDirectory == null ? CompletableFuture.completedFuture(
               Collections.emptyList()) : CompletableFuture.supplyAsync(() ->
                     QIORecipeCatalogPersistence.loadCandidates(worldDirectory), catalogWorkers);
-        capture = QIOWorkbenchRecipeCatalog.RecipeOutputIndex.beginGlobalCapture(world,
-              ForgeRegistries.RECIPES.getValuesCollection(), loggingListener());
-        captureStartedNanos = System.nanoTime();
+        Collection<IRecipe> recipes = ForgeRegistries.RECIPES.getValuesCollection();
+        captureActiveTicks = 0;
         Mekanism.logger.info(
-              "Starting incremental global QIO workbench recipe capture; players may join while it builds");
+              "[QIO Recipe Catalog] Build started: preparing {} registered workbench recipes; players may join while it builds",
+              recipes.size());
+        capture = QIOWorkbenchRecipeCatalog.RecipeOutputIndex.beginGlobalCapture(world,
+              recipes, loggingListener());
     }
 
     public synchronized void refresh(@Nonnull World world) {
@@ -126,15 +131,18 @@ public final class QIORecipeCatalogService {
         recipeOutputIndex = null;
         frequencySnapshots.clear();
         incrementRevision();
-        Mekanism.logger.info("Starting global QIO workbench recipe scan");
+        Collection<IRecipe> recipes = ForgeRegistries.RECIPES.getValuesCollection();
         long startedNanos = System.nanoTime();
+        Mekanism.logger.info(
+              "[QIO Recipe Catalog] Synchronous build started: preparing {} registered workbench recipes",
+              recipes.size());
         recipeOutputIndex = QIOWorkbenchRecipeCatalog.RecipeOutputIndex.build(world,
-              ForgeRegistries.RECIPES.getValuesCollection(),
-              loggingListener());
+              recipes, loggingListener());
         generationTrusted = true;
         String elapsedSeconds = String.format(Locale.ROOT, "%.3f",
               (System.nanoTime() - startedNanos) / 1_000_000_000D);
-        Mekanism.logger.info("Successfully cached {} global QIO workbench recipes in {} seconds",
+        Mekanism.logger.info(
+              "[QIO Recipe Catalog] Synchronous build completed: published {} workbench recipes in {} seconds",
               recipeOutputIndex.getRecipeCount(), elapsedSeconds);
     }
 
@@ -152,6 +160,7 @@ public final class QIORecipeCatalogService {
             shutdownWorkersWhenIdle();
             return false;
         }
+        captureActiveTicks++;
         try {
             QIOProcessingConfig config = MekanismConfig.local().qioProcessing;
             int maximumCaptures = config.recipeCatalogCapturesPerTick.val();
@@ -177,15 +186,14 @@ public final class QIORecipeCatalogService {
                 incrementRevision();
             }
             scheduleCacheSave(next);
-            String elapsedSeconds = String.format(Locale.ROOT, "%.3f",
-                  (System.nanoTime() - captureStartedNanos) / 1_000_000_000D);
             Mekanism.logger.info(
-                  "Published {} global QIO workbench recipes as one catalog generation in {} seconds",
-                  next.getRecipeCount(), elapsedSeconds);
+                  "[QIO Recipe Catalog] Build completed: published {} workbench recipes in {} active server seconds",
+                  next.getRecipeCount(), activeCaptureSeconds());
             return true;
         } catch (RuntimeException error) {
-            Mekanism.logger.error("Unable to build the global QIO workbench recipe catalog",
-                  error);
+            Mekanism.logger.error(
+                  "[QIO Recipe Catalog] Build failed after {} active server seconds",
+                  activeCaptureSeconds(), error);
             cancelBuild();
             recipeOutputIndex = null;
             generationTrusted = false;
@@ -330,6 +338,11 @@ public final class QIORecipeCatalogService {
             throw new IllegalStateException("QIO recipe catalog revision exhausted");
         }
         revision++;
+    }
+
+    private String activeCaptureSeconds() {
+        return String.format(Locale.ROOT, "%.3f",
+              captureActiveTicks / SERVER_TICKS_PER_SECOND);
     }
 
     private void cancelBuild() {

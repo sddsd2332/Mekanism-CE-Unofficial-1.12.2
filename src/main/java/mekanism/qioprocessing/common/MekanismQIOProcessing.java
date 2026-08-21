@@ -57,6 +57,7 @@ import mekanism.qioprocessing.common.terminal.QIOWorkbenchClosureService;
 import net.minecraftforge.fml.common.network.NetworkRegistry;
 
 @Mod(modid = MekanismQIOProcessing.MODID, useMetadata = true, acceptedMinecraftVersions = "[1.12,1.13)",
+      guiFactory = "mekanism.qioprocessing.client.gui.QIOProcessingGuiFactory",
       dependencies = "required-after:mekanism",
       customProperties = {
             @Mod.CustomProperty(k = "license", v = "EUPL-1.2"),
