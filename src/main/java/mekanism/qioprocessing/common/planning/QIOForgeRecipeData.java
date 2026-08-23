@@ -487,12 +487,12 @@ final class QIOForgeRecipeData {
                             stage = Stage.ORES;
                             continue;
                         }
-                        if (captureVariantStep()) {
-                            // getSubItems is a third-party, non-cancellable Forge call.  Stop
-                            // this slice immediately after it so several such calls cannot
-                            // accumulate beyond the configured time budget.
-                            processed = maximumEntries;
-                        }
+                        // getSubItems is a third-party, non-cancellable Forge call.  The
+                        // deadline is checked at the top of the loop, so a slow call may finish
+                        // the current operation but must not force the whole remainder of the
+                        // capture into separate ticks.  Stopping after every call turns a large
+                        // registry into one item per tick and can stretch startup by minutes.
+                        captureVariantStep();
                     }
                     case ORES -> {
                         if (oreIndex >= oreNames.length) {
@@ -545,7 +545,7 @@ final class QIOForgeRecipeData {
                   Item.getIdFromItem(item), blockId));
         }
 
-        private boolean captureVariantStep() {
+        private void captureVariantStep() {
             if (activeVariantEntry == null) {
                 activeVariantEntry = items.get(variantIndex);
                 NonNullList<ItemStack> captured = NonNullList.create();
@@ -555,19 +555,19 @@ final class QIOForgeRecipeData {
                     // One broken creative-tab implementation must not abort the catalog.
                 }
                 activeVariantStacks = immutableStacks(captured);
-                return true;
+                return;
             }
             if (activeVariantStackIndex < activeVariantStacks.size() &&
                 activeVariants.size() < MAX_VARIANTS_PER_ITEM) {
                 ItemStack stack = activeVariantStacks.get(activeVariantStackIndex++);
                 if (stack == null || stack.isEmpty() ||
                     stack.getItem() != activeVariantEntry.item ||
-                    stack.getMetadata() == OreDictionary.WILDCARD_VALUE) return false;
+                    stack.getMetadata() == OreDictionary.WILDCARD_VALUE) return;
                 try {
                     activeVariants.add(new FrozenStack(stack));
                 } catch (RuntimeException ignored) {
                 }
-                return false;
+                return;
             }
             if (activeVariants.isEmpty()) {
                 ItemStack fallback = new ItemStack(activeVariantEntry.item);
@@ -584,7 +584,6 @@ final class QIOForgeRecipeData {
             activeVariants = new FrozenStackAccumulator();
             activeVariantStackIndex = 0;
             variantIndex++;
-            return false;
         }
 
         private void captureOreStep() {
