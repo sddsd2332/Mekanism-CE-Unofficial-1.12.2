@@ -104,6 +104,25 @@ public final class PortableResourceDescriptor implements Comparable<PortableReso
               stack.getMetadata(), stack.getTagCompound(), capabilities);
     }
 
+    /**
+     * Creates the capability-neutral identity used while selecting a workbench recipe or target.
+     * This deliberately reads only the registry entry, metadata, and ordinary item NBT; callers
+     * handling stored QIO resources must continue to use {@link #item(ItemStack)}.
+     */
+    @Nonnull
+    public static PortableResourceDescriptor itemIgnoringCapabilities(@Nonnull ItemStack stack) {
+        Objects.requireNonNull(stack, "stack");
+        if (stack.isEmpty()) {
+            throw new IllegalArgumentException("Cannot describe an empty item stack");
+        }
+        ResourceLocation registryName = Item.REGISTRY.getNameForObject(stack.getItem());
+        if (registryName == null) {
+            throw new IllegalArgumentException("Item is not registered: " + stack.getItem());
+        }
+        return new PortableResourceDescriptor(Kind.ITEM, registryName.toString(),
+              stack.getMetadata(), stack.getTagCompound());
+    }
+
     /** 从流体堆提取注册名和标签。 */
     @Nonnull
     public static PortableResourceDescriptor fluid(@Nonnull FluidStack stack) {

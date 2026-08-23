@@ -292,6 +292,20 @@ public final class QIOWorkbenchConfigurationService {
             configuration.resetAll();
             return;
         }
+        if (mutation.getAction() == Action.RESTORE_RECOVERY) {
+            int restored = QIORecipeCatalogService.INSTANCE.restoreRecoveryPatterns(configuration);
+            if (restored == 0 && context.network.hasWorkbenchConfigurationRecovery()) {
+                // The old whole-configuration blob is intentionally not parsed implicitly. Once
+                // the player has opened the fresh editable configuration and chosen this action,
+                // discard only the bounded recovery marker so it cannot keep the network dirty.
+                context.network.clearWorkbenchConfigurationRecovery();
+                return;
+            }
+            if (restored == 0) {
+                throw new IllegalArgumentException("No quarantined workbench patterns are available");
+            }
+            return;
+        }
         PortableResourceDescriptor output = findOutput(catalog, mutation.getProductKey());
         if (output == null) {
             throw new IllegalArgumentException("Unknown workbench product");
@@ -497,11 +511,18 @@ public final class QIOWorkbenchConfigurationService {
         int pageSize = checkedPageSize(requestedPageSize);
         int offset = Math.max(0, Math.min(requestedOffset, totalSize));
         int end = Math.min(totalSize, offset + pageSize);
+        int recoveryCount = context.configuration().getRecoveryPatternCount();
+        if (context.network.hasWorkbenchConfigurationRecovery()) {
+            // A whole incompatible configuration is represented by one recoverable marker even
+            // when no individual pattern could be decoded.
+            recoveryCount = Math.max(1, recoveryCount);
+        }
         return new QIOWorkbenchConfigurationSnapshot(kind,
               context.configuration().getConfigUUID(),
               context.configuration().getOriginUUID(),
               context.configuration().getRevision(), context.catalog.getRevision(),
-              context.editable, offset, totalSize, query, productKey, recipeId,
+              context.editable, recoveryCount,
+              offset, totalSize, query, productKey, recipeId,
               recipeSignature, ingredientSlot,
               kind == PageKind.PRODUCTS ? products.subList(offset, end) :
                     Collections.emptyList(),

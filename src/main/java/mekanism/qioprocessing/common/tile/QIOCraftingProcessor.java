@@ -239,6 +239,13 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
     public final boolean applyAuthorizedBinding(@Nullable QIOFrequency frequency,
           @Nonnull UUID bindingPlayerUUID) {
         Objects.requireNonNull(bindingPlayerUUID, "bindingPlayerUUID");
+        boolean normalized = processorState.normalizeLegacyState(expectedHostId, expectedDefinitionId);
+        if (normalized) {
+            wakeExecution();
+        }
+        if (processorState.hasRecoveryPending() || processorState.hasBindingOwnership()) {
+            return false;
+        }
         QIOFrequencyReference updatedReference = frequency == null ? null :
               QIOFrequencyStorageAccess.INSTANCE.createReference(frequency,
                     bindingPlayerUUID);
@@ -258,6 +265,13 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
 
     public final boolean restoreExactBinding(@Nonnull UUID bindingPlayerUUID) {
         Objects.requireNonNull(bindingPlayerUUID, "bindingPlayerUUID");
+        boolean normalized = processorState.normalizeLegacyState(expectedHostId, expectedDefinitionId);
+        if (normalized) {
+            wakeExecution();
+        }
+        if (processorState.hasRecoveryPending()) {
+            return false;
+        }
         QIOFrequency frequency = QIOProcessingFrequencyAccess.resolveAccessible(
               frequencyReference, bindingPlayerUUID);
         if (frequency == null) {
@@ -403,6 +417,15 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
     @Override
     protected void onUpdateServer() {
         super.onUpdateServer();
+        // Normalize every lossless legacy marker and single-sided lane buffer. Ambiguous lane/raw
+        // ownership remains visible for the audited management-terminal recovery action.
+        if (processorState.normalizeLegacyState(expectedHostId, expectedDefinitionId)) {
+            QIOCraftingProcessorDeviceRegistry.INSTANCE.refresh(this);
+            // A recovered single-sided lane may still need the network executor to drain its
+            // RETURNING/OUTPUT_BLOCKED buffer.  Refreshing the directory alone is insufficient
+            // when the executor had already placed this device on an adaptive retry backoff.
+            wakeExecution();
+        }
         if ((world.getTotalWorldTime() + getPos().toLong()) % 16 == 0) {
             QIOCraftingProcessorDeviceRegistry.INSTANCE.refresh(this);
         }
@@ -595,6 +618,10 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
     private boolean tickWorkbenchLane(QIOProcessorLaneRuntime lane) {
         QIOProcessingNetworkData network = frequencyReference == null ? null :
               QIOProcessingNetworkManager.INSTANCE.get(frequencyReference.getFrequencyUUID());
+        if (!QIORecipeCatalogService.INSTANCE.isReady()) {
+            // Keep the lane state intact and retry after the immutable catalog is published.
+            return false;
+        }
         QIOWorkbenchRecipePattern pattern = network == null ? null :
               QIORecipeCatalogService.INSTANCE.getSnapshot(network.getWorkbenchConfiguration())
                     .getPattern(lane.getRouteKey());

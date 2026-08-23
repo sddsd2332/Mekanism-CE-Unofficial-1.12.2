@@ -26,6 +26,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /** Sparse, frequency-local workbench route and ingredient preferences. */
 /**
@@ -36,7 +37,15 @@ import java.util.function.Consumer;
  */
 public final class QIOWorkbenchConfiguration {
 
-    private static final int SCHEMA_VERSION = 3;
+    /** Layout persisted with a player pattern; shapeless occurrences have no physical slot. */
+    public enum PatternLayout {
+        SHAPED,
+        SHAPELESS,
+        ORDERED_UNKNOWN
+    }
+
+    /** v4 stores encoded grids as sparse references into one frequency-local palette. */
+    private static final int SCHEMA_VERSION = 4;
     private static final int MAX_PRODUCT_OVERRIDES = 65_536;
     private static final int MAX_RECIPE_OVERRIDES = 65_536;
     private static final int MAX_RECIPES_PER_PRODUCT = 65_536;
@@ -50,11 +59,16 @@ public final class QIOWorkbenchConfiguration {
     private UUID originUUID;
     private long revision;
     private long patternRevision;
+    /** Catalog generation the encoded patterns were captured against. */
+    private String catalogGenerationId = sha256("catalog-unbound");
     private final Map<String, List<String>> productOrders = new LinkedHashMap<>();
     private final Map<String, RecipeOverride> recipeOverrides = new LinkedHashMap<>();
     /** Only these recipes are exposed to the QIO planner for this frequency. */
     private final Map<String, EncodedPattern> encodedPatterns = new LinkedHashMap<>();
+    /** Patterns captured against an older catalog generation, retained for manual recovery. */
+    private final Map<String, EncodedPattern> recoveryPatterns = new LinkedHashMap<>();
     @Nullable private ImportStamp lastImport;
+    @Nullable private Runnable generationChangeListener;
 
     public QIOWorkbenchConfiguration() {
         this(UUID.randomUUID());
@@ -90,17 +104,25 @@ public final class QIOWorkbenchConfiguration {
         copy.originUUID = originUUID;
         copy.revision = revision;
         copy.patternRevision = patternRevision;
+        copy.catalogGenerationId = catalogGenerationId;
         productOrders.forEach((key, value) ->
               copy.productOrders.put(key, new ArrayList<>(value)));
         recipeOverrides.forEach((key, value) ->
               copy.recipeOverrides.put(key, value.copy()));
         encodedPatterns.forEach((key, value) ->
               copy.encodedPatterns.put(key, value.copy()));
+        recoveryPatterns.forEach((key, value) ->
+              copy.recoveryPatterns.put(key, value.copy()));
         if (lastImport != null) {
             copy.lastImport = new ImportStamp(lastImport.sourceConfigUUID,
                   lastImport.sourceRevision, lastImport.sourceDigest);
         }
         return copy;
+    }
+
+    @Nonnull
+    public String getCatalogGenerationId() {
+        return catalogGenerationId;
     }
 
     public int getProductOverrideCount() {
@@ -122,6 +144,14 @@ public final class QIOWorkbenchConfiguration {
     /** Number of manually encoded workbench patterns in this frequency. */
     public int getEncodedPatternCount() {
         return encodedPatterns.size();
+    }
+
+    public int getRecoveryPatternCount() {
+        return recoveryPatterns.size();
+    }
+
+    public void bindGenerationChangeListener(@Nullable Runnable listener) {
+        generationChangeListener = listener;
     }
 
     @Nonnull
@@ -158,6 +188,99 @@ public final class QIOWorkbenchConfiguration {
         incrementPatternRevision();
         incrementRevision();
         return true;
+    }
+
+    /**
+     * Binds this configuration to a newly published catalog. Stale active patterns are moved to
+     * the recovery set atomically so they can be inspected or restored by an explicit player
+     * action instead of making planning unavailable indefinitely.
+     */
+    public boolean bindCatalogGeneration(@Nonnull String generationId) {
+        String checked = checkedHash(generationId, "catalogGenerationId");
+        if (checked.equals(catalogGenerationId)) return false;
+        // A catalog generation is a directory identity, not proof that every recipe changed.
+        // The old implementation moved every active pattern to recovery (and cleared every
+        // product order) whenever one recipe or Forge integration changed.  The published
+        // immutable index performs per-pattern signature validation below, so keep the active
+        // configuration intact and quarantine only the entries it actually rejects.
+        catalogGenerationId = checked;
+        if (generationChangeListener != null) {
+            generationChangeListener.run();
+        }
+        return false;
+    }
+
+    /**
+     * Moves invalid active patterns to the recovery set in one revision. The IDs are supplied by
+     * the immutable catalog, so this method never has to inspect Forge objects itself.
+     */
+    public int quarantineEncodedPatterns(@Nonnull Collection<String> recipeIds) {
+        Objects.requireNonNull(recipeIds, "recipeIds");
+        if (recipeIds.isEmpty()) return 0;
+        List<String> checked = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (String recipeId : recipeIds) {
+            String id = checkedRecipeId(recipeId);
+            if (seen.add(id) && encodedPatterns.containsKey(id)) {
+                checked.add(id);
+            }
+        }
+        if (checked.isEmpty()) return 0;
+        checked.sort(String::compareTo);
+        boolean changed = false;
+        for (String id : checked) {
+            EncodedPattern pattern = encodedPatterns.remove(id);
+            if (pattern == null) continue;
+            recoveryPatterns.putIfAbsent(id, pattern.copy());
+            recipeOverrides.remove(id);
+            changed = true;
+        }
+        if (!changed) return 0;
+        productOrders.values().forEach(order -> order.removeIf(checked::contains));
+        productOrders.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+        incrementPatternRevision();
+        incrementRevision();
+        return checked.size();
+    }
+
+    /** Restores all recoverable patterns for callers that do not have a catalog available. */
+    public int restoreRecoveryPatterns() {
+        return restoreRecoveryPatterns(pattern -> true);
+    }
+
+    /**
+     * Restores only recovery patterns accepted by the current immutable catalog. Rejected entries
+     * remain available for inspection or a later explicit recovery after the catalog changes.
+     */
+    public int restoreRecoveryPatterns(@Nonnull Predicate<EncodedPattern> validator) {
+        Objects.requireNonNull(validator, "validator");
+        if (recoveryPatterns.isEmpty()) return 0;
+        int capacity = MAX_ENCODED_PATTERNS - encodedPatterns.size();
+        if (capacity <= 0) return 0;
+        int restored = 0;
+        List<String> ids = new ArrayList<>(recoveryPatterns.keySet());
+        Collections.sort(ids);
+        for (String id : ids) {
+            if (restored >= capacity) break;
+            if (!encodedPatterns.containsKey(id)) {
+                EncodedPattern candidate = recoveryPatterns.get(id);
+                boolean accepted;
+                try {
+                    accepted = validator.test(candidate);
+                } catch (RuntimeException ignored) {
+                    accepted = false;
+                }
+                if (accepted) {
+                    encodedPatterns.put(id, recoveryPatterns.remove(id).copy());
+                    restored++;
+                }
+            }
+        }
+        if (restored > 0) {
+            incrementPatternRevision();
+            incrementRevision();
+        }
+        return restored;
     }
 
     /**
@@ -691,13 +814,15 @@ public final class QIOWorkbenchConfiguration {
     }
 
     public boolean resetAll() {
-        if (productOrders.isEmpty() && recipeOverrides.isEmpty() && encodedPatterns.isEmpty()) {
+        if (productOrders.isEmpty() && recipeOverrides.isEmpty() && encodedPatterns.isEmpty() &&
+              recoveryPatterns.isEmpty()) {
             return false;
         }
         boolean hadPatterns = !encodedPatterns.isEmpty();
         productOrders.clear();
         recipeOverrides.clear();
         encodedPatterns.clear();
+        recoveryPatterns.clear();
         if (hadPatterns) incrementPatternRevision();
         incrementRevision();
         return true;
@@ -726,6 +851,10 @@ public final class QIOWorkbenchConfiguration {
         encodedPatterns.clear();
         source.encodedPatterns.forEach((key, value) ->
               encodedPatterns.put(key, value.copy()));
+        recoveryPatterns.clear();
+        source.recoveryPatterns.forEach((key, value) ->
+              recoveryPatterns.put(key, value.copy()));
+        catalogGenerationId = source.catalogGenerationId;
         originUUID = source.originUUID;
         lastImport = new ImportStamp(source.configUUID, source.revision, digest);
         if (patternsChanged) incrementPatternRevision();
@@ -746,6 +875,7 @@ public final class QIOWorkbenchConfiguration {
         QIOProcessingNbt.writeUUID(data, "originUUID", originUUID);
         data.setLong("revision", revision);
         data.setLong("patternRevision", patternRevision);
+        data.setString("catalogGenerationId", catalogGenerationId);
         data.setBoolean("hasLastImport", lastImport != null);
         if (lastImport != null) {
             data.setTag("lastImport", lastImport.write());
@@ -755,6 +885,7 @@ public final class QIOWorkbenchConfiguration {
 
     private NBTTagCompound writeContent() {
         NBTTagCompound data = new NBTTagCompound();
+        data.setString("catalogGenerationId", catalogGenerationId);
         NBTTagList storedProducts = new NBTTagList();
         productOrders.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
             NBTTagCompound stored = new NBTTagCompound();
@@ -770,14 +901,46 @@ public final class QIOWorkbenchConfiguration {
             storedRecipes.appendTag(stored);
         });
         data.setTag("recipeOverrides", storedRecipes);
+        // Build one deterministic palette for the whole frequency. Large packs commonly reuse
+        // the same stacks across hundreds of encoded patterns; storing each stack per pattern
+        // was the dominant source of frequency NBT growth.
+        Map<String, Integer> paletteIds = new LinkedHashMap<>();
+        List<ItemStack> palette = new ArrayList<>();
+        List<EncodedPattern> allPatterns = new ArrayList<>(encodedPatterns.values());
+        allPatterns.addAll(recoveryPatterns.values());
+        allPatterns.sort(Comparator.comparing(pattern -> pattern.getRecipeId().toString()));
+        allPatterns.forEach(pattern -> {
+            for (ItemStack stack : pattern.grid) {
+                if (stack.isEmpty()) continue;
+                String key = paletteKey(stack);
+                if (!paletteIds.containsKey(key)) {
+                    paletteIds.put(key, palette.size());
+                    palette.add(stack.copy());
+                }
+            }
+        });
+        NBTTagList storedPalette = new NBTTagList();
+        palette.forEach(stack -> storedPalette.appendTag(stack.writeToNBT(new NBTTagCompound())));
+        data.setTag("patternPalette", storedPalette);
         NBTTagList storedPatterns = new NBTTagList();
         encodedPatterns.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
-            NBTTagCompound stored = entry.getValue().write();
+            NBTTagCompound stored = entry.getValue().write(paletteIds);
             stored.setString("recipeId", entry.getKey());
             storedPatterns.appendTag(stored);
         });
         data.setTag("encodedPatterns", storedPatterns);
+        NBTTagList storedRecovery = new NBTTagList();
+        recoveryPatterns.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
+            NBTTagCompound stored = entry.getValue().write(paletteIds);
+            stored.setString("recipeId", entry.getKey());
+            storedRecovery.appendTag(stored);
+        });
+        data.setTag("recoveryPatterns", storedRecovery);
         return data;
+    }
+
+    private static String paletteKey(ItemStack stack) {
+        return stack.writeToNBT(new NBTTagCompound()).toString();
     }
 
     @Nonnull
@@ -790,9 +953,12 @@ public final class QIOWorkbenchConfiguration {
                 !data.hasKey("originUUID", NBT.TAG_STRING) ||
                 !data.hasKey("revision", NBT.TAG_LONG) ||
                 !data.hasKey("patternRevision", NBT.TAG_LONG) ||
+                !data.hasKey("catalogGenerationId", NBT.TAG_STRING) ||
+                !data.hasKey("patternPalette", NBT.TAG_LIST) ||
                 !data.hasKey("productOrders", NBT.TAG_LIST) ||
                 !data.hasKey("recipeOverrides", NBT.TAG_LIST) ||
                 !data.hasKey("encodedPatterns", NBT.TAG_LIST) ||
+                !data.hasKey("recoveryPatterns", NBT.TAG_LIST) ||
                 !data.hasKey("hasLastImport", NBT.TAG_BYTE)) {
                 throw new QIOProcessingDataException(
                       "QIO workbench configuration is missing current-schema fields");
@@ -804,6 +970,20 @@ public final class QIOWorkbenchConfiguration {
                   data.getLong("revision"), "workbenchConfigurationRevision");
             configuration.patternRevision = QIOProcessingNbt.requireNonNegative(
                   data.getLong("patternRevision"), "workbenchPatternRevision");
+            configuration.catalogGenerationId = checkedHash(
+                  data.getString("catalogGenerationId"), "catalogGenerationId");
+            NBTTagList storedPalette = requireList(data, "patternPalette", NBT.TAG_COMPOUND);
+            if (storedPalette.tagCount() > MAX_ENCODED_PATTERNS * MAX_INGREDIENTS_PER_RECIPE) {
+                throw new QIOProcessingDataException("Workbench pattern palette is too large");
+            }
+            List<ItemStack> palette = new ArrayList<>(storedPalette.tagCount());
+            for (int index = 0; index < storedPalette.tagCount(); index++) {
+                ItemStack stack = new ItemStack(storedPalette.getCompoundTagAt(index));
+                if (stack.isEmpty()) throw new QIOProcessingDataException(
+                      "Workbench pattern palette contains an empty stack");
+                stack.setCount(1);
+                palette.add(stack);
+            }
             NBTTagList storedProducts = requireList(data, "productOrders",
                   NBT.TAG_COMPOUND);
             if (storedProducts.tagCount() > MAX_PRODUCT_OVERRIDES) {
@@ -849,9 +1029,25 @@ public final class QIOWorkbenchConfiguration {
                     throw new QIOProcessingDataException("Workbench encoded pattern has no ID");
                 }
                 String recipeId = checkedRecipeId(stored.getString("recipeId"));
-                EncodedPattern pattern = EncodedPattern.read(stored, recipeId);
+                EncodedPattern pattern = EncodedPattern.read(stored, recipeId, palette);
                 if (configuration.encodedPatterns.put(recipeId, pattern) != null) {
                     throw new QIOProcessingDataException("Duplicate workbench encoded pattern");
+                }
+            }
+            NBTTagList storedRecovery = requireList(data, "recoveryPatterns", NBT.TAG_COMPOUND);
+            if (storedRecovery.tagCount() > MAX_ENCODED_PATTERNS) {
+                throw new QIOProcessingDataException("Too many QIO workbench recovery patterns");
+            }
+            for (int index = 0; index < storedRecovery.tagCount(); index++) {
+                NBTTagCompound stored = storedRecovery.getCompoundTagAt(index);
+                if (!stored.hasKey("recipeId", NBT.TAG_STRING)) {
+                    throw new QIOProcessingDataException("Workbench recovery pattern has no ID");
+                }
+                String recipeId = checkedRecipeId(stored.getString("recipeId"));
+                EncodedPattern pattern = EncodedPattern.read(stored, recipeId, palette);
+                if (configuration.recoveryPatterns.put(recipeId, pattern) != null ||
+                      configuration.encodedPatterns.containsKey(recipeId)) {
+                    throw new QIOProcessingDataException("Duplicate workbench recovery pattern");
                 }
             }
             boolean hasLastImport = data.getBoolean("hasLastImport");
@@ -926,6 +1122,10 @@ public final class QIOWorkbenchConfiguration {
         encodedPatterns.clear();
         working.encodedPatterns.forEach((key, value) ->
               encodedPatterns.put(key, value.copy()));
+        recoveryPatterns.clear();
+        working.recoveryPatterns.forEach((key, value) ->
+              recoveryPatterns.put(key, value.copy()));
+        catalogGenerationId = working.catalogGenerationId;
         if (patternsChanged) incrementPatternRevision();
         incrementRevision();
         return true;
@@ -1234,21 +1434,30 @@ public final class QIOWorkbenchConfiguration {
     /** Immutable, frequency-local input for one manually encoded workbench recipe. */
     public static final class EncodedPattern {
 
-        private static final int SCHEMA_VERSION = 1;
+        private static final int SCHEMA_VERSION = 2;
         private final UUID patternUUID;
         private final ResourceLocation recipeId;
         private final String recipeSignature;
         private final PortableResourceDescriptor output;
         private final long outputAmount;
+        private final PatternLayout layout;
         private final List<ItemStack> grid;
 
         public EncodedPattern(@Nonnull UUID patternUUID, @Nonnull ResourceLocation recipeId,
               @Nonnull String recipeSignature, @Nonnull PortableResourceDescriptor output,
               long outputAmount, @Nonnull List<ItemStack> grid) {
+            this(patternUUID, recipeId, recipeSignature, output, outputAmount,
+                  PatternLayout.ORDERED_UNKNOWN, grid);
+        }
+
+        public EncodedPattern(@Nonnull UUID patternUUID, @Nonnull ResourceLocation recipeId,
+              @Nonnull String recipeSignature, @Nonnull PortableResourceDescriptor output,
+              long outputAmount, @Nonnull PatternLayout layout, @Nonnull List<ItemStack> grid) {
             this.patternUUID = Objects.requireNonNull(patternUUID, "patternUUID");
             this.recipeId = Objects.requireNonNull(recipeId, "recipeId");
             this.recipeSignature = checkedHash(recipeSignature, "recipeSignature");
             this.output = Objects.requireNonNull(output, "output");
+            this.layout = Objects.requireNonNull(layout, "layout");
             if (outputAmount <= 0) {
                 throw new IllegalArgumentException("Workbench encoded output amount must be positive");
             }
@@ -1258,7 +1467,15 @@ public final class QIOWorkbenchConfiguration {
             }
             List<ItemStack> copy = new ArrayList<>(9);
             boolean hasInput = false;
-            for (ItemStack stack : grid) {
+            List<ItemStack> source = new ArrayList<>(grid);
+            if (layout == PatternLayout.SHAPELESS) {
+                source = new ArrayList<>(9);
+                for (ItemStack stack : grid) {
+                    if (stack != null && !stack.isEmpty()) source.add(stack);
+                }
+                while (source.size() < 9) source.add(ItemStack.EMPTY);
+            }
+            for (ItemStack stack : source) {
                 ItemStack checked = stack == null || stack.isEmpty() ? ItemStack.EMPTY : stack.copy();
                 if (!checked.isEmpty()) {
                     checked.setCount(1);
@@ -1277,6 +1494,7 @@ public final class QIOWorkbenchConfiguration {
         @Nonnull public String getRecipeSignature() { return recipeSignature; }
         @Nonnull public PortableResourceDescriptor getOutput() { return output; }
         public long getOutputAmount() { return outputAmount; }
+        @Nonnull public PatternLayout getLayout() { return layout; }
         @Nonnull public List<ItemStack> getGrid() {
             List<ItemStack> copy = new ArrayList<>(grid.size());
             grid.forEach(stack -> copy.add(stack.copy()));
@@ -1285,15 +1503,21 @@ public final class QIOWorkbenchConfiguration {
 
         private EncodedPattern copy() {
             return new EncodedPattern(patternUUID, recipeId, recipeSignature, output,
-                  outputAmount, grid);
+                  outputAmount, layout, grid);
         }
 
         private EncodedPattern withUUID(UUID uuid) {
-            return new EncodedPattern(uuid, recipeId, recipeSignature, output, outputAmount, grid);
+            return new EncodedPattern(uuid, recipeId, recipeSignature, output, outputAmount,
+                  layout, grid);
+        }
+
+        public EncodedPattern withLayout(@Nonnull PatternLayout nextLayout) {
+            return new EncodedPattern(patternUUID, recipeId, recipeSignature, output,
+                  outputAmount, Objects.requireNonNull(nextLayout, "nextLayout"), grid);
         }
 
         private boolean sameRecipeContent(EncodedPattern pattern) {
-            if (!recipeId.equals(pattern.recipeId) ||
+            if (!recipeId.equals(pattern.recipeId) || layout != pattern.layout ||
                 !recipeSignature.equals(pattern.recipeSignature) || !output.equals(pattern.output) ||
                 outputAmount != pattern.outputAmount || grid.size() != pattern.grid.size()) return false;
             for (int index = 0; index < grid.size(); index++) {
@@ -1302,44 +1526,80 @@ public final class QIOWorkbenchConfiguration {
             return true;
         }
 
-        private NBTTagCompound write() {
+        private NBTTagCompound write(Map<String, Integer> paletteIds) {
             NBTTagCompound data = new NBTTagCompound();
             data.setInteger("patternSchema", SCHEMA_VERSION);
             QIOProcessingNbt.writeUUID(data, "patternUUID", patternUUID);
             data.setString("recipeSignature", recipeSignature);
+            data.setString("layout", layout.name());
             data.setTag("output", output.write());
             data.setLong("outputAmount", outputAmount);
-            NBTTagList storedGrid = new NBTTagList();
-            grid.forEach(stack -> storedGrid.appendTag(stack.isEmpty() ? new NBTTagCompound() :
-                  stack.writeToNBT(new NBTTagCompound())));
-            data.setTag("grid", storedGrid);
+            String positionKey = layout == PatternLayout.SHAPELESS ? "occurrence" : "slot";
+            NBTTagList entries = new NBTTagList();
+            for (int slot = 0; slot < grid.size(); slot++) {
+                ItemStack stack = grid.get(slot);
+                if (stack.isEmpty()) continue;
+                Integer paletteIndex = paletteIds.get(paletteKey(stack));
+                if (paletteIndex == null) {
+                    throw new IllegalStateException("Encoded pattern stack is absent from palette");
+                }
+                NBTTagCompound entry = new NBTTagCompound();
+                entry.setInteger(positionKey, slot);
+                entry.setInteger("paletteIndex", paletteIndex);
+                entries.appendTag(entry);
+            }
+            data.setTag("entries", entries);
             return data;
         }
 
-        private static EncodedPattern read(NBTTagCompound data, String recipeId)
+        private static EncodedPattern read(NBTTagCompound data, String recipeId,
+              List<ItemStack> palette)
               throws QIOProcessingDataException {
             if (data.getInteger("patternSchema") != SCHEMA_VERSION ||
                 !data.hasKey("patternUUID", NBT.TAG_STRING) ||
                 !data.hasKey("recipeSignature", NBT.TAG_STRING) ||
+                !data.hasKey("layout", NBT.TAG_STRING) ||
                 !data.hasKey("output", NBT.TAG_COMPOUND) ||
                 !data.hasKey("outputAmount", NBT.TAG_LONG) ||
-                !data.hasKey("grid", NBT.TAG_LIST)) {
+                !data.hasKey("entries", NBT.TAG_LIST)) {
                 throw new QIOProcessingDataException("Incomplete workbench encoded pattern");
             }
-            NBTTagList storedGrid = requireList(data, "grid", NBT.TAG_COMPOUND);
-            if (storedGrid.tagCount() != 9) {
-                throw new QIOProcessingDataException("Workbench encoded pattern grid is not 3x3");
+            NBTTagList storedEntries = requireList(data, "entries", NBT.TAG_COMPOUND);
+            if (storedEntries.tagCount() == 0 || storedEntries.tagCount() > 9) {
+                throw new QIOProcessingDataException("Workbench encoded pattern has invalid entries");
             }
             List<ItemStack> grid = new ArrayList<>(9);
-            for (int index = 0; index < storedGrid.tagCount(); index++) {
-                NBTTagCompound slot = storedGrid.getCompoundTagAt(index);
-                grid.add(slot.isEmpty() ? ItemStack.EMPTY : new ItemStack(slot));
+            for (int index = 0; index < 9; index++) grid.add(ItemStack.EMPTY);
+            boolean[] seen = new boolean[9];
+            PatternLayout layout;
+            try {
+                layout = PatternLayout.valueOf(data.getString("layout"));
+            } catch (RuntimeException error) {
+                throw new QIOProcessingDataException("Workbench encoded pattern layout is invalid");
+            }
+            for (int index = 0; index < storedEntries.tagCount(); index++) {
+                NBTTagCompound entry = storedEntries.getCompoundTagAt(index);
+                int slot = layout == PatternLayout.SHAPELESS ? entry.getInteger("occurrence") :
+                      entry.getInteger("slot");
+                int paletteIndex = entry.getInteger("paletteIndex");
+                if (slot < 0 || slot >= 9 || seen[slot] || paletteIndex < 0 ||
+                      paletteIndex >= palette.size()) {
+                    throw new QIOProcessingDataException("Workbench encoded pattern entry is invalid");
+                }
+                grid.set(slot, palette.get(paletteIndex).copy());
+                seen[slot] = true;
+            }
+            if (layout == PatternLayout.SHAPELESS) {
+                for (int index = 0; index < storedEntries.tagCount(); index++) {
+                    if (!seen[index]) throw new QIOProcessingDataException(
+                          "Workbench shapeless pattern occurrences are not contiguous");
+                }
             }
             try {
                 return new EncodedPattern(QIOProcessingNbt.readUUID(data, "patternUUID"),
                       new ResourceLocation(recipeId), data.getString("recipeSignature"),
                       PortableResourceDescriptor.read(data.getCompoundTag("output")),
-                      data.getLong("outputAmount"), grid);
+                      data.getLong("outputAmount"), layout, grid);
             } catch (RuntimeException e) {
                 throw new QIOProcessingDataException("Invalid workbench encoded pattern", e);
             }
@@ -1354,7 +1614,7 @@ public final class QIOWorkbenchConfiguration {
         @Override
         public int hashCode() {
             return Objects.hash(patternUUID, recipeId, recipeSignature, output, outputAmount,
-                  grid.toString());
+                  layout, grid.toString());
         }
     }
 }

@@ -53,7 +53,8 @@ public final class QIOWorkbenchConfigurationMutation {
         BATCH_DELETE_PRODUCTS,
         BATCH_SET_RECIPES_ENABLED,
         BATCH_MOVE_RECIPES,
-        BATCH_DELETE_PATTERNS
+        BATCH_DELETE_PATTERNS,
+        RESTORE_RECOVERY
     }
 
     private final Action action;
@@ -169,6 +170,12 @@ public final class QIOWorkbenchConfigurationMutation {
     public static QIOWorkbenchConfigurationMutation resetAll() {
         return new QIOWorkbenchConfigurationMutation(Action.RESET_ALL, "", "", "", -1,
               "", 0);
+    }
+
+    @Nonnull
+    public static QIOWorkbenchConfigurationMutation restoreRecovery() {
+        return new QIOWorkbenchConfigurationMutation(Action.RESTORE_RECOVERY, "", "", "",
+              -1, "", 0);
     }
 
     @Nonnull
@@ -357,7 +364,11 @@ public final class QIOWorkbenchConfigurationMutation {
             case RESET_ALL -> productKey.isEmpty() && recipeId.isEmpty() &&
                   recipeSignature.isEmpty() && ingredientSlot == -1 &&
                   candidateId.isEmpty() && direction == 0 && targetIndex == -1 &&
-                  grid.isEmpty() && targets.isEmpty() && noBatch;
+                   grid.isEmpty() && targets.isEmpty() && noBatch;
+            case RESTORE_RECOVERY -> productKey.isEmpty() && recipeId.isEmpty() &&
+                  recipeSignature.isEmpty() && ingredientSlot == -1 && candidateId.isEmpty() &&
+                  direction == 0 && targetIndex == -1 && grid.isEmpty() && targets.isEmpty() &&
+                  noBatch;
             case ENCODE_PATTERN -> productKey.isEmpty() && recipeId.isEmpty() &&
                   recipeSignature.isEmpty() && ingredientSlot == -1 &&
                   candidateId.isEmpty() && direction == 0 && targetIndex == -1 &&
@@ -436,7 +447,9 @@ public final class QIOWorkbenchConfigurationMutation {
             }
             ItemStack copy = stack.copy();
             copy.setCount(1);
-            unique.putIfAbsent(PortableResourceDescriptor.item(copy), copy);
+            // Batch target selection is recipe lookup, not a QIO storage identity. Ignore
+            // transient ForgeCaps here so an attached capability cannot reject the mutation.
+            unique.putIfAbsent(PortableResourceDescriptor.itemIgnoringCapabilities(copy), copy);
         }
         if (unique.isEmpty()) {
             throw new IllegalArgumentException("Workbench batch target list is empty");

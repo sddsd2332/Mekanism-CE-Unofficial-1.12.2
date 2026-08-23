@@ -17,6 +17,7 @@ import mekanism.qioprocessing.common.execution.QIOEndpointPersistenceService;
 import mekanism.qioprocessing.common.content.QIOProcessingNetworkData;
 import mekanism.qioprocessing.common.content.QIOProcessingNetworkManager;
 import mekanism.qioprocessing.common.content.transfer.QIODurableTransferRecord;
+import mekanism.qioprocessing.common.util.QIOHashing;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.tileentity.TileEntity;
@@ -62,6 +63,10 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
     private static final String RECOVERY_STATE = "recoveryState";
     private static final String RECOVERY_DIAGNOSTIC = "recoveryDiagnostic";
     private static final String QUARANTINED_DATA = "quarantinedData";
+    private static final String QUARANTINE_TRUNCATED = "quarantineTruncated";
+    private static final String QUARANTINE_DIGEST = "quarantineDigest";
+    /** Keep the textual NBT representation well below Java's modified-UTF string limit. */
+    private static final int MAX_PERSISTED_QUARANTINE_BYTES = 16_000;
     private static final String CLEAR_MODE_WHEN_DRAINED = "clearModeWhenDrained";
     private static final String OUTPUT_QUARANTINE_PREFIX = "Automatic output operation quarantined: ";
     private static final String OPERATION_QUARANTINE_PREFIX = "Machine operation quarantined: ";
@@ -171,6 +176,20 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         // ownership made an idle machine impossible to unbind when the network was not loaded.
         // Actual leases, buffers, deferred transfers, or raw quarantined NBT remain conservative.
         return false;
+    }
+
+    /** Clears a legacy diagnostic only after proving that no external owner remains. */
+    boolean clearUnownedLegacyDiagnostic() {
+        if (state != State.DATA_ERROR && recoveryState != RecoveryState.QUARANTINED) {
+            return false;
+        }
+        if (hasResourceOwnershipState() || pendingLegacyOutputRecovery != null ||
+              pendingRuntimeOutputRecovery || quarantinedData != null &&
+                    !isDiagnosticOnlyQuarantine()) {
+            return false;
+        }
+        clearRecoveryPending();
+        return true;
     }
 
     @Nonnull
@@ -1038,9 +1057,57 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
             data.setString(RECOVERY_DIAGNOSTIC, dataError);
         }
         if (quarantinedData != null) {
-            data.setTag(QUARANTINED_DATA, quarantinedData.copy());
+            data.setTag(QUARANTINED_DATA, persistedQuarantine(quarantinedData));
         }
         return data;
+    }
+
+    /**
+     * Bounds a quarantined diagnostic before it crosses the NBT save boundary. A malformed or
+     * future host may contain a very large recipe/capability string; writing that blob back would
+     * make every subsequent save fail. Small records remain lossless, while large records retain
+     * a digest and the operation IDs needed by the audited manual-recovery path.
+     */
+    @Nonnull
+    private static NBTTagCompound persistedQuarantine(@Nonnull NBTTagCompound raw) {
+        Objects.requireNonNull(raw, "raw");
+        String canonical;
+        try {
+            canonical = raw.toString();
+        } catch (RuntimeException error) {
+            canonical = raw.getKeySet().toString();
+        }
+        if (canonical.getBytes(java.nio.charset.StandardCharsets.UTF_8).length <=
+              MAX_PERSISTED_QUARANTINE_BYTES) {
+            return raw.copy();
+        }
+        NBTTagCompound summary = new NBTTagCompound();
+        summary.setBoolean(QUARANTINE_TRUNCATED, true);
+        summary.setString(QUARANTINE_DIGEST, QIOHashing.sha256(canonical));
+        copyRecoveryOperationIds(raw, TOKENS, summary);
+        copyRecoveryOperationIds(raw, LEASES, summary);
+        copyRecoveryOperationIds(raw, OUTPUT_BUFFERS, summary);
+        return summary;
+    }
+
+    private static void copyRecoveryOperationIds(@Nonnull NBTTagCompound raw,
+          @Nonnull String sourceKey, @Nonnull NBTTagCompound summary) {
+        if (!raw.hasKey(sourceKey, NBT.TAG_LIST)) return;
+        NBTTagList source = raw.getTagList(sourceKey, NBT.TAG_COMPOUND);
+        if (source.tagCount() == 0) return;
+        NBTTagList ids = new NBTTagList();
+        int limit = Math.min(source.tagCount(), MAX_OPERATION_TOKENS);
+        for (int index = 0; index < limit; index++) {
+            NBTTagCompound entry = source.getCompoundTagAt(index);
+            if (entry.hasKey("operationId", NBT.TAG_STRING)) {
+                NBTTagCompound id = new NBTTagCompound();
+                String operationId = entry.getString("operationId");
+                if (operationId.length() > 128) continue;
+                id.setString("operationId", operationId);
+                ids.appendTag(id);
+            }
+        }
+        if (ids.tagCount() > 0) summary.setTag(sourceKey, ids);
     }
 
     /** 读取主机 NBT；结构损坏时只保留可验证的绑定外壳并进入诊断隔离。 */
@@ -1479,6 +1546,13 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         }
         try {
             if (!QIOProcessingNetworkManager.INSTANCE.isLoaded()) {
+                return false;
+            }
+            // A missing in-memory network is not automatically empty: damaged/future network
+            // files are deliberately kept out of the loaded map.  Keep the host quarantined until
+            // that isolation record is resolved instead of dismissing a possible owner.
+            if (QIOProcessingNetworkManager.INSTANCE.getIsolationStatus(
+                  frequencyReference.getFrequencyUUID()) != null) {
                 return false;
             }
             QIOProcessingNetworkData network = QIOProcessingNetworkManager.INSTANCE.get(

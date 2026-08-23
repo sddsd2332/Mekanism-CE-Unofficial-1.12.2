@@ -27,6 +27,12 @@ final class QIOBlockTerminalSessionTarget {
     QIOBlockTerminalSessionTarget(@Nonnull InventoryPlayer inventory,
           @Nonnull QIOProcessingTerminal terminal, boolean remote) {
         this.terminal = terminal;
+        if (!remote) {
+            // Clear a diagnostic before capturing the session revision.  Recovery also resets a
+            // saturated legacy revision, so capturing first would make the first authenticated
+            // interaction fail its own optimistic-concurrency check.
+            terminal.clearDataErrorForRecovery();
+        }
         session = remote ? null : createSession(inventory, terminal);
     }
 
@@ -36,8 +42,7 @@ final class QIOBlockTerminalSessionTarget {
     }
 
     boolean validate(@Nonnull EntityPlayer player) {
-        if (session == null || terminal.hasDataError() ||
-            terminal.hasIdentityConflict()) {
+        if (session == null || terminal.hasIdentityConflict()) {
             return false;
         }
         QIOFrequencyReference reference = terminal.getFrequencyReference();

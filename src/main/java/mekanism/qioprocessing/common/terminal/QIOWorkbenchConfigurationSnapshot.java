@@ -27,7 +27,7 @@ import java.util.UUID;
  */
 public final class QIOWorkbenchConfigurationSnapshot {
 
-    private static final int SCHEMA_VERSION = 2;
+    private static final int SCHEMA_VERSION = 3;
     public static final int MAX_PAGE_SIZE = 64;
     private static final int MAX_RECIPE_ID_LENGTH = 256;
     private static final int HASH_LENGTH = 64;
@@ -44,6 +44,7 @@ public final class QIOWorkbenchConfigurationSnapshot {
     private final long configurationRevision;
     private final long catalogRevision;
     private final boolean editable;
+    private final int recoveryPatternCount;
     private final int offset;
     private final int totalSize;
     private final String query;
@@ -58,6 +59,7 @@ public final class QIOWorkbenchConfigurationSnapshot {
     public QIOWorkbenchConfigurationSnapshot(@Nonnull PageKind pageKind,
           @Nonnull UUID configUUID, @Nonnull UUID originUUID,
           long configurationRevision, long catalogRevision, boolean editable,
+          int recoveryPatternCount,
           int offset, int totalSize, @Nonnull String query,
           @Nonnull String productKey, @Nonnull String recipeId,
           @Nonnull String recipeSignature, int ingredientSlot,
@@ -73,6 +75,10 @@ public final class QIOWorkbenchConfigurationSnapshot {
         this.configurationRevision = configurationRevision;
         this.catalogRevision = catalogRevision;
         this.editable = editable;
+        if (recoveryPatternCount < 0 || recoveryPatternCount > 65_536) {
+            throw new IllegalArgumentException("Invalid workbench recovery pattern count");
+        }
+        this.recoveryPatternCount = recoveryPatternCount;
         this.offset = offset;
         this.totalSize = totalSize;
         this.query = checkedText(query, 128, true, "query");
@@ -109,6 +115,7 @@ public final class QIOWorkbenchConfigurationSnapshot {
     public long getConfigurationRevision() { return configurationRevision; }
     public long getCatalogRevision() { return catalogRevision; }
     public boolean isEditable() { return editable; }
+    public int getRecoveryPatternCount() { return recoveryPatternCount; }
     public int getOffset() { return offset; }
     public int getTotalSize() { return totalSize; }
     @Nonnull public String getQuery() { return query; }
@@ -137,6 +144,7 @@ public final class QIOWorkbenchConfigurationSnapshot {
         data.setLong("configurationRevision", configurationRevision);
         data.setLong("catalogRevision", catalogRevision);
         data.setBoolean("editable", editable);
+        data.setInteger("recoveryPatternCount", recoveryPatternCount);
         data.setInteger("offset", offset);
         data.setInteger("totalSize", totalSize);
         data.setString("query", query);
@@ -161,6 +169,7 @@ public final class QIOWorkbenchConfigurationSnapshot {
                 !data.hasKey("configurationRevision", NBT.TAG_LONG) ||
                 !data.hasKey("catalogRevision", NBT.TAG_LONG) ||
                 !data.hasKey("editable", NBT.TAG_BYTE) ||
+                !data.hasKey("recoveryPatternCount", NBT.TAG_INT) ||
                 !data.hasKey("offset", NBT.TAG_INT) ||
                 !data.hasKey("totalSize", NBT.TAG_INT) ||
                 !data.hasKey("query", NBT.TAG_STRING) ||
@@ -193,7 +202,8 @@ public final class QIOWorkbenchConfigurationSnapshot {
                   QIOProcessingNbt.readUUID(data, "configUUID"),
                   QIOProcessingNbt.readUUID(data, "originUUID"),
                   data.getLong("configurationRevision"), data.getLong("catalogRevision"),
-                  data.getBoolean("editable"), data.getInteger("offset"),
+                  data.getBoolean("editable"), data.getInteger("recoveryPatternCount"),
+                  data.getInteger("offset"),
                   data.getInteger("totalSize"), data.getString("query"),
                   data.getString("productKey"), data.getString("recipeId"),
                   data.getString("recipeSignature"), data.getInteger("ingredientSlot"),

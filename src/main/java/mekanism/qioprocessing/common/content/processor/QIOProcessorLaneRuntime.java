@@ -40,6 +40,13 @@ public final class QIOProcessorLaneRuntime {
         DATA_ERROR
     }
 
+    /** Result of attempting to normalize a legacy lane diagnostic without discarding buffers. */
+    public enum RecoveryResult {
+        NOT_NEEDED,
+        RECOVERED,
+        UNSAFE
+    }
+
     public enum TransferDirection {
         INPUT,
         OUTPUT,
@@ -139,6 +146,15 @@ public final class QIOProcessorLaneRuntime {
 
     public long getRuntimeRevision() {
         return runtimeRevision;
+    }
+
+    @Nullable
+    public String getDataError() {
+        return dataError;
+    }
+
+    public boolean hasDataError() {
+        return state == State.DATA_ERROR;
     }
 
     @Nonnull
@@ -302,8 +318,70 @@ public final class QIOProcessorLaneRuntime {
 
     public void enterDataError(@Nonnull String reason) {
         dataError = requireDiagnostic(reason);
+        settlement = null;
         state = State.DATA_ERROR;
         incrementRevision();
+    }
+
+    /**
+     * Reopens a legacy DATA_ERROR lane when its owned buffers identify one unambiguous next
+     * operation. No resource is discarded here: input is returned, output is collected, and an
+     * empty lane is settled from its transfer receipts. A lane containing both buffers remains
+     * isolated for the audited manual recovery path.
+     */
+    @Nonnull
+    public RecoveryResult normalizeDataError() {
+        if (state != State.DATA_ERROR) {
+            return RecoveryResult.NOT_NEEDED;
+        }
+        if (dataError == null || (!input.isEmpty() && !output.isEmpty())) {
+            return RecoveryResult.UNSAFE;
+        }
+        // A progress counter that exceeds its total is not a stale marker; it is evidence that
+        // the serialized operation crossed an unknown boundary.  Keep the lane quarantined so a
+        // player recovery can audit the matching network transfer instead of guessing.
+        if (currentTick > totalTicks) {
+            return RecoveryResult.UNSAFE;
+        }
+        if (input.isEmpty() && output.isEmpty()) {
+            Settlement inferred = inferEmptySettlement();
+            if (inferred == null) {
+                return RecoveryResult.UNSAFE;
+            }
+            settlement = inferred;
+            state = State.SETTLED;
+            currentTick = 0;
+            totalTicks = 0;
+        } else if (!input.isEmpty()) {
+            // A processing lane clears input before publishing output. Input-only therefore
+            // proves that the operation never crossed the output boundary.
+            if (hasReceiptDirection(TransferDirection.OUTPUT)) {
+                return RecoveryResult.UNSAFE;
+            }
+            settlement = null;
+            state = State.RETURNING;
+            currentTick = 0;
+            totalTicks = 0;
+        } else {
+            // Output can only be published after processing reaches its terminal tick. Repair
+            // stale progress fields but never accept an impossible currentTick > totalTicks.
+            if (hasReceiptDirection(TransferDirection.RETURN)) {
+                return RecoveryResult.UNSAFE;
+            }
+            if (totalTicks == 0) {
+                totalTicks = Math.max(1, currentTick);
+            }
+            currentTick = totalTicks;
+            settlement = null;
+            state = State.OUTPUT_BLOCKED;
+        }
+        dataError = null;
+        incrementRecoveryRevision();
+        return RecoveryResult.RECOVERED;
+    }
+
+    private boolean hasReceiptDirection(@Nonnull TransferDirection direction) {
+        return transferReceipts.values().stream().anyMatch(receipt -> receipt.direction == direction);
     }
 
     @Nonnull
@@ -420,7 +498,8 @@ public final class QIOProcessorLaneRuntime {
             case SETTLED -> input.isEmpty() && output.isEmpty();
             case DATA_ERROR -> dataError != null;
         };
-        if (!valid || (state == State.SETTLED) != (settlement != null) ||
+        if (!valid || (state != State.DATA_ERROR && (state == State.SETTLED) !=
+              (settlement != null)) ||
               (state != State.DATA_ERROR && dataError != null)) {
             throw new QIOProcessingDataException("QIO processor lane state does not match its buffers");
         }
@@ -435,6 +514,7 @@ public final class QIOProcessorLaneRuntime {
     private void incrementRevision() {
         if (runtimeRevision == Long.MAX_VALUE) {
             dataError = "QIO processor lane runtime revision exhausted";
+            settlement = null;
             state = State.DATA_ERROR;
             if (dirtyListener != null) {
                 dirtyListener.run();
@@ -445,6 +525,33 @@ public final class QIOProcessorLaneRuntime {
         if (dirtyListener != null) {
             dirtyListener.run();
         }
+    }
+
+    private void incrementRecoveryRevision() {
+        runtimeRevision = runtimeRevision == Long.MAX_VALUE ? 1 : runtimeRevision + 1;
+        if (dirtyListener != null) {
+            dirtyListener.run();
+        }
+    }
+
+    @Nullable
+    private Settlement inferEmptySettlement() {
+        Settlement inferred = settlement;
+        for (TransferReceipt receipt : transferReceipts.values()) {
+            Settlement receiptSettlement = receipt.direction == TransferDirection.OUTPUT ?
+                  Settlement.OUTPUT : receipt.direction == TransferDirection.RETURN ?
+                        Settlement.RETURN : null;
+            if (receiptSettlement == null) {
+                continue;
+            }
+            if (inferred != null && inferred != receiptSettlement) {
+                return null;
+            }
+            inferred = receiptSettlement;
+        }
+        // An empty lane with no receipt has no resource ownership left. Returning is the
+        // fail-closed outcome; durable network records still decide the job disposition.
+        return inferred == null ? Settlement.RETURN : inferred;
     }
 
     private static void addAmounts(Map<PortableResourceDescriptor, Long> destination,

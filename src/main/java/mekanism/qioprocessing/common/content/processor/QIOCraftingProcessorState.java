@@ -4,6 +4,7 @@ import mekanism.qioprocessing.api.processor.QIOCraftingProcessorDefinition;
 import mekanism.qioprocessing.api.processor.QIOCraftingProcessorRegistry;
 import mekanism.qioprocessing.common.content.QIOProcessingDataException;
 import mekanism.qioprocessing.common.content.QIOProcessingNbt;
+import mekanism.qioprocessing.common.util.QIOHashing;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.util.ResourceLocation;
@@ -20,6 +21,8 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.HashSet;
+import java.nio.charset.StandardCharsets;
 
 /** Durable identity and sparse occupied-lane state shared by all processor tiers. */
 /**
@@ -31,6 +34,8 @@ import java.util.Set;
 public final class QIOCraftingProcessorState {
 
     public static final int SCHEMA_VERSION = 2;
+    private static final int MAX_PERSISTED_QUARANTINE_BYTES = 16_000;
+    private static final int MAX_QUARANTINE_OPERATION_IDS = 1_024;
 
     public enum State {
         ACTIVE,
@@ -240,9 +245,8 @@ public final class QIOCraftingProcessorState {
     /** Re-evaluates a previously missing addon definition without changing persisted identity. */
     public boolean reconcile(@Nonnull ResourceLocation expectedHostId,
           @Nonnull ResourceLocation expectedDefinitionId) {
-        if (state == State.DATA_ERROR) {
-            return false;
-        }
+        normalizeLegacyState(expectedHostId, expectedDefinitionId);
+        if (state == State.DATA_ERROR) return false;
         String problem = resolutionProblem(expectedHostId, expectedDefinitionId);
         State next = problem == null ? State.ACTIVE : State.UNRESOLVED_DEFINITION;
         boolean changed = state != next || !Objects.equals(diagnostic, problem);
@@ -291,7 +295,7 @@ public final class QIOCraftingProcessorState {
               right.getLaneId())).forEach(lane -> lanes.appendTag(lane.write()));
         data.setTag("activeLanes", lanes);
         if (quarantinedData != null) {
-            data.setTag("quarantinedData", quarantinedData.copy());
+            data.setTag("quarantinedData", persistedQuarantine(quarantinedData));
         }
         return data;
     }
@@ -342,9 +346,17 @@ public final class QIOCraftingProcessorState {
             }
             processor.quarantinedData = data.hasKey("quarantinedData", NBT.TAG_COMPOUND) ?
                   data.getCompoundTag("quarantinedData").copy() : null;
+            processor.normalizeLegacyState(expectedHostId, expectedDefinitionId);
             if (processor.state == State.DATA_ERROR) {
                 if (processor.diagnostic == null) {
                     throw new QIOProcessingDataException("QIO processor data error has no diagnostic");
+                }
+                // Old saves sometimes persisted only a diagnostic marker after the actual lane
+                // state had already been cleared. Do not keep an idle processor permanently
+                // locked in DATA_ERROR; reconcile it against the current definition instead.
+                if (isDiagnosticOnly(data)) {
+                    processor.quarantinedData = null;
+                    processor.reconcileWithoutRevision(expectedHostId, expectedDefinitionId);
                 }
                 return processor;
             }
@@ -372,7 +384,213 @@ public final class QIOCraftingProcessorState {
         state.state = State.DATA_ERROR;
         state.diagnostic = requireDiagnostic(reason);
         state.quarantinedData = rawData.copy();
+        if (isDiagnosticOnly(rawData)) {
+            state.quarantinedData = null;
+            try {
+                state.reconcileWithoutRevision(expectedHostId, expectedDefinition.getId());
+            } catch (QIOProcessingDataException ignored) {
+                // Keep DATA_ERROR if the diagnostic record cannot be reconciled safely.
+            }
+        }
         return state;
+    }
+
+    /** True when this processor or one of its lanes still needs recovery handling. */
+    public boolean hasRecoveryPending() {
+        return state == State.DATA_ERROR || hasLaneRecoveryPending() || quarantinedData != null;
+    }
+
+    /** Returns true when at least one lane still carries a diagnostic state. */
+    public boolean hasLaneRecoveryPending() {
+        return activeLanes.values().stream().anyMatch(QIOProcessorLaneRuntime::hasDataError);
+    }
+
+    /**
+     * Returns whether a lane still ties this processor to a persisted operation.  Even a settled
+     * lane remains bound until the endpoint snapshot and transfer cleanup have removed it; moving
+     * the processor to another frequency before that point would strand the old job assignment.
+     */
+    public boolean hasBindingOwnership() {
+        return !activeLanes.isEmpty();
+    }
+
+    /** Returns a bounded copy of raw state retained for an audited manual recovery. */
+    @Nullable
+    public NBTTagCompound getQuarantinedDataCopy() {
+        return quarantinedData == null ? null : quarantinedData.copy();
+    }
+
+    /** True when the error marker has no lane or quarantined ownership to protect. */
+    public boolean isDiagnosticOnlyRecovery() {
+        return state == State.DATA_ERROR && activeLanes.isEmpty() && quarantinedData == null;
+    }
+
+    /** Explicit lossless player/admin recovery; ambiguous ownership is left for the audit service. */
+    public boolean forceRecoverAfterDataError() {
+        return forceRecoverAfterDataError(hostId, definitionId);
+    }
+
+    /** Explicit recovery using the identity currently expected by the loaded processor block. */
+    public boolean forceRecoverAfterDataError(@Nonnull ResourceLocation expectedHostId,
+          @Nonnull ResourceLocation expectedDefinitionId) {
+        if (state != State.DATA_ERROR && !hasLaneRecoveryPending() && quarantinedData == null) {
+            return false;
+        }
+        boolean normalized = normalizeLegacyState(expectedHostId, expectedDefinitionId);
+        if (state == State.DATA_ERROR || quarantinedData != null || hasLaneRecoveryPending()) {
+            return false;
+        }
+        String problem = resolutionProblem(expectedHostId, expectedDefinitionId);
+        State next = problem == null ? State.ACTIVE : State.UNRESOLVED_DEFINITION;
+        boolean changed = state != next || diagnostic != null;
+        state = next;
+        diagnostic = problem;
+        if (runtimeRevision == Long.MAX_VALUE) {
+            runtimeRevision = 0;
+            changed = true;
+        }
+        if (changed) incrementRecoveryRevision();
+        return normalized || changed;
+    }
+
+    /**
+     * Clears processor-local ownership after the network recovery service has durably accounted
+     * for every affected operation. This method is intentionally separate from the lossless
+     * recovery above so callers cannot discard lane buffers without an audit checkpoint.
+     */
+    public boolean forceClearAfterAuditedRecovery() {
+        return forceClearAfterAuditedRecovery(hostId, definitionId);
+    }
+
+    /** Clears audited local state while retaining the current block's definition identity result. */
+    public boolean forceClearAfterAuditedRecovery(@Nonnull ResourceLocation expectedHostId,
+          @Nonnull ResourceLocation expectedDefinitionId) {
+        if (state != State.DATA_ERROR && !hasLaneRecoveryPending() && quarantinedData == null) {
+            return false;
+        }
+        activeLanes.clear();
+        persistedSettledOperations.clear();
+        quarantinedData = null;
+        String problem = resolutionProblem(expectedHostId, expectedDefinitionId);
+        state = problem == null ? State.ACTIVE : State.UNRESOLVED_DEFINITION;
+        diagnostic = problem;
+        nextLaneCandidate = 0;
+        if (runtimeRevision == Long.MAX_VALUE) {
+            runtimeRevision = 0;
+        }
+        incrementRecoveryRevision();
+        return true;
+    }
+
+    /**
+     * Normalizes legacy processor/lane diagnostics while retaining every owned resource. This is
+     * deliberately callable on every server tick: an old marker cannot permanently disable an
+     * otherwise valid processor, while ambiguous buffers remain in DATA_ERROR for manual audit.
+     *
+     * @return true when persisted state was changed
+     */
+    public boolean normalizeLegacyState(@Nonnull ResourceLocation expectedHostId,
+          @Nonnull ResourceLocation expectedDefinitionId) {
+        Objects.requireNonNull(expectedHostId, "expectedHostId");
+        Objects.requireNonNull(expectedDefinitionId, "expectedDefinitionId");
+        boolean changed = false;
+        String unsafeDiagnostic = null;
+        for (QIOProcessorLaneRuntime lane : activeLanes.values()) {
+            QIOProcessorLaneRuntime.RecoveryResult result = lane.normalizeDataError();
+            if (result == QIOProcessorLaneRuntime.RecoveryResult.RECOVERED) {
+                changed = true;
+            } else if (result == QIOProcessorLaneRuntime.RecoveryResult.UNSAFE) {
+                unsafeDiagnostic = "QIO processor lane " + lane.getLaneId() +
+                      " has ambiguous owned buffers; manual recovery is required";
+                break;
+            }
+        }
+        if (unsafeDiagnostic != null) {
+            if (state != State.DATA_ERROR || !Objects.equals(diagnostic, unsafeDiagnostic)) {
+                state = State.DATA_ERROR;
+                diagnostic = requireDiagnostic(unsafeDiagnostic);
+                changed = true;
+            }
+        } else if (quarantinedData != null) {
+            if (state != State.DATA_ERROR) {
+                state = State.DATA_ERROR;
+                diagnostic = requireDiagnostic("QIO processor data is quarantined for manual recovery");
+                changed = true;
+            }
+        } else if (state == State.DATA_ERROR) {
+            String problem = resolutionProblem(expectedHostId, expectedDefinitionId);
+            State next = problem == null ? State.ACTIVE : State.UNRESOLVED_DEFINITION;
+            if (state != next || !Objects.equals(diagnostic, problem)) {
+                state = next;
+                diagnostic = problem;
+                changed = true;
+            }
+            if (runtimeRevision == Long.MAX_VALUE) {
+                runtimeRevision = 0;
+                changed = true;
+            }
+        }
+        if (changed) {
+            incrementRecoveryRevision();
+        }
+        return changed;
+    }
+
+    /** Narrow whitelist used to decide whether automatic cleanup is lossless. */
+    private static boolean isDiagnosticOnly(@Nonnull NBTTagCompound data) {
+        if (!data.hasKey("activeLanes", NBT.TAG_LIST) ||
+              data.getTagList("activeLanes", NBT.TAG_COMPOUND).tagCount() != 0) {
+            return false;
+        }
+        Set<String> allowed = new HashSet<>();
+        Collections.addAll(allowed, "processorStateSchemaVersion", "processorUUID", "hostId",
+              "definitionId", "definitionSignature", "state", "diagnostic", "nextLaneCandidate",
+              "runtimeRevision", "activeLanes", "quarantinedData");
+        for (String key : data.getKeySet()) {
+            if (!allowed.contains(key)) return false;
+        }
+        if (data.hasKey("quarantinedData", NBT.TAG_COMPOUND) &&
+              !data.getCompoundTag("quarantinedData").getKeySet().isEmpty()) {
+            return false;
+        }
+        return true;
+    }
+
+    /** Bounds raw recovery NBT so a malformed processor cannot break every later world save. */
+    @Nonnull
+    private static NBTTagCompound persistedQuarantine(@Nonnull NBTTagCompound raw) {
+        String canonical;
+        try {
+            canonical = raw.toString();
+        } catch (RuntimeException error) {
+            canonical = raw.getKeySet().toString();
+        }
+        if (canonical.getBytes(StandardCharsets.UTF_8).length <= MAX_PERSISTED_QUARANTINE_BYTES) {
+            return raw.copy();
+        }
+        NBTTagCompound summary = new NBTTagCompound();
+        summary.setBoolean("quarantineTruncated", true);
+        summary.setString("quarantineDigest", QIOHashing.sha256(canonical));
+        copyOperationIds(raw, summary);
+        return summary;
+    }
+
+    private static void copyOperationIds(@Nonnull NBTTagCompound raw,
+          @Nonnull NBTTagCompound summary) {
+        if (!raw.hasKey("activeLanes", NBT.TAG_LIST)) return;
+        NBTTagList source = raw.getTagList("activeLanes", NBT.TAG_COMPOUND);
+        NBTTagList ids = new NBTTagList();
+        int limit = Math.min(source.tagCount(), MAX_QUARANTINE_OPERATION_IDS);
+        for (int index = 0; index < limit; index++) {
+            NBTTagCompound lane = source.getCompoundTagAt(index);
+            if (!lane.hasKey("operationId", NBT.TAG_STRING)) continue;
+            String operationId = lane.getString("operationId");
+            if (operationId.length() > 128) continue;
+            NBTTagCompound id = new NBTTagCompound();
+            id.setString("operationId", operationId);
+            ids.appendTag(id);
+        }
+        if (ids.tagCount() > 0) summary.setTag("activeLanes", ids);
     }
 
     private void reconcileWithoutRevision(ResourceLocation expectedHostId,
@@ -428,6 +646,13 @@ public final class QIOCraftingProcessorState {
             return;
         }
         runtimeRevision++;
+        if (dirtyListener != null) {
+            dirtyListener.run();
+        }
+    }
+
+    private void incrementRecoveryRevision() {
+        runtimeRevision = runtimeRevision == Long.MAX_VALUE ? 1 : runtimeRevision + 1;
         if (dirtyListener != null) {
             dirtyListener.run();
         }

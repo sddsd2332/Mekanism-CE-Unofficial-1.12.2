@@ -175,17 +175,17 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
     boolean hasSelectedDataError() {
         QIOAutomationDeviceSnapshot selected = selectedDevice();
         return selected != null && selected.isOnline() &&
-              selected.getKind() == QIOAutomationDeviceSnapshot.Kind.AUTOMATION_MACHINE &&
-              ("DATA_ERROR".equals(selected.getStateName()) ||
-                    selected.getRecoveryState() ==
-                          mekanism.qioprocessing.api.machine.QIOAutomationHost.RecoveryState.QUARANTINED);
+              ((selected.getKind() == QIOAutomationDeviceSnapshot.Kind.AUTOMATION_MACHINE &&
+                    ("DATA_ERROR".equals(selected.getStateName()) ||
+                          selected.getRecoveryState() ==
+                                mekanism.qioprocessing.api.machine.QIOAutomationHost.RecoveryState.QUARANTINED)) ||
+                    selected.getKind() == QIOAutomationDeviceSnapshot.Kind.CRAFTING_PROCESSOR &&
+                          "DATA_ERROR".equals(selected.getStateName()));
     }
 
     boolean hasSelectedRecoveryPending() {
         QIOAutomationDeviceSnapshot selected = selectedDevice();
-        return selected != null && selected.isOnline() &&
-              selected.getKind() == QIOAutomationDeviceSnapshot.Kind.AUTOMATION_MACHINE &&
-              selected.hasRecoveryPending();
+        return selected != null && selected.isOnline() && hasSelectedDataError();
     }
 
     @Nullable

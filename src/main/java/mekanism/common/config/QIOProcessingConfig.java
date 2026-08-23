@@ -32,9 +32,9 @@ public class QIOProcessingConfig extends BaseConfig {
     public static final int DEFAULT_TERMINAL_PAGE_SIZE = 128;
     public static final int MIN_TERMINAL_PAGE_SIZE = 16;
     public static final int MAX_TERMINAL_PAGE_SIZE = 1_024;
-    public static final int DEFAULT_RECIPE_CATALOG_CAPTURES_PER_TICK = 128;
-    public static final int DEFAULT_RECIPE_CATALOG_CAPTURE_TIME_PER_TICK = 5;
-    public static final int DEFAULT_RECIPE_CATALOG_WORKER_THREADS = 4;
+    public static final int DEFAULT_RECIPE_CATALOG_CAPTURES_PER_TICK = 2048;
+    public static final int DEFAULT_RECIPE_CATALOG_CAPTURE_TIME_PER_TICK = 20;
+    public static final int DEFAULT_RECIPE_CATALOG_WORKER_THREADS = 8;
 
     public final IntOption planningTimePerTick = new IntOption(this, "planning",
           "planningTimePerTick", DEFAULT_PLANNING_TIME_PER_TICK,

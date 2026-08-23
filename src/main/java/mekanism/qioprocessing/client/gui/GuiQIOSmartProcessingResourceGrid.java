@@ -22,7 +22,6 @@ import net.minecraftforge.fluids.FluidStack;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -263,15 +262,20 @@ final class GuiQIOSmartProcessingResourceGrid extends GuiElement
     }
 
     private List<String> productionTooltip(QIOSmartProcessingResourceEntry entry) {
-        if (entry.getInProduction() <= 0) return Collections.emptyList();
-        List<String> tooltip = new ArrayList<>(2);
-        tooltip.add(new TextComponentTranslation(
-              "gui.mekanismqioprocessing.order_in_production",
-              TextUtils.format(entry.getInProduction())).getFormattedText());
-        if (entry.isMergeable()) {
+        List<String> tooltip = new ArrayList<>(3);
+        if (!entry.isSchedulable()) {
             tooltip.add(new TextComponentTranslation(
-                  "gui.mekanismqioprocessing.order_mergeable",
-                  TextUtils.format(entry.getMergeableInProduction())).getFormattedText());
+                  "gui.mekanismqioprocessing.order_unschedulable").getFormattedText());
+        }
+        if (entry.getInProduction() > 0) {
+            tooltip.add(new TextComponentTranslation(
+                  "gui.mekanismqioprocessing.order_in_production",
+                  TextUtils.format(entry.getInProduction())).getFormattedText());
+            if (entry.isMergeable()) {
+                tooltip.add(new TextComponentTranslation(
+                      "gui.mekanismqioprocessing.order_mergeable",
+                      TextUtils.format(entry.getMergeableInProduction())).getFormattedText());
+            }
         }
         return tooltip;
     }

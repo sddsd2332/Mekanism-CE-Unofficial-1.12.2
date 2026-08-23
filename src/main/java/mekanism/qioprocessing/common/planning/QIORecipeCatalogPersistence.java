@@ -31,10 +31,12 @@ import java.util.concurrent.ConcurrentHashMap;
 /** Sharded, generation-based persistence for the global QIO workbench catalog. */
 final class QIORecipeCatalogPersistence {
 
-    static final int SCHEMA_VERSION = 1;
+    /** Cache format v3: sparse layouts, shared candidates, and bounded candidate identities. */
+    static final int SCHEMA_VERSION = 3;
     private static final int MAX_SHARDS = 1_000_000;
     private static final int MAX_RECORDS_PER_SHARD = 4_096;
     private static final long TARGET_ESTIMATED_SHARD_BYTES = 12L * 1024 * 1024;
+    private static final int MAX_RECOVERY_ARCHIVES = 8;
     private static final String ROOT_PATH = "mekanism/qio_processing/recipe_catalog";
     private static final String MANIFEST_FILE = "manifest.dat";
     private static final String METADATA_FILE = "metadata.dat";
@@ -65,13 +67,79 @@ final class QIORecipeCatalogPersistence {
                         readCandidate(directories, manifest.previous, true, result);
                     }
                 }
+                if (result.isEmpty() && hasCacheState(directories)) {
+                    quarantineInvalidCache(directories);
+                }
                 return Collections.unmodifiableList(result);
             }
         } catch (IOException | RuntimeException error) {
             Mekanism.logger.warn("Unable to read the QIO recipe catalog cache; rebuilding it",
                   error);
+            try {
+                Directories directories = new Directories(worldDirectory);
+                synchronized (directoryLock(directories)) {
+                    quarantineInvalidCache(directories);
+                }
+            } catch (IOException | RuntimeException ignored) {
+                Mekanism.logger.debug("Unable to quarantine the invalid QIO recipe catalog cache",
+                      ignored);
+            }
             return Collections.emptyList();
         }
+    }
+
+    private static boolean hasCacheState(Directories directories) {
+        return directories.manifest.exists() ||
+              QIOProcessingStorageIO.backupFile(directories.manifest).exists() ||
+              directories.generations.exists() || directories.staging.exists();
+    }
+
+    /** Moves incompatible cache state to a recoverable folder instead of retrying it forever. */
+    private static void quarantineInvalidCache(Directories directories) throws IOException {
+        if (!hasCacheState(directories)) return;
+        File recoveryRoot = child(directories.root, "recovery");
+        QIOProcessingStorageIO.ensureDirectory(recoveryRoot);
+        String suffix = Long.toString(System.currentTimeMillis());
+        File destination = child(recoveryRoot, suffix);
+        int attempt = 0;
+        while (destination.exists()) {
+            destination = child(recoveryRoot, suffix + '-' + (++attempt));
+        }
+        QIOProcessingStorageIO.ensureDirectory(destination);
+        moveIfExists(directories.manifest, child(destination, MANIFEST_FILE));
+        moveIfExists(QIOProcessingStorageIO.backupFile(directories.manifest),
+              child(destination, MANIFEST_FILE + ".bak"));
+        moveIfExists(directories.generations, child(destination, "generations"));
+        moveIfExists(directories.staging, child(destination, "staging"));
+        Mekanism.logger.warn(
+              "Moved incompatible QIO recipe catalog cache to {} for manual recovery; rebuilding a fresh cache",
+              destination);
+        retainRecoveryArchives(recoveryRoot);
+    }
+
+    /** Keeps recovery bounded so repeated bad cache writes cannot grow the world indefinitely. */
+    private static void retainRecoveryArchives(@Nonnull File recoveryRoot) {
+        File[] archives = recoveryRoot.listFiles(File::isDirectory);
+        if (archives == null || archives.length <= MAX_RECOVERY_ARCHIVES) return;
+        List<File> ordered = new ArrayList<>(archives.length);
+        Collections.addAll(ordered, archives);
+        ordered.sort(Comparator.comparingLong(File::lastModified).reversed()
+              .thenComparing(File::getName));
+        for (int index = MAX_RECOVERY_ARCHIVES; index < ordered.size(); index++) {
+            File archive = ordered.get(index);
+            try {
+                deleteTree(recoveryRoot, archive);
+                Mekanism.logger.info("Removed old QIO recipe catalog recovery archive {}", archive);
+            } catch (IOException error) {
+                Mekanism.logger.warn("Unable to remove old QIO recipe catalog recovery archive {}",
+                      archive, error);
+            }
+        }
+    }
+
+    private static void moveIfExists(File source, File target) throws IOException {
+        if (!source.exists()) return;
+        moveDirectory(source, target);
     }
 
     static void save(@Nonnull File worldDirectory,
@@ -115,11 +183,13 @@ final class QIORecipeCatalogPersistence {
             cache.forgeData.items.forEach(record -> items.add(tagged("registry", record)));
             cache.itemTypes.forEach(record -> items.add(tagged("catalog", record)));
             writeShards(staging, generation, "items", items, shards);
+            writeShards(staging, generation, "candidates", cache.candidates, shards);
             writeShards(staging, generation, "variants", cache.forgeData.variants, shards);
             writeShards(staging, generation, "ore_dictionary", cache.forgeData.ores, shards);
             writeShards(staging, generation, "matchers", cache.matchers, shards);
             writeShards(staging, generation, "recipes", cache.recipes, shards);
             writeShards(staging, generation, "output_profiles", cache.outputProfiles, shards);
+            writeShards(staging, generation, "candidate_profiles", cache.candidateProfiles, shards);
             writeShards(staging, generation, "reverse_indexes", cache.reverseIndexes, shards);
             NBTTagCompound metadata = new NBTTagCompound();
             metadata.setInteger("schemaVersion", SCHEMA_VERSION);
@@ -209,8 +279,10 @@ final class QIORecipeCatalogPersistence {
         QIOWorkbenchRecipeCatalog.RecipeOutputIndex.CacheData cache =
               new QIOWorkbenchRecipeCatalog.RecipeOutputIndex.CacheData(
               metadata.getString("catalogGenerationId"), metadata.getInteger("recipeCount"),
-              forgeData, itemTypes, category(categories, "matchers"),
-              category(categories, "recipes"), category(categories, "output_profiles"),
+              forgeData, itemTypes, category(categories, "candidates"),
+              category(categories, "matchers"), category(categories, "recipes"),
+              category(categories, "output_profiles"),
+              category(categories, "candidate_profiles"),
               category(categories, "reverse_indexes"));
         if (!categories.isEmpty()) {
             throw new IOException("QIO recipe catalog contains unknown shard categories");

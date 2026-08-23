@@ -94,6 +94,7 @@ public final class GuiQIOWorkbenchConfigurationWindow extends GuiWindow {
     private final MekanismButton deletePatternButton;
     private final MekanismButton addPatternButton;
     private final MekanismButton batchPatternButton;
+    private final MekanismButton restoreRecoveryButton;
     private final MekanismButton resetAllButton;
 
     @Nullable private String selectedProductKey;
@@ -200,6 +201,10 @@ public final class GuiQIOWorkbenchConfigurationWindow extends GuiWindow {
               "gui.mekanismqioprocessing.workbench_batch_open",
               "gui.mekanismqioprocessing.workbench_batch_open_tooltip",
               this::openBatchWindow));
+        restoreRecoveryButton = addChild(button(gui, 140, 232, 106,
+              "gui.mekanismqioprocessing.workbench_recovery_restore",
+              "gui.mekanismqioprocessing.workbench_recovery_restore_tooltip",
+              this::restoreRecovery));
 
         cache().clear();
         if (openedSession != null) {
@@ -1215,6 +1220,10 @@ public final class GuiQIOWorkbenchConfigurationWindow extends GuiWindow {
               DialogType.DANGER);
     }
 
+    private void restoreRecovery() {
+        sendMutation(QIOWorkbenchConfigurationMutation.restoreRecovery());
+    }
+
     private void copyUUID() {
         UUID configUUID = configUUID();
         if (configUUID != null) {
@@ -1303,6 +1312,9 @@ public final class GuiQIOWorkbenchConfigurationWindow extends GuiWindow {
         recipeDownButton.active = editable && recipe;
         deletePatternButton.active = editable && recipe;
         resetAllButton.active = editable;
+        QIOWorkbenchConfigurationSnapshot identity = identitySnapshot();
+        restoreRecoveryButton.active = editable && identity != null &&
+              identity.getRecoveryPatternCount() > 0;
         copyUUIDButton.active = configUUID() != null;
         UUID source = null;
         try {

@@ -99,10 +99,45 @@ public final class QIOAutomationDeviceRegistry {
         if (event.phase != TickEvent.Phase.END || event.side.isClient()) {
             return;
         }
+        clearUnownedLegacyDiagnostics();
         processPending();
         QIOAutomationDeviceDirectoryCleanupService.processPendingChunks();
         pruneStaleEndpoints();
         refreshFrequencyAccess();
+    }
+
+    /**
+     * DATA_ERROR is a legacy lifecycle marker. Clear it automatically only when the host has no
+     * ownership-bearing record (a diagnostic-only quarantine is safe); active ownership stays
+     * isolated for the management-terminal recovery action.
+     */
+    private void clearUnownedLegacyDiagnostics() {
+        List<DefaultQIOAutomationHost> candidates = new ArrayList<>();
+        synchronized (this) {
+            for (LinkedHashMap<QIOAutomationDeviceLocation, Endpoint> endpoints : byUUID.values()) {
+                for (Endpoint endpoint : endpoints.values()) {
+                    if (candidates.size() >= MAX_PENDING_PER_TICK) {
+                        break;
+                    }
+                    DefaultQIOAutomationHost host = endpoint.host;
+                    if ((host.getState() == QIOAutomationHost.State.DATA_ERROR ||
+                          host.getRecoveryState() == QIOAutomationHost.RecoveryState.QUARANTINED)) {
+                        candidates.add(host);
+                    }
+                }
+                if (candidates.size() >= MAX_PENDING_PER_TICK) {
+                    break;
+                }
+            }
+        }
+        for (DefaultQIOAutomationHost host : candidates) {
+            // The ownership/network check can inspect a full frequency snapshot.  Keep it out of
+            // the directory monitor lock so a large recovery scan cannot block registration or
+            // duplicate-identity handling for other machines.
+            if (host.clearUnownedLegacyDiagnostic()) {
+                trackPending(host);
+            }
+        }
     }
 
     @SubscribeEvent

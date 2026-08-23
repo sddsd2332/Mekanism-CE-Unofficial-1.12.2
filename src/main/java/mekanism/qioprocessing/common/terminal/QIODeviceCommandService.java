@@ -7,6 +7,7 @@ import mekanism.qioprocessing.common.content.device.QIOAutomationDeviceSnapshot;
 import mekanism.qioprocessing.common.machine.QIOAutomationDeviceRegistry;
 import mekanism.qioprocessing.common.machine.QIOAutomationForcedRecoveryService;
 import mekanism.qioprocessing.common.processor.QIOCraftingProcessorDeviceRegistry;
+import mekanism.qioprocessing.common.processor.QIOCraftingProcessorForcedRecoveryService;
 
 import javax.annotation.Nonnull;
 import java.util.Objects;
@@ -61,6 +62,38 @@ public final class QIODeviceCommandService {
               snapshot.getConfigurationRevision(), snapshot.isManagementPaused());
 
         if (command == Command.RECOVER) {
+            if (snapshot.getKind() == QIOAutomationDeviceSnapshot.Kind.CRAFTING_PROCESSOR) {
+                QIOCraftingProcessorDeviceRegistry.LoadedProcessor loaded =
+                      QIOCraftingProcessorDeviceRegistry.INSTANCE.findLoaded(deviceUUID,
+                            network.getFrequencyUUID());
+                if (loaded == null || loaded.dimension() != snapshot.getLocation().dimension() ||
+                    !loaded.position().equals(snapshot.getLocation().position())) {
+                    return result(requestId, deviceUUID,
+                          QIODeviceCommandResult.Status.IDENTITY_MISMATCH, network,
+                          snapshot.getConfigurationRevision(), snapshot.isManagementPaused());
+                }
+                if (loaded.processor().getManagementConfigurationRevision() !=
+                    expectedConfigurationRevision) {
+                    return result(requestId, deviceUUID,
+                          QIODeviceCommandResult.Status.REVISION_CONFLICT, network,
+                          loaded.processor().getManagementConfigurationRevision(),
+                          loaded.processor().isManagementPaused());
+                }
+                if (!loaded.processor().getProcessorState().hasRecoveryPending()) {
+                    return result(requestId, deviceUUID, QIODeviceCommandResult.Status.UNCHANGED,
+                          network, expectedConfigurationRevision,
+                          loaded.processor().isManagementPaused());
+                }
+                if (!QIOCraftingProcessorForcedRecoveryService.forceClear(loaded.processor())) {
+                    return result(requestId, deviceUUID, QIODeviceCommandResult.Status.INVALID_STATE,
+                          network, expectedConfigurationRevision,
+                          loaded.processor().isManagementPaused());
+                }
+                QIOCraftingProcessorDeviceRegistry.INSTANCE.refresh(loaded.processor());
+                return result(requestId, deviceUUID, QIODeviceCommandResult.Status.ACCEPTED,
+                      network, loaded.processor().getManagementConfigurationRevision(),
+                      loaded.processor().isManagementPaused());
+            }
             if (snapshot.getKind() != QIOAutomationDeviceSnapshot.Kind.AUTOMATION_MACHINE) {
                 return result(requestId, deviceUUID, QIODeviceCommandResult.Status.INVALID_STATE,
                       network, snapshot.getConfigurationRevision(), snapshot.isManagementPaused());

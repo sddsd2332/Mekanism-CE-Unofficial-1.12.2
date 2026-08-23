@@ -324,12 +324,14 @@ public final class QIOWorkbenchConfigurationClientCache {
         copy.setCount(1);
         PortableResourceDescriptor descriptor;
         try {
-            descriptor = PortableResourceDescriptor.item(copy);
+            // Targets are resolved as recipe selections; a transient ForgeCaps attachment must
+            // not make an otherwise valid item unavailable in the client editor.
+            descriptor = PortableResourceDescriptor.itemIgnoringCapabilities(copy);
         } catch (RuntimeException ignored) {
             return false;
         }
         for (ItemStack existing : batchTargets) {
-            if (PortableResourceDescriptor.item(existing).equals(descriptor)) {
+            if (PortableResourceDescriptor.itemIgnoringCapabilities(existing).equals(descriptor)) {
                 return false;
             }
         }

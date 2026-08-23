@@ -454,6 +454,9 @@ public final class GuiQIOSmartProcessingOrderWindow extends GuiWindow
             } else if (cache().getTotalSize() == 0) {
                 text.add(new TextComponentTranslation(
                       "gui.mekanismqioprocessing.order_empty"));
+            } else if (selected != null && !selected.isSchedulable()) {
+                text.add(new TextComponentTranslation(
+                      "gui.mekanismqioprocessing.order_unschedulable"));
             } else {
                 text.add(new TextComponentTranslation(
                       "gui.mekanismqioprocessing.order_select"));

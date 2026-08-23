@@ -251,23 +251,13 @@ public class TileEntityDigitalMiner extends TileEntityElectricBlock implements I
             setActive(false);
         }
 
-        TransitRequest ejectMap = getEjectItemMap();
-        if (doEject && delayTicks == 0 && !ejectMap.isEmpty()) {
-            TileEntity ejectInv = getEjectInv();
-            TileEntity ejectTile = getEjectTile();
-            if (ejectInv != null && ejectTile != null) {
-                ILogisticalTransporter capability = CapabilityUtils.getCapability(ejectInv, Capabilities.LOGISTICAL_TRANSPORTER_CAPABILITY, facing.getOpposite());
-                TransitResponse response;
-                if (capability == null) {
-                    response = InventoryUtils.putStackInInventory(ejectInv, ejectMap, facing.getOpposite(), false);
-                } else {
-                    response = TransporterUtils.insert(ejectTile, capability, ejectMap, null, true, 0);
-                }
-                if (!response.isEmpty()) {
-                    response.useAll();
-                }
-                delayTicks = 10;
-            }
+        if (doEject && delayTicks == 0) {
+            // Build, insert, and consume one eject request under the same local container
+            // transaction used by QIO's MachineTransferPlan.  Without this boundary a request
+            // could be simulated, then have its source changed by an owned QIO output transfer,
+            // and finally consume a different stack after the destination had already accepted
+            // the predicted one.
+            runContainerTransaction(this::ejectOutputsInTransaction);
         } else if (delayTicks > 0) {
             delayTicks--;
         }
@@ -276,6 +266,31 @@ public class TileEntityDigitalMiner extends TileEntityElectricBlock implements I
             playersUsing.forEach(player -> Mekanism.packetHandler.sendTo(new TileEntityMessage(this, getSmallPacket(new TileNetworkList())), (EntityPlayerMP) player));
         }
         prevEnergy = getEnergy();
+    }
+
+    private void ejectOutputsInTransaction() {
+        TransitRequest ejectMap = getEjectItemMap();
+        if (ejectMap.isEmpty()) {
+            return;
+        }
+        TileEntity ejectInv = getEjectInv();
+        TileEntity ejectTile = getEjectTile();
+        if (ejectInv == null || ejectTile == null) {
+            return;
+        }
+        ILogisticalTransporter capability = CapabilityUtils.getCapability(ejectInv,
+              Capabilities.LOGISTICAL_TRANSPORTER_CAPABILITY, facing.getOpposite());
+        TransitResponse response;
+        if (capability == null) {
+            response = InventoryUtils.putStackInInventory(ejectInv, ejectMap,
+                  facing.getOpposite(), false);
+        } else {
+            response = TransporterUtils.insert(ejectTile, capability, ejectMap, null, true, 0);
+        }
+        if (!response.isEmpty()) {
+            response.useAll();
+        }
+        delayTicks = 10;
     }
 
     //TODO
@@ -539,7 +554,8 @@ public class TileEntityDigitalMiner extends TileEntityElectricBlock implements I
     public TransitRequest getEjectItemMap() {
         EnumFacing outputSide = facing.getOpposite();
         IItemHandler handler = getItemHandler(outputSide);
-        return handler == null ? new HandlerTransitRequest(null) : InventoryUtils.getEjectItemMap(handler, getInventorySlots(outputSide));
+        return handler == null ? new HandlerTransitRequest(null) : InventoryUtils.getEjectItemMap(
+              handler, getInventorySlots(outputSide), slot -> !isContainerExtractionGuarded(slot));
     }
 
     public boolean canInsert(List<ItemStack> stacks) {

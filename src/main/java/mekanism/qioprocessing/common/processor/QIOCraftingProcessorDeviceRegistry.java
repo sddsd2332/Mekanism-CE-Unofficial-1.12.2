@@ -219,7 +219,9 @@ public final class QIOCraftingProcessorDeviceRegistry {
         Block block = processor.getBlockType();
         ResourceLocation blockId = block == null ? null : block.getRegistryName();
         QIOCraftingProcessorState state = processor.getProcessorState();
-        String stateName = identityConflict ? "IDENTITY_CONFLICT" : state.getState().name();
+        boolean recoveryPending = state.hasRecoveryPending();
+        String stateName = identityConflict ? "IDENTITY_CONFLICT" :
+              recoveryPending ? "DATA_ERROR" : state.getState().name();
         if (QIOProcessingNetworkManager.INSTANCE.getIsolationStatus(
               frequency.getFrequencyUUID()) != null) {
             directoryRejectedDevices.add(processorUUID);
@@ -240,7 +242,8 @@ public final class QIOCraftingProcessorDeviceRegistry {
                   Math.min(Integer.MAX_VALUE, state.getActiveLanes().size()),
                   processor.isManagementPaused(),
                   identityConflict ? "Duplicate QIO crafting processor UUID" :
-                        state.getDiagnostic());
+                   recoveryPending && state.getDiagnostic() == null ?
+                         "QIO crafting processor recovery is pending" : state.getDiagnostic());
             network.observeAutomationDevice(snapshot,
                   MekanismConfig.current().qioProcessing.deviceRecordsPerFrequency.val());
             directoryRejectedDevices.remove(processorUUID);

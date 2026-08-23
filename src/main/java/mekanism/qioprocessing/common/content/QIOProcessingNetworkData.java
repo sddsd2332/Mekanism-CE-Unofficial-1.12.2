@@ -1,5 +1,6 @@
 package mekanism.qioprocessing.common.content;
 
+import mekanism.common.Mekanism;
 import mekanism.qioprocessing.api.resource.PortableResourceDescriptor;
 import mekanism.qioprocessing.common.content.buffer.QIOJobBuffer;
 import mekanism.qioprocessing.common.content.job.QIOCraftingJob;
@@ -29,6 +30,7 @@ import mekanism.qioprocessing.common.content.maintenance.QIOMaintenanceRule;
 import mekanism.qioprocessing.common.content.maintenance.QIOMaintenanceRuleCatalog;
 import mekanism.qioprocessing.common.content.device.QIOAutomationDeviceCatalog;
 import mekanism.qioprocessing.common.content.device.QIOAutomationDeviceSnapshot;
+import mekanism.qioprocessing.common.util.QIOHashing;
 import mekanism.qioprocessing.api.machine.QIOAutomationDeviceLocation;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
@@ -64,6 +66,7 @@ public final class QIOProcessingNetworkData {
     private static final int MAX_PERSISTED_JOBS = 1_000_000;
     private static final int MAX_PERSISTED_TRANSFERS = 1_000_000;
     private static final int MAX_PERSISTED_PASSIVE_OPERATIONS = 1_000_000;
+    private static final int MAX_WORKBENCH_RECOVERY_KEYS = 256;
     private static final Comparator<QIOCraftingJob> CLAIM_ORDER = Comparator
           .comparingLong(QIOCraftingJob::getBasePriority).reversed()
           .thenComparingLong(QIOCraftingJob::getEnqueueSequence)
@@ -102,6 +105,9 @@ public final class QIOProcessingNetworkData {
           new QIOAutomationRecipeProfileCatalog();
     private QIOWorkbenchConfiguration workbenchConfiguration =
           new QIOWorkbenchConfiguration();
+    /** Invalidated workbench data is retained for manual recovery instead of blocking the network. */
+    @Nullable
+    private NBTTagCompound workbenchConfigurationRecovery;
     private QIOMaintenanceRuleCatalog maintenanceRules = new QIOMaintenanceRuleCatalog();
     private QIOAutomationDeviceCatalog automationDevices = new QIOAutomationDeviceCatalog();
     private QIOProviderCatalog providerCatalog = new QIOProviderCatalog();
@@ -117,6 +123,7 @@ public final class QIOProcessingNetworkData {
         this.lastKnownFrequencyIdentity = Objects.requireNonNull(lastKnownFrequencyIdentity,
               "lastKnownFrequencyIdentity");
         lifecycle = QIOProcessingNetworkLifecycle.ACTIVE;
+        workbenchConfiguration.bindGenerationChangeListener(this::markDirty);
     }
 
     @Nonnull
@@ -353,6 +360,18 @@ public final class QIOProcessingNetworkData {
     @Nonnull
     public QIOWorkbenchConfiguration getWorkbenchConfiguration() {
         return workbenchConfiguration;
+    }
+
+    public boolean hasWorkbenchConfigurationRecovery() {
+        return workbenchConfigurationRecovery != null;
+    }
+
+    /** Drops the quarantined incompatible configuration after the player has re-encoded routes. */
+    public boolean clearWorkbenchConfigurationRecovery() {
+        if (workbenchConfigurationRecovery == null) return false;
+        workbenchConfigurationRecovery = null;
+        markDirty();
+        return true;
     }
 
     /** Marks a catalog mutation dirty without exposing the network's persistence callback. */
@@ -2178,6 +2197,9 @@ public final class QIOProcessingNetworkData {
         data.setTag("policies", policies.write());
         data.setTag("automationRecipeProfiles", automationRecipeProfiles.write());
         data.setTag("workbenchConfiguration", workbenchConfiguration.write());
+        if (workbenchConfigurationRecovery != null) {
+            data.setTag("workbenchConfigurationRecovery", workbenchConfigurationRecovery.copy());
+        }
         data.setTag("maintenanceRules", maintenanceRules.write());
         data.setTag("automationDevices", automationDevices.write());
         data.setTag("providerCatalog", providerCatalog.write());
@@ -2253,8 +2275,28 @@ public final class QIOProcessingNetworkData {
         network.policies = QIOPolicyCatalog.read(data.getCompoundTag("policies"));
         network.automationRecipeProfiles = QIOAutomationRecipeProfileCatalog.read(
               data.getCompoundTag("automationRecipeProfiles"));
-        network.workbenchConfiguration = QIOWorkbenchConfiguration.read(
-              data.getCompoundTag("workbenchConfiguration"));
+        try {
+            network.workbenchConfiguration = QIOWorkbenchConfiguration.read(
+                  data.getCompoundTag("workbenchConfiguration"));
+        } catch (QIOProcessingDataException error) {
+            // Configuration schema changes must not prevent the frequency from loading. Keep a
+            // bounded copy for manual recovery/inspection and start with an empty editable set.
+            NBTTagCompound invalidConfiguration = data.getCompoundTag("workbenchConfiguration");
+            // Never re-emit an unbounded legacy blob: that would re-trigger the UTF/NBT failure
+            // which caused the quarantine in the first place.
+            network.workbenchConfigurationRecovery = compactWorkbenchRecovery(
+                  invalidConfiguration);
+            network.workbenchConfiguration = new QIOWorkbenchConfiguration();
+            network.repairedOnLoad = true;
+            Mekanism.logger.warn(
+                  "QIO workbench configuration was incompatible and has been cleared for manual recovery",
+                  error);
+        }
+        if (data.hasKey("workbenchConfigurationRecovery", NBT.TAG_COMPOUND)) {
+            NBTTagCompound recovery = data.getCompoundTag("workbenchConfigurationRecovery");
+            network.workbenchConfigurationRecovery = compactWorkbenchRecovery(recovery);
+        }
+        network.workbenchConfiguration.bindGenerationChangeListener(network::markDirty);
         network.maintenanceRules = QIOMaintenanceRuleCatalog.read(frequencyUUID,
               data.getCompoundTag("maintenanceRules"));
         network.automationDevices = QIOAutomationDeviceCatalog.read(
@@ -2737,6 +2779,60 @@ public final class QIOProcessingNetworkData {
             }
         }
         return data.toString();
+    }
+
+    /** Converts an incompatible workbench blob into a bounded, auditable recovery marker. */
+    @Nonnull
+    private static NBTTagCompound compactWorkbenchRecovery(@Nonnull NBTTagCompound raw) {
+        Objects.requireNonNull(raw, "raw");
+        String canonical;
+        try {
+            canonical = raw.toString();
+        } catch (RuntimeException error) {
+            canonical = raw.getKeySet().toString();
+        }
+        // Leave genuinely small records lossless so a later manual tool can still inspect them.
+        // The margin keeps modified-UTF framing and compound overhead below the 65,535-byte
+        // NBTTagString limit that caused the original save failure.
+        if (canonical.getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 16_000) {
+            return raw.copy();
+        }
+        NBTTagCompound result = new NBTTagCompound();
+        result.setBoolean("truncated", true);
+        result.setString("digest", QIOHashing.sha256(canonical));
+        if (raw.hasKey("schema", NBT.TAG_INT)) {
+            result.setInteger("sourceSchema", raw.getInteger("schema"));
+        }
+        NBTTagList keys = new NBTTagList();
+        List<String> sorted = new ArrayList<>(raw.getKeySet());
+        Collections.sort(sorted);
+        for (String key : sorted) {
+            if (keys.tagCount() >= MAX_WORKBENCH_RECOVERY_KEYS) break;
+            keys.appendTag(new net.minecraft.nbt.NBTTagString(
+                  key.substring(0, Math.min(256, key.length()))));
+        }
+        result.setTag("keys", keys);
+        copyWorkbenchRecipeIds(raw, "encodedPatterns", result);
+        copyWorkbenchRecipeIds(raw, "recoveryPatterns", result);
+        return result;
+    }
+
+    private static void copyWorkbenchRecipeIds(@Nonnull NBTTagCompound raw,
+          @Nonnull String key, @Nonnull NBTTagCompound result) {
+        if (!raw.hasKey(key, NBT.TAG_LIST)) return;
+        NBTTagList source = raw.getTagList(key, NBT.TAG_COMPOUND);
+        NBTTagList ids = new NBTTagList();
+        for (int index = 0; index < source.tagCount() &&
+              ids.tagCount() < MAX_WORKBENCH_RECOVERY_KEYS; index++) {
+            NBTTagCompound record = source.getCompoundTagAt(index);
+            if (record.hasKey("recipeId", NBT.TAG_STRING)) {
+                String recipeId = record.getString("recipeId");
+                if (recipeId.length() <= 256) {
+                    ids.appendTag(new net.minecraft.nbt.NBTTagString(recipeId));
+                }
+            }
+        }
+        if (ids.tagCount() > 0) result.setTag(key, ids);
     }
 
     @Nonnull

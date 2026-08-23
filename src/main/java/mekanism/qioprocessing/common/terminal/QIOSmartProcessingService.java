@@ -84,8 +84,13 @@ public final class QIOSmartProcessingService {
     private static CatalogSnapshot buildCatalog(@Nonnull QIOProcessingNetworkData network,
           @Nonnull UUID requester, @Nonnull QIOOrderService.SchedulableResources schedulable) {
         Map<PortableResourceDescriptor, MutableEntry> entries = new LinkedHashMap<>();
+        for (PortableResourceDescriptor resource : schedulable.getVisibleResources()) {
+            entries.computeIfAbsent(resource, ignored -> new MutableEntry()).visible = true;
+        }
         for (PortableResourceDescriptor resource : schedulable.getResources()) {
-            entries.computeIfAbsent(resource, ignored -> new MutableEntry()).schedulable = true;
+            MutableEntry entry = entries.computeIfAbsent(resource, ignored -> new MutableEntry());
+            entry.visible = true;
+            entry.schedulable = true;
         }
         for (QIOCraftingJob job : network.getJobs()) {
             if (job.getState().isTerminal()) continue;
@@ -102,7 +107,7 @@ public final class QIOSmartProcessingService {
         List<QIOSmartProcessingResourceEntry> rows = new ArrayList<>();
         for (Map.Entry<PortableResourceDescriptor, MutableEntry> value : entries.entrySet()) {
             MutableEntry entry = value.getValue();
-            if (entry.schedulable || entry.inProduction > 0) {
+            if (entry.visible || entry.inProduction > 0) {
                 rows.add(new QIOSmartProcessingResourceEntry(value.getKey(), 0, 0, 0,
                       entry.inProduction, entry.schedulable, false,
                       entry.mergeableInProduction, entry.mergeGroupId));
@@ -146,6 +151,7 @@ public final class QIOSmartProcessingService {
         long value = 17;
         value = mix(value, schedulable.getRevision());
         value = mix(value, schedulable.getResources().size());
+        value = mix(value, schedulable.getVisibleResources().size());
         for (QIOCraftingJob job : network.getJobs()) {
             if (job.getState().isTerminal()) continue;
             value = mix(value, job.getJobId().getMostSignificantBits());
@@ -153,6 +159,11 @@ public final class QIOSmartProcessingService {
             value = mix(value, job.getSource().ordinal());
             value = mix(value, job.getRequester() == null ? 0 : job.getRequester().hashCode());
             value = mix(value, job.getActivePlan().getRootResource().hashCode());
+            // A job can keep the same root and route set while its delivered amount, state, or
+            // active operation changes.  Include the runtime revision so a cached terminal page
+            // is invalidated in the same tick that production progress is committed.
+            value = mix(value, job.getRuntimeRevision());
+            value = mix(value, job.getRemainingGuaranteedRootAmount());
         }
         return value & Long.MAX_VALUE;
     }
@@ -208,7 +219,7 @@ public final class QIOSmartProcessingService {
 
     private static final class MutableEntry {
         private long inProduction, mergeableInProduction;
-        private boolean schedulable;
+        private boolean visible, schedulable;
         private UUID mergeGroupId;
     }
 

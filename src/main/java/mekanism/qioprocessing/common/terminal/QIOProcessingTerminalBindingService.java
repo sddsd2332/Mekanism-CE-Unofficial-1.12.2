@@ -29,7 +29,7 @@ public final class QIOProcessingTerminalBindingService {
         Objects.requireNonNull(player, "player");
         if (player.world == null || player.world.isRemote || terminal.getWorld() == null ||
             terminal.getWorld().isRemote || terminal.getWorld() != player.world ||
-            terminal.hasDataError() || terminal.hasIdentityConflict() ||
+            terminal.hasIdentityConflict() ||
             !terminal.isUsableByPlayer(player) ||
             !SecurityUtils.canAccess(player, terminal) ||
             !SecurityUtils.canAccess(frequency.getSecurity(), player.getUniqueID(),
@@ -48,7 +48,7 @@ public final class QIOProcessingTerminalBindingService {
         Objects.requireNonNull(terminal, "terminal");
         Objects.requireNonNull(player, "player");
         return player.world != null && !player.world.isRemote && terminal.getWorld() == player.world &&
-              !terminal.hasDataError() && !terminal.hasIdentityConflict() &&
+              !terminal.hasIdentityConflict() &&
               terminal.isUsableByPlayer(player) &&
               SecurityUtils.canAccess(player, terminal) &&
               terminal.applyAuthorizedBinding(null, player.getUniqueID());

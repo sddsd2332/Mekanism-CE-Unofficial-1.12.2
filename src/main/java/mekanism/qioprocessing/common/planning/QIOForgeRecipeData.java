@@ -16,6 +16,7 @@ import net.minecraftforge.oredict.OreDictionary;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -92,8 +93,6 @@ final class QIOForgeRecipeData {
         for (ItemEntry item : items) {
             NBTTagCompound record = new NBTTagCompound();
             record.setString("registryName", item.registryName);
-            record.setInteger("runtimeItemId", item.runtimeItemId);
-            record.setInteger("runtimeBlockId", item.runtimeBlockId);
             itemRecords.add(record);
             for (FrozenStack variant : item.variants) {
                 NBTTagCompound variantRecord = variant.write();
@@ -342,8 +341,11 @@ final class QIOForgeRecipeData {
             } catch (RuntimeException error) {
                 item = null;
             }
-            if (item == null || item.getRegistryName() == null || byName.containsKey(name)) {
-                return;
+            if (item == null || item.getRegistryName() == null) {
+                throw new IllegalArgumentException("Cached Forge item is no longer registered: " + name);
+            }
+            if (byName.containsKey(name)) {
+                throw new IllegalArgumentException("Cached Forge item is duplicated: " + name);
             }
             int blockId = item instanceof ItemBlock itemBlock ?
                   Block.getIdFromBlock(itemBlock.getBlock()) : -1;
@@ -356,9 +358,13 @@ final class QIOForgeRecipeData {
         private void restoreVariant(NBTTagCompound record) {
             String owner = record.getString("owner");
             MutableItemEntry entry = byName.get(owner);
-            if (entry == null) return;
+            if (entry == null) {
+                throw new IllegalArgumentException("Cached Forge variant owner is unknown: " + owner);
+            }
             FrozenStack stack = FrozenStack.read(record);
-            if (stack.prototype.getItem() != entry.item) return;
+            if (stack.prototype.getItem() != entry.item) {
+                throw new IllegalArgumentException("Cached Forge variant owner changed: " + owner);
+            }
             FrozenStackAccumulator accumulator = variants.computeIfAbsent(owner,
                   ignored -> new FrozenStackAccumulator());
             if (accumulator.size() >= MAX_VARIANTS_PER_ITEM) {
@@ -386,8 +392,7 @@ final class QIOForgeRecipeData {
                 // getOreID registers missing names in Forge 1.12. A cache must never mutate
                 // the live ore dictionary, so stale names are ignored before resolving the ID.
                 if (!OreDictionary.doesOreNameExist(name)) {
-                    oreIndex++;
-                    return;
+                    throw new IllegalArgumentException("Cached ore name is no longer registered: " + name);
                 }
                 NBTTagList values = record.getTagList("stacks", 10);
                 if (values.tagCount() > MAX_ORE_STACKS_PER_NAME) {
@@ -451,9 +456,13 @@ final class QIOForgeRecipeData {
         private int activeOreStackIndex;
 
         private Capture() {
-            itemSource = ForgeRegistries.ITEMS.getValuesCollection().iterator();
+            List<Item> stableItems = new ArrayList<>(ForgeRegistries.ITEMS.getValuesCollection());
+            stableItems.removeIf(item -> item == null || item.getRegistryName() == null);
+            stableItems.sort(Comparator.comparing(item -> item.getRegistryName().toString()));
+            itemSource = Collections.unmodifiableList(stableItems).iterator();
             String[] capturedOreNames = OreDictionary.getOreNames();
-            oreNames = capturedOreNames == null ? new String[0] : capturedOreNames;
+            oreNames = capturedOreNames == null ? new String[0] :
+                  Arrays.copyOf(capturedOreNames, capturedOreNames.length);
         }
 
         int process(int maximumEntries, long deadlineNanos) {
@@ -478,7 +487,12 @@ final class QIOForgeRecipeData {
                             stage = Stage.ORES;
                             continue;
                         }
-                        captureVariantStep();
+                        if (captureVariantStep()) {
+                            // getSubItems is a third-party, non-cancellable Forge call.  Stop
+                            // this slice immediately after it so several such calls cannot
+                            // accumulate beyond the configured time budget.
+                            processed = maximumEntries;
+                        }
                     }
                     case ORES -> {
                         if (oreIndex >= oreNames.length) {
@@ -531,7 +545,7 @@ final class QIOForgeRecipeData {
                   Item.getIdFromItem(item), blockId));
         }
 
-        private void captureVariantStep() {
+        private boolean captureVariantStep() {
             if (activeVariantEntry == null) {
                 activeVariantEntry = items.get(variantIndex);
                 NonNullList<ItemStack> captured = NonNullList.create();
@@ -540,20 +554,20 @@ final class QIOForgeRecipeData {
                 } catch (RuntimeException | LinkageError ignored) {
                     // One broken creative-tab implementation must not abort the catalog.
                 }
-                activeVariantStacks = captured;
-                return;
+                activeVariantStacks = immutableStacks(captured);
+                return true;
             }
             if (activeVariantStackIndex < activeVariantStacks.size() &&
                 activeVariants.size() < MAX_VARIANTS_PER_ITEM) {
                 ItemStack stack = activeVariantStacks.get(activeVariantStackIndex++);
                 if (stack == null || stack.isEmpty() ||
                     stack.getItem() != activeVariantEntry.item ||
-                    stack.getMetadata() == OreDictionary.WILDCARD_VALUE) return;
+                    stack.getMetadata() == OreDictionary.WILDCARD_VALUE) return false;
                 try {
                     activeVariants.add(new FrozenStack(stack));
                 } catch (RuntimeException ignored) {
                 }
-                return;
+                return false;
             }
             if (activeVariants.isEmpty()) {
                 ItemStack fallback = new ItemStack(activeVariantEntry.item);
@@ -570,6 +584,7 @@ final class QIOForgeRecipeData {
             activeVariants = new FrozenStackAccumulator();
             activeVariantStackIndex = 0;
             variantIndex++;
+            return false;
         }
 
         private void captureOreStep() {
@@ -581,7 +596,7 @@ final class QIOForgeRecipeData {
                 }
                 activeOreName = name;
                 try {
-                    activeOreStacks = OreDictionary.getOres(name, false);
+                    activeOreStacks = immutableStacks(OreDictionary.getOres(name, false));
                 } catch (RuntimeException error) {
                     activeOreStacks = Collections.emptyList();
                 }
@@ -610,6 +625,15 @@ final class QIOForgeRecipeData {
 
         private FrozenInput frozenInput() {
             return QIOForgeRecipeData.frozenInput(frozenItems, ores);
+        }
+
+        private static List<ItemStack> immutableStacks(@Nullable List<ItemStack> source) {
+            if (source == null || source.isEmpty()) return Collections.emptyList();
+            List<ItemStack> copies = new ArrayList<>(source.size());
+            for (ItemStack stack : source) {
+                if (stack != null && !stack.isEmpty()) copies.add(stack.copy());
+            }
+            return Collections.unmodifiableList(copies);
         }
     }
 
@@ -674,15 +698,16 @@ final class QIOForgeRecipeData {
         }
         StringBuilder canonical = new StringBuilder();
         for (ItemEntry item : input.items) {
-            canonical.append("I|").append(item.runtimeItemId).append('|')
-                  .append(item.runtimeBlockId).append('|').append(item.registryName).append('\n');
+            // Runtime numeric IDs are Forge-session details, not persistent identities.  The
+            // registry name and frozen variants are the stable cache contract.
+            canonical.append("I|").append(item.registryName).append('\n');
             for (FrozenStack variant : item.variants) {
                 canonical.append("V|").append(item.registryName).append('|')
                       .append(variant.identity).append('\n');
             }
         }
         for (OreEntry ore : input.ores) {
-            canonical.append("O|").append(ore.oreId).append('|').append(ore.name).append('|');
+            canonical.append("O|").append(ore.name).append('|');
             ore.stacks.forEach(stack -> canonical.append(stack.identity).append(';'));
             canonical.append('\n');
         }
@@ -821,7 +846,6 @@ final class QIOForgeRecipeData {
 
         private NBTTagCompound write() {
             NBTTagCompound data = new NBTTagCompound();
-            data.setInteger("oreId", oreId);
             data.setString("name", name);
             NBTTagList values = new NBTTagList();
             stacks.forEach(stack -> values.appendTag(stack.write()));

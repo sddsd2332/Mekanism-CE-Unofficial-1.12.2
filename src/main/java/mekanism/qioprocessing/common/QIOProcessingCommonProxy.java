@@ -31,6 +31,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.fml.common.registry.GameRegistry;
+import net.minecraftforge.common.config.Configuration;
 
 /**
  * QIO 处理模块中的 QIOProcessingCommonProxy 类型。
@@ -49,9 +50,10 @@ public class QIOProcessingCommonProxy implements IGuiProvider {
     }
 
     public void loadConfiguration() {
-        MekanismConfig.local().qioProcessing.load(Mekanism.configurationQIOProcessing);
-        if (Mekanism.configurationQIOProcessing.hasChanged()) {
-            Mekanism.configurationQIOProcessing.save();
+        Configuration configuration = Mekanism.getQIOProcessingConfiguration();
+        MekanismConfig.local().qioProcessing.load(configuration);
+        if (configuration.hasChanged()) {
+            configuration.save();
         }
     }
 

@@ -16,6 +16,7 @@ import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.crafting.CraftingManager;
 import net.minecraft.item.crafting.IRecipe;
+import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.text.TextComponentTranslation;
 
 import java.util.ArrayList;
@@ -202,6 +203,20 @@ public final class GuiQIOWorkbenchPatternWindow extends GuiWindow {
     private ItemStack calculateOutput(List<ItemStack> grid) {
         if (minecraft.world == null || grid.size() != 9 ||
             grid.stream().allMatch(ItemStack::isEmpty)) return ItemStack.EMPTY;
+        ItemStack exact = calculateOutputForGrid(grid);
+        if (!exact.isEmpty()) return exact;
+        // Some integrations attach a context-only ForgeCaps payload while an item is held. Try
+        // the same recipe with a fresh stack that preserves ordinary NBT but has no serialized
+        // capability state, so the encode control remains usable for the server-side fallback.
+        List<ItemStack> neutral = new ArrayList<>(grid.size());
+        for (ItemStack stack : grid) {
+            ItemStack copy = withoutSerializedCapabilities(stack);
+            neutral.add(copy);
+        }
+        return calculateOutputForGrid(neutral);
+    }
+
+    private ItemStack calculateOutputForGrid(List<ItemStack> grid) {
         try {
             InventoryCrafting inventory = MekanismUtils.getDummyCraftingInv();
             for (int slot = 0; slot < 9; slot++) {
@@ -211,7 +226,19 @@ public final class GuiQIOWorkbenchPatternWindow extends GuiWindow {
             if (recipe == null) return ItemStack.EMPTY;
             ItemStack result = recipe.getCraftingResult(inventory);
             return result == null ? ItemStack.EMPTY : result.copy();
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException | LinkageError ignored) {
+            return ItemStack.EMPTY;
+        }
+    }
+
+    private static ItemStack withoutSerializedCapabilities(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return ItemStack.EMPTY;
+        try {
+            ItemStack copy = new ItemStack(stack.getItem(), stack.getCount(), stack.getMetadata());
+            NBTTagCompound tag = stack.getTagCompound();
+            copy.setTagCompound(tag == null ? null : tag.copy());
+            return copy;
+        } catch (RuntimeException | LinkageError ignored) {
             return ItemStack.EMPTY;
         }
     }

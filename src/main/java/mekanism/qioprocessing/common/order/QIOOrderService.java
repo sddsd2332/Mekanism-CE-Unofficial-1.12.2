@@ -247,16 +247,36 @@ public final class QIOOrderService {
     public static final class SchedulableResources {
 
         private final Set<PortableResourceDescriptor> resources;
+        private final Set<PortableResourceDescriptor> visibleResources;
         private final long revision;
 
-        private SchedulableResources(Set<PortableResourceDescriptor> resources, long revision) {
-            this.resources = resources;
+        private SchedulableResources(Set<PortableResourceDescriptor> resources,
+              Set<PortableResourceDescriptor> visibleResources, long revision) {
+            LinkedHashSet<PortableResourceDescriptor> checkedResources =
+                  new LinkedHashSet<>(resources);
+            this.resources = Collections.unmodifiableSet(checkedResources);
+            LinkedHashSet<PortableResourceDescriptor> checkedVisible =
+                  new LinkedHashSet<>(visibleResources);
+            // Every executable output must remain visible even if a caller supplied a
+            // narrower display set.
+            checkedVisible.addAll(checkedResources);
+            this.visibleResources = Collections.unmodifiableSet(checkedVisible);
             this.revision = revision;
         }
 
         @Nonnull
         public Set<PortableResourceDescriptor> getResources() {
             return resources;
+        }
+
+        /**
+         * Returns outputs that belong in the production directory. This may include configured
+         * workbench outputs that currently have no live processor; callers must use
+         * {@link #getResources()} when they need an executable route set.
+         */
+        @Nonnull
+        public Set<PortableResourceDescriptor> getVisibleResources() {
+            return visibleResources;
         }
 
         public long getRevision() {
@@ -678,7 +698,14 @@ public final class QIOOrderService {
             throw new IllegalArgumentException("QIO schedulable resources require a server world");
         }
         if (!QIORecipeCatalogService.INSTANCE.isInitialized()) {
-            QIORecipeCatalogService.INSTANCE.refresh(world);
+            QIORecipeCatalogService.INSTANCE.beginRefresh(world);
+        }
+        if (!QIORecipeCatalogService.INSTANCE.isReady()) {
+            // The catalog is published atomically after its bounded capture.  Returning an
+            // empty projection keeps terminals responsive without exposing a provisional index
+            // that could bind/clear production orders.
+            return new SchedulableResources(Collections.emptySet(), Collections.emptySet(),
+                  QIORecipeCatalogService.INSTANCE.getRevision());
         }
         QIORecipeCatalogService.State recipeState = QIORecipeCatalogService.INSTANCE.getState(
               network.getWorkbenchConfiguration());
@@ -687,7 +714,8 @@ public final class QIOOrderService {
               .getAvailable(network.getFrequencyUUID());
         EffectiveRouteView view = effectiveRouteView(network, providerState, recipeState,
               processors);
-        return new SchedulableResources(view.schedulableOutputs, view.revision);
+        return new SchedulableResources(view.schedulableOutputs, view.visibleOutputs,
+              view.revision);
     }
 
     /** Revalidates route/security inputs while allowing storage quantities to be claim-resolved. */
@@ -702,7 +730,10 @@ public final class QIOOrderService {
             return false;
         }
         if (!QIORecipeCatalogService.INSTANCE.isInitialized()) {
-            QIORecipeCatalogService.INSTANCE.refresh(world);
+            QIORecipeCatalogService.INSTANCE.beginRefresh(world);
+        }
+        if (!QIORecipeCatalogService.INSTANCE.isReady()) {
+            return false;
         }
         QIOProviderCatalog providers = observeProviders(network);
         return revisions.getAccessRevision() == storage.getAccessRevision() &&
@@ -901,6 +932,7 @@ public final class QIOOrderService {
         QIOPlanningRouteClosure.ProviderIndex providerIndex =
               QIOPlanningRouteClosure.indexProviders(providerRoutes);
         Map<ResourceLocation, Long> workbenchPriorities = new LinkedHashMap<>();
+        Set<ResourceLocation> visibleWorkbenchRecipes = new LinkedHashSet<>();
         QIOWorkbenchRecipeCatalog.Snapshot workbench = recipeState.getSnapshot();
         for (PortableResourceDescriptor output : workbench.getOrderedOutputs()) {
             List<ResourceLocation> recipeIds = workbench.getRecipeIds(output);
@@ -918,9 +950,14 @@ public final class QIOOrderService {
                 }
                 QIOWorkbenchRecipeCatalog.RecipeDefinition definition =
                       workbench.getRecipeDefinition(recipeId);
-                if (definition != null && network.getWorkbenchConfiguration()
-                      .isRecipeEnabled(recipeId.toString(), definition.getSignature()) &&
-                    workbenchRecipeAvailableOnAnyProcessor(network, processors, recipeId)) {
+                if (definition == null || !network.getWorkbenchConfiguration()
+                      .isRecipeEnabled(recipeId.toString(), definition.getSignature())) {
+                    continue;
+                }
+                // A configured recipe is useful in the directory even while its execution
+                // device is offline or has not been placed yet.
+                visibleWorkbenchRecipes.add(recipeId);
+                if (workbenchRecipeAvailableOnAnyProcessor(network, processors, recipeId)) {
                     workbenchPriorities.put(recipeId, Long.MAX_VALUE - index);
                 }
             }
@@ -929,16 +966,23 @@ public final class QIOOrderService {
               providerIndex.getOutputs());
         schedulable.addAll(recipeState.getSnapshot().getDeclaredOutputs(
               workbenchPriorities.keySet()));
+        Set<PortableResourceDescriptor> visible = new LinkedHashSet<>(schedulable);
+        visible.addAll(recipeState.getSnapshot().getDeclaredOutputs(visibleWorkbenchRecipes));
         List<PortableResourceDescriptor> orderedOutputs = new ArrayList<>(schedulable);
         Collections.sort(orderedOutputs);
         Set<PortableResourceDescriptor> immutableOutputs = Collections.unmodifiableSet(
               new LinkedHashSet<>(orderedOutputs));
+        List<PortableResourceDescriptor> orderedVisible = new ArrayList<>(visible);
+        Collections.sort(orderedVisible);
+        Set<PortableResourceDescriptor> immutableVisibleOutputs =
+              Collections.unmodifiableSet(new LinkedHashSet<>(orderedVisible));
         long revision = routeViewRevision(recipeState.getRevision(), providerState,
-              policyRevision, deviceRevision, processorIds, immutableOutputs);
+              policyRevision, deviceRevision, processorIds, immutableOutputs,
+              immutableVisibleOutputs);
         EffectiveRouteView next = new EffectiveRouteView(recipeState.getRevision(),
               providerState.getRevision(), providerState.getAvailabilityRevision(),
               policyRevision, deviceRevision, processorIds, providerIndex,
-              workbenchPriorities, immutableOutputs, revision);
+              workbenchPriorities, immutableOutputs, immutableVisibleOutputs, revision);
         effectiveRouteViews.put(network.getFrequencyUUID(), next);
         return next;
     }
@@ -964,13 +1008,16 @@ public final class QIOOrderService {
 
     private static long routeViewRevision(long recipeRevision, QIOProviderCatalog providers,
           long policyRevision, long deviceRevision, List<UUID> processorIds,
-          Set<PortableResourceDescriptor> outputs) {
+          Set<PortableResourceDescriptor> outputs,
+          Set<PortableResourceDescriptor> visibleOutputs) {
         long value = mixRevision(recipeRevision, providers.getRevision());
         value = mixRevision(value, providers.getAvailabilityRevision());
         value = mixRevision(value, policyRevision);
         value = mixRevision(value, deviceRevision);
         for (UUID processorId : processorIds) value = mixRevision(value, processorId.hashCode());
         for (PortableResourceDescriptor output : outputs) value = mixRevision(value,
+              output.hashCode());
+        for (PortableResourceDescriptor output : visibleOutputs) value = mixRevision(value,
               output.hashCode());
         return value & Long.MAX_VALUE;
     }
@@ -1037,6 +1084,7 @@ public final class QIOOrderService {
         private final QIOPlanningRouteClosure.ProviderIndex providerIndex;
         private final Map<ResourceLocation, Long> workbenchPriorities;
         private final Set<PortableResourceDescriptor> schedulableOutputs;
+        private final Set<PortableResourceDescriptor> visibleOutputs;
         private final long revision;
 
         private EffectiveRouteView(long recipeRevision, long providerRevision,
@@ -1044,7 +1092,8 @@ public final class QIOOrderService {
               List<UUID> processorIds,
               QIOPlanningRouteClosure.ProviderIndex providerIndex,
               Map<ResourceLocation, Long> workbenchPriorities,
-              Set<PortableResourceDescriptor> schedulableOutputs, long revision) {
+              Set<PortableResourceDescriptor> schedulableOutputs,
+              Set<PortableResourceDescriptor> visibleOutputs, long revision) {
             this.recipeRevision = recipeRevision;
             this.providerRevision = providerRevision;
             this.providerAvailabilityRevision = providerAvailabilityRevision;
@@ -1055,6 +1104,7 @@ public final class QIOOrderService {
             this.workbenchPriorities = Collections.unmodifiableMap(new LinkedHashMap<>(
                   workbenchPriorities));
             this.schedulableOutputs = schedulableOutputs;
+            this.visibleOutputs = visibleOutputs;
             this.revision = revision;
         }
 

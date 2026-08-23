@@ -76,6 +76,28 @@ public abstract class QIOProcessingTerminal extends TileEntityQIOComponent {
         return dataError != null;
     }
 
+    /**
+     * Clears a legacy terminal diagnostic. Terminals do not own in-flight machine resources, so
+     * resetting a stale marker is lossless and allows the player to bind the terminal again.
+     */
+    public final boolean clearDataErrorForRecovery() {
+        if (dataError == null) {
+            return false;
+        }
+        dataError = null;
+        // A saturated old revision would recreate the same diagnostic on the next binding.
+        if (configurationRevision == Long.MAX_VALUE) {
+            configurationRevision = 0;
+        }
+        markNoUpdateSync();
+        markDirty();
+        if (world != null && !world.isRemote) {
+            QIOProcessingTerminalDeviceRegistry.INSTANCE.refresh(this);
+            Mekanism.packetHandler.sendUpdatePacket(this);
+        }
+        return true;
+    }
+
     public final boolean hasIdentityConflict() {
         return identityConflict;
     }
@@ -106,14 +128,15 @@ public abstract class QIOProcessingTerminal extends TileEntityQIOComponent {
     public final boolean applyAuthorizedBinding(@Nullable QIOFrequency frequency,
           @Nonnull UUID bindingPlayerUUID) {
         Objects.requireNonNull(bindingPlayerUUID, "bindingPlayerUUID");
-        if (hasDataError() || identityConflict) {
+        if (identityConflict) {
             return false;
         }
+        boolean clearedDiagnostic = clearDataErrorForRecovery();
         QIOFrequencyReference updatedReference = frequency == null ? null :
               QIOFrequencyStorageAccess.INSTANCE.createReference(frequency,
                     bindingPlayerUUID);
         if (Objects.equals(frequencyReference, updatedReference)) {
-            return false;
+            return clearedDiagnostic;
         }
         if (frequency == null) {
             getFrequencyComponent().unsetFrequency(FrequencyType.QIO);
@@ -129,7 +152,11 @@ public abstract class QIOProcessingTerminal extends TileEntityQIOComponent {
     /** Restores the exact sustained reference without resolving or creating a name-only frequency. */
     public final boolean restoreExactBinding(@Nonnull UUID bindingPlayerUUID) {
         Objects.requireNonNull(bindingPlayerUUID, "bindingPlayerUUID");
-        if (frequencyReference == null || hasDataError() || identityConflict) {
+        if (identityConflict) {
+            return false;
+        }
+        clearDataErrorForRecovery();
+        if (frequencyReference == null) {
             return false;
         }
         QIOFrequency frequency = QIOProcessingFrequencyAccess.resolveAccessible(
@@ -164,6 +191,9 @@ public abstract class QIOProcessingTerminal extends TileEntityQIOComponent {
     @Override
     protected void onUpdateServer() {
         super.onUpdateServer();
+        // A terminal diagnostic only protects malformed terminal metadata; it never represents
+        // machine/job ownership. Normalize it automatically so an old save cannot lock the block.
+        clearDataErrorForRecovery();
         if ((world.getTotalWorldTime() + getPos().toLong()) % 16 == 0) {
             QIOProcessingTerminalDeviceRegistry.INSTANCE.refresh(this);
         }
@@ -320,6 +350,7 @@ public abstract class QIOProcessingTerminal extends TileEntityQIOComponent {
             configurationRevision++;
         }
         markNoUpdateSync();
+        markDirty();
     }
 
     private static String boundedDiagnostic(String diagnostic) {

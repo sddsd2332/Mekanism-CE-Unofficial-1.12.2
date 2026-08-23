@@ -21,6 +21,7 @@ import net.minecraftforge.items.ItemHandlerHelper;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Consumer;
 
 public final class InventoryUtils {
@@ -106,13 +107,30 @@ public final class InventoryUtils {
     }
 
     public static HandlerTransitRequest getEjectItemMap(IItemHandler handler, List<IInventorySlot> slots) {
-        return getEjectItemMap(new HandlerTransitRequest(handler), slots);
+        return getEjectItemMap(new HandlerTransitRequest(handler), slots, slot -> true);
+    }
+
+    public static HandlerTransitRequest getEjectItemMap(IItemHandler handler,
+          List<IInventorySlot> slots, Predicate<IInventorySlot> extractor) {
+        return getEjectItemMap(new HandlerTransitRequest(handler), slots, extractor);
     }
 
     public static <REQUEST extends HandlerTransitRequest> REQUEST getEjectItemMap(REQUEST request, List<IInventorySlot> slots) {
+        return getEjectItemMap(request, slots, slot -> true);
+    }
+
+    /** Builds an eject request while applying the same extraction predicate used by the caller. */
+    public static <REQUEST extends HandlerTransitRequest> REQUEST getEjectItemMap(
+          REQUEST request, List<IInventorySlot> slots, Predicate<IInventorySlot> extractor) {
+        if (extractor == null) {
+            throw new IllegalArgumentException("Extraction predicate cannot be null");
+        }
         List<IInventorySlot> shuffled = new ArrayList<>(slots);
         Collections.shuffle(shuffled);
         for (IInventorySlot slot : shuffled) {
+            if (!extractor.test(slot)) {
+                continue;
+            }
             ItemStack simulatedExtraction = slot.extractItem(slot.getCount(), Action.SIMULATE, AutomationType.EXTERNAL);
             if (!simulatedExtraction.isEmpty()) {
                 request.addItem(simulatedExtraction, slots.indexOf(slot));

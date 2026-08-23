@@ -30,6 +30,7 @@ import net.minecraftforge.fluids.capability.IFluidHandlerItem;
 import net.minecraftforge.fluids.capability.IFluidTankProperties;
 import net.minecraftforge.fml.common.registry.ForgeRegistries;
 import net.minecraftforge.oredict.OreDictionary;
+import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -53,6 +54,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
+import java.util.function.Predicate;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -97,6 +99,17 @@ public final class QIOWorkbenchRecipeCatalog {
         ANY_OF
     }
 
+    /**
+     * Describes which positions are semantically part of a frozen recipe.  The physical
+     * 3x3 inventory is still materialized at the Forge boundary, but the catalog and cache do
+     * not assign meaning to empty positions in a shapeless recipe.
+     */
+    public enum RecipeLayout {
+        SHAPED,
+        SHAPELESS,
+        ORDERED_UNKNOWN
+    }
+
     private QIOWorkbenchRecipeCatalog() {
     }
 
@@ -131,47 +144,97 @@ public final class QIOWorkbenchRecipeCatalog {
         for (int slot = 0; slot < 9; slot++) {
             inventory.setInventorySlotContents(slot, checkedGrid.get(slot).copy());
         }
-        IRecipe recipe = CraftingManager.findMatchingRecipe(inventory, world);
-        if (recipe == null || recipe.isDynamic() || recipe.getRegistryName() == null) {
-            throw new IllegalArgumentException("No stable workbench recipe matches the encoded grid");
+        IRecipe preferred = null;
+        try {
+            preferred = CraftingManager.findMatchingRecipe(inventory, world);
+        } catch (RuntimeException | LinkageError ignored) {
+            // Some capability providers throw while a held stack is being inspected. The
+            // capability-neutral catalog path below can still identify the recipe.
         }
+        ResourceLocation preferredId = preferred == null ? null : preferred.getRegistryName();
+        QIOWorkbenchConfiguration.EncodedPattern normalized =
+              resolveEncodedPatternFromCatalog(world, checkedGrid, preferredId);
+        if (normalized != null) return normalized;
+        // Keep Forge's normal shaped-recipe placement/mirroring semantics for ordinary stacks.
+        // A stack carrying persisted ForgeCaps must not take this path, otherwise a transient
+        // capability could become part of the saved QIO resource identity.
+        if (preferred != null && !hasSerializedCapabilities(checkedGrid)) {
+            QIOWorkbenchConfiguration.EncodedPattern direct = resolveDirectEncodedPattern(
+                  world, checkedGrid, preferred);
+            if (direct != null) return direct;
+        }
+        throw new IllegalArgumentException(
+              "No stable workbench recipe matches the encoded grid or its frozen variants");
+    }
+
+    @Nullable
+    private static QIOWorkbenchConfiguration.EncodedPattern resolveEncodedPatternFromCatalog(
+          @Nonnull World world, @Nonnull List<ItemStack> selectedGrid,
+          @Nullable ResourceLocation preferredRecipeId) {
+        QIORecipeCatalogService service = QIORecipeCatalogService.INSTANCE;
+        RecipeOutputIndex index = service.getRecipeOutputIndex(world);
+        QIOWorkbenchConfiguration.EncodedPattern result = index.resolveEncodedPattern(world,
+              selectedGrid, preferredRecipeId);
+        if (result != null) return result;
+        // A direct API call can occur while the lifecycle capture is still in progress. Build a
+        // temporary immutable index for that call; normal terminal requests are gated by ready().
+        if (index.getRecipeCount() == 0) {
+            index = RecipeOutputIndex.build(world, ForgeRegistries.RECIPES.getValuesCollection());
+            return index.resolveEncodedPattern(world, selectedGrid, preferredRecipeId);
+        }
+        return null;
+    }
+
+    @Nullable
+    private static QIOWorkbenchConfiguration.EncodedPattern resolveDirectEncodedPattern(
+          @Nonnull World world, @Nonnull List<ItemStack> selectedGrid,
+          @Nonnull IRecipe recipe) {
+        if (recipe.isDynamic() || recipe.getRegistryName() == null) return null;
         List<ItemStack> concreteGrid = new ArrayList<>(9);
-        for (ItemStack stack : checkedGrid) {
+        for (ItemStack stack : selectedGrid) {
             ItemStack concrete = concreteStack(stack);
-            if (!stack.isEmpty() && concrete.isEmpty()) {
-                throw new IllegalArgumentException(
-                      "Workbench recipe grid contains an unresolved wildcard item");
-            }
+            if (!stack.isEmpty() && concrete.isEmpty()) return null;
             concreteGrid.add(concrete);
         }
-        for (int slot = 0; slot < 9; slot++) {
-            inventory.setInventorySlotContents(slot, concreteGrid.get(slot).copy());
+        InventoryCrafting inventory = MekanismUtils.getDummyCraftingInv();
+        try {
+            for (int slot = 0; slot < 9; slot++) {
+                inventory.setInventorySlotContents(slot, concreteGrid.get(slot).copy());
+            }
+            if (!recipe.matches(inventory, world)) return null;
+            ItemStack result = concreteStack(recipe.getCraftingResult(inventory));
+            if (result.isEmpty()) return null;
+            QIORecipeCatalogService service = QIORecipeCatalogService.INSTANCE;
+            RecipeOutputIndex index = service.getRecipeOutputIndex(world);
+            RecipeDefinition definition = index.getRecipeDefinition(recipe.getRegistryName());
+            if (definition == null && index.getRecipeCount() == 0) {
+                index = RecipeOutputIndex.build(world, ForgeRegistries.RECIPES.getValuesCollection());
+                definition = index.getRecipeDefinition(recipe.getRegistryName());
+            }
+            PortableResourceDescriptor output = PortableResourceDescriptor.item(result);
+            if (definition == null || !definition.getOutput().equals(output) ||
+                  definition.getOutputAmount() != result.getCount()) {
+                return null;
+            }
+            return new QIOWorkbenchConfiguration.EncodedPattern(UUID.randomUUID(),
+                  recipe.getRegistryName(), definition.getSignature(), output,
+                  result.getCount(), patternLayout(definition.getLayout()),
+                  encodedGrid(concreteGrid, definition.getLayout()));
+        } catch (RuntimeException | LinkageError ignored) {
+            return null;
         }
-        if (!recipe.matches(inventory, world)) {
-            throw new IllegalArgumentException(
-                  "Workbench recipe grid has no concrete item variant");
+    }
+
+    private static boolean hasSerializedCapabilities(@Nonnull List<ItemStack> grid) {
+        for (ItemStack stack : grid) {
+            if (!stack.isEmpty() && serializedCapabilities(stack) != null) return true;
         }
-        ItemStack result = concreteStack(recipe.getCraftingResult(inventory));
-        if (result == null || result.isEmpty()) {
-            throw new IllegalArgumentException("Workbench recipe produced no output");
-        }
-        Snapshot snapshot = capture(world, Collections.singletonList(recipe), ignored -> 0,
-              DEFAULT_MAX_CANDIDATES_PER_INGREDIENT, DEFAULT_MAX_VARIANTS_PER_RECIPE,
-              DEFAULT_MAX_MATERIALIZED_VARIANTS);
-        RecipeDefinition definition = snapshot.getRecipeDefinition(recipe.getRegistryName());
-        PortableResourceDescriptor output = PortableResourceDescriptor.item(result);
-        if (definition == null || !definition.getOutput().equals(output) ||
-            definition.getOutputAmount() != result.getCount()) {
-            throw new IllegalArgumentException("Workbench recipe output is not stable");
-        }
-        return new QIOWorkbenchConfiguration.EncodedPattern(UUID.randomUUID(),
-              recipe.getRegistryName(), definition.getSignature(), output, result.getCount(),
-              concreteGrid);
+        return false;
     }
 
     /**
-     * Discovers every representable stable recipe for the requested exact output identities.
-     * The global registry is scanned once; candidate combinations then share one bounded budget.
+     * Discovers every representable stable recipe for the requested outputs. Exact capability
+     * identities are preferred; a unique capability-neutral catalog variant is the fallback.
      */
     @Nonnull
     public static List<QIOWorkbenchConfiguration.EncodedPattern> resolveEncodedTargets(
@@ -202,34 +265,37 @@ public final class QIOWorkbenchRecipeCatalog {
             combinationBudget <= 0) {
             throw new IllegalArgumentException("Invalid workbench batch discovery bounds");
         }
-        Map<PortableResourceDescriptor, ItemStack> exactTargets = new LinkedHashMap<>();
+        Map<PortableResourceDescriptor, List<CachedRecipe>> selectedTargets =
+              new LinkedHashMap<>();
         for (ItemStack target : targets) {
             if (target == null || target.isEmpty()) {
                 throw new IllegalArgumentException("Workbench batch target is empty");
             }
             ItemStack copy = target.copy();
             copy.setCount(1);
-            exactTargets.putIfAbsent(PortableResourceDescriptor.item(copy), copy);
+            OutputSelection selection = recipeIndex.resolveOutputSelection(copy);
+            if (selection != null) {
+                selectedTargets.putIfAbsent(selection.output, selection.recipes);
+            }
         }
-        if (exactTargets.isEmpty()) {
-            throw new IllegalArgumentException("Workbench batch target list is empty");
+        if (selectedTargets.isEmpty()) {
+            return Collections.emptyList();
         }
 
         int matchedRecipes = 0;
-        for (PortableResourceDescriptor target : exactTargets.keySet()) {
-            for (CachedRecipe ignored : recipeIndex.recipesFor(target)) {
-                matchedRecipes++;
-                if (matchedRecipes > MAX_BATCH_MATCHED_RECIPES) {
-                    throw new IllegalStateException("Workbench batch matched too many recipes");
-                }
+        for (List<CachedRecipe> recipes : selectedTargets.values()) {
+            if (recipes.size() > MAX_BATCH_MATCHED_RECIPES - matchedRecipes) {
+                throw new IllegalStateException("Workbench batch matched too many recipes");
             }
+            matchedRecipes += recipes.size();
         }
         BatchCombinationBudget budget = new BatchCombinationBudget(combinationBudget);
-        List<PortableResourceDescriptor> orderedTargets = new ArrayList<>(exactTargets.keySet());
+        List<PortableResourceDescriptor> orderedTargets = new ArrayList<>(
+              selectedTargets.keySet());
         Collections.sort(orderedTargets);
         List<QIOWorkbenchConfiguration.EncodedPattern> result = new ArrayList<>();
         for (PortableResourceDescriptor target : orderedTargets) {
-            for (CachedRecipe recipe : recipeIndex.recipesFor(target)) {
+            for (CachedRecipe recipe : selectedTargets.get(target)) {
                 if (!budget.tryCombinations(recipe.combinationCost)) {
                     throw new IllegalStateException(
                           "Workbench batch combination budget exhausted");
@@ -273,7 +339,8 @@ public final class QIOWorkbenchRecipeCatalog {
         }
         return new QIOWorkbenchConfiguration.EncodedPattern(UUID.randomUUID(),
               expected.getRecipeId(), definition.getSignature(), definition.getOutput(),
-              definition.getOutputAmount(), grid);
+              definition.getOutputAmount(), patternLayout(definition.getLayout()),
+              encodedGrid(grid, definition.getLayout()));
     }
 
     /**
@@ -400,7 +467,7 @@ public final class QIOWorkbenchRecipeCatalog {
           QIOWorkbenchConfiguration.EncodedPattern pattern) {
         return new QIOWorkbenchConfiguration.EncodedPattern(pattern.getPatternUUID(),
               pattern.getRecipeId(), pattern.getRecipeSignature(), pattern.getOutput(),
-              pattern.getOutputAmount(), pattern.getGrid());
+              pattern.getOutputAmount(), pattern.getLayout(), pattern.getGrid());
     }
 
     private static List<ItemStack> normalizeGrid(List<ItemStack> grid) {
@@ -430,6 +497,59 @@ public final class QIOWorkbenchRecipeCatalog {
         if (MachineRecipeItemInputs.isConcreteInput(stack)) return stack.copy();
         List<ItemStack> expanded = MachineRecipeItemInputs.expand(stack, null, 1);
         return expanded.isEmpty() ? ItemStack.EMPTY : expanded.get(0).copy();
+    }
+
+    /** Recipe selection ignores context-only capabilities but preserves item metadata and NBT. */
+    private static boolean sameRecipeSelectionItem(ItemStack first, ItemStack second) {
+        return first != null && second != null && !first.isEmpty() && !second.isEmpty() &&
+              ItemStack.areItemsEqual(first, second) && Objects.equals(
+                    first.getTagCompound(), second.getTagCompound()) &&
+              sameOrNeutralCapabilities(first, second);
+    }
+
+    private static boolean sameOrNeutralCapabilities(ItemStack first, ItemStack second) {
+        NBTTagCompound firstCaps = serializedCapabilities(first);
+        NBTTagCompound secondCaps = serializedCapabilities(second);
+        return firstCaps == null || secondCaps == null || firstCaps.equals(secondCaps);
+    }
+
+    @Nullable
+    private static NBTTagCompound serializedCapabilities(@Nullable ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return null;
+        try {
+            NBTTagCompound serialized = stack.writeToNBT(new NBTTagCompound());
+            if (!serialized.hasKey("ForgeCaps", 10)) return null;
+            NBTTagCompound caps = serialized.getCompoundTag("ForgeCaps");
+            return caps.isEmpty() ? null : caps.copy();
+        } catch (RuntimeException | LinkageError ignored) {
+            // A broken capability is never a reason to treat two recipe candidates as equal.
+            return new NBTTagCompound();
+        }
+    }
+
+    private static boolean hasDescriptorCapabilities(
+          PortableResourceDescriptor descriptor) {
+        NBTTagCompound serialized = descriptor.write();
+        return serialized.hasKey("capabilities", 10) &&
+              !serialized.getCompoundTag("capabilities").isEmpty();
+    }
+
+    private static boolean validateNormalizedRecipe(@Nonnull World world,
+          @Nonnull IRecipe recipe, @Nonnull RecipeDefinition definition,
+          @Nonnull List<ItemStack> normalizedGrid) {
+        if (normalizedGrid.size() != 9) return false;
+        try {
+            InventoryCrafting inventory = MekanismUtils.getDummyCraftingInv();
+            for (int slot = 0; slot < 9; slot++) {
+                inventory.setInventorySlotContents(slot, normalizedGrid.get(slot).copy());
+            }
+            if (!recipe.matches(inventory, world)) return false;
+            ItemStack result = concreteStack(recipe.getCraftingResult(inventory));
+            return !result.isEmpty() && definition.getOutputAmount() == result.getCount() &&
+                  definition.getOutput().equals(PortableResourceDescriptor.item(result));
+        } catch (RuntimeException | LinkageError ignored) {
+            return false;
+        }
     }
 
     @Nonnull
@@ -555,7 +675,8 @@ public final class QIOWorkbenchRecipeCatalog {
                 }
                 add(recipe);
                 LogicalRecipe logical = recipes.get(recipeId);
-                if (logical == null || !logical.signature.equals(pattern.getRecipeSignature())) {
+                if (logical == null || !logical.signature.equals(pattern.getRecipeSignature()) ||
+                      !patternLayout(logical.layout).equals(pattern.getLayout())) {
                     recipes.remove(recipeId);
                     diagnostics.add("Encoded workbench recipe signature changed: " + recipeId);
                 }
@@ -571,7 +692,9 @@ public final class QIOWorkbenchRecipeCatalog {
             for (int slot = 0; slot < 9; slot++) {
                 grid.add(MatcherSeed.empty());
             }
+            RecipeLayout layout;
             if (recipe instanceof IShapedRecipe shaped) {
+                layout = RecipeLayout.SHAPED;
                 int width = shaped.getRecipeWidth();
                 int height = shaped.getRecipeHeight();
                 if (width <= 0 || height <= 0 || width > 3 || height > 3 ||
@@ -585,11 +708,28 @@ public final class QIOWorkbenchRecipeCatalog {
                     }
                 }
             } else {
+                layout = isKnownShapelessRecipe(recipe) ? RecipeLayout.SHAPELESS :
+                      RecipeLayout.ORDERED_UNKNOWN;
                 for (int slot = 0; slot < ingredients.size(); slot++) {
                     grid.set(slot, candidates(ingredients.get(slot)));
                 }
             }
-            return new GridCandidates(grid);
+            return new GridCandidates(layout, grid);
+        }
+
+        /** Forge 1.12 has no public IShapelessRecipe marker; keep unknown custom recipes ordered. */
+        private static boolean isKnownShapelessRecipe(@Nonnull IRecipe recipe) {
+            Class<?> type = recipe.getClass();
+            while (type != null) {
+                String name = type.getName();
+                if (name.equals("net.minecraft.item.crafting.ShapelessRecipes") ||
+                      name.equals("net.minecraftforge.oredict.ShapelessOreRecipe") ||
+                      name.endsWith(".ShapelessRecipes") || name.endsWith(".ShapelessOreRecipe")) {
+                    return true;
+                }
+                type = type.getSuperclass();
+            }
+            return false;
         }
 
         private MatcherSeed candidates(Ingredient ingredient) {
@@ -801,10 +941,12 @@ public final class QIOWorkbenchRecipeCatalog {
 
     private static final class GridCandidates {
 
+        private final RecipeLayout layout;
         private final List<MatcherSeed> matchers;
         private final List<List<IngredientChoice>> candidates;
 
-        private GridCandidates(List<MatcherSeed> matchers) {
+        private GridCandidates(RecipeLayout layout, List<MatcherSeed> matchers) {
+            this.layout = Objects.requireNonNull(layout, "layout");
             this.matchers = Collections.unmodifiableList(new ArrayList<>(matchers));
             List<List<IngredientChoice>> choices = new ArrayList<>(matchers.size());
             for (MatcherSeed matcher : matchers) {
@@ -1528,6 +1670,16 @@ public final class QIOWorkbenchRecipeCatalog {
             return recipe == null ? null : recipe.definition;
         }
 
+        @Nullable
+        private QIOWorkbenchConfiguration.EncodedPattern normalizeEncodedPattern(
+              @Nonnull ResourceLocation recipeId, @Nonnull List<ItemStack> selectedGrid,
+              @Nonnull Predicate<List<ItemStack>> validator) {
+            CompiledRecipe recipe = recipes.get(Objects.requireNonNull(recipeId,
+                  "recipeId"));
+            return recipe == null ? null : recipe.normalizeEncodedPattern(selectedGrid,
+                  validator);
+        }
+
         @Nonnull
         public CatalogGeneration getGeneration() {
             return generation;
@@ -1622,6 +1774,7 @@ public final class QIOWorkbenchRecipeCatalog {
         private final PortableResourceDescriptor output;
         private final int outputItemTypeId;
         private final int outputAmount;
+        private final RecipeLayout layout;
         private final boolean shaped;
         private final int width;
         private final int height;
@@ -1632,14 +1785,15 @@ public final class QIOWorkbenchRecipeCatalog {
 
         private RecipeDefinition(ResourceLocation recipeId,
               PortableResourceDescriptor output, int outputItemTypeId, int outputAmount,
-              boolean shaped,
+              RecipeLayout layout,
               int width, int height, String signature,
               List<IngredientDefinition> ingredients, Object generationToken) {
             this.recipeId = recipeId;
             this.output = output;
             this.outputItemTypeId = outputItemTypeId;
             this.outputAmount = outputAmount;
-            this.shaped = shaped;
+            this.layout = Objects.requireNonNull(layout, "layout");
+            this.shaped = layout == RecipeLayout.SHAPED;
             this.width = width;
             this.height = height;
             this.signature = signature;
@@ -1658,11 +1812,22 @@ public final class QIOWorkbenchRecipeCatalog {
         @Nonnull public PortableResourceDescriptor getOutput() { return output; }
         public int getOutputItemTypeId() { return outputItemTypeId; }
         public int getOutputAmount() { return outputAmount; }
+        @Nonnull public RecipeLayout getLayout() { return layout; }
         public boolean isShaped() { return shaped; }
+        public boolean isShapeless() { return layout == RecipeLayout.SHAPELESS; }
         public int getWidth() { return width; }
         public int getHeight() { return height; }
         @Nonnull public String getSignature() { return signature; }
         @Nonnull public List<IngredientDefinition> getIngredients() { return ingredients; }
+        /** Sparse logical entries; shapeless entries are occurrence-ordered and have no slot identity. */
+        @Nonnull
+        public List<IngredientDefinition> getLogicalIngredients() {
+            List<IngredientDefinition> result = new ArrayList<>();
+            for (IngredientDefinition ingredient : ingredients) {
+                if (!ingredient.isEmpty()) result.add(ingredient);
+            }
+            return Collections.unmodifiableList(result);
+        }
         @Nonnull public Map<Integer, Integer> getCondensedInputs() { return condensedInputs; }
     }
 
@@ -1723,6 +1888,7 @@ public final class QIOWorkbenchRecipeCatalog {
         private final int declaredOutputAmount;
         private final List<List<IngredientChoice>> candidates;
         private final List<MatcherKey> matcherKeys;
+        private final RecipeLayout layout;
         private final boolean shaped;
         private final int width;
         private final int height;
@@ -1752,10 +1918,11 @@ public final class QIOWorkbenchRecipeCatalog {
                 copiedKeys.add(matcher.key);
             }
             matcherKeys = Collections.unmodifiableList(copiedKeys);
-            shaped = recipe instanceof IShapedRecipe;
+            layout = grid.layout;
+            shaped = layout == RecipeLayout.SHAPED;
             width = shaped ? ((IShapedRecipe) recipe).getRecipeWidth() : 0;
             height = shaped ? ((IShapedRecipe) recipe).getRecipeHeight() : 0;
-            signature = sha256(structuralSignature());
+            signature = sha256("qio-workbench-recipe-v2|" + structuralSignature());
             this.capturedPriority = capturedPriority;
             this.maxVariants = maxVariants;
             this.maxRetained = maxRetained;
@@ -1781,7 +1948,7 @@ public final class QIOWorkbenchRecipeCatalog {
             return new CompiledRecipe(definition(symbols), symbols.ingredientVariants,
                   baseline, outputs,
                   Objects.requireNonNull(candidateOutputProfiles,
-                        "candidate output profiles"), structuralSignature(), maxVariants,
+                        "candidate output profiles"), signature, maxVariants,
                   maxRetained, combinationCost);
         }
 
@@ -1886,13 +2053,19 @@ public final class QIOWorkbenchRecipeCatalog {
         @Nullable
         private List<IngredientChoice> decodeVariant(String encodedVariant) {
             String[] parts = encodedVariant.split("\\.", -1);
-            if (parts.length != 10 || !"i1".equals(parts[0])) {
+            String prefix = "v2";
+            String layoutCode = layout.name().toLowerCase(java.util.Locale.ROOT);
+            if (parts.length < 2 || !prefix.equals(parts[0]) ||
+                  !layoutCode.equals(parts[1])) {
                 return null;
             }
             List<IngredientChoice> grid = emptyGrid();
             try {
-                for (int slot = 0; slot < 9; slot++) {
-                    int candidateIndex = Integer.parseInt(parts[slot + 1], 36);
+                List<Integer> active = activeCandidateSlots(candidates);
+                if (parts.length != active.size() + 2) return null;
+                for (int index = 0; index < active.size(); index++) {
+                    int slot = active.get(index);
+                    int candidateIndex = Integer.parseInt(parts[index + 2], 36);
                     List<IngredientChoice> slotCandidates = candidates.get(slot);
                     if (candidateIndex < 0 || candidateIndex >= slotCandidates.size()) {
                         return null;
@@ -1982,7 +2155,7 @@ public final class QIOWorkbenchRecipeCatalog {
             }
             return new RecipeDefinition(recipeId, declaredOutput,
                   symbols.itemTypes.getId(declaredOutput), declaredOutputAmount,
-                  shaped, width, height, signature, ingredients, symbols.generationToken);
+                  layout, width, height, signature, ingredients, symbols.generationToken);
         }
 
         private void addBounded(List<ScoredPattern> retained, ScoredPattern candidate) {
@@ -2147,8 +2320,9 @@ public final class QIOWorkbenchRecipeCatalog {
         }
 
         private String variantId(List<IngredientChoice> grid) {
-            StringBuilder encoded = new StringBuilder("i1");
-            for (int slot = 0; slot < grid.size(); slot++) {
+            StringBuilder encoded = new StringBuilder("v2.")
+                  .append(layout.name().toLowerCase(java.util.Locale.ROOT));
+            for (int slot : activeCandidateSlots(candidates)) {
                 int candidateIndex = candidates.get(slot).indexOf(grid.get(slot));
                 if (candidateIndex < 0) {
                     throw new IllegalArgumentException(
@@ -2161,9 +2335,13 @@ public final class QIOWorkbenchRecipeCatalog {
 
         private String structuralSignature() {
             StringBuilder canonical = new StringBuilder(recipeId.toString()).append('|')
-                  .append(recipe.getClass().getName()).append('|').append(declaredOutput)
+                  .append(recipe.getClass().getName()).append('|').append(layout).append('|')
+                  .append(declaredOutput)
                   .append('@').append(declaredOutputAmount).append('|');
             for (int slot = 0; slot < candidates.size(); slot++) {
+                if (candidates.get(slot).size() == 1 && candidates.get(slot).get(0).isEmpty()) {
+                    continue;
+                }
                 canonical.append(slot).append('=');
                 for (IngredientChoice choice : candidates.get(slot)) {
                     canonical.append(choice.sortKey()).append(',');
@@ -2178,6 +2356,7 @@ public final class QIOWorkbenchRecipeCatalog {
     private static final class CompiledRecipe {
 
         private final RecipeDefinition definition;
+        private final RecipeLayout layout;
         private final int[] matcherIds;
         private final IngredientVariantTable ingredientVariants;
         private final List<List<IngredientChoice>> candidates;
@@ -2209,6 +2388,7 @@ public final class QIOWorkbenchRecipeCatalog {
               String structuralSignature, int maxVariants, int maxRetained,
               int combinationCost) {
             this.definition = Objects.requireNonNull(definition, "definition");
+            layout = definition.getLayout();
             this.ingredientVariants = Objects.requireNonNull(ingredientVariants,
                   "ingredientVariants");
             matcherIds = new int[definition.getIngredients().size()];
@@ -2600,11 +2780,16 @@ public final class QIOWorkbenchRecipeCatalog {
         @Nullable
         private List<IngredientChoice> decodeVariant(String encodedVariant) {
             String[] parts = encodedVariant.split("\\.", -1);
-            if (parts.length != 10 || !"i1".equals(parts[0])) return null;
+            String layoutCode = layout.name().toLowerCase(java.util.Locale.ROOT);
+            if (parts.length < 2 || !"v2".equals(parts[0]) ||
+                  !layoutCode.equals(parts[1])) return null;
             List<IngredientChoice> grid = emptyGrid();
             try {
-                for (int slot = 0; slot < 9; slot++) {
-                    int candidateIndex = Integer.parseInt(parts[slot + 1], 36);
+                List<Integer> active = activeCandidateSlots(candidates);
+                if (parts.length != active.size() + 2) return null;
+                for (int index = 0; index < active.size(); index++) {
+                    int slot = active.get(index);
+                    int candidateIndex = Integer.parseInt(parts[index + 2], 36);
                     List<IngredientChoice> slotCandidates = candidates.get(slot);
                     if (candidateIndex < 0 || candidateIndex >= slotCandidates.size()) {
                         return null;
@@ -2618,8 +2803,9 @@ public final class QIOWorkbenchRecipeCatalog {
         }
 
         private String variantId(List<IngredientChoice> grid) {
-            StringBuilder encoded = new StringBuilder("i1");
-            for (int slot = 0; slot < grid.size(); slot++) {
+            StringBuilder encoded = new StringBuilder("v2.")
+                  .append(layout.name().toLowerCase(java.util.Locale.ROOT));
+            for (int slot : activeCandidateSlots(candidates)) {
                 int candidateIndex = candidates.get(slot).indexOf(grid.get(slot));
                 if (candidateIndex < 0) {
                     throw new IllegalArgumentException(
@@ -2637,6 +2823,146 @@ public final class QIOWorkbenchRecipeCatalog {
             } else if (candidate.score.compareTo(retained.element().score) < 0) {
                 retained.remove();
                 retained.add(candidate);
+            }
+        }
+
+        @Nullable
+        private QIOWorkbenchConfiguration.EncodedPattern normalizeEncodedPattern(
+              @Nonnull List<ItemStack> selectedGrid,
+              @Nonnull Predicate<List<ItemStack>> validator) {
+            Objects.requireNonNull(selectedGrid, "selectedGrid");
+            Objects.requireNonNull(validator, "validator");
+            if (selectedGrid.size() != 9) return null;
+
+            List<ItemStack> selectedInputs = new ArrayList<>();
+            List<Integer> selectedPositions = new ArrayList<>();
+            for (int selectedSlot = 0; selectedSlot < selectedGrid.size(); selectedSlot++) {
+                ItemStack selected = selectedGrid.get(selectedSlot);
+                if (selected == null || selected.isEmpty()) continue;
+                ItemStack normalized = selected.copy();
+                normalized.setCount(1);
+                selectedInputs.add(normalized);
+                selectedPositions.add(selectedSlot);
+            }
+
+            List<NormalizationSlot> slots = new ArrayList<>();
+            for (int slot = 0; slot < candidates.size(); slot++) {
+                List<NormalizationOption> options = new ArrayList<>();
+                List<IngredientChoice> choices = candidates.get(slot);
+                boolean hasIngredient = false;
+                for (int choiceIndex = 0; choiceIndex < choices.size(); choiceIndex++) {
+                    IngredientChoice choice = choices.get(choiceIndex);
+                    if (choice.isEmpty()) continue;
+                    hasIngredient = true;
+                    ItemStack candidate = choice.matchingStack();
+                    for (int inputIndex = 0; inputIndex < selectedInputs.size(); inputIndex++) {
+                        ItemStack selected = selectedInputs.get(inputIndex);
+                        if (definition.isShaped() && selectedPositions.get(inputIndex) != slot) {
+                            continue;
+                        }
+                        boolean exact = ItemStack.areItemStacksEqual(selected, candidate);
+                        if (exact || sameRecipeSelectionItem(selected, candidate)) {
+                            options.add(new NormalizationOption(inputIndex, choice,
+                                  exact ? 0 : 1, choiceIndex));
+                        }
+                    }
+                }
+                if (!hasIngredient) continue;
+                if (options.isEmpty()) return null;
+                options.sort(Comparator.comparingInt(
+                      (NormalizationOption option) -> option.penalty)
+                      .thenComparingInt(option -> option.inputIndex)
+                      .thenComparingInt(option -> option.choiceIndex));
+                slots.add(new NormalizationSlot(slot, options));
+            }
+            if (slots.size() != selectedInputs.size()) return null;
+            slots.sort(Comparator.comparingInt(
+                  (NormalizationSlot slot) -> slot.options.size())
+                  .thenComparingInt(slot -> slot.logicalSlot));
+
+            int maximumSteps = maxVariants > Integer.MAX_VALUE / 9 ? Integer.MAX_VALUE :
+                  maxVariants * 9;
+            NormalizationSearch search = new NormalizationSearch(maximumSteps);
+            normalizeEncodedPattern(0, slots, emptyGrid(),
+                  new boolean[selectedInputs.size()], 0, search, validator);
+            if (search.bestGrid == null) return null;
+            return new QIOWorkbenchConfiguration.EncodedPattern(UUID.randomUUID(),
+                  definition.getRecipeId(), definition.getSignature(), definition.getOutput(),
+                  definition.getOutputAmount(), patternLayout(definition.getLayout()),
+                  encodedGrid(matchingGrid(search.bestGrid), definition.getLayout()));
+        }
+
+        private void normalizeEncodedPattern(int depth, List<NormalizationSlot> slots,
+              List<IngredientChoice> grid, boolean[] usedInputs, int penalty,
+              NormalizationSearch search, Predicate<List<ItemStack>> validator) {
+            if (search.attempts >= maxVariants || search.bestPenalty == 0 ||
+                search.steps >= search.maximumSteps ||
+                search.bestGrid != null && penalty >= search.bestPenalty) {
+                return;
+            }
+            if (depth >= slots.size()) {
+                search.attempts++;
+                if (createPattern(grid, candidates) != null) {
+                    List<ItemStack> normalized = matchingGrid(grid);
+                    if (validator.test(normalized)) {
+                        search.bestPenalty = penalty;
+                        search.bestGrid = new ArrayList<>(grid);
+                    }
+                }
+                return;
+            }
+            NormalizationSlot slot = slots.get(depth);
+            for (NormalizationOption option : slot.options) {
+                if (search.steps++ >= search.maximumSteps) return;
+                if (usedInputs[option.inputIndex]) continue;
+                usedInputs[option.inputIndex] = true;
+                grid.set(slot.logicalSlot, option.choice);
+                normalizeEncodedPattern(depth + 1, slots, grid, usedInputs,
+                      penalty + option.penalty, search, validator);
+                grid.set(slot.logicalSlot, IngredientChoice.empty());
+                usedInputs[option.inputIndex] = false;
+                if (search.attempts >= maxVariants || search.bestPenalty == 0) return;
+            }
+        }
+
+        private static final class NormalizationOption {
+
+            private final int inputIndex;
+            private final IngredientChoice choice;
+            private final int penalty;
+            private final int choiceIndex;
+
+            private NormalizationOption(int inputIndex, IngredientChoice choice,
+                  int penalty, int choiceIndex) {
+                this.inputIndex = inputIndex;
+                this.choice = choice;
+                this.penalty = penalty;
+                this.choiceIndex = choiceIndex;
+            }
+        }
+
+        private static final class NormalizationSlot {
+
+            private final int logicalSlot;
+            private final List<NormalizationOption> options;
+
+            private NormalizationSlot(int logicalSlot,
+                  List<NormalizationOption> options) {
+                this.logicalSlot = logicalSlot;
+                this.options = options;
+            }
+        }
+
+        private static final class NormalizationSearch {
+
+            private final int maximumSteps;
+            private int attempts;
+            private int steps;
+            private int bestPenalty = Integer.MAX_VALUE;
+            @Nullable private List<IngredientChoice> bestGrid;
+
+            private NormalizationSearch(int maximumSteps) {
+                this.maximumSteps = maximumSteps;
             }
         }
 
@@ -2665,7 +2991,8 @@ public final class QIOWorkbenchRecipeCatalog {
         private QIOWorkbenchConfiguration.EncodedPattern newPattern() {
             return new QIOWorkbenchConfiguration.EncodedPattern(UUID.randomUUID(),
                   definition.getRecipeId(), definition.getSignature(), definition.getOutput(),
-                  definition.getOutputAmount(), matchingGrid(baselineGrid));
+                  definition.getOutputAmount(), patternLayout(definition.getLayout()),
+                  encodedGrid(matchingGrid(baselineGrid), definition.getLayout()));
         }
 
         private static void checkpoint(BooleanSupplier cancelled) {
@@ -2850,6 +3177,54 @@ public final class QIOWorkbenchRecipeCatalog {
         }
     }
 
+    /** Capability-neutral key used only while selecting a workbench recipe. */
+    private static final class RecipeItemKey {
+
+        private final String registryName;
+        private final int metadata;
+        @Nullable private final NBTTagCompound tag;
+        private final int hashCode;
+
+        private RecipeItemKey(PortableResourceDescriptor descriptor) {
+            if (descriptor.getKind() != PortableResourceDescriptor.Kind.ITEM) {
+                throw new IllegalArgumentException(
+                      "Only item outputs can select workbench recipes");
+            }
+            registryName = descriptor.getRegistryName();
+            metadata = descriptor.getMetadata();
+            tag = descriptor.getTag();
+            hashCode = Objects.hash(registryName, metadata, tag);
+        }
+
+        /** Builds the same key without serializing ForgeCaps from the stack. */
+        private RecipeItemKey(ItemStack stack) {
+            this(PortableResourceDescriptor.itemIgnoringCapabilities(stack));
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof RecipeItemKey key && metadata == key.metadata &&
+                  registryName.equals(key.registryName) && Objects.equals(tag, key.tag);
+        }
+
+        @Override
+        public int hashCode() {
+            return hashCode;
+        }
+    }
+
+    private static final class OutputSelection {
+
+        private final PortableResourceDescriptor output;
+        private final List<CachedRecipe> recipes;
+
+        private OutputSelection(PortableResourceDescriptor output,
+              List<CachedRecipe> recipes) {
+            this.output = Objects.requireNonNull(output, "output");
+            this.recipes = Objects.requireNonNull(recipes, "recipes");
+        }
+    }
+
     /** Fully parsed, immutable workbench directory shared by all frequencies for one server. */
     static final class RecipeOutputIndex {
 
@@ -2861,6 +3236,8 @@ public final class QIOWorkbenchRecipeCatalog {
         };
 
         private final Map<PortableResourceDescriptor, List<CachedRecipe>> recipesByOutput;
+        private final Map<RecipeItemKey, List<PortableResourceDescriptor>> outputsBySelectionKey;
+        private final Map<RecipeItemKey, List<CachedRecipe>> recipesByInputSelectionKey;
         private final Map<ResourceLocation, CachedRecipe> recipesById;
         private final int recipeCount;
         private final CatalogGeneration generation;
@@ -2871,7 +3248,9 @@ public final class QIOWorkbenchRecipeCatalog {
               Map<ResourceLocation, CachedRecipe> recipesById, int recipeCount,
               CatalogGeneration generation, QIOForgeRecipeData forgeData) {
             this.recipesByOutput = recipesByOutput;
+            outputsBySelectionKey = buildOutputSelectionIndex(recipesByOutput.keySet());
             this.recipesById = recipesById;
+            recipesByInputSelectionKey = buildInputSelectionIndex(recipesById.values());
             this.recipeCount = recipeCount;
             this.generation = generation;
             this.forgeData = Objects.requireNonNull(forgeData, "forgeData");
@@ -3044,6 +3423,140 @@ public final class QIOWorkbenchRecipeCatalog {
             return recipes == null ? Collections.emptyList() : recipes;
         }
 
+        /** Resolves a player grid against frozen matcher variants, with exact registry order. */
+        @Nullable
+        private QIOWorkbenchConfiguration.EncodedPattern resolveEncodedPattern(
+              @Nonnull World world, @Nonnull List<ItemStack> selectedGrid,
+              @Nullable ResourceLocation preferredRecipeId) {
+            Set<ResourceLocation> visited = new LinkedHashSet<>();
+            if (preferredRecipeId != null) {
+                CachedRecipe preferred = recipesById.get(preferredRecipeId);
+                QIOWorkbenchConfiguration.EncodedPattern result =
+                      resolveEncodedPattern(world, selectedGrid, preferred);
+                if (result != null) return result;
+                visited.add(preferredRecipeId);
+            }
+            List<CachedRecipe> candidates = indexedInputCandidates(selectedGrid);
+            for (CachedRecipe candidate : candidates) {
+                ResourceLocation recipeId = candidate.compiled.definition.getRecipeId();
+                if (!visited.add(recipeId)) continue;
+                QIOWorkbenchConfiguration.EncodedPattern result =
+                      resolveEncodedPattern(world, selectedGrid, candidate);
+                if (result != null) return result;
+            }
+            return null;
+        }
+
+        @Nonnull
+        private List<CachedRecipe> indexedInputCandidates(List<ItemStack> selectedGrid) {
+            List<CachedRecipe> fallback = Collections.unmodifiableList(
+                  new ArrayList<>(recipesById.values()));
+            List<CachedRecipe> best = null;
+            Set<RecipeItemKey> keys = new LinkedHashSet<>();
+            for (ItemStack selected : selectedGrid) {
+                if (selected == null || selected.isEmpty()) continue;
+                try {
+                    // This index intentionally excludes ForgeCaps. Do not serialize the stack
+                    // here: attached capability providers are allowed to fail during NBT export.
+                    keys.add(new RecipeItemKey(selected));
+                } catch (RuntimeException | LinkageError ignored) {
+                    return fallback;
+                }
+            }
+            for (RecipeItemKey key : keys) {
+                List<CachedRecipe> indexed = recipesByInputSelectionKey.get(key);
+                if (indexed == null || indexed.isEmpty()) return Collections.emptyList();
+                if (best == null || indexed.size() < best.size()) best = indexed;
+            }
+            return best == null ? fallback : best;
+        }
+
+        @Nullable
+        private QIOWorkbenchConfiguration.EncodedPattern resolveEncodedPattern(
+              @Nonnull World world, @Nonnull List<ItemStack> selectedGrid,
+              @Nullable CachedRecipe cached) {
+            if (cached == null) return null;
+            CompiledRecipe compiled = cached.compiled;
+            ResourceLocation recipeId = compiled.definition.getRecipeId();
+            IRecipe recipe = ForgeRegistries.RECIPES.getValue(recipeId);
+            if (recipe == null || recipe.isDynamic() || recipe.getRegistryName() == null) {
+                return null;
+            }
+            return compiled.normalizeEncodedPattern(selectedGrid, normalized ->
+                  validateNormalizedRecipe(world, recipe, compiled.definition, normalized));
+        }
+
+        @Nullable
+        private OutputSelection resolveOutputSelection(@Nonnull ItemStack requested) {
+            ItemStack checked = Objects.requireNonNull(requested, "requested");
+            RecipeItemKey selectionKey = new RecipeItemKey(checked);
+            try {
+                PortableResourceDescriptor exact = PortableResourceDescriptor.item(checked);
+                List<CachedRecipe> exactRecipes = recipesByOutput.get(exact);
+                if (exactRecipes != null && !exactRecipes.isEmpty()) {
+                    return new OutputSelection(exact, exactRecipes);
+                }
+            } catch (RuntimeException | LinkageError ignored) {
+                // Fall through to the capability-neutral output index.
+            }
+            List<PortableResourceDescriptor> variants = outputsBySelectionKey.get(
+                  selectionKey);
+            if (variants == null || variants.isEmpty()) return null;
+            List<PortableResourceDescriptor> neutral = new ArrayList<>(1);
+            for (PortableResourceDescriptor variant : variants) {
+                if (!hasDescriptorCapabilities(variant)) neutral.add(variant);
+            }
+            if (neutral.size() != 1) {
+                throw new IllegalArgumentException(
+                      "Workbench target matches multiple capability variants");
+            }
+            PortableResourceDescriptor normalized = neutral.get(0);
+            return new OutputSelection(normalized, recipesByOutput.get(normalized));
+        }
+
+        private static Map<RecipeItemKey, List<PortableResourceDescriptor>>
+              buildOutputSelectionIndex(Collection<PortableResourceDescriptor> outputs) {
+            Map<RecipeItemKey, List<PortableResourceDescriptor>> mutable =
+                  new LinkedHashMap<>();
+            for (PortableResourceDescriptor output : outputs) {
+                if (output.getKind() != PortableResourceDescriptor.Kind.ITEM) continue;
+                mutable.computeIfAbsent(new RecipeItemKey(output), ignored ->
+                      new ArrayList<>()).add(output);
+            }
+            Map<RecipeItemKey, List<PortableResourceDescriptor>> immutable =
+                  new LinkedHashMap<>();
+            mutable.forEach((key, variants) -> immutable.put(key,
+                  Collections.unmodifiableList(new ArrayList<>(variants))));
+            return Collections.unmodifiableMap(immutable);
+        }
+
+        private static Map<RecipeItemKey, List<CachedRecipe>> buildInputSelectionIndex(
+              Collection<CachedRecipe> recipes) {
+            Map<RecipeItemKey, List<CachedRecipe>> mutable = new LinkedHashMap<>();
+            for (CachedRecipe cached : recipes) {
+                Set<RecipeItemKey> seen = new LinkedHashSet<>();
+                for (List<IngredientChoice> slot : cached.compiled.candidates) {
+                    for (IngredientChoice choice : slot) {
+                        if (choice.isEmpty()) continue;
+                        RecipeItemKey key;
+                        try {
+                            key = new RecipeItemKey(choice.matchingStack());
+                        } catch (RuntimeException | LinkageError ignored) {
+                            continue;
+                        }
+                        if (seen.add(key)) {
+                            mutable.computeIfAbsent(key, ignored -> new ArrayList<>())
+                                  .add(cached);
+                        }
+                    }
+                }
+            }
+            Map<RecipeItemKey, List<CachedRecipe>> immutable = new LinkedHashMap<>();
+            mutable.forEach((key, values) -> immutable.put(key,
+                  Collections.unmodifiableList(new ArrayList<>(values))));
+            return Collections.unmodifiableMap(immutable);
+        }
+
         @Nonnull
         Snapshot snapshotFor(@Nonnull QIOWorkbenchConfiguration configuration) {
             Objects.requireNonNull(configuration, "configuration");
@@ -3066,8 +3579,35 @@ public final class QIOWorkbenchRecipeCatalog {
                   generation);
         }
 
+        /** Returns active pattern IDs that no longer match this immutable catalog generation. */
+        @Nonnull
+        List<String> invalidPatternIds(@Nonnull QIOWorkbenchConfiguration configuration) {
+            Objects.requireNonNull(configuration, "configuration");
+            List<String> invalid = new ArrayList<>();
+            for (QIOWorkbenchConfiguration.EncodedPattern pattern :
+                  configuration.getEncodedPatterns()) {
+                if (!isPatternValid(pattern)) {
+                    invalid.add(pattern.getRecipeId().toString());
+                }
+            }
+            return Collections.unmodifiableList(invalid);
+        }
+
+        /** Validates one encoded pattern without exposing mutable compiled recipe state. */
+        boolean isPatternValid(@Nonnull QIOWorkbenchConfiguration.EncodedPattern pattern) {
+            Objects.requireNonNull(pattern, "pattern");
+            CachedRecipe cached = recipesById.get(pattern.getRecipeId());
+            return cached != null && cached.compiled.matches(pattern);
+        }
+
         int getRecipeCount() {
             return recipeCount;
+        }
+
+        @Nullable
+        private RecipeDefinition getRecipeDefinition(@Nonnull ResourceLocation recipeId) {
+            CachedRecipe recipe = recipesById.get(Objects.requireNonNull(recipeId, "recipeId"));
+            return recipe == null ? null : recipe.compiled.definition;
         }
 
         @Nonnull
@@ -3087,21 +3627,65 @@ public final class QIOWorkbenchRecipeCatalog {
             for (ItemTypeDefinition itemType : generation.itemTypes.entries) {
                 NBTTagCompound record = new NBTTagCompound();
                 record.setInteger("itemTypeId", itemType.itemTypeId);
-                record.setInteger("runtimeItemId", itemType.runtimeItemId);
                 record.setTag("descriptor", itemType.descriptor.write());
                 record.setTag("stack", itemType.serializedPrototype.copy());
                 itemRecords.add(record);
             }
             List<NBTTagCompound> matcherRecords = new ArrayList<>(
                   generation.ingredientVariants.matchers.size());
+            Map<String, IngredientChoice> candidateById = new TreeMap<>();
             for (MatcherDefinition matcher : generation.ingredientVariants.matchers) {
                 NBTTagCompound record = new NBTTagCompound();
                 record.setInteger("matcherId", matcher.matcherId);
                 record.setString("kind", matcher.kind.name());
-                NBTTagList choices = new NBTTagList();
-                matcher.choices.forEach(choice -> choices.appendTag(writeChoice(choice)));
-                record.setTag("choices", choices);
+                NBTTagList candidateIds = new NBTTagList();
+                for (IngredientChoice choice : matcher.choices) {
+                    if (choice.isEmpty()) continue;
+                    candidateById.putIfAbsent(choice.candidateId(), choice);
+                    candidateIds.appendTag(stringTag(choice.candidateId()));
+                }
+                record.setTag("candidateIds", candidateIds);
                 matcherRecords.add(record);
+            }
+            List<NBTTagCompound> candidateRecords = new ArrayList<>(candidateById.size());
+            for (Map.Entry<String, IngredientChoice> entry : candidateById.entrySet()) {
+                IngredientChoice choice = entry.getValue();
+                NBTTagCompound record = new NBTTagCompound();
+                record.setString("candidateId", entry.getKey());
+                record.setInteger("itemTypeId", generation.itemTypes.getId(
+                      choice.itemType.descriptor));
+                record.setTag("resource", choice.resource().write());
+                record.setLong("amount", choice.amount);
+                record.setBoolean("virtualFluid", choice.virtualFluid);
+                candidateRecords.add(record);
+            }
+            Map<String, Integer> profileIds = new LinkedHashMap<>();
+            List<NBTTagCompound> candidateProfileRecords = new ArrayList<>();
+            for (CachedRecipe cached : recipesById.values()) {
+                for (Map<String, Map<PortableResourceDescriptor, Long>> slotProfiles :
+                      cached.compiled.candidateOutputProfiles) {
+                    // Profile contents can contain large capability/NBT identities.  Keep the
+                    // canonical form in memory for equality, but use a fixed-size key for the
+                    // cache's profile table so no unbounded string reaches NBT UTF encoding.
+                    String canonical = profileCanonical(slotProfiles);
+                    String profileKey = sha256(canonical);
+                    if (!profileIds.containsKey(profileKey)) {
+                        int profileId = profileIds.size();
+                        profileIds.put(profileKey, profileId);
+                        NBTTagCompound profileRecord = new NBTTagCompound();
+                        profileRecord.setInteger("profileId", profileId);
+                        NBTTagList profileCandidates = new NBTTagList();
+                        for (Map.Entry<String, Map<PortableResourceDescriptor, Long>> entry :
+                              slotProfiles.entrySet()) {
+                            NBTTagCompound candidate = new NBTTagCompound();
+                            candidate.setString("candidateId", entry.getKey());
+                            candidate.setTag("outputs", writeAmounts(entry.getValue()));
+                            profileCandidates.appendTag(candidate);
+                        }
+                        profileRecord.setTag("candidates", profileCandidates);
+                        candidateProfileRecords.add(profileRecord);
+                    }
+                }
             }
             List<NBTTagCompound> recipeRecords = new ArrayList<>(recipesById.size());
             List<NBTTagCompound> outputProfiles = new ArrayList<>(recipesById.size());
@@ -3113,11 +3697,19 @@ public final class QIOWorkbenchRecipeCatalog {
                 record.setTag("output", definition.output.write());
                 record.setInteger("outputItemTypeId", definition.outputItemTypeId);
                 record.setInteger("outputAmount", definition.outputAmount);
-                record.setBoolean("shaped", definition.shaped);
+                record.setString("layout", definition.layout.name());
                 record.setInteger("width", definition.width);
                 record.setInteger("height", definition.height);
                 record.setString("signature", definition.signature);
-                record.setIntArray("matcherIds", recipe.matcherIds.clone());
+                NBTTagList ingredients = new NBTTagList();
+                for (int slot : activeCandidateSlots(recipe.candidates)) {
+                    NBTTagCompound ingredient = new NBTTagCompound();
+                    if (definition.isShapeless()) ingredient.setInteger("occurrence", slot);
+                    else ingredient.setInteger("slot", slot);
+                    ingredient.setInteger("matcherId", recipe.matcherIds[slot]);
+                    ingredients.appendTag(ingredient);
+                }
+                record.setTag("ingredients", ingredients);
                 recipeRecords.add(record);
 
                 NBTTagCompound profiles = new NBTTagCompound();
@@ -3127,23 +3719,22 @@ public final class QIOWorkbenchRecipeCatalog {
                 profiles.setInteger("maxRetained", recipe.maxRetained);
                 profiles.setInteger("combinationCost", recipe.combinationCost);
                 NBTTagList baseline = new NBTTagList();
-                recipe.baselineGrid.forEach(choice -> baseline.appendTag(
-                      stringTag(choice.candidateId())));
+                for (int slot : activeCandidateSlots(recipe.candidates)) {
+                    NBTTagCompound value = stringTag(recipe.baselineGrid.get(slot).candidateId());
+                    if (definition.isShapeless()) value.setInteger("occurrence", slot);
+                    else value.setInteger("slot", slot);
+                    baseline.appendTag(value);
+                }
                 profiles.setTag("baseline", baseline);
                 profiles.setTag("baselineOutputs", writeAmounts(recipe.baselineOutputs));
                 NBTTagList slots = new NBTTagList();
-                for (int slot = 0; slot < recipe.candidateOutputProfiles.size(); slot++) {
+                for (int slot : activeCandidateSlots(recipe.candidates)) {
                     NBTTagCompound slotRecord = new NBTTagCompound();
-                    slotRecord.setInteger("slot", slot);
-                    NBTTagList candidates = new NBTTagList();
-                    for (Map.Entry<String, Map<PortableResourceDescriptor, Long>> entry :
-                          recipe.candidateOutputProfiles.get(slot).entrySet()) {
-                        NBTTagCompound candidate = new NBTTagCompound();
-                        candidate.setString("candidateId", entry.getKey());
-                        candidate.setTag("outputs", writeAmounts(entry.getValue()));
-                        candidates.appendTag(candidate);
-                    }
-                    slotRecord.setTag("candidates", candidates);
+                    if (definition.isShapeless()) slotRecord.setInteger("occurrence", slot);
+                    else slotRecord.setInteger("slot", slot);
+                    int profileId = profileIds.get(sha256(profileCanonical(
+                          recipe.candidateOutputProfiles.get(slot))));
+                    slotRecord.setInteger("profileId", profileId);
                     slots.appendTag(slotRecord);
                 }
                 profiles.setTag("slots", slots);
@@ -3161,8 +3752,8 @@ public final class QIOWorkbenchRecipeCatalog {
                 reverseIndexes.add(record);
             }
             return new CacheData(generation.getGenerationId(), recipeCount,
-                  forgeData.writeCache(), itemRecords, matcherRecords, recipeRecords,
-                  outputProfiles, reverseIndexes);
+                  forgeData.writeCache(), itemRecords, candidateRecords, matcherRecords,
+                  recipeRecords, outputProfiles, candidateProfileRecords, reverseIndexes);
         }
 
         @Nonnull
@@ -3184,7 +3775,9 @@ public final class QIOWorkbenchRecipeCatalog {
 
             private enum Stage {
                 ITEM_TYPES,
+                CANDIDATES,
                 MATCHERS,
+                CANDIDATE_PROFILES,
                 OUTPUT_PROFILES,
                 RECIPES,
                 FORGE_DATA,
@@ -3197,6 +3790,9 @@ public final class QIOWorkbenchRecipeCatalog {
             private final Map<PortableResourceDescriptor, Integer> itemIds =
                   new LinkedHashMap<>();
             private final List<MatcherDefinition> matchers = new ArrayList<>();
+            private final Map<String, IngredientChoice> candidatesById = new LinkedHashMap<>();
+            private final Map<Integer, Map<String, Map<PortableResourceDescriptor, Long>>>
+                  candidateProfilesById = new LinkedHashMap<>();
             private final Map<String, NBTTagCompound> profilesByRecipe = new LinkedHashMap<>();
             private final Map<ResourceLocation, CompiledRecipe> compiled =
                   new LinkedHashMap<>();
@@ -3204,6 +3800,8 @@ public final class QIOWorkbenchRecipeCatalog {
             private Stage stage = Stage.ITEM_TYPES;
             private int itemIndex;
             private int matcherIndex;
+            private int candidateIndex;
+            private int candidateProfileIndex;
             private int profileIndex;
             private int recipeIndex;
             @Nullable private ItemTypeTable itemTypes;
@@ -3215,9 +3813,10 @@ public final class QIOWorkbenchRecipeCatalog {
 
             private CacheRestore(CacheData data) {
                 this.data = Objects.requireNonNull(data, "data");
-                if (data.itemTypes.size() > 4_000_000 ||
+                if (data.itemTypes.size() > 4_000_000 || data.candidates.size() > 4_000_000 ||
                     data.matchers.size() > 4_000_000 || data.recipes.size() > 4_000_000 ||
-                    data.outputProfiles.size() > 4_000_000) {
+                    data.outputProfiles.size() > 4_000_000 ||
+                    data.candidateProfiles.size() > 4_000_000) {
                     throw new IllegalArgumentException(
                           "QIO recipe cache exceeds structural limits");
                 }
@@ -3239,11 +3838,18 @@ public final class QIOWorkbenchRecipeCatalog {
                         case ITEM_TYPES -> {
                             if (itemIndex >= data.itemTypes.size()) {
                                 itemTypes = new ItemTypeTable(itemDefinitions, itemIds, true);
-                                stage = Stage.MATCHERS;
+                                stage = Stage.CANDIDATES;
                                 continue;
                             }
                             restoreItemType(data.itemTypes.get(itemIndex), itemIndex);
                             itemIndex++;
+                        }
+                        case CANDIDATES -> {
+                            if (candidateIndex >= data.candidates.size()) {
+                                stage = Stage.MATCHERS;
+                                continue;
+                            }
+                            restoreCandidate(data.candidates.get(candidateIndex++));
                         }
                         case MATCHERS -> {
                             if (matcherIndex >= data.matchers.size()) {
@@ -3251,11 +3857,19 @@ public final class QIOWorkbenchRecipeCatalog {
                                 symbols = new CatalogSymbols(
                                       Objects.requireNonNull(itemTypes, "item types"),
                                       variants, Collections.emptyMap());
-                                stage = Stage.OUTPUT_PROFILES;
+                                stage = Stage.CANDIDATE_PROFILES;
                                 continue;
                             }
                             restoreMatcher(data.matchers.get(matcherIndex), matcherIndex);
                             matcherIndex++;
+                        }
+                        case CANDIDATE_PROFILES -> {
+                            if (candidateProfileIndex >= data.candidateProfiles.size()) {
+                                stage = Stage.OUTPUT_PROFILES;
+                                continue;
+                            }
+                            restoreCandidateProfile(
+                                  data.candidateProfiles.get(candidateProfileIndex++));
                         }
                         case OUTPUT_PROFILES -> {
                             if (profileIndex >= data.outputProfiles.size()) {
@@ -3369,14 +3983,28 @@ public final class QIOWorkbenchRecipeCatalog {
                     throw new IllegalArgumentException(
                           "Cached QIO matcher kind is invalid", error);
                 }
-                NBTTagList storedChoices = record.getTagList("choices", 10);
-                if (storedChoices.tagCount() > DEFAULT_MAX_CANDIDATES_PER_INGREDIENT) {
+                NBTTagList storedCandidateIds = record.getTagList("candidateIds", 8);
+                if (storedCandidateIds.tagCount() > DEFAULT_MAX_CANDIDATES_PER_INGREDIENT) {
                     throw new IllegalArgumentException(
                           "Cached QIO matcher has too many choices");
                 }
-                List<IngredientChoice> choices = new ArrayList<>(storedChoices.tagCount());
-                for (int choice = 0; choice < storedChoices.tagCount(); choice++) {
-                    choices.add(readChoice(storedChoices.getCompoundTagAt(choice)));
+                List<IngredientChoice> choices = new ArrayList<>(storedCandidateIds.tagCount());
+                Set<String> seen = new LinkedHashSet<>();
+                for (int choice = 0; choice < storedCandidateIds.tagCount(); choice++) {
+                    String candidateId = storedCandidateIds.getStringTagAt(choice);
+                    IngredientChoice selected = candidatesById.get(candidateId);
+                    if (selected == null || !seen.add(candidateId)) {
+                        throw new IllegalArgumentException("Cached QIO matcher candidate is invalid");
+                    }
+                    choices.add(selected);
+                }
+                if (kind == MatcherKind.EMPTY) {
+                    if (!choices.isEmpty()) {
+                        throw new IllegalArgumentException("Cached empty matcher has candidates");
+                    }
+                    choices = Collections.singletonList(IngredientChoice.empty());
+                } else if (choices.isEmpty()) {
+                    throw new IllegalArgumentException("Cached matcher has no candidates");
                 }
                 if (index == IngredientVariantTable.EMPTY_MATCHER_ID &&
                     (kind != MatcherKind.EMPTY || choices.size() != 1 ||
@@ -3387,6 +4015,53 @@ public final class QIOWorkbenchRecipeCatalog {
                       new MatcherKey(kind, "cache", choices);
                 matchers.add(new MatcherDefinition(index, key, choices,
                       Objects.requireNonNull(itemTypes, "item types")));
+            }
+
+            private void restoreCandidate(NBTTagCompound record) {
+                String candidateId = record.getString("candidateId");
+                if (candidateId.isEmpty() || candidatesById.containsKey(candidateId)) {
+                    throw new IllegalArgumentException("Cached QIO candidate identity is duplicated");
+                }
+                int itemTypeId = record.getInteger("itemTypeId");
+                ItemTypeTable activeItemTypes = Objects.requireNonNull(itemTypes, "item types");
+                if (itemTypeId < 0 || itemTypeId >= activeItemTypes.size()) {
+                    throw new IllegalArgumentException("Cached QIO candidate item type is invalid");
+                }
+                long amount = record.getLong("amount");
+                if (amount <= 0 || !record.hasKey("resource", NBT.TAG_COMPOUND)) {
+                    throw new IllegalArgumentException("Cached QIO candidate definition is invalid");
+                }
+                PortableResourceDescriptor resource = PortableResourceDescriptor.read(
+                      record.getCompoundTag("resource"));
+                IngredientChoice choice = IngredientChoice.fromCache(
+                      activeItemTypes.get(itemTypeId),
+                      resource, amount, record.getBoolean("virtualFluid"));
+                if (!choice.candidateId().equals(candidateId)) {
+                    throw new IllegalArgumentException("Cached QIO candidate signature changed");
+                }
+                candidatesById.put(candidateId, choice);
+            }
+
+            private void restoreCandidateProfile(NBTTagCompound record) {
+                int profileId = record.getInteger("profileId");
+                if (profileId != candidateProfilesById.size() ||
+                      candidateProfilesById.containsKey(profileId)) {
+                    throw new IllegalArgumentException("Cached QIO output profile ID is invalid");
+                }
+                NBTTagList stored = record.getTagList("candidates", 10);
+                if (stored.tagCount() > DEFAULT_MAX_CANDIDATES_PER_INGREDIENT) {
+                    throw new IllegalArgumentException("Cached QIO output profile is too large");
+                }
+                Map<String, Map<PortableResourceDescriptor, Long>> profile = new LinkedHashMap<>();
+                for (int index = 0; index < stored.tagCount(); index++) {
+                    NBTTagCompound candidate = stored.getCompoundTagAt(index);
+                    String candidateId = candidate.getString("candidateId");
+                    if (!candidatesById.containsKey(candidateId) || profile.containsKey(candidateId)) {
+                        throw new IllegalArgumentException("Cached QIO output profile candidate is invalid");
+                    }
+                    profile.put(candidateId, readAmounts(candidate.getTagList("outputs", 10)));
+                }
+                candidateProfilesById.put(profileId, Collections.unmodifiableMap(profile));
             }
 
             private void restoreRecipe(NBTTagCompound record) {
@@ -3409,9 +4084,40 @@ public final class QIOWorkbenchRecipeCatalog {
                     throw new IllegalArgumentException(
                           "Cached QIO recipe output ID is invalid");
                 }
-                int[] matcherIds = record.getIntArray("matcherIds");
-                if (matcherIds.length != 9) {
-                    throw new IllegalArgumentException("Cached QIO recipe grid is invalid");
+                RecipeLayout layout;
+                try {
+                    layout = RecipeLayout.valueOf(record.getString("layout"));
+                } catch (RuntimeException error) {
+                    throw new IllegalArgumentException("Cached QIO recipe layout is invalid", error);
+                }
+                int[] matcherIds = new int[9];
+                NBTTagList storedIngredients = record.getTagList("ingredients", 10);
+                if (storedIngredients.tagCount() > 9) {
+                    throw new IllegalArgumentException("Cached QIO recipe has too many ingredients");
+                }
+                boolean[] seenSlots = new boolean[9];
+                for (int index = 0; index < storedIngredients.tagCount(); index++) {
+                    NBTTagCompound stored = storedIngredients.getCompoundTagAt(index);
+                    int slot = layout == RecipeLayout.SHAPELESS ?
+                          stored.getInteger("occurrence") : stored.getInteger("slot");
+                    if (slot < 0 || slot >= 9 || seenSlots[slot] ||
+                          !stored.hasKey("matcherId")) {
+                        throw new IllegalArgumentException("Cached QIO recipe ingredient position is invalid");
+                    }
+                    int matcherId = stored.getInteger("matcherId");
+                    if (matcherId == IngredientVariantTable.EMPTY_MATCHER_ID) {
+                        throw new IllegalArgumentException("Cached QIO recipe stores an empty ingredient");
+                    }
+                    activeVariants.get(matcherId);
+                    matcherIds[slot] = matcherId;
+                    seenSlots[slot] = true;
+                }
+                if (layout == RecipeLayout.SHAPELESS) {
+                    for (int index = 0; index < storedIngredients.tagCount(); index++) {
+                        if (!seenSlots[index]) {
+                            throw new IllegalArgumentException("Cached shapeless occurrences are not contiguous");
+                        }
+                    }
                 }
                 List<IngredientDefinition> ingredients = new ArrayList<>(9);
                 for (int slot = 0; slot < matcherIds.length; slot++) {
@@ -3421,7 +4127,7 @@ public final class QIOWorkbenchRecipeCatalog {
                 }
                 RecipeDefinition definition = new RecipeDefinition(recipeId, output,
                       outputItemTypeId, positiveInt(record, "outputAmount"),
-                      record.getBoolean("shaped"), record.getInteger("width"),
+                      layout, record.getInteger("width"),
                       record.getInteger("height"), hash(record.getString("signature"),
                       "recipe signature"), ingredients, activeSymbols.generationToken);
                 NBTTagCompound profile = profilesByRecipe.remove(recipeId.toString());
@@ -3434,7 +4140,8 @@ public final class QIOWorkbenchRecipeCatalog {
                 Map<PortableResourceDescriptor, Long> baselineOutputs = readAmounts(
                       profile.getTagList("baselineOutputs", 10));
                 List<Map<String, Map<PortableResourceDescriptor, Long>>> candidateProfiles =
-                      readOutputProfiles(profile, definition, activeVariants);
+                      readOutputProfiles(profile, definition, activeVariants,
+                            candidateProfilesById);
                 compiled.put(recipeId, new CompiledRecipe(definition, activeVariants,
                       baseline, baselineOutputs, candidateProfiles,
                       structuralSignature(profile.getString("structuralSignature")),
@@ -3471,50 +4178,24 @@ public final class QIOWorkbenchRecipeCatalog {
             return true;
         }
 
-        private static NBTTagCompound writeChoice(IngredientChoice choice) {
-            NBTTagCompound data = new NBTTagCompound();
-            data.setBoolean("empty", choice.isEmpty());
-            if (choice.isEmpty()) return data;
-            data.setTag("stack", Objects.requireNonNull(choice.itemType,
-                  "ingredient item type").serializedPrototype.copy());
-            data.setTag("resource", choice.resource().write());
-            data.setLong("amount", choice.amount);
-            data.setBoolean("virtualFluid", choice.virtualFluid);
-            data.setString("sortKey", choice.sortKey);
-            data.setString("candidateId", choice.candidateId);
-            return data;
-        }
-
-        private static IngredientChoice readChoice(NBTTagCompound data) {
-            if (data.getBoolean("empty")) return IngredientChoice.empty();
-            ItemStack stack = new ItemStack(data.getCompoundTag("stack"));
-            if (stack.isEmpty()) {
-                throw new IllegalArgumentException("Cached QIO ingredient stack is unresolved");
-            }
-            PortableResourceDescriptor resource = PortableResourceDescriptor.read(
-                  data.getCompoundTag("resource"));
-            long amount = data.getLong("amount");
-            String sortKey = data.getString("sortKey");
-            if (amount <= 0 || sortKey.isEmpty()) {
-                throw new IllegalArgumentException("Cached QIO ingredient choice is invalid");
-            }
-            IngredientChoice choice = new IngredientChoice(stack, resource, amount,
-                  data.getBoolean("virtualFluid"), sortKey);
-            if (!choice.candidateId.equals(data.getString("candidateId"))) {
-                throw new IllegalArgumentException("Cached QIO ingredient signature changed");
-            }
-            return choice;
-        }
-
         private static List<IngredientChoice> readBaseline(NBTTagCompound profile,
               RecipeDefinition definition, IngredientVariantTable variants) {
             NBTTagList baseline = profile.getTagList("baseline", 10);
-            if (baseline.tagCount() != 9) {
-                throw new IllegalArgumentException("Cached QIO baseline grid is invalid");
+            if (baseline.tagCount() > 9) {
+                throw new IllegalArgumentException("Cached QIO baseline is too large");
             }
             List<IngredientChoice> result = new ArrayList<>(9);
-            for (int slot = 0; slot < 9; slot++) {
-                String candidateId = baseline.getCompoundTagAt(slot).getString("value");
+            for (int slot = 0; slot < 9; slot++) result.add(IngredientChoice.empty());
+            boolean[] seen = new boolean[9];
+            for (int index = 0; index < baseline.tagCount(); index++) {
+                NBTTagCompound stored = baseline.getCompoundTagAt(index);
+                int slot = definition.isShapeless() ? stored.getInteger("occurrence") :
+                      stored.getInteger("slot");
+                if (slot < 0 || slot >= 9 || seen[slot] ||
+                      definition.ingredients.get(slot).isEmpty()) {
+                    throw new IllegalArgumentException("Cached QIO baseline position is invalid");
+                }
+                String candidateId = stored.getString("value");
                 List<IngredientChoice> choices = variants.choices(
                       definition.ingredients.get(slot).matcherId);
                 IngredientChoice selected = null;
@@ -3527,51 +4208,89 @@ public final class QIOWorkbenchRecipeCatalog {
                 if (selected == null) {
                     throw new IllegalArgumentException("Cached QIO baseline choice is missing");
                 }
-                result.add(selected);
+                result.set(slot, selected);
+                seen[slot] = true;
+            }
+            if (definition.isShapeless()) {
+                for (int index = 0; index < baseline.tagCount(); index++) {
+                    if (!seen[index]) throw new IllegalArgumentException(
+                          "Cached shapeless baseline occurrences are not contiguous");
+                }
             }
             return result;
         }
 
         private static List<Map<String, Map<PortableResourceDescriptor, Long>>>
               readOutputProfiles(NBTTagCompound profile, RecipeDefinition definition,
-              IngredientVariantTable variants) {
-            NBTTagList slots = profile.getTagList("slots", 10);
-            if (slots.tagCount() != 9) {
-                throw new IllegalArgumentException("Cached QIO output profiles are invalid");
+              IngredientVariantTable variants,
+              Map<Integer, Map<String, Map<PortableResourceDescriptor, Long>>> profileTable) {
+            if (!profile.hasKey("slots", NBT.TAG_LIST)) {
+                throw new IllegalArgumentException("Cached QIO output profile has no slots list");
+            }
+            NBTTagList slots = profile.getTagList("slots", NBT.TAG_COMPOUND);
+            if (slots.tagCount() > 9) {
+                throw new IllegalArgumentException("Cached QIO output profiles are too large");
             }
             List<Map<String, Map<PortableResourceDescriptor, Long>>> result =
                   new ArrayList<>(9);
-            for (int slot = 0; slot < 9; slot++) result.add(null);
+            for (int slot = 0; slot < 9; slot++) result.add(Collections.emptyMap());
+            boolean[] seen = new boolean[9];
+            String positionKey = definition.isShapeless() ? "occurrence" : "slot";
             for (int index = 0; index < slots.tagCount(); index++) {
                 NBTTagCompound slotRecord = slots.getCompoundTagAt(index);
-                int slot = slotRecord.getInteger("slot");
-                if (slot < 0 || slot >= 9 || result.get(slot) != null) {
-                    throw new IllegalArgumentException("Cached QIO output profile slot is invalid");
+                if (!slotRecord.hasKey(positionKey, NBT.TAG_INT) ||
+                      !slotRecord.hasKey("profileId", NBT.TAG_INT)) {
+                    throw new IllegalArgumentException(
+                          "Cached QIO output profile slot record is incomplete");
+                }
+                int slot = slotRecord.getInteger(positionKey);
+                if (slot < 0 || slot >= definition.ingredients.size() || slot >= 9 ||
+                      seen[slot]) {
+                    throw new IllegalArgumentException("Cached QIO output profile position is invalid");
+                }
+                if (definition.ingredients.get(slot).isEmpty()) {
+                    throw new IllegalArgumentException("Cached QIO output profile targets an empty ingredient");
                 }
                 Set<String> allowed = new LinkedHashSet<>();
                 variants.choices(definition.ingredients.get(slot).matcherId)
                       .forEach(choice -> allowed.add(choice.candidateId()));
-                Map<String, Map<PortableResourceDescriptor, Long>> candidates =
-                      new LinkedHashMap<>();
-                NBTTagList stored = slotRecord.getTagList("candidates", 10);
-                if (stored.tagCount() > DEFAULT_MAX_CANDIDATES_PER_INGREDIENT) {
-                    throw new IllegalArgumentException("Cached QIO output profile is too large");
+                int profileId = slotRecord.getInteger("profileId");
+                if (profileId < 0) {
+                    throw new IllegalArgumentException("Cached QIO output profile ID is invalid");
                 }
-                for (int candidateIndex = 0; candidateIndex < stored.tagCount();
-                     candidateIndex++) {
-                    NBTTagCompound candidate = stored.getCompoundTagAt(candidateIndex);
-                    String candidateId = candidate.getString("candidateId");
-                    if (!allowed.contains(candidateId) || candidates.put(candidateId,
-                          readAmounts(candidate.getTagList("outputs", 10))) != null) {
+                Map<String, Map<PortableResourceDescriptor, Long>> candidates =
+                      profileTable.get(profileId);
+                if (candidates == null || candidates.isEmpty()) {
+                    throw new IllegalArgumentException("Cached QIO output profile reference is invalid");
+                }
+                for (String candidateId : candidates.keySet()) {
+                    if (candidateId == null || candidateId.isEmpty() ||
+                          !allowed.contains(candidateId) || candidates.get(candidateId) == null) {
                         throw new IllegalArgumentException(
                               "Cached QIO candidate output profile is invalid");
                     }
                 }
                 result.set(slot, Collections.unmodifiableMap(candidates));
+                seen[slot] = true;
             }
-            for (Map<String, Map<PortableResourceDescriptor, Long>> slot : result) {
-                if (slot == null) {
-                    throw new IllegalArgumentException("Cached QIO output profile slot is absent");
+            int expected = 0;
+            for (IngredientDefinition ingredient : definition.ingredients) {
+                if (!ingredient.isEmpty()) expected++;
+            }
+            if (slots.tagCount() != expected) {
+                throw new IllegalArgumentException("Cached QIO output profile slot count is invalid");
+            }
+            if (definition.isShapeless()) {
+                for (int index = 0; index < expected; index++) {
+                    if (!seen[index]) throw new IllegalArgumentException(
+                          "Cached shapeless output profile occurrences are not contiguous");
+                }
+            } else {
+                for (int index = 0; index < definition.ingredients.size(); index++) {
+                    if (!definition.ingredients.get(index).isEmpty() && !seen[index]) {
+                        throw new IllegalArgumentException(
+                              "Cached shaped output profile is missing an ingredient slot");
+                    }
                 }
             }
             return Collections.unmodifiableList(result);
@@ -3588,6 +4307,24 @@ public final class QIOWorkbenchRecipeCatalog {
                 result.appendTag(entry);
             }
             return result;
+        }
+
+        private static String profileCanonical(
+              Map<String, Map<PortableResourceDescriptor, Long>> profile) {
+            StringBuilder canonical = new StringBuilder();
+            List<String> candidateIds = new ArrayList<>(profile.keySet());
+            Collections.sort(candidateIds);
+            for (String candidateId : candidateIds) {
+                canonical.append(candidateId).append('=');
+                Map<PortableResourceDescriptor, Long> outputs = profile.get(candidateId);
+                List<PortableResourceDescriptor> resources = new ArrayList<>(outputs.keySet());
+                Collections.sort(resources);
+                for (PortableResourceDescriptor resource : resources) {
+                    canonical.append(resource).append('@').append(outputs.get(resource)).append(';');
+                }
+                canonical.append('|');
+            }
+            return canonical.toString();
         }
 
         private static Map<PortableResourceDescriptor, Long> readAmounts(NBTTagList values) {
@@ -3637,11 +4374,7 @@ public final class QIOWorkbenchRecipeCatalog {
         }
 
         private static String structuralSignature(String value) {
-            if (value == null || value.isEmpty() || value.length() > 16 * 1024 * 1024) {
-                throw new IllegalArgumentException(
-                      "Cached QIO recipe structural signature is invalid");
-            }
-            return value;
+            return hash(value, "recipe structural signature");
         }
 
         static final class CacheData {
@@ -3650,15 +4383,19 @@ public final class QIOWorkbenchRecipeCatalog {
             final int recipeCount;
             final QIOForgeRecipeData.CacheData forgeData;
             final List<NBTTagCompound> itemTypes;
+            final List<NBTTagCompound> candidates;
             final List<NBTTagCompound> matchers;
             final List<NBTTagCompound> recipes;
             final List<NBTTagCompound> outputProfiles;
+            final List<NBTTagCompound> candidateProfiles;
             final List<NBTTagCompound> reverseIndexes;
 
             CacheData(String generationId, int recipeCount,
                   QIOForgeRecipeData.CacheData forgeData,
-                  List<NBTTagCompound> itemTypes, List<NBTTagCompound> matchers,
-                  List<NBTTagCompound> recipes, List<NBTTagCompound> outputProfiles,
+                  List<NBTTagCompound> itemTypes, List<NBTTagCompound> candidates,
+                  List<NBTTagCompound> matchers, List<NBTTagCompound> recipes,
+                  List<NBTTagCompound> outputProfiles,
+                  List<NBTTagCompound> candidateProfiles,
                   List<NBTTagCompound> reverseIndexes) {
                 this.generationId = hash(generationId, "generation signature");
                 if (recipeCount < 0) {
@@ -3667,9 +4404,11 @@ public final class QIOWorkbenchRecipeCatalog {
                 this.recipeCount = recipeCount;
                 this.forgeData = Objects.requireNonNull(forgeData, "forgeData");
                 this.itemTypes = immutableTags(itemTypes);
+                this.candidates = immutableTags(candidates);
                 this.matchers = immutableTags(matchers);
                 this.recipes = immutableTags(recipes);
                 this.outputProfiles = immutableTags(outputProfiles);
+                this.candidateProfiles = immutableTags(candidateProfiles);
                 this.reverseIndexes = immutableTags(reverseIndexes);
             }
 
@@ -3729,7 +4468,18 @@ public final class QIOWorkbenchRecipeCatalog {
                 Objects.requireNonNull(recipes, "recipes");
                 this.world = world;
                 this.listener = Objects.requireNonNull(listener, "listener");
-                recipeSource = recipes.iterator();
+                // Forge's registry collection is live.  Keep the complete recipe set stable
+                // for this lifecycle so late registration cannot invalidate iterator state or
+                // make two ticks observe different recipe counts.
+                List<IRecipe> stableRecipes = new ArrayList<>(recipes.size());
+                for (IRecipe recipe : recipes) {
+                    if (recipe != null) stableRecipes.add(recipe);
+                }
+                stableRecipes.sort(Comparator.comparing(recipe -> {
+                    ResourceLocation id = recipe.getRegistryName();
+                    return id == null ? "" : id.toString();
+                }));
+                recipeSource = Collections.unmodifiableList(stableRecipes).iterator();
                 if (captureGlobalForgeData) {
                     forgeCapture = QIOForgeRecipeData.beginCapture();
                     stage = Stage.FORGE_CAPTURE;
@@ -4426,10 +5176,42 @@ public final class QIOWorkbenchRecipeCatalog {
         return grid;
     }
 
+    private static QIOWorkbenchConfiguration.PatternLayout patternLayout(RecipeLayout layout) {
+        return switch (Objects.requireNonNull(layout, "layout")) {
+            case SHAPED -> QIOWorkbenchConfiguration.PatternLayout.SHAPED;
+            case SHAPELESS -> QIOWorkbenchConfiguration.PatternLayout.SHAPELESS;
+            case ORDERED_UNKNOWN -> QIOWorkbenchConfiguration.PatternLayout.ORDERED_UNKNOWN;
+        };
+    }
+
+    /** Returns only semantically occupied recipe positions; empty shaped cells are omitted. */
+    private static List<Integer> activeCandidateSlots(
+          List<List<IngredientChoice>> candidates) {
+        List<Integer> result = new ArrayList<>();
+        for (int slot = 0; slot < candidates.size(); slot++) {
+            List<IngredientChoice> choices = candidates.get(slot);
+            if (!(choices.size() == 1 && choices.get(0).isEmpty())) {
+                result.add(slot);
+            }
+        }
+        return result;
+    }
+
     private static List<ItemStack> matchingGrid(List<IngredientChoice> grid) {
         List<ItemStack> copy = new ArrayList<>(grid.size());
         grid.forEach(choice -> copy.add(choice.matchingStack()));
         return copy;
+    }
+
+    /** Materializes the frequency-facing representation; shapeless inputs are packed by occurrence. */
+    private static List<ItemStack> encodedGrid(List<ItemStack> grid, RecipeLayout layout) {
+        if (layout != RecipeLayout.SHAPELESS) return grid;
+        List<ItemStack> packed = new ArrayList<>(9);
+        for (ItemStack stack : grid) {
+            if (stack != null && !stack.isEmpty()) packed.add(stack.copy());
+        }
+        while (packed.size() < 9) packed.add(ItemStack.EMPTY);
+        return packed;
     }
 
     private static boolean[] virtualFluidSlots(List<IngredientChoice> grid) {
@@ -4517,6 +5299,21 @@ public final class QIOWorkbenchRecipeCatalog {
             }
             PortableResourceDescriptor item = PortableResourceDescriptor.item(stack);
             return new IngredientChoice(stack, item, 1, false, "I|" + item);
+        }
+
+        private static IngredientChoice fromCache(ItemTypeDefinition itemType,
+              PortableResourceDescriptor resource, long amount, boolean virtualFluid) {
+            Objects.requireNonNull(itemType, "itemType");
+            Objects.requireNonNull(resource, "resource");
+            String sortKey;
+            if (virtualFluid) {
+                String container = itemType.descriptor.toString();
+                sortKey = "F|" + resource + '|' + amount + '|' + container;
+            } else {
+                sortKey = "I|" + resource;
+            }
+            return new IngredientChoice(itemType.prototype, resource, amount, virtualFluid,
+                  sortKey);
         }
 
         private static IngredientChoice fluid(ItemStack matchingStack, FluidStack fluid) {

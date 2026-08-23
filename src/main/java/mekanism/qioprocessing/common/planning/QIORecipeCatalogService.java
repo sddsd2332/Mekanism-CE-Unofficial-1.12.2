@@ -93,7 +93,10 @@ public final class QIORecipeCatalogService {
         cancelBuild();
         this.world = Objects.requireNonNull(world, "world");
         snapshot = null;
-        recipeOutputIndex = QIOWorkbenchRecipeCatalog.RecipeOutputIndex.empty();
+        // Do not publish an empty provisional index.  Callers use the presence of an index as
+        // the initialized signal, and binding that index used to clear every frequency's
+        // product-order table while the real capture was still running.
+        recipeOutputIndex = null;
         generationTrusted = false;
         loadedCacheGenerationId = null;
         loadedForgeSignature = null;
@@ -115,7 +118,10 @@ public final class QIORecipeCatalogService {
         cacheLoadFuture = worldDirectory == null ? CompletableFuture.completedFuture(
               Collections.emptyList()) : CompletableFuture.supplyAsync(() ->
                     QIORecipeCatalogPersistence.loadCandidates(worldDirectory), catalogWorkers);
-        Collection<IRecipe> recipes = ForgeRegistries.RECIPES.getValuesCollection();
+        // Forge registry collections are live and may be mutated by late recipe integrations.
+        // Capture a stable server-thread view before handing it to the incremental scanner.
+        Collection<IRecipe> recipes = Collections.unmodifiableList(new java.util.ArrayList<>(
+              ForgeRegistries.RECIPES.getValuesCollection()));
         captureActiveTicks = 0;
         Mekanism.logger.info(
               "[QIO Recipe Catalog] Build started: preparing {} registered workbench recipes; players may join while it builds",
@@ -131,7 +137,8 @@ public final class QIORecipeCatalogService {
         recipeOutputIndex = null;
         frequencySnapshots.clear();
         incrementRevision();
-        Collection<IRecipe> recipes = ForgeRegistries.RECIPES.getValuesCollection();
+        Collection<IRecipe> recipes = Collections.unmodifiableList(new java.util.ArrayList<>(
+              ForgeRegistries.RECIPES.getValuesCollection()));
         long startedNanos = System.nanoTime();
         Mekanism.logger.info(
               "[QIO Recipe Catalog] Synchronous build started: preparing {} registered workbench recipes",
@@ -233,12 +240,37 @@ public final class QIORecipeCatalogService {
         if (snapshot != null) {
             return snapshot;
         }
+        if (capture != null || !generationTrusted) {
+            throw new IllegalStateException("QIO workbench recipe catalog is still loading");
+        }
         if (recipeOutputIndex == null) {
             if (world == null) {
                 throw new IllegalStateException("QIO workbench recipe catalog has no server world");
             }
             recipeOutputIndex = QIOWorkbenchRecipeCatalog.RecipeOutputIndex.build(
                   world, ForgeRegistries.RECIPES.getValuesCollection());
+            generationTrusted = true;
+        }
+        String previousCatalogGeneration = configuration.getCatalogGenerationId();
+        configuration.bindCatalogGeneration(recipeOutputIndex.getGenerationId());
+        if (!previousCatalogGeneration.equals(recipeOutputIndex.getGenerationId())) {
+            frequencySnapshots.keySet().removeIf(existing ->
+                  existing.configUUID.equals(configuration.getConfigUUID()));
+        }
+        // A recipe can keep the same registry ID while its ingredients/signature change (for
+        // example through CRT/GRS). Move such entries out of the active planner immediately so
+        // they cannot leave this frequency in a permanently invalid state. The immutable copy is
+        // retained in recovery for an explicit player decision.
+        List<String> invalidPatterns = recipeOutputIndex.invalidPatternIds(configuration);
+        if (!invalidPatterns.isEmpty()) {
+            int quarantined = configuration.quarantineEncodedPatterns(invalidPatterns);
+            if (quarantined > 0) {
+                Mekanism.logger.warn(
+                      "[QIO Recipe Catalog] Moved {} changed workbench patterns to recovery for frequency configuration {}",
+                      quarantined, configuration.getConfigUUID());
+                frequencySnapshots.keySet().removeIf(existing ->
+                      existing.configUUID.equals(configuration.getConfigUUID()));
+            }
         }
         SnapshotKey key = new SnapshotKey(configuration.getConfigUUID(),
               configuration.getPatternRevision());
@@ -268,13 +300,37 @@ public final class QIORecipeCatalogService {
         return mixed & Long.MAX_VALUE;
     }
 
+    /** Restores only recovery patterns which still match the currently published catalog. */
+    public synchronized int restoreRecoveryPatterns(@Nonnull QIOWorkbenchConfiguration configuration) {
+        Objects.requireNonNull(configuration, "configuration");
+        QIOWorkbenchRecipeCatalog.RecipeOutputIndex index = recipeOutputIndex;
+        if (capture != null || !generationTrusted) {
+            return 0;
+        }
+        if (index == null) {
+            if (world == null) return 0;
+            index = QIOWorkbenchRecipeCatalog.RecipeOutputIndex.build(
+                  world, ForgeRegistries.RECIPES.getValuesCollection());
+            recipeOutputIndex = index;
+        }
+        int restored = configuration.restoreRecoveryPatterns(index::isPatternValid);
+        if (restored > 0) {
+            frequencySnapshots.keySet().removeIf(existing ->
+                  existing.configUUID.equals(configuration.getConfigUUID()));
+        }
+        return restored;
+    }
+
     public synchronized boolean isInitialized() {
-        return snapshot != null || recipeOutputIndex != null;
+        // A capture/cache restore is an initialized lifecycle as well.  This prevents callers
+        // from restarting the build every tick, while isReady() remains the publication gate.
+        return snapshot != null || recipeOutputIndex != null || capture != null ||
+              cacheLoadFuture != null || cacheRestore != null;
     }
 
     /** True only after the active generation has been atomically published. */
     public synchronized boolean isReady() {
-        return isInitialized() && generationTrusted && capture == null;
+        return generationTrusted && capture == null && recipeOutputIndex != null;
     }
 
     /** Returns the parsed immutable directory built for the active server lifecycle. */
@@ -286,8 +342,16 @@ public final class QIORecipeCatalogService {
             this.world = world;
         }
         if (recipeOutputIndex == null) {
+            // Direct recipe-selection calls can happen while the lifecycle capture is still in
+            // progress.  Give those callers a temporary immutable view without publishing it or
+            // touching any frequency configuration.
+            if (capture != null || !generationTrusted) {
+                return QIOWorkbenchRecipeCatalog.RecipeOutputIndex.build(
+                      world, new java.util.ArrayList<>(ForgeRegistries.RECIPES.getValuesCollection()));
+            }
             recipeOutputIndex = QIOWorkbenchRecipeCatalog.RecipeOutputIndex.build(
-                  world, ForgeRegistries.RECIPES.getValuesCollection());
+                  world, new java.util.ArrayList<>(ForgeRegistries.RECIPES.getValuesCollection()));
+            generationTrusted = true;
         }
         return recipeOutputIndex;
     }
