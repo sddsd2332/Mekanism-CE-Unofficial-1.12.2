@@ -109,7 +109,7 @@ public abstract class TileEntityFarmMachine<RECIPE extends FarmMachineRecipe<REC
 
         initializeInventorySlots();
         configComponent.setupItemIOExtraConfig(inputSlot, new ArrayList<>(outputSlots), mergedTankSlot, energySlot);
-        configComponent.setConfig(TransmissionType.ITEM, DataType.ENERGY, DataType.INPUT, DataType.NONE, DataType.NONE, DataType.NONE, DataType.OUTPUT);
+        configComponent.setConfig(TransmissionType.ITEM, DataType.ENERGY, DataType.EMPTY, DataType.NONE, DataType.EXTRA, DataType.INPUT, DataType.OUTPUT);
 
         configComponent.setupInputConfig(TransmissionType.FLUID, mergedTank.getFluidTank());
         configComponent.setupInputConfig(TransmissionType.GAS, mergedTank.getGasTank());
