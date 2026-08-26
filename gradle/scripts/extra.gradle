@@ -3,8 +3,3 @@
 
 // If you wish to use the default helper methods, uncomment the line below
 // apply from: 'gradle/scripts/helpers.gradle'
-
-// The shaded archive contains more than 65,535 entries, so it must use ZIP64.
-tasks.named('shadowJar').configure {
-    setZip64(true)
-}
