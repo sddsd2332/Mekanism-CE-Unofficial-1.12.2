@@ -4,6 +4,7 @@ import mekanism.qioprocessing.api.resource.PortableResourceDescriptor;
 import mekanism.qioprocessing.common.content.QIOProcessingDataException;
 import mekanism.qioprocessing.common.content.QIOProcessingNbt;
 import mekanism.qioprocessing.common.util.QIOHashing;
+import mekanism.qioprocessing.common.util.QIORecipeStackUtils;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.nbt.NBTTagString;
@@ -915,12 +916,13 @@ public final class QIOWorkbenchConfiguration {
                 String key = paletteKey(stack);
                 if (!paletteIds.containsKey(key)) {
                     paletteIds.put(key, palette.size());
-                    palette.add(stack.copy());
+                    palette.add(QIORecipeStackUtils.copyForRecipeSelection(stack));
                 }
             }
         });
         NBTTagList storedPalette = new NBTTagList();
-        palette.forEach(stack -> storedPalette.appendTag(stack.writeToNBT(new NBTTagCompound())));
+        palette.forEach(stack -> storedPalette.appendTag(
+              QIORecipeStackUtils.writeForRecipeSelection(stack)));
         data.setTag("patternPalette", storedPalette);
         NBTTagList storedPatterns = new NBTTagList();
         encodedPatterns.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
@@ -940,7 +942,7 @@ public final class QIOWorkbenchConfiguration {
     }
 
     private static String paletteKey(ItemStack stack) {
-        return stack.writeToNBT(new NBTTagCompound()).toString();
+        return QIORecipeStackUtils.writeForRecipeSelection(stack).toString();
     }
 
     @Nonnull
@@ -978,7 +980,8 @@ public final class QIOWorkbenchConfiguration {
             }
             List<ItemStack> palette = new ArrayList<>(storedPalette.tagCount());
             for (int index = 0; index < storedPalette.tagCount(); index++) {
-                ItemStack stack = new ItemStack(storedPalette.getCompoundTagAt(index));
+                ItemStack stack = QIORecipeStackUtils.readForRecipeSelection(
+                      storedPalette.getCompoundTagAt(index));
                 if (stack.isEmpty()) throw new QIOProcessingDataException(
                       "Workbench pattern palette contains an empty stack");
                 stack.setCount(1);
@@ -1456,7 +1459,7 @@ public final class QIOWorkbenchConfiguration {
             this.patternUUID = Objects.requireNonNull(patternUUID, "patternUUID");
             this.recipeId = Objects.requireNonNull(recipeId, "recipeId");
             this.recipeSignature = checkedHash(recipeSignature, "recipeSignature");
-            this.output = Objects.requireNonNull(output, "output");
+            this.output = Objects.requireNonNull(output, "output").withoutCapabilities();
             this.layout = Objects.requireNonNull(layout, "layout");
             if (outputAmount <= 0) {
                 throw new IllegalArgumentException("Workbench encoded output amount must be positive");
@@ -1476,9 +1479,8 @@ public final class QIOWorkbenchConfiguration {
                 while (source.size() < 9) source.add(ItemStack.EMPTY);
             }
             for (ItemStack stack : source) {
-                ItemStack checked = stack == null || stack.isEmpty() ? ItemStack.EMPTY : stack.copy();
+                ItemStack checked = QIORecipeStackUtils.copyForRecipeSelection(stack, 1);
                 if (!checked.isEmpty()) {
-                    checked.setCount(1);
                     hasInput = true;
                 }
                 copy.add(checked);
@@ -1497,7 +1499,7 @@ public final class QIOWorkbenchConfiguration {
         @Nonnull public PatternLayout getLayout() { return layout; }
         @Nonnull public List<ItemStack> getGrid() {
             List<ItemStack> copy = new ArrayList<>(grid.size());
-            grid.forEach(stack -> copy.add(stack.copy()));
+            grid.forEach(stack -> copy.add(QIORecipeStackUtils.copyForRecipeSelection(stack)));
             return Collections.unmodifiableList(copy);
         }
 
@@ -1521,7 +1523,8 @@ public final class QIOWorkbenchConfiguration {
                 !recipeSignature.equals(pattern.recipeSignature) || !output.equals(pattern.output) ||
                 outputAmount != pattern.outputAmount || grid.size() != pattern.grid.size()) return false;
             for (int index = 0; index < grid.size(); index++) {
-                if (!ItemStack.areItemStacksEqual(grid.get(index), pattern.grid.get(index))) return false;
+                if (!QIORecipeStackUtils.sameRecipeSelectionWithCount(grid.get(index),
+                      pattern.grid.get(index))) return false;
             }
             return true;
         }
@@ -1586,7 +1589,8 @@ public final class QIOWorkbenchConfiguration {
                       paletteIndex >= palette.size()) {
                     throw new QIOProcessingDataException("Workbench encoded pattern entry is invalid");
                 }
-                grid.set(slot, palette.get(paletteIndex).copy());
+                grid.set(slot, QIORecipeStackUtils.copyForRecipeSelection(
+                      palette.get(paletteIndex)));
                 seen[slot] = true;
             }
             if (layout == PatternLayout.SHAPELESS) {
@@ -1613,8 +1617,12 @@ public final class QIOWorkbenchConfiguration {
 
         @Override
         public int hashCode() {
+            StringBuilder stableGrid = new StringBuilder();
+            for (ItemStack stack : grid) {
+                stableGrid.append(QIORecipeStackUtils.writeForRecipeSelection(stack)).append(';');
+            }
             return Objects.hash(patternUUID, recipeId, recipeSignature, output, outputAmount,
-                  layout, grid.toString());
+                  layout, stableGrid.toString());
         }
     }
 }

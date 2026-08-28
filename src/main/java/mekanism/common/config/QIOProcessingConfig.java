@@ -2,6 +2,7 @@ package mekanism.common.config;
 
 import io.netty.buffer.ByteBuf;
 import mekanism.common.config.options.BooleanOption;
+import mekanism.common.config.options.EnumOption;
 import mekanism.common.config.options.IntOption;
 import mekanism.common.config.options.LongOption;
 import net.minecraftforge.common.config.ConfigCategory;
@@ -128,10 +129,23 @@ public class QIOProcessingConfig extends BaseConfig {
           "recipe_catalog", "workerThreads", DEFAULT_RECIPE_CATALOG_WORKER_THREADS,
           "Dedicated worker threads used to compile frozen QIO recipe catalog data.", 1, 32)
           .setRequiresGameRestart();
+    public final EnumOption<QIORecipeCatalogScanMode> recipeCatalogScanMode =
+          new EnumOption<>(this, "recipe_catalog", "scanMode",
+                QIORecipeCatalogScanMode.FIRST_ONLY,
+                "Workbench recipe scan policy. FULL validates every startup; FIRST_ONLY " +
+                      "rebuilds only without a compatible cache; CHANGED also rebuilds after " +
+                      "a player encodes an uncached recipe; DISABLED skips the global catalog, " +
+                      "keeps direct nine-slot encoding and UUID configuration copies available, " +
+                      "and disables batch or recursive discovery. Values: FULL, FIRST_ONLY, " +
+                      "CHANGED, DISABLED.")
+                .setRequiresWorldRestart();
 
     @Override
     public void load(Configuration config) {
         super.load(config);
+        config.get("recipe_catalog", "scanMode",
+              QIORecipeCatalogScanMode.FIRST_ONLY.name())
+              .setValidValues(new String[]{"FULL", "FIRST_ONLY", "CHANGED", "DISABLED"});
         recipeCatalogCapturesPerTick.load(config);
         recipeCatalogCaptureTimePerTick.load(config);
         recipeCatalogWorkerThreads.load(config);

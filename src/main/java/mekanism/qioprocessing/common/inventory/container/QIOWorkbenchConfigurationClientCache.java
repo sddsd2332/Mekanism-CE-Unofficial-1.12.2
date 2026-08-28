@@ -2,6 +2,7 @@ package mekanism.qioprocessing.common.inventory.container;
 
 import mekanism.qioprocessing.api.resource.PortableResourceDescriptor;
 import mekanism.qioprocessing.common.content.workbench.QIOWorkbenchConfigurationMutation;
+import mekanism.qioprocessing.common.util.QIORecipeStackUtils;
 import mekanism.qioprocessing.common.network.PacketQIOWorkbenchConfigurationData.Status;
 import mekanism.qioprocessing.common.network.PacketQIOWorkbenchConfigurationRequest.Operation;
 import mekanism.qioprocessing.common.terminal.QIOWorkbenchConfigurationSnapshot;
@@ -280,15 +281,14 @@ public final class QIOWorkbenchConfigurationClientCache {
     @Nonnull
     public ItemStack getEncodingSlot(int slot) {
         if (slot < 0 || slot >= 9) return ItemStack.EMPTY;
-        return encodingGrid.get(slot).copy();
+        return QIORecipeStackUtils.copyForRecipeSelection(encodingGrid.get(slot));
     }
 
     public void setEncodingSlot(int slot, @Nullable ItemStack stack) {
         if (slot < 0 || slot >= 9) {
             throw new IllegalArgumentException("Workbench encoding slot is outside the 3x3 grid");
         }
-        ItemStack copy = stack == null || stack.isEmpty() ? ItemStack.EMPTY : stack.copy();
-        if (!copy.isEmpty()) copy.setCount(1);
+        ItemStack copy = QIORecipeStackUtils.copyForRecipeSelection(stack, 1);
         encodingGrid.set(slot, copy);
     }
 
@@ -304,7 +304,7 @@ public final class QIOWorkbenchConfigurationClientCache {
     @Nonnull
     public List<ItemStack> getEncodingGrid() {
         List<ItemStack> copy = new ArrayList<>(9);
-        encodingGrid.forEach(stack -> copy.add(stack.copy()));
+        encodingGrid.forEach(stack -> copy.add(QIORecipeStackUtils.copyForRecipeSelection(stack)));
         return Collections.unmodifiableList(copy);
     }
 
@@ -320,8 +320,8 @@ public final class QIOWorkbenchConfigurationClientCache {
         if (stack == null || stack.isEmpty() || batchTargets.size() >= MAX_BATCH_TARGETS) {
             return false;
         }
-        ItemStack copy = stack.copy();
-        copy.setCount(1);
+        ItemStack copy = QIORecipeStackUtils.copyForRecipeSelection(stack, 1);
+        if (copy.isEmpty()) return false;
         PortableResourceDescriptor descriptor;
         try {
             // Targets are resolved as recipe selections; a transient ForgeCaps attachment must
@@ -351,13 +351,13 @@ public final class QIOWorkbenchConfigurationClientCache {
     @Nonnull
     public ItemStack getBatchTarget(int index) {
         return index < 0 || index >= batchTargets.size() ? ItemStack.EMPTY :
-              batchTargets.get(index).copy();
+              QIORecipeStackUtils.copyForRecipeSelection(batchTargets.get(index));
     }
 
     @Nonnull
     public List<ItemStack> getBatchTargets() {
         List<ItemStack> copy = new ArrayList<>(batchTargets.size());
-        batchTargets.forEach(stack -> copy.add(stack.copy()));
+        batchTargets.forEach(stack -> copy.add(QIORecipeStackUtils.copyForRecipeSelection(stack)));
         return Collections.unmodifiableList(copy);
     }
 

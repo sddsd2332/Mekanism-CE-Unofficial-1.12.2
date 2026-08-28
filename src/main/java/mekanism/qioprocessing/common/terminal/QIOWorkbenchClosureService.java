@@ -9,6 +9,7 @@ import mekanism.qioprocessing.common.planning.QIOPlanningExecutor;
 import mekanism.qioprocessing.common.planning.QIOPlanningService;
 import mekanism.qioprocessing.common.planning.QIORecipeCatalogService;
 import mekanism.qioprocessing.common.planning.QIOWorkbenchRecipeCatalog;
+import mekanism.qioprocessing.common.planning.QIOWorkbenchRecipeCatalog.TargetedRecipeLookupBusyException;
 import net.minecraft.world.World;
 
 import javax.annotation.Nonnull;
@@ -53,6 +54,7 @@ public final class QIOWorkbenchClosureService {
         ACCESS_DENIED,
         EXPIRED,
         TARGET_CHANGED,
+        BUSY,
         UNAVAILABLE
     }
 
@@ -77,7 +79,8 @@ public final class QIOWorkbenchClosureService {
         Objects.requireNonNull(mode, "mode");
         Objects.requireNonNull(world, "world");
         Objects.requireNonNull(completion, "completion");
-        if (!QIORecipeCatalogService.INSTANCE.isReady()) {
+        if (!QIORecipeCatalogService.INSTANCE.isReady() ||
+            !QIORecipeCatalogService.INSTANCE.allowsRecursiveImport()) {
             completion.accept(new PreviewResult(Status.UNAVAILABLE, null));
             return;
         }
@@ -112,6 +115,9 @@ public final class QIOWorkbenchClosureService {
             roots = resolveRoots(world, mutation);
             capture = QIOWorkbenchRecipeCatalog.beginClosureCapture(world, roots,
                   configuration, mode, skipCyclicRecipes);
+        } catch (TargetedRecipeLookupBusyException e) {
+            completion.accept(new PreviewResult(Status.BUSY, null));
+            return;
         } catch (IllegalArgumentException | IllegalStateException e) {
             completion.accept(new PreviewResult(Status.INVALID_PATTERN, null));
             return;
@@ -220,7 +226,8 @@ public final class QIOWorkbenchClosureService {
         Objects.requireNonNull(playerUUID, "playerUUID");
         Objects.requireNonNull(confirmationNonce, "confirmationNonce");
         Objects.requireNonNull(world, "world");
-        if (!QIORecipeCatalogService.INSTANCE.isReady()) {
+        if (!QIORecipeCatalogService.INSTANCE.isReady() ||
+            !QIORecipeCatalogService.INSTANCE.allowsRecursiveImport()) {
             return new ConfirmResult(Status.UNAVAILABLE);
         }
         cleanup(currentTick);
@@ -255,6 +262,12 @@ public final class QIOWorkbenchClosureService {
                 QIOWorkbenchConfigurationService.preferEncodedCandidates(
                       world, configuration, replacingRoot);
             }
+            if (changed) {
+                QIORecipeCatalogService.INSTANCE.encodedPatternsAdded(
+                      pending.result.getPatterns());
+            }
+        } catch (TargetedRecipeLookupBusyException e) {
+            return new ConfirmResult(Status.BUSY);
         } catch (IllegalArgumentException | IllegalStateException e) {
             return new ConfirmResult(Status.INVALID_PATTERN);
         }

@@ -4,6 +4,7 @@ import mekanism.common.inventory.container.MekanismContainer;
 import mekanism.common.inventory.container.SelectedWindowData;
 import mekanism.qioprocessing.common.QIOProcessingWindowTypes;
 import mekanism.qioprocessing.common.inventory.container.QIOWorkbenchConfigurationContainer;
+import mekanism.qioprocessing.common.util.QIORecipeStackUtils;
 import mezz.jei.api.gui.IGuiIngredient;
 import mezz.jei.api.gui.IRecipeLayout;
 import mezz.jei.api.recipe.transfer.IRecipeTransferError;
@@ -115,8 +116,8 @@ public final class QIOWorkbenchRecipeTransferHandler<CONTAINER extends MekanismC
             seen[slot] = true;
             ItemStack displayed = ingredient.getDisplayedIngredient();
             if (displayed == null || displayed.isEmpty()) continue;
-            ItemStack copy = displayed.copy();
-            copy.setCount(1);
+            ItemStack copy = QIORecipeStackUtils.copyForRecipeSelection(displayed, 1);
+            if (copy.isEmpty()) return null;
             grid.set(slot, copy);
             hasInput = true;
         }
@@ -134,8 +135,8 @@ public final class QIOWorkbenchRecipeTransferHandler<CONTAINER extends MekanismC
             if (ingredient.isInput()) continue;
             ItemStack displayed = ingredient.getDisplayedIngredient();
             if (displayed == null || displayed.isEmpty()) continue;
-            ItemStack copy = displayed.copy();
-            copy.setCount(1);
+            ItemStack copy = QIORecipeStackUtils.copyForRecipeSelection(displayed, 1);
+            if (copy.isEmpty()) continue;
             outputs.add(copy);
         }
         return immutableGrid(outputs);
@@ -144,7 +145,7 @@ public final class QIOWorkbenchRecipeTransferHandler<CONTAINER extends MekanismC
     @Nonnull
     private static List<ItemStack> immutableGrid(List<ItemStack> grid) {
         List<ItemStack> copy = new ArrayList<>(grid.size());
-        grid.forEach(stack -> copy.add(stack.copy()));
+        grid.forEach(stack -> copy.add(QIORecipeStackUtils.copyForRecipeSelection(stack)));
         return java.util.Collections.unmodifiableList(copy);
     }
 }

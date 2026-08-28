@@ -12,6 +12,7 @@ import mekanism.client.jei.interfaces.IJEIIngredientHelper;
 import mekanism.client.recipe_viewer.interfaces.IRecipeViewerGhostTarget;
 import mekanism.client.recipe_viewer.interfaces.IRecipeViewerGhostTarget.IGhostItemConsumer;
 import mekanism.common.inventory.container.SelectedWindowData;
+import mekanism.common.config.MekanismConfig;
 import mekanism.common.util.MekanismUtils;
 import mekanism.qioprocessing.common.QIOProcessingWindowTypes;
 import mekanism.qioprocessing.common.inventory.container.QIOWorkbenchConfigurationClientCache;
@@ -135,8 +136,17 @@ public final class GuiQIOWorkbenchBatchWindow extends GuiWindow {
     }
 
     private void updateButton() {
+        boolean recursive = MekanismConfig.current().qioProcessing.recipeCatalogScanMode
+              .val().allowsRecursiveImport();
+        if (!recursive) {
+            closureMode = QIOWorkbenchClosureMode.NONE;
+            skipCyclicRecipes = false;
+        }
+        closureModeButton.visible = recursive;
+        cycleFilterButton.visible = recursive;
         encodeButton.active = cache.hasBatchTargets();
-        cycleFilterButton.active = closureMode != QIOWorkbenchClosureMode.NONE;
+        cycleFilterButton.active = recursive &&
+              closureMode != QIOWorkbenchClosureMode.NONE;
     }
 
     private ItemStack playerStack(int index) {

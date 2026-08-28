@@ -183,6 +183,8 @@ public final class QIOWorkbenchCopyService {
             return result(Status.SOURCE_CHANGED, target);
         }
         long before = targetConfiguration.getRevision();
+        // UUID import copies already encoded, self-contained patterns. It intentionally remains
+        // available in DISABLED mode and must not request a Forge catalog rescan.
         boolean changed = targetConfiguration.replaceFrom(sourceConfiguration);
         target.markWorkbenchConfigurationChanged(before);
         return new ConfirmResult(changed ? Status.APPLIED : Status.UNCHANGED,

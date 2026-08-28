@@ -3,9 +3,14 @@ package mekanism.qioprocessing.common.planning;
 import mekanism.common.Mekanism;
 import mekanism.qioprocessing.common.content.QIOProcessingStorageIO;
 import mekanism.qioprocessing.common.util.QIOHashing;
+import mekanism.qioprocessing.common.util.QIONbtUtils;
 import net.minecraft.nbt.NBTBase;
+import net.minecraft.nbt.NBTTagByteArray;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.nbt.NBTTagIntArray;
 import net.minecraft.nbt.NBTTagList;
+import net.minecraft.nbt.NBTTagLongArray;
+import net.minecraft.nbt.NBTTagString;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -31,15 +36,25 @@ import java.util.concurrent.ConcurrentHashMap;
 /** Sharded, generation-based persistence for the global QIO workbench catalog. */
 final class QIORecipeCatalogPersistence {
 
-    /** Cache format v3: sparse layouts, shared candidates, and bounded candidate identities. */
-    static final int SCHEMA_VERSION = 3;
-    private static final int MAX_SHARDS = 1_000_000;
+    /** Cache format v5: v4 data plus frozen fluid-container states for Forge variants. */
+    static final int SCHEMA_VERSION = 5;
+    private static final int SCAN_STATE_VERSION = 2;
+    // Metadata is one unsharded file. This still permits hundreds of millions of normal-sized
+    // records while keeping its shard table bounded well below the generic NBT list limit.
+    private static final int MAX_SHARDS = 65_536;
     private static final int MAX_RECORDS_PER_SHARD = 4_096;
-    private static final long TARGET_ESTIMATED_SHARD_BYTES = 12L * 1024 * 1024;
+    private static final int MAX_ITEM_RECORDS = 5_000_000;
+    private static final int MAX_VARIANT_RECORDS = 4_000_000;
+    private static final int MAX_ORE_RECORDS = 1_000_000;
+    private static final int MAX_INDEX_RECORDS = 4_000_000;
+    // StellarCore's default large-NBT warning starts at 16 MiB and logs a stack for every
+    // subsequent tracker update. Keep verified cache shards comfortably below that boundary.
+    private static final long MAX_TRACKED_SHARD_BYTES = 8L * 1024 * 1024;
     private static final int MAX_RECOVERY_ARCHIVES = 8;
     private static final String ROOT_PATH = "mekanism/qio_processing/recipe_catalog";
     private static final String MANIFEST_FILE = "manifest.dat";
     private static final String METADATA_FILE = "metadata.dat";
+    private static final String SCAN_STATE_FILE = "scan-state.dat";
     private static final Map<String, Object> DIRECTORY_LOCKS = new ConcurrentHashMap<>();
 
     private QIORecipeCatalogPersistence() {
@@ -48,6 +63,12 @@ final class QIORecipeCatalogPersistence {
     @Nonnull
     static List<Candidate> loadCandidates(
           @Nonnull File worldDirectory) {
+        return loadCandidates(worldDirectory, null);
+    }
+
+    @Nonnull
+    static List<Candidate> loadCandidates(@Nonnull File worldDirectory,
+          @Nullable String expectedEnvironmentSignature) {
         try {
             Directories directories = new Directories(worldDirectory);
             synchronized (directoryLock(directories)) {
@@ -57,17 +78,21 @@ final class QIORecipeCatalogPersistence {
                       manifests);
                 Set<UUID> attempted = new LinkedHashSet<>();
                 List<Candidate> result = new ArrayList<>(2);
+                boolean[] environmentMismatch = new boolean[1];
                 for (ManifestSource source : manifests) {
                     Manifest manifest = source.manifest;
                     if (manifest.active != null && attempted.add(manifest.active)) {
                         readCandidate(directories, manifest.active,
-                              !source.primary, result);
+                              !source.primary, expectedEnvironmentSignature,
+                              environmentMismatch, result);
                     }
                     if (manifest.previous != null && attempted.add(manifest.previous)) {
-                        readCandidate(directories, manifest.previous, true, result);
+                        readCandidate(directories, manifest.previous, true,
+                              expectedEnvironmentSignature, environmentMismatch, result);
                     }
                 }
-                if (result.isEmpty() && hasCacheState(directories)) {
+                if (result.isEmpty() && !environmentMismatch[0] &&
+                    hasCacheState(directories)) {
                     quarantineInvalidCache(directories);
                 }
                 return Collections.unmodifiableList(result);
@@ -142,30 +167,24 @@ final class QIORecipeCatalogPersistence {
         moveDirectory(source, target);
     }
 
-    static void save(@Nonnull File worldDirectory,
-          @Nonnull QIOWorkbenchRecipeCatalog.RecipeOutputIndex.CacheData cache)
-          throws IOException {
-        Directories directories = new Directories(worldDirectory);
-        synchronized (directoryLock(directories)) {
-            Manifest current = firstManifest(directories.manifest);
-            saveLocked(directories, cache, current == null ? null : current.active,
-                  new SaveToken());
-        }
-    }
-
-    static boolean save(@Nonnull File worldDirectory,
+    @Nullable
+    static UUID save(@Nonnull File worldDirectory,
           @Nonnull QIOWorkbenchRecipeCatalog.RecipeOutputIndex.CacheData cache,
-          @Nullable UUID retainedGeneration, @Nonnull SaveToken token) throws IOException {
+          @Nonnull String environmentSignature, @Nullable UUID retainedGeneration,
+          @Nonnull SaveToken token) throws IOException {
         Directories directories = new Directories(worldDirectory);
         synchronized (directoryLock(directories)) {
-            return saveLocked(directories, cache, retainedGeneration, token);
+            return saveLocked(directories, cache, environmentSignature, retainedGeneration,
+                  token);
         }
     }
 
-    private static boolean saveLocked(Directories directories,
+    @Nullable
+    private static UUID saveLocked(Directories directories,
           QIOWorkbenchRecipeCatalog.RecipeOutputIndex.CacheData cache,
-          @Nullable UUID retainedGeneration, SaveToken token) throws IOException {
-        if (!token.isValid()) return false;
+          String environmentSignature, @Nullable UUID retainedGeneration,
+          SaveToken token) throws IOException {
+        if (!isHash(environmentSignature) || !token.isValid()) return null;
         QIOProcessingStorageIO.ensureDirectory(directories.generations);
         QIOProcessingStorageIO.ensureDirectory(directories.staging);
         UUID generation = UUID.randomUUID();
@@ -177,32 +196,51 @@ final class QIORecipeCatalogPersistence {
         QIOProcessingStorageIO.ensureDirectory(staging);
         boolean published = false;
         try {
+            token.requireValid();
             List<ShardMetadata> shards = new ArrayList<>();
             List<NBTTagCompound> items = new ArrayList<>(
                   cache.forgeData.items.size() + cache.itemTypes.size());
-            cache.forgeData.items.forEach(record -> items.add(tagged("registry", record)));
-            cache.itemTypes.forEach(record -> items.add(tagged("catalog", record)));
-            writeShards(staging, generation, "items", items, shards);
-            writeShards(staging, generation, "candidates", cache.candidates, shards);
-            writeShards(staging, generation, "variants", cache.forgeData.variants, shards);
-            writeShards(staging, generation, "ore_dictionary", cache.forgeData.ores, shards);
-            writeShards(staging, generation, "matchers", cache.matchers, shards);
-            writeShards(staging, generation, "recipes", cache.recipes, shards);
-            writeShards(staging, generation, "output_profiles", cache.outputProfiles, shards);
-            writeShards(staging, generation, "candidate_profiles", cache.candidateProfiles, shards);
-            writeShards(staging, generation, "reverse_indexes", cache.reverseIndexes, shards);
+            for (NBTTagCompound record : cache.forgeData.items) {
+                token.requireValid();
+                items.add(tagged("registry", record));
+            }
+            for (NBTTagCompound record : cache.itemTypes) {
+                token.requireValid();
+                items.add(tagged("catalog", record));
+            }
+            writeShards(staging, generation, "items", items, shards, token);
+            writeShards(staging, generation, "candidates", cache.candidates, shards, token);
+            writeShards(staging, generation, "variants", cache.forgeData.variants, shards,
+                  token);
+            writeShards(staging, generation, "ore_dictionary", cache.forgeData.ores, shards,
+                  token);
+            writeShards(staging, generation, "matchers", cache.matchers, shards, token);
+            writeShards(staging, generation, "recipes", cache.recipes, shards, token);
+            writeShards(staging, generation, "output_profiles", cache.outputProfiles, shards,
+                  token);
+            writeShards(staging, generation, "candidate_profiles", cache.candidateProfiles,
+                  shards, token);
+            writeShards(staging, generation, "reverse_indexes", cache.reverseIndexes, shards,
+                  token);
+            token.requireValid();
             NBTTagCompound metadata = new NBTTagCompound();
             metadata.setInteger("schemaVersion", SCHEMA_VERSION);
             metadata.setString("generationUUID", generation.toString());
             metadata.setString("catalogGenerationId", cache.generationId);
             metadata.setString("forgeSignature", cache.forgeData.structuralSignature);
+            metadata.setString("environmentSignature", environmentSignature);
             metadata.setInteger("recipeCount", cache.recipeCount);
             NBTTagList shardList = new NBTTagList();
-            shards.forEach(shard -> shardList.appendTag(shard.write()));
+            for (ShardMetadata shard : shards) {
+                token.requireValid();
+                shardList.appendTag(shard.write());
+            }
             metadata.setTag("shards", shardList);
             metadata.setString("metadataHash", metadataHash(metadata));
+            token.requireValid();
             QIOProcessingStorageIO.replaceAtomicWithoutBackup(
                   child(staging, METADATA_FILE), metadata);
+            token.requireValid();
             moveDirectory(staging, completed);
 
             UUID previous = generation.equals(retainedGeneration) ? null : retainedGeneration;
@@ -210,11 +248,13 @@ final class QIORecipeCatalogPersistence {
                   previous, cache.generationId);
             if (!token.publish(() ->
                   QIOProcessingStorageIO.writeAtomic(directories.manifest, next.write()))) {
-                return false;
+                return null;
             }
             published = true;
             retainGenerations(directories.generations, generation, next.previous);
-            return true;
+            return generation;
+        } catch (SaveCancelledException ignored) {
+            return null;
         } finally {
             if (!published && staging.isDirectory()) {
                 deleteTree(directories.staging, staging);
@@ -226,33 +266,53 @@ final class QIORecipeCatalogPersistence {
     }
 
     private static void readCandidate(Directories directories, UUID generation,
-          boolean manifestRepairRequired, List<Candidate> output) {
+          boolean manifestRepairRequired, @Nullable String expectedEnvironmentSignature,
+          boolean[] environmentMismatch, List<Candidate> output) {
         try {
-            output.add(new Candidate(readGeneration(
-                  child(directories.generations, generation.toString()), generation),
-                  generation, manifestRepairRequired));
+            LoadedGeneration loaded = readGeneration(
+                  child(directories.generations, generation.toString()), generation,
+                  expectedEnvironmentSignature);
+            output.add(new Candidate(loaded.cache, loaded.environmentSignature, generation,
+                  manifestRepairRequired));
+        } catch (EnvironmentMismatchException mismatch) {
+            environmentMismatch[0] = true;
+            Mekanism.logger.info(
+                  "Skipping QIO recipe catalog generation {} from a different Forge environment",
+                  generation);
         } catch (IOException | RuntimeException error) {
             Mekanism.logger.warn("Ignoring invalid QIO recipe catalog generation {}",
                   generation, error);
         }
     }
 
-    private static QIOWorkbenchRecipeCatalog.RecipeOutputIndex.CacheData readGeneration(
-          File directory, UUID expectedGeneration) throws IOException {
+    private static LoadedGeneration readGeneration(
+          File directory, UUID expectedGeneration,
+          @Nullable String expectedEnvironmentSignature) throws IOException {
         NBTTagCompound metadata = requireFile(child(directory, METADATA_FILE));
         if (metadata.getInteger("schemaVersion") != SCHEMA_VERSION ||
-            !expectedGeneration.toString().equals(metadata.getString("generationUUID")) ||
-            !metadataHash(metadata).equals(metadata.getString("metadataHash"))) {
+            !expectedGeneration.toString().equals(metadata.getString("generationUUID"))) {
             throw new IOException("QIO recipe catalog metadata is invalid");
         }
         NBTTagList storedShards = metadata.getTagList("shards", 10);
         if (storedShards.tagCount() > MAX_SHARDS) {
             throw new IOException("QIO recipe catalog contains too many shards");
         }
+        if (!metadataHash(metadata).equals(metadata.getString("metadataHash"))) {
+            throw new IOException("QIO recipe catalog metadata is invalid");
+        }
+        String environmentSignature = metadata.getString("environmentSignature");
+        if (!isHash(environmentSignature)) {
+            throw new IOException("QIO recipe catalog environment signature is invalid");
+        }
+        if (expectedEnvironmentSignature != null &&
+            !expectedEnvironmentSignature.equals(environmentSignature)) {
+            throw new EnvironmentMismatchException();
+        }
         Map<String, List<NBTTagCompound>> categories = new LinkedHashMap<>();
         Set<String> names = new HashSet<>();
         for (int index = 0; index < storedShards.tagCount(); index++) {
             ShardMetadata shard = ShardMetadata.read(storedShards.getCompoundTagAt(index));
+            int categoryLimit = categoryRecordLimit(shard.category);
             if (!names.add(shard.fileName)) {
                 throw new IOException("Duplicate QIO recipe catalog shard: " + shard.fileName);
             }
@@ -261,6 +321,10 @@ final class QIORecipeCatalogPersistence {
             NBTTagList records = data.getTagList("records", 10);
             List<NBTTagCompound> category = categories.computeIfAbsent(shard.category,
                   ignored -> new ArrayList<>());
+            if ((long) category.size() + records.tagCount() > categoryLimit) {
+                throw new IOException("QIO recipe catalog category contains too many records: " +
+                      shard.category);
+            }
             for (int record = 0; record < records.tagCount(); record++) {
                 category.add(records.getCompoundTagAt(record).copy());
             }
@@ -287,7 +351,138 @@ final class QIORecipeCatalogPersistence {
         if (!categories.isEmpty()) {
             throw new IOException("QIO recipe catalog contains unknown shard categories");
         }
-        return cache;
+        return new LoadedGeneration(cache, environmentSignature);
+    }
+
+    /** Package-visible for focused validation tests; unknown categories are never accepted. */
+    static int categoryRecordLimit(String category) throws IOException {
+        switch (category) {
+            case "items":
+                return MAX_ITEM_RECORDS;
+            case "variants":
+                return MAX_VARIANT_RECORDS;
+            case "ore_dictionary":
+                return MAX_ORE_RECORDS;
+            case "candidates":
+            case "matchers":
+            case "recipes":
+            case "output_profiles":
+            case "candidate_profiles":
+            case "reverse_indexes":
+                return MAX_INDEX_RECORDS;
+            default:
+                throw new IOException("Unknown QIO recipe catalog shard category: " + category);
+        }
+    }
+
+    @Nonnull
+    static ScanState readScanState(@Nonnull File worldDirectory) {
+        try {
+            Directories directories = new Directories(worldDirectory);
+            synchronized (directoryLock(directories)) {
+                NBTTagCompound data = QIOProcessingStorageIO.read(directories.scanState);
+                return data == null ? ScanState.empty() : ScanState.read(data);
+            }
+        } catch (IOException | RuntimeException error) {
+            Mekanism.logger.warn(
+                  "Unable to read the QIO recipe catalog scan marker; rebuilding conservatively",
+                  error);
+            return ScanState.conservative();
+        }
+    }
+
+    static boolean isRescanRequired(@Nonnull File worldDirectory) {
+        return readScanState(worldDirectory).isRequired();
+    }
+
+    @Nonnull
+    static ScanState markRescanRequired(@Nonnull File worldDirectory,
+          @Nonnull String recipeId)
+          throws IOException {
+        Directories directories = new Directories(worldDirectory);
+        synchronized (directoryLock(directories)) {
+            ScanState current = readScanStateForWrite(directories);
+            if (current.requestedEpoch == Long.MAX_VALUE) {
+                throw new IOException("QIO recipe rescan epoch exhausted");
+            }
+            ScanState next = new ScanState(current.requestedEpoch + 1,
+                  current.completedEpoch, limitedRecipeId(recipeId));
+            writeScanState(directories, next);
+            return next;
+        }
+    }
+
+    /** Clears only requests covered by the catalog generation which was just published. */
+    @Nonnull
+    static ScanState clearRescanRequired(@Nonnull File worldDirectory, long coveredEpoch)
+          throws IOException {
+        if (coveredEpoch <= 0) {
+            throw new IllegalArgumentException("Covered QIO recipe rescan epoch must be positive");
+        }
+        Directories directories = new Directories(worldDirectory);
+        synchronized (directoryLock(directories)) {
+            ScanState current = readScanStateForWrite(directories);
+            long requested = Math.max(current.requestedEpoch, coveredEpoch);
+            long completed = Math.max(current.completedEpoch,
+                  Math.min(coveredEpoch, requested));
+            ScanState next = new ScanState(requested, completed,
+                  requested > completed ? current.recipeId : "");
+            writeScanState(directories, next);
+            return next;
+        }
+    }
+
+    @Nonnull
+    private static ScanState readScanStateForWrite(Directories directories) throws IOException {
+        try {
+            NBTTagCompound data = QIOProcessingStorageIO.read(directories.scanState);
+            return data == null ? ScanState.empty() : ScanState.read(data);
+        } catch (IOException | RuntimeException damaged) {
+            Mekanism.logger.warn(
+                  "Isolating invalid QIO recipe catalog scan marker {}; rebuilding conservatively",
+                  directories.scanState, damaged);
+            if (QIOProcessingStorageIO.quarantine(directories.scanState,
+                  ".damaged") == null && directories.scanState.exists()) {
+                throw new IOException("Unable to isolate the damaged QIO recipe scan marker",
+                      damaged);
+            }
+            return ScanState.conservative();
+        }
+    }
+
+    private static void writeScanState(Directories directories, ScanState state)
+          throws IOException {
+        NBTTagCompound data = new NBTTagCompound();
+        data.setInteger("scanStateVersion", SCAN_STATE_VERSION);
+        data.setLong("requestedEpoch", state.requestedEpoch);
+        data.setLong("completedEpoch", state.completedEpoch);
+        data.setBoolean("rescanRequired", state.isRequired());
+        if (state.isRequired() && !state.recipeId.isEmpty()) {
+            data.setString("recipeId", state.recipeId);
+        }
+        data.setString("stateHash", stateHash(data));
+        QIOProcessingStorageIO.writeAtomic(directories.scanState, data);
+    }
+
+    private static String limitedRecipeId(String recipeId) {
+        String value = recipeId == null ? "" : recipeId;
+        return value.length() <= 512 ? value : value.substring(0, 512);
+    }
+
+    private static String stateHash(NBTTagCompound state) {
+        NBTTagCompound copy = state.copy();
+        copy.removeTag("stateHash");
+        return QIOHashing.sha256(canonical(copy));
+    }
+
+    private static boolean isHash(String value) {
+        if (value == null || value.length() != 64) return false;
+        for (int index = 0; index < value.length(); index++) {
+            char character = value.charAt(index);
+            if (!((character >= '0' && character <= '9') ||
+                  (character >= 'a' && character <= 'f'))) return false;
+        }
+        return true;
     }
 
     private static List<NBTTagCompound> category(
@@ -315,22 +510,30 @@ final class QIORecipeCatalogPersistence {
     }
 
     private static void writeShards(File directory, UUID generation, String category,
-          List<NBTTagCompound> records, List<ShardMetadata> metadata) throws IOException {
-        List<List<NBTTagCompound>> chunks = chunks(records);
+          List<NBTTagCompound> records, List<ShardMetadata> metadata, SaveToken token)
+          throws IOException {
+        token.requireValid();
+        List<List<NBTTagCompound>> chunks = chunks(records, token);
         int index = 0;
         for (List<NBTTagCompound> chunk : chunks) {
-            index = writeShard(directory, generation, category, chunk, index, metadata);
+            token.requireValid();
+            index = writeShard(directory, generation, category, chunk, index, metadata, token);
         }
     }
 
     private static int writeShard(File directory, UUID generation, String category,
-          List<NBTTagCompound> records, int index, List<ShardMetadata> metadata)
+          List<NBTTagCompound> records, int index, List<ShardMetadata> metadata,
+          SaveToken token)
           throws IOException {
+        token.requireValid();
         if (metadata.size() >= MAX_SHARDS) {
             throw new IOException("QIO recipe catalog contains too many shards");
         }
         NBTTagList values = new NBTTagList();
-        records.forEach(record -> values.appendTag(record.copy()));
+        for (NBTTagCompound record : records) {
+            token.requireValid();
+            values.appendTag(record.copy());
+        }
         String hash = payloadHash(category, index, values);
         String fileName = category + '-' + String.format(java.util.Locale.ROOT,
               "%05d.dat", index);
@@ -341,6 +544,11 @@ final class QIORecipeCatalogPersistence {
         data.setInteger("index", index);
         data.setTag("records", values);
         data.setString("payloadHash", hash);
+        if (estimatedNbtReadBytes(data) > MAX_TRACKED_SHARD_BYTES) {
+            return splitShard(directory, generation, category, records, index, metadata,
+                  "tracked NBT size", token);
+        }
+        token.requireValid();
         File file = child(directory, fileName);
         try {
             QIOProcessingStorageIO.replaceAtomicWithoutBackup(file, data);
@@ -348,13 +556,12 @@ final class QIORecipeCatalogPersistence {
             if (!QIOProcessingStorageIO.isFileTooLarge(error) || records.size() <= 1) {
                 throw error;
             }
-            int middle = records.size() / 2;
-            int next = writeShard(directory, generation, category,
-                  new ArrayList<>(records.subList(0, middle)), index, metadata);
-            return writeShard(directory, generation, category,
-                  new ArrayList<>(records.subList(middle, records.size())), next, metadata);
+            return splitShard(directory, generation, category, records, index, metadata,
+                  "compressed or expanded file size", token);
         }
+        token.requireValid();
         NBTTagCompound verified = requireFile(file);
+        token.requireValid();
         ShardMetadata shard = new ShardMetadata(fileName, category, index,
               records.size(), hash);
         validateShard(verified, generation, shard);
@@ -362,15 +569,32 @@ final class QIORecipeCatalogPersistence {
         return index + 1;
     }
 
-    private static List<List<NBTTagCompound>> chunks(List<NBTTagCompound> records) {
+    private static int splitShard(File directory, UUID generation, String category,
+          List<NBTTagCompound> records, int index, List<ShardMetadata> metadata,
+          String limit, SaveToken token) throws IOException {
+        token.requireValid();
+        if (records.size() <= 1) {
+            throw new IOException("One QIO recipe catalog " + category +
+                  " record exceeds the " + limit + " limit");
+        }
+        int middle = records.size() / 2;
+        int next = writeShard(directory, generation, category,
+              new ArrayList<>(records.subList(0, middle)), index, metadata, token);
+        return writeShard(directory, generation, category,
+              new ArrayList<>(records.subList(middle, records.size())), next, metadata, token);
+    }
+
+    private static List<List<NBTTagCompound>> chunks(List<NBTTagCompound> records,
+          SaveToken token) throws IOException {
         if (records.isEmpty()) return Collections.emptyList();
         List<List<NBTTagCompound>> result = new ArrayList<>();
         List<NBTTagCompound> current = new ArrayList<>();
         long estimatedBytes = 0;
         for (NBTTagCompound record : records) {
-            long estimate = Math.max(128L, (long) record.toString().length() * 2L);
+            token.requireValid();
+            long estimate = Math.max(128L, estimatedNbtReadBytes(record));
             if (!current.isEmpty() && (current.size() >= MAX_RECORDS_PER_SHARD ||
-                estimatedBytes + estimate > TARGET_ESTIMATED_SHARD_BYTES)) {
+                saturatedAdd(estimatedBytes, estimate) > MAX_TRACKED_SHARD_BYTES)) {
                 result.add(Collections.unmodifiableList(current));
                 current = new ArrayList<>();
                 estimatedBytes = 0;
@@ -380,6 +604,84 @@ final class QIORecipeCatalogPersistence {
         }
         if (!current.isEmpty()) result.add(Collections.unmodifiableList(current));
         return result;
+    }
+
+    /** Mirrors Forge 1.12's NBTSizeTracker allocation accounting for one unnamed root tag. */
+    static long estimatedNbtReadBytes(NBTBase value) {
+        return saturatedAdd(7, estimatedPayloadBytes(value));
+    }
+
+    private static long estimatedPayloadBytes(NBTBase value) {
+        if (value == null) return 0;
+        switch (value.getId()) {
+            case 0:
+                return 8;
+            case 1:
+                return 9;
+            case 2:
+                return 10;
+            case 3:
+            case 5:
+                return 12;
+            case 4:
+            case 6:
+                return 16;
+            case 7:
+                return saturatedAdd(24,
+                      ((NBTTagByteArray) value).getByteArray().length);
+            case 8:
+                return saturatedAdd(38,
+                      modifiedUtfLength(((NBTTagString) value).getString()));
+            case 9: {
+                NBTTagList list = (NBTTagList) value;
+                long bytes = saturatedAdd(37, saturatedMultiply(4, list.tagCount()));
+                for (NBTBase child : list) {
+                    bytes = saturatedAdd(bytes, estimatedPayloadBytes(child));
+                }
+                return bytes;
+            }
+            case 10: {
+                NBTTagCompound compound = (NBTTagCompound) value;
+                long bytes = 49;
+                for (String key : compound.getKeySet()) {
+                    bytes = saturatedAdd(bytes, saturatedAdd(33,
+                          saturatedMultiply(2, key.length())));
+                    bytes = saturatedAdd(bytes,
+                          estimatedPayloadBytes(compound.getTag(key)));
+                }
+                return bytes;
+            }
+            case 11:
+                return saturatedAdd(24, saturatedMultiply(4,
+                      ((NBTTagIntArray) value).getIntArray().length));
+            case 12:
+                return saturatedAdd(24, saturatedMultiply(8,
+                      QIONbtUtils.longArrayLength((NBTTagLongArray) value)));
+            default:
+                return Long.MAX_VALUE;
+        }
+    }
+
+    private static long modifiedUtfLength(String value) {
+        long bytes = 0;
+        for (int index = 0; index < value.length(); index++) {
+            char character = value.charAt(index);
+            bytes = saturatedAdd(bytes, character == 0 ? 2 :
+                  character <= 0x7F ? 1 : character <= 0x7FF ? 2 : 3);
+        }
+        return bytes;
+    }
+
+    private static long saturatedMultiply(long left, long right) {
+        if (left <= 0 || right <= 0) return 0;
+        return left > Long.MAX_VALUE / right ? Long.MAX_VALUE : left * right;
+    }
+
+    private static long saturatedAdd(long left, long right) {
+        if (left < 0 || right < 0 || left > Long.MAX_VALUE - right) {
+            return Long.MAX_VALUE;
+        }
+        return left + right;
     }
 
     private static NBTTagCompound tagged(String table, NBTTagCompound record) {
@@ -408,13 +710,6 @@ final class QIORecipeCatalogPersistence {
             Mekanism.logger.warn("Ignoring invalid QIO recipe catalog manifest {}", file,
                   error);
         }
-    }
-
-    @Nullable
-    private static Manifest firstManifest(File file) {
-        List<ManifestSource> manifests = new ArrayList<>(1);
-        readManifest(file, true, manifests);
-        return manifests.isEmpty() ? null : manifests.get(0).manifest;
     }
 
     private static NBTTagCompound requireFile(File file) throws IOException {
@@ -518,12 +813,67 @@ final class QIORecipeCatalogPersistence {
         }
     }
 
+    static final class ScanState {
+
+        final long requestedEpoch;
+        final long completedEpoch;
+        final String recipeId;
+
+        private ScanState(long requestedEpoch, long completedEpoch, String recipeId) {
+            if (requestedEpoch < 0 || completedEpoch < 0 ||
+                completedEpoch > requestedEpoch) {
+                throw new IllegalArgumentException("Invalid QIO recipe rescan epochs");
+            }
+            this.requestedEpoch = requestedEpoch;
+            this.completedEpoch = completedEpoch;
+            this.recipeId = limitedRecipeId(recipeId);
+        }
+
+        boolean isRequired() {
+            return requestedEpoch > completedEpoch;
+        }
+
+        @Nonnull
+        static ScanState empty() {
+            return new ScanState(0, 0, "");
+        }
+
+        @Nonnull
+        static ScanState conservative() {
+            return new ScanState(1, 0, "damaged-marker");
+        }
+
+        @Nonnull
+        private static ScanState read(NBTTagCompound data) {
+            if (data.getInteger("scanStateVersion") != SCAN_STATE_VERSION ||
+                !data.hasKey("requestedEpoch", 4) ||
+                !data.hasKey("completedEpoch", 4) ||
+                !data.hasKey("rescanRequired", 1) ||
+                !stateHash(data).equals(data.getString("stateHash"))) {
+                throw new IllegalArgumentException(
+                      "QIO recipe catalog scan marker is invalid");
+            }
+            long requested = data.getLong("requestedEpoch");
+            long completed = data.getLong("completedEpoch");
+            String recipeId = data.hasKey("recipeId", 8) ?
+                  data.getString("recipeId") : "";
+            ScanState state = new ScanState(requested, completed, recipeId);
+            if (data.getBoolean("rescanRequired") != state.isRequired() ||
+                recipeId.length() > 512) {
+                throw new IllegalArgumentException(
+                      "QIO recipe catalog scan marker state is inconsistent");
+            }
+            return state;
+        }
+    }
+
     private static final class Directories {
 
         private final File root;
         private final File generations;
         private final File staging;
         private final File manifest;
+        private final File scanState;
 
         private Directories(File worldDirectory) throws IOException {
             if (worldDirectory == null) throw new IOException("World directory is absent");
@@ -535,18 +885,38 @@ final class QIORecipeCatalogPersistence {
             generations = child(root, "generations");
             staging = child(root, "staging");
             manifest = child(root, MANIFEST_FILE);
+            scanState = child(root, SCAN_STATE_FILE);
         }
+    }
+
+    private static final class LoadedGeneration {
+
+        private final QIOWorkbenchRecipeCatalog.RecipeOutputIndex.CacheData cache;
+        private final String environmentSignature;
+
+        private LoadedGeneration(
+              QIOWorkbenchRecipeCatalog.RecipeOutputIndex.CacheData cache,
+              String environmentSignature) {
+            this.cache = cache;
+            this.environmentSignature = environmentSignature;
+        }
+    }
+
+    private static final class EnvironmentMismatchException extends IOException {
     }
 
     static final class Candidate {
 
         final QIOWorkbenchRecipeCatalog.RecipeOutputIndex.CacheData cache;
+        final String environmentSignature;
         final UUID diskGeneration;
         final boolean manifestRepairRequired;
 
         private Candidate(QIOWorkbenchRecipeCatalog.RecipeOutputIndex.CacheData cache,
-              UUID diskGeneration, boolean manifestRepairRequired) {
+              String environmentSignature, UUID diskGeneration,
+              boolean manifestRepairRequired) {
             this.cache = cache;
+            this.environmentSignature = environmentSignature;
             this.diskGeneration = diskGeneration;
             this.manifestRepairRequired = manifestRepairRequired;
         }
@@ -554,20 +924,31 @@ final class QIORecipeCatalogPersistence {
 
     static final class SaveToken {
 
-        private boolean valid = true;
+        private volatile boolean valid = true;
 
         synchronized void invalidate() {
             valid = false;
         }
 
-        private synchronized boolean isValid() {
+        private boolean isValid() {
             return valid;
+        }
+
+        private void requireValid() throws SaveCancelledException {
+            if (!valid) throw new SaveCancelledException();
         }
 
         private synchronized boolean publish(IOAction action) throws IOException {
             if (!valid) return false;
             action.run();
             return true;
+        }
+    }
+
+    private static final class SaveCancelledException extends IOException {
+
+        private SaveCancelledException() {
+            super("QIO recipe catalog save was cancelled");
         }
     }
 

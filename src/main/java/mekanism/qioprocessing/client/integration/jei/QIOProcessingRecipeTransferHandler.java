@@ -6,6 +6,7 @@ import mekanism.common.inventory.container.SelectedWindowData;
 import mekanism.qioprocessing.api.resource.PortableResourceDescriptor;
 import mekanism.qioprocessing.common.QIOProcessingWindowTypes;
 import mekanism.qioprocessing.common.inventory.container.QIOSmartProcessingPageContainer;
+import mekanism.qioprocessing.common.util.QIORecipeStackUtils;
 import mezz.jei.api.gui.IGuiIngredient;
 import mezz.jei.api.gui.IRecipeLayout;
 import mezz.jei.api.recipe.IStackHelper;
@@ -73,7 +74,7 @@ public final class QIOProcessingRecipeTransferHandler<CONTAINER extends QIOItemV
         if (output.isEmpty()) return helper.createInternalError();
         PortableResourceDescriptor target;
         try {
-            target = PortableResourceDescriptor.item(output);
+            target = PortableResourceDescriptor.itemIgnoringCapabilities(output);
         } catch (RuntimeException e) {
             return helper.createInternalError();
         }
@@ -108,7 +109,8 @@ public final class QIOProcessingRecipeTransferHandler<CONTAINER extends QIOItemV
             IGuiIngredient<ItemStack> ingredient = entry.getValue();
             if (!ingredient.isInput() && ingredient.getDisplayedIngredient() != null &&
                 !ingredient.getDisplayedIngredient().isEmpty()) {
-                return ingredient.getDisplayedIngredient().copy();
+                return QIORecipeStackUtils.copyForRecipeSelection(
+                      ingredient.getDisplayedIngredient());
             }
         }
         return ItemStack.EMPTY;

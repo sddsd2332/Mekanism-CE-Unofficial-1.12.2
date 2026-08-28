@@ -12,6 +12,7 @@ import mekanism.qioprocessing.common.planning.QIOWorkbenchRecipeCatalog;
 import mekanism.qioprocessing.common.planning.QIOWorkbenchRecipeCatalog.CandidateDefinition;
 import mekanism.qioprocessing.common.planning.QIOWorkbenchRecipeCatalog.IngredientDefinition;
 import mekanism.qioprocessing.common.planning.QIOWorkbenchRecipeCatalog.RecipeDefinition;
+import mekanism.qioprocessing.common.planning.QIOWorkbenchRecipeCatalog.TargetedRecipeLookupBusyException;
 import mekanism.qioprocessing.common.terminal.QIOWorkbenchConfigurationSnapshot.Candidate;
 import mekanism.qioprocessing.common.terminal.QIOWorkbenchConfigurationSnapshot.Ingredient;
 import mekanism.qioprocessing.common.terminal.QIOWorkbenchConfigurationSnapshot.PageKind;
@@ -54,6 +55,7 @@ public final class QIOWorkbenchConfigurationService {
         INVALID_PATTERN,
         READ_ONLY,
         LAST_CANDIDATE,
+        BUSY,
         UNAVAILABLE
     }
 
@@ -201,6 +203,8 @@ public final class QIOWorkbenchConfigurationService {
             apply(context, configuration, mutation);
         } catch (LastCandidateException e) {
             return MutationStatus.LAST_CANDIDATE;
+        } catch (TargetedRecipeLookupBusyException e) {
+            return MutationStatus.BUSY;
         } catch (PatternValidationException e) {
             return MutationStatus.INVALID_PATTERN;
         } catch (IllegalArgumentException | IllegalStateException e) {
@@ -232,6 +236,8 @@ public final class QIOWorkbenchConfigurationService {
                             mutation.getGrid());
                 if (configuration.putEncodedPattern(pattern)) {
                     preferEncodedCandidates(context.world, configuration, pattern);
+                    QIORecipeCatalogService.INSTANCE.encodedPatternsAdded(
+                          Collections.singletonList(pattern));
                 }
             } catch (IllegalArgumentException e) {
                 throw new PatternValidationException("Invalid workbench pattern", e);
@@ -251,7 +257,13 @@ public final class QIOWorkbenchConfigurationService {
                     throw new IllegalArgumentException(
                           "No stable workbench recipes match the requested targets");
                 }
-                configuration.putEncodedPatternsIfAbsent(patterns);
+                if (configuration.putEncodedPatternsIfAbsent(patterns) > 0) {
+                    QIORecipeCatalogService.INSTANCE.encodedPatternsAdded(patterns);
+                }
+            } catch (TargetedRecipeLookupBusyException e) {
+                // Preserve the bounded lookup signal so the client can retry instead of
+                // quarantining an otherwise valid batch as an invalid pattern.
+                throw e;
             } catch (IllegalArgumentException | IllegalStateException e) {
                 throw new PatternValidationException("Invalid workbench batch targets", e);
             }

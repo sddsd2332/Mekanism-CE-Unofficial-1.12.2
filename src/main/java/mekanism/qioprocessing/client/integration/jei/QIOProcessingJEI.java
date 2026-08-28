@@ -10,6 +10,7 @@ import mekanism.qioprocessing.common.inventory.container.ContainerPortableQIOPro
 import mekanism.qioprocessing.common.inventory.container.ContainerQIOProcessingTerminal;
 import mekanism.qioprocessing.common.registries.QIOProcessingBlocks;
 import mekanism.qioprocessing.common.registries.QIOProcessingItems;
+import mekanism.qioprocessing.common.util.QIORecipeStackUtils;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.IModRegistry;
 import mezz.jei.api.JEIPlugin;
@@ -110,7 +111,7 @@ public final class QIOProcessingJEI implements IModPlugin {
             IRecipe recipe = ForgeRegistries.RECIPES.getValue(new ResourceLocation(
                   policy.getRoute().getRecipeKey()));
             if (recipe == null || recipe.getRecipeOutput().isEmpty()) return null;
-            return recipe.getRecipeOutput().copy();
+            return QIORecipeStackUtils.copyForRecipeSelection(recipe.getRecipeOutput());
         } catch (RuntimeException e) {
             return null;
         }

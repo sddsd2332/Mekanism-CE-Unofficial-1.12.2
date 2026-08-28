@@ -47,7 +47,8 @@ public final class PacketQIOWorkbenchConfigurationData implements
         EXPIRED,
         SOURCE_CHANGED,
         TARGET_CHANGED,
-        UNAVAILABLE
+        UNAVAILABLE,
+        BUSY
     }
 
     @Override

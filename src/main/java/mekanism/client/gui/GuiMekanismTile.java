@@ -17,6 +17,7 @@ import mekanism.qioprocessing.api.machine.QIOAutomationHost;
 import mekanism.qioprocessing.common.machine.QIOAutomationCapabilities;
 import net.minecraft.inventory.Container;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
@@ -66,13 +67,16 @@ public abstract class GuiMekanismTile<TILE extends TileEntityContainerBlock, CON
     }
 
     private void addQIOAutomationWarning() {
-        if (!tileEntity.hasCapability(QIOAutomationCapabilities.AUTOMATION_HOST, null)) {
+        Capability<QIOAutomationHost> automationHostCapability =
+              QIOAutomationCapabilities.AUTOMATION_HOST;
+        if (automationHostCapability == null ||
+            !tileEntity.hasCapability(automationHostCapability, null)) {
             return;
         }
         trackWarning(mekanism.client.gui.warning.WarningTracker.WarningType.QIO_AUTOMATION_ERROR, () -> {
-            QIOAutomationHost host = tileEntity.getCapability(
-                  QIOAutomationCapabilities.AUTOMATION_HOST, null);
-            return host != null && (host.getState() == QIOAutomationHost.State.IDENTITY_CONFLICT ||
+            Object exposed = tileEntity.getCapability(automationHostCapability, null);
+            return exposed instanceof QIOAutomationHost host &&
+                  (host.getState() == QIOAutomationHost.State.IDENTITY_CONFLICT ||
                   host.hasRecoveryPending() || host.getRecoveryDiagnostic() != null);
         });
     }

@@ -1,6 +1,7 @@
 package mekanism.qioprocessing.common.planning;
 
 import mekanism.qioprocessing.api.resource.PortableResourceDescriptor;
+import mekanism.qioprocessing.common.util.QIORecipeStackUtils;
 import net.minecraft.block.Block;
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.item.Item;
@@ -10,6 +11,7 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.util.NonNullList;
 import net.minecraft.util.ResourceLocation;
+import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fml.common.registry.ForgeRegistries;
 import net.minecraftforge.oredict.OreDictionary;
 
@@ -43,6 +45,7 @@ final class QIOForgeRecipeData {
     private final List<OreEntry> ores;
     private final Map<Item, List<ItemStack>> variantsByItem;
     private final Map<Item, List<OreEntry>> oresByItem;
+    private final Map<String, List<FrozenFluid>> containedFluidsBySelection;
     private final String structuralSignature;
     private final boolean globalSnapshot;
 
@@ -56,6 +59,7 @@ final class QIOForgeRecipeData {
         oresByItem.forEach((item, entries) -> immutableOres.put(item,
               Collections.unmodifiableList(new ArrayList<>(entries))));
         this.oresByItem = Collections.unmodifiableMap(immutableOres);
+        containedFluidsBySelection = indexContainedFluids(items, ores);
         this.structuralSignature = Objects.requireNonNull(structuralSignature,
               "structuralSignature");
         this.globalSnapshot = globalSnapshot;
@@ -127,7 +131,7 @@ final class QIOForgeRecipeData {
             return Collections.emptyList();
         }
         if (input.getMetadata() != OreDictionary.WILDCARD_VALUE) {
-            return Collections.singletonList(input.copy());
+            return Collections.singletonList(QIORecipeStackUtils.copyForRecipeSelection(input));
         }
         int maximumScanned = maximumResults > Integer.MAX_VALUE / 8 ? Integer.MAX_VALUE :
               Math.max(64, maximumResults * 8);
@@ -141,6 +145,50 @@ final class QIOForgeRecipeData {
             expansion.addOres(candidate);
         }
         return Collections.unmodifiableList(new ArrayList<>(expansion.results));
+    }
+
+    /** Returns frozen fluid states for a capability-neutral SEARCH or ore variant. */
+    @Nonnull
+    List<FluidStack> containedFluids(@Nonnull ItemStack input) {
+        Objects.requireNonNull(input, "input");
+        if (!globalSnapshot || input.isEmpty()) return Collections.emptyList();
+        final String identity;
+        try {
+            identity = FrozenStack.selectionIdentity(input);
+        } catch (RuntimeException | LinkageError ignored) {
+            return Collections.emptyList();
+        }
+        List<FrozenFluid> frozen = containedFluidsBySelection.get(identity);
+        if (frozen == null || frozen.isEmpty()) return Collections.emptyList();
+        List<FluidStack> result = new ArrayList<>(frozen.size());
+        for (FrozenFluid value : frozen) {
+            FluidStack fluid = value.resolve();
+            if (fluid != null) result.add(fluid);
+        }
+        return Collections.unmodifiableList(result);
+    }
+
+    private static Map<String, List<FrozenFluid>> indexContainedFluids(
+          List<ItemEntry> items, List<OreEntry> ores) {
+        Map<String, LinkedHashMap<String, FrozenFluid>> indexed = new HashMap<>();
+        for (ItemEntry item : items) {
+            item.variants.forEach(stack -> indexContainedFluid(indexed, stack));
+        }
+        for (OreEntry ore : ores) {
+            ore.stacks.forEach(stack -> indexContainedFluid(indexed, stack));
+        }
+        if (indexed.isEmpty()) return Collections.emptyMap();
+        Map<String, List<FrozenFluid>> immutable = new HashMap<>();
+        indexed.forEach((identity, values) -> immutable.put(identity,
+              Collections.unmodifiableList(new ArrayList<>(values.values()))));
+        return Collections.unmodifiableMap(immutable);
+    }
+
+    private static void indexContainedFluid(
+          Map<String, LinkedHashMap<String, FrozenFluid>> indexed, FrozenStack stack) {
+        if (stack.fluid == null) return;
+        indexed.computeIfAbsent(stack.selectionIdentity, ignored -> new LinkedHashMap<>())
+              .putIfAbsent(stack.fluid.identity, stack.fluid);
     }
 
     private static Map<Item, List<ItemStack>> immutableStackMap(
@@ -205,8 +253,9 @@ final class QIOForgeRecipeData {
                 candidate.getMetadata() == OreDictionary.WILDCARD_VALUE) {
                 return canContinue();
             }
-            ItemStack normalized = candidate.copy();
-            normalized.setCount(input.getCount());
+            ItemStack normalized = QIORecipeStackUtils.copyForRecipeSelection(candidate,
+                  input.getCount());
+            if (normalized.isEmpty()) return canContinue();
             if (input.hasTagCompound()) {
                 normalized.setTagCompound(input.getTagCompound().copy());
             }
@@ -447,11 +496,11 @@ final class QIOForgeRecipeData {
         private int oreIndex;
         private int freezeIndex;
         @Nullable private MutableItemEntry activeVariantEntry;
-        private List<ItemStack> activeVariantStacks = Collections.emptyList();
+        private List<CapturedStack> activeVariantStacks = Collections.emptyList();
         private FrozenStackAccumulator activeVariants = new FrozenStackAccumulator();
         private int activeVariantStackIndex;
         @Nullable private String activeOreName;
-        private List<ItemStack> activeOreStacks = Collections.emptyList();
+        private List<CapturedStack> activeOreStacks = Collections.emptyList();
         private FrozenStackAccumulator activeOreValues = new FrozenStackAccumulator();
         private int activeOreStackIndex;
 
@@ -559,12 +608,13 @@ final class QIOForgeRecipeData {
             }
             if (activeVariantStackIndex < activeVariantStacks.size() &&
                 activeVariants.size() < MAX_VARIANTS_PER_ITEM) {
-                ItemStack stack = activeVariantStacks.get(activeVariantStackIndex++);
+                CapturedStack captured = activeVariantStacks.get(activeVariantStackIndex++);
+                ItemStack stack = captured.prototype;
                 if (stack == null || stack.isEmpty() ||
                     stack.getItem() != activeVariantEntry.item ||
                     stack.getMetadata() == OreDictionary.WILDCARD_VALUE) return;
                 try {
-                    activeVariants.add(new FrozenStack(stack));
+                    activeVariants.add(new FrozenStack(captured));
                 } catch (RuntimeException ignored) {
                 }
                 return;
@@ -603,10 +653,11 @@ final class QIOForgeRecipeData {
             }
             if (activeOreStackIndex < activeOreStacks.size() &&
                 activeOreValues.size() < MAX_ORE_STACKS_PER_NAME) {
-                ItemStack stack = activeOreStacks.get(activeOreStackIndex++);
+                CapturedStack captured = activeOreStacks.get(activeOreStackIndex++);
+                ItemStack stack = captured.prototype;
                 if (stack == null || stack.isEmpty()) return;
                 try {
-                    activeOreValues.add(new FrozenStack(stack));
+                    activeOreValues.add(new FrozenStack(captured));
                 } catch (RuntimeException ignored) {
                 }
                 return;
@@ -626,11 +677,12 @@ final class QIOForgeRecipeData {
             return QIOForgeRecipeData.frozenInput(frozenItems, ores);
         }
 
-        private static List<ItemStack> immutableStacks(@Nullable List<ItemStack> source) {
+        private static List<CapturedStack> immutableStacks(@Nullable List<ItemStack> source) {
             if (source == null || source.isEmpty()) return Collections.emptyList();
-            List<ItemStack> copies = new ArrayList<>(source.size());
+            List<CapturedStack> copies = new ArrayList<>(source.size());
             for (ItemStack stack : source) {
-                if (stack != null && !stack.isEmpty()) copies.add(stack.copy());
+                CapturedStack captured = CapturedStack.capture(stack);
+                if (captured != null) copies.add(captured);
             }
             return Collections.unmodifiableList(copies);
         }
@@ -726,6 +778,82 @@ final class QIOForgeRecipeData {
         private FrozenInput(List<ItemEntry> items, List<OreEntry> ores) {
             this.items = Collections.unmodifiableList(new ArrayList<>(items));
             this.ores = Collections.unmodifiableList(new ArrayList<>(ores));
+        }
+    }
+
+    /** Stable main-thread capture that deliberately excludes the complete ForgeCaps tree. */
+    private static final class CapturedStack {
+
+        private final ItemStack prototype;
+        @Nullable
+        private final FrozenFluid fluid;
+
+        private CapturedStack(ItemStack prototype, @Nullable FrozenFluid fluid) {
+            this.prototype = prototype;
+            this.fluid = fluid;
+        }
+
+        @Nullable
+        private static CapturedStack capture(@Nullable ItemStack source) {
+            ItemStack prototype = QIORecipeStackUtils.copyForRecipeSelection(source);
+            if (prototype.isEmpty()) return null;
+            return new CapturedStack(prototype, FrozenFluid.capture(source));
+        }
+    }
+
+    /** Minimal immutable replacement for a fluid capability's serialized state. */
+    /** Package-visible so the persisted fluid descriptor can be regression-tested in isolation. */
+    static final class FrozenFluid {
+
+        private final PortableResourceDescriptor descriptor;
+        private final int amount;
+        private final String identity;
+
+        FrozenFluid(PortableResourceDescriptor descriptor, int amount) {
+            this.descriptor = Objects.requireNonNull(descriptor, "descriptor");
+            if (descriptor.getKind() != PortableResourceDescriptor.Kind.FLUID || amount <= 0) {
+                throw new IllegalArgumentException("Invalid frozen container fluid");
+            }
+            this.amount = amount;
+            identity = descriptor + "@" + amount;
+        }
+
+        @Nullable
+        static FrozenFluid capture(@Nullable ItemStack source) {
+            FluidStack fluid = QIOFluidContainerSnapshot.capture(source);
+            if (fluid == null) return null;
+            try {
+                return new FrozenFluid(PortableResourceDescriptor.fluid(fluid), fluid.amount);
+            } catch (RuntimeException | LinkageError ignored) {
+                return null;
+            }
+        }
+
+        NBTTagCompound write() {
+            NBTTagCompound data = new NBTTagCompound();
+            data.setTag("resource", descriptor.write());
+            data.setInteger("amount", amount);
+            return data;
+        }
+
+        static FrozenFluid read(NBTTagCompound data) {
+            if (!data.hasKey("resource", 10)) {
+                throw new IllegalArgumentException("Cached container fluid has no identity");
+            }
+            FrozenFluid value = new FrozenFluid(PortableResourceDescriptor.read(
+                  data.getCompoundTag("resource")), data.getInteger("amount"));
+            if (value.resolve() == null) {
+                throw new IllegalArgumentException("Cached container fluid is no longer registered");
+            }
+            return value;
+        }
+
+        @Nullable
+        FluidStack resolve() {
+            FluidStack stack = descriptor.resolveFluid();
+            if (stack == null) return null;
+            stack.amount = amount;
+            return stack;
         }
     }
 
@@ -858,29 +986,47 @@ final class QIOForgeRecipeData {
 
         private final ItemStack prototype;
         private final PortableResourceDescriptor descriptor;
+        private final String selectionIdentity;
         private final String identity;
         private final NBTTagCompound serializedPrototype;
+        @Nullable
+        private final FrozenFluid fluid;
 
         private FrozenStack(ItemStack stack) {
-            prototype = stack.copy();
-            prototype.setCount(1);
-            descriptor = PortableResourceDescriptor.item(prototype);
-            identity = identity(prototype);
-            serializedPrototype = prototype.writeToNBT(new NBTTagCompound());
+            this(stack, FrozenFluid.capture(stack));
+        }
+
+        private FrozenStack(CapturedStack captured) {
+            this(captured.prototype, captured.fluid);
+        }
+
+        private FrozenStack(ItemStack stack, @Nullable FrozenFluid fluid) {
+            prototype = QIORecipeStackUtils.copyForRecipeSelection(stack, 1);
+            if (prototype.isEmpty()) {
+                throw new IllegalArgumentException("Cannot freeze an empty item variant");
+            }
+            descriptor = PortableResourceDescriptor.itemIgnoringCapabilities(prototype);
+            selectionIdentity = selectionIdentity(prototype);
+            this.fluid = fluid;
+            identity = identity(prototype) + (fluid == null ? "" : "|F|" + fluid.identity);
+            serializedPrototype = QIORecipeStackUtils.writeForRecipeSelection(prototype);
         }
 
         private NBTTagCompound write() {
             NBTTagCompound data = serializedPrototype.copy();
             data.setTag("descriptor", descriptor.write());
+            if (fluid != null) data.setTag("containedFluid", fluid.write());
             return data;
         }
 
         private static FrozenStack read(NBTTagCompound data) {
-            ItemStack stack = new ItemStack(data);
+            ItemStack stack = QIORecipeStackUtils.readForRecipeSelection(data);
             if (stack.isEmpty()) {
                 throw new IllegalArgumentException("Cached item variant is unresolved");
             }
-            FrozenStack frozen = new FrozenStack(stack);
+            FrozenFluid fluid = data.hasKey("containedFluid", 10) ?
+                  FrozenFluid.read(data.getCompoundTag("containedFluid")) : null;
+            FrozenStack frozen = new FrozenStack(stack, fluid);
             if (data.hasKey("descriptor", 10) &&
                 !frozen.descriptor.equals(PortableResourceDescriptor.read(
                       data.getCompoundTag("descriptor")))) {
@@ -890,12 +1036,16 @@ final class QIOForgeRecipeData {
         }
 
         private static String identity(ItemStack stack) {
+            return selectionIdentity(stack) + "@" + stack.getCount();
+        }
+
+        private static String selectionIdentity(ItemStack stack) {
             try {
-                return PortableResourceDescriptor.item(stack) + "@" + stack.getCount();
+                return PortableResourceDescriptor.itemIgnoringCapabilities(stack).toString();
             } catch (RuntimeException error) {
                 ResourceLocation name = stack.getItem().getRegistryName();
                 return String.valueOf(name) + '|' + stack.getMetadata() + '|' +
-                      stack.getCount() + '|' + String.valueOf(stack.getTagCompound());
+                      String.valueOf(stack.getTagCompound());
             }
         }
     }

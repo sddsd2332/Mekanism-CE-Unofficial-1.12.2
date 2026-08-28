@@ -15,6 +15,7 @@ import mekanism.client.gui.element.window.GuiPlayerInventoryWindow;
 import mekanism.client.gui.element.window.GuiWindow;
 import mekanism.client.render.IFancyFontRenderer.TextAlignment;
 import mekanism.common.inventory.container.SelectedWindowData;
+import mekanism.common.config.MekanismConfig;
 import mekanism.common.util.MekanismUtils;
 import mekanism.qioprocessing.common.QIOProcessingWindowTypes;
 import mekanism.qioprocessing.common.content.workbench.QIOWorkbenchConfigurationMutation;
@@ -1059,7 +1060,7 @@ public final class GuiQIOWorkbenchConfigurationWindow extends GuiWindow {
 
     private void openBatchWindow() {
         if (!editable() || identitySnapshot() == null || mutationPending != null ||
-            closurePending != null) return;
+            closurePending != null || !batchEncodingAvailable()) return;
         activeEditor = EditorMode.BATCH;
         if (batchWindow == null) {
             batchWindow = new GuiQIOWorkbenchBatchWindow(gui(), cache(),
@@ -1303,7 +1304,9 @@ public final class GuiQIOWorkbenchConfigurationWindow extends GuiWindow {
         addPatternButton.setMessage(new TextComponentTranslation(cache().hasEncodingInput() ?
               "gui.mekanismqioprocessing.workbench_pattern_review" :
               "gui.mekanismqioprocessing.workbench_pattern_add"));
-        batchPatternButton.active = editable && identitySnapshot() != null;
+        batchPatternButton.visible = batchEncodingAvailable();
+        batchPatternButton.active = batchPatternButton.visible && editable &&
+              identitySnapshot() != null;
         batchPatternButton.setMessage(new TextComponentTranslation(cache().hasBatchTargets() ?
               "gui.mekanismqioprocessing.workbench_batch_review" :
               "gui.mekanismqioprocessing.workbench_batch_open"));
@@ -1328,6 +1331,11 @@ public final class GuiQIOWorkbenchConfigurationWindow extends GuiWindow {
     private boolean editable() {
         QIOWorkbenchConfigurationSnapshot snapshot = identitySnapshot();
         return snapshot != null && snapshot.isEditable();
+    }
+
+    private static boolean batchEncodingAvailable() {
+        return MekanismConfig.current().qioProcessing.recipeCatalogScanMode.val()
+              .allowsBatchEncoding();
     }
 
     @Nullable
@@ -1429,6 +1437,7 @@ public final class GuiQIOWorkbenchConfigurationWindow extends GuiWindow {
                   "gui.mekanismqioprocessing.workbench_status_source_changed";
             case TARGET_CHANGED, REVISION_CONFLICT, CATALOG_CHANGED ->
                   "gui.mekanismqioprocessing.workbench_status_target_changed";
+            case BUSY -> "gui.mekanismqioprocessing.workbench_status_busy";
             case NOT_FOUND -> "gui.mekanismqioprocessing.workbench_status_not_found";
             case EXPIRED -> "gui.mekanismqioprocessing.workbench_status_expired";
             default -> "gui.mekanismqioprocessing.workbench_status_invalid";

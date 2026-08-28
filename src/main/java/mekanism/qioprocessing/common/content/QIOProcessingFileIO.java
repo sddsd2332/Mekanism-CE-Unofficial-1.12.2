@@ -1,11 +1,20 @@
 package mekanism.qioprocessing.common.content;
 
 import mekanism.common.Mekanism;
+import mekanism.qioprocessing.common.util.QIONbtUtils;
 import net.minecraft.nbt.CompressedStreamTools;
 import net.minecraft.nbt.NBTBase;
-import net.minecraft.nbt.NBTSizeTracker;
+import net.minecraft.nbt.NBTTagByte;
+import net.minecraft.nbt.NBTTagByteArray;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.nbt.NBTTagDouble;
+import net.minecraft.nbt.NBTTagFloat;
+import net.minecraft.nbt.NBTTagInt;
+import net.minecraft.nbt.NBTTagIntArray;
 import net.minecraft.nbt.NBTTagList;
+import net.minecraft.nbt.NBTTagLong;
+import net.minecraft.nbt.NBTTagLongArray;
+import net.minecraft.nbt.NBTTagShort;
 import net.minecraft.nbt.NBTTagString;
 
 import javax.annotation.Nullable;
@@ -39,6 +48,8 @@ final class QIOProcessingFileIO {
     private static final long MAX_NBT_NODES = 4_000_000L;
     private static final long MAX_NBT_LIST_ENTRIES = 1_000_000L;
     private static final long MAX_NBT_STRING_BYTES = 65_535L;
+    private static final long MAX_NBT_ARRAY_BYTES = 16L * 1024 * 1024;
+    private static final long MAX_NBT_TOTAL_ARRAY_BYTES = 64L * 1024 * 1024;
     private static final int MAX_NBT_DEPTH = 512;
     private static final String BACKUP_SUFFIX = ".bak";
 
@@ -64,9 +75,12 @@ final class QIOProcessingFileIO {
              LimitedInputStream limited = new LimitedInputStream(gzip,
                    MAX_DECOMPRESSED_FILE_SIZE);
              DataInputStream data = new DataInputStream(new BufferedInputStream(limited))) {
-            NBTTagCompound result = CompressedStreamTools.read(data,
-                  new NBTSizeTracker(MAX_DECOMPRESSED_FILE_SIZE));
-            validateNbt(result);
+            // Decode with local bounds instead of NBTSizeTracker. Some coremods replace its
+            // hard limit with a warning that emits one stack trace for every subsequent field.
+            NBTTagCompound result = readBoundedCompound(data);
+            if (data.read() != -1) {
+                throw new IOException("QIO Processing NBT contains trailing data");
+            }
             return result;
         } catch (FileTooLargeException error) {
             throw error;
@@ -80,6 +94,130 @@ final class QIOProcessingFileIO {
             }
             throw new IOException("Unable to read bounded QIO Processing NBT", error);
         }
+    }
+
+    private static NBTTagCompound readBoundedCompound(DataInputStream input)
+          throws IOException {
+        int rootType = input.readUnsignedByte();
+        if (rootType != 10) {
+            throw new IOException("QIO Processing NBT root is not a compound");
+        }
+        readBoundedUtf(input, "root name");
+        NBTBase root = readBoundedPayload(input, rootType, 0, new NbtBudget());
+        return (NBTTagCompound) root;
+    }
+
+    private static NBTBase readBoundedPayload(DataInputStream input, int type, int depth,
+          NbtBudget budget) throws IOException {
+        if (type <= 0 || type > 12) {
+            throw new IOException("QIO Processing NBT contains an invalid tag type: " + type);
+        }
+        if (depth > MAX_NBT_DEPTH) {
+            throw new FileTooLargeException("QIO Processing NBT nesting exceeds " +
+                  MAX_NBT_DEPTH + " levels");
+        }
+        if (++budget.nodes > MAX_NBT_NODES) {
+            throw new FileTooLargeException("QIO Processing NBT node limit exceeded");
+        }
+        switch (type) {
+            case 1:
+                return new NBTTagByte(input.readByte());
+            case 2:
+                return new NBTTagShort(input.readShort());
+            case 3:
+                return new NBTTagInt(input.readInt());
+            case 4:
+                return new NBTTagLong(input.readLong());
+            case 5:
+                return new NBTTagFloat(input.readFloat());
+            case 6:
+                return new NBTTagDouble(input.readDouble());
+            case 7: {
+                int length = boundedArrayLength(input.readInt(), 1, budget);
+                byte[] values = new byte[length];
+                input.readFully(values);
+                return new NBTTagByteArray(values);
+            }
+            case 8:
+                return new NBTTagString(readBoundedUtf(input, "string"));
+            case 9: {
+                int childType = input.readUnsignedByte();
+                int count = input.readInt();
+                if (count < 0 || count > MAX_NBT_LIST_ENTRIES ||
+                    count > MAX_NBT_NODES - budget.nodes) {
+                    throw new FileTooLargeException(
+                          "QIO Processing NBT list-entry limit exceeded");
+                }
+                if (childType == 0 && count > 0 || childType > 12) {
+                    throw new IOException("QIO Processing NBT list has an invalid tag type");
+                }
+                budget.listEntries = saturatedAdd(budget.listEntries, count);
+                if (budget.listEntries > MAX_NBT_LIST_ENTRIES) {
+                    throw new FileTooLargeException(
+                          "QIO Processing NBT list-entry limit exceeded");
+                }
+                NBTTagList list = new NBTTagList();
+                for (int index = 0; index < count; index++) {
+                    list.appendTag(readBoundedPayload(input, childType, depth + 1, budget));
+                }
+                return list;
+            }
+            case 10: {
+                NBTTagCompound compound = new NBTTagCompound();
+                while (true) {
+                    int childType = input.readUnsignedByte();
+                    if (childType == 0) return compound;
+                    if (childType > 12) {
+                        throw new IOException(
+                              "QIO Processing NBT contains an invalid compound tag type");
+                    }
+                    String key = readBoundedUtf(input, "key");
+                    if (compound.hasKey(key)) {
+                        throw new IOException("QIO Processing NBT contains a duplicate key");
+                    }
+                    compound.setTag(key,
+                          readBoundedPayload(input, childType, depth + 1, budget));
+                }
+            }
+            case 11: {
+                int length = boundedArrayLength(input.readInt(), 4, budget);
+                int[] values = new int[length];
+                for (int index = 0; index < length; index++) values[index] = input.readInt();
+                return new NBTTagIntArray(values);
+            }
+            case 12: {
+                int length = boundedArrayLength(input.readInt(), 8, budget);
+                long[] values = new long[length];
+                for (int index = 0; index < length; index++) values[index] = input.readLong();
+                return new NBTTagLongArray(values);
+            }
+            default:
+                throw new IOException("QIO Processing NBT tag type is unsupported");
+        }
+    }
+
+    private static int boundedArrayLength(int length, int width, NbtBudget budget)
+          throws IOException {
+        if (length < 0) {
+            throw new IOException("QIO Processing NBT array length is negative");
+        }
+        long bytes = saturatedMultiply(length, width);
+        budget.arrayBytes = saturatedAdd(budget.arrayBytes, bytes);
+        if (bytes > MAX_NBT_ARRAY_BYTES ||
+            budget.arrayBytes > MAX_NBT_TOTAL_ARRAY_BYTES) {
+            throw new FileTooLargeException("QIO Processing NBT array budget exceeded");
+        }
+        return length;
+    }
+
+    private static String readBoundedUtf(DataInputStream input, String description)
+          throws IOException {
+        String value = input.readUTF();
+        if (modifiedUtfLength(value) > MAX_NBT_STRING_BYTES) {
+            throw new FileTooLargeException("QIO Processing NBT " + description +
+                  " exceeds 65,535 encoded bytes");
+        }
+        return value;
     }
 
     static void writeAtomic(File target, NBTTagCompound data) throws IOException {
@@ -205,6 +343,9 @@ final class QIOProcessingFileIO {
 
     private static void writeVerifiedTemporary(File temporary, NBTTagCompound data,
           File target) throws IOException {
+        // Validate before DataOutputStream.writeUTF sees an oversized third-party string. This
+        // prevents the UTFDataFormatException path and avoids creating a partial temporary file.
+        validateNbt(data);
         try (FileOutputStream output = new FileOutputStream(temporary)) {
             CompressedStreamTools.writeCompressed(data, output);
             syncIfSupported(output, temporary);
@@ -271,15 +412,48 @@ final class QIOProcessingFileIO {
             if (budget.listEntries > MAX_NBT_LIST_ENTRIES) {
                 throw new FileTooLargeException("QIO Processing NBT list-entry limit exceeded");
             }
+            int childType = count == 0 ? 0 : list.get(0).getId();
             for (NBTBase child : list) {
+                if (child == null || child.getId() == 0 || child.getId() != childType) {
+                    throw new IOException(
+                          "QIO Processing NBT list contains mixed or invalid tag types");
+                }
                 validateNbt(child, depth + 1, budget);
             }
+        } else if (tag instanceof NBTTagByteArray bytes) {
+            byte[] values = bytes.getByteArray();
+            if (values == null) {
+                throw new IOException("QIO Processing NBT byte array has no backing data");
+            }
+            validateArrayBytes(values.length, budget);
+        } else if (tag instanceof NBTTagIntArray integers) {
+            int[] values = integers.getIntArray();
+            if (values == null) {
+                throw new IOException("QIO Processing NBT int array has no backing data");
+            }
+            validateArrayBytes(saturatedMultiply(values.length, 4), budget);
+        } else if (tag instanceof NBTTagLongArray longs) {
+            try {
+                validateArrayBytes(saturatedMultiply(QIONbtUtils.longArrayLength(longs), 8),
+                      budget);
+            } catch (IllegalStateException error) {
+                throw new IOException("Unable to inspect QIO Processing NBT long array", error);
+            }
+        }
+    }
+
+    private static void validateArrayBytes(long bytes, NbtBudget budget) throws IOException {
+        budget.arrayBytes = saturatedAdd(budget.arrayBytes, bytes);
+        if (bytes > MAX_NBT_ARRAY_BYTES ||
+            budget.arrayBytes > MAX_NBT_TOTAL_ARRAY_BYTES) {
+            throw new FileTooLargeException("QIO Processing NBT array budget exceeded");
         }
     }
 
     private static final class NbtBudget {
         private long nodes;
         private long listEntries;
+        private long arrayBytes;
     }
 
     private static long modifiedUtfLength(String value) {
@@ -290,6 +464,18 @@ final class QIOProcessingFileIO {
             if (bytes > MAX_NBT_STRING_BYTES) return bytes;
         }
         return bytes;
+    }
+
+    private static long saturatedMultiply(long left, long right) {
+        if (left <= 0 || right <= 0) return 0;
+        return left > Long.MAX_VALUE / right ? Long.MAX_VALUE : left * right;
+    }
+
+    private static long saturatedAdd(long left, long right) {
+        if (left < 0 || right < 0 || left > Long.MAX_VALUE - right) {
+            return Long.MAX_VALUE;
+        }
+        return left + right;
     }
 
     /** Counts bytes after decompression and aborts before an unbounded NBT read can allocate. */
@@ -305,26 +491,37 @@ final class QIOProcessingFileIO {
 
         @Override
         public int read() throws IOException {
-            ensureCapacity(1);
             int value = super.read();
-            if (value >= 0) count++;
+            if (value >= 0) {
+                if (count >= limit) throw limitExceeded();
+                count++;
+            }
             return value;
         }
 
         @Override
         public int read(byte[] buffer, int offset, int length) throws IOException {
             if (length == 0) return 0;
-            ensureCapacity(Math.min(length, limit - count));
-            int read = super.read(buffer, offset, length);
+            long remaining = limit - count;
+            if (remaining <= 0) {
+                // Permit one underlying EOF probe at the exact boundary. If data remains, fail
+                // after consuming at most one byte rather than accepting an oversized stream.
+                int value = super.read();
+                if (value < 0) return -1;
+                throw limitExceeded();
+            }
+            // Do not pass the caller's full buffer length to the wrapped stream.  A gzip
+            // decoder is allowed to fill it completely, which would otherwise let one read
+            // cross the decompressed-size budget after the check above.
+            int allowed = (int) Math.min((long) length, remaining);
+            int read = super.read(buffer, offset, allowed);
             if (read > 0) count += read;
             return read;
         }
 
-        private void ensureCapacity(long requested) throws FileTooLargeException {
-            if (count >= limit || requested > limit - count) {
-                throw new FileTooLargeException("QIO Processing decompressed data exceeds " +
-                      MAX_DECOMPRESSED_FILE_SIZE + " bytes");
-            }
+        private FileTooLargeException limitExceeded() {
+            return new FileTooLargeException("QIO Processing decompressed data exceeds " +
+                  MAX_DECOMPRESSED_FILE_SIZE + " bytes");
         }
     }
 

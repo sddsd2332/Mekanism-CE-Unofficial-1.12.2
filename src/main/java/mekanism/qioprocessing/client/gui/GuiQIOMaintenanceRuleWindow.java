@@ -251,12 +251,23 @@ final class GuiQIOMaintenanceRuleWindow extends GuiWindow {
     private void refreshSelected() {
         if (selected == null) return;
         PortableResourceDescriptor resource = selected.getResource();
+        PortableResourceDescriptor neutral = resource.withoutCapabilities();
+        QIOSmartProcessingResourceEntry neutralMatch = null;
+        boolean ambiguous = false;
         for (QIOSmartProcessingResourceEntry entry : cache().getResources()) {
             if (resource.equals(entry.getResource())) {
                 selected = entry;
                 return;
             }
+            if (entry.getResource().withoutCapabilities().equals(neutral)) {
+                if (neutralMatch == null) {
+                    neutralMatch = entry;
+                } else if (!neutralMatch.getResource().equals(entry.getResource())) {
+                    ambiguous = true;
+                }
+            }
         }
+        if (!ambiguous && neutralMatch != null) selected = neutralMatch;
     }
 
     private void confirm() {

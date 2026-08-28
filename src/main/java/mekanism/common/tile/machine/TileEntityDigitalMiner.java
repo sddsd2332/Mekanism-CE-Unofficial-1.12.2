@@ -257,7 +257,7 @@ public class TileEntityDigitalMiner extends TileEntityElectricBlock implements I
             // could be simulated, then have its source changed by an owned QIO output transfer,
             // and finally consume a different stack after the destination had already accepted
             // the predicted one.
-            runContainerTransaction(this::ejectOutputsInTransaction);
+            ejectOutputsAtomically();
         } else if (delayTicks > 0) {
             delayTicks--;
         }
@@ -266,6 +266,11 @@ public class TileEntityDigitalMiner extends TileEntityElectricBlock implements I
             playersUsing.forEach(player -> Mekanism.packetHandler.sendTo(new TileEntityMessage(this, getSmallPacket(new TileNetworkList())), (EntityPlayerMP) player));
         }
         prevEnergy = getEnergy();
+    }
+
+    /** Keeps destination acceptance and source consumption inside one local transaction. */
+    void ejectOutputsAtomically() {
+        runContainerTransaction(this::ejectOutputsInTransaction);
     }
 
     private void ejectOutputsInTransaction() {

@@ -2,6 +2,7 @@ package mekanism.qioprocessing.common.planning;
 
 import mekanism.common.util.MekanismUtils;
 import mekanism.qioprocessing.api.resource.PortableResourceDescriptor;
+import mekanism.qioprocessing.common.util.QIORecipeStackUtils;
 import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.crafting.IRecipe;
@@ -54,10 +55,7 @@ public final class QIOWorkbenchRecipePattern {
         }
         List<ItemStack> copy = new ArrayList<>(9);
         for (ItemStack stack : grid) {
-            ItemStack checked = stack == null ? ItemStack.EMPTY : stack.copy();
-            if (!checked.isEmpty()) {
-                checked.setCount(1);
-            }
+            ItemStack checked = QIORecipeStackUtils.copyForRecipeSelection(stack, 1);
             copy.add(checked);
         }
         this.grid = Collections.unmodifiableList(copy);
@@ -92,7 +90,7 @@ public final class QIOWorkbenchRecipePattern {
     @Nonnull
     public List<ItemStack> getGrid() {
         List<ItemStack> copy = new ArrayList<>(grid.size());
-        grid.forEach(stack -> copy.add(stack.copy()));
+        grid.forEach(stack -> copy.add(QIORecipeStackUtils.copyForRecipeSelection(stack)));
         return Collections.unmodifiableList(copy);
     }
 
@@ -103,7 +101,7 @@ public final class QIOWorkbenchRecipePattern {
         if (recipe != null) {
             ItemStack output = recipe.getRecipeOutput();
             if (output != null && !output.isEmpty()) {
-                return output.copy();
+                return QIORecipeStackUtils.copyForRecipeSelection(output);
             }
         }
         for (Map.Entry<PortableResourceDescriptor, Long> entry : expectedOutputs.entrySet()) {
@@ -162,7 +160,8 @@ public final class QIOWorkbenchRecipePattern {
     InventoryCrafting createInventory() {
         InventoryCrafting inventory = MekanismUtils.getDummyCraftingInv();
         for (int slot = 0; slot < grid.size(); slot++) {
-            inventory.setInventorySlotContents(slot, grid.get(slot).copy());
+            inventory.setInventorySlotContents(slot,
+                  QIORecipeStackUtils.copyForRecipeSelection(grid.get(slot)));
         }
         return inventory;
     }

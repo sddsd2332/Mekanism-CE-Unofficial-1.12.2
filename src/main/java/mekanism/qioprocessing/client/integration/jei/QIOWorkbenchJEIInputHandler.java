@@ -5,6 +5,7 @@ import mekanism.client.jei.MekanismJEI;
 import mekanism.common.inventory.container.MekanismContainer;
 import mekanism.qioprocessing.client.gui.GuiQIOWorkbenchBatchWindow;
 import mekanism.qioprocessing.common.inventory.container.QIOWorkbenchConfigurationContainer;
+import mekanism.qioprocessing.common.util.QIORecipeStackUtils;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.client.event.GuiScreenEvent;
@@ -72,8 +73,6 @@ public final class QIOWorkbenchJEIInputHandler {
         if (!(ingredient instanceof ItemStack stack) || stack.isEmpty()) {
             return ItemStack.EMPTY;
         }
-        ItemStack copy = stack.copy();
-        copy.setCount(1);
-        return copy;
+        return QIORecipeStackUtils.copyForRecipeSelection(stack, 1);
     }
 }

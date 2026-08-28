@@ -2,6 +2,7 @@ package mekanism.qioprocessing.common.content.workbench;
 
 import mekanism.qioprocessing.api.resource.PortableResourceDescriptor;
 import mekanism.qioprocessing.common.content.QIOProcessingDataException;
+import mekanism.qioprocessing.common.util.QIORecipeStackUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
@@ -248,12 +249,12 @@ public final class QIOWorkbenchConfigurationMutation {
     public int getTargetIndex() { return targetIndex; }
     @Nonnull public List<ItemStack> getGrid() {
         List<ItemStack> copy = new ArrayList<>(grid.size());
-        grid.forEach(stack -> copy.add(stack.copy()));
+        grid.forEach(stack -> copy.add(QIORecipeStackUtils.copyForRecipeSelection(stack)));
         return Collections.unmodifiableList(copy);
     }
     @Nonnull public List<ItemStack> getTargets() {
         List<ItemStack> copy = new ArrayList<>(targets.size());
-        targets.forEach(stack -> copy.add(stack.copy()));
+        targets.forEach(stack -> copy.add(QIORecipeStackUtils.copyForRecipeSelection(stack)));
         return Collections.unmodifiableList(copy);
     }
     @Nonnull public List<String> getProductKeys() { return productKeys; }
@@ -274,11 +275,11 @@ public final class QIOWorkbenchConfigurationMutation {
         data.setInteger("targetIndex", targetIndex);
         NBTTagList storedGrid = new NBTTagList();
         grid.forEach(stack -> storedGrid.appendTag(stack.isEmpty() ? new NBTTagCompound() :
-              stack.writeToNBT(new NBTTagCompound())));
+              QIORecipeStackUtils.writeForRecipeSelection(stack)));
         data.setTag("grid", storedGrid);
         NBTTagList storedTargets = new NBTTagList();
         targets.forEach(stack -> storedTargets.appendTag(
-              stack.writeToNBT(new NBTTagCompound())));
+              QIORecipeStackUtils.writeForRecipeSelection(stack)));
         data.setTag("targets", storedTargets);
         NBTTagList storedProductKeys = new NBTTagList();
         productKeys.forEach(key -> storedProductKeys.appendTag(new NBTTagString(key)));
@@ -407,9 +408,8 @@ public final class QIOWorkbenchConfigurationMutation {
         List<ItemStack> copy = new ArrayList<>(9);
         boolean hasInput = false;
         for (ItemStack stack : grid) {
-            ItemStack checked = stack == null || stack.isEmpty() ? ItemStack.EMPTY : stack.copy();
+            ItemStack checked = QIORecipeStackUtils.copyForRecipeSelection(stack, 1);
             if (!checked.isEmpty()) {
-                checked.setCount(1);
                 hasInput = true;
             }
             copy.add(checked);
@@ -430,7 +430,7 @@ public final class QIOWorkbenchConfigurationMutation {
         List<ItemStack> grid = new ArrayList<>(9);
         for (int index = 0; index < stored.tagCount(); index++) {
             NBTTagCompound slot = stored.getCompoundTagAt(index);
-            grid.add(slot.isEmpty() ? ItemStack.EMPTY : new ItemStack(slot));
+            grid.add(QIORecipeStackUtils.readForRecipeSelection(slot));
         }
         return grid;
     }
@@ -445,8 +445,10 @@ public final class QIOWorkbenchConfigurationMutation {
             if (stack == null || stack.isEmpty()) {
                 throw new IllegalArgumentException("Workbench batch target is empty");
             }
-            ItemStack copy = stack.copy();
-            copy.setCount(1);
+            ItemStack copy = QIORecipeStackUtils.copyForRecipeSelection(stack, 1);
+            if (copy.isEmpty()) {
+                throw new IllegalArgumentException("Workbench batch target is invalid");
+            }
             // Batch target selection is recipe lookup, not a QIO storage identity. Ignore
             // transient ForgeCaps here so an attached capability cannot reject the mutation.
             unique.putIfAbsent(PortableResourceDescriptor.itemIgnoringCapabilities(copy), copy);
@@ -464,7 +466,12 @@ public final class QIOWorkbenchConfigurationMutation {
         }
         List<ItemStack> targets = new ArrayList<>(stored.tagCount());
         for (int index = 0; index < stored.tagCount(); index++) {
-            targets.add(new ItemStack(stored.getCompoundTagAt(index)));
+            ItemStack target = QIORecipeStackUtils.readForRecipeSelection(
+                  stored.getCompoundTagAt(index));
+            if (target.isEmpty()) {
+                throw new IllegalArgumentException("Workbench batch target is invalid");
+            }
+            targets.add(target);
         }
         return targets;
     }

@@ -3,6 +3,7 @@ package mekanism.qioprocessing.common.terminal;
 import mekanism.qioprocessing.api.resource.PortableResourceDescriptor;
 import mekanism.qioprocessing.common.content.QIOProcessingDataException;
 import mekanism.qioprocessing.common.content.QIOProcessingNbt;
+import mekanism.qioprocessing.common.util.QIORecipeStackUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
@@ -225,7 +226,7 @@ public final class QIOWorkbenchConfigurationSnapshot {
         public Product(String productKey, PortableResourceDescriptor output, int recipeCount,
               int enabledRecipeCount) {
             this.productKey = checkedHash(productKey, false, "productKey");
-            this.output = Objects.requireNonNull(output, "output");
+            this.output = Objects.requireNonNull(output, "output").withoutCapabilities();
             if (output.getKind() != PortableResourceDescriptor.Kind.ITEM || recipeCount <= 0 ||
                 enabledRecipeCount < 0 || enabledRecipeCount > recipeCount) {
                 throw new IllegalArgumentException("Invalid workbench product summary");
@@ -280,7 +281,7 @@ public final class QIOWorkbenchConfigurationSnapshot {
               int height, List<Ingredient> ingredients) {
             this.recipeId = checkedText(recipeId, MAX_RECIPE_ID_LENGTH, false, "recipeId");
             this.signature = checkedHash(signature, false, "recipeSignature");
-            this.output = Objects.requireNonNull(output, "output");
+            this.output = Objects.requireNonNull(output, "output").withoutCapabilities();
             if (outputAmount <= 0 || order < 0 || ingredients.size() != 9 ||
                 shaped && (width <= 0 || width > 3 || height <= 0 || height > 3) ||
                 !shaped && (width != 0 || height != 0)) {
@@ -379,7 +380,7 @@ public final class QIOWorkbenchConfigurationSnapshot {
             this.slot = slot;
             this.candidateCount = candidateCount;
             this.enabledCandidateCount = enabledCandidateCount;
-            this.representative = representative.copy();
+            this.representative = QIORecipeStackUtils.copyForRecipeSelection(representative);
             this.virtualFluid = virtualFluid;
             this.virtualFluidAmount = virtualFluidAmount;
         }
@@ -388,7 +389,9 @@ public final class QIOWorkbenchConfigurationSnapshot {
         public int getCandidateCount() { return candidateCount; }
         public int getEnabledCandidateCount() { return enabledCandidateCount; }
         public boolean isEmpty() { return candidateCount == 0; }
-        @Nonnull public ItemStack getRepresentative() { return representative.copy(); }
+        @Nonnull public ItemStack getRepresentative() {
+            return QIORecipeStackUtils.copyForRecipeSelection(representative);
+        }
         public boolean isVirtualFluid() { return virtualFluid != null; }
         @Nullable public PortableResourceDescriptor getVirtualFluid() { return virtualFluid; }
         public long getVirtualFluidAmount() { return virtualFluidAmount; }
@@ -444,7 +447,7 @@ public final class QIOWorkbenchConfigurationSnapshot {
             if (displayStack.isEmpty() || amount <= 0 || order < 0) {
                 throw new IllegalArgumentException("Invalid workbench candidate summary");
             }
-            this.displayStack = displayStack.copy();
+            this.displayStack = QIORecipeStackUtils.copyForRecipeSelection(displayStack);
             this.resource = Objects.requireNonNull(resource, "resource");
             this.amount = amount;
             this.virtualFluid = virtualFluid;
@@ -453,7 +456,9 @@ public final class QIOWorkbenchConfigurationSnapshot {
         }
 
         @Nonnull public String getCandidateId() { return candidateId; }
-        @Nonnull public ItemStack getDisplayStack() { return displayStack.copy(); }
+        @Nonnull public ItemStack getDisplayStack() {
+            return QIORecipeStackUtils.copyForRecipeSelection(displayStack);
+        }
         @Nonnull public PortableResourceDescriptor getResource() { return resource; }
         public long getAmount() { return amount; }
         public boolean isVirtualFluid() { return virtualFluid; }
@@ -520,11 +525,11 @@ public final class QIOWorkbenchConfigurationSnapshot {
     }
 
     private static NBTTagCompound writeStack(ItemStack stack) {
-        return stack.isEmpty() ? new NBTTagCompound() : stack.writeToNBT(new NBTTagCompound());
+        return QIORecipeStackUtils.writeForRecipeSelection(stack);
     }
 
     private static ItemStack readStack(NBTTagCompound data) {
-        return data.isEmpty() ? ItemStack.EMPTY : new ItemStack(data);
+        return QIORecipeStackUtils.readForRecipeSelection(data);
     }
 
     private static <T> NBTTagList writeList(List<T> values,

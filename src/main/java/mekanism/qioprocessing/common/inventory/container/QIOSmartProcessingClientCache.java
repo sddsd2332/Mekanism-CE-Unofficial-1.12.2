@@ -188,19 +188,52 @@ public final class QIOSmartProcessingClientCache {
 
     public boolean canSelectRecipeViewerTarget(@Nonnull UUID nonce,
           @Nonnull PortableResourceDescriptor target) {
-        if (!nonce.equals(sessionNonce)) return false;
-        for (QIOSmartProcessingResourceEntry entry : getResources()) {
-            if (entry.isSchedulable() && entry.getResource().equals(target)) return true;
-        }
-        return false;
+        return resolveRecipeViewerTarget(nonce, target) != null;
     }
 
     public boolean selectRecipeViewerTarget(@Nonnull UUID nonce,
           @Nonnull PortableResourceDescriptor target) {
-        if (!canSelectRecipeViewerTarget(nonce, target)) return false;
-        recipeViewerTarget = target;
+        PortableResourceDescriptor resolved = resolveRecipeViewerTarget(nonce, target);
+        if (resolved == null) return false;
+        recipeViewerTarget = resolved;
         recipeViewerTargetGeneration = next(recipeViewerTargetGeneration);
         return true;
+    }
+
+    /**
+     * Resolves a recipe-viewer item against the server-authoritative resource rows.
+     *
+     * <p>Recipe viewers expose a fresh display stack and may attach transient Forge capabilities
+     * to it.  Prefer an exact resource row when one is present; otherwise use a capability-neutral
+     * match only when it is unique.  Returning the row's original descriptor is important because
+     * the subsequent order request must debit that exact stored resource.</p>
+     */
+    @Nullable
+    public PortableResourceDescriptor resolveRecipeViewerTarget(@Nonnull UUID nonce,
+          @Nonnull PortableResourceDescriptor target) {
+        Objects.requireNonNull(nonce, "nonce");
+        Objects.requireNonNull(target, "target");
+        if (!nonce.equals(sessionNonce)) return null;
+        PortableResourceDescriptor neutral = target.withoutCapabilities();
+        PortableResourceDescriptor exact = null;
+        PortableResourceDescriptor neutralMatch = null;
+        boolean ambiguous = false;
+        for (QIOSmartProcessingResourceEntry entry : getResources()) {
+            if (!entry.isSchedulable()) continue;
+            PortableResourceDescriptor resource = entry.getResource();
+            if (resource.equals(target)) {
+                exact = resource;
+                continue;
+            }
+            if (!resource.withoutCapabilities().equals(neutral)) continue;
+            if (neutralMatch == null) {
+                neutralMatch = resource;
+            } else if (!neutralMatch.equals(resource)) {
+                ambiguous = true;
+            }
+        }
+        if (exact != null) return exact;
+        return ambiguous ? null : neutralMatch;
     }
 
     @Nonnull

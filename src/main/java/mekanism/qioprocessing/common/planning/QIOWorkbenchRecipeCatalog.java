@@ -1,6 +1,5 @@
 package mekanism.qioprocessing.common.planning;
 
-import mekanism.common.util.FluidContainerUtils;
 import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.StackUtils;
 import mekanism.common.recipe.processing.MachineRecipeItemInputs;
@@ -13,6 +12,7 @@ import mekanism.qioprocessing.common.content.plan.QIOCandidateOption;
 import mekanism.qioprocessing.common.MekanismQIOProcessing;
 import mekanism.qioprocessing.common.content.plan.QIOPlanStep.ProviderKind;
 import mekanism.qioprocessing.common.util.QIOHashing;
+import mekanism.qioprocessing.common.util.QIORecipeStackUtils;
 import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -26,8 +26,6 @@ import net.minecraft.util.ResourceLocation;
 import net.minecraft.world.World;
 import net.minecraftforge.common.crafting.IShapedRecipe;
 import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.capability.IFluidHandlerItem;
-import net.minecraftforge.fluids.capability.IFluidTankProperties;
 import net.minecraftforge.fml.common.registry.ForgeRegistries;
 import net.minecraftforge.oredict.OreDictionary;
 import net.minecraftforge.common.util.Constants.NBT;
@@ -113,6 +111,14 @@ public final class QIOWorkbenchRecipeCatalog {
     private QIOWorkbenchRecipeCatalog() {
     }
 
+    /** Signals a bounded server-side lookup which should be retried on a later tick. */
+    public static final class TargetedRecipeLookupBusyException extends IllegalStateException {
+
+        private TargetedRecipeLookupBusyException() {
+            super("QIO targeted workbench recipe lookup budget is exhausted");
+        }
+    }
+
     @Nonnull
     public static String productKey(@Nonnull PortableResourceDescriptor output) {
         return sha256(Objects.requireNonNull(output, "output").toString());
@@ -140,28 +146,64 @@ public final class QIOWorkbenchRecipeCatalog {
           @Nonnull World world, @Nonnull List<ItemStack> grid) {
         Objects.requireNonNull(world, "world");
         List<ItemStack> checkedGrid = normalizeGrid(grid);
+        QIORecipeCatalogService service = QIORecipeCatalogService.INSTANCE;
+        boolean targetedAllowed = service.allowsTargetedEncoding();
+        int dimension = world.provider.getDimension();
+        QIORecipeTargetedLookupGuard.Lookup targetedCache = targetedAllowed ?
+              service.lookupTargetedRecipe(dimension, checkedGrid) : null;
         InventoryCrafting inventory = MekanismUtils.getDummyCraftingInv();
         for (int slot = 0; slot < 9; slot++) {
-            inventory.setInventorySlotContents(slot, checkedGrid.get(slot).copy());
+            inventory.setInventorySlotContents(slot, checkedGrid.get(slot));
         }
         IRecipe preferred = null;
-        try {
-            preferred = CraftingManager.findMatchingRecipe(inventory, world);
-        } catch (RuntimeException | LinkageError ignored) {
-            // Some capability providers throw while a held stack is being inspected. The
-            // capability-neutral catalog path below can still identify the recipe.
+        // Once a capability-neutral result is cached, do not call CraftingManager again. The
+        // submitted grid was normalized before reaching this point, so transient providers are
+        // never inspected by the native matcher.
+        if (targetedCache == null || !targetedCache.isCached()) {
+            // Ordinary stacks retain one Forge-native match. Capability-bearing stacks in modes
+            // with a targeted fallback skip this call because providers may throw or perform
+            // expensive work while the normal matcher inspects them.
+            try {
+                preferred = CraftingManager.findMatchingRecipe(inventory, world);
+            } catch (RuntimeException | LinkageError ignored) {
+                // The capability-neutral catalog path below can still identify the recipe.
+            }
+        } else if (targetedCache.getRecipeId() != null) {
+            preferred = ForgeRegistries.RECIPES.getValue(targetedCache.getRecipeId());
         }
         ResourceLocation preferredId = preferred == null ? null : preferred.getRegistryName();
         QIOWorkbenchConfiguration.EncodedPattern normalized =
               resolveEncodedPatternFromCatalog(world, checkedGrid, preferredId);
         if (normalized != null) return normalized;
-        // Keep Forge's normal shaped-recipe placement/mirroring semantics for ordinary stacks.
-        // A stack carrying persisted ForgeCaps must not take this path, otherwise a transient
-        // capability could become part of the saved QIO resource identity.
-        if (preferred != null && !hasSerializedCapabilities(checkedGrid)) {
+        // A published global index can usually normalize capability-bearing stacks without a
+        // second Forge traversal. Only modes which support targeted encoding need the bounded
+        // capability-neutral fallback after that index has missed.
+        boolean targetedPreferred = false;
+        if (targetedAllowed) {
+            preferred = findTargetedRecipe(world, checkedGrid);
+            targetedPreferred = preferred != null;
+            preferredId = preferred == null ? null : preferred.getRegistryName();
+            if (preferredId != null) {
+                normalized = resolveEncodedPatternFromCatalog(world, checkedGrid, preferredId);
+                if (normalized != null) return normalized;
+            }
+        }
+        // Keep Forge's normal shaped-recipe placement/mirroring semantics after matching against
+        // capability-neutral copies. Any transient ForgeCaps are intentionally excluded from the
+        // saved QIO recipe identity.
+        if (preferred != null) {
             QIOWorkbenchConfiguration.EncodedPattern direct = resolveDirectEncodedPattern(
                   world, checkedGrid, preferred);
-            if (direct != null) return direct;
+            if (direct != null) {
+                if (targetedPreferred) {
+                    service.rememberTargetedRecipe(dimension, checkedGrid,
+                          preferred.getRegistryName());
+                }
+                return direct;
+            }
+        }
+        if (targetedPreferred) {
+            service.forgetTargetedRecipe(dimension, checkedGrid);
         }
         throw new IllegalArgumentException(
               "No stable workbench recipe matches the encoded grid or its frozen variants");
@@ -176,11 +218,15 @@ public final class QIOWorkbenchRecipeCatalog {
         QIOWorkbenchConfiguration.EncodedPattern result = index.resolveEncodedPattern(world,
               selectedGrid, preferredRecipeId);
         if (result != null) return result;
-        // A direct API call can occur while the lifecycle capture is still in progress. Build a
-        // temporary immutable index for that call; normal terminal requests are gated by ready().
-        if (index.getRecipeCount() == 0) {
-            index = RecipeOutputIndex.build(world, ForgeRegistries.RECIPES.getValuesCollection());
-            return index.resolveEncodedPattern(world, selectedGrid, preferredRecipeId);
+        // A singleton immutable index is also the direct-encoding path for DISABLED mode.  It
+        // does not perform a global scan and keeps nine-slot encoding available when the global
+        // directory is intentionally empty.
+        if (preferredRecipeId != null) {
+            IRecipe preferred = ForgeRegistries.RECIPES.getValue(preferredRecipeId);
+            if (preferred != null) {
+                index = RecipeOutputIndex.build(world, Collections.singletonList(preferred));
+                return index.resolveEncodedPattern(world, selectedGrid, preferredRecipeId);
+            }
         }
         return null;
     }
@@ -192,14 +238,15 @@ public final class QIOWorkbenchRecipeCatalog {
         if (recipe.isDynamic() || recipe.getRegistryName() == null) return null;
         List<ItemStack> concreteGrid = new ArrayList<>(9);
         for (ItemStack stack : selectedGrid) {
-            ItemStack concrete = concreteStack(stack);
+            ItemStack concrete = concreteSelectionStack(stack);
             if (!stack.isEmpty() && concrete.isEmpty()) return null;
             concreteGrid.add(concrete);
         }
         InventoryCrafting inventory = MekanismUtils.getDummyCraftingInv();
         try {
             for (int slot = 0; slot < 9; slot++) {
-                inventory.setInventorySlotContents(slot, concreteGrid.get(slot).copy());
+                inventory.setInventorySlotContents(slot,
+                      withoutSerializedCapabilities(concreteGrid.get(slot)));
             }
             if (!recipe.matches(inventory, world)) return null;
             ItemStack result = concreteStack(recipe.getCraftingResult(inventory));
@@ -207,11 +254,11 @@ public final class QIOWorkbenchRecipeCatalog {
             QIORecipeCatalogService service = QIORecipeCatalogService.INSTANCE;
             RecipeOutputIndex index = service.getRecipeOutputIndex(world);
             RecipeDefinition definition = index.getRecipeDefinition(recipe.getRegistryName());
-            if (definition == null && index.getRecipeCount() == 0) {
-                index = RecipeOutputIndex.build(world, ForgeRegistries.RECIPES.getValuesCollection());
+            if (definition == null) {
+                index = RecipeOutputIndex.build(world, Collections.singletonList(recipe));
                 definition = index.getRecipeDefinition(recipe.getRegistryName());
             }
-            PortableResourceDescriptor output = PortableResourceDescriptor.item(result);
+            PortableResourceDescriptor output = PortableResourceDescriptor.itemIgnoringCapabilities(result);
             if (definition == null || !definition.getOutput().equals(output) ||
                   definition.getOutputAmount() != result.getCount()) {
                 return null;
@@ -225,11 +272,67 @@ public final class QIOWorkbenchRecipeCatalog {
         }
     }
 
-    private static boolean hasSerializedCapabilities(@Nonnull List<ItemStack> grid) {
-        for (ItemStack stack : grid) {
-            if (!stack.isEmpty() && serializedCapabilities(stack) != null) return true;
+    @Nullable
+    private static IRecipe findTargetedRecipe(World world, List<ItemStack> selectedGrid) {
+        QIORecipeCatalogService service = QIORecipeCatalogService.INSTANCE;
+        int dimension = world.provider.getDimension();
+        QIORecipeTargetedLookupGuard.Lookup cached =
+              service.lookupTargetedRecipe(dimension, selectedGrid);
+        if (cached.isCached()) {
+            ResourceLocation recipeId = cached.getRecipeId();
+            if (recipeId == null) return null;
+            IRecipe recipe = ForgeRegistries.RECIPES.getValue(recipeId);
+            if (recipe != null && !recipe.isDynamic() && recipe.getRegistryName() != null) {
+                return recipe;
+            }
+            service.forgetTargetedRecipe(dimension, selectedGrid);
         }
-        return false;
+        if (!service.tryAcquireTargetedRecipeSearch()) {
+            throw new TargetedRecipeLookupBusyException();
+        }
+        InventoryCrafting inventory = MekanismUtils.getDummyCraftingInv();
+        for (int slot = 0; slot < selectedGrid.size(); slot++) {
+            inventory.setInventorySlotContents(slot, selectedGrid.get(slot));
+        }
+        // CraftingManager was already consulted for ordinary stacks by the caller. Calling it
+        // again here would repeat a full registry traversal on every uncached miss; the frozen
+        // snapshot below is the single budgeted fallback for both ordinary and capability stacks.
+        for (IRecipe recipe : QIORecipeCatalogService.INSTANCE.getStableRecipeSnapshot()) {
+            if (recipe == null || recipe.isDynamic() || recipe.getRegistryName() == null) {
+                continue;
+            }
+            try {
+                if (recipe.matches(inventory, world)) {
+                    service.rememberTargetedRecipe(dimension, selectedGrid,
+                          recipe.getRegistryName());
+                    return recipe;
+                }
+            } catch (RuntimeException | LinkageError ignored) {
+            }
+        }
+        service.rememberTargetedRecipe(dimension, selectedGrid, null);
+        return null;
+    }
+
+    @Nonnull
+    private static ItemStack withoutSerializedCapabilities(@Nullable ItemStack stack) {
+        return QIORecipeStackUtils.copyForRecipeSelection(stack, 1);
+    }
+
+    /** Concrete variant expansion for the capability-neutral recipe-selection boundary. */
+    @Nonnull
+    private static ItemStack concreteSelectionStack(@Nullable ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return ItemStack.EMPTY;
+        if (MachineRecipeItemInputs.isConcreteInput(stack)) {
+            return withoutSerializedCapabilities(stack);
+        }
+        // The generic expander calls ItemStack#copy while walking wildcard variants.  Use a
+        // recipe-selection copy first so a held stack with a large ForgeCaps payload is never
+        // serialized on this boundary.
+        ItemStack selection = QIORecipeStackUtils.copyForRecipeSelection(stack, 1);
+        List<ItemStack> expanded = MachineRecipeItemInputs.expand(selection, null, 1);
+        return expanded.isEmpty() ? ItemStack.EMPTY :
+              withoutSerializedCapabilities(expanded.get(0));
     }
 
     /**
@@ -239,6 +342,10 @@ public final class QIOWorkbenchRecipeCatalog {
     @Nonnull
     public static List<QIOWorkbenchConfiguration.EncodedPattern> resolveEncodedTargets(
           @Nonnull World world, @Nonnull Collection<ItemStack> targets) {
+        if (!QIORecipeCatalogService.INSTANCE.allowsBatchEncoding()) {
+            throw new IllegalStateException(
+                  "Batch workbench encoding is disabled by the recipe catalog scan mode");
+        }
         return resolveEncodedTargets(world, targets,
               QIORecipeCatalogService.INSTANCE.getRecipeOutputIndex(world),
               DEFAULT_BATCH_COMBINATION_BUDGET, true);
@@ -271,8 +378,8 @@ public final class QIOWorkbenchRecipeCatalog {
             if (target == null || target.isEmpty()) {
                 throw new IllegalArgumentException("Workbench batch target is empty");
             }
-            ItemStack copy = target.copy();
-            copy.setCount(1);
+            ItemStack copy = QIORecipeStackUtils.copyForRecipeSelection(target, 1);
+            if (copy.isEmpty()) continue;
             OutputSelection selection = recipeIndex.resolveOutputSelection(copy);
             if (selection != null) {
                 selectedTargets.putIfAbsent(selection.output, selection.recipes);
@@ -319,14 +426,15 @@ public final class QIOWorkbenchRecipeCatalog {
         InventoryCrafting inventory = MekanismUtils.getDummyCraftingInv();
         List<ItemStack> grid = expected.getGrid();
         for (int slot = 0; slot < 9; slot++) {
-            inventory.setInventorySlotContents(slot, grid.get(slot).copy());
+            inventory.setInventorySlotContents(slot,
+                  QIORecipeStackUtils.copyForRecipeSelection(grid.get(slot)));
         }
         if (!recipe.matches(inventory, world)) {
             throw new IllegalArgumentException("Selected workbench recipe no longer matches");
         }
         ItemStack result = concreteStack(recipe.getCraftingResult(inventory));
         if (result.isEmpty() || result.getCount() != expected.getOutputAmount() ||
-            !PortableResourceDescriptor.item(result).equals(expected.getOutput())) {
+            !PortableResourceDescriptor.itemIgnoringCapabilities(result).equals(expected.getOutput())) {
             throw new IllegalArgumentException("Selected workbench recipe output changed");
         }
         Snapshot current = capture(world, Collections.singletonList(recipe), ignored -> 0,
@@ -477,7 +585,11 @@ public final class QIOWorkbenchRecipeCatalog {
         List<ItemStack> result = new ArrayList<>(9);
         boolean hasInput = false;
         for (ItemStack stack : grid) {
-            ItemStack copy = stack == null || stack.isEmpty() ? ItemStack.EMPTY : stack.copy();
+            // ItemStack#copy serializes the Forge capability dispatcher in 1.12.  Recipe
+            // selection deliberately ignores transient capabilities, so make a lightweight copy
+            // containing only the registry item, metadata, and ordinary item NBT.
+            ItemStack copy = stack == null || stack.isEmpty() ? ItemStack.EMPTY :
+                  withoutSerializedCapabilities(stack);
             if (!copy.isEmpty()) {
                 copy.setCount(1);
                 hasInput = true;
@@ -494,44 +606,24 @@ public final class QIOWorkbenchRecipeCatalog {
     @Nonnull
     private static ItemStack concreteStack(@Nullable ItemStack stack) {
         if (stack == null || stack.isEmpty()) return ItemStack.EMPTY;
-        if (MachineRecipeItemInputs.isConcreteInput(stack)) return stack.copy();
-        List<ItemStack> expanded = MachineRecipeItemInputs.expand(stack, null, 1);
-        return expanded.isEmpty() ? ItemStack.EMPTY : expanded.get(0).copy();
+        if (MachineRecipeItemInputs.isConcreteInput(stack)) {
+            return QIORecipeStackUtils.copyForRecipeSelection(stack);
+        }
+        // Keep wildcard expansion capability-neutral; ItemStack#copy serializes ForgeCaps.
+        ItemStack selection = QIORecipeStackUtils.copyForRecipeSelection(stack, 1);
+        List<ItemStack> expanded = MachineRecipeItemInputs.expand(selection, null, 1);
+        return expanded.isEmpty() ? ItemStack.EMPTY :
+              QIORecipeStackUtils.copyForRecipeSelection(expanded.get(0));
     }
 
     /** Recipe selection ignores context-only capabilities but preserves item metadata and NBT. */
     private static boolean sameRecipeSelectionItem(ItemStack first, ItemStack second) {
-        return first != null && second != null && !first.isEmpty() && !second.isEmpty() &&
-              ItemStack.areItemsEqual(first, second) && Objects.equals(
-                    first.getTagCompound(), second.getTagCompound()) &&
-              sameOrNeutralCapabilities(first, second);
-    }
-
-    private static boolean sameOrNeutralCapabilities(ItemStack first, ItemStack second) {
-        NBTTagCompound firstCaps = serializedCapabilities(first);
-        NBTTagCompound secondCaps = serializedCapabilities(second);
-        return firstCaps == null || secondCaps == null || firstCaps.equals(secondCaps);
-    }
-
-    @Nullable
-    private static NBTTagCompound serializedCapabilities(@Nullable ItemStack stack) {
-        if (stack == null || stack.isEmpty()) return null;
-        try {
-            NBTTagCompound serialized = stack.writeToNBT(new NBTTagCompound());
-            if (!serialized.hasKey("ForgeCaps", 10)) return null;
-            NBTTagCompound caps = serialized.getCompoundTag("ForgeCaps");
-            return caps.isEmpty() ? null : caps.copy();
-        } catch (RuntimeException | LinkageError ignored) {
-            // A broken capability is never a reason to treat two recipe candidates as equal.
-            return new NBTTagCompound();
-        }
+        return QIORecipeStackUtils.sameRecipeSelection(first, second);
     }
 
     private static boolean hasDescriptorCapabilities(
           PortableResourceDescriptor descriptor) {
-        NBTTagCompound serialized = descriptor.write();
-        return serialized.hasKey("capabilities", 10) &&
-              !serialized.getCompoundTag("capabilities").isEmpty();
+        return descriptor.hasCapabilities();
     }
 
     private static boolean validateNormalizedRecipe(@Nonnull World world,
@@ -541,12 +633,13 @@ public final class QIOWorkbenchRecipeCatalog {
         try {
             InventoryCrafting inventory = MekanismUtils.getDummyCraftingInv();
             for (int slot = 0; slot < 9; slot++) {
-                inventory.setInventorySlotContents(slot, normalizedGrid.get(slot).copy());
+                inventory.setInventorySlotContents(slot,
+                      QIORecipeStackUtils.copyForRecipeSelection(normalizedGrid.get(slot)));
             }
             if (!recipe.matches(inventory, world)) return false;
             ItemStack result = concreteStack(recipe.getCraftingResult(inventory));
             return !result.isEmpty() && definition.getOutputAmount() == result.getCount() &&
-                  definition.getOutput().equals(PortableResourceDescriptor.item(result));
+                  definition.getOutput().equals(PortableResourceDescriptor.itemIgnoringCapabilities(result));
         } catch (RuntimeException | LinkageError ignored) {
             return false;
         }
@@ -626,7 +719,10 @@ public final class QIOWorkbenchRecipeCatalog {
                           recipeId);
                     return;
                 }
-                declaredOutput = declaredOutput.copy();
+                declaredOutput = QIORecipeStackUtils.copyForRecipeSelection(declaredOutput);
+                if (declaredOutput.isEmpty()) {
+                    throw new IllegalArgumentException("Recipe output could not be frozen");
+                }
                 slots = exactGridCandidates(recipe, ingredients);
                 if (!MachineRecipeItemInputs.isConcreteInput(declaredOutput)) {
                     declaredOutput = firstConcreteRecipeOutput(recipe, declaredOutput,
@@ -660,7 +756,8 @@ public final class QIOWorkbenchRecipeCatalog {
                 InventoryCrafting inventory = MekanismUtils.getDummyCraftingInv();
                 List<ItemStack> grid = pattern.getGrid();
                 for (int slot = 0; slot < 9; slot++) {
-                    inventory.setInventorySlotContents(slot, grid.get(slot).copy());
+                    inventory.setInventorySlotContents(slot,
+                          QIORecipeStackUtils.copyForRecipeSelection(grid.get(slot)));
                 }
                 if (!recipe.matches(inventory, world)) {
                     diagnostics.add("Encoded workbench grid no longer matches: " + recipeId);
@@ -668,7 +765,7 @@ public final class QIOWorkbenchRecipeCatalog {
                 }
                 ItemStack result = concreteStack(recipe.getCraftingResult(inventory));
                 if (result == null || result.isEmpty() ||
-                    !PortableResourceDescriptor.item(result).equals(pattern.getOutput()) ||
+                    !PortableResourceDescriptor.itemIgnoringCapabilities(result).equals(pattern.getOutput()) ||
                     result.getCount() != pattern.getOutputAmount()) {
                     diagnostics.add("Encoded workbench output changed: " + recipeId);
                     return;
@@ -747,6 +844,7 @@ public final class QIOWorkbenchRecipeCatalog {
                 if (candidate == null || candidate.isEmpty()) {
                     continue;
                 }
+                boolean expandedWildcard = !MachineRecipeItemInputs.isConcreteInput(candidate);
                 for (ItemStack concrete : expandedCandidate(candidate)) {
                     if (scanned++ >= candidateScanLimit) {
                         break candidateLoop;
@@ -754,19 +852,36 @@ public final class QIOWorkbenchRecipeCatalog {
                     if (!ingredient.apply(concrete)) {
                         continue;
                     }
-                    ItemStack copy = concrete.copy();
-                    copy.setCount(1);
+                    ItemStack copy = QIORecipeStackUtils.copyForRecipeSelection(concrete, 1);
+                    if (copy.isEmpty()) continue;
                     try {
                         IngredientChoice itemChoice = IngredientChoice.item(copy);
                         unique.putIfAbsent(itemChoice.sortKey(), itemChoice);
                     } catch (RuntimeException ignored) {
                     }
                     try {
-                        IngredientChoice fluidChoice = directFluidChoice(copy);
+                        // For a concrete matching stack, inspect the original capability in place.
+                        // The capability-neutral item copy remains the persistent identity.
+                        IngredientChoice fluidChoice = directFluidChoice(concrete);
                         if (fluidChoice != null) {
                             unique.putIfAbsent(fluidChoice.sortKey(), fluidChoice);
                         }
                     } catch (RuntimeException ignored) {
+                    }
+                    if (expandedWildcard && forgeData != null) {
+                        // SEARCH and ore variants cross the asynchronous boundary without
+                        // ForgeCaps. Their small, immutable fluid snapshots are indexed by the
+                        // stable item identity and restored here.
+                        for (FluidStack fluid : forgeData.containedFluids(concrete)) {
+                            try {
+                                IngredientChoice fluidChoice = IngredientChoice.fluid(copy, fluid);
+                                unique.putIfAbsent(fluidChoice.sortKey(), fluidChoice);
+                            } catch (RuntimeException ignored) {
+                            }
+                            if (unique.size() >= maxCandidatesPerIngredient) {
+                                break;
+                            }
+                        }
                     }
                     if (unique.size() >= maxCandidatesPerIngredient) {
                         break candidateLoop;
@@ -813,10 +928,11 @@ public final class QIOWorkbenchRecipeCatalog {
             return matching.length == 1 ? MatcherKind.EXACT : MatcherKind.ANY_OF;
         }
 
-        private static String stackIdentity(@Nullable ItemStack stack) {
-            if (stack == null || stack.isEmpty()) return "";
-            try {
-                return PortableResourceDescriptor.item(stack) + "@" + stack.getCount();
+    private static String stackIdentity(@Nullable ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return "";
+        try {
+            return PortableResourceDescriptor.itemIgnoringCapabilities(stack) + "@" +
+                  stack.getCount();
             } catch (RuntimeException ignored) {
                 ResourceLocation name = stack.getItem().getRegistryName();
                 return String.valueOf(name) + '|' + stack.getMetadata() + '|' +
@@ -826,16 +942,25 @@ public final class QIOWorkbenchRecipeCatalog {
 
         private List<ItemStack> expandedCandidate(ItemStack candidate) {
             if (MachineRecipeItemInputs.isConcreteInput(candidate)) {
-                return Collections.singletonList(candidate.copy());
+                // The caller reads capabilities directly and never retains or mutates this
+                // recipe-owned stack. IngredientChoice performs the capability-neutral copy.
+                return Collections.singletonList(candidate);
             }
             CandidateExpansionKey key = new CandidateExpansionKey(candidate);
             List<ItemStack> expanded = wildcardExpansionCache.get(key);
             if (expanded == null) {
                 List<ItemStack> captured = forgeData == null ? Collections.emptyList() :
                       forgeData.expand(candidate, maxCandidatesPerIngredient);
-                expanded = captured.isEmpty() ? Collections.unmodifiableList(
-                      MachineRecipeItemInputs.expand(candidate, null,
-                            maxCandidatesPerIngredient)) : captured;
+                if (captured.isEmpty()) {
+                    // This fallback is used only when the immutable Forge snapshot is not yet
+                    // available.  Normalize before entering the generic expander because it
+                    // copies wildcard inputs and would otherwise serialize ForgeCaps.
+                    ItemStack selection = QIORecipeStackUtils.copyForRecipeSelection(candidate, 1);
+                    expanded = Collections.unmodifiableList(MachineRecipeItemInputs.expand(
+                          selection, null, maxCandidatesPerIngredient));
+                } else {
+                    expanded = captured;
+                }
                 wildcardExpansionCache.put(key, expanded);
             }
             return expanded;
@@ -1026,16 +1151,19 @@ public final class QIOWorkbenchRecipeCatalog {
               ItemStack prototype) {
             this.descriptor = descriptor;
             this.runtimeItemId = runtimeItemId;
-            this.prototype = prototype.copy();
-            serializedPrototype = prototype.writeToNBT(new NBTTagCompound());
+            this.prototype = QIORecipeStackUtils.copyForRecipeSelection(prototype, 1);
+            if (this.prototype.isEmpty()) {
+                throw new IllegalArgumentException("Cannot freeze an empty item type");
+            }
+            serializedPrototype = QIORecipeStackUtils.writeForRecipeSelection(this.prototype);
         }
 
         private static FrozenItemType capture(ItemStack stack) {
-            ItemStack prototype = stack.copy();
-            prototype.setCount(1);
+            ItemStack prototype = QIORecipeStackUtils.copyForRecipeSelection(stack, 1);
+            if (prototype.isEmpty()) throw new IllegalArgumentException("Invalid item type");
             PortableResourceDescriptor descriptor;
             try {
-                descriptor = PortableResourceDescriptor.item(prototype);
+                descriptor = PortableResourceDescriptor.itemIgnoringCapabilities(prototype);
             } catch (RuntimeException error) {
                 ResourceLocation registryName = prototype.getItem().getRegistryName();
                 if (registryName == null) throw error;
@@ -1043,14 +1171,14 @@ public final class QIOWorkbenchRecipeCatalog {
                 // Item.REGISTRY. Preserve their full serialized identity for this generation.
                 descriptor = PortableResourceDescriptor.named(
                       PortableResourceDescriptor.Kind.ITEM, registryName.toString(),
-                      prototype.getMetadata(), prototype.writeToNBT(new NBTTagCompound()));
+                      prototype.getMetadata(), QIORecipeStackUtils.writeForRecipeSelection(prototype));
             }
             return new FrozenItemType(descriptor, Item.getIdFromItem(prototype.getItem()),
                   prototype);
         }
     }
 
-    /** One concrete item/NBT/ForgeCaps identity in a catalog generation. */
+    /** One concrete item/metadata/ordinary-NBT identity in a catalog generation. */
     public static final class ItemTypeDefinition {
 
         private final int itemTypeId;
@@ -1070,7 +1198,9 @@ public final class QIOWorkbenchRecipeCatalog {
         public int getItemTypeId() { return itemTypeId; }
         public int getRuntimeItemId() { return runtimeItemId; }
         @Nonnull public PortableResourceDescriptor getDescriptor() { return descriptor; }
-        @Nonnull public ItemStack getDisplayStack() { return prototype.copy(); }
+        @Nonnull public ItemStack getDisplayStack() {
+            return QIORecipeStackUtils.copyForRecipeSelection(prototype);
+        }
     }
 
     /** Immutable numeric lookup for every concrete item identity used by this generation. */
@@ -1905,7 +2035,7 @@ public final class QIOWorkbenchRecipeCatalog {
             this.world = world;
             this.recipe = recipe;
             this.recipeId = recipeId;
-            this.declaredOutput = PortableResourceDescriptor.item(declaredOutput);
+            this.declaredOutput = PortableResourceDescriptor.itemIgnoringCapabilities(declaredOutput);
             declaredOutputType = FrozenItemType.capture(declaredOutput);
             this.declaredOutputAmount = declaredOutput.getCount();
             List<List<IngredientChoice>> copied = new ArrayList<>(grid.candidates.size());
@@ -2181,7 +2311,7 @@ public final class QIOWorkbenchRecipeCatalog {
                 if (result == null || result.isEmpty()) {
                     return null;
                 }
-                if (!PortableResourceDescriptor.item(result).equals(declaredOutput) ||
+                if (!PortableResourceDescriptor.itemIgnoringCapabilities(result).equals(declaredOutput) ||
                     result.getCount() != declaredOutputAmount) {
                     return null;
                 }
@@ -2194,7 +2324,8 @@ public final class QIOWorkbenchRecipeCatalog {
                     }
                 }
                 Map<PortableResourceDescriptor, Long> expectedOutputs = new LinkedHashMap<>();
-                PortableResourceDescriptor resultResource = PortableResourceDescriptor.item(result);
+                PortableResourceDescriptor resultResource =
+                      PortableResourceDescriptor.itemIgnoringCapabilities(result);
                 routeBuilder.output(resultResource, result.getCount());
                 expectedOutputs.put(resultResource, (long) result.getCount());
                 NonNullList<ItemStack> remaining = recipe.getRemainingItems(inventory);
@@ -2204,9 +2335,9 @@ public final class QIOWorkbenchRecipeCatalog {
                         continue;
                     }
                     if (remainder != null && !remainder.isEmpty()) {
-                        routeBuilder.output(PortableResourceDescriptor.item(remainder),
+                        routeBuilder.output(PortableResourceDescriptor.itemIgnoringCapabilities(remainder),
                               remainder.getCount());
-                        expectedOutputs.merge(PortableResourceDescriptor.item(remainder),
+                        expectedOutputs.merge(PortableResourceDescriptor.itemIgnoringCapabilities(remainder),
                               (long) remainder.getCount(), Math::addExact);
                     }
                 }
@@ -2303,16 +2434,17 @@ public final class QIOWorkbenchRecipeCatalog {
             if (!recipe.matches(inventory, world)) return null;
             ItemStack result = concreteStack(recipe.getCraftingResult(inventory));
             if (result == null || result.isEmpty() ||
-                !PortableResourceDescriptor.item(result).equals(declaredOutput) ||
+                !PortableResourceDescriptor.itemIgnoringCapabilities(result).equals(declaredOutput) ||
                 result.getCount() != declaredOutputAmount) return null;
             Map<PortableResourceDescriptor, Long> outputs = new LinkedHashMap<>();
-            outputs.put(PortableResourceDescriptor.item(result), (long) result.getCount());
+                outputs.put(PortableResourceDescriptor.itemIgnoringCapabilities(result),
+                      (long) result.getCount());
             NonNullList<ItemStack> remaining = recipe.getRemainingItems(inventory);
             for (int slot = 0; slot < remaining.size(); slot++) {
                 ItemStack remainder = concreteStack(remaining.get(slot));
                 if (slot < grid.size() && grid.get(slot).isVirtualFluid()) continue;
                 if (remainder != null && !remainder.isEmpty()) {
-                    outputs.merge(PortableResourceDescriptor.item(remainder),
+                    outputs.merge(PortableResourceDescriptor.itemIgnoringCapabilities(remainder),
                           (long) remainder.getCount(), Math::addExact);
                 }
             }
@@ -2839,8 +2971,7 @@ public final class QIOWorkbenchRecipeCatalog {
             for (int selectedSlot = 0; selectedSlot < selectedGrid.size(); selectedSlot++) {
                 ItemStack selected = selectedGrid.get(selectedSlot);
                 if (selected == null || selected.isEmpty()) continue;
-                ItemStack normalized = selected.copy();
-                normalized.setCount(1);
+                ItemStack normalized = withoutSerializedCapabilities(selected);
                 selectedInputs.add(normalized);
                 selectedPositions.add(selectedSlot);
             }
@@ -2860,7 +2991,8 @@ public final class QIOWorkbenchRecipeCatalog {
                         if (definition.isShaped() && selectedPositions.get(inputIndex) != slot) {
                             continue;
                         }
-                        boolean exact = ItemStack.areItemStacksEqual(selected, candidate);
+                        boolean exact;
+                        exact = sameRecipeSelectionItem(selected, candidate);
                         if (exact || sameRecipeSelectionItem(selected, candidate)) {
                             options.add(new NormalizationOption(inputIndex, choice,
                                   exact ? 0 : 1, choiceIndex));
@@ -2978,7 +3110,7 @@ public final class QIOWorkbenchRecipeCatalog {
                 ItemStack encoded = grid.get(slot);
                 boolean matched = false;
                 for (IngredientChoice candidate : candidates.get(slot)) {
-                    if (ItemStack.areItemStacksEqual(encoded, candidate.matchingStack())) {
+                    if (sameRecipeSelectionItem(encoded, candidate.matchingStack())) {
                         matched = true;
                         break;
                     }
@@ -3239,6 +3371,8 @@ public final class QIOWorkbenchRecipeCatalog {
         private final Map<RecipeItemKey, List<PortableResourceDescriptor>> outputsBySelectionKey;
         private final Map<RecipeItemKey, List<CachedRecipe>> recipesByInputSelectionKey;
         private final Map<ResourceLocation, CachedRecipe> recipesById;
+        /** Immutable fallback order; avoid copying the entire index for every lookup miss. */
+        private final List<CachedRecipe> allRecipes;
         private final int recipeCount;
         private final CatalogGeneration generation;
         private final QIOForgeRecipeData forgeData;
@@ -3251,6 +3385,7 @@ public final class QIOWorkbenchRecipeCatalog {
             outputsBySelectionKey = buildOutputSelectionIndex(recipesByOutput.keySet());
             this.recipesById = recipesById;
             recipesByInputSelectionKey = buildInputSelectionIndex(recipesById.values());
+            allRecipes = Collections.unmodifiableList(new ArrayList<>(recipesById.values()));
             this.recipeCount = recipeCount;
             this.generation = generation;
             this.forgeData = Objects.requireNonNull(forgeData, "forgeData");
@@ -3312,14 +3447,21 @@ public final class QIOWorkbenchRecipeCatalog {
         static Capture beginCapture(@Nullable World world,
               @Nonnull Collection<? extends IRecipe> recipes,
               @Nonnull BuildListener listener) {
-            return new Capture(world, recipes, listener, false);
+            return new Capture(world, recipes, listener, false, false);
         }
 
         @Nonnull
         static Capture beginGlobalCapture(@Nullable World world,
               @Nonnull Collection<? extends IRecipe> recipes,
               @Nonnull BuildListener listener) {
-            return new Capture(world, recipes, listener, true);
+            return new Capture(world, recipes, listener, true, false);
+        }
+
+        @Nonnull
+        static Capture beginGlobalCaptureStable(@Nullable World world,
+              @Nonnull List<? extends IRecipe> recipes,
+              @Nonnull BuildListener listener) {
+            return new Capture(world, recipes, listener, true, true);
         }
 
         @Nonnull
@@ -3449,8 +3591,6 @@ public final class QIOWorkbenchRecipeCatalog {
 
         @Nonnull
         private List<CachedRecipe> indexedInputCandidates(List<ItemStack> selectedGrid) {
-            List<CachedRecipe> fallback = Collections.unmodifiableList(
-                  new ArrayList<>(recipesById.values()));
             List<CachedRecipe> best = null;
             Set<RecipeItemKey> keys = new LinkedHashSet<>();
             for (ItemStack selected : selectedGrid) {
@@ -3460,7 +3600,7 @@ public final class QIOWorkbenchRecipeCatalog {
                     // here: attached capability providers are allowed to fail during NBT export.
                     keys.add(new RecipeItemKey(selected));
                 } catch (RuntimeException | LinkageError ignored) {
-                    return fallback;
+                    return allRecipes;
                 }
             }
             for (RecipeItemKey key : keys) {
@@ -3468,7 +3608,7 @@ public final class QIOWorkbenchRecipeCatalog {
                 if (indexed == null || indexed.isEmpty()) return Collections.emptyList();
                 if (best == null || indexed.size() < best.size()) best = indexed;
             }
-            return best == null ? fallback : best;
+            return best == null ? allRecipes : best;
         }
 
         @Nullable
@@ -3491,7 +3631,8 @@ public final class QIOWorkbenchRecipeCatalog {
             ItemStack checked = Objects.requireNonNull(requested, "requested");
             RecipeItemKey selectionKey = new RecipeItemKey(checked);
             try {
-                PortableResourceDescriptor exact = PortableResourceDescriptor.item(checked);
+                PortableResourceDescriptor exact =
+                      PortableResourceDescriptor.itemIgnoringCapabilities(checked);
                 List<CachedRecipe> exactRecipes = recipesByOutput.get(exact);
                 if (exactRecipes != null && !exactRecipes.isEmpty()) {
                     return new OutputSelection(exact, exactRecipes);
@@ -3591,6 +3732,15 @@ public final class QIOWorkbenchRecipeCatalog {
                 }
             }
             return Collections.unmodifiableList(invalid);
+        }
+
+        boolean arePatternsValid(@Nonnull QIOWorkbenchConfiguration configuration) {
+            Objects.requireNonNull(configuration, "configuration");
+            for (QIOWorkbenchConfiguration.EncodedPattern pattern :
+                  configuration.getEncodedPatterns()) {
+                if (!isPatternValid(pattern)) return false;
+            }
+            return true;
         }
 
         /** Validates one encoded pattern without exposing mutable compiled recipe state. */
@@ -3954,7 +4104,12 @@ public final class QIOWorkbenchRecipeCatalog {
                     throw new IllegalArgumentException(
                           "Cached QIO item IDs are not contiguous");
                 }
-                ItemStack stack = new ItemStack(record.getCompoundTag("stack"));
+                // Cache records contain recipe-selection data only.  Do not use the
+                // regular ItemStack NBT constructor here: StellarCore and other
+                // integrations may materialize ForgeCaps while restoring a stack,
+                // which can both change identity and inflate the cache.
+                ItemStack stack = QIORecipeStackUtils.readForRecipeSelection(
+                      record.getCompoundTag("stack"));
                 if (stack.isEmpty()) {
                     throw new IllegalArgumentException("Cached QIO item is unresolved");
                 }
@@ -4464,22 +4619,25 @@ public final class QIOWorkbenchRecipeCatalog {
 
             private Capture(@Nullable World world,
                   Collection<? extends IRecipe> recipes, BuildListener listener,
-                  boolean captureGlobalForgeData) {
+                  boolean captureGlobalForgeData, boolean registrySnapshotIsStable) {
                 Objects.requireNonNull(recipes, "recipes");
                 this.world = world;
                 this.listener = Objects.requireNonNull(listener, "listener");
-                // Forge's registry collection is live.  Keep the complete recipe set stable
-                // for this lifecycle so late registration cannot invalidate iterator state or
-                // make two ticks observe different recipe counts.
-                List<IRecipe> stableRecipes = new ArrayList<>(recipes.size());
-                for (IRecipe recipe : recipes) {
-                    if (recipe != null) stableRecipes.add(recipe);
+                if (registrySnapshotIsStable) {
+                    recipeSource = recipes.iterator();
+                } else {
+                    // Forge's registry collection is live. Keep a stable sorted view unless the
+                    // caller already owns the immutable lifecycle snapshot.
+                    List<IRecipe> stableRecipes = new ArrayList<>(recipes.size());
+                    for (IRecipe recipe : recipes) {
+                        if (recipe != null) stableRecipes.add(recipe);
+                    }
+                    stableRecipes.sort(Comparator.comparing(recipe -> {
+                        ResourceLocation id = recipe.getRegistryName();
+                        return id == null ? "" : id.toString();
+                    }));
+                    recipeSource = Collections.unmodifiableList(stableRecipes).iterator();
                 }
-                stableRecipes.sort(Comparator.comparing(recipe -> {
-                    ResourceLocation id = recipe.getRegistryName();
-                    return id == null ? "" : id.toString();
-                }));
-                recipeSource = Collections.unmodifiableList(stableRecipes).iterator();
                 if (captureGlobalForgeData) {
                     forgeCapture = QIOForgeRecipeData.beginCapture();
                     stage = Stage.FORGE_CAPTURE;
@@ -4845,7 +5003,7 @@ public final class QIOWorkbenchRecipeCatalog {
             Set<PortableResourceDescriptor> dependencies = new LinkedHashSet<>();
             for (ItemStack stack : pattern.getGrid()) {
                 if (!stack.isEmpty()) {
-                    dependencies.add(PortableResourceDescriptor.item(stack));
+                    dependencies.add(PortableResourceDescriptor.itemIgnoringCapabilities(stack));
                 }
             }
             for (PortableResourceDescriptor dependency : dependencies) {
@@ -5005,7 +5163,9 @@ public final class QIOWorkbenchRecipeCatalog {
               int depth, List<PortableResourceDescriptor> active) {
             Set<PortableResourceDescriptor> inputs = new LinkedHashSet<>();
             for (ItemStack stack : pattern.getGrid()) {
-                if (!stack.isEmpty()) inputs.add(PortableResourceDescriptor.item(stack));
+                if (!stack.isEmpty()) {
+                    inputs.add(PortableResourceDescriptor.itemIgnoringCapabilities(stack));
+                }
             }
             for (PortableResourceDescriptor dependency : inputs) {
                 if (checkpoint()) return;
@@ -5055,7 +5215,9 @@ public final class QIOWorkbenchRecipeCatalog {
               List<PortableResourceDescriptor> active) {
             Set<PortableResourceDescriptor> inputs = new LinkedHashSet<>();
             for (ItemStack stack : pattern.getGrid()) {
-                if (!stack.isEmpty()) inputs.add(PortableResourceDescriptor.item(stack));
+                if (!stack.isEmpty()) {
+                    inputs.add(PortableResourceDescriptor.itemIgnoringCapabilities(stack));
+                }
             }
             for (PortableResourceDescriptor dependency : inputs) {
                 int cycleAt = active.indexOf(dependency);
@@ -5208,7 +5370,9 @@ public final class QIOWorkbenchRecipeCatalog {
         if (layout != RecipeLayout.SHAPELESS) return grid;
         List<ItemStack> packed = new ArrayList<>(9);
         for (ItemStack stack : grid) {
-            if (stack != null && !stack.isEmpty()) packed.add(stack.copy());
+            if (stack != null && !stack.isEmpty()) {
+                packed.add(QIORecipeStackUtils.copyForRecipeSelection(stack));
+            }
         }
         while (packed.size() < 9) packed.add(ItemStack.EMPTY);
         return packed;
@@ -5238,30 +5402,8 @@ public final class QIOWorkbenchRecipeCatalog {
 
     @Nullable
     private static IngredientChoice directFluidChoice(ItemStack candidate) {
-        IFluidHandlerItem first = FluidContainerUtils.getUnstackedFluidHandlerCapability(candidate);
-        if (first == null) return null;
-        IFluidTankProperties[] properties = first.getTankProperties();
-        if (properties == null || properties.length != 1 || properties[0] == null) return null;
-        FluidStack stored = properties[0].getContents();
-        if (stored == null || stored.amount <= 0 || stored.amount > properties[0].getCapacity() ||
-              !properties[0].canDrainFluidType(stored)) return null;
-        FluidStack simulated = first.drain(stored.copy(), false);
-        if (!sameFluidAmount(stored, simulated)) return null;
-        IFluidHandlerItem second = FluidContainerUtils.getUnstackedFluidHandlerCapability(candidate);
-        if (second == null) return null;
-        FluidStack drained = second.drain(stored.copy(), true);
-        if (!sameFluidAmount(stored, drained)) return null;
-        IFluidTankProperties[] after = second.getTankProperties();
-        if (after == null || after.length != 1 || after[0] == null) return null;
-        FluidStack left = after[0].getContents();
-        if (left != null && left.amount > 0) return null;
-        return IngredientChoice.fluid(candidate, stored);
-    }
-
-    private static boolean sameFluidAmount(@Nullable FluidStack expected,
-          @Nullable FluidStack actual) {
-        return expected != null && actual != null && expected.amount == actual.amount &&
-              expected.isFluidEqual(actual);
+        FluidStack stored = QIOFluidContainerSnapshot.capture(candidate);
+        return stored == null ? null : IngredientChoice.fluid(candidate, stored);
     }
 
     private static final class IngredientChoice {
@@ -5281,7 +5423,7 @@ public final class QIOWorkbenchRecipeCatalog {
         private IngredientChoice(ItemStack matchingStack,
               @Nullable PortableResourceDescriptor resource, long amount, boolean virtualFluid,
               String sortKey) {
-            this.matchingStack = matchingStack.copy();
+            this.matchingStack = QIORecipeStackUtils.copyForRecipeSelection(matchingStack, 1);
             itemType = matchingStack.isEmpty() ? null : FrozenItemType.capture(matchingStack);
             this.resource = resource;
             this.amount = amount;
@@ -5297,7 +5439,7 @@ public final class QIOWorkbenchRecipeCatalog {
                 throw new IllegalArgumentException(
                       "QIO workbench item candidate must have concrete metadata");
             }
-            PortableResourceDescriptor item = PortableResourceDescriptor.item(stack);
+            PortableResourceDescriptor item = PortableResourceDescriptor.itemIgnoringCapabilities(stack);
             return new IngredientChoice(stack, item, 1, false, "I|" + item);
         }
 
@@ -5324,7 +5466,7 @@ public final class QIOWorkbenchRecipeCatalog {
             PortableResourceDescriptor descriptor = PortableResourceDescriptor.fluid(fluid);
             String container;
             try {
-                container = PortableResourceDescriptor.item(matchingStack).toString();
+                container = PortableResourceDescriptor.itemIgnoringCapabilities(matchingStack).toString();
             } catch (RuntimeException ignored) {
                 ResourceLocation registryName = matchingStack.getItem().getRegistryName();
                 if (registryName == null) {
@@ -5338,7 +5480,9 @@ public final class QIOWorkbenchRecipeCatalog {
         }
 
         private boolean isEmpty() { return resource == null; }
-        private ItemStack matchingStack() { return matchingStack.copy(); }
+        private ItemStack matchingStack() {
+            return QIORecipeStackUtils.copyForRecipeSelection(matchingStack);
+        }
         private PortableResourceDescriptor resource() {
             return Objects.requireNonNull(resource, "resource");
         }

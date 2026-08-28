@@ -8,10 +8,12 @@ import mekanism.client.gui.element.slot.SlotType;
 import mekanism.client.gui.element.window.GuiWindow;
 import mekanism.client.recipe_viewer.interfaces.IRecipeViewerGhostTarget.IGhostItemConsumer;
 import mekanism.common.inventory.container.SelectedWindowData;
+import mekanism.common.config.MekanismConfig;
 import mekanism.common.util.MekanismUtils;
 import mekanism.qioprocessing.common.QIOProcessingWindowTypes;
 import mekanism.qioprocessing.common.inventory.container.QIOWorkbenchConfigurationClientCache;
 import mekanism.qioprocessing.common.content.workbench.QIOWorkbenchClosureMode;
+import mekanism.qioprocessing.common.util.QIORecipeStackUtils;
 import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.crafting.CraftingManager;
@@ -179,8 +181,17 @@ public final class GuiQIOWorkbenchPatternWindow extends GuiWindow {
     }
 
     private void updateButton() {
+        boolean recursive = MekanismConfig.current().qioProcessing.recipeCatalogScanMode
+              .val().allowsRecursiveImport();
+        if (!recursive) {
+            closureMode = QIOWorkbenchClosureMode.NONE;
+            skipCyclicRecipes = false;
+        }
+        closureModeButton.visible = recursive;
+        cycleFilterButton.visible = recursive;
         encodeButton.active = cache.hasEncodingInput() && !output.isEmpty();
-        cycleFilterButton.active = closureMode != QIOWorkbenchClosureMode.NONE;
+        cycleFilterButton.active = recursive &&
+              closureMode != QIOWorkbenchClosureMode.NONE;
     }
 
     @Override
@@ -195,7 +206,7 @@ public final class GuiQIOWorkbenchPatternWindow extends GuiWindow {
         List<ItemStack> grid = cache.getEncodingGrid();
         if (sameGrid(lastOutputGrid, grid)) return;
         List<ItemStack> copy = new ArrayList<>(grid.size());
-        grid.forEach(stack -> copy.add(stack.copy()));
+        grid.forEach(stack -> copy.add(QIORecipeStackUtils.copyForRecipeSelection(stack)));
         lastOutputGrid = Collections.unmodifiableList(copy);
         output = calculateOutput(grid);
     }
@@ -220,33 +231,29 @@ public final class GuiQIOWorkbenchPatternWindow extends GuiWindow {
         try {
             InventoryCrafting inventory = MekanismUtils.getDummyCraftingInv();
             for (int slot = 0; slot < 9; slot++) {
-                inventory.setInventorySlotContents(slot, grid.get(slot).copy());
+                inventory.setInventorySlotContents(slot,
+                      QIORecipeStackUtils.copyForRecipeSelection(grid.get(slot)));
             }
             IRecipe recipe = CraftingManager.findMatchingRecipe(inventory, minecraft.world);
             if (recipe == null) return ItemStack.EMPTY;
             ItemStack result = recipe.getCraftingResult(inventory);
-            return result == null ? ItemStack.EMPTY : result.copy();
+            return result == null ? ItemStack.EMPTY :
+                  QIORecipeStackUtils.copyForRecipeSelection(result);
         } catch (RuntimeException | LinkageError ignored) {
             return ItemStack.EMPTY;
         }
     }
 
     private static ItemStack withoutSerializedCapabilities(ItemStack stack) {
-        if (stack == null || stack.isEmpty()) return ItemStack.EMPTY;
-        try {
-            ItemStack copy = new ItemStack(stack.getItem(), stack.getCount(), stack.getMetadata());
-            NBTTagCompound tag = stack.getTagCompound();
-            copy.setTagCompound(tag == null ? null : tag.copy());
-            return copy;
-        } catch (RuntimeException | LinkageError ignored) {
-            return ItemStack.EMPTY;
-        }
+        return QIORecipeStackUtils.copyForRecipeSelection(stack);
     }
 
     private static boolean sameGrid(List<ItemStack> first, List<ItemStack> second) {
         if (first.size() != second.size()) return false;
         for (int slot = 0; slot < first.size(); slot++) {
-            if (!ItemStack.areItemStacksEqual(first.get(slot), second.get(slot))) return false;
+            if (!QIORecipeStackUtils.sameRecipeSelectionWithCount(first.get(slot), second.get(slot))) {
+                return false;
+            }
         }
         return true;
     }

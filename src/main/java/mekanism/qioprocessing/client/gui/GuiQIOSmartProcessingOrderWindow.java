@@ -556,7 +556,7 @@ public final class GuiQIOSmartProcessingOrderWindow extends GuiWindow
                 if (stack == null) return null;
                 try {
                     return cache().canSelectRecipeViewerTarget(state.getSessionNonce(),
-                          PortableResourceDescriptor.item(stack)) ? stack : null;
+                          PortableResourceDescriptor.itemIgnoringCapabilities(stack)) ? stack : null;
                 } catch (RuntimeException ignored) {
                     return null;
                 }
@@ -567,7 +567,7 @@ public final class GuiQIOSmartProcessingOrderWindow extends GuiWindow
                 ItemStack stack = supportedTarget(ingredient);
                 if (stack != null) {
                     cache().selectRecipeViewerTarget(state.getSessionNonce(),
-                          PortableResourceDescriptor.item(stack));
+                          PortableResourceDescriptor.itemIgnoringCapabilities(stack));
                 }
             }
         };

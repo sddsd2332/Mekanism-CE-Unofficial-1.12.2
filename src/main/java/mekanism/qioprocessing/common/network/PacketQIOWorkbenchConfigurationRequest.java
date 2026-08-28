@@ -14,6 +14,7 @@ import mekanism.qioprocessing.common.inventory.container.QIOWorkbenchConfigurati
 import mekanism.qioprocessing.common.terminal.QIOProcessingTerminalSession;
 import mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType;
 import mekanism.qioprocessing.common.terminal.QIOWorkbenchConfigurationService;
+import mekanism.qioprocessing.common.planning.QIOWorkbenchRecipeCatalog.TargetedRecipeLookupBusyException;
 import mekanism.qioprocessing.common.terminal.QIOWorkbenchConfigurationService.Context;
 import mekanism.qioprocessing.common.terminal.QIOWorkbenchConfigurationSnapshot;
 import mekanism.qioprocessing.common.terminal.QIOWorkbenchCopyPreview;
@@ -149,6 +150,12 @@ public final class PacketQIOWorkbenchConfigurationRequest implements
                     status = closureStatus(result.getStatus());
                 }
             }
+        } catch (TargetedRecipeLookupBusyException ignored) {
+            // A bounded targeted lookup is deliberately retriable; do not turn it into a
+            // permanent invalid-target response on the client.
+            status = PacketQIOWorkbenchConfigurationData.Status.BUSY;
+            snapshot = null;
+            copyPreview = null;
         } catch (IllegalArgumentException | IllegalStateException | SecurityException ignored) {
             status = PacketQIOWorkbenchConfigurationData.Status.INVALID_TARGET;
             snapshot = null;
@@ -171,6 +178,7 @@ public final class PacketQIOWorkbenchConfigurationRequest implements
             case INVALID_PATTERN -> PacketQIOWorkbenchConfigurationData.Status.INVALID_PATTERN;
             case READ_ONLY -> PacketQIOWorkbenchConfigurationData.Status.READ_ONLY;
             case LAST_CANDIDATE -> PacketQIOWorkbenchConfigurationData.Status.LAST_CANDIDATE;
+            case BUSY -> PacketQIOWorkbenchConfigurationData.Status.BUSY;
             case UNAVAILABLE -> PacketQIOWorkbenchConfigurationData.Status.UNAVAILABLE;
         };
     }

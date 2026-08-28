@@ -1,6 +1,7 @@
 package mekanism.qioprocessing.common.content.processor;
 
 import mekanism.qioprocessing.common.content.QIOProcessingDataException;
+import mekanism.qioprocessing.common.util.QIORecipeStackUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
@@ -168,19 +169,20 @@ public final class QIOProcessorDisplaySnapshot {
 
         @Nonnull
         public ItemStack getGridStack(int slot) {
-            return slot < 0 || slot >= GRID_SIZE ? ItemStack.EMPTY : grid.get(slot).copy();
+            return slot < 0 || slot >= GRID_SIZE ? ItemStack.EMPTY :
+                  QIORecipeStackUtils.copyForRecipeSelection(grid.get(slot));
         }
 
         @Nonnull
         public List<ItemStack> getGrid() {
             List<ItemStack> copy = new ArrayList<>(GRID_SIZE);
-            grid.forEach(stack -> copy.add(stack.copy()));
+            grid.forEach(stack -> copy.add(QIORecipeStackUtils.copyForRecipeSelection(stack)));
             return Collections.unmodifiableList(copy);
         }
 
         @Nonnull
         public ItemStack getOutput() {
-            return output.copy();
+            return QIORecipeStackUtils.copyForRecipeSelection(output);
         }
 
         private NBTTagCompound write() {
@@ -230,15 +232,16 @@ public final class QIOProcessorDisplaySnapshot {
     }
 
     private static ItemStack copy(@Nullable ItemStack stack) {
-        return stack == null || stack.isEmpty() ? ItemStack.EMPTY : stack.copy();
+        // This snapshot is display-only.  Do not serialize third-party ForgeCaps while
+        // copying a stack for the client sync packet.
+        return QIORecipeStackUtils.copyForRecipeSelection(stack);
     }
 
     private static NBTTagCompound writeStack(ItemStack stack) {
-        return stack.isEmpty() ? new NBTTagCompound() :
-              stack.writeToNBT(new NBTTagCompound());
+        return QIORecipeStackUtils.writeForRecipeSelection(stack);
     }
 
     private static ItemStack readStack(NBTTagCompound data) {
-        return data.isEmpty() ? ItemStack.EMPTY : new ItemStack(data);
+        return QIORecipeStackUtils.readForRecipeSelection(data);
     }
 }

@@ -121,7 +121,7 @@ public final class GuiQIOMaintenanceRulesPanel extends GuiElement
                 if (stack == null || stack.isEmpty()) return;
                 PortableResourceDescriptor resource;
                 try {
-                    resource = PortableResourceDescriptor.item(stack);
+                    resource = PortableResourceDescriptor.itemIgnoringCapabilities(stack);
                 } catch (RuntimeException ignored) {
                     return;
                 }
@@ -149,10 +149,16 @@ public final class GuiQIOMaintenanceRulesPanel extends GuiElement
 
     QIOMaintenanceRule findRule(@Nullable PortableResourceDescriptor resource) {
         if (resource == null) return null;
+        QIOMaintenanceRule neutralMatch = null;
+        PortableResourceDescriptor neutral = resource.withoutCapabilities();
         for (QIOMaintenanceRule rule : rules()) {
             if (resource.equals(rule.getResource())) return rule;
+            if (rule.getResource().withoutCapabilities().equals(neutral)) {
+                if (neutralMatch != null && !neutralMatch.equals(rule)) return null;
+                neutralMatch = rule;
+            }
         }
-        return null;
+        return neutralMatch;
     }
 
     boolean configureRule(PortableResourceDescriptor resource, long target, long batch,

@@ -181,6 +181,21 @@ public final class PortableResourceDescriptor implements Comparable<PortableReso
         return tag == null ? null : tag.copy();
     }
 
+    /**
+     * Returns the stable recipe-selection identity for this descriptor.  Transient ForgeCaps
+     * belong to a live QIO storage stack, not to a workbench recipe or its cache.
+     */
+    @Nonnull
+    public PortableResourceDescriptor withoutCapabilities() {
+        return capabilities == null ? this : new PortableResourceDescriptor(kind, registryName,
+              metadata, tag);
+    }
+
+    /** Whether this item descriptor contains a persisted capability identity. */
+    public boolean hasCapabilities() {
+        return capabilities != null;
+    }
+
     /** 尝试按当前注册表解析物品；无法解析时返回空堆。 */
     @Nonnull
     public ItemStack resolveItem() {
