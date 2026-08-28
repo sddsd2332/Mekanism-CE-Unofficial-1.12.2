@@ -158,6 +158,14 @@ public class ItemBlockMachine extends ItemBlock implements ILegacyEnergizedItem,
         return i;
     }
 
+    @Override
+    public int getItemStackLimit(ItemStack stack) {
+        if (MachineType.get(stack) == MachineType.PERSONAL_CHEST && getOwnerUUID(stack) != null) {
+            return 1;
+        }
+        return super.getItemStackLimit(stack);
+    }
+
     @Nonnull
     @Override
     public String getTranslationKey(ItemStack itemstack) {
@@ -278,9 +286,30 @@ public class ItemBlockMachine extends ItemBlock implements ILegacyEnergizedItem,
 
     @Nonnull
     @Override
+    public EnumActionResult onItemUseFirst(EntityPlayer player, World world, @Nonnull BlockPos pos, @Nonnull EnumFacing side,
+          float hitX, float hitY, float hitZ, @Nonnull EnumHand hand) {
+        ItemStack stack = player.getHeldItem(hand);
+        if (MachineType.get(stack) == MachineType.PERSONAL_CHEST && tryClaimPersonalChest(world, player, stack)) {
+            //Claiming the chest consumes this click. The next click can place it or open its GUI.
+            return EnumActionResult.SUCCESS;
+        }
+        return EnumActionResult.PASS;
+    }
+
+    @Nonnull
+    @Override
     public EnumActionResult onItemUse(EntityPlayer player, World world, @Nonnull BlockPos pos, @Nonnull EnumHand hand, @Nonnull EnumFacing side, float hitX, float hitY, float hitZ) {
         ItemStack stack = player.getHeldItem(hand);
         MachineType type = MachineType.get(stack);
+        if (type == MachineType.PERSONAL_CHEST) {
+            if (tryClaimPersonalChest(world, player, stack)) {
+                return EnumActionResult.SUCCESS;
+            }
+            //A claimed personal chest must never be used as a shared stack, as its inventory is stack-backed.
+            if (getOwnerUUID(stack) == null || stack.getCount() > 1) {
+                return EnumActionResult.PASS;
+            }
+        }
         if (type == MachineType.FLUID_TANK) {
             if (getBucketMode(stack)) {
                 return EnumActionResult.PASS;
@@ -293,6 +322,9 @@ public class ItemBlockMachine extends ItemBlock implements ILegacyEnergizedItem,
     public boolean placeBlockAt(@Nonnull ItemStack stack, @Nonnull EntityPlayer player, World world, @Nonnull BlockPos pos, EnumFacing side, float hitX, float hitY, float hitZ, @Nonnull IBlockState state) {
         boolean place = true;
         MachineType type = MachineType.get(stack);
+        if (type == MachineType.PERSONAL_CHEST && (getOwnerUUID(stack) == null || stack.getCount() > 1)) {
+            return false;
+        }
         if (MekanismConfig.current().general.destroyDisabledBlocks.val()){
             if (type != null && !type.isEnabled()) {
                 return false;
@@ -397,15 +429,16 @@ public class ItemBlockMachine extends ItemBlock implements ILegacyEnergizedItem,
     @Override
     public ActionResult<ItemStack> onItemRightClick(World world, EntityPlayer entityplayer, @Nonnull EnumHand hand) {
         ItemStack itemstack = entityplayer.getHeldItem(hand);
+        MachineType type = MachineType.get(itemstack);
+        if (type == MachineType.PERSONAL_CHEST && tryClaimPersonalChest(world, entityplayer, itemstack)) {
+            //Claiming the chest consumes this click. The next click can open its GUI.
+            return new ActionResult<>(EnumActionResult.SUCCESS, itemstack);
+        }
         if (itemstack.getCount() > 1) {
             return new ActionResult<>(EnumActionResult.PASS, itemstack);
         }
-        MachineType type = MachineType.get(itemstack);
-        if (MachineType.get(itemstack) == MachineType.PERSONAL_CHEST) {
+        if (type == MachineType.PERSONAL_CHEST) {
             if (!world.isRemote) {
-                if (getOwnerUUID(itemstack) == null) {
-                    setOwnerUUID(itemstack, entityplayer.getUniqueID());
-                }
                 if (SecurityUtils.canAccess(entityplayer, itemstack)) {
                     MekanismUtils.openItemGui(entityplayer, hand, 19);
                 } else {
@@ -459,6 +492,16 @@ public class ItemBlockMachine extends ItemBlock implements ILegacyEnergizedItem,
             }
         }
         return new ActionResult<>(EnumActionResult.PASS, itemstack);
+    }
+
+    private boolean tryClaimPersonalChest(World world, EntityPlayer player, ItemStack stack) {
+        if (getOwnerUUID(stack) == null) {
+            if (!world.isRemote) {
+                setOwnerUUID(stack, player.getUniqueID());
+            }
+            return true;
+        }
+        return false;
     }
 
     @Override

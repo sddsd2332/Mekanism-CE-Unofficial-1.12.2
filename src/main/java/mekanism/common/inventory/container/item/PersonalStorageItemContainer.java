@@ -4,6 +4,7 @@ import mekanism.api.inventory.IInventorySlot;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.inventory.InventoryPersonalChest;
 import mekanism.common.inventory.container.slot.HotBarSlot;
+import mekanism.common.security.ISecurityItem;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.inventory.ClickType;
@@ -75,7 +76,8 @@ public class PersonalStorageItemContainer extends MekanismItemContainer {
 
     @Override
     protected boolean isValidStack(@Nonnull ItemStack stack) {
-        return super.isValidStack(stack) && MachineType.get(stack) == MachineType.PERSONAL_CHEST;
+        return super.isValidStack(stack) && MachineType.get(stack) == MachineType.PERSONAL_CHEST && stack.getCount() == 1
+              && stack.getItem() instanceof ISecurityItem securityItem && securityItem.getOwnerUUID(stack) != null;
     }
 
     @Override

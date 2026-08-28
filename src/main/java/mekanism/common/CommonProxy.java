@@ -20,6 +20,7 @@ import mekanism.common.item.ItemDictionary;
 import mekanism.common.item.ItemPortableTeleporter;
 import mekanism.common.item.ItemPortableQIODashboard;
 import mekanism.common.item.ItemSeismicReader;
+import mekanism.common.security.ISecurityItem;
 import mekanism.common.tile.*;
 import mekanism.common.tile.factory.TileEntityFactory;
 import mekanism.common.tile.laser.TileEntityLaserAmplifier;
@@ -187,7 +188,8 @@ public class CommonProxy implements IGuiProvider {
                 }
                 break;
             case 19:
-                if (MachineType.get(stack) == MachineType.PERSONAL_CHEST) {
+                if (MachineType.get(stack) == MachineType.PERSONAL_CHEST && stack.getCount() == 1
+                      && stack.getItem() instanceof ISecurityItem securityItem && securityItem.getOwnerUUID(stack) != null) {
                     //Ensure the item didn't change. From testing even if it did things still seemed to work properly but better safe than sorry
                     return new PersonalStorageItemContainer(player.inventory, hand, itemSlot, stack);
                 }
