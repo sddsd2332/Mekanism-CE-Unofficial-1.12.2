@@ -68,7 +68,8 @@ public final class QIOPlanningSnapshotFactory {
         Objects.requireNonNull(storage, "storage");
         Map<PortableResourceDescriptor, BigInteger> exactAvailable = new LinkedHashMap<>();
         for (QIOStorageEntry entry : storage.getEntries()) {
-            if (entry == null || entry.getExactAvailableAmount().signum() <= 0) {
+            if (entry == null || entry.getExactAvailableAmount().signum() <= 0 ||
+                  !entry.getDescriptor().isResolved()) {
                 continue;
             }
             PortableResourceDescriptor resource = PortableResourceDescriptor.fromStorageEntry(entry);

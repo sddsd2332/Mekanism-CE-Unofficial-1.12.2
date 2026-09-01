@@ -2,6 +2,8 @@ package mekanism.common.content.qio.filter;
 
 import mekanism.common.content.qio.QIOResourceEntry;
 import mekanism.common.content.qio.QIOResourceKind;
+import mekanism.api.qio.resource.QIOResourceCodecs;
+import mekanism.api.qio.resource.QIOResourceFamilyMatcher;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.fluids.FluidStack;
 
@@ -29,7 +31,9 @@ public class QIOFluidFilter extends QIOFilter {
         this.fluid = fluid == null ? null : new FluidStack(fluid, 1);
     }
 
-    @Override public QIOResourceKind getKind() { return QIOResourceKind.FLUID; }
+    @Override public QIOResourceFamilyMatcher getMatcher() {
+        return QIOResourceFamilyMatcher.family(QIOResourceCodecs.FLUID_FAMILY);
+    }
 
     @Override
     public boolean matches(QIOResourceEntry entry) {

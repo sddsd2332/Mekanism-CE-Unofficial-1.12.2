@@ -2,6 +2,7 @@ package mekanism.api.qio.external;
 
 import mekanism.api.Action;
 import mekanism.api.gas.GasStack;
+import mekanism.api.qio.resource.QIOResourceDescriptor;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.fluids.FluidStack;
 
@@ -55,6 +56,11 @@ public interface IQIOStorageView {
 
     long insert(GasStack stack, long amount, Action action);
 
+    /** Generic codec-backed insertion. Legacy implementations fail closed until they override it. */
+    default long insert(@Nonnull QIOResourceDescriptor descriptor, long amount, @Nonnull Action action) {
+        return 0;
+    }
+
     /**
      * Executes or repairs an insertion using the exact amount observed before its durable intent
      * was saved. Implementations that cannot prove the physical state must fail closed.
@@ -80,11 +86,26 @@ public interface IQIOStorageView {
               Math.max(1, amount), 0);
     }
 
+    /** Generic idempotent insertion used by QIO processing for custom codecs. */
+    @Nonnull
+    default QIOTransferResult insertIdempotent(@Nonnull UUID transferId,
+          @Nonnull QIOResourceDescriptor descriptor, long amount,
+          @Nonnull BigInteger expectedStoredAmount) {
+        return new QIOTransferResult(transferId, QIOTransferResult.Status.FAILED,
+              Math.max(1, amount), 0);
+    }
+
     long extract(ItemStack stack, long amount, Action action);
 
     long extract(FluidStack stack, long amount, Action action);
 
     long extract(GasStack stack, long amount, Action action);
+
+    /** Generic codec-backed extraction. Legacy implementations fail closed until they override it. */
+    default long extract(@Nonnull QIOResourceDescriptor descriptor, long amount,
+          @Nonnull Action action) {
+        return 0;
+    }
 
     boolean addListener(IQIOStorageListener listener);
 

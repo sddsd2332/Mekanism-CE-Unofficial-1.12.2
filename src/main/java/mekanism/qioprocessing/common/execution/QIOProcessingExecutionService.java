@@ -3144,7 +3144,7 @@ public final class QIOProcessingExecutionService {
         MachineTransferPlan insertion = MachineTransferPlan.create(tile);
         for (MachineResourceStack configuration : route.configurationInputs()) {
             MachinePort port = ports.get(configuration.portId());
-            if (port == null || !port.isConfiguration() || port.kind() != configuration.kind()) {
+            if (port == null || !port.isConfiguration() || !port.acceptsResource(configuration)) {
                 return false;
             }
             MachineResourceStack current = port.peek();
@@ -3157,7 +3157,7 @@ public final class QIOProcessingExecutionService {
         }
         for (MachineResourceStack input : route.inputs()) {
             MachinePort port = ports.get(input.portId());
-            if (port == null) {
+            if (port == null || !port.acceptsResource(input)) {
                 return false;
             }
             if (port.peek() != null) {
@@ -3167,13 +3167,13 @@ public final class QIOProcessingExecutionService {
         }
         for (MachineResourceStack output : route.guaranteedOutputs()) {
             MachinePort port = ports.get(output.portId());
-            if (port == null || port.peek() != null) {
+            if (port == null || !port.acceptsResource(output) || port.peek() != null) {
                 return false;
             }
         }
         for (MachineResourceStack output : route.optionalOutputs()) {
             MachinePort port = ports.get(output.portId());
-            if (port == null || port.peek() != null) {
+            if (port == null || !port.acceptsResource(output) || port.peek() != null) {
                 return false;
             }
         }
@@ -3477,7 +3477,7 @@ public final class QIOProcessingExecutionService {
         Map<String, MachinePortBaseline> restored = new LinkedHashMap<>();
         for (MachinePortBaseline baseline : baselines) {
             MachinePort port = endpoint.ports.get(baseline.portId());
-            if (port == null || port.kind() != baseline.kind() ||
+            if (port == null || !port.resourceMatcher().equals(baseline.resourceMatcher()) ||
                   !port.portGroupId().equals(baseline.portGroupId()) ||
                   restored.put(baseline.portId(), baseline) != null) {
                 throw new IllegalStateException("Persisted machine baseline no longer matches its port");
@@ -3497,7 +3497,7 @@ public final class QIOProcessingExecutionService {
                 // can move that owned batch into sibling outputs, whose pre-operation state was
                 // necessarily empty for a schedulable route.
                 merged.add(new MachinePortBaseline(current.portId(), current.portGroupId(),
-                      current.kind(), null));
+                      current.resourceMatcher(), null, Collections.emptyList()));
             } else {
                 throw new IllegalStateException("Persisted machine baseline set changed");
             }
@@ -3518,7 +3518,7 @@ public final class QIOProcessingExecutionService {
             for (MachinePort candidate : ports.values()) {
                 if (candidate != null && !candidate.isConfiguration() &&
                     candidate.role().allowsOutput() &&
-                    candidate.kind() == output.kind() &&
+                    candidate.acceptsResource(output) &&
                     family.equals(lanePortFamily(candidate)) &&
                     referenced.add(candidate.portId())) {
                     baselines.add(MachinePortBaseline.capture(candidate));
@@ -3568,7 +3568,7 @@ public final class QIOProcessingExecutionService {
             for (MachinePort candidate : ports.values()) {
                 if (candidate != null && !candidate.isConfiguration() &&
                     candidate.role().allowsOutput() &&
-                    candidate.kind() == expected.kind() &&
+                    candidate.acceptsResource(expected) &&
                     family.equals(lanePortFamily(candidate))) {
                     candidates.add(candidate);
                 }
@@ -3640,7 +3640,7 @@ public final class QIOProcessingExecutionService {
         outputs.addAll(route.optionalOutputs());
         for (MachineResourceStack output : outputs) {
             MachinePort selected = ports.get(output.portId());
-            if (selected != null && selected.kind() == candidate.kind() &&
+            if (selected != null && candidate.acceptsResource(output) &&
                   candidateFamily.equals(lanePortFamily(selected))) {
                 return true;
             }
@@ -4128,13 +4128,7 @@ public final class QIOProcessingExecutionService {
 
     @Nonnull
     private static PortableResourceDescriptor describe(MachineResourceStack stack) {
-        return switch (stack.kind()) {
-            case ITEM -> PortableResourceDescriptor.item(stack.itemStack());
-            case FLUID -> PortableResourceDescriptor.fluid(
-                  Objects.requireNonNull(stack.fluidStack(), "machine fluid"));
-            case GAS -> PortableResourceDescriptor.gas(
-                  Objects.requireNonNull(stack.gasStack(), "machine gas"));
-        };
+        return PortableResourceDescriptor.fromDescriptor(stack.descriptor());
     }
 
     @Nullable
@@ -4930,6 +4924,7 @@ public final class QIOProcessingExecutionService {
                 GasStack stack = resource.resolveGas();
                 yield stack == null ? 0 : view.insert(stack, amount, Action.SIMULATE);
             }
+            case CUSTOM -> view.insert(resource.getDescriptor(), amount, Action.SIMULATE);
         };
     }
 
@@ -4942,6 +4937,7 @@ public final class QIOProcessingExecutionService {
                   Objects.requireNonNull(resource.resolveFluid(), "missing fluid"), amount, baseline);
             case GAS -> view.insertIdempotent(transferId,
                   Objects.requireNonNull(resource.resolveGas(), "missing gas"), amount, baseline);
+            case CUSTOM -> view.insertIdempotent(transferId, resource.getDescriptor(), amount, baseline);
         };
     }
 

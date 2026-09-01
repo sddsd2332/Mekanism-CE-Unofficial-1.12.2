@@ -1,7 +1,6 @@
 package mekanism.qioprocessing.client.gui;
 
 import mekanism.api.Coord4D;
-import mekanism.api.gas.GasStack;
 import mekanism.api.processing.MachineResourceKind;
 import mekanism.api.processing.MachineResourceStack;
 import mekanism.client.gui.GuiMekanism;
@@ -18,6 +17,7 @@ import mekanism.client.render.IFancyFontRenderer.TextAlignment;
 import mekanism.common.inventory.container.MekanismTileContainer;
 import mekanism.common.inventory.container.SelectedWindowData;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
+import mekanism.qioprocessing.api.resource.PortableResourceDescriptor;
 import mekanism.qioprocessing.common.config.QIOAutomationRecipeConfigClientCache;
 import mekanism.qioprocessing.common.config.QIOAutomationRecipeConfigSnapshot;
 import mekanism.qioprocessing.common.config.QIOAutomationRecipeConfigSnapshot.Route;
@@ -32,7 +32,6 @@ import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraft.util.text.TextComponentTranslation;
-import net.minecraftforge.fluids.FluidStack;
 import org.lwjgl.opengl.GL11;
 
 import javax.annotation.Nullable;
@@ -999,26 +998,7 @@ public final class GuiQIOAutomationRecipeConfigWindow extends GuiWindow {
 
     private void drawResource(MachineResourceStack stack, int x, int y) {
         MachineResourceStack display = displayResource(stack);
-        switch (display.kind()) {
-            case ITEM -> {
-                ItemStack item = display.itemStack();
-                if (!item.isEmpty()) {
-                    gui().renderItemWithOverlay(item, x, y, 1F, null);
-                }
-            }
-            case FLUID -> {
-                FluidStack fluid = display.fluidStack();
-                if (fluid != null) {
-                    GuiUtils.drawFluidBarSprite(x, y, 16, 16, 16, fluid, true);
-                }
-            }
-            case GAS -> {
-                GasStack gas = display.gasStack();
-                if (gas != null) {
-                    GuiUtils.drawGasBarSprite(x, y, 16, 16, 16, gas, true);
-                }
-            }
-        }
+        QIOGuiResourceRenderer.renderIcon(gui(), portable(display), x, y, 16);
     }
 
     @Nullable
@@ -1146,29 +1126,17 @@ public final class GuiQIOAutomationRecipeConfigWindow extends GuiWindow {
                 return;
             }
         }
-        List<String> tooltip = new ArrayList<>();
-        tooltip.add(resourceName(stack));
+        List<String> tooltip = new ArrayList<>(QIOGuiResourceRenderer.tooltip(portable(stack)));
         tooltip.add(amount);
         displayTooltips(tooltip, mouseX, mouseY);
     }
 
     private static String resourceName(MachineResourceStack stack) {
-        MachineResourceStack display = displayResource(stack);
-        return switch (display.kind()) {
-            case ITEM -> {
-                ItemStack item = display.itemStack();
-                yield item.isEmpty() ? "item" : item.getDisplayName();
-            }
-            case FLUID -> {
-                FluidStack fluid = display.fluidStack();
-                yield fluid == null ? "fluid" : fluid.getLocalizedName();
-            }
-            case GAS -> {
-                GasStack gas = display.gasStack();
-                yield gas == null || gas.getGas() == null ? "gas" :
-                      gas.getGas().getLocalizedName();
-            }
-        };
+        return QIOGuiResourceRenderer.name(portable(stack));
+    }
+
+    private static PortableResourceDescriptor portable(MachineResourceStack stack) {
+        return PortableResourceDescriptor.fromDescriptor(stack.descriptor());
     }
 
     private static MachineResourceStack displayResource(MachineResourceStack stack) {

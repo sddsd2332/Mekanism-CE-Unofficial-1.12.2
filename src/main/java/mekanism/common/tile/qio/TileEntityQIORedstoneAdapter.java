@@ -91,7 +91,7 @@ public class TileEntityQIORedstoneAdapter extends TileEntityQIOFilterHandler {
                 ItemStack storedStack = entry.getItem();
                 matches = !targetStack.isEmpty() && !storedStack.isEmpty() && targetStack.getItem() == storedStack.getItem();
             } else {
-                matches = entry.getKind() == target.getKind() && target.matches(entry);
+                matches = target.test(entry);
             }
             if (matches) {
                 long amount = entry.getAmount();

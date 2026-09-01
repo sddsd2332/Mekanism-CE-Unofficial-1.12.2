@@ -1,7 +1,7 @@
 package mekanism.common;
 
 import mekanism.api.EnumColor;
-import mekanism.common.content.qio.QIODriveType;
+import mekanism.common.content.qio.QIODriveSpecializations;
 import mekanism.common.item.*;
 import mekanism.common.item.armor.*;
 import mekanism.common.tier.AlloyTier;
@@ -64,20 +64,20 @@ public class MekanismItems {
     public static final ItemQIODrive TIME_DILATING_QIO_DRIVE = new ItemQIODrive(QIODriveTier.TIME_DILATING);
     public static final ItemQIODrive SUPERMASSIVE_QIO_DRIVE = new ItemQIODrive(QIODriveTier.SUPERMASSIVE);
 
-    public static final ItemQIODrive BASE_ITEM_QIO_DRIVE = new ItemQIODrive(QIODriveTier.BASE, QIODriveType.ITEM);
-    public static final ItemQIODrive HYPER_DENSE_ITEM_QIO_DRIVE = new ItemQIODrive(QIODriveTier.HYPER_DENSE, QIODriveType.ITEM);
-    public static final ItemQIODrive TIME_DILATING_ITEM_QIO_DRIVE = new ItemQIODrive(QIODriveTier.TIME_DILATING, QIODriveType.ITEM);
-    public static final ItemQIODrive SUPERMASSIVE_ITEM_QIO_DRIVE = new ItemQIODrive(QIODriveTier.SUPERMASSIVE, QIODriveType.ITEM);
+    public static final ItemQIODrive BASE_ITEM_QIO_DRIVE = new ItemQIODrive(QIODriveTier.BASE, QIODriveSpecializations.ITEM);
+    public static final ItemQIODrive HYPER_DENSE_ITEM_QIO_DRIVE = new ItemQIODrive(QIODriveTier.HYPER_DENSE, QIODriveSpecializations.ITEM);
+    public static final ItemQIODrive TIME_DILATING_ITEM_QIO_DRIVE = new ItemQIODrive(QIODriveTier.TIME_DILATING, QIODriveSpecializations.ITEM);
+    public static final ItemQIODrive SUPERMASSIVE_ITEM_QIO_DRIVE = new ItemQIODrive(QIODriveTier.SUPERMASSIVE, QIODriveSpecializations.ITEM);
 
-    public static final ItemQIODrive BASE_FLUID_QIO_DRIVE = new ItemQIODrive(QIODriveTier.BASE, QIODriveType.FLUID);
-    public static final ItemQIODrive HYPER_DENSE_FLUID_QIO_DRIVE = new ItemQIODrive(QIODriveTier.HYPER_DENSE, QIODriveType.FLUID);
-    public static final ItemQIODrive TIME_DILATING_FLUID_QIO_DRIVE = new ItemQIODrive(QIODriveTier.TIME_DILATING, QIODriveType.FLUID);
-    public static final ItemQIODrive SUPERMASSIVE_FLUID_QIO_DRIVE = new ItemQIODrive(QIODriveTier.SUPERMASSIVE, QIODriveType.FLUID);
+    public static final ItemQIODrive BASE_FLUID_QIO_DRIVE = new ItemQIODrive(QIODriveTier.BASE, QIODriveSpecializations.FLUID);
+    public static final ItemQIODrive HYPER_DENSE_FLUID_QIO_DRIVE = new ItemQIODrive(QIODriveTier.HYPER_DENSE, QIODriveSpecializations.FLUID);
+    public static final ItemQIODrive TIME_DILATING_FLUID_QIO_DRIVE = new ItemQIODrive(QIODriveTier.TIME_DILATING, QIODriveSpecializations.FLUID);
+    public static final ItemQIODrive SUPERMASSIVE_FLUID_QIO_DRIVE = new ItemQIODrive(QIODriveTier.SUPERMASSIVE, QIODriveSpecializations.FLUID);
 
-    public static final ItemQIODrive BASE_GAS_QIO_DRIVE = new ItemQIODrive(QIODriveTier.BASE, QIODriveType.GAS);
-    public static final ItemQIODrive HYPER_DENSE_GAS_QIO_DRIVE = new ItemQIODrive(QIODriveTier.HYPER_DENSE, QIODriveType.GAS);
-    public static final ItemQIODrive TIME_DILATING_GAS_QIO_DRIVE = new ItemQIODrive(QIODriveTier.TIME_DILATING, QIODriveType.GAS);
-    public static final ItemQIODrive SUPERMASSIVE_GAS_QIO_DRIVE = new ItemQIODrive(QIODriveTier.SUPERMASSIVE, QIODriveType.GAS);
+    public static final ItemQIODrive BASE_GAS_QIO_DRIVE = new ItemQIODrive(QIODriveTier.BASE, QIODriveSpecializations.GAS);
+    public static final ItemQIODrive HYPER_DENSE_GAS_QIO_DRIVE = new ItemQIODrive(QIODriveTier.HYPER_DENSE, QIODriveSpecializations.GAS);
+    public static final ItemQIODrive TIME_DILATING_GAS_QIO_DRIVE = new ItemQIODrive(QIODriveTier.TIME_DILATING, QIODriveSpecializations.GAS);
+    public static final ItemQIODrive SUPERMASSIVE_GAS_QIO_DRIVE = new ItemQIODrive(QIODriveTier.SUPERMASSIVE, QIODriveSpecializations.GAS);
     public static final ItemPortableQIODashboard PORTABLE_QIO_DASHBOARD = new ItemPortableQIODashboard();
 
     //Multi-ID Items

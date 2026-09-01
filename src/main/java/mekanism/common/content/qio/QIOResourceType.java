@@ -2,9 +2,13 @@ package mekanism.common.content.qio;
 
 import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasStack;
+import mekanism.api.qio.resource.QIOResourceCodecs;
+import mekanism.api.qio.resource.QIOResourceDescriptor;
 import mekanism.common.lib.inventory.HashedItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.util.ResourceLocation;
+import net.minecraftforge.common.util.Constants.NBT;
 import net.minecraftforge.fluids.FluidStack;
 
 import javax.annotation.Nonnull;
@@ -12,72 +16,59 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.UUID;
 
-/**
- * An immutable, amount-independent QIO resource template.
- */
+/** An immutable, amount-independent QIO resource template. */
 public final class QIOResourceType {
 
-    static final int DATA_VERSION = 2;
+    static final int DATA_VERSION = 3;
+    private static final int LEGACY_DATA_VERSION = 2;
     private static final UUID LOOKUP_UUID = new UUID(0, 0);
 
     private final UUID uuid;
-    private final QIOResourceKind kind;
-    @Nullable
-    private final HashedItem itemType;
-    @Nullable
-    private final FluidStack fluidType;
-    @Nullable
-    private final Gas gasType;
-    private final int hashCode;
+    private final QIOResourceDescriptor descriptor;
 
-    private QIOResourceType(UUID uuid, QIOResourceKind kind, @Nullable HashedItem itemType,
-          @Nullable FluidStack fluidType, @Nullable Gas gasType) {
+    private QIOResourceType(UUID uuid, QIOResourceDescriptor descriptor) {
         this.uuid = Objects.requireNonNull(uuid, "uuid");
-        this.kind = Objects.requireNonNull(kind, "kind");
-        this.itemType = itemType;
-        this.fluidType = fluidType;
-        this.gasType = gasType;
-        this.hashCode = calculateHashCode();
+        this.descriptor = Objects.requireNonNull(descriptor, "descriptor");
+    }
+
+    static QIOResourceType descriptorLookup(QIOResourceDescriptor descriptor) {
+        return forDescriptor(LOOKUP_UUID, descriptor);
     }
 
     static QIOResourceType itemLookup(HashedItem item) {
-        return forItem(LOOKUP_UUID, item);
+        Objects.requireNonNull(item, "item");
+        return descriptorLookup(QIOResourceCodecs.item(item.createStack(1)));
     }
 
     static QIOResourceType fluidLookup(FluidStack fluid) {
-        return forFluid(LOOKUP_UUID, fluid);
+        return descriptorLookup(QIOResourceCodecs.fluid(fluid));
     }
 
     static QIOResourceType gasLookup(GasStack gas) {
-        return forGas(LOOKUP_UUID, gas);
+        return descriptorLookup(QIOResourceCodecs.gas(gas));
+    }
+
+    public static QIOResourceType forDescriptor(UUID uuid, QIOResourceDescriptor descriptor) {
+        return new QIOResourceType(uuid, descriptor);
     }
 
     public static QIOResourceType forItem(UUID uuid, HashedItem item) {
         Objects.requireNonNull(item, "item");
-        ItemStack stack = item.createStack(1);
-        if (stack.isEmpty()) {
-            throw new IllegalArgumentException("Cannot create a QIO resource type for an empty item stack");
-        }
-        return new QIOResourceType(uuid, QIOResourceKind.ITEM, HashedItem.create(stack), null, null);
+        return forDescriptor(uuid, QIOResourceCodecs.item(item.createStack(1)));
     }
 
     public static QIOResourceType forFluid(UUID uuid, FluidStack fluid) {
-        if (fluid == null || fluid.getFluid() == null) {
-            throw new IllegalArgumentException("Cannot create a QIO resource type for an empty fluid stack");
-        }
-        return new QIOResourceType(uuid, QIOResourceKind.FLUID, null, new FluidStack(fluid, 1), null);
+        return forDescriptor(uuid, QIOResourceCodecs.fluid(fluid));
     }
 
     public static QIOResourceType forGas(UUID uuid, GasStack gas) {
-        if (gas == null || gas.getGas() == null) {
-            throw new IllegalArgumentException("Cannot create a QIO resource type for an empty gas stack");
-        }
-        return new QIOResourceType(uuid, QIOResourceKind.GAS, null, null, gas.getGas());
+        return forDescriptor(uuid, QIOResourceCodecs.gas(gas));
     }
 
     static QIOResourceType read(UUID fileUUID, NBTTagCompound data) {
-        if (data.getInteger("version") != DATA_VERSION) {
-            throw new IllegalArgumentException("Unsupported QIO resource type version: " + data.getInteger("version"));
+        int version = data.getInteger("version");
+        if (version != LEGACY_DATA_VERSION && version != DATA_VERSION) {
+            throw new IllegalArgumentException("Unsupported QIO resource type version: " + version);
         }
         UUID storedUUID;
         try {
@@ -88,55 +79,43 @@ public final class QIOResourceType {
         if (!fileUUID.equals(storedUUID)) {
             throw new IllegalArgumentException("QIO resource type UUID does not match its file name");
         }
-        QIOResourceKind kind = QIOResourceKind.byName(data.getString("kind"));
-        if (kind == null) {
-            throw new IllegalArgumentException("Unknown QIO resource kind: " + data.getString("kind"));
-        }
         NBTTagCompound payload = data.getCompoundTag("payload");
-        switch (kind) {
-            case ITEM:
-                ItemStack item = new ItemStack(payload);
-                if (item.isEmpty()) {
-                    throw new IllegalArgumentException("QIO item resource is no longer available");
-                }
-                return forItem(fileUUID, HashedItem.create(item));
-            case FLUID:
-                FluidStack fluid = FluidStack.loadFluidStackFromNBT(payload);
-                if (fluid == null) {
-                    throw new IllegalArgumentException("QIO fluid resource is no longer available");
-                }
-                return forFluid(fileUUID, fluid);
-            case GAS:
-                GasStack gas = GasStack.readFromNBT(payload);
-                if (gas == null) {
-                    throw new IllegalArgumentException("QIO gas resource is no longer available");
-                }
-                return forGas(fileUUID, gas);
-            default:
-                throw new IllegalStateException("Unhandled QIO resource kind: " + kind);
+        QIOResourceDescriptor descriptor;
+        if (version == LEGACY_DATA_VERSION) {
+            QIOResourceKind kind = QIOResourceKind.byName(data.getString("kind"));
+            if (kind == null || !kind.isBuiltin()) {
+                throw new IllegalArgumentException("Unknown legacy QIO resource kind: " + data.getString("kind"));
+            }
+            descriptor = QIOResourceDescriptor.persisted(kind.getCodecId(), kind.getFamily(), 1,
+                  QIOStorageUnits.getUnitsPerResource(kind), payload);
+        } else {
+            if (!data.hasKey("codec", NBT.TAG_STRING) || !data.hasKey("family", NBT.TAG_STRING) ||
+                  !data.hasKey("codecVersion", NBT.TAG_INT) ||
+                  !data.hasKey("storageUnitsPerUnit", NBT.TAG_LONG) ||
+                  !data.hasKey("payload", NBT.TAG_COMPOUND)) {
+                throw new IllegalArgumentException("Incomplete QIO resource type metadata");
+            }
+            ResourceLocation codecId;
+            try {
+                codecId = new ResourceLocation(data.getString("codec"));
+            } catch (RuntimeException e) {
+                throw new IllegalArgumentException("Invalid QIO resource codec id: " + data.getString("codec"), e);
+            }
+            descriptor = QIOResourceDescriptor.persisted(codecId, data.getString("family"),
+                  data.getInteger("codecVersion"), data.getLong("storageUnitsPerUnit"), payload);
         }
+        return forDescriptor(fileUUID, descriptor);
     }
 
     NBTTagCompound write() {
         NBTTagCompound data = new NBTTagCompound();
         data.setInteger("version", DATA_VERSION);
         data.setString("uuid", uuid.toString());
-        data.setString("kind", kind.getSerializedName());
-        NBTTagCompound payload = new NBTTagCompound();
-        switch (kind) {
-            case ITEM:
-                itemType.createStack(1).writeToNBT(payload);
-                break;
-            case FLUID:
-                fluidType.writeToNBT(payload);
-                break;
-            case GAS:
-                new GasStack(gasType, 1).write(payload);
-                break;
-            default:
-                throw new IllegalStateException("Unhandled QIO resource kind: " + kind);
-        }
-        data.setTag("payload", payload);
+        data.setString("family", descriptor.getFamily());
+        data.setString("codec", descriptor.getCodecId().toString());
+        data.setInteger("codecVersion", descriptor.getCodecVersion());
+        data.setLong("storageUnitsPerUnit", descriptor.getStorageUnitsPerUnit());
+        data.setTag("payload", descriptor.getPayload());
         return data;
     }
 
@@ -144,80 +123,86 @@ public final class QIOResourceType {
         return uuid;
     }
 
+    @Nonnull
+    public QIOResourceDescriptor getDescriptor() {
+        return descriptor;
+    }
+
+    @Nonnull
+    public ResourceLocation getCodecId() {
+        return descriptor.getCodecId();
+    }
+
+    @Nonnull
+    public String getFamily() {
+        return descriptor.getFamily();
+    }
+
+    public int getCodecVersion() {
+        return descriptor.getCodecVersion();
+    }
+
+    public long getStorageUnitsPerUnit() {
+        return descriptor.getStorageUnitsPerUnit();
+    }
+
+    public boolean isResolved() {
+        return descriptor.isResolved();
+    }
+
+    /** @deprecated Use {@link #getDescriptor()} or {@link #getCodecId()}. */
+    @Deprecated
+    @Nullable
     public QIOResourceKind getKind() {
-        return kind;
+        return QIOResourceKind.fromDescriptor(descriptor);
     }
 
     @Nonnull
     public ItemStack createItemStack(int amount) {
-        return kind == QIOResourceKind.ITEM && amount > 0 ? itemType.createStack(amount) : ItemStack.EMPTY;
+        ItemStack template = descriptor.resolve(QIOResourceCodecs.ITEM_STACK);
+        if (template == null || amount <= 0) {
+            return ItemStack.EMPTY;
+        }
+        template.setCount(amount);
+        return template;
     }
 
     @Nullable
     public FluidStack createFluidStack(int amount) {
-        return kind == QIOResourceKind.FLUID && amount > 0 ? new FluidStack(fluidType, amount) : null;
+        FluidStack template = descriptor.resolve(QIOResourceCodecs.FLUID_STACK);
+        return template == null || amount <= 0 ? null : new FluidStack(template, amount);
     }
 
     @Nullable
     public GasStack createGasStack(int amount) {
-        return kind == QIOResourceKind.GAS && amount > 0 ? new GasStack(gasType, amount) : null;
+        GasStack template = descriptor.resolve(QIOResourceCodecs.GAS_STACK);
+        return template == null || amount <= 0 ? null : new GasStack(template.getGas(), amount);
     }
 
     @Nullable
     public HashedItem getItemType() {
-        return itemType == null ? null : HashedItem.create(itemType.createStack(1));
+        ItemStack stack = createItemStack(1);
+        return stack.isEmpty() ? null : HashedItem.create(stack);
     }
 
     @Nullable
     public FluidStack getFluidType() {
-        return fluidType == null ? null : new FluidStack(fluidType, 1);
+        return createFluidStack(1);
     }
 
     @Nullable
     public Gas getGasType() {
-        return gasType;
-    }
-
-    private int calculateHashCode() {
-        int result = kind.hashCode();
-        switch (kind) {
-            case ITEM:
-                return 31 * result + itemType.hashCode();
-            case FLUID:
-                return 31 * result + fluidType.hashCode();
-            case GAS:
-                return 31 * result + gasType.getName().hashCode();
-            default:
-                return result;
-        }
+        GasStack stack = createGasStack(1);
+        return stack == null ? null : stack.getGas();
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == this) {
-            return true;
-        }
-        if (!(obj instanceof QIOResourceType)) {
-            return false;
-        }
-        QIOResourceType other = (QIOResourceType) obj;
-        if (kind != other.kind) {
-            return false;
-        }
-        switch (kind) {
-            case ITEM:
-                return itemType.equals(other.itemType);
-            case FLUID:
-                return fluidType.equals(other.fluidType);
-            case GAS:
-                return gasType.getName().equals(other.gasType.getName());
-            default:
-                return false;
-        }
+        return obj == this || obj instanceof QIOResourceType other && descriptor.equals(other.descriptor);
     }
 
     @Override
     public int hashCode() {
-        return hashCode;
+        return descriptor.hashCode();
     }
 }

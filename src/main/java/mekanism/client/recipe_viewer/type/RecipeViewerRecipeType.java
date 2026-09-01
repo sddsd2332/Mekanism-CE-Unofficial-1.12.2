@@ -2,7 +2,6 @@ package mekanism.client.recipe_viewer.type;
 
 import mekanism.client.jei.MekanismJEIRecipeType;
 import mekanism.common.recipe.RecipeHandler.Recipe;
-import mezz.jei.api.recipe.VanillaRecipeCategoryUid;
 import net.minecraft.util.ResourceLocation;
 
 public final class RecipeViewerRecipeType {
@@ -10,8 +9,8 @@ public final class RecipeViewerRecipeType {
     private RecipeViewerRecipeType() {
     }
 
-    public static final IRecipeViewerRecipeType<?> VANILLA_CRAFTING = simple(VanillaRecipeCategoryUid.CRAFTING);
-    public static final IRecipeViewerRecipeType<?> VANILLA_SMELTING = simple(VanillaRecipeCategoryUid.SMELTING);
+    public static final IRecipeViewerRecipeType<?> VANILLA_CRAFTING = simple(new ResourceLocation("minecraft", "crafting"));
+    public static final IRecipeViewerRecipeType<?> VANILLA_SMELTING = simple(new ResourceLocation("minecraft", "smelting"));
 
     public static final IRecipeViewerRecipeType<?> CRUSHING = MekanismJEIRecipeType.CRUSHING;
     public static final IRecipeViewerRecipeType<?> ENRICHING = MekanismJEIRecipeType.ENRICHING;
@@ -55,6 +54,10 @@ public final class RecipeViewerRecipeType {
 
     public static IRecipeViewerRecipeType<?> simple(String categoryUid) {
         return new SimpleRecipeViewerRecipeType(idFromCategoryUid(categoryUid));
+    }
+
+    public static IRecipeViewerRecipeType<?> simple(ResourceLocation id) {
+        return new SimpleRecipeViewerRecipeType(id);
     }
 
     public static ResourceLocation idFromCategoryUid(String categoryUid) {

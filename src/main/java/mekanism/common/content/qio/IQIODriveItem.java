@@ -36,6 +36,25 @@ public interface IQIODriveItem {
         return getDriveType();
     }
 
+    /**
+     * Returns the registered specialization used by this physical drive.
+     *
+     * <p>The default bridges old addon items that only override {@link #getDriveType()}.</p>
+     */
+    @Nullable
+    default QIODriveSpecialization getDriveSpecialization() {
+        QIODriveType legacyType = getDriveType();
+        return legacyType == null ? null : legacyType.getSpecialization();
+    }
+
+    @Nullable
+    default QIODriveSpecialization getDriveSpecialization(ItemStack stack) {
+        QIODriveType legacyType = getDriveType(stack);
+        QIODriveType baseLegacyType = getDriveType();
+        return legacyType != null && legacyType != baseLegacyType ? legacyType.getSpecialization() :
+              getDriveSpecialization();
+    }
+
     default long getCountCapacity() {
         return getCountCapacity(ItemStack.EMPTY);
     }
@@ -58,7 +77,8 @@ public interface IQIODriveItem {
 
     default long getCountCapacity(ItemStack stack) {
         QIODriveDefinition definition = getDriveDefinition(stack);
-        return definition == null ? 0 : getDriveType(stack).getCountCapacity(definition);
+        QIODriveSpecialization specialization = getDriveSpecialization(stack);
+        return definition == null || specialization == null ? 0 : specialization.getCountCapacity(definition);
     }
 
     default int getTypeCapacity(ItemStack stack) {
@@ -68,17 +88,22 @@ public interface IQIODriveItem {
 
     default long getStorageCapacity(ItemStack stack) {
         QIODriveDefinition definition = getDriveDefinition(stack);
-        return definition == null ? 0 : getDriveType(stack).getStorageCapacity(definition);
+        QIODriveSpecialization specialization = getDriveSpecialization(stack);
+        return definition == null || specialization == null ? 0 : specialization.getStorageCapacity(definition);
     }
 
     default QIOAmount getExactCountCapacity(ItemStack stack) {
         QIODriveDefinition definition = getDriveDefinition(stack);
-        return definition == null ? QIOAmount.ZERO : getDriveType(stack).getExactCountCapacity(definition);
+        QIODriveSpecialization specialization = getDriveSpecialization(stack);
+        return definition == null || specialization == null ? QIOAmount.ZERO :
+              specialization.getExactCountCapacity(definition);
     }
 
     default QIOAmount getExactStorageCapacity(ItemStack stack) {
         QIODriveDefinition definition = getDriveDefinition(stack);
-        return definition == null ? QIOAmount.ZERO : getDriveType(stack).getExactStorageCapacity(definition);
+        QIODriveSpecialization specialization = getDriveSpecialization(stack);
+        return definition == null || specialization == null ? QIOAmount.ZERO :
+              specialization.getExactStorageCapacity(definition);
     }
 
     default boolean hasUnlimitedCountCapacity(ItemStack stack) {

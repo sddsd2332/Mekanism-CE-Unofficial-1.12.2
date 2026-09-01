@@ -4,6 +4,8 @@ import mekanism.api.Action;
 import mekanism.api.Coord4D;
 import mekanism.api.NBTConstants;
 import mekanism.api.gas.GasStack;
+import mekanism.api.qio.resource.QIOResourceTransferAdapter;
+import mekanism.api.qio.resource.QIOResourceTransferAdapterRegistry;
 import mekanism.common.base.ILogisticalTransporter;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.content.qio.QIOFrequency;
@@ -105,6 +107,7 @@ public class TileEntityQIOExporter extends TileEntityQIOFilterHandler implements
             }
             exportFluids(frequency, adjacent);
             exportGases(frequency, adjacent);
+            exportCustomResources(frequency, adjacent);
         }
         delay = MAX_DELAY;
     }
@@ -281,6 +284,49 @@ public class TileEntityQIOExporter extends TileEntityQIOFilterHandler implements
             if (sent > 0) {
                 remaining -= sent;
                 types++;
+                moved = true;
+            }
+        }
+        return moved;
+    }
+
+    boolean exportCustomResources(QIOFrequency frequency, TileEntity target) {
+        if (frequency == null || target == null) {
+            return false;
+        }
+        long movedAmount = 0;
+        int movedTypes = 0;
+        boolean moved = false;
+        for (QIOResourceEntry entry : frequency.getResourceEntries()) {
+            if (entry.getKind() != null || movedAmount >= getMaxTransitCount() ||
+                  movedTypes >= getMaxTransitTypes() || !entry.getDescriptor().isResolved() ||
+                  !acceptsResource(entry)) {
+                continue;
+            }
+            QIOResourceTransferAdapter adapter = QIOResourceTransferAdapterRegistry.INSTANCE.get(
+                  entry.getDescriptor().getCodecId());
+            if (adapter == null || !adapter.supports(target, getHandlerSide())) {
+                continue;
+            }
+            long requested = Math.min(entry.getAmount(), getMaxTransitCount() - movedAmount);
+            long accepted = Math.min(requested, Math.max(0, adapter.insert(target, getHandlerSide(),
+                  entry.getDescriptor(), requested, Action.SIMULATE)));
+            if (accepted <= 0) {
+                continue;
+            }
+            long extracted = frequency.massExtract(entry.getUUID(), accepted, Action.EXECUTE);
+            if (extracted <= 0) {
+                continue;
+            }
+            long inserted = Math.min(extracted, Math.max(0, adapter.insert(target, getHandlerSide(),
+                  entry.getDescriptor(), extracted, Action.EXECUTE)));
+            if (inserted < extracted) {
+                QIORollback.restore(frequency, entry.getUUID(), extracted - inserted,
+                      "exporter custom resource transfer");
+            }
+            if (inserted > 0) {
+                movedAmount += inserted;
+                movedTypes++;
                 moved = true;
             }
         }

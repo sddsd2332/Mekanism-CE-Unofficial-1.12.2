@@ -247,7 +247,11 @@ public final class QIOSearchQueryParser {
     }
 
     private static String resourceName(QIOResourceEntry entry) {
-        switch (entry.getKind()) {
+        QIOResourceKind kind = entry.getKind();
+        if (kind == null) {
+            return entry.getDescriptor().getCodecId().toString();
+        }
+        switch (kind) {
             case ITEM:
                 return entry.getItem().getDisplayName();
             case FLUID:
@@ -260,7 +264,11 @@ public final class QIOSearchQueryParser {
     }
 
     private static String resourceIdentifier(QIOResourceEntry entry) {
-        switch (entry.getKind()) {
+        QIOResourceKind kind = entry.getKind();
+        if (kind == null) {
+            return entry.getDescriptor().getCodecId().toString();
+        }
+        switch (kind) {
             case ITEM:
                 return entry.getItem().getItem().getRegistryName() == null ? "" : entry.getItem().getItem().getRegistryName().toString();
             case FLUID:

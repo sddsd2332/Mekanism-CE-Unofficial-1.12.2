@@ -56,6 +56,8 @@ public class GuiSlot extends GuiTexturedElement implements IRecipeViewerGhostTar
     private Supplier<List<String>> tooltipSupplier;
     @Nullable
     private GuiElement.IClickable onClick;
+    @Nullable
+    private IButtonClickable onButtonClick;
     private boolean renderHover;
     private boolean renderAboveSlots;
     @Nullable
@@ -110,6 +112,15 @@ public class GuiSlot extends GuiTexturedElement implements IRecipeViewerGhostTar
 
     public GuiSlot click(IClickable onClick) {
         return click(onClick, 0.25F, null);
+    }
+
+    /** Button-aware fake-slot callback used when left and right clicks have different meanings. */
+    public GuiSlot click(IButtonClickable onClick) {
+        this.onButtonClick = onClick;
+        this.customClickSound = null;
+        this.clickSoundVolume = 0.25F;
+        playClickSound = true;
+        return this;
     }
 
     public GuiSlot click(IClickable onClick, float clickSoundVolume, @Nullable Supplier<SoundEvent> customClickSound) {
@@ -288,9 +299,12 @@ public class GuiSlot extends GuiTexturedElement implements IRecipeViewerGhostTar
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         updateVisibility();
-        if (onClick != null && isValidClickButton(button)) {
+        boolean validButton = onButtonClick == null ? isValidClickButton(button) : button == 0 || button == 1;
+        if ((onClick != null || onButtonClick != null) && validButton) {
             if (mouseX >= getX() + borderSize() && mouseY >= getY() + borderSize() && mouseX < getRight() - borderSize() && mouseY < getBottom() - borderSize()) {
-                if (onClick.onClick(this, mouseX, mouseY)) {
+                boolean handled = onButtonClick == null ? onClick.onClick(this, mouseX, mouseY) :
+                      onButtonClick.onClick(this, mouseX, mouseY, button);
+                if (handled) {
                     playDownSound(Minecraft.getMinecraft().getSoundHandler());
                     return true;
                 }
@@ -309,5 +323,11 @@ public class GuiSlot extends GuiTexturedElement implements IRecipeViewerGhostTar
     @Override
     public int borderSize() {
         return 1;
+    }
+
+    @FunctionalInterface
+    public interface IButtonClickable {
+
+        boolean onClick(GuiElement element, double mouseX, double mouseY, int button);
     }
 }

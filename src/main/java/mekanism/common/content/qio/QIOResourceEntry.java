@@ -1,7 +1,10 @@
 package mekanism.common.content.qio;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import mekanism.api.gas.GasStack;
+import mekanism.api.qio.resource.QIOResourceCodecs;
+import mekanism.api.qio.resource.QIOResourceDescriptor;
 import mekanism.common.PacketHandler;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -16,25 +19,20 @@ import java.util.UUID;
 public final class QIOResourceEntry {
 
     private final UUID uuid;
-    private final QIOResourceKind kind;
+    private final QIOResourceDescriptor descriptor;
     private final QIOAmount amount;
-    private final ItemStack item;
-    @Nullable
-    private final FluidStack fluid;
-    @Nullable
-    private final GasStack gas;
+    private final boolean displayPayloadAvailable;
 
-    private QIOResourceEntry(UUID uuid, QIOResourceKind kind, QIOAmount amount, ItemStack item,
-          @Nullable FluidStack fluid, @Nullable GasStack gas) {
+    private QIOResourceEntry(UUID uuid, QIOResourceDescriptor descriptor, QIOAmount amount) {
+        this(uuid, descriptor, amount, true);
+    }
+
+    private QIOResourceEntry(UUID uuid, QIOResourceDescriptor descriptor, QIOAmount amount,
+          boolean displayPayloadAvailable) {
         this.uuid = Objects.requireNonNull(uuid, "uuid");
-        this.kind = Objects.requireNonNull(kind, "kind");
+        this.descriptor = Objects.requireNonNull(descriptor, "descriptor");
         this.amount = amount == null ? QIOAmount.ZERO : amount;
-        this.item = item == null ? ItemStack.EMPTY : item.copy();
-        if (!this.item.isEmpty()) {
-            this.item.setCount(1);
-        }
-        this.fluid = fluid == null ? null : new FluidStack(fluid, 1);
-        this.gas = gas == null || gas.getGas() == null ? null : new GasStack(gas.getGas(), 1);
+        this.displayPayloadAvailable = displayPayloadAvailable;
     }
 
     @Nullable
@@ -45,22 +43,28 @@ public final class QIOResourceEntry {
     @Nullable
     public static QIOResourceEntry create(UUID uuid, QIOAmount amount) {
         QIOResourceType type = QIOResourceTypeRegistry.INSTANCE.getTypeByUUID(uuid);
-        if (type == null) {
-            return null;
-        }
-        return switch (type.getKind()) {
-            case ITEM -> new QIOResourceEntry(uuid, type.getKind(), amount, type.createItemStack(1), null, null);
-            case FLUID -> new QIOResourceEntry(uuid, type.getKind(), amount, ItemStack.EMPTY, type.createFluidStack(1), null);
-            case GAS -> new QIOResourceEntry(uuid, type.getKind(), amount, ItemStack.EMPTY, null, type.createGasStack(1));
-        };
+        return type == null ? null : new QIOResourceEntry(uuid, type.getDescriptor(), amount);
+    }
+
+    @Nonnull
+    public static QIOResourceEntry of(UUID uuid, QIOResourceDescriptor descriptor, QIOAmount amount) {
+        return new QIOResourceEntry(uuid, descriptor, amount);
     }
 
     public UUID getUUID() {
         return uuid;
     }
 
+    @Nonnull
+    public QIOResourceDescriptor getDescriptor() {
+        return descriptor;
+    }
+
+    /** @deprecated Use {@link #getDescriptor()}; null means a custom codec. */
+    @Deprecated
+    @Nullable
     public QIOResourceKind getKind() {
-        return kind;
+        return QIOResourceKind.fromDescriptor(descriptor);
     }
 
     public long getAmount() {
@@ -72,145 +76,120 @@ public final class QIOResourceEntry {
         return amount;
     }
 
+    public long getStorageUnitsPerUnit() {
+        return descriptor.getStorageUnitsPerUnit();
+    }
+
+    /** False when an oversized codec payload was intentionally replaced by the generic fallback. */
+    public boolean hasDisplayPayload() {
+        return displayPayloadAvailable;
+    }
+
     public QIOResourceEntry withAmount(long amount) {
         return withAmount(QIOAmount.of(amount));
     }
 
     public QIOResourceEntry withAmount(QIOAmount amount) {
-        return new QIOResourceEntry(uuid, kind, amount, item, fluid, gas);
+        return new QIOResourceEntry(uuid, descriptor, amount, displayPayloadAvailable);
     }
 
     @Nonnull
     public ItemStack getItem() {
-        return item.copy();
+        ItemStack stack = descriptor.resolve(QIOResourceCodecs.ITEM_STACK);
+        return stack == null ? ItemStack.EMPTY : stack;
     }
 
     @Nullable
     public FluidStack getFluid() {
-        return fluid == null ? null : fluid.copy();
+        return descriptor.resolve(QIOResourceCodecs.FLUID_STACK);
     }
 
     @Nullable
     public GasStack getGas() {
-        return gas == null ? null : gas.copy();
+        return descriptor.resolve(QIOResourceCodecs.GAS_STACK);
     }
 
     @Nonnull
     public ItemStack createItemStack(int count) {
-        if (kind != QIOResourceKind.ITEM || item.isEmpty() || count <= 0) {
+        ItemStack stack = getItem();
+        if (stack.isEmpty() || count <= 0) {
             return ItemStack.EMPTY;
         }
-        ItemStack stack = item.copy();
         stack.setCount(count);
         return stack;
     }
 
     @Nullable
     public FluidStack createFluidStack(int amount) {
-        if (kind != QIOResourceKind.FLUID || fluid == null || amount <= 0) {
-            return null;
-        }
-        return new FluidStack(fluid, amount);
+        FluidStack stack = getFluid();
+        return stack == null || amount <= 0 ? null : new FluidStack(stack, amount);
     }
 
     @Nullable
     public GasStack createGasStack(int amount) {
-        if (kind != QIOResourceKind.GAS || gas == null || gas.getGas() == null || amount <= 0) {
-            return null;
-        }
-        return new GasStack(gas.getGas(), amount);
+        GasStack stack = getGas();
+        return stack == null || amount <= 0 ? null : new GasStack(stack.getGas(), amount);
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == this) {
-            return true;
-        }
-        if (!(obj instanceof QIOResourceEntry)) {
-            return false;
-        }
-        QIOResourceEntry other = (QIOResourceEntry) obj;
-        if (!uuid.equals(other.uuid) || kind != other.kind || !amount.equals(other.amount)) {
-            return false;
-        }
-        switch (kind) {
-            case ITEM:
-                return ItemStack.areItemStacksEqual(item, other.item);
-            case FLUID:
-                return fluid == null ? other.fluid == null : fluid.isFluidEqual(other.fluid);
-            case GAS:
-                return gas == null ? other.gas == null : gas.isGasEqual(other.gas);
-            default:
-                return false;
-        }
+        return obj == this || obj instanceof QIOResourceEntry other && uuid.equals(other.uuid) &&
+              descriptor.equals(other.descriptor) && amount.equals(other.amount) &&
+              displayPayloadAvailable == other.displayPayloadAvailable;
     }
 
     @Override
     public int hashCode() {
-        int result = 31 * uuid.hashCode() + kind.hashCode();
-        result = 31 * result + amount.hashCode();
-        switch (kind) {
-            case ITEM:
-                return 31 * result + item.hashCode();
-            case FLUID:
-                return 31 * result + (fluid == null ? 0 : fluid.hashCode());
-            case GAS:
-                return 31 * result + (gas == null || gas.getGas() == null ? 0 : gas.getGas().getName().hashCode());
-            default:
-                return result;
-        }
+        return Objects.hash(uuid, descriptor, amount, displayPayloadAvailable);
     }
 
     public void write(ByteBuf buffer) {
         buffer.writeLong(uuid.getMostSignificantBits());
         buffer.writeLong(uuid.getLeastSignificantBits());
-        buffer.writeByte(kind.ordinal());
         amount.write(buffer);
-        NBTTagCompound payload = new NBTTagCompound();
-        switch (kind) {
-            case ITEM:
-                item.writeToNBT(payload);
-                break;
-            case FLUID:
-                if (fluid != null) {
-                    fluid.writeToNBT(payload);
-                }
-                break;
-            case GAS:
-                if (gas != null) {
-                    gas.write(payload);
-                }
-                break;
+        boolean includePayload = displayPayloadAvailable &&
+              QIONetworkResourceLimits.isSafeDescriptorPayload(descriptor.getPayload());
+        buffer.writeBoolean(includePayload);
+        PacketHandler.writeNBT(buffer, includePayload ? descriptor.write() : networkFallbackDescriptor().write());
+    }
+
+    /** Exact encoded size after applying the per-descriptor fallback. */
+    public int getNetworkEncodedSize() {
+        ByteBuf temporary = Unpooled.buffer();
+        try {
+            write(temporary);
+            return temporary.readableBytes();
+        } finally {
+            temporary.release();
         }
-        PacketHandler.writeNBT(buffer, payload);
     }
 
     @Nullable
     public static QIOResourceEntry read(ByteBuf buffer) {
+        int entryStart = buffer.readerIndex();
         try {
             UUID uuid = new UUID(buffer.readLong(), buffer.readLong());
-            QIOResourceKind kind = QIOResourceKind.byOrdinal(buffer.readUnsignedByte());
             QIOAmount amount = QIOAmount.read(buffer);
-            NBTTagCompound payload = PacketHandler.readNBT(buffer);
-            if (kind == null || payload == null) {
+            boolean displayPayloadAvailable = buffer.readBoolean();
+            NBTTagCompound descriptor = PacketHandler.readNBT(buffer);
+            if (descriptor == null) {
                 return null;
             }
-            return switch (kind) {
-                case ITEM -> {
-                    ItemStack stack = new ItemStack(payload);
-                    yield stack.isEmpty() ? null : new QIOResourceEntry(uuid, kind, amount, stack, null, null);
-                }
-                case FLUID -> {
-                    FluidStack stack = FluidStack.loadFluidStackFromNBT(payload);
-                    yield stack == null || stack.amount <= 0 ? null : new QIOResourceEntry(uuid, kind, amount, ItemStack.EMPTY, stack, null);
-                }
-                case GAS -> {
-                    GasStack stack = GasStack.readFromNBT(payload);
-                    yield stack == null ? null : new QIOResourceEntry(uuid, kind, amount, ItemStack.EMPTY, null, stack);
-                }
-            };
+            QIOResourceDescriptor decoded = QIOResourceDescriptor.read(descriptor);
+            if (!QIONetworkResourceLimits.isSafeDescriptorPayload(decoded.getPayload())) {
+                return null;
+            }
+            if (buffer.readerIndex() - entryStart > QIONetworkResourceLimits.MAX_ENTRY_BYTES) {
+                return null;
+            }
+            return new QIOResourceEntry(uuid, decoded, amount, displayPayloadAvailable);
         } catch (RuntimeException ignored) {
             return null;
         }
+    }
+
+    private QIOResourceDescriptor networkFallbackDescriptor() {
+        return QIOResourceDescriptor.persisted(descriptor.getCodecId(), descriptor.getFamily(),
+              descriptor.getCodecVersion(), descriptor.getStorageUnitsPerUnit(), new NBTTagCompound());
     }
 }

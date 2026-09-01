@@ -75,7 +75,7 @@ public final class QIORecipeCatalogService {
     private int catalogWorkerCount;
     private boolean generationTrusted;
     private QIORecipeCatalogScanMode activeScanMode =
-          QIORecipeCatalogScanMode.FIRST_ONLY;
+          QIORecipeCatalogScanMode.DISABLED;
     private String environmentSignature = "";
     private long requestedRescanEpoch;
     private long completedRescanEpoch;
@@ -538,7 +538,7 @@ public final class QIORecipeCatalogService {
         revision = 0;
         catalogWorkerCount = 0;
         generationTrusted = false;
-        activeScanMode = QIORecipeCatalogScanMode.FIRST_ONLY;
+        activeScanMode = QIORecipeCatalogScanMode.DISABLED;
         environmentSignature = "";
         requestedRescanEpoch = 0;
         completedRescanEpoch = 0;

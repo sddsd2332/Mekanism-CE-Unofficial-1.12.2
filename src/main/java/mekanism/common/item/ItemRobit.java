@@ -75,7 +75,7 @@ public class ItemRobit extends ItemEnergized implements IItemSustainedInventory,
                         CriteriaTriggers.SUMMONED_ENTITY.trigger(playerMP, robit);
                     }
                 }
-                entityplayer.setHeldItem(hand, ItemStack.EMPTY);
+                itemstack.shrink(1);
                 return EnumActionResult.SUCCESS;
             }
         }

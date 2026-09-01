@@ -1,17 +1,24 @@
 package mekanism.client.recipe_viewer;
 
-import mekanism.client.jei.MekanismJEI;
 import mekanism.client.recipe_viewer.interfaces.IRecipeViewerRecipeArea;
+import mekanism.client.recipe_viewer.interfaces.IRecipeViewerRuntime;
 import mekanism.client.recipe_viewer.type.IRecipeViewerRecipeType;
-import mekanism.client.recipe_viewer.type.RecipeViewerRecipeType;
-import mezz.jei.api.IJeiRuntime;
+import net.minecraft.util.ResourceLocation;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public final class RecipeViewerUtils {
 
+    private static final IRecipeViewerRuntime EMPTY_RUNTIME = new IRecipeViewerRuntime() {
+    };
+    private static volatile IRecipeViewerRuntime runtime = EMPTY_RUNTIME;
+
     private RecipeViewerUtils() {
+    }
+
+    public static void setRuntime(IRecipeViewerRuntime runtime) {
+        RecipeViewerUtils.runtime = runtime == null ? EMPTY_RUNTIME : runtime;
     }
 
     public static boolean openRecipeViewerRecipes(IRecipeViewerRecipeArea<?> recipeArea, double mouseX, double mouseY, int button) {
@@ -22,23 +29,22 @@ public final class RecipeViewerUtils {
         if (recipeCategories == null || recipeCategories.length == 0) {
             return false;
         }
-        List<String> uids = new ArrayList<>();
+        List<ResourceLocation> categoryIds = new ArrayList<>();
         for (IRecipeViewerRecipeType<?> recipeCategory : recipeCategories) {
             if (recipeCategory != null) {
-                String uid = RecipeViewerRecipeType.categoryUid(recipeCategory);
-                if (uid != null && !uid.isEmpty()) {
-                    uids.add(uid);
+                ResourceLocation id = recipeCategory.id();
+                if (id != null) {
+                    categoryIds.add(id);
                 }
             }
         }
-        if (uids.isEmpty()) {
+        if (categoryIds.isEmpty()) {
             return false;
         }
-        IJeiRuntime runtime = MekanismJEI.jeiRuntime;
-        if (runtime == null) {
-            return false;
-        }
-        runtime.getRecipesGui().showCategories(uids);
-        return true;
+        return runtime.showCategories(categoryIds);
+    }
+
+    public static void refreshRecipeTransferButtons() {
+        runtime.refreshRecipeTransferButtons();
     }
 }

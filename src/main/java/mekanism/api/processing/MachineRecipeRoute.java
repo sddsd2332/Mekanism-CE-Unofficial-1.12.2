@@ -3,6 +3,7 @@ package mekanism.api.processing;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.fluids.FluidStack;
 import mekanism.api.gas.GasStack;
+import mekanism.api.qio.resource.QIOResourceDescriptor;
 
 import javax.annotation.Nonnull;
 import java.nio.charset.StandardCharsets;
@@ -178,10 +179,18 @@ public final class MachineRecipeRoute {
             return this;
         }
 
+        public Builder inputResource(String portId, QIOResourceDescriptor descriptor, long amount) {
+            return input(MachineResourceStack.resource(portId, descriptor, amount));
+        }
+
         public Builder configurationInput(MachineResourceStack stack) {
             configurationInputs.add(Objects.requireNonNull(stack,
                   "Configuration input cannot be null"));
             return this;
+        }
+
+        public Builder configurationResource(String portId, QIOResourceDescriptor descriptor) {
+            return configurationInput(MachineResourceStack.resource(portId, descriptor, 1));
         }
 
         public Builder retainedInput(MachineResourceStack stack) {
@@ -193,9 +202,17 @@ public final class MachineRecipeRoute {
             return this;
         }
 
+        public Builder outputResource(String portId, QIOResourceDescriptor descriptor, long amount) {
+            return output(MachineResourceStack.resource(portId, descriptor, amount));
+        }
+
         public Builder optionalOutput(MachineResourceStack stack) {
             optionalOutputs.add(Objects.requireNonNull(stack, "Optional output cannot be null"));
             return this;
+        }
+
+        public Builder optionalOutputResource(String portId, QIOResourceDescriptor descriptor, long amount) {
+            return optionalOutput(MachineResourceStack.resource(portId, descriptor, amount));
         }
 
         public Builder inputItem(String portId, ItemStack stack) {

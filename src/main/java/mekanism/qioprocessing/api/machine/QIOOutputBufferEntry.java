@@ -48,7 +48,7 @@ public final class QIOOutputBufferEntry {
         this.baseline = Objects.requireNonNull(baseline, "Output baseline cannot be null");
         this.extraction = Objects.requireNonNull(extraction, "Output extraction cannot be null");
         long baselineAmount = baseline.amountOf(extraction);
-        if (baselineAmount <= 0 || extraction.kind() != baseline.kind() ||
+        if (baselineAmount <= 0 || !baseline.acceptsResource(extraction) ||
             !extraction.portId().equals(baseline.portId()) ||
             extraction.amount() > baselineAmount) {
             throw new IllegalArgumentException("Output extraction does not belong to its prepared baseline");
@@ -65,6 +65,9 @@ public final class QIOOutputBufferEntry {
         } else {
             if (resource == null || amount <= 0) {
                 throw new IllegalArgumentException("Held output buffer requires a positive resource amount");
+            }
+            if (!resource.getDescriptor().equals(extraction.descriptor())) {
+                throw new IllegalArgumentException("Held output resource does not match its extraction descriptor");
             }
             if (amount > extraction.amount()) {
                 throw new IllegalArgumentException("Output buffer contains more than its prepared extraction");

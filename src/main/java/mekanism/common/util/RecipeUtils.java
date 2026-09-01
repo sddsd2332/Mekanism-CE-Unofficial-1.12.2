@@ -11,6 +11,8 @@ import mekanism.common.inventory.BinMekanismInventory;
 import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.content.qio.QIODriveDefinition;
 import mekanism.common.content.qio.QIODriveType;
+import mekanism.common.content.qio.QIODriveSpecialization;
+import mekanism.common.content.qio.QIODriveSpecializationRegistry;
 import mekanism.common.content.qio.IQIODriveItem;
 import mekanism.common.content.qio.QIOAmount;
 import mekanism.common.security.ISecurityItem;
@@ -229,9 +231,11 @@ public class RecipeUtils {
 
     private static boolean isQIODriveUpgrade(IQIODriveItem inputDrive, ItemStack input,
           IQIODriveItem outputDrive, ItemStack output) {
-        QIODriveType inputType = inputDrive.getDriveType(input);
-        QIODriveType outputType = outputDrive.getDriveType(output);
-        if (inputType == null || inputType != outputType ||
+        QIODriveSpecialization inputType = inputDrive.getDriveSpecialization(input);
+        QIODriveSpecialization outputType = outputDrive.getDriveSpecialization(output);
+        if (!QIODriveSpecializationRegistry.INSTANCE.isRegistered(inputType) ||
+              !QIODriveSpecializationRegistry.INSTANCE.isRegistered(outputType) ||
+              !inputType.getRegistryName().equals(outputType.getRegistryName()) ||
               !QIODriveDefinition.isRegistered(inputDrive.getDriveDefinition(input)) ||
               !QIODriveDefinition.isRegistered(outputDrive.getDriveDefinition(output))) {
             return false;

@@ -1291,6 +1291,7 @@ public final class QIOAutomaticOutputService {
             case ITEM -> view.insert(resource.resolveItem(), amount, action);
             case FLUID -> view.insert(resource.resolveFluid(), amount, action);
             case GAS -> view.insert(resource.resolveGas(), amount, action);
+            case CUSTOM -> view.insert(resource.getDescriptor(), amount, action);
         };
     }
 
@@ -1423,6 +1424,7 @@ public final class QIOAutomaticOutputService {
             case ITEM -> view.insertIdempotent(transferId, resource.resolveItem(), amount, baseline);
             case FLUID -> view.insertIdempotent(transferId, resource.resolveFluid(), amount, baseline);
             case GAS -> view.insertIdempotent(transferId, resource.resolveGas(), amount, baseline);
+            case CUSTOM -> view.insertIdempotent(transferId, resource.getDescriptor(), amount, baseline);
         };
     }
 
@@ -1449,11 +1451,7 @@ public final class QIOAutomaticOutputService {
     /** 将机器资源栈转换为可持久化的资源描述符。 */
     private static PortableResourceDescriptor describe(MachineResourceStack stack) {
         try {
-            return switch (stack.kind()) {
-                case ITEM -> PortableResourceDescriptor.item(stack.itemStack());
-                case FLUID -> PortableResourceDescriptor.fluid(stack.fluidStack());
-                case GAS -> PortableResourceDescriptor.gas(stack.gasStack());
-            };
+            return PortableResourceDescriptor.fromDescriptor(stack.descriptor());
         } catch (RuntimeException e) {
             return null;
         }

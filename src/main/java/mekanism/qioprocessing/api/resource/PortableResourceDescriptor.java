@@ -1,266 +1,214 @@
 package mekanism.qioprocessing.api.resource;
 
-import mekanism.api.gas.Gas;
-import mekanism.api.gas.GasRegistry;
 import mekanism.api.gas.GasStack;
 import mekanism.api.qio.external.QIOStorageEntry;
-import net.minecraft.item.Item;
+import mekanism.api.qio.resource.QIOResourceCodecs;
+import mekanism.api.qio.resource.QIOResourceDescriptor;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTBase;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.nbt.NBTTagList;
 import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.fluids.Fluid;
 import net.minecraftforge.fluids.FluidRegistry;
 import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fml.common.registry.ForgeRegistries;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.Objects;
 
 /**
- * World-independent, amount-free identity used by QIO processing plans and persistence.
- */
-/**
- * QIO 处理模块中的 PortableResourceDescriptor 类型。
+ * Portable processing resource identity backed by the QIO codec descriptor.
  *
- * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
- * 实现负责保持状态与持久化表示的一致。</p>
+ * <p>The nested kind remains as a source-compatibility view for existing GUI and planner code;
+ * custom codecs return {@code CUSTOM} and are handled by codec id/family.</p>
  */
 public final class PortableResourceDescriptor implements Comparable<PortableResourceDescriptor> {
 
     public enum Kind {
         ITEM,
         FLUID,
-        GAS
+        GAS,
+        CUSTOM
     }
 
-    private static final int MAX_REGISTRY_NAME_LENGTH = 256;
-
-    private final Kind kind;
-    private final String registryName;
-    private final int metadata;
-    @Nullable
-    private final NBTTagCompound tag;
-    @Nullable
-    private final NBTTagCompound capabilities;
+    private final QIOResourceDescriptor descriptor;
     private final String sortKey;
     private final int hashCode;
 
-    private PortableResourceDescriptor(Kind kind, String registryName, int metadata,
-          @Nullable NBTTagCompound tag) {
-        this(kind, registryName, metadata, tag, null);
+    private PortableResourceDescriptor(QIOResourceDescriptor descriptor) {
+        this.descriptor = Objects.requireNonNull(descriptor, "descriptor");
+        sortKey = descriptor.toString();
+        hashCode = descriptor.hashCode();
     }
 
-    private PortableResourceDescriptor(Kind kind, String registryName, int metadata,
-          @Nullable NBTTagCompound tag, @Nullable NBTTagCompound capabilities) {
-        this.kind = Objects.requireNonNull(kind, "kind");
-        this.registryName = requireName(registryName);
-        if (kind != Kind.ITEM && metadata != 0) {
-            throw new IllegalArgumentException("Only item resources may have metadata");
-        }
-        if (kind != Kind.ITEM && capabilities != null && !capabilities.isEmpty()) {
-            throw new IllegalArgumentException("Only item resources may have capabilities");
-        }
-        this.metadata = metadata;
-        this.tag = tag == null || tag.isEmpty() ? null : tag.copy();
-        this.capabilities = capabilities == null || capabilities.isEmpty() ? null :
-              capabilities.copy();
-        String legacySortKey = kind.name() + '|' + this.registryName + '|' + metadata + '|' +
-              canonicalTag(this.tag);
-        sortKey = this.capabilities == null ? legacySortKey : legacySortKey + "|CAP|" +
-              canonicalTag(this.capabilities);
-        hashCode = this.capabilities == null ?
-              Objects.hash(kind, this.registryName, metadata, this.tag) :
-              Objects.hash(kind, this.registryName, metadata, this.tag, this.capabilities);
-    }
-
-    /** 根据资源种类、注册名、元数据和标签创建数量无关的资源身份。 */
     @Nonnull
-    public static PortableResourceDescriptor named(@Nonnull Kind kind,
-          @Nonnull String registryName, int metadata, @Nullable NBTTagCompound tag) {
-        return new PortableResourceDescriptor(kind, registryName, metadata, tag);
+    public static PortableResourceDescriptor fromDescriptor(@Nonnull QIOResourceDescriptor descriptor) {
+        return new PortableResourceDescriptor(descriptor);
     }
 
-    /** 从物品堆提取包含 ForgeCaps 的可持久化资源身份。 */
+    @Nonnull
+    public static PortableResourceDescriptor named(@Nonnull Kind kind, @Nonnull String registryName,
+          int metadata, @Nullable NBTTagCompound tag) {
+        return new PortableResourceDescriptor(legacyDescriptor(kind, registryName, metadata, tag, null));
+    }
+
     @Nonnull
     public static PortableResourceDescriptor item(@Nonnull ItemStack stack) {
         Objects.requireNonNull(stack, "stack");
         if (stack.isEmpty()) {
             throw new IllegalArgumentException("Cannot describe an empty item stack");
         }
-        ResourceLocation registryName = Item.REGISTRY.getNameForObject(stack.getItem());
-        if (registryName == null) {
-            throw new IllegalArgumentException("Item is not registered: " + stack.getItem());
-        }
-        NBTTagCompound serialized = stack.writeToNBT(new NBTTagCompound());
-        NBTTagCompound capabilities = serialized.hasKey("ForgeCaps", 10) ?
-              serialized.getCompoundTag("ForgeCaps") : null;
-        return new PortableResourceDescriptor(Kind.ITEM, registryName.toString(),
-              stack.getMetadata(), stack.getTagCompound(), capabilities);
+        return new PortableResourceDescriptor(QIOResourceCodecs.item(stack));
     }
 
-    /**
-     * Creates the capability-neutral identity used while selecting a workbench recipe or target.
-     * This deliberately reads only the registry entry, metadata, and ordinary item NBT; callers
-     * handling stored QIO resources must continue to use {@link #item(ItemStack)}.
-     */
     @Nonnull
     public static PortableResourceDescriptor itemIgnoringCapabilities(@Nonnull ItemStack stack) {
         Objects.requireNonNull(stack, "stack");
         if (stack.isEmpty()) {
             throw new IllegalArgumentException("Cannot describe an empty item stack");
         }
-        ResourceLocation registryName = Item.REGISTRY.getNameForObject(stack.getItem());
-        if (registryName == null) {
-            throw new IllegalArgumentException("Item is not registered: " + stack.getItem());
-        }
-        return new PortableResourceDescriptor(Kind.ITEM, registryName.toString(),
-              stack.getMetadata(), stack.getTagCompound());
+        QIOResourceDescriptor descriptor = QIOResourceCodecs.item(stack);
+        NBTTagCompound payload = descriptor.getPayload();
+        payload.removeTag("ForgeCaps");
+        return new PortableResourceDescriptor(QIOResourceDescriptor.persisted(descriptor.getCodecId(),
+              descriptor.getFamily(), descriptor.getCodecVersion(), descriptor.getStorageUnitsPerUnit(), payload));
     }
 
-    /** 从流体堆提取注册名和标签。 */
     @Nonnull
     public static PortableResourceDescriptor fluid(@Nonnull FluidStack stack) {
-        Objects.requireNonNull(stack, "stack");
-        if (stack.getFluid() == null) {
-            throw new IllegalArgumentException("Cannot describe an empty fluid stack");
-        }
-        String registryName = FluidRegistry.getFluidName(stack);
-        if (registryName == null || registryName.isEmpty()) {
-            throw new IllegalArgumentException("Fluid is not registered: " + stack.getFluid());
-        }
-        return new PortableResourceDescriptor(Kind.FLUID, registryName, 0, stack.tag);
+        return fromDescriptor(QIOResourceCodecs.fluid(Objects.requireNonNull(stack, "stack")));
     }
 
-    /** 从气体堆提取气体注册名。 */
     @Nonnull
     public static PortableResourceDescriptor gas(@Nonnull GasStack stack) {
-        Objects.requireNonNull(stack, "stack");
-        if (stack.getGas() == null) {
-            throw new IllegalArgumentException("Cannot describe an empty gas stack");
-        }
-        return new PortableResourceDescriptor(Kind.GAS, stack.getGas().getName(), 0, null);
+        return fromDescriptor(QIOResourceCodecs.gas(Objects.requireNonNull(stack, "stack")));
     }
 
-    /** 将 QIO 存储条目转换为统一资源身份。 */
     @Nonnull
     public static PortableResourceDescriptor fromStorageEntry(@Nonnull QIOStorageEntry entry) {
-        Objects.requireNonNull(entry, "entry");
-        return switch (entry.getKind()) {
-            case ITEM -> item(entry.getItem());
-            case FLUID -> fluid(Objects.requireNonNull(entry.getFluid(), "fluid"));
-            case GAS -> gas(Objects.requireNonNull(entry.getGas(), "gas"));
-        };
+        return fromDescriptor(Objects.requireNonNull(entry, "entry").getDescriptor());
     }
 
-    /** 返回资源种类。 */
+    @Nonnull
+    public QIOResourceDescriptor getDescriptor() {
+        return descriptor;
+    }
+
     @Nonnull
     public Kind getKind() {
-        return kind;
+        if (QIOResourceCodecs.ITEM_STACK_ID.equals(descriptor.getCodecId())) {
+            return Kind.ITEM;
+        }
+        if (QIOResourceCodecs.FLUID_STACK_ID.equals(descriptor.getCodecId())) {
+            return Kind.FLUID;
+        }
+        if (QIOResourceCodecs.GAS_STACK_ID.equals(descriptor.getCodecId())) {
+            return Kind.GAS;
+        }
+        return Kind.CUSTOM;
     }
 
-    /** 返回 Forge 注册表名称。 */
+    @Nonnull
+    public String getFamily() {
+        return descriptor.getFamily();
+    }
+
+    @Nonnull
+    public ResourceLocation getCodecId() {
+        return descriptor.getCodecId();
+    }
+
     @Nonnull
     public String getRegistryName() {
-        return registryName;
+        if (getKind() == Kind.ITEM) {
+            ItemStack stack = resolveItem();
+            if (!stack.isEmpty() && stack.getItem().getRegistryName() != null) {
+                return stack.getItem().getRegistryName().toString();
+            }
+            String name = descriptor.getPayload().getString("id");
+            return name.isEmpty() ? descriptor.getCodecId().toString() : name;
+        }
+        if (getKind() == Kind.FLUID) {
+            FluidStack stack = resolveFluid();
+            String name = stack == null ? null : FluidRegistry.getFluidName(stack);
+            if (name != null) {
+                return name;
+            }
+            name = descriptor.getPayload().getString("FluidName");
+            return name.isEmpty() ? descriptor.getCodecId().toString() : name;
+        }
+        if (getKind() == Kind.GAS) {
+            GasStack stack = resolveGas();
+            if (stack != null && stack.getGas() != null) {
+                return stack.getGas().getName();
+            }
+            String name = descriptor.getPayload().getString("gasName");
+            return name.isEmpty() ? descriptor.getCodecId().toString() : name;
+        }
+        return descriptor.getCodecId().toString();
     }
 
-    /** 返回物品元数据；流体和气体固定为零。 */
     public int getMetadata() {
-        return metadata;
+        return getKind() == Kind.ITEM ? descriptor.getPayload().getShort("Damage") : 0;
     }
 
-    /** 返回标签副本，调用方修改不会影响描述符。 */
     @Nullable
     public NBTTagCompound getTag() {
-        return tag == null ? null : tag.copy();
+        NBTTagCompound payload = descriptor.getPayload();
+        if (getKind() == Kind.ITEM && payload.hasKey("tag", 10)) {
+            return payload.getCompoundTag("tag");
+        }
+        if (getKind() == Kind.FLUID && payload.hasKey("Tag", 10)) {
+            return payload.getCompoundTag("Tag");
+        }
+        return null;
     }
 
-    /**
-     * Returns the stable recipe-selection identity for this descriptor.  Transient ForgeCaps
-     * belong to a live QIO storage stack, not to a workbench recipe or its cache.
-     */
     @Nonnull
     public PortableResourceDescriptor withoutCapabilities() {
-        return capabilities == null ? this : new PortableResourceDescriptor(kind, registryName,
-              metadata, tag);
+        if (!hasCapabilities()) {
+            return this;
+        }
+        NBTTagCompound payload = descriptor.getPayload();
+        payload.removeTag("ForgeCaps");
+        return new PortableResourceDescriptor(QIOResourceDescriptor.persisted(descriptor.getCodecId(),
+              descriptor.getFamily(), descriptor.getCodecVersion(), descriptor.getStorageUnitsPerUnit(), payload));
     }
 
-    /** Whether this item descriptor contains a persisted capability identity. */
     public boolean hasCapabilities() {
-        return capabilities != null;
+        return getKind() == Kind.ITEM && descriptor.getPayload().hasKey("ForgeCaps", 10);
     }
 
-    /** 尝试按当前注册表解析物品；无法解析时返回空堆。 */
+    public boolean isResolved() {
+        return descriptor.isResolved();
+    }
+
     @Nonnull
     public ItemStack resolveItem() {
-        if (kind != Kind.ITEM) {
-            return ItemStack.EMPTY;
-        }
-        Item item;
-        try {
-            item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(registryName));
-        } catch (RuntimeException e) {
-            return ItemStack.EMPTY;
-        }
-        if (item == null) {
-            return ItemStack.EMPTY;
-        }
-        ItemStack stack = new ItemStack(item, 1, metadata,
-              capabilities == null ? null : capabilities.copy());
-        if (tag != null) {
-            stack.setTagCompound(tag.copy());
-        }
-        return stack;
+        ItemStack stack = descriptor.resolve(QIOResourceCodecs.ITEM_STACK);
+        return stack == null ? ItemStack.EMPTY : stack;
     }
 
-    /** 尝试按当前注册表解析流体；无法解析时返回 null。 */
     @Nullable
     public FluidStack resolveFluid() {
-        if (kind != Kind.FLUID) {
-            return null;
-        }
-        Fluid fluid = FluidRegistry.getFluid(registryName);
-        return fluid == null ? null : new FluidStack(fluid, 1, tag == null ? null : tag.copy());
+        return descriptor.resolve(QIOResourceCodecs.FLUID_STACK);
     }
 
-    /** 尝试按当前注册表解析气体；无法解析时返回 null。 */
     @Nullable
     public GasStack resolveGas() {
-        if (kind != Kind.GAS) {
-            return null;
-        }
-        Gas gas = GasRegistry.getGas(registryName);
-        return gas == null ? null : new GasStack(gas, 1);
+        return descriptor.resolve(QIOResourceCodecs.GAS_STACK);
     }
 
-    /** 将资源身份写入稳定的 NBT 表示。 */
     @Nonnull
     public NBTTagCompound write() {
-        NBTTagCompound data = new NBTTagCompound();
-        data.setString("kind", kind.name());
-        data.setString("registryName", registryName);
-        if (kind == Kind.ITEM) {
-            data.setInteger("metadata", metadata);
-        }
-        if (tag != null) {
-            data.setTag("tag", tag.copy());
-        }
-        if (capabilities != null) {
-            data.setTag("capabilities", capabilities.copy());
-        }
-        return data;
+        return descriptor.write();
     }
 
-    /** 从 NBT 读取资源身份并校验种类/元数据约束。 */
     @Nonnull
     public static PortableResourceDescriptor read(@Nonnull NBTTagCompound data) {
         Objects.requireNonNull(data, "data");
+        if (data.hasKey("codec", 8)) {
+            return new PortableResourceDescriptor(QIOResourceDescriptor.read(data));
+        }
+        // Development-era processing records used the old three-value shape.
         Kind kind;
         try {
             kind = Kind.valueOf(data.getString("kind"));
@@ -268,10 +216,9 @@ public final class PortableResourceDescriptor implements Comparable<PortableReso
             throw new IllegalArgumentException("Unknown portable QIO resource kind: " + data.getString("kind"), e);
         }
         NBTTagCompound tag = data.hasKey("tag", 10) ? data.getCompoundTag("tag") : null;
-        NBTTagCompound capabilities = data.hasKey("capabilities", 10) ?
-              data.getCompoundTag("capabilities") : null;
-        return new PortableResourceDescriptor(kind, data.getString("registryName"),
-              kind == Kind.ITEM ? data.getInteger("metadata") : 0, tag, capabilities);
+        NBTTagCompound capabilities = data.hasKey("capabilities", 10) ? data.getCompoundTag("capabilities") : null;
+        return new PortableResourceDescriptor(legacyDescriptor(kind, data.getString("registryName"),
+              kind == Kind.ITEM ? data.getInteger("metadata") : 0, tag, capabilities));
     }
 
     @Override
@@ -281,15 +228,8 @@ public final class PortableResourceDescriptor implements Comparable<PortableReso
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (!(obj instanceof PortableResourceDescriptor other)) {
-            return false;
-        }
-        return metadata == other.metadata && kind == other.kind &&
-              registryName.equals(other.registryName) && Objects.equals(tag, other.tag) &&
-              Objects.equals(capabilities, other.capabilities);
+        return this == obj || obj instanceof PortableResourceDescriptor other &&
+              descriptor.equals(other.descriptor);
     }
 
     @Override
@@ -302,37 +242,36 @@ public final class PortableResourceDescriptor implements Comparable<PortableReso
         return sortKey;
     }
 
-    private static String requireName(String value) {
-        Objects.requireNonNull(value, "registryName");
-        String trimmed = value.trim();
-        if (trimmed.isEmpty() || trimmed.length() > MAX_REGISTRY_NAME_LENGTH) {
-            throw new IllegalArgumentException("Resource registry name must contain 1.." +
-                  MAX_REGISTRY_NAME_LENGTH + " characters");
+    private static QIOResourceDescriptor legacyDescriptor(Kind kind, String registryName, int metadata,
+          @Nullable NBTTagCompound tag, @Nullable NBTTagCompound capabilities) {
+        Objects.requireNonNull(kind, "kind");
+        if (kind == Kind.CUSTOM) {
+            throw new IllegalArgumentException("Custom resources must be created from a QIO descriptor");
         }
-        return trimmed;
-    }
-
-    private static String canonicalTag(@Nullable NBTTagCompound tag) {
-        return tag == null ? "" : canonicalCopy(tag).toString();
-    }
-
-    private static NBTBase canonicalCopy(NBTBase value) {
-        if (value instanceof NBTTagCompound compound) {
-            NBTTagCompound copy = new NBTTagCompound();
-            List<String> keys = new ArrayList<>(compound.getKeySet());
-            Collections.sort(keys);
-            for (String key : keys) {
-                copy.setTag(key, canonicalCopy(compound.getTag(key)));
-            }
-            return copy;
+        String name = Objects.requireNonNull(registryName, "registryName").trim();
+        if (name.isEmpty() || name.length() > 256) {
+            throw new IllegalArgumentException("Invalid legacy processing resource name");
         }
-        if (value instanceof NBTTagList list) {
-            NBTTagList copy = new NBTTagList();
-            for (NBTBase element : list) {
-                copy.appendTag(canonicalCopy(element));
-            }
-            return copy;
+        NBTTagCompound payload = new NBTTagCompound();
+        if (kind == Kind.ITEM) {
+            payload.setString("id", name);
+            payload.setByte("Count", (byte) 1);
+            payload.setShort("Damage", (short) metadata);
+            if (tag != null && !tag.isEmpty()) payload.setTag("tag", tag.copy());
+            if (capabilities != null && !capabilities.isEmpty()) payload.setTag("ForgeCaps", capabilities.copy());
+            return QIOResourceDescriptor.persisted(QIOResourceCodecs.ITEM_STACK_ID,
+                  QIOResourceCodecs.ITEM_FAMILY, 1, QIOResourceCodecs.ITEM_STACK.getStorageUnitsPerUnit(), payload);
         }
-        return value.copy();
+        if (kind == Kind.FLUID) {
+            payload.setString("FluidName", name);
+            payload.setInteger("Amount", 1);
+            if (tag != null && !tag.isEmpty()) payload.setTag("Tag", tag.copy());
+            return QIOResourceDescriptor.persisted(QIOResourceCodecs.FLUID_STACK_ID,
+                  QIOResourceCodecs.FLUID_FAMILY, 1, QIOResourceCodecs.FLUID_STACK.getStorageUnitsPerUnit(), payload);
+        }
+        payload.setString("gasName", name);
+        payload.setInteger("amount", 1);
+        return QIOResourceDescriptor.persisted(QIOResourceCodecs.GAS_STACK_ID,
+              QIOResourceCodecs.GAS_FAMILY, 1, QIOResourceCodecs.GAS_STACK.getStorageUnitsPerUnit(), payload);
     }
 }

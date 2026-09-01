@@ -86,7 +86,7 @@ public final class QIOAutomationPortGuard {
         for (MachinePort port : ports) {
             if (port != null && baseline.portId().equals(port.portId()) &&
                   baseline.portGroupId().equals(port.portGroupId()) &&
-                  baseline.kind() == port.kind()) {
+                  baseline.resourceMatcher().equals(port.resourceMatcher())) {
                 return port;
             }
         }

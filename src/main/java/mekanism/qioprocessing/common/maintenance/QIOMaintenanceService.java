@@ -442,24 +442,7 @@ public final class QIOMaintenanceService {
 
     private static BigInteger availableAmount(IQIOStorageView view,
           PortableResourceDescriptor resource) {
-        UUID resourceUUID;
-        switch (resource.getKind()) {
-            case ITEM:
-                net.minecraft.item.ItemStack item = resource.resolveItem();
-                resourceUUID = item.isEmpty() ? null : QIOResourceTypeRegistry.INSTANCE
-                      .getUUIDForItem(HashedItem.create(item));
-                break;
-            case FLUID:
-                resourceUUID = QIOResourceTypeRegistry.INSTANCE.getUUIDForFluid(
-                      resource.resolveFluid());
-                break;
-            case GAS:
-                resourceUUID = QIOResourceTypeRegistry.INSTANCE.getUUIDForGas(
-                      resource.resolveGas());
-                break;
-            default:
-                throw new IllegalStateException("Unknown maintenance resource kind");
-        }
+        UUID resourceUUID = QIOResourceTypeRegistry.INSTANCE.getUUIDFor(resource.getDescriptor());
         QIOStorageEntry entry = resourceUUID == null ? null : view.getResource(resourceUUID);
         if (entry == null) {
             return BigInteger.ZERO;

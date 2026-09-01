@@ -128,13 +128,7 @@ public final class QIOAutomationRecipeProfileLayout {
     @Nonnull
     public static PortableResourceDescriptor describe(@Nonnull MachineResourceStack stack) {
         Objects.requireNonNull(stack, "stack");
-        return switch (stack.kind()) {
-            case ITEM -> PortableResourceDescriptor.item(stack.itemStack());
-            case FLUID -> PortableResourceDescriptor.fluid(
-                  Objects.requireNonNull(stack.fluidStack(), "route fluid"));
-            case GAS -> PortableResourceDescriptor.gas(
-                  Objects.requireNonNull(stack.gasStack(), "route gas"));
-        };
+        return PortableResourceDescriptor.fromDescriptor(stack.descriptor());
     }
 
     public static final class Route {

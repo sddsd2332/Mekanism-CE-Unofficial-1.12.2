@@ -148,6 +148,8 @@ public final class QIOMaintenanceResourceService {
                         searchable.append(' ').append(resource.resolveGas().getGas().getLocalizedName());
                     }
                 }
+                case CUSTOM -> searchable.append(' ').append(resource.getFamily())
+                      .append(' ').append(resource.getCodecId());
             }
         } catch (RuntimeException ignored) {
         }

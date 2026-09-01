@@ -3,6 +3,8 @@ package mekanism.common.content.qio.filter;
 import mekanism.api.gas.GasStack;
 import mekanism.common.content.qio.QIOResourceEntry;
 import mekanism.common.content.qio.QIOResourceKind;
+import mekanism.api.qio.resource.QIOResourceCodecs;
+import mekanism.api.qio.resource.QIOResourceFamilyMatcher;
 import net.minecraft.nbt.NBTTagCompound;
 
 public class QIOGasFilter extends QIOFilter {
@@ -29,7 +31,9 @@ public class QIOGasFilter extends QIOFilter {
         this.gas = gas == null || gas.getGas() == null ? null : new GasStack(gas.getGas(), 1);
     }
 
-    @Override public QIOResourceKind getKind() { return QIOResourceKind.GAS; }
+    @Override public QIOResourceFamilyMatcher getMatcher() {
+        return QIOResourceFamilyMatcher.family(QIOResourceCodecs.GAS_FAMILY);
+    }
 
     @Override
     public boolean matches(QIOResourceEntry entry) {

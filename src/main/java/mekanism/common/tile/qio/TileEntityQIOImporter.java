@@ -4,6 +4,10 @@ import mekanism.api.Action;
 import mekanism.api.gas.GasStack;
 import mekanism.api.gas.IMekanismGasHandler;
 import mekanism.api.gas.IExtendedGasHandler;
+import mekanism.api.qio.resource.QIOResourceDescriptor;
+import mekanism.api.qio.resource.QIOResourceStack;
+import mekanism.api.qio.resource.QIOResourceTransferAdapter;
+import mekanism.api.qio.resource.QIOResourceTransferAdapterRegistry;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.content.qio.QIOFrequency;
 import mekanism.common.content.qio.QIORollback;
@@ -60,6 +64,7 @@ public class TileEntityQIOImporter extends TileEntityQIOFilterHandler {
             importItems(frequency, adjacent);
             importFluids(frequency, adjacent);
             importGases(frequency, adjacent);
+            importCustomResources(frequency, adjacent);
         }
         delay = MAX_DELAY;
     }
@@ -230,6 +235,73 @@ public class TileEntityQIOImporter extends TileEntityQIOFilterHandler {
                     types++;
                 }
                 remaining -= (int) Math.min(Integer.MAX_VALUE, inserted);
+            }
+        }
+        return moved;
+    }
+
+    boolean importCustomResources(QIOFrequency frequency, TileEntity target) {
+        if (frequency == null || target == null) {
+            return false;
+        }
+        long movedAmount = 0;
+        Set<QIOResourceDescriptor> movedResourceTypes = new HashSet<>();
+        boolean moved = false;
+        for (QIOResourceTransferAdapter adapter : QIOResourceTransferAdapterRegistry.INSTANCE.getAdapters()) {
+            if (movedAmount >= getMaxTransitCount() || movedResourceTypes.size() >= getMaxTransitTypes() ||
+                  !adapter.supports(target, getHandlerSide())) {
+                continue;
+            }
+            java.util.List<QIOResourceStack> available = adapter.getExtractable(target, getHandlerSide(),
+                  getMaxTransitTypes() - movedResourceTypes.size(), getMaxTransitCount() - movedAmount);
+            if (available == null) {
+                continue;
+            }
+            for (QIOResourceStack candidate : available) {
+                if (candidate == null || movedAmount >= getMaxTransitCount()) {
+                    continue;
+                }
+                QIOResourceDescriptor descriptor = candidate.getDescriptor();
+                if (!adapter.getCodecId().equals(descriptor.getCodecId()) || !descriptor.isResolved() ||
+                      !acceptsDescriptor(descriptor)) {
+                    continue;
+                }
+                boolean newType = !movedResourceTypes.contains(descriptor);
+                if (newType && movedResourceTypes.size() >= getMaxTransitTypes()) {
+                    continue;
+                }
+                long requested = Math.min(candidate.getAmount(), getMaxTransitCount() - movedAmount);
+                long extractable = Math.min(requested, Math.max(0, adapter.extract(target, getHandlerSide(),
+                      descriptor, requested, Action.SIMULATE)));
+                long accepted = frequency.massInsert(descriptor, extractable, Action.SIMULATE);
+                long toExtract = Math.min(extractable, accepted);
+                if (toExtract <= 0) {
+                    continue;
+                }
+                long extracted = Math.max(0, adapter.extract(target, getHandlerSide(), descriptor,
+                      toExtract, Action.EXECUTE));
+                if (extracted > toExtract) {
+                    adapter.insert(target, getHandlerSide(), descriptor, extracted - toExtract, Action.EXECUTE);
+                    extracted = toExtract;
+                }
+                if (extracted <= 0) {
+                    continue;
+                }
+                long inserted = frequency.massInsert(descriptor, extracted, Action.EXECUTE);
+                if (inserted < extracted) {
+                    long remainder = extracted - inserted;
+                    long returned = Math.min(remainder, Math.max(0, adapter.insert(target, getHandlerSide(),
+                          descriptor, remainder, Action.EXECUTE)));
+                    if (returned < remainder) {
+                        inserted += QIORollback.restore(frequency, descriptor, remainder - returned,
+                              "importer custom resource transfer");
+                    }
+                }
+                if (inserted > 0) {
+                    movedAmount += inserted;
+                    movedResourceTypes.add(descriptor);
+                    moved = true;
+                }
             }
         }
         return moved;

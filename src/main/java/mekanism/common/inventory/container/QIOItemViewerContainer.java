@@ -420,7 +420,7 @@ public class QIOItemViewerContainer extends MekanismContainer implements IQIOIte
     private void recalculateTotals() {
         QIOAmount storageUnits = QIOAmount.ZERO;
         for (QIOResourceEntry entry : entries.values()) {
-            storageUnits = storageUnits.add(entry.getExactAmount().multiply(QIOStorageUnits.getUnitsPerResource(entry.getKind())));
+            storageUnits = storageUnits.add(entry.getExactAmount().multiply(entry.getStorageUnitsPerUnit()));
         }
         exactTotalCount = storageUnits.divideRoundUp(QIOStorageUnits.UNITS_PER_ITEM);
         totalCount = exactTotalCount.longValueClamped();

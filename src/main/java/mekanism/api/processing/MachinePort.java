@@ -7,6 +7,8 @@ import mekanism.api.fluid.IExtendedFluidTank;
 import mekanism.api.gas.GasStack;
 import mekanism.api.gas.IExtendedGasTank;
 import mekanism.api.inventory.IInventorySlot;
+import mekanism.api.qio.resource.QIOResourceDescriptor;
+import mekanism.api.qio.resource.QIOResourceFamilyMatcher;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
@@ -49,6 +51,7 @@ public abstract class MachinePort {
     }
 
     private final MachineResourceKind kind;
+    private final QIOResourceFamilyMatcher resourceMatcher;
     private final String portId;
     private final String portGroupId;
     private final long laneId;
@@ -57,7 +60,23 @@ public abstract class MachinePort {
 
     private MachinePort(MachineResourceKind kind, String portId, Role role, Purpose purpose,
           String portGroupId, long laneId) {
+        this(Objects.requireNonNull(kind, "Port kind cannot be null"), matcherFor(kind), portId,
+              role, purpose, portGroupId, laneId);
+    }
+
+    /**
+     * Constructor for codec-backed integration ports. A matcher is exact: family and codec ids are compared as
+     * complete strings, and matching a family never implies conversion between codecs.
+     */
+    protected MachinePort(@Nonnull QIOResourceFamilyMatcher resourceMatcher, String portId, Role role,
+          Purpose purpose, String portGroupId, long laneId) {
+        this(inferLegacyKind(resourceMatcher), resourceMatcher, portId, role, purpose, portGroupId, laneId);
+    }
+
+    private MachinePort(MachineResourceKind kind, QIOResourceFamilyMatcher resourceMatcher,
+          String portId, Role role, Purpose purpose, String portGroupId, long laneId) {
         this.kind = Objects.requireNonNull(kind, "Port kind cannot be null");
+        this.resourceMatcher = Objects.requireNonNull(resourceMatcher, "Port resource matcher cannot be null");
         this.portId = Objects.requireNonNull(portId, "Port id cannot be null");
         this.portGroupId = Objects.requireNonNull(portGroupId, "Port group id cannot be null");
         if (laneId < SHARED_LANE) {
@@ -76,6 +95,19 @@ public abstract class MachinePort {
 
     public MachineResourceKind kind() {
         return kind;
+    }
+
+    @Nonnull
+    public QIOResourceFamilyMatcher resourceMatcher() {
+        return resourceMatcher;
+    }
+
+    public final boolean acceptsResource(@Nullable MachineResourceStack stack) {
+        return stack != null && acceptsDescriptor(stack.descriptor());
+    }
+
+    public final boolean acceptsDescriptor(@Nullable QIOResourceDescriptor descriptor) {
+        return descriptor != null && descriptor.isResolved() && resourceMatcher.accepts(descriptor);
     }
 
     public String portId() {
@@ -111,11 +143,11 @@ public abstract class MachinePort {
     }
 
     public final boolean canInsert(@Nullable MachineResourceStack stack) {
-        return role.acceptsInput() && insert(stack, Action.SIMULATE);
+        return role.acceptsInput() && acceptsResource(stack) && insert(stack, Action.SIMULATE);
     }
 
     public final boolean insert(@Nullable MachineResourceStack stack) {
-        if (!role.acceptsInput() || !insert(stack, Action.SIMULATE)) {
+        if (!role.acceptsInput() || !acceptsResource(stack) || !insert(stack, Action.SIMULATE)) {
             return false;
         }
         Snapshot snapshot = snapshot();
@@ -132,7 +164,7 @@ public abstract class MachinePort {
     }
 
     public final boolean canExtract(@Nullable MachineResourceStack expected) {
-        return role.allowsOutput() && extract(expected, Action.SIMULATE) != null;
+        return role.allowsOutput() && acceptsResource(expected) && extract(expected, Action.SIMULATE) != null;
     }
 
     /** Exact remaining capacity for this resource, independent of whether the port is input or output. */
@@ -140,7 +172,7 @@ public abstract class MachinePort {
 
     @Nullable
     public final MachineResourceStack extract(@Nullable MachineResourceStack expected) {
-        if (!role.allowsOutput() || extract(expected, Action.SIMULATE) == null) {
+        if (!role.allowsOutput() || !acceptsResource(expected) || extract(expected, Action.SIMULATE) == null) {
             return null;
         }
         Snapshot snapshot = snapshot();
@@ -195,6 +227,26 @@ public abstract class MachinePort {
     protected abstract NBTTagCompound serializeContainer();
 
     protected abstract void deserializeContainer(NBTTagCompound nbt);
+
+    private static QIOResourceFamilyMatcher matcherFor(MachineResourceKind kind) {
+        if (kind.getCodecId() == null) {
+            throw new IllegalArgumentException("Custom machine ports require an explicit resource matcher");
+        }
+        return QIOResourceFamilyMatcher.codec(kind.getCodecId());
+    }
+
+    private static MachineResourceKind inferLegacyKind(QIOResourceFamilyMatcher matcher) {
+        Objects.requireNonNull(matcher, "Port resource matcher cannot be null");
+        if (!matcher.isAny() && matcher.getFamilies().isEmpty() && matcher.getCodecIds().size() == 1) {
+            net.minecraft.util.ResourceLocation codecId = matcher.getCodecIds().iterator().next();
+            for (MachineResourceKind kind : MachineResourceKind.values()) {
+                if (codecId.equals(kind.getCodecId())) {
+                    return kind;
+                }
+            }
+        }
+        return MachineResourceKind.CUSTOM;
+    }
 
     @Nullable
     public static MachinePort item(String portId, Role role, @Nullable IInventorySlot slot) {
@@ -315,7 +367,7 @@ public abstract class MachinePort {
         @Override
         protected boolean insert(@Nullable MachineResourceStack stack, Action action) {
             ItemStack item = stack == null ? ItemStack.EMPTY : stack.itemStack();
-            return stack != null && stack.kind() == kind() && !item.isEmpty() &&
+            return acceptsResource(stack) && !item.isEmpty() &&
                   slot.insertItem(item, action, automationType).isEmpty();
         }
 
@@ -346,7 +398,7 @@ public abstract class MachinePort {
 
         @Override
         public long getAvailableCapacity(@Nullable MachineResourceStack stack) {
-            if (stack == null || stack.kind() != kind()) {
+            if (!acceptsResource(stack)) {
                 return 0;
             }
             ItemStack expected = stack.itemStack();
@@ -385,7 +437,7 @@ public abstract class MachinePort {
 
         @Override
         protected boolean insert(@Nullable MachineResourceStack stack, Action action) {
-            if (stack == null || stack.kind() != kind() || stack.amount() > Integer.MAX_VALUE) {
+            if (!acceptsResource(stack) || stack.amount() > Integer.MAX_VALUE) {
                 return false;
             }
             ItemStack expected = stack.itemStack();
@@ -427,7 +479,7 @@ public abstract class MachinePort {
         @Override
         protected MachineResourceStack extract(@Nullable MachineResourceStack expected,
               Action action) {
-            if (expected == null || expected.kind() != kind() ||
+            if (!acceptsResource(expected) ||
                   expected.amount() > Integer.MAX_VALUE) {
                 return null;
             }
@@ -512,7 +564,7 @@ public abstract class MachinePort {
 
         @Override
         public long getAvailableCapacity(@Nullable MachineResourceStack stack) {
-            if (stack == null || stack.kind() != kind()) {
+            if (!acceptsResource(stack)) {
                 return 0;
             }
             ItemStack expected = stack.itemStack();
@@ -577,7 +629,7 @@ public abstract class MachinePort {
         @Override
         protected boolean insert(@Nullable MachineResourceStack stack, Action action) {
             GasStack gas = stack == null ? null : stack.gasStack();
-            if (stack == null || stack.kind() != kind() || gas == null) {
+            if (!acceptsResource(stack) || gas == null) {
                 return false;
             }
             GasStack remainder = tank.insert(gas, action, AutomationType.INTERNAL);
@@ -612,7 +664,7 @@ public abstract class MachinePort {
 
         @Override
         public long getAvailableCapacity(@Nullable MachineResourceStack stack) {
-            if (stack == null || stack.kind() != kind() || stack.gasStack() == null) {
+            if (!acceptsResource(stack) || stack.gasStack() == null) {
                 return 0;
             }
             GasStack current = tank.getGas();
@@ -646,7 +698,7 @@ public abstract class MachinePort {
         @Override
         protected boolean insert(@Nullable MachineResourceStack stack, Action action) {
             FluidStack fluid = stack == null ? null : stack.fluidStack();
-            if (stack == null || stack.kind() != kind() || fluid == null) {
+            if (!acceptsResource(stack) || fluid == null) {
                 return false;
             }
             FluidStack remainder = tank.insert(fluid, action, AutomationType.INTERNAL);
@@ -681,7 +733,7 @@ public abstract class MachinePort {
 
         @Override
         public long getAvailableCapacity(@Nullable MachineResourceStack stack) {
-            if (stack == null || stack.kind() != kind() || stack.fluidStack() == null) {
+            if (!acceptsResource(stack) || stack.fluidStack() == null) {
                 return 0;
             }
             FluidStack current = tank.getFluid();
@@ -703,7 +755,7 @@ public abstract class MachinePort {
     }
 
     protected final boolean isExpected(@Nullable MachineResourceStack expected) {
-        if (expected == null || expected.kind() != kind() || expected.amount() <= 0) {
+        if (!acceptsResource(expected) || expected.amount() <= 0) {
             return false;
         }
         MachineResourceStack stored = peek();

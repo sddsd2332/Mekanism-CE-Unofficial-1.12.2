@@ -7,7 +7,7 @@ import mekanism.api.gear.IModule;
 import mekanism.api.gear.SwiftSneakHelp;
 import mekanism.api.radial.RadialData;
 import mekanism.client.gui.GuiRadialSelector;
-import mekanism.client.jei.MekanismJEI;
+import mekanism.client.recipe_viewer.RecipeViewerUtils;
 import mekanism.client.render.hud.MekanismStatusOverlay;
 import mekanism.client.render.lib.ScrollIncrementer;
 import mekanism.client.render.RenderTickHandler;
@@ -163,7 +163,7 @@ public class ClientTickHandler {
 
         if (qioRecipeViewerRefreshPending) {
             qioRecipeViewerRefreshPending = false;
-            MekanismJEI.refreshRecipeTransferButtons();
+            RecipeViewerUtils.refreshRecipeTransferButtons();
         }
 
         if (!Mekanism.proxy.isPaused()) {

@@ -2,6 +2,7 @@ package mekanism.common.content.qio;
 
 import mekanism.api.Action;
 import mekanism.api.gas.GasStack;
+import mekanism.api.qio.resource.QIOResourceDescriptor;
 import mekanism.common.Mekanism;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.fluids.FluidStack;
@@ -39,6 +40,14 @@ public final class QIORollback {
     public static long restore(@Nullable QIOFrequency frequency, @Nullable GasStack stack, long amount, String operation) {
         long restored = frequency == null || stack == null || stack.getGas() == null || amount <= 0 ? 0
               : frequency.massInsert(stack, amount, Action.EXECUTE);
+        report(operation, amount, restored);
+        return restored;
+    }
+
+    public static long restore(@Nullable QIOFrequency frequency, @Nullable QIOResourceDescriptor descriptor,
+          long amount, String operation) {
+        long restored = frequency == null || descriptor == null || amount <= 0 ? 0 :
+              frequency.massInsert(descriptor, amount, Action.EXECUTE);
         report(operation, amount, restored);
         return restored;
     }

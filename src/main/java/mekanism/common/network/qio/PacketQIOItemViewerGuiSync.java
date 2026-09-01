@@ -7,6 +7,7 @@ import mekanism.common.content.qio.QIOFrequency;
 import mekanism.common.content.qio.QIOAmount;
 import mekanism.common.content.qio.QIOCapacitySummary;
 import mekanism.common.content.qio.QIOResourceEntry;
+import mekanism.common.content.qio.QIONetworkResourceLimits;
 import mekanism.common.inventory.container.QIOItemViewerContainer;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
@@ -109,16 +110,26 @@ public class PacketQIOItemViewerGuiSync implements IMessageHandler<PacketQIOItem
 
         @Override
         public void toBytes(ByteBuf buffer) {
+            int messageStart = buffer.writerIndex();
             buffer.writeInt(windowId);
             buffer.writeByte(mode.ordinal());
             if (mode == Mode.KILL) {
                 return;
             }
             capacitySummary.write(buffer);
-            buffer.writeShort(Math.min(4096, entries.size()));
+            int countIndex = buffer.writerIndex();
+            buffer.writeShort(0);
+            int written = 0;
             for (int i = 0; i < entries.size() && i < 4096; i++) {
+                int entryStart = buffer.writerIndex();
                 entries.get(i).write(buffer);
+                if (buffer.writerIndex() - messageStart > QIONetworkResourceLimits.MAX_PACKET_BYTES) {
+                    buffer.writerIndex(entryStart);
+                    break;
+                }
+                written++;
             }
+            buffer.setShort(countIndex, written);
         }
 
         @Override
@@ -128,6 +139,9 @@ public class PacketQIOItemViewerGuiSync implements IMessageHandler<PacketQIOItem
             mode = Mode.KILL;
             entries = Collections.emptyList();
             try {
+                if (buffer.readableBytes() > QIONetworkResourceLimits.MAX_PACKET_BYTES) {
+                    throw new IllegalArgumentException("Legacy QIO viewer synchronization exceeds the byte limit");
+                }
                 int decodedWindowId = buffer.readInt();
                 int ordinal = buffer.readUnsignedByte();
                 if (decodedWindowId < 0 || ordinal < 0 || ordinal >= Mode.values().length) {

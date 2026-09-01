@@ -36,6 +36,7 @@ public class GuiQIODriveStatusSlot extends GuiElement {
             case NEAR_FULL -> 0xB0E0B020;
             case FULL -> 0xB0D04030;
             case DUPLICATE, MISSING, INVALID, ERROR -> 0xB0E03030;
+            case OVER_CAPACITY -> 0xB0E08020;
             case OFFLINE -> 0xB0808080;
             default -> 0;
         };

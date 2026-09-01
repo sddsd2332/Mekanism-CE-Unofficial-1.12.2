@@ -1,9 +1,9 @@
 package mekanism.client.gui.element.custom;
 
 import mekanism.api.EnumColor;
-import mekanism.api.gas.GasStack;
 import mekanism.client.gui.GuiUtils;
 import mekanism.client.gui.IGuiWrapper;
+import mekanism.client.gui.qio.QIOFilterGuiResource;
 import mekanism.client.gui.element.GuiElement;
 import mekanism.client.gui.element.button.FilterSelectButton;
 import mekanism.client.gui.element.button.RadioButton;
@@ -13,10 +13,7 @@ import mekanism.client.gui.element.slot.SlotType;
 import mekanism.client.render.MekanismRenderer;
 import mekanism.common.MekanismLang;
 import mekanism.common.OreDictCache;
-import mekanism.common.content.qio.QIOResourceKind;
 import mekanism.common.content.qio.filter.QIOFilter;
-import mekanism.common.content.qio.filter.QIOFluidFilter;
-import mekanism.common.content.qio.filter.QIOGasFilter;
 import mekanism.common.content.qio.filter.QIOItemStackFilter;
 import mekanism.common.content.qio.filter.QIOModIDFilter;
 import mekanism.common.content.qio.filter.QIOOreDictFilter;
@@ -25,16 +22,13 @@ import mekanism.common.tile.qio.TileEntityQIOFilterHandler;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.client.gui.GuiScreen;
-import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.text.TextComponentString;
-import net.minecraftforge.fluids.FluidStack;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
 
@@ -144,24 +138,12 @@ public class GuiQIOFilterList extends GuiElement {
     private void renderFilter(QIOFilter filter, int row, int rowY) {
         int iconX = relativeX + 3;
         int iconY = rowY + 3;
-        if (filter instanceof QIOItemStackFilter) {
-            gui().renderItem(((QIOItemStackFilter) filter).getItemStack(), iconX, iconY);
-        } else if (filter instanceof QIOOreDictFilter) {
+        if (filter instanceof QIOOreDictFilter) {
             renderPreviewStack(OreDictCache.getOreDictStacks(((QIOOreDictFilter) filter).getOreDictName(), false), iconX, iconY);
         } else if (filter instanceof QIOModIDFilter) {
             renderPreviewStack(OreDictCache.getQIOModIDStacks(((QIOModIDFilter) filter).getModID()), iconX, iconY);
-        } else if (filter instanceof QIOFluidFilter) {
-            FluidStack fluid = ((QIOFluidFilter) filter).getFluid();
-            if (fluid != null && fluid.getFluid() != null) {
-                GuiUtils.drawFluidBarSprite(relativeX + 2, rowY + 2, 18, 18, 16, fluid, true);
-            }
-            drawResourceMarker("F", iconX, iconY);
-        } else if (filter instanceof QIOGasFilter) {
-            GasStack gas = ((QIOGasFilter) filter).getGas();
-            if (gas != null && gas.getGas() != null) {
-                GuiUtils.drawGasBarSprite(relativeX + 2, rowY + 2, 18, 18, 16, gas, true);
-            }
-            drawResourceMarker("G", iconX, iconY);
+        } else {
+            QIOFilterGuiResource.render(gui(), filter, iconX, iconY, 16);
         }
         int textWidth = contentWidth - RadioButton.RADIO_SIZE - 17 - 20;
         drawScaledScrollingString(new TextComponentString(getFilterName(filter)), 19, row * rowHeight + 3,
@@ -175,14 +157,6 @@ public class GuiQIOFilterList extends GuiElement {
             int index = (int) ((getMillis() / 1_000L) % stacks.size());
             gui().renderItem(stacks.get(index), x, y);
         }
-    }
-
-    private void drawResourceMarker(String marker, int x, int y) {
-        GlStateManager.pushMatrix();
-        GlStateManager.translate(x + 5, y + 4, 100);
-        GlStateManager.scale(0.75F, 0.75F, 0.75F);
-        getFont().drawString(marker, 0, 0, 0xFFFFFFFF);
-        GlStateManager.popMatrix();
     }
 
     @Override
@@ -304,33 +278,16 @@ public class GuiQIOFilterList extends GuiElement {
         } else if (filter instanceof QIOModIDFilter) {
             return EnumColor.RED;
         }
-        return switch (filter.getKind()) {
-            case ITEM -> EnumColor.INDIGO;
-            case FLUID -> EnumColor.DARK_AQUA;
-            case GAS -> EnumColor.PURPLE;
-        };
+        return QIOFilterGuiResource.color(filter);
     }
 
     private String getFilterName(QIOFilter filter) {
-        if (filter instanceof QIOItemStackFilter) {
-            ItemStack stack = ((QIOItemStackFilter) filter).getItemStack();
-            return stack.isEmpty() ? LangUtils.localize("gui.qio.filter.unknown") : stack.getDisplayName();
-        } else if (filter instanceof QIOOreDictFilter) {
+        if (filter instanceof QIOOreDictFilter) {
             return ((QIOOreDictFilter) filter).getOreDictName();
         } else if (filter instanceof QIOModIDFilter) {
             return ((QIOModIDFilter) filter).getModID();
-        } else if (filter instanceof QIOFluidFilter) {
-            FluidStack fluid = ((QIOFluidFilter) filter).getFluid();
-            return fluid == null || fluid.getFluid() == null ? LangUtils.localize("gui.qio.filter.unknown") : fluid.getLocalizedName();
-        } else if (filter instanceof QIOGasFilter) {
-            GasStack gas = ((QIOGasFilter) filter).getGas();
-            return gas == null || gas.getGas() == null ? LangUtils.localize("gui.qio.filter.unknown") : gas.getGas().getLocalizedName();
         }
-        return LangUtils.localize("gui.qio.filter.unknown");
-    }
-
-    private String getKindName(QIOResourceKind kind) {
-        return LangUtils.localize("gui.qio.resource." + kind.name().toLowerCase(java.util.Locale.ROOT));
+        return QIOFilterGuiResource.name(filter);
     }
 
     private String getFilterDetail(QIOFilter filter) {
@@ -341,6 +298,7 @@ public class GuiQIOFilterList extends GuiElement {
         } else if (filter instanceof QIOItemStackFilter && ((QIOItemStackFilter) filter).isFuzzyMode()) {
             return MekanismLang.FUZZY_MODE.translate().getFormattedText();
         }
-        return getKindName(filter.getKind());
+        String type = QIOFilterGuiResource.typeName(filter);
+        return type.equals(LangUtils.localize("gui.qio.filter.unknown")) ? filter.getType() : type;
     }
 }

@@ -2,6 +2,8 @@ package mekanism.client.gui.element.custom;
 
 import mekanism.api.gas.GasStack;
 import mekanism.api.EnumColor;
+import mekanism.api.qio.client.QIOResourceRenderer;
+import mekanism.api.qio.client.QIOResourceRendererRegistry;
 import mekanism.client.gui.GuiUtils;
 import mekanism.client.gui.IGuiWrapper;
 import mekanism.client.gui.element.GuiElement;
@@ -26,7 +28,6 @@ import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ResourceLocation;
-import net.minecraft.util.text.TextComponentString;
 import net.minecraftforge.fluids.FluidStack;
 
 import javax.annotation.Nonnull;
@@ -38,7 +39,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
 
@@ -209,27 +209,29 @@ public class GuiQIOResourceGrid extends GuiElement implements IJEIIngredientHelp
         // Match the high-version slot scroll: placing the carried stack does
         // not require an existing resource entry under the clicked grid cell.
         if (shift) {
-            if (entry != null) {
+            if (entry != null && hasUsableDisplayPayload(entry) && entry.getKind() != null) {
                 PacketQIOViewerAction.sendShiftTake(windowId, entry.getUUID(),
                       PacketQIOViewerAction.getShiftTakeAmount(entry));
             }
         } else if (!held.isEmpty()) {
-            if (entry != null && (entry.getKind() == QIOResourceKind.FLUID && PacketQIOViewerAction.canTakeFluidIntoHeldStack(entry, held) ||
+            if (entry != null && hasUsableDisplayPayload(entry) &&
+                  (entry.getKind() == QIOResourceKind.FLUID && PacketQIOViewerAction.canTakeFluidIntoHeldStack(entry, held) ||
                   entry.getKind() == QIOResourceKind.GAS && PacketQIOViewerAction.canTakeGasIntoHeldStack(entry, held))) {
                 PacketQIOViewerAction.sendTake(windowId, entry.getUUID(), entry.getAmount());
-            } else if (entry != null && button == 2 && PacketQIOViewerAction.canTakeIntoHeldStack(entry, held)) {
+            } else if (entry != null && hasUsableDisplayPayload(entry) && button == 2 &&
+                  PacketQIOViewerAction.canTakeIntoHeldStack(entry, held)) {
                 // Middle-click tops up a matching item stack by one.
                 PacketQIOViewerAction.sendTake(windowId, entry.getUUID(), 1);
             } else {
                 PacketQIOViewerAction.sendPut(windowId, PacketQIOViewerAction.getHeldPutAmount(held, button != 0));
             }
-        } else if (entry != null) {
-            if (entry.getKind() != QIOResourceKind.ITEM) {
+        } else if (entry != null && hasUsableDisplayPayload(entry)) {
+            if (entry.getKind() == QIOResourceKind.FLUID || entry.getKind() == QIOResourceKind.GAS) {
                 // Mixed resources are moved to a compatible inventory
                 // container when the cursor is empty.
                 PacketQIOViewerAction.sendShiftTake(windowId, entry.getUUID(),
                       PacketQIOViewerAction.getShiftTakeAmount(entry));
-            } else if (entry.getAmount() > 0) {
+            } else if (entry.getKind() == QIOResourceKind.ITEM && entry.getAmount() > 0) {
                 int maxStackSize = Math.min(Integer.MAX_VALUE, entry.getItem().getMaxStackSize());
                 long max = Math.min(entry.getAmount(), maxStackSize);
                 long amount = button == 0 ? max : button == 1 ? Math.max(1, max / 2) : 1;
@@ -253,7 +255,18 @@ public class GuiQIOResourceGrid extends GuiElement implements IJEIIngredientHelp
             return null;
         }
         QIOResourceEntry entry = entries.get(index);
-        switch (entry.getKind()) {
+        if (!hasUsableDisplayPayload(entry)) {
+            return null;
+        }
+        Object renderedIngredient = getRenderedIngredient(entry);
+        if (renderedIngredient != null) {
+            return renderedIngredient;
+        }
+        QIOResourceKind kind = entry.getKind();
+        if (kind == null) {
+            return null;
+        }
+        switch (kind) {
             case ITEM:
                 return entry.getItem();
             case FLUID:
@@ -275,7 +288,23 @@ public class GuiQIOResourceGrid extends GuiElement implements IJEIIngredientHelp
             return;
         }
         QIOResourceEntry entry = entries.get(index);
-        if (entry.getKind() == QIOResourceKind.ITEM) {
+        List<String> renderedTooltip = getRenderedTooltip(entry);
+        if (renderedTooltip != null) {
+            List<String> tooltip = new ArrayList<>(renderedTooltip.size() + 1);
+            for (String line : renderedTooltip) {
+                if (line != null && !line.isEmpty()) {
+                    tooltip.add(line);
+                }
+            }
+            if (tooltip.isEmpty()) {
+                tooltip.add(getResourceName(entry));
+            }
+            tooltip.add(getStoredTooltip(entry.getExactAmount()));
+            displayTooltips(tooltip, mouseX, mouseY);
+        } else if (!hasUsableDisplayPayload(entry)) {
+            displayTooltips(java.util.Arrays.asList(getResourceName(entry),
+                  getStoredTooltip(entry.getExactAmount())), mouseX, mouseY);
+        } else if (entry.getKind() == QIOResourceKind.ITEM) {
             if (!entry.getExactAmount().isExpanded() && entry.getAmount() < 10_000) {
                 gui().renderItemTooltip(entry.getItem(), mouseX, mouseY);
             } else {
@@ -328,7 +357,7 @@ public class GuiQIOResourceGrid extends GuiElement implements IJEIIngredientHelp
         }
         List<QIOResourceEntry> entries = new ArrayList<>();
         for (QIOResourceEntry entry : container.getResourceEntries()) {
-            if (!visibleKinds.contains(entry.getKind())) {
+            if (entry.getKind() == null ? !showsAllKinds() : !visibleKinds.contains(entry.getKind())) {
                 continue;
             }
             // Match 26.2: an incomplete/invalid expression behaves like no
@@ -416,18 +445,35 @@ public class GuiQIOResourceGrid extends GuiElement implements IJEIIngredientHelp
     }
 
     private void renderEntry(QIOResourceEntry entry, int x, int y) {
-        if (entry.getKind() == QIOResourceKind.ITEM) {
+        boolean rendered = renderWithRegisteredRenderer(entry, x + 1, y + 1);
+        boolean usablePayload = hasUsableDisplayPayload(entry);
+        QIOResourceKind kind = entry.getKind();
+        if (rendered) {
+            // The count overlay remains owned by the grid so every codec uses identical scaling.
+        } else if (usablePayload && kind == QIOResourceKind.ITEM) {
             ItemStack stack = entry.getItem();
-            gui().renderItemWithOverlay(stack, x + 1, y + 1, 1, "");
-        } else {
+            if (!stack.isEmpty()) {
+                gui().renderItemWithOverlay(stack, x + 1, y + 1, 1, "");
+                rendered = true;
+            }
+        }
+        if (!rendered) {
             int color = resourceColor(entry);
             GuiUtils.fill(x + 3, y + 3, x + 15, y + 15, color);
-            if (entry.getKind() == QIOResourceKind.FLUID && entry.getFluid() != null) {
-                GuiUtils.drawFluidBarSprite(x, y, 18, 18, 16, entry.getFluid(), true);
-            } else if (entry.getKind() == QIOResourceKind.GAS && entry.getGas() != null) {
-                GuiUtils.drawGasBarSprite(x, y, 18, 18, 16, entry.getGas(), true);
+            String marker = "?";
+            if (usablePayload && kind == QIOResourceKind.FLUID) {
+                FluidStack fluid = entry.getFluid();
+                if (fluid != null) {
+                    GuiUtils.drawFluidBarSprite(x, y, 18, 18, 16, fluid, true);
+                    marker = "F";
+                }
+            } else if (usablePayload && kind == QIOResourceKind.GAS) {
+                GasStack gas = entry.getGas();
+                if (gas != null) {
+                    GuiUtils.drawGasBarSprite(x, y, 18, 18, 16, gas, true);
+                    marker = "G";
+                }
             }
-            String marker = entry.getKind() == QIOResourceKind.FLUID ? "F" : "G";
             GlStateManager.pushMatrix();
             GlStateManager.translate(x + 5, y + 4, 100);
             GlStateManager.scale(0.75F, 0.75F, 0.75F);
@@ -488,6 +534,13 @@ public class GuiQIOResourceGrid extends GuiElement implements IJEIIngredientHelp
     }
 
     private String getRegistryName(QIOResourceEntry entry) {
+        String renderedName = getRenderedRegistryName(entry);
+        if (renderedName != null) {
+            return renderedName;
+        }
+        if (!hasUsableDisplayPayload(entry)) {
+            return entry.getDescriptor().getCodecId().toString();
+        }
         if (entry.getKind() == QIOResourceKind.ITEM) {
             net.minecraft.util.ResourceLocation registryName = entry.getItem().getItem().getRegistryName();
             return registryName == null ? "" : registryName.toString();
@@ -495,11 +548,21 @@ public class GuiQIOResourceGrid extends GuiElement implements IJEIIngredientHelp
             FluidStack fluid = entry.getFluid();
             return fluid == null || fluid.getFluid() == null ? "" : fluid.getFluid().getName();
         }
+        if (entry.getKind() == null) {
+            return entry.getDescriptor().getCodecId().toString();
+        }
         GasStack gas = entry.getGas();
         return gas == null || gas.getGas() == null ? "" : gas.getGas().getName();
     }
 
     private String getModId(QIOResourceEntry entry) {
+        String renderedModId = getRenderedModId(entry);
+        if (renderedModId != null) {
+            return renderedModId;
+        }
+        if (!hasUsableDisplayPayload(entry)) {
+            return entry.getDescriptor().getCodecId().getNamespace();
+        }
         if (entry.getKind() == QIOResourceKind.ITEM) {
             return MekanismUtils.getModId(entry.getItem());
         } else if (entry.getKind() == QIOResourceKind.FLUID) {
@@ -507,27 +570,157 @@ public class GuiQIOResourceGrid extends GuiElement implements IJEIIngredientHelp
             if (fluid != null && fluid.getFluid() != null && fluid.getFluid().getStill(fluid) != null) {
                 return fluid.getFluid().getStill(fluid).getNamespace();
             }
-        } else {
+        } else if (entry.getKind() == QIOResourceKind.GAS) {
             GasStack gas = entry.getGas();
             if (gas != null && gas.getGas() != null && gas.getGas().getIcon() != null) {
                 return gas.getGas().getIcon().getNamespace();
             }
+        } else if (entry.getKind() == null) {
+            return entry.getDescriptor().getCodecId().getNamespace();
         }
         String registryName = getRegistryName(entry);
         int separator = registryName.indexOf(':');
         return separator > 0 ? registryName.substring(0, separator) : "";
     }
 
-    @Nullable
+    @Nonnull
     private String getResourceName(QIOResourceEntry entry) {
+        String renderedName = getRenderedDisplayName(entry);
+        if (renderedName != null) {
+            return renderedName;
+        }
+        if (!hasUsableDisplayPayload(entry)) {
+            return entry.getDescriptor().getCodecId().toString();
+        }
         if (entry.getKind() == QIOResourceKind.ITEM) {
-            return entry.getItem().getDisplayName();
+            ItemStack stack = entry.getItem();
+            return stack.isEmpty() ? entry.getDescriptor().getCodecId().toString() : stack.getDisplayName();
         } else if (entry.getKind() == QIOResourceKind.FLUID) {
             FluidStack stack = entry.getFluid();
             return stack == null || stack.getFluid() == null ? LangUtils.localize("gui.qio.resource.unknown_fluid") : stack.getLocalizedName();
-        } else {
+        } else if (entry.getKind() == QIOResourceKind.GAS) {
             GasStack stack = entry.getGas();
             return stack == null || stack.getGas() == null ? LangUtils.localize("gui.qio.resource.unknown_gas") : stack.getGas().getLocalizedName();
+        }
+        return entry.getDescriptor().getCodecId().toString();
+    }
+
+    private boolean renderWithRegisteredRenderer(QIOResourceEntry entry, int x, int y) {
+        RendererResolution resolved = resolveRenderer(entry);
+        if (resolved == null) {
+            return false;
+        }
+        GlStateManager.pushMatrix();
+        try {
+            resolved.renderer.render(resolved.resource, x, y);
+            return true;
+        } catch (RuntimeException | LinkageError ignored) {
+            return false;
+        } finally {
+            GlStateManager.popMatrix();
+            MekanismRenderer.resetColor();
+        }
+    }
+
+    @Nullable
+    private Object getRenderedIngredient(QIOResourceEntry entry) {
+        RendererResolution resolved = resolveRenderer(entry);
+        if (resolved == null) {
+            return null;
+        }
+        try {
+            return resolved.renderer.getIngredient(resolved.resource);
+        } catch (RuntimeException | LinkageError ignored) {
+            return null;
+        }
+    }
+
+    @Nullable
+    private List<String> getRenderedTooltip(QIOResourceEntry entry) {
+        RendererResolution resolved = resolveRenderer(entry);
+        if (resolved == null) {
+            return null;
+        }
+        try {
+            List<String> tooltip = resolved.renderer.getTooltip(resolved.resource);
+            return tooltip == null ? null : new ArrayList<>(tooltip);
+        } catch (RuntimeException | LinkageError ignored) {
+            return null;
+        }
+    }
+
+    @Nullable
+    private String getRenderedDisplayName(QIOResourceEntry entry) {
+        RendererResolution resolved = resolveRenderer(entry);
+        if (resolved == null) {
+            return null;
+        }
+        try {
+            String name = resolved.renderer.getDisplayName(resolved.resource);
+            return name == null || name.isEmpty() ? null : name;
+        } catch (RuntimeException | LinkageError ignored) {
+            return null;
+        }
+    }
+
+    @Nullable
+    private String getRenderedRegistryName(QIOResourceEntry entry) {
+        RendererResolution resolved = resolveRenderer(entry);
+        if (resolved == null) {
+            return null;
+        }
+        try {
+            String name = resolved.renderer.getRegistryName(resolved.resource);
+            return name == null || name.isEmpty() ? null : name;
+        } catch (RuntimeException | LinkageError ignored) {
+            return null;
+        }
+    }
+
+    @Nullable
+    private String getRenderedModId(QIOResourceEntry entry) {
+        RendererResolution resolved = resolveRenderer(entry);
+        if (resolved == null) {
+            return null;
+        }
+        try {
+            String modId = resolved.renderer.getModId(resolved.resource);
+            return modId == null || modId.isEmpty() ? null : modId;
+        } catch (RuntimeException | LinkageError ignored) {
+            return null;
+        }
+    }
+
+    @Nullable
+    @SuppressWarnings("unchecked")
+    private RendererResolution resolveRenderer(QIOResourceEntry entry) {
+        if (!hasUsableDisplayPayload(entry)) {
+            return null;
+        }
+        QIOResourceRenderer<?> renderer = QIOResourceRendererRegistry.INSTANCE.get(
+              entry.getDescriptor().getCodecId());
+        if (renderer == null) {
+            return null;
+        }
+        Object resource = entry.getDescriptor().resolve();
+        if (resource == null || !renderer.getValueClass().isInstance(resource)) {
+            return null;
+        }
+        return new RendererResolution((QIOResourceRenderer<Object>) renderer, resource);
+    }
+
+    private boolean hasUsableDisplayPayload(@Nullable QIOResourceEntry entry) {
+        return entry != null && entry.hasDisplayPayload() && entry.getDescriptor().isResolved();
+    }
+
+    private static final class RendererResolution {
+
+        private final QIOResourceRenderer<Object> renderer;
+        private final Object resource;
+
+        private RendererResolution(QIOResourceRenderer<Object> renderer, Object resource) {
+            this.renderer = renderer;
+            this.resource = resource;
         }
     }
 

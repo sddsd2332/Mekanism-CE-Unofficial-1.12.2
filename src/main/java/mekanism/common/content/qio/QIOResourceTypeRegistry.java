@@ -1,6 +1,8 @@
 package mekanism.common.content.qio;
 
 import mekanism.api.gas.GasStack;
+import mekanism.api.qio.resource.QIOResourceCodec;
+import mekanism.api.qio.resource.QIOResourceDescriptor;
 import mekanism.common.lib.inventory.HashedItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -21,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.Objects;
 
 /**
  * World-scoped UUID registry for item, fluid, and gas templates.
@@ -31,7 +34,7 @@ import java.util.UUID;
 public final class QIOResourceTypeRegistry {
 
     public static final QIOResourceTypeRegistry INSTANCE = new QIOResourceTypeRegistry();
-    private static final int INDEX_VERSION = 1;
+    private static final int INDEX_VERSION = 2;
 
     private final Map<UUID, QIOResourceType> byUUID = new HashMap<>();
     private final Map<QIOResourceType, UUID> byType = new HashMap<>();
@@ -86,37 +89,47 @@ public final class QIOResourceTypeRegistry {
         return loaded;
     }
 
+    /** Tracks any resolved codec-backed resource in the world registry. */
     @Nonnull
-    public synchronized UUID getOrTrackItem(HashedItem item) {
+    public synchronized UUID getOrTrack(@Nonnull QIOResourceDescriptor descriptor) {
         requireLoaded();
-        QIOResourceType key = QIOResourceType.itemLookup(item);
+        Objects.requireNonNull(descriptor, "descriptor");
+        if (!descriptor.isResolved()) {
+            throw new IllegalArgumentException("Cannot track an unresolved QIO resource codec: " +
+                  descriptor.getCodecId());
+        }
+        QIOResourceType key = QIOResourceType.descriptorLookup(descriptor);
         UUID uuid = byType.get(key);
         if (uuid == null) {
-            uuid = addType(key, QIOResourceType.forItem(UUID.randomUUID(), item));
+            uuid = addType(key, QIOResourceType.forDescriptor(UUID.randomUUID(), descriptor));
         }
         return uuid;
+    }
+
+    @Nonnull
+    public synchronized <T> UUID getOrTrack(@Nonnull QIOResourceCodec<T> codec, @Nonnull T value) {
+        return getOrTrack(QIOResourceDescriptor.of(codec, value));
+    }
+
+    @Nonnull
+    public synchronized UUID getOrTrackItem(HashedItem item) {
+        Objects.requireNonNull(item, "item");
+        return getOrTrack(QIOResourceType.itemLookup(item).getDescriptor());
     }
 
     @Nonnull
     public synchronized UUID getOrTrackFluid(FluidStack fluid) {
-        requireLoaded();
-        QIOResourceType key = QIOResourceType.fluidLookup(fluid);
-        UUID uuid = byType.get(key);
-        if (uuid == null) {
-            uuid = addType(key, QIOResourceType.forFluid(UUID.randomUUID(), fluid));
-        }
-        return uuid;
+        return getOrTrack(QIOResourceType.fluidLookup(fluid).getDescriptor());
     }
 
     @Nonnull
     public synchronized UUID getOrTrackGas(GasStack gas) {
-        requireLoaded();
-        QIOResourceType key = QIOResourceType.gasLookup(gas);
-        UUID uuid = byType.get(key);
-        if (uuid == null) {
-            uuid = addType(key, QIOResourceType.forGas(UUID.randomUUID(), gas));
-        }
-        return uuid;
+        return getOrTrack(QIOResourceType.gasLookup(gas).getDescriptor());
+    }
+
+    @Nullable
+    public synchronized UUID getUUIDFor(@Nullable QIOResourceDescriptor descriptor) {
+        return loaded && descriptor != null ? byType.get(QIOResourceType.descriptorLookup(descriptor)) : null;
     }
 
     @Nullable
@@ -137,6 +150,28 @@ public final class QIOResourceTypeRegistry {
     @Nullable
     public synchronized QIOResourceType getTypeByUUID(@Nullable UUID uuid) {
         return uuid == null ? null : byUUID.get(uuid);
+    }
+
+    @Nullable
+    public synchronized QIOResourceDescriptor getDescriptorByUUID(@Nullable UUID uuid) {
+        QIOResourceType type = uuid == null ? null : byUUID.get(uuid);
+        return type == null ? null : type.getDescriptor();
+    }
+
+    @Nullable
+    public synchronized String getFamilyByUUID(@Nullable UUID uuid) {
+        QIOResourceType type = uuid == null ? null : byUUID.get(uuid);
+        return type == null ? null : type.getFamily();
+    }
+
+    public synchronized long getStorageUnitsPerUnit(@Nullable UUID uuid) {
+        QIOResourceType type = uuid == null ? null : byUUID.get(uuid);
+        return type == null ? 0 : type.getStorageUnitsPerUnit();
+    }
+
+    public synchronized boolean isResolved(@Nullable UUID uuid) {
+        QIOResourceType type = uuid == null ? null : byUUID.get(uuid);
+        return type != null && type.isResolved();
     }
 
     public synchronized boolean isDamaged(@Nullable UUID uuid) {
@@ -275,6 +310,9 @@ public final class QIOResourceTypeRegistry {
                 }
                 QIOResourceType type = QIOResourceType.read(uuid, data);
                 loadedTypes.put(uuid, type);
+                if (data.getInteger("version") != QIOResourceType.DATA_VERSION) {
+                    dirtyTypes.add(uuid);
+                }
                 damagedTypes.remove(uuid);
             } catch (Exception e) {
                 damagedTypes.add(uuid);
@@ -319,7 +357,9 @@ public final class QIOResourceTypeRegistry {
             QIOResourceType type = byUUID.get(uuid);
             NBTTagCompound entry = new NBTTagCompound();
             entry.setString("uuid", uuid.toString());
-            entry.setString("kind", type.getKind().getSerializedName());
+            entry.setString("family", type.getFamily());
+            entry.setString("codec", type.getCodecId().toString());
+            entry.setBoolean("resolved", type.isResolved());
             entry.setString("lastKnownFile", uuid.toString() + ".dat");
             resources.appendTag(entry);
         }

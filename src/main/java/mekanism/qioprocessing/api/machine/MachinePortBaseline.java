@@ -3,6 +3,7 @@ package mekanism.qioprocessing.api.machine;
 import mekanism.api.processing.MachinePort;
 import mekanism.api.processing.MachineResourceKind;
 import mekanism.api.processing.MachineResourceStack;
+import mekanism.api.qio.resource.QIOResourceFamilyMatcher;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraftforge.common.util.Constants.NBT;
@@ -27,12 +28,14 @@ public final class MachinePortBaseline implements Comparable<MachinePortBaseline
     private static final String PORT_ID = "portId";
     private static final String PORT_GROUP_ID = "portGroupId";
     private static final String KIND = "kind";
+    private static final String MATCHER = "matcher";
     private static final String CONTENTS = "contents";
     private static final String CONTENTS_LIST = "contentsList";
 
     private final String portId;
     private final String portGroupId;
     private final MachineResourceKind kind;
+    private final QIOResourceFamilyMatcher resourceMatcher;
     @Nullable
     private final MachineResourceStack contents;
     private final List<MachineResourceStack> allContents;
@@ -47,7 +50,7 @@ public final class MachinePortBaseline implements Comparable<MachinePortBaseline
      */
     public MachinePortBaseline(@Nonnull String portId, @Nonnull String portGroupId,
           @Nonnull MachineResourceKind kind, @Nullable MachineResourceStack contents) {
-        this(portId, portGroupId, kind, contents,
+        this(portId, portGroupId, matcherFor(kind, contents, null), contents,
               contents == null ? Collections.emptyList() : Collections.singletonList(contents));
     }
 
@@ -55,13 +58,21 @@ public final class MachinePortBaseline implements Comparable<MachinePortBaseline
     public MachinePortBaseline(@Nonnull String portId, @Nonnull String portGroupId,
           @Nonnull MachineResourceKind kind, @Nullable MachineResourceStack contents,
           @Nullable Collection<? extends MachineResourceStack> allContents) {
+        this(portId, portGroupId, matcherFor(kind, contents, allContents), contents, allContents);
+    }
+
+    /** Creates a codec/family-aware baseline, including for an empty custom-resource port. */
+    public MachinePortBaseline(@Nonnull String portId, @Nonnull String portGroupId,
+          @Nonnull QIOResourceFamilyMatcher resourceMatcher, @Nullable MachineResourceStack contents,
+          @Nullable Collection<? extends MachineResourceStack> allContents) {
         this.portId = requireId(portId, "Port id");
         this.portGroupId = requireId(portGroupId, "Port group id");
-        this.kind = Objects.requireNonNull(kind, "Resource kind cannot be null");
+        this.resourceMatcher = Objects.requireNonNull(resourceMatcher, "Resource matcher cannot be null");
+        this.kind = inferLegacyKind(resourceMatcher);
         List<MachineResourceStack> checked = new ArrayList<>();
         if (allContents != null) {
             for (MachineResourceStack current : allContents) {
-                if (current == null || current.kind() != kind || !current.portId().equals(portId) ||
+                if (current == null || !resourceMatcher.accepts(current.descriptor()) || !current.portId().equals(portId) ||
                       checked.stream().anyMatch(existing -> existing.sameResource(current))) {
                     throw new IllegalArgumentException("Baseline contents do not match their port identity");
                 }
@@ -69,7 +80,7 @@ public final class MachinePortBaseline implements Comparable<MachinePortBaseline
             }
         }
         if (contents != null) {
-            if (contents.kind() != kind || !contents.portId().equals(portId)) {
+            if (!resourceMatcher.accepts(contents.descriptor()) || !contents.portId().equals(portId)) {
                 throw new IllegalArgumentException("Baseline contents do not match their port identity");
             }
             if (checked.isEmpty()) {
@@ -94,7 +105,7 @@ public final class MachinePortBaseline implements Comparable<MachinePortBaseline
                 contents.add(current.portId().equals(port.portId()) ? current : current.withPort(port.portId()));
             }
         }
-        return new MachinePortBaseline(port.portId(), port.portGroupId(), port.kind(),
+        return new MachinePortBaseline(port.portId(), port.portGroupId(), port.resourceMatcher(),
               contents.isEmpty() ? null : contents.get(0), contents);
     }
 
@@ -114,6 +125,15 @@ public final class MachinePortBaseline implements Comparable<MachinePortBaseline
     @Nonnull
     public MachineResourceKind kind() {
         return kind;
+    }
+
+    @Nonnull
+    public QIOResourceFamilyMatcher resourceMatcher() {
+        return resourceMatcher;
+    }
+
+    public boolean acceptsResource(@Nullable MachineResourceStack resource) {
+        return resource != null && resourceMatcher.accepts(resource.descriptor());
     }
 
     /** 返回捕获的内容；空端口时返回 null。 */
@@ -146,7 +166,8 @@ public final class MachinePortBaseline implements Comparable<MachinePortBaseline
     /** 判断端口身份及当前内容是否与基线完全一致。 */
     public boolean matches(@Nonnull MachinePort port) {
         Objects.requireNonNull(port, "Port cannot be null");
-        if (!portId.equals(port.portId()) || !portGroupId.equals(port.portGroupId()) || kind != port.kind()) {
+        if (!portId.equals(port.portId()) || !portGroupId.equals(port.portGroupId()) ||
+              !resourceMatcher.equals(port.resourceMatcher())) {
             return false;
         }
         return sameContents(allContents, port.peekAll(), portId);
@@ -158,7 +179,7 @@ public final class MachinePortBaseline implements Comparable<MachinePortBaseline
         Objects.requireNonNull(port, "Port cannot be null");
         Objects.requireNonNull(extraction, "Extraction cannot be null");
         if (!portId.equals(port.portId()) || !portGroupId.equals(port.portGroupId()) ||
-            kind != port.kind() || extraction.kind() != kind ||
+            !resourceMatcher.equals(port.resourceMatcher()) || !acceptsResource(extraction) ||
             !portId.equals(extraction.portId()) || extraction.amount() > amountOf(extraction)) {
             return false;
         }
@@ -172,7 +193,7 @@ public final class MachinePortBaseline implements Comparable<MachinePortBaseline
         Objects.requireNonNull(port, "Port cannot be null");
         Objects.requireNonNull(insertion, "Insertion cannot be null");
         if (!portId.equals(port.portId()) || !portGroupId.equals(port.portGroupId()) ||
-              kind != port.kind() || insertion.kind() != kind ||
+              !resourceMatcher.equals(port.resourceMatcher()) || !acceptsResource(insertion) ||
               !portId.equals(insertion.portId())) {
             return false;
         }
@@ -191,6 +212,7 @@ public final class MachinePortBaseline implements Comparable<MachinePortBaseline
         data.setString(PORT_ID, portId);
         data.setString(PORT_GROUP_ID, portGroupId);
         data.setString(KIND, kind.name());
+        data.setTag(MATCHER, resourceMatcher.write());
         if (contents != null) {
             data.setTag(CONTENTS, contents.write(new NBTTagCompound()));
         }
@@ -209,7 +231,6 @@ public final class MachinePortBaseline implements Comparable<MachinePortBaseline
     public static MachinePortBaseline read(@Nonnull NBTTagCompound data) {
         Objects.requireNonNull(data, "Baseline data cannot be null");
         try {
-            MachineResourceKind kind = MachineResourceKind.valueOf(data.getString(KIND));
             MachineResourceStack contents = data.hasKey(CONTENTS, NBT.TAG_COMPOUND) ?
                   MachineResourceStack.read(data.getCompoundTag(CONTENTS)) : null;
             if (data.hasKey(CONTENTS, NBT.TAG_COMPOUND) && contents == null) {
@@ -229,7 +250,14 @@ public final class MachinePortBaseline implements Comparable<MachinePortBaseline
             if (allContents.isEmpty() && contents != null) {
                 allContents.add(contents);
             }
-            return new MachinePortBaseline(data.getString(PORT_ID), data.getString(PORT_GROUP_ID), kind,
+            QIOResourceFamilyMatcher matcher;
+            if (data.hasKey(MATCHER, NBT.TAG_COMPOUND)) {
+                matcher = QIOResourceFamilyMatcher.read(data.getCompoundTag(MATCHER));
+            } else {
+                MachineResourceKind kind = MachineResourceKind.valueOf(data.getString(KIND));
+                matcher = matcherFor(kind, contents, allContents);
+            }
+            return new MachinePortBaseline(data.getString(PORT_ID), data.getString(PORT_GROUP_ID), matcher,
                   contents, allContents);
         } catch (RuntimeException e) {
             throw new IllegalArgumentException("Invalid machine port baseline", e);
@@ -250,13 +278,14 @@ public final class MachinePortBaseline implements Comparable<MachinePortBaseline
         if (!(obj instanceof MachinePortBaseline other)) {
             return false;
         }
-        return portId.equals(other.portId) && portGroupId.equals(other.portGroupId) && kind == other.kind &&
+        return portId.equals(other.portId) && portGroupId.equals(other.portGroupId) &&
+              resourceMatcher.equals(other.resourceMatcher) &&
               allContents.equals(other.allContents);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(portId, portGroupId, kind, allContents);
+        return Objects.hash(portId, portGroupId, resourceMatcher, allContents);
     }
 
     private List<MachineResourceStack> adjusted(MachineResourceStack resource, long delta) {
@@ -310,5 +339,41 @@ public final class MachinePortBaseline implements Comparable<MachinePortBaseline
             throw new IllegalArgumentException(name + " must contain 1..128 characters");
         }
         return value;
+    }
+
+    private static QIOResourceFamilyMatcher matcherFor(MachineResourceKind kind,
+          @Nullable MachineResourceStack contents,
+          @Nullable Collection<? extends MachineResourceStack> allContents) {
+        Objects.requireNonNull(kind, "Resource kind cannot be null");
+        if (kind.getCodecId() != null) {
+            return QIOResourceFamilyMatcher.codec(kind.getCodecId());
+        }
+        java.util.Set<net.minecraft.util.ResourceLocation> codecIds = new java.util.LinkedHashSet<>();
+        if (contents != null) {
+            codecIds.add(contents.codecId());
+        }
+        if (allContents != null) {
+            for (MachineResourceStack current : allContents) {
+                if (current != null) {
+                    codecIds.add(current.codecId());
+                }
+            }
+        }
+        if (codecIds.isEmpty()) {
+            throw new IllegalArgumentException("An empty custom-resource baseline requires an explicit matcher");
+        }
+        return QIOResourceFamilyMatcher.of(Collections.emptySet(), codecIds);
+    }
+
+    private static MachineResourceKind inferLegacyKind(QIOResourceFamilyMatcher matcher) {
+        if (!matcher.isAny() && matcher.getFamilies().isEmpty() && matcher.getCodecIds().size() == 1) {
+            net.minecraft.util.ResourceLocation codecId = matcher.getCodecIds().iterator().next();
+            for (MachineResourceKind kind : MachineResourceKind.values()) {
+                if (codecId.equals(kind.getCodecId())) {
+                    return kind;
+                }
+            }
+        }
+        return MachineResourceKind.CUSTOM;
     }
 }

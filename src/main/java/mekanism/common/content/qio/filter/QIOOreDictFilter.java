@@ -3,6 +3,8 @@ package mekanism.common.content.qio.filter;
 import mekanism.common.content.filter.IOreDictFilter;
 import mekanism.common.content.qio.QIOResourceEntry;
 import mekanism.common.content.qio.QIOResourceKind;
+import mekanism.api.qio.resource.QIOResourceCodecs;
+import mekanism.api.qio.resource.QIOResourceFamilyMatcher;
 import mekanism.common.content.transporter.TransporterFilter;
 import mekanism.common.lib.inventory.Finder;
 import net.minecraft.item.ItemStack;
@@ -22,8 +24,8 @@ public class QIOOreDictFilter extends QIOFilter implements IOreDictFilter {
     }
 
     @Override
-    public QIOResourceKind getKind() {
-        return QIOResourceKind.ITEM;
+    public QIOResourceFamilyMatcher getMatcher() {
+        return QIOResourceFamilyMatcher.family(QIOResourceCodecs.ITEM_FAMILY);
     }
 
     @Override

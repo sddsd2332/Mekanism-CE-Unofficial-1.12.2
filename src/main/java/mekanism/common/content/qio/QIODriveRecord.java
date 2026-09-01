@@ -3,6 +3,8 @@ package mekanism.common.content.qio;
 import it.unimi.dsi.fastutil.objects.Object2LongMap;
 import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
 import mekanism.api.Action;
+import mekanism.api.qio.resource.QIOResourceDescriptor;
+import mekanism.api.qio.resource.QIOResourceFamily;
 import mekanism.common.tier.QIODriveTier;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
@@ -18,11 +20,13 @@ import java.util.UUID;
 
 public final class QIODriveRecord {
 
-    static final int DATA_VERSION = 1;
+    static final int DATA_VERSION = 3;
+    private static final int LEGACY_DATA_VERSION = 1;
+    private static final int EXTENSIBLE_RESOURCE_DATA_VERSION = 2;
 
     private final UUID driveId;
     private ResourceLocation definitionName;
-    private final QIODriveType driveType;
+    private final ResourceLocation specializationName;
     private QIOAmount countCapacity;
     private QIOAmount storageCapacity;
     private int typeCapacity;
@@ -30,37 +34,52 @@ public final class QIODriveRecord {
     private boolean typeCapacityUnlimited;
     private BigInteger totalStorageUnits = BigInteger.ZERO;
     private final Object2LongMap<UUID> contents = new Object2LongOpenHashMap<>();
-    private final Map<UUID, QIOResourceKind> resourceKinds = new HashMap<>();
+    private final Map<UUID, StoredResourceMetadata> resourceMetadata = new HashMap<>();
 
     public QIODriveRecord(UUID driveId, QIODriveTier tier) {
-        this(driveId, Objects.requireNonNull(tier, "tier").getDefinition(), QIODriveType.MIXED);
+        this(driveId, Objects.requireNonNull(tier, "tier").getDefinition(), QIODriveSpecializations.MIXED);
     }
 
     public QIODriveRecord(UUID driveId, QIODriveTier tier, QIODriveType driveType) {
-        this(driveId, Objects.requireNonNull(tier, "tier").getDefinition(), driveType);
+        this(driveId, Objects.requireNonNull(tier, "tier").getDefinition(),
+              Objects.requireNonNull(driveType, "driveType").getSpecialization());
+    }
+
+    public QIODriveRecord(UUID driveId, QIODriveTier tier, QIODriveSpecialization specialization) {
+        this(driveId, Objects.requireNonNull(tier, "tier").getDefinition(), specialization);
     }
 
     public QIODriveRecord(UUID driveId, QIODriveDefinition definition) {
-        this(driveId, definition, QIODriveType.MIXED);
+        this(driveId, definition, QIODriveSpecializations.MIXED);
     }
 
     public QIODriveRecord(UUID driveId, QIODriveDefinition definition, QIODriveType driveType) {
-        this(driveId, Objects.requireNonNull(definition, "definition").getRegistryName(), driveType,
-              Objects.requireNonNull(driveType, "driveType").getExactCountCapacity(definition),
-              driveType.getExactStorageCapacity(definition), definition.getMaxTypes(), definition.isCountUnlimited(),
+        this(driveId, definition, Objects.requireNonNull(driveType, "driveType").getSpecialization());
+    }
+
+    public QIODriveRecord(UUID driveId, QIODriveDefinition definition,
+          QIODriveSpecialization specialization) {
+        this(driveId, Objects.requireNonNull(definition, "definition").getRegistryName(),
+              Objects.requireNonNull(specialization, "specialization").getRegistryName(),
+              specialization.getExactCountCapacity(definition), specialization.getExactStorageCapacity(definition),
+              definition.getMaxTypes(), definition.isCountUnlimited(),
               definition.isTypesUnlimited());
         if (!QIODriveDefinition.isRegistered(definition)) {
             throw new IllegalArgumentException("QIO drive definition is not registered: " + definition.getRegistryName());
         }
+        if (!QIODriveSpecializationRegistry.INSTANCE.isRegistered(specialization)) {
+            throw new IllegalArgumentException("QIO drive specialization is not registered: " +
+                  specialization.getRegistryName());
+        }
     }
 
-    private QIODriveRecord(UUID driveId, ResourceLocation definitionName, QIODriveType driveType,
+    private QIODriveRecord(UUID driveId, ResourceLocation definitionName, ResourceLocation specializationName,
           QIOAmount countCapacity, QIOAmount storageCapacity, int typeCapacity, boolean countCapacityUnlimited,
           boolean typeCapacityUnlimited) {
         this.driveId = Objects.requireNonNull(driveId, "driveId");
         this.definitionName = Objects.requireNonNull(definitionName, "definitionName");
-        this.driveType = Objects.requireNonNull(driveType, "driveType");
-        validateCapacities(driveType, countCapacity, storageCapacity, typeCapacity, countCapacityUnlimited,
+        this.specializationName = Objects.requireNonNull(specializationName, "specializationName");
+        validateCapacities(countCapacity, storageCapacity, typeCapacity, countCapacityUnlimited,
               typeCapacityUnlimited);
         this.countCapacity = Objects.requireNonNull(countCapacity, "countCapacity");
         this.storageCapacity = Objects.requireNonNull(storageCapacity, "storageCapacity");
@@ -71,7 +90,8 @@ public final class QIODriveRecord {
 
     static QIODriveRecord read(UUID fileUUID, NBTTagCompound data) {
         int version = data.getInteger("version");
-        if (version != DATA_VERSION) {
+        if (version != LEGACY_DATA_VERSION && version != EXTENSIBLE_RESOURCE_DATA_VERSION &&
+              version != DATA_VERSION) {
             throw new IllegalArgumentException("Unsupported QIO drive version: " + version);
         }
         UUID storedUUID;
@@ -83,9 +103,20 @@ public final class QIODriveRecord {
         if (!fileUUID.equals(storedUUID)) {
             throw new IllegalArgumentException("QIO drive UUID does not match its file name");
         }
-        QIODriveType driveType = QIODriveType.byName(data.getString("driveType"));
-        if (driveType == null) {
-            throw new IllegalArgumentException("Unknown QIO drive type: " + data.getString("driveType"));
+        ResourceLocation specializationName;
+        if (version < DATA_VERSION) {
+            QIODriveType driveType = QIODriveType.byName(data.getString("driveType"));
+            if (driveType == null) {
+                throw new IllegalArgumentException("Unknown QIO drive type: " + data.getString("driveType"));
+            }
+            specializationName = driveType.getSpecialization().getRegistryName();
+        } else {
+            try {
+                specializationName = new ResourceLocation(data.getString("specialization"));
+            } catch (RuntimeException e) {
+                throw new IllegalArgumentException("Invalid QIO drive specialization: " +
+                      data.getString("specialization"), e);
+            }
         }
         ResourceLocation definitionName;
         try {
@@ -104,7 +135,7 @@ public final class QIODriveRecord {
               projectedStorageCapacity != exactStorageCapacity.longValueClamped()) {
             throw new IllegalArgumentException("QIO drive capacity projection does not match its exact snapshot");
         }
-        QIODriveRecord record = new QIODriveRecord(fileUUID, definitionName, driveType, exactCountCapacity,
+        QIODriveRecord record = new QIODriveRecord(fileUUID, definitionName, specializationName, exactCountCapacity,
               exactStorageCapacity, typeCapacity, unlimitedCount, unlimitedTypes);
         QIODriveDefinition resolvedDefinition = QIODriveDefinition.byName(definitionName);
         if (resolvedDefinition == null) {
@@ -127,19 +158,19 @@ public final class QIODriveRecord {
             if (amount <= 0) {
                 throw new IllegalArgumentException("Non-positive amount in QIO drive " + fileUUID);
             }
-            QIOResourceKind storedKind = QIOResourceKind.byName(entry.getString("kind"));
-            if (storedKind == null) {
-                throw new IllegalArgumentException("Unknown resource kind in QIO drive " + fileUUID);
+            StoredResourceMetadata storedMetadata = version == LEGACY_DATA_VERSION ?
+                  StoredResourceMetadata.fromLegacyKind(entry.getString("kind"), fileUUID) :
+                  StoredResourceMetadata.read(entry, fileUUID);
+            QIOResourceType registeredType = QIOResourceTypeRegistry.INSTANCE.getTypeByUUID(resource);
+            if (registeredType != null && !storedMetadata.matches(registeredType)) {
+                throw new IllegalArgumentException("Resource metadata mismatch in QIO drive " + fileUUID);
             }
-            QIOResourceKind registeredKind = QIOResourceTypeRegistry.INSTANCE.getKindByUUID(resource);
-            if (storedKind != null && registeredKind != null && storedKind != registeredKind) {
-                throw new IllegalArgumentException("Resource kind mismatch in QIO drive " + fileUUID);
-            }
-            QIOResourceKind kind = registeredKind != null ? registeredKind : storedKind;
+            StoredResourceMetadata metadata = registeredType == null ? storedMetadata :
+                  StoredResourceMetadata.from(registeredType);
             long previous = record.contents.getOrDefault(resource, 0L);
-            QIOResourceKind previousKind = record.resourceKinds.get(resource);
-            if (previous > 0 && previousKind != kind) {
-                throw new IllegalArgumentException("Duplicate resource kinds in QIO drive " + fileUUID);
+            StoredResourceMetadata previousMetadata = record.resourceMetadata.get(resource);
+            if (previous > 0 && !metadata.equals(previousMetadata)) {
+                throw new IllegalArgumentException("Duplicate resource metadata in QIO drive " + fileUUID);
             }
             long combined;
             try {
@@ -148,12 +179,13 @@ public final class QIODriveRecord {
                 throw new IllegalArgumentException("Amount overflow in QIO drive " + fileUUID, e);
             }
             record.totalStorageUnits = record.totalStorageUnits.add(BigInteger.valueOf(amount)
-                  .multiply(BigInteger.valueOf(QIOStorageUnits.getUnitsPerResource(kind))));
+                  .multiply(BigInteger.valueOf(metadata.storageUnitsPerUnit)));
             record.contents.put(resource, combined);
-            record.resourceKinds.put(resource, kind);
+            record.resourceMetadata.put(resource, metadata);
         }
-        if (record.totalStorageUnits.compareTo(record.getExactStorageCapacity().toBigInteger()) > 0 ||
-              record.contents.size() > record.getTypeCapacity()) {
+        if (version < DATA_VERSION && (record.totalStorageUnits.compareTo(
+              record.getExactStorageCapacity().toBigInteger()) > 0 ||
+              record.contents.size() > record.getTypeCapacity())) {
             throw new IllegalArgumentException("QIO drive contents exceed the capacity of definition " +
                   record.definitionName);
         }
@@ -173,7 +205,7 @@ public final class QIODriveRecord {
         data.setInteger("version", DATA_VERSION);
         data.setString("uuid", driveId.toString());
         data.setString("definition", definitionName.toString());
-        data.setString("driveType", driveType.getSerializedName());
+        data.setString("specialization", specializationName.toString());
         data.setLong("countCapacity", getCountCapacity());
         data.setLong("storageCapacity", getStorageCapacity());
         data.setByteArray("countCapacityExact", countCapacity.toBigInteger().toByteArray());
@@ -192,7 +224,7 @@ public final class QIODriveRecord {
             }
             NBTTagCompound stored = new NBTTagCompound();
             stored.setString("resource", entry.getKey().toString());
-            stored.setString("kind", getResourceKind(entry.getKey()).getSerializedName());
+            getResourceMetadata(entry.getKey()).write(stored);
             stored.setLong("amount", entry.getLongValue());
             storedContents.appendTag(stored);
         }
@@ -205,7 +237,8 @@ public final class QIODriveRecord {
     }
 
     public synchronized long getInsertable(QIOResourceKind kind, long amount, boolean newType) {
-        if (kind == null || amount <= 0 || (!typeCapacityUnlimited && newType && contents.size() >= getTypeCapacity())) {
+        if (kind == null || amount <= 0 || isOverCapacity() ||
+              (!typeCapacityUnlimited && newType && contents.size() >= getTypeCapacity())) {
             return 0;
         }
         BigInteger remaining = storageCapacity.toBigInteger().subtract(totalStorageUnits);
@@ -215,24 +248,41 @@ public final class QIODriveRecord {
         return QIOStorageUnits.getInsertableAmount(kind, amount, remaining);
     }
 
+    public synchronized long getInsertable(QIOResourceDescriptor descriptor, long amount, boolean newType) {
+        return descriptor == null ? 0 : getInsertable(descriptor.getStorageUnitsPerUnit(), amount, newType);
+    }
+
+    public synchronized long getInsertable(long storageUnitsPerUnit, long amount, boolean newType) {
+        if (storageUnitsPerUnit <= 0 || amount <= 0 || isOverCapacity() ||
+              (!typeCapacityUnlimited && newType && contents.size() >= getTypeCapacity())) {
+            return 0;
+        }
+        BigInteger remaining = storageCapacity.toBigInteger().subtract(totalStorageUnits);
+        return remaining.signum() <= 0 ? 0 :
+              QIOStorageUnits.getInsertableAmount(storageUnitsPerUnit, amount, remaining);
+    }
+
     public synchronized long insert(UUID resource, long amount, Action action) {
-        QIOResourceKind kind = getKindForInsert(resource);
-        if (resource == null || action == null || kind == null || !driveType.accepts(kind)) {
+        StoredResourceMetadata metadata = getMetadataForInsert(resource);
+        QIODriveSpecialization specialization = getSpecialization();
+        if (resource == null || action == null || metadata == null || specialization == null ||
+              !specialization.accepts(metadata.family, metadata.codecId)) {
             return 0;
         }
         long previous = contents.getOrDefault(resource, 0L);
-        long inserted = Math.min(getInsertable(kind, amount, previous == 0), Long.MAX_VALUE - previous);
+        long inserted = Math.min(getInsertable(metadata.storageUnitsPerUnit, amount, previous == 0),
+              Long.MAX_VALUE - previous);
         if (inserted > 0 && action.execute()) {
             try {
                 long next = Math.addExact(previous, inserted);
                 BigInteger insertedStorageUnits = BigInteger.valueOf(inserted)
-                      .multiply(BigInteger.valueOf(QIOStorageUnits.getUnitsPerResource(kind)));
+                      .multiply(BigInteger.valueOf(metadata.storageUnitsPerUnit));
                 BigInteger nextTotal = totalStorageUnits.add(insertedStorageUnits);
                 if (next < 0 || nextTotal.compareTo(storageCapacity.toBigInteger()) > 0) {
                     return 0;
                 }
                 contents.put(resource, next);
-                resourceKinds.put(resource, kind);
+                resourceMetadata.put(resource, metadata);
                 totalStorageUnits = nextTotal;
             } catch (ArithmeticException ignored) {
                 return 0;
@@ -245,22 +295,26 @@ public final class QIODriveRecord {
         if (resource == null || action == null || amount <= 0) {
             return 0;
         }
+        QIOResourceType registeredType = QIOResourceTypeRegistry.INSTANCE.getTypeByUUID(resource);
+        if (registeredType == null || !registeredType.isResolved()) {
+            return 0;
+        }
         long previous = contents.getOrDefault(resource, 0L);
         if (previous <= 0) {
             return 0;
         }
-        QIOResourceKind kind = getResourceKind(resource);
+        StoredResourceMetadata metadata = getResourceMetadata(resource);
         long extracted = Math.min(amount, previous);
         if (extracted > 0 && action.execute()) {
             long remaining = previous - extracted;
             if (remaining == 0) {
                 contents.removeLong(resource);
-                resourceKinds.remove(resource);
+                resourceMetadata.remove(resource);
             } else {
                 contents.put(resource, remaining);
             }
             BigInteger extractedUnits = BigInteger.valueOf(extracted)
-                  .multiply(BigInteger.valueOf(QIOStorageUnits.getUnitsPerResource(kind)));
+                  .multiply(BigInteger.valueOf(metadata.storageUnitsPerUnit));
             totalStorageUnits = totalStorageUnits.subtract(extractedUnits).max(BigInteger.ZERO);
         }
         return extracted;
@@ -290,48 +344,66 @@ public final class QIODriveRecord {
         return definitionName;
     }
 
-    public QIODriveType getDriveType() {
-        return driveType;
+    @Nullable
+    public QIODriveSpecialization getSpecialization() {
+        return QIODriveSpecializationRegistry.INSTANCE.get(specializationName);
     }
 
-    /**
-     * Verifies the authoritative resource kind before a specialized drive is
-     * mutated. Mixed drives deliberately remain compatible with legacy and
-     * unresolved resource UUIDs.
-     */
+    public ResourceLocation getSpecializationName() {
+        return specializationName;
+    }
+
+    /** @deprecated Custom specializations cannot be represented by the legacy enum. */
+    @Deprecated
+    @Nullable
+    public QIODriveType getDriveType() {
+        return QIODriveType.fromSpecialization(getSpecialization());
+    }
+
+    /** Verifies the authoritative family before a specialized drive is mutated. */
     public synchronized boolean acceptsResource(@Nullable UUID resource) {
         if (resource == null) {
             return false;
         }
-        if (driveType.isMixed()) {
+        QIODriveSpecialization specialization = getSpecialization();
+        if (specialization == null) {
+            return false;
+        }
+        if (specialization.isMixed()) {
             return true;
         }
-        QIOResourceKind kind = QIOResourceTypeRegistry.INSTANCE.getKindByUUID(resource);
-        if (kind == null) {
-            kind = resourceKinds.get(resource);
+        QIOResourceType type = QIOResourceTypeRegistry.INSTANCE.getTypeByUUID(resource);
+        StoredResourceMetadata metadata = resourceMetadata.get(resource);
+        if (type != null && metadata != null && !metadata.matches(type)) {
+            return false;
         }
-        return driveType.accepts(kind);
+        String family = type == null ? metadata == null ? null : metadata.family : type.getFamily();
+        ResourceLocation codecId = type == null ? metadata == null ? null : metadata.codecId : type.getCodecId();
+        return specialization.accepts(family, codecId);
     }
 
     /**
      * Unknown resource types are retained so removing a content mod does not
-     * destroy drive data. Any resource whose kind is still known must match
+     * destroy drive data. Any resource whose family is still known must match
      * the specialization before the drive may be mounted.
      */
     public synchronized boolean hasValidResourceKinds() {
-        if (driveType.isMixed()) {
+        QIODriveSpecialization specialization = getSpecialization();
+        if (specialization == null) {
+            return false;
+        }
+        if (specialization.isMixed()) {
             return true;
         }
         for (UUID resource : contents.keySet()) {
-            QIOResourceKind kind = QIOResourceTypeRegistry.INSTANCE.getKindByUUID(resource);
-            QIOResourceKind storedKind = resourceKinds.get(resource);
-            if (kind != null && storedKind != null && kind != storedKind) {
+            QIOResourceType type = QIOResourceTypeRegistry.INSTANCE.getTypeByUUID(resource);
+            StoredResourceMetadata stored = resourceMetadata.get(resource);
+            if (stored == null || type != null && !stored.matches(type)) {
                 return false;
             }
-            if (kind == null) {
-                kind = storedKind;
-            }
-            if (kind != null && !driveType.accepts(kind)) {
+            String family = type == null ? stored.family : type.getFamily();
+            ResourceLocation codecId = type == null ? stored.codecId : type.getCodecId();
+            if (!specialization.accepts(family, codecId)) {
                 return false;
             }
         }
@@ -370,6 +442,12 @@ public final class QIODriveRecord {
         return countCapacityUnlimited && typeCapacityUnlimited;
     }
 
+    /** A resized drive remains readable but cannot accept anything until it is back within both limits. */
+    public synchronized boolean isOverCapacity() {
+        return !countCapacityUnlimited && totalStorageUnits.compareTo(storageCapacity.toBigInteger()) > 0 ||
+              !typeCapacityUnlimited && contents.size() > typeCapacity;
+    }
+
     public synchronized long getTotalCount() {
         return getExactTotalCount().longValueClamped();
     }
@@ -398,36 +476,76 @@ public final class QIODriveRecord {
         return new Object2LongOpenHashMap<>(contents);
     }
 
+    @Nullable
     public synchronized QIOResourceKind getResourceKind(UUID resource) {
-        QIOResourceKind kind = QIOResourceTypeRegistry.INSTANCE.getKindByUUID(resource);
-        if (kind != null) {
-            return kind;
+        QIOResourceType type = QIOResourceTypeRegistry.INSTANCE.getTypeByUUID(resource);
+        if (type != null) {
+            return type.getKind();
         }
-        kind = resourceKinds.get(resource);
-        if (kind != null) {
-            return kind;
-        }
-        QIOResourceKind specializedKind = driveType.getResourceKind();
-        return specializedKind == null ? QIOResourceKind.ITEM : specializedKind;
+        StoredResourceMetadata metadata = resourceMetadata.get(resource);
+        return metadata == null ? null : metadata.legacyKind();
     }
 
     @Nullable
-    private QIOResourceKind getKindForInsert(@Nullable UUID resource) {
+    public synchronized String getResourceFamily(@Nullable UUID resource) {
+        QIOResourceType type = QIOResourceTypeRegistry.INSTANCE.getTypeByUUID(resource);
+        if (type != null) {
+            return type.getFamily();
+        }
+        StoredResourceMetadata metadata = resourceMetadata.get(resource);
+        return metadata == null ? null : metadata.family;
+    }
+
+    @Nullable
+    public synchronized ResourceLocation getResourceCodecId(@Nullable UUID resource) {
+        QIOResourceType type = QIOResourceTypeRegistry.INSTANCE.getTypeByUUID(resource);
+        if (type != null) {
+            return type.getCodecId();
+        }
+        StoredResourceMetadata metadata = resourceMetadata.get(resource);
+        return metadata == null ? null : metadata.codecId;
+    }
+
+    public synchronized long getResourceStorageUnitsPerUnit(@Nullable UUID resource) {
+        QIOResourceType type = QIOResourceTypeRegistry.INSTANCE.getTypeByUUID(resource);
+        if (type != null) {
+            return type.getStorageUnitsPerUnit();
+        }
+        StoredResourceMetadata metadata = resourceMetadata.get(resource);
+        return metadata == null ? 0 : metadata.storageUnitsPerUnit;
+    }
+
+    private StoredResourceMetadata getResourceMetadata(UUID resource) {
+        QIOResourceType type = QIOResourceTypeRegistry.INSTANCE.getTypeByUUID(resource);
+        StoredResourceMetadata stored = resourceMetadata.get(resource);
+        if (type != null) {
+            StoredResourceMetadata registered = StoredResourceMetadata.from(type);
+            if (stored != null && !stored.equals(registered)) {
+                throw new IllegalStateException("QIO resource metadata changed for " + resource);
+            }
+            return registered;
+        }
+        if (stored == null) {
+            throw new IllegalStateException("Missing QIO resource metadata for " + resource);
+        }
+        return stored;
+    }
+
+    @Nullable
+    private StoredResourceMetadata getMetadataForInsert(@Nullable UUID resource) {
         if (resource == null) {
             return null;
         }
-        QIOResourceKind registeredKind = QIOResourceTypeRegistry.INSTANCE.getKindByUUID(resource);
-        QIOResourceKind storedKind = resourceKinds.get(resource);
-        if (registeredKind != null && storedKind != null && registeredKind != storedKind) {
+        QIOResourceType type = QIOResourceTypeRegistry.INSTANCE.getTypeByUUID(resource);
+        if (type == null || !type.isResolved()) {
             return null;
         }
-        if (registeredKind != null) {
-            return registeredKind;
+        StoredResourceMetadata registered = StoredResourceMetadata.from(type);
+        StoredResourceMetadata stored = resourceMetadata.get(resource);
+        if (stored != null && !stored.equals(registered)) {
+            return null;
         }
-        if (storedKind != null) {
-            return storedKind;
-        }
-        return driveType.isMixed() ? QIOResourceKind.ITEM : null;
+        return registered;
     }
 
     synchronized boolean matchesDefinition(@Nullable QIODriveDefinition definition) {
@@ -439,14 +557,21 @@ public final class QIODriveRecord {
     }
 
     synchronized DefinitionUpdate getDefinitionUpdate(@Nullable QIODriveDefinition definition) {
-        if (!QIODriveDefinition.isRegistered(definition)) {
+        return getDefinitionUpdate(definition, getSpecialization());
+    }
+
+    synchronized DefinitionUpdate getDefinitionUpdate(@Nullable QIODriveDefinition definition,
+          @Nullable QIODriveSpecialization specialization) {
+        if (!QIODriveDefinition.isRegistered(definition) ||
+              !QIODriveSpecializationRegistry.INSTANCE.isRegistered(specialization) ||
+              !specializationName.equals(specialization.getRegistryName())) {
             return DefinitionUpdate.INCOMPATIBLE;
         }
         QIOAmount candidateCount;
         QIOAmount candidateStorage;
         try {
-            candidateCount = driveType.getExactCountCapacity(definition);
-            candidateStorage = driveType.getExactStorageCapacity(definition);
+            candidateCount = specialization.getExactCountCapacity(definition);
+            candidateStorage = specialization.getExactStorageCapacity(definition);
         } catch (RuntimeException ignored) {
             return DefinitionUpdate.INCOMPATIBLE;
         }
@@ -472,23 +597,26 @@ public final class QIODriveRecord {
         if (nonDecreasing && increasesCapacity) {
             return DefinitionUpdate.UPGRADED;
         }
-        // Addon updates may reduce a definition while retaining its stable ID.
-        // Accept that resize only when every stored resource still fits. A
-        // differently named smaller item is never allowed to shrink a record.
-        if (sameName && (candidateUnlimitedCount || totalStorageUnits.compareTo(candidateStorage.toBigInteger()) <= 0) &&
-              (candidateUnlimitedTypes || contents.size() <= candidateTypes)) {
+        // Registry or configuration changes may shrink a stable definition. Keep the record
+        // mounted in a recoverable over-capacity state instead of hiding all of its contents.
+        if (sameName) {
             return DefinitionUpdate.RESIZED;
         }
         return DefinitionUpdate.INCOMPATIBLE;
     }
 
     synchronized DefinitionUpdate applyDefinition(QIODriveDefinition definition) {
-        DefinitionUpdate update = getDefinitionUpdate(definition);
+        return applyDefinition(definition, getSpecialization());
+    }
+
+    synchronized DefinitionUpdate applyDefinition(QIODriveDefinition definition,
+          @Nullable QIODriveSpecialization specialization) {
+        DefinitionUpdate update = getDefinitionUpdate(definition, specialization);
         if (!update.changed()) {
             return update;
         }
-        QIOAmount candidateCount = driveType.getExactCountCapacity(definition);
-        QIOAmount candidateStorage = driveType.getExactStorageCapacity(definition);
+        QIOAmount candidateCount = specialization.getExactCountCapacity(definition);
+        QIOAmount candidateStorage = specialization.getExactStorageCapacity(definition);
         int candidateTypes = definition.getMaxTypes();
         definitionName = definition.getRegistryName();
         countCapacity = candidateCount;
@@ -499,21 +627,13 @@ public final class QIODriveRecord {
         return update;
     }
 
-    private static void validateCapacities(QIODriveType driveType, QIOAmount countCapacity,
+    private static void validateCapacities(QIOAmount countCapacity,
           QIOAmount storageCapacity, int typeCapacity,
           boolean countCapacityUnlimited, boolean typeCapacityUnlimited) {
-        Objects.requireNonNull(driveType, "driveType");
         Objects.requireNonNull(countCapacity, "countCapacity");
         Objects.requireNonNull(storageCapacity, "storageCapacity");
         if (countCapacity.isZero()) {
             throw new IllegalArgumentException("QIO drive count capacity must be positive");
-        }
-        if (countCapacityUnlimited) {
-            QIOAmount expectedCount = driveType.getExactCountCapacity(Long.MAX_VALUE);
-            if (!countCapacity.equals(expectedCount)) {
-                throw new IllegalArgumentException("Invalid exact unlimited QIO count capacity: " + countCapacity +
-                      " (expected " + expectedCount + ")");
-            }
         }
         QIOAmount expectedStorage = countCapacity.multiply(QIOStorageUnits.UNITS_PER_ITEM);
         if (!storageCapacity.equals(expectedStorage)) {
@@ -538,6 +658,82 @@ public final class QIODriveRecord {
             throw new IllegalArgumentException("Invalid exact QIO capacity snapshot: " + key);
         }
         return QIOAmount.of(value);
+    }
+
+    private static final class StoredResourceMetadata {
+
+        private final String family;
+        private final ResourceLocation codecId;
+        private final long storageUnitsPerUnit;
+
+        private StoredResourceMetadata(String family, ResourceLocation codecId, long storageUnitsPerUnit) {
+            this.family = QIOResourceFamily.requireValid(family);
+            this.codecId = Objects.requireNonNull(codecId, "codecId");
+            if (storageUnitsPerUnit <= 0) {
+                throw new IllegalArgumentException("QIO resource storage units must be positive");
+            }
+            this.storageUnitsPerUnit = storageUnitsPerUnit;
+        }
+
+        private static StoredResourceMetadata from(QIOResourceType type) {
+            return new StoredResourceMetadata(type.getFamily(), type.getCodecId(),
+                  type.getStorageUnitsPerUnit());
+        }
+
+        private static StoredResourceMetadata fromLegacyKind(String name, UUID driveId) {
+            QIOResourceKind kind = QIOResourceKind.byName(name);
+            if (kind == null || !kind.isBuiltin()) {
+                throw new IllegalArgumentException("Unknown resource kind in QIO drive " + driveId);
+            }
+            return new StoredResourceMetadata(kind.getFamily(),
+                  Objects.requireNonNull(kind.getCodecId()), QIOStorageUnits.getUnitsPerResource(kind));
+        }
+
+        private static StoredResourceMetadata read(NBTTagCompound data, UUID driveId) {
+            if (!data.hasKey("family", NBT.TAG_STRING) || !data.hasKey("codec", NBT.TAG_STRING) ||
+                  !data.hasKey("storageUnitsPerUnit", NBT.TAG_LONG)) {
+                throw new IllegalArgumentException("Incomplete resource metadata in QIO drive " + driveId);
+            }
+            try {
+                return new StoredResourceMetadata(data.getString("family"),
+                      new ResourceLocation(data.getString("codec")), data.getLong("storageUnitsPerUnit"));
+            } catch (RuntimeException e) {
+                throw new IllegalArgumentException("Invalid resource metadata in QIO drive " + driveId, e);
+            }
+        }
+
+        private boolean matches(QIOResourceType type) {
+            return family.equals(type.getFamily()) && codecId.equals(type.getCodecId()) &&
+                  storageUnitsPerUnit == type.getStorageUnitsPerUnit();
+        }
+
+        @Nullable
+        private QIOResourceKind legacyKind() {
+            for (QIOResourceKind kind : QIOResourceKind.values()) {
+                if (kind.getCodecId() != null && kind.getCodecId().equals(codecId)) {
+                    return kind;
+                }
+            }
+            return null;
+        }
+
+        private void write(NBTTagCompound data) {
+            data.setString("family", family);
+            data.setString("codec", codecId.toString());
+            data.setLong("storageUnitsPerUnit", storageUnitsPerUnit);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return this == obj || obj instanceof StoredResourceMetadata other &&
+                  storageUnitsPerUnit == other.storageUnitsPerUnit && family.equals(other.family) &&
+                  codecId.equals(other.codecId);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(family, codecId, storageUnitsPerUnit);
+        }
     }
 
     enum DefinitionUpdate {

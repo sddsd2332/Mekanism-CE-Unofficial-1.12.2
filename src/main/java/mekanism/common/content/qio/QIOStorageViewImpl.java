@@ -12,6 +12,7 @@ import mekanism.api.qio.external.QIOStorageChangeBatch;
 import mekanism.api.qio.external.QIOStorageEntry;
 import mekanism.api.qio.external.QIOStorageSnapshot;
 import mekanism.api.qio.external.QIOTransferResult;
+import mekanism.api.qio.resource.QIOResourceDescriptor;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.fluids.FluidStack;
 
@@ -132,6 +133,12 @@ final class QIOStorageViewImpl implements IQIOStorageView {
               frequency.massInsert(stack.copy(), amount, action) : 0;
     }
 
+    @Override
+    public long insert(@Nonnull QIOResourceDescriptor descriptor, long amount,
+          @Nonnull Action action) {
+        return isCurrentlyValid() ? frequency.massInsert(descriptor, amount, action) : 0;
+    }
+
     @Nonnull
     @Override
     public QIOTransferResult insertIdempotent(@Nonnull UUID transferId, ItemStack stack,
@@ -159,6 +166,16 @@ final class QIOStorageViewImpl implements IQIOStorageView {
               QIOTransferResult.Status.FAILED, Math.max(1, amount), 0);
     }
 
+    @Nonnull
+    @Override
+    public QIOTransferResult insertIdempotent(@Nonnull UUID transferId,
+          @Nonnull QIOResourceDescriptor descriptor, long amount,
+          @Nonnull BigInteger expectedStoredAmount) {
+        return isCurrentlyValid() ? frequency.insertExternalTransfer(transferId, descriptor,
+              amount, expectedStoredAmount) : new QIOTransferResult(transferId,
+              QIOTransferResult.Status.FAILED, Math.max(1, amount), 0);
+    }
+
     @Override
     public long extract(ItemStack stack, long amount, Action action) {
         return isCurrentlyValid() ? frequency.massExtract(
@@ -175,6 +192,12 @@ final class QIOStorageViewImpl implements IQIOStorageView {
     public long extract(GasStack stack, long amount, Action action) {
         return isCurrentlyValid() && stack != null ?
               frequency.massExtract(stack.copy(), amount, action) : 0;
+    }
+
+    @Override
+    public long extract(@Nonnull QIOResourceDescriptor descriptor, long amount,
+          @Nonnull Action action) {
+        return isCurrentlyValid() ? frequency.massExtract(descriptor, amount, action) : 0;
     }
 
     @Override

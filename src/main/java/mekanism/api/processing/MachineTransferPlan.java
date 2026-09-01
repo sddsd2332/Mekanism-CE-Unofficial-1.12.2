@@ -62,7 +62,7 @@ public final class MachineTransferPlan {
             return false;
         }
         for (Entry entry : entries) {
-            if (entry.port == null || entry.stack == null || entry.port.kind() != entry.stack.kind()) {
+            if (entry.port == null || entry.stack == null || !entry.port.acceptsResource(entry.stack)) {
                 return false;
             }
             if (entry.operation == Operation.INSERT ? !entry.port.canInsert(entry.stack) : !entry.port.canExtract(entry.stack)) {

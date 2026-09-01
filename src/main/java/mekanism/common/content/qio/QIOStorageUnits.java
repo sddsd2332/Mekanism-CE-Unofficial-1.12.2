@@ -1,5 +1,7 @@
 package mekanism.common.content.qio;
 
+import mekanism.api.qio.resource.QIOResourceDescriptor;
+
 import javax.annotation.Nonnull;
 import java.math.BigInteger;
 
@@ -15,11 +17,26 @@ public final class QIOStorageUnits {
         return kind == QIOResourceKind.ITEM ? UNITS_PER_ITEM : 1L;
     }
 
+    public static long getUnitsPerResource(@Nonnull QIOResourceDescriptor descriptor) {
+        return descriptor.getStorageUnitsPerUnit();
+    }
+
     public static long toStorageUnits(@Nonnull QIOResourceKind kind, long amount) {
         if (amount <= 0) {
             return 0;
         }
         long unitsPerResource = getUnitsPerResource(kind);
+        return amount > Long.MAX_VALUE / unitsPerResource ? Long.MAX_VALUE : amount * unitsPerResource;
+    }
+
+    public static long toStorageUnits(@Nonnull QIOResourceDescriptor descriptor, long amount) {
+        return toStorageUnits(descriptor.getStorageUnitsPerUnit(), amount);
+    }
+
+    public static long toStorageUnits(long unitsPerResource, long amount) {
+        if (amount <= 0 || unitsPerResource <= 0) {
+            return 0;
+        }
         return amount > Long.MAX_VALUE / unitsPerResource ? Long.MAX_VALUE : amount * unitsPerResource;
     }
 
@@ -41,12 +58,25 @@ public final class QIOStorageUnits {
 
     public static long getInsertableAmount(@Nonnull QIOResourceKind kind, long requested,
           @Nonnull BigInteger availableStorageUnits) {
+        return getInsertableAmount(getUnitsPerResource(kind), requested, availableStorageUnits);
+    }
+
+    public static long getInsertableAmount(@Nonnull QIOResourceDescriptor descriptor, long requested,
+          @Nonnull BigInteger availableStorageUnits) {
+        return getInsertableAmount(descriptor.getStorageUnitsPerUnit(), requested, availableStorageUnits);
+    }
+
+    public static long getInsertableAmount(long unitsPerResource, long requested,
+          @Nonnull BigInteger availableStorageUnits) {
         if (requested <= 0 || availableStorageUnits.signum() <= 0) {
             return 0;
         }
-        BigInteger unitsPerResource = BigInteger.valueOf(getUnitsPerResource(kind));
+        if (unitsPerResource <= 0) {
+            return 0;
+        }
+        BigInteger units = BigInteger.valueOf(unitsPerResource);
         BigInteger requestedAmount = BigInteger.valueOf(requested);
-        BigInteger availableAmount = availableStorageUnits.divide(unitsPerResource);
+        BigInteger availableAmount = availableStorageUnits.divide(units);
         return availableAmount.compareTo(requestedAmount) >= 0 ? requested : availableAmount.longValue();
     }
 

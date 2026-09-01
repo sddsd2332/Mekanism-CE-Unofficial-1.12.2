@@ -6,6 +6,7 @@ import mekanism.api.TileNetworkList;
 import mekanism.common.HashList;
 import mekanism.common.content.qio.QIOFrequency;
 import mekanism.common.content.qio.QIOResourceEntry;
+import mekanism.api.qio.resource.QIOResourceDescriptor;
 import mekanism.common.content.qio.filter.QIOFilter;
 import mekanism.common.inventory.container.MekanismContainer;
 import mekanism.common.inventory.container.slot.ContainerSlotType;
@@ -329,16 +330,34 @@ public abstract class TileEntityQIOFilterHandler extends TileEntityQIOComponent 
         if (entry == null || entry.getAmount() <= 0) {
             return false;
         }
-        switch (entry.getKind()) {
-            case ITEM:
-                return acceptsItem(entry.getItem());
-            case FLUID:
-                return acceptsFluid(entry.getFluid());
-            case GAS:
-                return acceptsGas(entry.getGas());
-            default:
-                return false;
+        migrateLegacyFilterSlot();
+        boolean hasFilter = false;
+        for (QIOFilter filter : filters) {
+            if (filter.isEnabled()) {
+                hasFilter = true;
+            }
+            if (filter.test(entry)) {
+                return true;
+            }
         }
+        return !hasFilter && filterless;
+    }
+
+    protected boolean acceptsDescriptor(@Nullable QIOResourceDescriptor descriptor) {
+        if (descriptor == null || !descriptor.isResolved()) {
+            return false;
+        }
+        migrateLegacyFilterSlot();
+        boolean hasFilter = false;
+        for (QIOFilter filter : filters) {
+            if (filter.isEnabled()) {
+                hasFilter = true;
+            }
+            if (filter.test(descriptor)) {
+                return true;
+            }
+        }
+        return !hasFilter && filterless;
     }
 
     public boolean matchesResource(@Nullable QIOResourceEntry entry) {

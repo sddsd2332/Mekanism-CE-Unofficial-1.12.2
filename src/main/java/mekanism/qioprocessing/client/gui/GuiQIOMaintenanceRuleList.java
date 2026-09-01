@@ -1,6 +1,5 @@
 package mekanism.qioprocessing.client.gui;
 
-import mekanism.api.gas.GasStack;
 import mekanism.client.gui.GuiUtils;
 import mekanism.client.gui.IGuiWrapper;
 import mekanism.client.gui.element.GuiElement;
@@ -14,7 +13,6 @@ import mekanism.qioprocessing.common.content.maintenance.QIOMaintenanceRule;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraft.util.text.TextComponentTranslation;
-import net.minecraftforge.fluids.FluidStack;
 
 import javax.annotation.Nullable;
 import java.util.List;
@@ -158,16 +156,15 @@ final class GuiQIOMaintenanceRuleList extends GuiElement {
         QIOMaintenanceRule rule = rules.get(index);
         PortableResourceDescriptor resource = rule.getResource();
         if (resource.getKind() == PortableResourceDescriptor.Kind.ITEM) {
-            ItemStack stack = resource.resolveItem();
+            ItemStack stack = QIOGuiResourceRenderer.item(resource);
             if (!stack.isEmpty()) {
                 gui().renderItemTooltipWithExtra(stack, mouseX, mouseY,
                       ruleTooltip(rule));
                 return;
             }
         }
-        List<String> tooltip = new java.util.ArrayList<>();
-        tooltip.add(resourceName(resource));
-        tooltip.add(resource.getRegistryName());
+        List<String> tooltip = new java.util.ArrayList<>(QIOGuiResourceRenderer.tooltip(resource));
+        tooltip.add(QIOGuiResourceRenderer.identity(resource));
         tooltip.addAll(ruleTooltip(rule));
         displayTooltips(tooltip, mouseX, mouseY);
     }
@@ -199,41 +196,11 @@ final class GuiQIOMaintenanceRuleList extends GuiElement {
     }
 
     private void renderResource(PortableResourceDescriptor resource, int x, int y) {
-        switch (resource.getKind()) {
-            case ITEM -> {
-                ItemStack stack = resource.resolveItem();
-                if (!stack.isEmpty()) gui().renderItemWithOverlay(stack, x, y, 1, "");
-            }
-            case FLUID -> {
-                FluidStack fluid = resource.resolveFluid();
-                if (fluid != null) GuiUtils.drawFluidBarSprite(x - 1, y - 1, 18, 18, 16, fluid, true);
-            }
-            case GAS -> {
-                GasStack gas = resource.resolveGas();
-                if (gas != null) GuiUtils.drawGasBarSprite(x - 1, y - 1, 18, 18, 16, gas, true);
-            }
-        }
+        QIOGuiResourceRenderer.renderIcon(gui(), resource, x, y, 16);
     }
 
     private static String resourceName(PortableResourceDescriptor resource) {
-        switch (resource.getKind()) {
-            case ITEM -> {
-                ItemStack stack = resource.resolveItem();
-                return stack.isEmpty() ? resource.getRegistryName() : stack.getDisplayName();
-            }
-            case FLUID -> {
-                FluidStack stack = resource.resolveFluid();
-                return stack == null ? resource.getRegistryName() : stack.getLocalizedName();
-            }
-            case GAS -> {
-                GasStack stack = resource.resolveGas();
-                return stack == null || stack.getGas() == null ? resource.getRegistryName() :
-                      stack.getGas().getLocalizedName();
-            }
-            default -> {
-                return resource.getRegistryName();
-            }
-        }
+        return QIOGuiResourceRenderer.name(resource);
     }
 
     private static List<String> ruleTooltip(QIOMaintenanceRule rule) {

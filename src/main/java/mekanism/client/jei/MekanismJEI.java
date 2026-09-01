@@ -9,6 +9,8 @@ import mekanism.api.gas.GasStack;
 import mekanism.api.gear.ModuleData;
 import mekanism.client.gui.GuiMekanism;
 import mekanism.client.gui.element.progress.ProgressType;
+import mekanism.client.recipe_viewer.RecipeViewerUtils;
+import mekanism.client.recipe_viewer.jei.JeiRecipeViewerRuntime;
 import mekanism.client.recipe_viewer.type.IRecipeViewerRecipeType;
 import mekanism.client.recipe_viewer.type.RecipeViewerRecipeType;
 import mekanism.client.jei.machine.FarmMachineRecipeCategory;
@@ -315,6 +317,7 @@ public class MekanismJEI implements IModPlugin {
     @Override
     public void onRuntimeAvailable(IJeiRuntime jeiRuntime) {
         MekanismJEI.jeiRuntime = jeiRuntime;
+        RecipeViewerUtils.setRuntime(jeiRuntime == null ? null : new JeiRecipeViewerRuntime(jeiRuntime));
         QIORecipeViewerGuiHandler.register();
         recipeGuiRefreshMethod = null;
         recipeGuiRefreshUnavailable = false;

@@ -626,11 +626,7 @@ public final class QIOConfigurationExchangeRecord {
     }
 
     private static PortableResourceDescriptor describe(MachineResourceStack stack) {
-        return switch (stack.kind()) {
-            case ITEM -> PortableResourceDescriptor.item(stack.itemStack());
-            case FLUID -> PortableResourceDescriptor.fluid(Objects.requireNonNull(stack.fluidStack()));
-            case GAS -> PortableResourceDescriptor.gas(Objects.requireNonNull(stack.gasStack()));
-        };
+        return PortableResourceDescriptor.fromDescriptor(stack.descriptor());
     }
 
     private static String requireId(String value, String name) {

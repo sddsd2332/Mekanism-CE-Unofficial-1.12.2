@@ -25,7 +25,7 @@ import java.util.UUID;
 public final class QIODriveStorage {
 
     public static final QIODriveStorage INSTANCE = new QIODriveStorage();
-    private static final int INDEX_VERSION = 3;
+    private static final int INDEX_VERSION = 4;
 
     private final Map<UUID, QIODriveRecord> records = new HashMap<>();
     private final Set<UUID> dirtyDrives = new HashSet<>();
@@ -85,12 +85,13 @@ public final class QIODriveStorage {
 
     @Nullable
     public synchronized QIODriveRecord getOrCreate(UUID driveId, QIODriveTier tier) {
-        return getOrCreate(driveId, tier, QIODriveType.MIXED);
+        return getOrCreate(driveId, tier, QIODriveSpecializations.MIXED);
     }
 
     @Nullable
     public synchronized QIODriveRecord getOrCreate(UUID driveId, QIODriveTier tier, QIODriveType driveType) {
-        QIODriveRecord record = getOrCreate(driveId, tier == null ? null : tier.getDefinition(), driveType);
+        QIODriveSpecialization specialization = driveType == null ? null : driveType.getSpecialization();
+        QIODriveRecord record = getOrCreate(driveId, tier == null ? null : tier.getDefinition(), specialization);
         if (record != null || driveId == null || tier == null || driveType == null || damagedDrives.contains(driveId)) {
             return record;
         }
@@ -99,21 +100,33 @@ public final class QIODriveStorage {
         // never downgrades it. Physical mounting uses the definition overload
         // and therefore still rejects a smaller forged drive item.
         QIODriveRecord existing = records.get(driveId);
-        return existing != null && existing.getDriveType() == driveType ? existing : null;
+        return existing != null && existing.getSpecializationName().equals(specialization.getRegistryName()) ? existing : null;
+    }
+
+    @Nullable
+    public synchronized QIODriveRecord getOrCreate(UUID driveId, QIODriveTier tier,
+          QIODriveSpecialization specialization) {
+        return getOrCreate(driveId, tier == null ? null : tier.getDefinition(), specialization);
     }
 
     @Nullable
     public synchronized QIODriveRecord getOrCreate(UUID driveId, QIODriveDefinition definition) {
-        return getOrCreate(driveId, definition, QIODriveType.MIXED);
+        return getOrCreate(driveId, definition, QIODriveSpecializations.MIXED);
     }
 
     @Nullable
     public synchronized QIODriveRecord getOrCreate(UUID driveId, QIODriveDefinition definition, QIODriveType driveType) {
-        QIODriveRecord record = getOrCreateInitial(driveId, definition, driveType);
+        return getOrCreate(driveId, definition, driveType == null ? null : driveType.getSpecialization());
+    }
+
+    @Nullable
+    public synchronized QIODriveRecord getOrCreate(UUID driveId, QIODriveDefinition definition,
+          QIODriveSpecialization specialization) {
+        QIODriveRecord record = getOrCreateInitial(driveId, definition, specialization);
         if (record == null) {
             return null;
         }
-        QIODriveRecord.DefinitionUpdate update = record.applyDefinition(definition);
+        QIODriveRecord.DefinitionUpdate update = record.applyDefinition(definition, specialization);
         if (update == QIODriveRecord.DefinitionUpdate.INCOMPATIBLE) {
             return null;
         }
@@ -129,18 +142,26 @@ public final class QIODriveStorage {
      */
     @Nullable
     synchronized QIODriveRecord getOrCreateInitial(UUID driveId, QIODriveDefinition definition, QIODriveType driveType) {
+        return getOrCreateInitial(driveId, definition, driveType == null ? null : driveType.getSpecialization());
+    }
+
+    @Nullable
+    synchronized QIODriveRecord getOrCreateInitial(UUID driveId, QIODriveDefinition definition,
+          QIODriveSpecialization specialization) {
         requireLoaded();
-        if (driveId == null || !QIODriveDefinition.isRegistered(definition) || driveType == null ||
+        if (driveId == null || !QIODriveDefinition.isRegistered(definition) ||
+              !QIODriveSpecializationRegistry.INSTANCE.isRegistered(specialization) ||
+              !specialization.supports(definition) ||
               damagedDrives.contains(driveId)) {
             return null;
         }
         QIODriveRecord record = records.get(driveId);
         if (record == null) {
-            record = new QIODriveRecord(driveId, definition, driveType);
+            record = new QIODriveRecord(driveId, definition, specialization);
             records.put(driveId, record);
             dirtyDrives.add(driveId);
             indexDirty = true;
-        } else if (record.getDriveType() != driveType) {
+        } else if (!record.getSpecializationName().equals(specialization.getRegistryName())) {
             // A UUID identifies one physical drive record. Never reinterpret
             // an existing record through a differently specialized item.
             return null;
@@ -152,7 +173,16 @@ public final class QIODriveStorage {
     @Nullable
     synchronized QIODriveRecord applyMountedDefinition(@Nullable UUID driveId,
           @Nullable QIODriveDefinition definition, @Nullable QIODriveType driveType, @Nullable QIODriveMount mount) {
-        if (driveId == null || !QIODriveDefinition.isRegistered(definition) || driveType == null || mount == null) {
+        return applyMountedDefinition(driveId, definition,
+              driveType == null ? null : driveType.getSpecialization(), mount);
+    }
+
+    @Nullable
+    synchronized QIODriveRecord applyMountedDefinition(@Nullable UUID driveId,
+          @Nullable QIODriveDefinition definition, @Nullable QIODriveSpecialization specialization,
+          @Nullable QIODriveMount mount) {
+        if (driveId == null || !QIODriveDefinition.isRegistered(definition) ||
+              !QIODriveSpecializationRegistry.INSTANCE.isRegistered(specialization) || mount == null) {
             return null;
         }
         QIODriveMount active = activeMounts.get(driveId);
@@ -160,10 +190,10 @@ public final class QIODriveStorage {
             return null;
         }
         QIODriveRecord record = records.get(driveId);
-        if (record == null || record.getDriveType() != driveType) {
+        if (record == null || !record.getSpecializationName().equals(specialization.getRegistryName())) {
             return null;
         }
-        QIODriveRecord.DefinitionUpdate update = record.applyDefinition(definition);
+        QIODriveRecord.DefinitionUpdate update = record.applyDefinition(definition, specialization);
         if (update == QIODriveRecord.DefinitionUpdate.INCOMPATIBLE) {
             return null;
         }
@@ -378,6 +408,9 @@ public final class QIODriveStorage {
                     throw new IOException("File is empty");
                 }
                 loadedRecords.put(uuid, QIODriveRecord.read(uuid, data));
+                if (data.getInteger("version") != QIODriveRecord.DATA_VERSION) {
+                    dirtyDrives.add(uuid);
+                }
                 damagedDrives.remove(uuid);
             } catch (Exception e) {
                 damagedDrives.add(uuid);
@@ -419,7 +452,7 @@ public final class QIODriveStorage {
             NBTTagCompound entry = new NBTTagCompound();
             entry.setString("uuid", uuid.toString());
             entry.setString("definition", record.getDefinitionName().toString());
-            entry.setString("driveType", record.getDriveType().getSerializedName());
+            entry.setString("specialization", record.getSpecializationName().toString());
             entry.setLong("countCapacity", record.getCountCapacity());
             entry.setLong("storageCapacity", record.getStorageCapacity());
             entry.setByteArray("countCapacityExact", record.getExactCountCapacity().toBigInteger().toByteArray());

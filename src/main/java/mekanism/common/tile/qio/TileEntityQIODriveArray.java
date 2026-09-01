@@ -93,7 +93,9 @@ public class TileEntityQIODriveArray extends TileEntityQIOComponent implements I
                 QIODriveMount mount = new QIODriveMount(this, i);
                 QIODriveSlotState state = frequency.getSlotState(mount);
                 QIODriveData data = frequency.getDriveData(mount);
-                if (state == QIODriveSlotState.ACTIVE && data != null) {
+                if (state == QIODriveSlotState.OVER_CAPACITY && data != null) {
+                    status = DriveStatus.OVER_CAPACITY;
+                } else if (state == QIODriveSlotState.ACTIVE && data != null) {
                     boolean countFull = data.getRecord().getExactTotalStorageUnits().compareTo(
                           data.getRecord().getExactStorageCapacity()) >= 0;
                     boolean typesFull = data.getRecord().getTotalTypes() >= data.getRecord().getTypeCapacity();
@@ -204,7 +206,8 @@ public class TileEntityQIODriveArray extends TileEntityQIOComponent implements I
         ERROR(Mekanism.rl("block/qio_drive/qio_drive_full")),
         DUPLICATE(Mekanism.rl("block/qio_drive/qio_drive_full")),
         MISSING(Mekanism.rl("block/qio_drive/qio_drive_full")),
-        INVALID(Mekanism.rl("block/qio_drive/qio_drive_full"));
+        INVALID(Mekanism.rl("block/qio_drive/qio_drive_full")),
+        OVER_CAPACITY(Mekanism.rl("block/qio_drive/qio_drive_full"));
 
         private final ResourceLocation model;
 
@@ -230,6 +233,7 @@ public class TileEntityQIODriveArray extends TileEntityQIOComponent implements I
                 case DUPLICATE -> "duplicate";
                 case MISSING -> "missing";
                 case INVALID -> "invalid";
+                case OVER_CAPACITY -> "over_capacity";
                 case ERROR -> "error";
             };
             return LangUtils.localize("qio.drive.status." + key);

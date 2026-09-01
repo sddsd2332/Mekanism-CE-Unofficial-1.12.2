@@ -1705,7 +1705,7 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
             }
         }
         if (outputPort == null || !entry.baseline().portGroupId().equals(outputPort.portGroupId()) ||
-              entry.baseline().kind() != outputPort.kind()) {
+              !entry.baseline().resourceMatcher().equals(outputPort.resourceMatcher())) {
             return DeferredOutputRecoveryResult.BLOCKED;
         }
         boolean sourceIntact = entry.baseline().matches(outputPort);
@@ -1933,11 +1933,7 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
     @Nullable
     private static PortableResourceDescriptor describe(MachineResourceStack stack) {
         try {
-            return switch (stack.kind()) {
-                case ITEM -> PortableResourceDescriptor.item(stack.itemStack());
-                case FLUID -> PortableResourceDescriptor.fluid(stack.fluidStack());
-                case GAS -> PortableResourceDescriptor.gas(stack.gasStack());
-            };
+            return PortableResourceDescriptor.fromDescriptor(stack.descriptor());
         } catch (RuntimeException ignored) {
             return null;
         }

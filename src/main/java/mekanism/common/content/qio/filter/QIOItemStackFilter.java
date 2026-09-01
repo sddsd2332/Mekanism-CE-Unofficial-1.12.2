@@ -2,6 +2,8 @@ package mekanism.common.content.qio.filter;
 
 import mekanism.common.content.qio.QIOResourceEntry;
 import mekanism.common.content.qio.QIOResourceKind;
+import mekanism.api.qio.resource.QIOResourceCodecs;
+import mekanism.api.qio.resource.QIOResourceFamilyMatcher;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.items.ItemHandlerHelper;
@@ -41,7 +43,9 @@ public class QIOItemStackFilter extends QIOFilter {
         fuzzyMode = !fuzzyMode;
     }
 
-    @Override public QIOResourceKind getKind() { return QIOResourceKind.ITEM; }
+    @Override public QIOResourceFamilyMatcher getMatcher() {
+        return QIOResourceFamilyMatcher.family(QIOResourceCodecs.ITEM_FAMILY);
+    }
 
     @Override
     public boolean matches(QIOResourceEntry entry) {

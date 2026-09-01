@@ -6,6 +6,7 @@ import mekanism.common.PacketHandler;
 import mekanism.common.content.qio.QIOAmount;
 import mekanism.common.content.qio.QIOCapacitySummary;
 import mekanism.common.content.qio.QIOResourceEntry;
+import mekanism.common.content.qio.QIONetworkResourceLimits;
 import mekanism.common.inventory.container.QIOItemViewerContainer;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
@@ -30,6 +31,8 @@ import java.util.List;
 public class PacketQIOViewerData implements IMessageHandler<PacketQIOViewerData.Message, IMessage> {
 
     public static final int MAX_ENTRIES = 4096;
+    public static final int MAX_PACKET_BYTES = QIONetworkResourceLimits.MAX_PACKET_BYTES;
+    private static final int PACKET_HEADER_BUDGET = 1_024;
 
     @Override
     @Nullable
@@ -91,10 +94,14 @@ public class PacketQIOViewerData implements IMessageHandler<PacketQIOViewerData.
         if (snapshot.isEmpty()) {
             return Collections.singletonList(Message.batch(windowId, Collections.emptyList(), capacitySummary, true));
         }
-        List<Message> messages = new ArrayList<>((snapshot.size() + MAX_ENTRIES - 1) / MAX_ENTRIES);
-        for (int start = 0; start < snapshot.size(); start += MAX_ENTRIES) {
-            int end = Math.min(snapshot.size(), start + MAX_ENTRIES);
-            messages.add(Message.batch(windowId, snapshot.subList(start, end), capacitySummary, start == 0));
+        List<List<QIOResourceEntry>> chunks = chunkEntries(snapshot);
+        if (chunks.isEmpty()) {
+            return Collections.singletonList(Message.batch(windowId, Collections.emptyList(),
+                  capacitySummary, true));
+        }
+        List<Message> messages = new ArrayList<>(chunks.size());
+        for (int index = 0; index < chunks.size(); index++) {
+            messages.add(Message.batch(windowId, chunks.get(index), capacitySummary, index == 0));
         }
         return Collections.unmodifiableList(messages);
     }
@@ -127,12 +134,47 @@ public class PacketQIOViewerData implements IMessageHandler<PacketQIOViewerData.
         if (updates.isEmpty()) {
             return Collections.singletonList(Message.update(windowId, Collections.emptyList(), capacitySummary));
         }
-        List<Message> messages = new ArrayList<>((updates.size() + MAX_ENTRIES - 1) / MAX_ENTRIES);
-        for (int start = 0; start < updates.size(); start += MAX_ENTRIES) {
-            int end = Math.min(updates.size(), start + MAX_ENTRIES);
-            messages.add(Message.update(windowId, updates.subList(start, end), capacitySummary));
+        List<List<QIOResourceEntry>> chunks = chunkEntries(updates);
+        if (chunks.isEmpty()) {
+            return Collections.singletonList(Message.update(windowId, Collections.emptyList(), capacitySummary));
+        }
+        List<Message> messages = new ArrayList<>(chunks.size());
+        for (List<QIOResourceEntry> chunk : chunks) {
+            messages.add(Message.update(windowId, chunk, capacitySummary));
         }
         return Collections.unmodifiableList(messages);
+    }
+
+    private static List<List<QIOResourceEntry>> chunkEntries(List<QIOResourceEntry> entries) {
+        List<List<QIOResourceEntry>> chunks = new ArrayList<>();
+        List<QIOResourceEntry> current = new ArrayList<>();
+        int currentBytes = PACKET_HEADER_BUDGET;
+        for (QIOResourceEntry entry : entries) {
+            if (entry == null) {
+                continue;
+            }
+            int entryBytes;
+            try {
+                entryBytes = entry.getNetworkEncodedSize();
+            } catch (RuntimeException ignored) {
+                continue;
+            }
+            if (entryBytes <= 0 || entryBytes > QIONetworkResourceLimits.MAX_ENTRY_BYTES) {
+                continue;
+            }
+            if (!current.isEmpty() && (current.size() >= MAX_ENTRIES ||
+                  currentBytes + entryBytes > MAX_PACKET_BYTES)) {
+                chunks.add(current);
+                current = new ArrayList<>();
+                currentBytes = PACKET_HEADER_BUDGET;
+            }
+            current.add(entry);
+            currentBytes += entryBytes;
+        }
+        if (!current.isEmpty()) {
+            chunks.add(current);
+        }
+        return chunks;
     }
 
     public static void sendKill(EntityPlayerMP player, int windowId) {
@@ -215,6 +257,7 @@ public class PacketQIOViewerData implements IMessageHandler<PacketQIOViewerData.
 
         @Override
         public void toBytes(ByteBuf buffer) {
+            int messageStart = buffer.writerIndex();
             buffer.writeInt(windowId);
             buffer.writeByte(mode.ordinal());
             if (mode == Mode.KILL) {
@@ -224,10 +267,24 @@ public class PacketQIOViewerData implements IMessageHandler<PacketQIOViewerData.
                 buffer.writeBoolean(firstBatchChunk);
             }
             capacitySummary.write(buffer);
-            buffer.writeShort(Math.min(MAX_ENTRIES, entries.size()));
+            int countIndex = buffer.writerIndex();
+            buffer.writeShort(0);
+            int written = 0;
             for (int i = 0; i < entries.size() && i < MAX_ENTRIES; i++) {
-                entries.get(i).write(buffer);
+                int entryStart = buffer.writerIndex();
+                try {
+                    entries.get(i).write(buffer);
+                } catch (RuntimeException ignored) {
+                    buffer.writerIndex(entryStart);
+                    continue;
+                }
+                if (buffer.writerIndex() - messageStart > MAX_PACKET_BYTES) {
+                    buffer.writerIndex(entryStart);
+                    break;
+                }
+                written++;
             }
+            buffer.setShort(countIndex, written);
         }
 
         @Override
@@ -235,6 +292,9 @@ public class PacketQIOViewerData implements IMessageHandler<PacketQIOViewerData.
             valid = false;
             entries = Collections.emptyList();
             try {
+                if (buffer.readableBytes() > MAX_PACKET_BYTES) {
+                    throw new IllegalArgumentException("QIO viewer synchronization exceeds the byte limit");
+                }
                 windowId = buffer.readInt();
                 Mode decoded = Mode.byOrdinal(buffer.readUnsignedByte());
                 if (windowId < 0 || decoded == null) {

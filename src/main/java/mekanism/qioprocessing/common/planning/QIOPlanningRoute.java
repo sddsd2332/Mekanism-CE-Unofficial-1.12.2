@@ -334,29 +334,7 @@ public final class QIOPlanningRoute {
 
     private static PortableResourceDescriptor describe(MachineResourceStack stack) {
         Objects.requireNonNull(stack, "route stack");
-        return switch (stack.kind()) {
-            case ITEM -> {
-                ItemStack item = stack.itemStack();
-                if (item.isEmpty()) {
-                    throw new IllegalArgumentException("Machine route item amount cannot be represented");
-                }
-                yield PortableResourceDescriptor.item(item);
-            }
-            case FLUID -> {
-                FluidStack fluid = stack.fluidStack();
-                if (fluid == null) {
-                    throw new IllegalArgumentException("Machine route fluid amount cannot be represented");
-                }
-                yield PortableResourceDescriptor.fluid(fluid);
-            }
-            case GAS -> {
-                GasStack gas = stack.gasStack();
-                if (gas == null) {
-                    throw new IllegalArgumentException("Machine route gas amount cannot be represented");
-                }
-                yield PortableResourceDescriptor.gas(gas);
-            }
-        };
+        return PortableResourceDescriptor.fromDescriptor(stack.descriptor());
     }
 
     private static String requireText(String value, String name) {

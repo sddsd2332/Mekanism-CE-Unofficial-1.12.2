@@ -9,6 +9,8 @@ import mekanism.common.tile.qio.TileEntityQIOExporter;
 import mekanism.common.tile.qio.TileEntityQIORedstoneAdapter;
 import mekanism.common.tile.qio.TileEntityQIODashboard;
 import mekanism.common.content.qio.filter.QIOFilter;
+import mekanism.common.content.qio.filter.QIOResourceFilter;
+import mekanism.common.content.qio.QIONetworkResourceLimits;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
@@ -304,7 +306,20 @@ public class PacketQIOComponentConfig implements IMessageHandler<PacketQIOCompon
         }
 
         private static boolean isValidFilter(@Nullable NBTTagCompound filterData) {
-            return filterData != null && QIOFilter.read(filterData) != null;
+            if (filterData == null) {
+                return false;
+            }
+            QIOFilter filter = QIOFilter.read(filterData);
+            if (filter == null) {
+                return false;
+            }
+            if (filter instanceof QIOResourceFilter) {
+                mekanism.api.qio.resource.QIOResourceDescriptor descriptor =
+                      ((QIOResourceFilter) filter).getDescriptor();
+                return descriptor != null && descriptor.isResolved() &&
+                      QIONetworkResourceLimits.isSafeDescriptorPayload(descriptor.getPayload());
+            }
+            return true;
         }
 
         public Coord4D getCoord() {

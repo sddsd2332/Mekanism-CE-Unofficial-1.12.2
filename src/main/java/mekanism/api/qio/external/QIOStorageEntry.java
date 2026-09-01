@@ -1,6 +1,8 @@
 package mekanism.api.qio.external;
 
 import mekanism.api.gas.GasStack;
+import mekanism.api.qio.resource.QIOResourceCodecs;
+import mekanism.api.qio.resource.QIOResourceDescriptor;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.fluids.FluidStack;
 
@@ -14,25 +16,30 @@ import java.util.UUID;
 public final class QIOStorageEntry {
 
     private final UUID resourceUUID;
-    private final QIOStorageResourceKind kind;
+    private final QIOResourceDescriptor descriptor;
     private final BigInteger storedAmount;
     private final BigInteger committedAmount;
     private final BigInteger availableAmount;
-    private final ItemStack item;
-    private final FluidStack fluid;
-    private final GasStack gas;
 
-    private QIOStorageEntry(UUID resourceUUID, QIOStorageResourceKind kind, BigInteger storedAmount,
-          BigInteger committedAmount,
-          @Nullable ItemStack item, @Nullable FluidStack fluid, @Nullable GasStack gas) {
+    private QIOStorageEntry(UUID resourceUUID, BigInteger storedAmount, BigInteger committedAmount,
+          QIOResourceDescriptor descriptor) {
         this.resourceUUID = Objects.requireNonNull(resourceUUID, "resourceUUID");
-        this.kind = Objects.requireNonNull(kind, "kind");
+        this.descriptor = Objects.requireNonNull(descriptor, "descriptor");
         this.storedAmount = requireAmount(storedAmount, "storedAmount");
         this.committedAmount = requireAmount(committedAmount, "committedAmount");
         this.availableAmount = this.storedAmount.subtract(this.committedAmount).max(BigInteger.ZERO);
-        this.item = item == null ? ItemStack.EMPTY : item.copy();
-        this.fluid = fluid == null ? null : fluid.copy();
-        this.gas = gas == null ? null : gas.copy();
+    }
+
+    @Nonnull
+    public static QIOStorageEntry resource(UUID resourceUUID, BigInteger amount,
+          QIOResourceDescriptor descriptor) {
+        return resource(resourceUUID, amount, BigInteger.ZERO, descriptor);
+    }
+
+    @Nonnull
+    public static QIOStorageEntry resource(UUID resourceUUID, BigInteger storedAmount,
+          BigInteger committedAmount, QIOResourceDescriptor descriptor) {
+        return new QIOStorageEntry(resourceUUID, storedAmount, committedAmount, descriptor);
     }
 
     @Nonnull
@@ -46,10 +53,7 @@ public final class QIOStorageEntry {
         if (template == null || template.isEmpty()) {
             throw new IllegalArgumentException("QIO item template cannot be empty");
         }
-        ItemStack copy = template.copy();
-        copy.setCount(1);
-        return new QIOStorageEntry(resourceUUID, QIOStorageResourceKind.ITEM, storedAmount,
-              committedAmount, copy, null, null);
+        return resource(resourceUUID, storedAmount, committedAmount, QIOResourceCodecs.item(template));
     }
 
     @Nonnull
@@ -63,10 +67,7 @@ public final class QIOStorageEntry {
         if (template == null || template.getFluid() == null) {
             throw new IllegalArgumentException("QIO fluid template cannot be empty");
         }
-        FluidStack copy = template.copy();
-        copy.amount = 1;
-        return new QIOStorageEntry(resourceUUID, QIOStorageResourceKind.FLUID, storedAmount,
-              committedAmount, null, copy, null);
+        return resource(resourceUUID, storedAmount, committedAmount, QIOResourceCodecs.fluid(template));
     }
 
     @Nonnull
@@ -80,10 +81,7 @@ public final class QIOStorageEntry {
         if (template == null || template.getGas() == null) {
             throw new IllegalArgumentException("QIO gas template cannot be empty");
         }
-        GasStack copy = template.copy();
-        copy.amount = 1;
-        return new QIOStorageEntry(resourceUUID, QIOStorageResourceKind.GAS, storedAmount,
-              committedAmount, null, null, copy);
+        return resource(resourceUUID, storedAmount, committedAmount, QIOResourceCodecs.gas(template));
     }
 
     @Nonnull
@@ -92,8 +90,15 @@ public final class QIOStorageEntry {
     }
 
     @Nonnull
+    public QIOResourceDescriptor getDescriptor() {
+        return descriptor;
+    }
+
+    /** @deprecated Use {@link #getDescriptor()}; null means a custom codec. */
+    @Deprecated
+    @Nullable
     public QIOStorageResourceKind getKind() {
-        return kind;
+        return QIOStorageResourceKind.fromDescriptor(descriptor);
     }
 
     @Nonnull
@@ -134,31 +139,34 @@ public final class QIOStorageEntry {
 
     @Nonnull
     public ItemStack getItem() {
-        return item.copy();
+        ItemStack stack = descriptor.resolve(QIOResourceCodecs.ITEM_STACK);
+        return stack == null ? ItemStack.EMPTY : stack;
     }
 
     @Nullable
     public FluidStack getFluid() {
-        return fluid == null ? null : fluid.copy();
+        FluidStack stack = descriptor.resolve(QIOResourceCodecs.FLUID_STACK);
+        return stack == null ? null : stack;
     }
 
     @Nullable
     public GasStack getGas() {
-        return gas == null ? null : gas.copy();
+        GasStack stack = descriptor.resolve(QIOResourceCodecs.GAS_STACK);
+        return stack == null ? null : stack;
     }
 
     @Nonnull
     public QIOStorageEntry withAmount(BigInteger newAmount) {
-        return new QIOStorageEntry(resourceUUID, kind, newAmount, BigInteger.ZERO, item, fluid, gas);
+        return new QIOStorageEntry(resourceUUID, newAmount, BigInteger.ZERO, descriptor);
     }
 
     @Nonnull
     public QIOStorageEntry withAmounts(BigInteger newStoredAmount, BigInteger newCommittedAmount) {
-        return new QIOStorageEntry(resourceUUID, kind, newStoredAmount, newCommittedAmount, item, fluid, gas);
+        return new QIOStorageEntry(resourceUUID, newStoredAmount, newCommittedAmount, descriptor);
     }
 
     private static BigInteger requireAmount(BigInteger amount, String name) {
-        Objects.requireNonNull(amount, "amount");
+        Objects.requireNonNull(amount, name);
         if (amount.signum() < 0) {
             throw new IllegalArgumentException("QIO storage " + name + " cannot be negative");
         }

@@ -6,6 +6,9 @@ import mekanism.common.PacketHandler;
 import mekanism.common.content.filter.IFilter;
 import mekanism.common.content.qio.QIOResourceEntry;
 import mekanism.common.content.qio.QIOResourceKind;
+import mekanism.api.qio.resource.QIOResourceCodecs;
+import mekanism.api.qio.resource.QIOResourceDescriptor;
+import mekanism.api.qio.resource.QIOResourceFamilyMatcher;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.item.ItemStack;
 import mekanism.api.gas.GasStack;
@@ -45,9 +48,26 @@ public abstract class QIOFilter implements IFilter {
 
     private boolean enabled = true;
 
-    public abstract QIOResourceKind getKind();
+    public abstract QIOResourceFamilyMatcher getMatcher();
+
+    /** @deprecated A custom matcher is not representable by the legacy enum. */
+    @Deprecated
+    @Nullable
+    public QIOResourceKind getKind() {
+        QIOResourceFamilyMatcher matcher = getMatcher();
+        for (QIOResourceKind kind : QIOResourceKind.values()) {
+            if (matcher.equals(QIOResourceFamilyMatcher.family(kind.getFamily()))) {
+                return kind;
+            }
+        }
+        return null;
+    }
 
     public abstract boolean matches(QIOResourceEntry entry);
+
+    public boolean matches(QIOResourceDescriptor descriptor) {
+        return false;
+    }
 
     /**
      * Kind-specific matching helpers used while importing resources.  A
@@ -76,19 +96,35 @@ public abstract class QIOFilter implements IFilter {
     }
 
     public final boolean test(@Nullable QIOResourceEntry entry) {
-        return enabled && entry != null && entry.getKind() == getKind() && matches(entry);
+        return enabled && entry != null && getMatcher().accepts(entry.getDescriptor()) && matches(entry);
+    }
+
+    public final boolean test(@Nullable QIOResourceDescriptor descriptor) {
+        return enabled && descriptor != null && getMatcher().accepts(descriptor) && matches(descriptor);
     }
 
     public final boolean test(@Nullable ItemStack stack) {
-        return enabled && getKind() == QIOResourceKind.ITEM && stack != null && !stack.isEmpty() && matches(stack);
+        if (!enabled || stack == null || stack.isEmpty()) {
+            return false;
+        }
+        QIOResourceDescriptor descriptor = QIOResourceCodecs.item(stack);
+        return getMatcher().accepts(descriptor) && (matches(stack) || matches(descriptor));
     }
 
     public final boolean test(@Nullable FluidStack stack) {
-        return enabled && getKind() == QIOResourceKind.FLUID && stack != null && matches(stack);
+        if (!enabled || stack == null || stack.getFluid() == null) {
+            return false;
+        }
+        QIOResourceDescriptor descriptor = QIOResourceCodecs.fluid(stack);
+        return getMatcher().accepts(descriptor) && (matches(stack) || matches(descriptor));
     }
 
     public final boolean test(@Nullable GasStack stack) {
-        return enabled && getKind() == QIOResourceKind.GAS && stack != null && matches(stack);
+        if (!enabled || stack == null || stack.getGas() == null) {
+            return false;
+        }
+        QIOResourceDescriptor descriptor = QIOResourceCodecs.gas(stack);
+        return getMatcher().accepts(descriptor) && (matches(stack) || matches(descriptor));
     }
 
     public abstract String getType();
@@ -150,6 +186,12 @@ public abstract class QIOFilter implements IFilter {
                 break;
             case QIOGasFilter.TYPE:
                 filter = new QIOGasFilter();
+                break;
+            case QIOMatcherFilter.TYPE:
+                filter = new QIOMatcherFilter();
+                break;
+            case QIOResourceFilter.TYPE:
+                filter = new QIOResourceFilter();
                 break;
             default:
                 return null;

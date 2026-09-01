@@ -3,6 +3,8 @@ package mekanism.common.content.qio.filter;
 import mekanism.common.content.filter.IModIDFilter;
 import mekanism.common.content.qio.QIOResourceEntry;
 import mekanism.common.content.qio.QIOResourceKind;
+import mekanism.api.qio.resource.QIOResourceCodecs;
+import mekanism.api.qio.resource.QIOResourceFamilyMatcher;
 import mekanism.common.content.transporter.TransporterFilter;
 import mekanism.common.lib.WildcardMatcher;
 import mekanism.common.util.MekanismUtils;
@@ -23,8 +25,8 @@ public class QIOModIDFilter extends QIOFilter implements IModIDFilter {
     }
 
     @Override
-    public QIOResourceKind getKind() {
-        return QIOResourceKind.ITEM;
+    public QIOResourceFamilyMatcher getMatcher() {
+        return QIOResourceFamilyMatcher.family(QIOResourceCodecs.ITEM_FAMILY);
     }
 
     @Override

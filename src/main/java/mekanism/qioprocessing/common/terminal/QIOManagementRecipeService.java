@@ -400,6 +400,7 @@ public final class QIOManagementRecipeService {
                     GasStack stack = resource.resolveGas();
                     yield stack == null ? "" : stack.getGas().getName().toLowerCase(Locale.ROOT);
                 }
+                case CUSTOM -> resource.getCodecId().toString().toLowerCase(Locale.ROOT);
             };
         } catch (RuntimeException ignored) {
             return "";
@@ -415,11 +416,10 @@ public final class QIOManagementRecipeService {
 
     private static MachineResourceStack machineStack(PortableResourceDescriptor resource,
           long amount, String portId) {
-        return switch (resource.getKind()) {
-            case ITEM -> MachineResourceStack.item(portId, requireItem(resource), amount);
-            case FLUID -> MachineResourceStack.fluid(portId, requireFluid(resource), amount);
-            case GAS -> MachineResourceStack.gas(portId, requireGas(resource), amount);
-        };
+        if (!resource.isResolved()) {
+            throw new IllegalArgumentException("Unresolved route resource " + resource);
+        }
+        return MachineResourceStack.resource(portId, resource.getDescriptor(), amount);
     }
 
     private static ItemStack requireItem(PortableResourceDescriptor resource) {

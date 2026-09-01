@@ -1,6 +1,5 @@
 package mekanism.qioprocessing.client.gui;
 
-import mekanism.api.gas.GasStack;
 import mekanism.client.gui.GuiUtils;
 import mekanism.client.gui.IGuiWrapper;
 import mekanism.client.gui.element.GuiElement;
@@ -18,13 +17,10 @@ import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.text.TextComponentTranslation;
-import net.minecraftforge.fluids.FluidStack;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -52,14 +48,6 @@ final class GuiQIOSmartProcessingResourceGrid extends GuiElement
     private final Consumer<QIOSmartProcessingResourceEntry> selectionConsumer;
     private boolean rotatingSelection;
     private final GuiScrollBar scrollBar;
-    private final Map<PortableResourceDescriptor, DisplayResource> displayCache =
-          new LinkedHashMap<>(128, 0.75F, true) {
-              @Override
-              protected boolean removeEldestEntry(
-                    Map.Entry<PortableResourceDescriptor, DisplayResource> eldest) {
-                  return size() > 512;
-              }
-          };
 
     GuiQIOSmartProcessingResourceGrid(IGuiWrapper gui, int x, int y, int columns, int rows,
           Supplier<QIOSmartProcessingClientCache> cacheSupplier,
@@ -138,29 +126,16 @@ final class GuiQIOSmartProcessingResourceGrid extends GuiElement
         QIOSmartProcessingResourceEntry entry = entryAt(mouseX, mouseY);
         if (entry == null) return;
         PortableResourceDescriptor resource = entry.getResource();
-        DisplayResource display = display(resource);
         List<String> extra = productionTooltip(entry);
         if (resource.getKind() == PortableResourceDescriptor.Kind.ITEM) {
-            ItemStack stack = display.item;
+            ItemStack stack = QIOGuiResourceRenderer.item(resource);
             if (!stack.isEmpty()) {
                 if (extra.isEmpty()) gui().renderItemTooltip(stack, mouseX, mouseY);
                 else gui().renderItemTooltipWithExtra(stack, mouseX, mouseY, extra);
             }
             return;
         }
-        List<String> tooltip = new ArrayList<>();
-        if (resource.getKind() == PortableResourceDescriptor.Kind.FLUID) {
-            FluidStack fluid = display.fluid;
-            tooltip.add(fluid == null ? resource.getRegistryName() : fluid.getLocalizedName());
-            tooltip.add(new TextComponentTranslation(
-                  "gui.mekanismqioprocessing.order_unit_fluid").getFormattedText());
-        } else {
-            GasStack gas = display.gas;
-            tooltip.add(gas == null || gas.getGas() == null ? resource.getRegistryName() :
-                  gas.getGas().getLocalizedName());
-            tooltip.add(new TextComponentTranslation(
-                  "gui.mekanismqioprocessing.order_unit_gas").getFormattedText());
-        }
+        List<String> tooltip = new ArrayList<>(QIOGuiResourceRenderer.tooltip(resource));
         tooltip.addAll(extra);
         displayTooltips(tooltip, mouseX, mouseY);
     }
@@ -169,13 +144,7 @@ final class GuiQIOSmartProcessingResourceGrid extends GuiElement
     @Override
     public Object getIngredient(double mouseX, double mouseY) {
         QIOSmartProcessingResourceEntry entry = entryAt(mouseX, mouseY);
-        if (entry == null) return null;
-        DisplayResource display = display(entry.getResource());
-        return switch (entry.getResource().getKind()) {
-            case ITEM -> display.item;
-            case FLUID -> display.fluid;
-            case GAS -> display.gas;
-        };
+        return entry == null ? null : QIOGuiResourceRenderer.ingredient(entry.getResource());
     }
 
     int getMissingPageOffset(int pageSize) {
@@ -229,17 +198,7 @@ final class GuiQIOSmartProcessingResourceGrid extends GuiElement
 
     private void renderEntry(QIOSmartProcessingResourceEntry entry, int x, int y) {
         PortableResourceDescriptor resource = entry.getResource();
-        DisplayResource display = display(resource);
-        switch (resource.getKind()) {
-            case ITEM -> {
-                ItemStack stack = display.item;
-                if (!stack.isEmpty()) gui().renderItemWithOverlay(stack, x + 1, y + 1, 1, "");
-            }
-            case FLUID -> GuiUtils.drawFluidBarSprite(x, y, 18, 18, 16,
-                  display.fluid, true);
-            case GAS -> GuiUtils.drawGasBarSprite(x, y, 18, 18, 16,
-                  display.gas, true);
-        }
+        QIOGuiResourceRenderer.renderIcon(gui(), resource, x + 1, y + 1, 16);
         if (entry.isSchedulable()) {
             GuiUtils.fill(x + 13, y + 2, x + 16, y + 5, CRAFTABLE_COLOR);
         }
@@ -280,25 +239,4 @@ final class GuiQIOSmartProcessingResourceGrid extends GuiElement
         return tooltip;
     }
 
-    private DisplayResource display(PortableResourceDescriptor resource) {
-        DisplayResource display = displayCache.get(resource);
-        if (display == null) {
-            display = new DisplayResource(resource.resolveItem(), resource.resolveFluid(),
-                  resource.resolveGas());
-            displayCache.put(resource, display);
-        }
-        return display;
-    }
-
-    private static final class DisplayResource {
-        private final ItemStack item;
-        private final FluidStack fluid;
-        private final GasStack gas;
-
-        private DisplayResource(ItemStack item, FluidStack fluid, GasStack gas) {
-            this.item = item;
-            this.fluid = fluid;
-            this.gas = gas;
-        }
-    }
 }

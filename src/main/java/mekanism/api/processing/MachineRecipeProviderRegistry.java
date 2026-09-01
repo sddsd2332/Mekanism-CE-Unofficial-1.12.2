@@ -329,8 +329,11 @@ public final class MachineRecipeProviderRegistry {
                 } else if (!port.isConfiguration()) {
                     errors.add("route " + routeId + " uses a processing port as configuration " +
                           stack.portId());
-                } else if (port.kind() != stack.kind()) {
-                    errors.add("route " + routeId + " uses the wrong resource kind for port " +
+                } else if (!stack.isResolved()) {
+                    errors.add("route " + routeId + " uses an unresolved resource codec for port " +
+                          stack.portId());
+                } else if (!port.acceptsResource(stack)) {
+                    errors.add("route " + routeId + " uses an incompatible resource for port " +
                           stack.portId());
                 }
             }
@@ -345,8 +348,10 @@ public final class MachineRecipeProviderRegistry {
                 } else if (port.isConfiguration()) {
                     errors.add("route " + routeId + " uses configuration port " + stack.portId() +
                           (input ? " as a consumable input" : " as an output"));
-                } else if (port.kind() != stack.kind()) {
-                    errors.add("route " + routeId + " uses the wrong resource kind for port " + stack.portId());
+                } else if (!stack.isResolved()) {
+                    errors.add("route " + routeId + " uses an unresolved resource codec for port " + stack.portId());
+                } else if (!port.acceptsResource(stack)) {
+                    errors.add("route " + routeId + " uses an incompatible resource for port " + stack.portId());
                 } else if (input && !port.role().acceptsInput() || !input && !port.role().allowsOutput()) {
                     errors.add("route " + routeId + " uses port " + stack.portId() + " in the wrong direction");
                 }
