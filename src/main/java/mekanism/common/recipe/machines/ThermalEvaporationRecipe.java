@@ -17,7 +17,7 @@ public class ThermalEvaporationRecipe extends MachineRecipe<FluidInput, FluidOut
 
     @Override
     public ThermalEvaporationRecipe copy() {
-        return new ThermalEvaporationRecipe(getInput(), getOutput());
+        return new ThermalEvaporationRecipe(getInput().copy(), getOutput().copy());
     }
 
     public boolean canOperate(IExtendedFluidTank inputTank, IExtendedFluidTank outputTank) {

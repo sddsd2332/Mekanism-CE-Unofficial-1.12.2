@@ -2,6 +2,7 @@ package mekanism.qioprocessing.common;
 
 import io.netty.buffer.ByteBuf;
 import mekanism.common.Mekanism;
+import mekanism.common.recipe.RecipeHandler;
 import mekanism.common.Version;
 import mekanism.common.base.IModule;
 import mekanism.common.config.MekanismConfig;
@@ -24,6 +25,7 @@ import mekanism.qioprocessing.common.machine.QIOAutomationRecipeConfigCardData;
 import mekanism.qioprocessing.common.machine.QIOAutomationTileTickService;
 import mekanism.qioprocessing.common.machine.QIOAutomationPortGuard;
 import mekanism.qioprocessing.common.machine.QIOAutomationContainerState;
+import mekanism.qioprocessing.api.machine.QIOAutomationHost;
 import mekanism.qioprocessing.common.network.QIOProcessingPacketHandler;
 import mekanism.qioprocessing.common.registries.QIOProcessingItems;
 import mekanism.qioprocessing.common.registries.QIOProcessingBlocks;
@@ -107,6 +109,11 @@ public class MekanismQIOProcessing implements IModule {
         proxy.preInit();
         QIOProcessingWindowTypes.bootstrap();
         QIOAutomationCapabilities.register();
+        TileEntityBasicBlock.setAsyncLeaseVersionProvider(tile -> leaseRevision(tile));
+        TileEntityBasicBlock.setAsyncPortOwnershipVersionProvider(tile -> portOwnershipRevision(tile));
+        RecipeHandler.addRecipeGenerationListener(generation ->
+              QIOAutomationDeviceRegistry.INSTANCE.onRecipeGenerationChanged(
+                    generation.getGlobalGeneration()));
         TileEntityContainerBlock.setContentsChangedListener(QIOAutomationDeviceRegistry.INSTANCE::notifyContentsChanged);
         TileEntityContainerBlock.setContainerExtractionGuard(QIOAutomationPortGuard::isExtractionBlocked);
         TileEntityBasicBlock.setServerPreComponentTickListener(
@@ -119,6 +126,23 @@ public class MekanismQIOProcessing implements IModule {
         QIOCraftingProcessorRegistry.bootstrapBuiltins(
               MekanismConfig.local().qioProcessing.processorLaneLimit.val());
         QIOProcessingProcessorHosts.registerBuiltins();
+    }
+
+    private static QIOAutomationHost automationHost(TileEntityBasicBlock tile) {
+        if (tile == null) {
+            return null;
+        }
+        return QIOAutomationTileTickService.INSTANCE.getRegisteredHost(tile);
+    }
+
+    private static long leaseRevision(TileEntityBasicBlock tile) {
+        QIOAutomationHost host = automationHost(tile);
+        return host == null ? 0 : Math.max(0, host.getLeaseRevision());
+    }
+
+    private static long portOwnershipRevision(TileEntityBasicBlock tile) {
+        QIOAutomationHost host = automationHost(tile);
+        return host == null ? 0 : Math.max(0, host.getPortOwnershipRevision());
     }
 
     @Mod.EventHandler

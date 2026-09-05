@@ -2,7 +2,6 @@ package mekanism.common.tile.qio;
 
 import io.netty.buffer.ByteBuf;
 import mekanism.api.EnumColor;
-import mekanism.api.IContentsListener;
 import mekanism.api.TileNetworkList;
 import mekanism.common.Mekanism;
 import mekanism.common.base.IActiveState;
@@ -12,8 +11,7 @@ import mekanism.common.frequency.FrequencyType;
 import mekanism.common.frequency.IFrequencyHandler;
 import mekanism.common.security.ISecurityTile;
 import mekanism.common.tile.component.TileComponentSecurity;
-import mekanism.common.capabilities.holder.energy.IEnergyContainerHolder;
-import mekanism.common.tile.prefab.TileEntityElectricBlock;
+import mekanism.common.tile.prefab.TileEntityContainerBlock;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.math.BlockPos;
@@ -26,7 +24,7 @@ import javax.annotation.Nullable;
  * regular 1.12 tile inventory and frequency component rather than a second
  * networking or persistence path.
  */
-public abstract class TileEntityQIOComponent extends TileEntityElectricBlock
+public abstract class TileEntityQIOComponent extends TileEntityContainerBlock
       implements IQIOFrequencyHolder, IFrequencyHandler, ISecurityTile, IActiveState {
 
     protected final TileComponentSecurity securityComponent;
@@ -35,19 +33,9 @@ public abstract class TileEntityQIOComponent extends TileEntityElectricBlock
     private EnumColor lastColor;
 
     protected TileEntityQIOComponent(String name) {
-        this(name, 0);
-    }
-
-    protected TileEntityQIOComponent(String name, double baseMaxEnergy) {
-        super(name, baseMaxEnergy);
+        super(name);
         frequencyComponent.track(FrequencyType.QIO, true, true, true);
         securityComponent = new TileComponentSecurity(this);
-    }
-
-    @Override
-    @Nullable
-    protected IEnergyContainerHolder getInitialEnergyContainers(IContentsListener listener) {
-        return BASE_MAX_ENERGY > 0 ? super.getInitialEnergyContainers(listener) : null;
     }
 
     @Override

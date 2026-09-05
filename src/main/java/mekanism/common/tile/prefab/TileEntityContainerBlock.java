@@ -1048,6 +1048,9 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
 
     @Override
     public void onContentsChanged() {
+        // Every real container mutation invalidates an in-flight recipe plan. The
+        // listener is invoked by inventory, fluid, gas, energy and heat handlers.
+        markProcessingStateChanged();
         markNoUpdateSync();
         if (world != null && !world.isRemote) {
             contentsChangedListener.accept(this);

@@ -92,7 +92,7 @@ import static mekanism.common.tile.prefab.TileEntityAdvancedElectricMachine.ceil
 
 public class TileEntityFactory extends TileEntityMachine implements IComputerIntegration, ISideConfiguration, ISpecialConfigData, IUpgradeableTile, IBaseTierProvider,
         ISustainedData, IComparatorSupport, ITankManager, IRecipeLookupHandler<MachineRecipe<?, ?, ?>>, ConstantUsageRecipeLookupHandler,
-        mekanism.common.tile.interfaces.IHasDumpButton {
+        mekanism.common.tile.interfaces.IHasDumpButton, IAsyncRecipeMachine {
     private static final int LEGACY_SLOT_ENERGY = 0;
     private static final int LEGACY_SLOT_TYPE_INPUT = 1;
     private static final int LEGACY_SLOT_TYPE_OUTPUT = 2;
@@ -986,7 +986,11 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
 
     @Override
     public void onAsyncUpdateServer() {
-        super.onAsyncUpdateServer();
+        commitAsyncRecipeTick();
+    }
+
+    @Override
+    public void prepareAsyncRecipeTick() {
         fillEnergySlot();
         handleSecondaryFuel();
         if (shouldSortInventory()) {
@@ -995,12 +999,104 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
         } else if (!sortingNeeded && areRecipeCachesInvalid()) {
             markSortingNeeded();
         }
-        double prev = getEnergy();
         updateSecondaryEnergyThisTick();
-        processFactoryRecipes();
+    }
+
+    @Override
+    public Object getAsyncRecipeSnapshotSource() {
+        List<MachineRecipe<?, ?, ?>> recipes = new ArrayList<>(getProcessCount());
+        for (int process = 0; process < getProcessCount(); process++) {
+            recipes.add(getRecipe(process));
+        }
+        return recipes;
+    }
+
+    @Override
+    public String getAsyncMode() {
+        return getRecipeType().name();
+    }
+
+    @Override
+    public Map<Integer, RecipeLaneSnapshot> getAsyncRecipeLaneSnapshots() {
+        Map<Integer, RecipeLaneSnapshot> lanes = new LinkedHashMap<>();
+        for (ProcessInfo process : processInfoSlots) {
+            int lane = process.process();
+            MachineRecipe<?, ?, ?> recipe = getRecipe(lane);
+            CachedRecipe<?> cache = getCachedRecipe(process);
+            RecipeLaneSnapshot.Builder builder = RecipeLaneSnapshot.builder(lane)
+                  .operatingTicks(progress[lane]).requiredTicks(Math.max(1, getTicksRequired(recipe)))
+                  .baselineMaxOperations(MekanismUtils.canFunction(this) ? getOperationsPerTick(recipe) : 0)
+                  .energyPerTick(getProcessEnergyPerTick(recipe)).active(activeStates[lane])
+                  .pausedForErrors(cache != null && cache.isPausedForErrors())
+                  .keepProgressWithoutRecipe(getCurrentRecipeHandler().shouldKeepProgressWithoutRecipe(this, process.inputSlot().getStack()))
+                  .input("item.0", ImmutableResourceSnapshot.of(process.inputSlot().getStack()))
+                  .perTickInputMultipliers(cache == null ? Collections.emptyMap() : cache.getPlanInputMultipliers());
+            Object input = recipe == null ? null : recipe.getInput();
+            if (input instanceof DoubleMachineInput) {
+                builder.input("item.1", ImmutableResourceSnapshot.of(extraSlot.getStack()), true);
+            } else if (input instanceof InfusionInput) {
+                builder.input("infuse.1", infuseStored.getType() == null ? ImmutableResourceSnapshot.empty() :
+                      ImmutableResourceSnapshot.descriptor("infuse:" + infuseStored.getType().name, infuseStored.getAmount()), true);
+            } else if (input instanceof PressurizedInput) {
+                builder.input("fluid.1", ImmutableResourceSnapshot.of(fluidTank.getFluid()), true)
+                      .input("gas.2", ImmutableResourceSnapshot.of(gasTank.getGas()), true);
+            } else if (input instanceof AdvancedMachineInput || input instanceof NucleosynthesizerInput) {
+                builder.input("gas.1", ImmutableResourceSnapshot.of(gasTank.getGas()), true);
+            }
+            ItemStack primary = recipe == null ? ItemStack.EMPTY : getCurrentRecipeHandler().getPrimaryRecipeOutput(recipe);
+            builder.output("item.0", ImmutableResourceSnapshot.of(process.outputSlot().getStack()),
+                  process.outputSlot().getLimit(primary));
+            if (hasSecondaryItemOutput() && process.secondaryOutputSlot() != null) {
+                ItemStack secondary = recipe == null ? ItemStack.EMPTY : getCurrentRecipeHandler().getSecondaryRecipeOutput(recipe);
+                builder.output("item.1", ImmutableResourceSnapshot.of(process.secondaryOutputSlot().getStack()),
+                      process.secondaryOutputSlot().getLimit(secondary));
+            }
+            if (input instanceof PressurizedInput) {
+                builder.output("gas.1", ImmutableResourceSnapshot.of(gasOutTank.getGas()), gasOutTank.getCapacity(), true);
+            }
+            builder.errors(AsyncMachinePlanSupport.captureErrors(cache));
+            lanes.put(lane, builder.build());
+        }
+        return lanes;
+    }
+
+    @Override
+    public Map<Integer, RecipeLaneCommitTarget> getAsyncRecipeCommitTargets() {
+        Map<Integer, RecipeLaneCommitTarget> targets = new LinkedHashMap<>();
+        for (ProcessInfo process : processInfoSlots) {
+            int lane = process.process();
+            CachedRecipe<?> cache = getRecipeCacheLookupMonitor(process).prepareCache();
+            MachineRecipe<?, ?, ?> recipe = getRecipe(lane);
+            RecipeLaneCommitTarget target = new RecipeLaneCommitTarget(cache)
+                  .input("item.0", process.inputSlot()).output("item.0", process.outputSlot());
+            Object input = recipe == null ? null : recipe.getInput();
+            if (input instanceof DoubleMachineInput) target.input("item.1", extraSlot);
+            else if (input instanceof InfusionInput) target.input("infuse.1", infuseStored);
+            else if (input instanceof PressurizedInput) {
+                target.input("fluid.1", fluidTank).input("gas.2", gasTank).output("gas.1", gasOutTank);
+            } else if (input instanceof AdvancedMachineInput || input instanceof NucleosynthesizerInput) {
+                target.input("gas.1", gasTank);
+            }
+            if (hasSecondaryItemOutput() && process.secondaryOutputSlot() != null) target.output("item.1", process.secondaryOutputSlot());
+            targets.put(lane, target);
+        }
+        return targets;
+    }
+
+    @Override
+    public void afterAsyncRecipeCommit(RecipeRunSnapshot snapshot, RecipeExecutionPlan plan) {
+        for (RecipeLanePlan lane : plan.getLanes().values()) {
+            setProgress(lane.getLaneIndex(), lane.getNewOperatingTicks());
+            setActiveState(lane.isActive(), lane.getLaneIndex());
+        }
         markRecipeCachesObserved();
-        updateActiveStateAndLastUsage(prev);
+        updateActiveStateAndLastUsage(snapshot.getStoredEnergy());
         prevEnergy = getEnergy();
+    }
+
+    @Override
+    public void commitAsyncRecipeTick() {
+        IAsyncRecipeMachine.super.commitAsyncRecipeTick();
     }
 
     private void fillEnergySlot() {
@@ -1023,7 +1119,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
 
     private void processFactoryRecipes() {
         for (ProcessInfo processInfo : processInfoSlots) {
-            processFactoryRecipe(processInfo);
+            RecipeRandomContext.runLane(processInfo.process(), () -> processFactoryRecipe(processInfo));
         }
     }
 

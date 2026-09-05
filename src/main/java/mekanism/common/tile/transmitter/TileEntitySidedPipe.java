@@ -4,6 +4,7 @@ import io.netty.buffer.ByteBuf;
 import mekanism.api.Coord4D;
 import mekanism.api.EnumColor;
 import mekanism.api.IConfigurable;
+import mekanism.api.NBTConstants;
 import mekanism.api.TileNetworkList;
 import mekanism.api.transmitters.IBlockableConnection;
 import mekanism.api.transmitters.ITransmitter;
@@ -361,6 +362,36 @@ public abstract class TileEntitySidedPipe extends TileEntityRestrictedTick imple
         nbtTags.setBoolean("redstoneReactive", redstoneReactive);
         for (int i = 0; i < 6; i++) {
             nbtTags.setInteger("connection" + i, connectionTypes[i].ordinal());
+        }
+    }
+
+    @Override
+    protected void writeUpdateNBT(NBTTagCompound nbtTags) {
+        super.writeUpdateNBT(nbtTags);
+        //Connection masks are transient server state, but are required when a client creates a
+        //transmitter from a chunk packet. Keep them out of the persistent tile NBT.
+        nbtTags.setByte(NBTConstants.CURRENT_CONNECTIONS, currentTransmitterConnections);
+        nbtTags.setByte(NBTConstants.CURRENT_ACCEPTORS, currentAcceptorConnections);
+    }
+
+    @Override
+    protected void readUpdateNBT(NBTTagCompound nbtTags) {
+        super.readUpdateNBT(nbtTags);
+        if (nbtTags.hasKey(NBTConstants.CURRENT_CONNECTIONS)) {
+            currentTransmitterConnections = nbtTags.getByte(NBTConstants.CURRENT_CONNECTIONS);
+        }
+        if (nbtTags.hasKey(NBTConstants.CURRENT_ACCEPTORS)) {
+            currentAcceptorConnections = nbtTags.getByte(NBTConstants.CURRENT_ACCEPTORS);
+        }
+    }
+
+    @Override
+    public void handleUpdateTag(@Nonnull NBTTagCompound nbtTags) {
+        super.handleUpdateTag(nbtTags);
+        //The update tag can be applied to an already rendered tile (for example after a chunk
+        //resync), so make sure the connection-dependent model is rebuilt immediately.
+        if (getWorld() != null && getWorld().isRemote) {
+            MekanismUtils.updateBlock(getWorld(), getPos());
         }
     }
 

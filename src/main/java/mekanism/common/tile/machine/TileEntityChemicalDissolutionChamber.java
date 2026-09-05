@@ -153,8 +153,25 @@ public class TileEntityChemicalDissolutionChamber extends TileEntityBasicMachine
     }
 
     @Override
+    protected mekanism.common.recipe.cache.RecipeLaneCommitTarget createAsyncRecipeCommitTarget(CachedRecipe<DissolutionRecipe> cache) {
+        return new mekanism.common.recipe.cache.RecipeLaneCommitTarget(cache)
+              .input("item.0", inputSlot).input("gas.1", injectTank).output("gas.0", outputTank);
+    }
+
+    @Override
+    public void afterAsyncRecipeCommit(mekanism.common.recipe.cache.RecipeRunSnapshot snapshot,
+          mekanism.common.recipe.cache.RecipeExecutionPlan plan) {
+        super.afterAsyncRecipeCommit(snapshot, plan);
+        finishRecipeTick();
+    }
+
+    @Override
     public void onAsyncUpdateServer() {
-        super.onAsyncUpdateServer();
+        commitAsyncRecipeTick();
+    }
+
+    @Override
+    public void prepareAsyncRecipeTick() {
         if (updateDelay > 0) {
             updateDelay--;
             if (updateDelay == 0) {
@@ -165,7 +182,9 @@ public class TileEntityChemicalDissolutionChamber extends TileEntityBasicMachine
         injectSlot.fillTank();
         outputSlot.drainTank();
         injectUsageThisTick = Math.max(BASE_INJECT_USAGE, injectUsageSampler.sample(injectUsage));
-        processRecipe();
+    }
+
+    private void finishRecipeTick() {
         prevEnergy = getEnergy();
         if (needsPacket) {
             Mekanism.packetHandler.sendUpdatePacket(this);

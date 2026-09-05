@@ -65,8 +65,32 @@ public final class QIOAutomationDeviceRegistry {
     private int pendingCursor;
     private int pruneCursor;
     private int accessCursor;
+    private volatile boolean recipeGenerationRefreshPending;
+    private volatile long observedRecipeGeneration;
 
     private QIOAutomationDeviceRegistry() {
+    }
+
+    /**
+     * Main-thread notification that machine recipe semantics changed. The next QIO
+     * END tick republishes every loaded provider instead of waiting for the bounded
+     * access scan to make a full pass.
+     */
+    public void onRecipeGenerationChanged(long generation) {
+        if (generation < 0) {
+            throw new IllegalArgumentException("Recipe generation cannot be negative");
+        }
+        observedRecipeGeneration = Math.max(observedRecipeGeneration, generation);
+        recipeGenerationRefreshPending = true;
+    }
+
+    public long getObservedRecipeGeneration() {
+        return observedRecipeGeneration;
+    }
+
+    /** Package-visible diagnostic used by the headless generation contract test. */
+    boolean isRecipeGenerationRefreshPending() {
+        return recipeGenerationRefreshPending;
     }
 
     public synchronized void trackPending(@Nonnull DefaultQIOAutomationHost host) {
@@ -103,7 +127,48 @@ public final class QIOAutomationDeviceRegistry {
         processPending();
         QIOAutomationDeviceDirectoryCleanupService.processPendingChunks();
         pruneStaleEndpoints();
+        refreshRecipeProviders();
         refreshFrequencyAccess();
+    }
+
+    private void refreshRecipeProviders() {
+        if (!recipeGenerationRefreshPending) {
+            return;
+        }
+        recipeGenerationRefreshPending = false;
+        List<Endpoint> candidates = new ArrayList<>();
+        synchronized (this) {
+            for (LinkedHashMap<QIOAutomationDeviceLocation, Endpoint> endpoints : byUUID.values()) {
+                if (endpoints.size() == 1) {
+                    candidates.addAll(endpoints.values());
+                }
+            }
+        }
+        candidates.sort((first, second) -> first.location.compareTo(second.location));
+        for (Endpoint endpoint : candidates) {
+            try {
+                // Forget the cached revision so same-size replacements are also
+                // published. Provider revisions include RecipeHandler generation.
+                endpoint.clearPublishedRoutes();
+                publishSnapshot(endpoint);
+                QIOFrequencyReference reference = endpoint.host.getFrequencyReference();
+                if (reference != null) {
+                    QIOProcessingNetworkData network = QIOProcessingNetworkManager.INSTANCE.get(
+                          reference.getFrequencyUUID());
+                    if (network != null) {
+                        // Route publication may happen after the execution service's
+                        // normal provider stamp was captured. Wake provider waiters
+                        // directly so reloads do not wait for the fallback scan.
+                        network.wakeWaitingProviderJobs();
+                    }
+                    QIOProcessingExecutionService.INSTANCE.wakeStorage(reference.getFrequencyUUID());
+                }
+            } catch (RuntimeException error) {
+                recipeGenerationRefreshPending = true;
+                Mekanism.logger.warn("Unable to refresh QIO provider {} after recipe generation {}",
+                      endpoint.host.getPersistentDeviceUUID(), observedRecipeGeneration, error);
+            }
+        }
     }
 
     /**
@@ -378,6 +443,8 @@ public final class QIOAutomationDeviceRegistry {
         pendingCursor = 0;
         pruneCursor = 0;
         accessCursor = 0;
+        recipeGenerationRefreshPending = false;
+        observedRecipeGeneration = 0;
     }
 
     /** Explicitly clears a quarantine only after every endpoint has a distinct identity. */

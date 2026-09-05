@@ -17,7 +17,7 @@ public class SolarNeutronRecipe extends MachineRecipe<GasInput, GasOutput, Solar
 
     @Override
     public SolarNeutronRecipe copy() {
-        return new SolarNeutronRecipe(getInput(), getOutput());
+        return new SolarNeutronRecipe(getInput().copy(), getOutput().copy());
     }
 
     public boolean canOperate(IExtendedGasTank inputTank, IExtendedGasTank outputTank) {

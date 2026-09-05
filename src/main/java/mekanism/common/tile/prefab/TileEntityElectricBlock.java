@@ -221,7 +221,11 @@ public abstract class TileEntityElectricBlock extends TileEntityContainerBlock i
         runContainerTransaction(() -> {
             double max = getMaxEnergy();
             double sanitized = HeatAPI.isFinite(energy) ? Math.max(0, Math.min(energy, max)) : 0;
+            double previous = electricityStored.get();
             electricityStored.set(sanitized);
+            if (Double.compare(previous, sanitized) != 0) {
+                markProcessingStateChanged();
+            }
             MekanismUtils.saveChunk(this);
         });
     }

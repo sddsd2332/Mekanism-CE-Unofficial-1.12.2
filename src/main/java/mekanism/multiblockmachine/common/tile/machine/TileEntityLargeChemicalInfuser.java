@@ -163,8 +163,29 @@ public class TileEntityLargeChemicalInfuser extends TileEntityBasicMachine<Chemi
     }
 
     @Override
+    protected mekanism.common.recipe.cache.RecipeLaneCommitTarget createAsyncRecipeCommitTarget(CachedRecipe<ChemicalInfuserRecipe> cache) {
+        boolean normal = cache == null || leftTank.getGas() != null && rightTank.getGas() != null &&
+              leftTank.getGas().isGasEqual(cache.getRecipe().getInput().leftGas) && rightTank.getGas().isGasEqual(cache.getRecipe().getInput().rightGas);
+        return new mekanism.common.recipe.cache.RecipeLaneCommitTarget(cache)
+              .input("gas.0", normal ? leftTank : rightTank).input("gas.1", normal ? rightTank : leftTank).output("gas.0", centerTank);
+    }
+
+    @Override
+    public void afterAsyncRecipeCommit(mekanism.common.recipe.cache.RecipeRunSnapshot snapshot,
+          mekanism.common.recipe.cache.RecipeExecutionPlan plan) {
+        super.afterAsyncRecipeCommit(snapshot, plan);
+        clientEnergyUsed = plan.getEnergyAsDouble();
+        finishRecipeTick();
+    }
+
+    @Override
     public void onAsyncUpdateServer() {
-        super.onAsyncUpdateServer();
+        // Explicit planner owns capture, calculation, resource mutation and cache state.
+        commitAsyncRecipeTick();
+    }
+
+    @Override
+    public void prepareAsyncRecipeTick() {
         if (updateDelay > 0) {
             updateDelay--;
             if (updateDelay == 0) {
@@ -175,7 +196,9 @@ public class TileEntityLargeChemicalInfuser extends TileEntityBasicMachine<Chemi
         leftSlot.fillTank();
         rightSlot.fillTank();
         centerSlot.drainTank();
-        clientEnergyUsed = processRecipe(getMainEnergyContainer());
+    }
+
+    private void finishRecipeTick() {
         prevEnergy = getEnergy();
         if (needsPacket) {
             Mekanism.packetHandler.sendUpdatePacket(this);

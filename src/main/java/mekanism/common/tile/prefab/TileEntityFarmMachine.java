@@ -253,14 +253,19 @@ public abstract class TileEntityFarmMachine<RECIPE extends FarmMachineRecipe<REC
 
     @Override
     public void onAsyncUpdateServer() {
-        super.onAsyncUpdateServer();
+        commitAsyncRecipeTick();
+    }
+
+    @Override
+    public void prepareAsyncRecipeTick() {
         if (energySlot != null) {
             energySlot.fillContainerOrConvert();
         }
         handleSecondaryFuel();
         secondaryEnergyThisTick = useStatisticalMechanics() ? secondaryEnergySampler.sample(secondaryEnergyPerTick) : (int) Math.ceil(secondaryEnergyPerTick);
-        processRecipe();
-        prevEnergy = getEnergy();
+    }
+
+    private void updatePreviousMedium() {
         if (mergedTank.getCurrentType().isGas()) {
             prevGas = mergedTank.getGasTank().getGas().getGas();
             prevFluid = null;
@@ -268,6 +273,25 @@ public abstract class TileEntityFarmMachine<RECIPE extends FarmMachineRecipe<REC
             prevFluid = mergedTank.getFluidTank().getFluid().getFluid();
             prevGas = null;
         }
+    }
+
+    @Override
+    protected mekanism.common.recipe.cache.RecipeLaneCommitTarget createAsyncRecipeCommitTarget(CachedRecipe<RECIPE> cache) {
+        mekanism.common.recipe.cache.RecipeLaneCommitTarget target = new mekanism.common.recipe.cache.RecipeLaneCommitTarget(cache)
+              .input("item.0", inputSlot).pooledOutputs();
+        if (cache != null) {
+            if (cache.getRecipe().getInput().isGasInput()) target.input("gas.1", mergedTank.getGasTank());
+            else target.input("fluid.1", mergedTank.getFluidTank());
+        }
+        for (int index = 0; index < outputSlots.size(); index++) target.output("item." + index, outputSlots.get(index));
+        return target;
+    }
+
+    @Override
+    public void afterAsyncRecipeCommit(mekanism.common.recipe.cache.RecipeRunSnapshot snapshot,
+          mekanism.common.recipe.cache.RecipeExecutionPlan plan) {
+        super.afterAsyncRecipeCommit(snapshot, plan);
+        updatePreviousMedium();
     }
 
     @Override

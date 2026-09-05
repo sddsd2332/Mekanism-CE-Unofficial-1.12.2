@@ -17,6 +17,9 @@ import mekanism.common.inventory.slot.EnergyInventorySlot;
 import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.recipe.GasStackFuelToEnergyRecipe;
 import mekanism.common.recipe.RecipeHandler;
+import mekanism.common.recipe.cache.GasFuelPlan;
+import mekanism.common.recipe.cache.GasFuelState;
+import mekanism.common.recipe.cache.IAsyncGasFuelMachine;
 import mekanism.common.recipe.inputs.GasInput;
 import mekanism.common.util.ItemDataUtils;
 import mekanism.common.util.MekanismUtils;
@@ -30,7 +33,8 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 
 import javax.annotation.Nonnull;
 
-public class TileEntityGasGenerator extends TileEntityGenerator implements ISustainedData, IComparatorSupport, ISpecialSelectionWireframeTile {
+public class TileEntityGasGenerator extends TileEntityGenerator implements ISustainedData, IComparatorSupport,
+      ISpecialSelectionWireframeTile, IAsyncGasFuelMachine {
 
     private static final String[] methods = new String[]{"getEnergy", "getOutput", "getMaxEnergy", "getEnergyNeeded", "getGas", "getGasNeeded"};
     /**
@@ -75,46 +79,60 @@ public class TileEntityGasGenerator extends TileEntityGenerator implements ISust
 
     @Override
     public void onAsyncUpdateServer() {
-        super.onAsyncUpdateServer();
+        commitAsyncRecipeTick();
+    }
+
+    @Override
+    public void prepareAsyncRecipeTick() {
         energySlot.drainContainer();
-        boolean wasEmpty = fuelTank.getGas() == null;
-        if (fuelSlot.fillTank() && wasEmpty && RecipeHandler.getGasStackFuelToEnergyRecipe(fuelTank.getGas()) != null) {
-            output = RecipeHandler.getGasStackFuelToEnergyRecipe(fuelTank.getGas()).getOutput().energyOutput * 2;
-        }
+        fuelSlot.fillTank();
+    }
 
-        GasStackFuelToEnergyRecipe recipe = getRecipe();
-        boolean operate = recipe != null && canOperate();
-        if (operate && getEnergyContainer().insert(generationRate, Action.SIMULATE, AutomationType.INTERNAL) == 0) {
-            setActive(true);
-            if (fuelTank.getStored() != 0) {
-                maxBurnTicks = recipe.getInput().ingredient.amount;
-                generationRate = recipe.getOutput().energyOutput;
-            }
+    @Override
+    public Object getAsyncRecipeSnapshotSource() {
+        return getRecipe();
+    }
 
-            int toUse = getToUse();
-            output = Math.max(MekanismConfig.current().general.FROM_H2.val() * 2, generationRate * getToUse() * 2);
+    @Override
+    public mekanism.api.gas.IExtendedGasTank getAsyncFuelTank() {
+        return fuelTank;
+    }
 
-            int total = burnTicks + fuelTank.getStored() * maxBurnTicks;
-            total -= toUse;
-            getEnergyContainer().insert(generationRate * toUse, Action.EXECUTE, AutomationType.INTERNAL);
+    @Override
+    public GasFuelState getAsyncFuelState() {
+        return captureFuelState(burnTicks, maxBurnTicks, generationRate, clientUsed, 1, true,
+              MekanismConfig.current().general.FROM_H2.val() * 2);
+    }
 
-            if (fuelTank.getStored() > 0) {
-                fuelTank.setStackSize(total / maxBurnTicks, Action.EXECUTE);
-            }
-            burnTicks = total % maxBurnTicks;
-            clientUsed = toUse /(double)  maxBurnTicks;
-        } else {
-            if (!operate) {
-                reset();
-            }
-            clientUsed = 0;
-            setActive(false);
-        }
-        int newRedstoneLevel = getRedstoneLevel();
-        if (newRedstoneLevel != currentRedstoneLevel) {
+    @Override
+    public void applyAsyncFuelState(int burnTicks, int maxBurnTicks, double generationRate, double output, double clientUsed) {
+        this.burnTicks = burnTicks;
+        this.maxBurnTicks = maxBurnTicks;
+        this.generationRate = generationRate;
+        this.output = output;
+        this.clientUsed = clientUsed;
+    }
+
+    @Override
+    public void afterAsyncFuelCommit(GasFuelPlan plan) {
+        boolean wasActive = isActive;
+        setActive(plan.isActive());
+        if (wasActive != plan.isActive()) markNoUpdateSync();
+        int redstone = getRedstoneLevel();
+        if (redstone != currentRedstoneLevel) {
             updateComparatorOutputLevelSync();
-            currentRedstoneLevel = newRedstoneLevel;
+            currentRedstoneLevel = redstone;
         }
+    }
+
+    @Override
+    public long getAsyncRecipeCategoryGeneration() {
+        return RecipeHandler.Recipe.GAS_FUEL_TO_ENERGY_RECIPE.getRecipeGeneration();
+    }
+
+    @Override
+    public void commitAsyncRecipeTick() {
+        IAsyncGasFuelMachine.super.commitAsyncRecipeTick();
     }
 
     public void reset() {

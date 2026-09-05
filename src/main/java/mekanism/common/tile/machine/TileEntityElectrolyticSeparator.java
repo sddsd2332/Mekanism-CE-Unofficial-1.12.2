@@ -199,14 +199,34 @@ public class TileEntityElectrolyticSeparator extends TileEntityBasicMachine<Flui
     public int dumpAmount;
 
     @Override
+    protected mekanism.common.recipe.cache.RecipeLaneCommitTarget createAsyncRecipeCommitTarget(CachedRecipe<SeparatorRecipe> cache) {
+        return new mekanism.common.recipe.cache.RecipeLaneCommitTarget(cache)
+              .input("fluid.0", fluidTank).output("gas.0", leftTank).output("gas.1", rightTank).interchangeableOutputs();
+    }
+
+    @Override
+    public void afterAsyncRecipeCommit(mekanism.common.recipe.cache.RecipeRunSnapshot snapshot,
+          mekanism.common.recipe.cache.RecipeExecutionPlan plan) {
+        super.afterAsyncRecipeCommit(snapshot, plan);
+        clientEnergyUsed = plan.getEnergyAsDouble();
+        finishRecipeTick();
+    }
+
+    @Override
     public void onAsyncUpdateServer() {
-        super.onAsyncUpdateServer();
+        commitAsyncRecipeTick();
+    }
+
+    @Override
+    public void prepareAsyncRecipeTick() {
         energySlot.fillContainerOrConvert();
         inputSlot.fillTank();
         leftSlot.drainTank();
         rightSlot.drainTank();
 
-        clientEnergyUsed = processRecipe(getMainEnergyContainer());
+    }
+
+    private void finishRecipeTick() {
         prevEnergy = getEnergy();
         dumpAmount = 8 * Math.min((int) Math.pow(2, upgradeComponent.getUpgrades(Upgrade.SPEED)), MekanismConfig.current().mekce.MAXspeedmachines.val());
     }

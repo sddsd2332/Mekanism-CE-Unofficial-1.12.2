@@ -2,6 +2,8 @@ package mekanism.common.tile.prefab;
 
 import mekanism.api.Action;
 import mekanism.api.AutomationType;
+import mekanism.api.IAsyncMachinePlanner;
+import mekanism.api.IAsyncPlanCalculator;
 import mekanism.api.IConfigCardAccess;
 import mekanism.api.IContentsListener;
 import mekanism.api.energy.IEnergyContainer;
@@ -13,13 +15,22 @@ import mekanism.common.capabilities.Capabilities;
 import mekanism.common.capabilities.holder.energy.IEnergyContainerHolder;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.Upgrade;
+import mekanism.common.concurrent.TaskExecutor;
 import mekanism.common.integration.computer.IComputerIntegration;
 import mekanism.common.inventory.container.MekanismContainer;
 import mekanism.common.recipe.RecipeHandler;
 import mekanism.common.recipe.cache.CachedRecipe;
+import mekanism.common.recipe.cache.RecipeExecutionPlan;
+import mekanism.common.recipe.cache.RecipeExecutionPlanner;
+import mekanism.common.recipe.cache.AsyncMachinePlanSupport;
+import mekanism.common.recipe.cache.RecipeRunSnapshot;
+import mekanism.common.recipe.cache.RecipeRandomContext;
 import mekanism.common.recipe.cache.CachedRecipe.OperationTracker.RecipeError;
 import mekanism.common.recipe.cache.IRecipeLookupHandler;
 import mekanism.common.recipe.cache.RecipeCacheLookupMonitor;
+import mekanism.common.recipe.cache.IAsyncRecipeMachine;
+import mekanism.common.recipe.cache.RecipeLaneCommitTarget;
+import mekanism.common.recipe.cache.RecipeLanePlan;
 import mekanism.common.recipe.inputs.MachineInput;
 import mekanism.common.recipe.machines.MachineRecipe;
 import mekanism.common.recipe.outputs.MachineOutput;
@@ -31,6 +42,7 @@ import net.minecraft.util.EnumFacing;
 import net.minecraftforge.common.capabilities.Capability;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.*;
 import java.util.function.BooleanSupplier;
 
@@ -44,7 +56,7 @@ import java.util.function.BooleanSupplier;
 
 public abstract class TileEntityBasicMachine<INPUT extends MachineInput<INPUT>, OUTPUT extends MachineOutput<OUTPUT>, RECIPE extends MachineRecipe<INPUT, OUTPUT, RECIPE>> extends
         TileEntityOperationalMachine implements IComputerIntegration, ISideConfiguration, IConfigCardAccess,
-        IRecipeLookupHandler<RECIPE> {
+        IRecipeLookupHandler<RECIPE>, IAsyncRecipeMachine {
 
     public RECIPE cachedRecipe = null;
     protected RecipeCacheLookupMonitor<RECIPE> recipeCacheLookupMonitor = new RecipeCacheLookupMonitor<>(this);
@@ -52,6 +64,7 @@ public abstract class TileEntityBasicMachine<INPUT extends MachineInput<INPUT>, 
     private final List<RecipeError> trackedRecipeErrorTypes;
     private final boolean[] trackedRecipeErrors;
     private int cachedRecipeVersion = -1;
+    private long cachedRecipeGeneration = -1;
 
     public TileComponentEjector ejectorComponent;
     public TileComponentConfig configComponent;
@@ -166,16 +179,18 @@ public abstract class TileEntityBasicMachine<INPUT extends MachineInput<INPUT>, 
     }
 
     protected void refreshRecipeLookupCache() {
-        int recipeVersion = RecipeHandler.getGlobalRecipeVersion();
-        if (cachedRecipeVersion != recipeVersion) {
+        long recipeGeneration = RecipeHandler.getGlobalRecipeGeneration();
+        if (cachedRecipeGeneration != recipeGeneration) {
             clearRecipeLookupCache();
-            cachedRecipeVersion = recipeVersion;
+            cachedRecipeGeneration = recipeGeneration;
+            cachedRecipeVersion = RecipeHandler.getGlobalRecipeVersion();
         }
     }
 
     @Override
     public void onRecipeCacheInvalidated(int cacheIndex) {
         clearRecipeLookupCache();
+        cachedRecipeGeneration = RecipeHandler.getGlobalRecipeGeneration();
         cachedRecipeVersion = RecipeHandler.getGlobalRecipeVersion();
     }
 
@@ -229,6 +244,109 @@ public abstract class TileEntityBasicMachine<INPUT extends MachineInput<INPUT>, 
             }
             operatingTicks = 0;
         }
+    }
+
+    /**
+     * Captures every value visible to the generic recipe pre-planner. Subclasses
+     * with specialized semantics may override the planner methods, but must retain
+     * the same no-live-reference rule.
+     */
+    @Nonnull
+    @Override
+    public RecipeRunSnapshot captureSnapshot() {
+        return IAsyncRecipeMachine.super.captureSnapshot();
+    }
+
+    @Nonnull
+    @Override
+    public RecipeExecutionPlan calculatePlan(RecipeRunSnapshot snapshot) {
+        return RecipeExecutionPlanner.calculate(snapshot);
+    }
+
+    @Override
+    public IAsyncPlanCalculator<RecipeRunSnapshot, RecipeExecutionPlan> getAsyncPlanCalculator() {
+        return RecipeExecutionPlanner.detachedCalculator();
+    }
+
+    /**
+     * Recipe machines opt into worker planning only after they expose a complete
+     * live commit target. Unmigrated subclasses retain the server-thread path.
+     */
+    @Override
+    @Nullable
+    protected mekanism.api.IAsyncMachinePlanner<?, ?> getAsyncMachinePlanner() {
+        try {
+            return getAsyncRecipeCommitTargets().isEmpty() ? null : this;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    @Override
+    public void commitPlan(RecipeRunSnapshot snapshot, RecipeExecutionPlan plan) {
+        IAsyncRecipeMachine.super.commitPlan(snapshot, plan);
+    }
+
+    @Override
+    public Object getAsyncRecipeSnapshotSource() {
+        return getRecipe();
+    }
+
+    @Override
+    public void commitAsyncRecipeTick() {
+        IAsyncRecipeMachine.super.commitAsyncRecipeTick();
+    }
+
+    @Override
+    public Map<Integer, RecipeLaneCommitTarget> getAsyncRecipeCommitTargets() {
+        RecipeLaneCommitTarget target = createAsyncRecipeCommitTarget(recipeCacheLookupMonitor.prepareCache());
+        return target == null ? Collections.emptyMap() : Collections.singletonMap(0, target);
+    }
+
+    protected RecipeLaneCommitTarget createAsyncRecipeCommitTarget(CachedRecipe<RECIPE> cache) {
+        return null;
+    }
+
+    @Override
+    public void afterAsyncRecipeCommit(RecipeRunSnapshot snapshot, RecipeExecutionPlan plan) {
+        RecipeLanePlan lane = plan.getLane(0);
+        operatingTicks = lane.getNewOperatingTicks();
+        if (!snapshot.getLane(0).isRecipePresent() && prevEnergy >= getEnergy()) setActive(false);
+        prevEnergy = getEnergy();
+        // The legacy processing loop resolves the cache again after a completion.
+        // Refresh here so depleted inputs clear the old cache in the same tick.
+        recipeCacheLookupMonitor.refreshAfterPlanCommit();
+    }
+
+    @Override
+    public boolean isPlanStillValid(RecipeRunSnapshot snapshot, RecipeExecutionPlan plan) {
+        if (plan == null || !plan.isValidFor(snapshot) ||
+            RecipeHandler.getGlobalRecipeGeneration() != snapshot.getGlobalRecipeGeneration()) {
+            return false;
+        }
+        RECIPE currentRecipe = getRecipe();
+        return snapshot.getConfigurationVersion() == getProcessingStateVersion() &&
+              snapshot.getQioLeaseVersion() == getAsyncLeaseVersion() &&
+              snapshot.getPortOwnershipVersion() == getAsyncPortOwnershipVersion() &&
+              snapshot.getMode().equals(getAsyncMode()) &&
+              AsyncMachinePlanSupport.isStillValid(this, snapshot, plan, currentRecipe,
+                    getAsyncRecipeCategoryGeneration());
+    }
+
+    /** Hook for machines which can expose their category-specific generation. */
+    public long getAsyncRecipeCategoryGeneration() {
+        Map<INPUT, RECIPE> recipes = getRecipes();
+        for (RecipeHandler.Recipe<?, ?, ?> category : RecipeHandler.Recipe.values()) {
+            if (category.get() == recipes) {
+                return category.getRecipeGeneration();
+            }
+        }
+        return RecipeHandler.getGlobalRecipeGeneration();
+    }
+
+    /** Stable value for recipe modes which alter the input/output direction. */
+    public String getAsyncMode() {
+        return "";
     }
 
     protected double processRecipe(IEnergyContainer energyContainer) {

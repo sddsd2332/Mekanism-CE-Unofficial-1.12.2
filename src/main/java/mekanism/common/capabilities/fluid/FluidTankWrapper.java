@@ -40,6 +40,11 @@ public class FluidTankWrapper implements IExtendedFluidTank, IContentsListenerRe
     }
 
     @Override
+    public void setStackUncheckedNoUpdate(@Nullable FluidStack stack) {
+        internal.setStackUncheckedNoUpdate(stack);
+    }
+
+    @Override
     @Nullable
     public FluidStack insert(@Nullable FluidStack stack, Action action, AutomationType automationType) {
         return canInsert() ? internal.insert(stack, action, automationType) : stack;

@@ -17,7 +17,7 @@ public class IsotopicRecipe extends MachineRecipe<GasInput, GasOutput, IsotopicR
 
     @Override
     public IsotopicRecipe copy() {
-        return new IsotopicRecipe(getInput(), getOutput());
+        return new IsotopicRecipe(getInput().copy(), getOutput().copy());
     }
 
     public boolean canOperate(IExtendedGasTank inputTank, IExtendedGasTank outputTank) {

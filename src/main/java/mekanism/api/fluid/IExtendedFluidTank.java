@@ -19,6 +19,11 @@ public interface IExtendedFluidTank extends IFluidTank, INBTSerializable<NBTTagC
 
     void setStackUnchecked(@Nullable FluidStack stack);
 
+    /** Listener-free server transaction write. The caller must validate first and notify after commit. */
+    default void setStackUncheckedNoUpdate(@Nullable FluidStack stack) {
+        throw new UnsupportedOperationException("This tank does not support atomic recipe writes");
+    }
+
     boolean isFluidValid(@Nullable FluidStack stack);
 
     @Nullable

@@ -149,10 +149,19 @@ public class TileEntityPRC extends TileEntityUpgradeableMachine<PressurizedInput
     }
 @Override
     public void onAsyncUpdateServer() {
-        super.onAsyncUpdateServer();
+        commitAsyncRecipeTick();
+    }
+
+    @Override
+    public void prepareAsyncRecipeTick() {
         energySlot.fillContainerOrConvert();
-        processRecipe();
-        prevEnergy = getEnergy();
+    }
+
+    @Override
+    protected mekanism.common.recipe.cache.RecipeLaneCommitTarget createAsyncRecipeCommitTarget(CachedRecipe<PressurizedRecipe> cache) {
+        return new mekanism.common.recipe.cache.RecipeLaneCommitTarget(cache)
+              .input("item.0", inputSlot).input("fluid.1", inputFluidTank).input("gas.2", inputGasTank)
+              .output("item.0", outputSlot).output("gas.1", outputGasTank);
     }
 
     @Override

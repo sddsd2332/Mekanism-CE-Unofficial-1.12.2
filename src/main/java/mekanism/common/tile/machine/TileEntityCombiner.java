@@ -26,6 +26,17 @@ public class TileEntityCombiner extends TileEntityDoubleElectricMachine<Combiner
     @Override
     public void onAsyncUpdateServer() {
         super.onAsyncUpdateServer();
+        updateStoneGenerator();
+    }
+
+    @Override
+    public void afterAsyncRecipeCommit(mekanism.common.recipe.cache.RecipeRunSnapshot snapshot,
+          mekanism.common.recipe.cache.RecipeExecutionPlan plan) {
+        super.afterAsyncRecipeCommit(snapshot, plan);
+        updateStoneGenerator();
+    }
+
+    private void updateStoneGenerator() {
         if (isUpgradeInstalled(Upgrade.STONE_GENERATOR) && extraSlot.isEmpty()) {
             generateSecondaryInput();
         }

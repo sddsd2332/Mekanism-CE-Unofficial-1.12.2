@@ -15,6 +15,7 @@ import mekanism.common.inventory.slot.OutputInventorySlot;
 import mekanism.common.inventory.warning.WarningTracker.WarningType;
 import mekanism.common.recipe.RecipeHandler;
 import mekanism.common.recipe.cache.CachedRecipe;
+import mekanism.common.recipe.cache.IAsyncRecipeMachine;
 import mekanism.common.recipe.cache.CachedRecipe.OperationTracker.RecipeError;
 import mekanism.common.recipe.cache.TwoInputCachedRecipe;
 import mekanism.common.recipe.cache.inputs.InputHelper;
@@ -117,12 +118,27 @@ public abstract class TileEntityDoubleElectricMachine<RECIPE extends DoubleMachi
 
     @Override
     public void onAsyncUpdateServer() {
+        if (getAsyncMachinePlanner() != null) {
+            commitAsyncRecipeTick();
+            return;
+        }
         super.onAsyncUpdateServer();
+        prepareAsyncRecipeTick();
+        processRecipe();
+        prevEnergy = getEnergy();
+    }
+
+    @Override
+    public void prepareAsyncRecipeTick() {
         if (energySlot != null) {
             energySlot.fillContainerOrConvert();
         }
-        processRecipe();
-        prevEnergy = getEnergy();
+    }
+
+    @Override
+    protected mekanism.common.recipe.cache.RecipeLaneCommitTarget createAsyncRecipeCommitTarget(CachedRecipe<RECIPE> cache) {
+        return new mekanism.common.recipe.cache.RecipeLaneCommitTarget(cache)
+              .input("item.0", inputSlot).output("item.0", outputSlot).input("item.1", extraSlot);
     }
 
     @Override

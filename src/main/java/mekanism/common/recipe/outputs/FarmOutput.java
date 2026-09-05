@@ -8,6 +8,8 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraftforge.common.util.Constants;
+import mekanism.common.recipe.cache.RecipeExecutionPlanner;
+import mekanism.common.recipe.cache.RecipeRandomContext;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -150,7 +152,14 @@ public class FarmOutput extends MachineOutput<FarmOutput> {
     }
 
     public List<ItemStack> getOutputs() {
-        return getOutputs(RANDOM);
+        List<ItemStack> outputs = new ArrayList<>(chanceOutputs.size() + 1);
+        outputs.add(getGuaranteedOutput());
+        for (FarmChanceOutput chanceOutput : chanceOutputs) {
+            if (RecipeRandomContext.nextDouble(RANDOM) < chanceOutput.getChance()) {
+                outputs.add(chanceOutput.getOutput());
+            }
+        }
+        return outputs;
     }
 
     public List<ItemStack> getOutputs(Random random) {
@@ -158,6 +167,20 @@ public class FarmOutput extends MachineOutput<FarmOutput> {
         outputs.add(getGuaranteedOutput());
         for (FarmChanceOutput chanceOutput : chanceOutputs) {
             if (random.nextDouble() < chanceOutput.getChance()) {
+                outputs.add(chanceOutput.getOutput());
+            }
+        }
+        return outputs;
+    }
+
+    /** Deterministic counterpart used by immutable recipe execution plans. */
+    public List<ItemStack> getOutputs(long randomSeed, long operationIndex) {
+        List<ItemStack> outputs = new ArrayList<>(chanceOutputs.size() + 1);
+        outputs.add(getGuaranteedOutput());
+        long sequence = operationIndex * (long) Math.max(1, chanceOutputs.size());
+        for (int index = 0; index < chanceOutputs.size(); index++) {
+            FarmChanceOutput chanceOutput = chanceOutputs.get(index);
+            if (RecipeExecutionPlanner.roll(randomSeed, sequence + index, chanceOutput.getChance())) {
                 outputs.add(chanceOutput.getOutput());
             }
         }
@@ -177,7 +200,7 @@ public class FarmOutput extends MachineOutput<FarmOutput> {
             return ItemStack.EMPTY;
         }
         FarmChanceOutput output = chanceOutputs.get(0);
-        return RANDOM.nextDouble() < output.getChance() ? output.getOutput() : ItemStack.EMPTY;
+        return RecipeRandomContext.nextDouble(RANDOM) < output.getChance() ? output.getOutput() : ItemStack.EMPTY;
     }
 
     public ItemStack nextSecondaryOutput() {

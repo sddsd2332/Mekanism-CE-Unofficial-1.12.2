@@ -18,6 +18,7 @@ import mekanism.qioprocessing.common.content.QIOProcessingNetworkData;
 import mekanism.qioprocessing.common.content.QIOProcessingNetworkManager;
 import mekanism.qioprocessing.common.content.transfer.QIODurableTransferRecord;
 import mekanism.qioprocessing.common.util.QIOHashing;
+import mekanism.common.tile.prefab.TileEntityBasicBlock;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.tileentity.TileEntity;
@@ -84,6 +85,7 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
     private boolean clearModeWhenDrained;
     private State state = State.UNBOUND;
     private long configurationRevision;
+    private long ownershipRevision;
     private boolean managementPaused;
     private Map<UUID, MachineOperationLease> leases = new LinkedHashMap<>();
     private Map<UUID, MachineOperationToken> operationTokens = new LinkedHashMap<>();
@@ -227,6 +229,22 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
     @Override
     public long getConfigurationRevision() {
         return configurationRevision;
+    }
+
+    /** Monotonic runtime revision for lease, token and port ownership changes. */
+    public long getOwnershipRevision() {
+        return ownershipRevision;
+    }
+
+    /** Alias used by the machine planner snapshot contract. */
+    @Override
+    public long getLeaseRevision() {
+        return ownershipRevision;
+    }
+
+    @Override
+    public long getPortOwnershipRevision() {
+        return ownershipRevision;
     }
 
     /** 返回管理端是否暂时暂停了新操作。 */
@@ -2258,6 +2276,12 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
     }
 
     private void markDirty() {
+        if (ownershipRevision != Long.MAX_VALUE) {
+            ownershipRevision++;
+        }
+        if (tile instanceof TileEntityBasicBlock) {
+            ((TileEntityBasicBlock) tile).invalidateProcessingState();
+        }
         if (clearModeWhenDrained && !hasRemovalOwnedState()) {
             completePendingModeClearIfReady();
             return;

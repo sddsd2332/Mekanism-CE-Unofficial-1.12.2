@@ -182,8 +182,27 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
     }
 
     @Override
+    protected mekanism.common.recipe.cache.RecipeLaneCommitTarget createAsyncRecipeCommitTarget(CachedRecipe<WasherRecipe> cache) {
+        return new mekanism.common.recipe.cache.RecipeLaneCommitTarget(cache)
+              .input("gas.0", inputTank).input("fluid.1", fluidTank).output("gas.0", outputTank);
+    }
+
+    @Override
+    public void afterAsyncRecipeCommit(mekanism.common.recipe.cache.RecipeRunSnapshot snapshot,
+          mekanism.common.recipe.cache.RecipeExecutionPlan plan) {
+        super.afterAsyncRecipeCommit(snapshot, plan);
+        clientEnergyUsed = plan.getEnergyAsDouble();
+        finishRecipeTick();
+    }
+
+    @Override
     public void onAsyncUpdateServer() {
-        super.onAsyncUpdateServer();
+        // Explicit planner owns capture, calculation, resource mutation and cache state.
+        commitAsyncRecipeTick();
+    }
+
+    @Override
+    public void prepareAsyncRecipeTick() {
         if (updateDelay > 0) {
             updateDelay--;
             if (updateDelay == 0) {
@@ -193,7 +212,9 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
         energySlot.fillContainerOrConvert();
         manageBuckets();
         outputGasSlot.drainTank();
-        clientEnergyUsed = processRecipe(getMainEnergyContainer());
+    }
+
+    private void finishRecipeTick() {
         prevEnergy = getEnergy();
         int newRedstoneLevel = getRedstoneLevel();
         if (newRedstoneLevel != currentRedstoneLevel) {

@@ -106,7 +106,11 @@ public class TileEntityMetallurgicInfuser extends TileEntityUpgradeableMachine<I
     }
     @Override
     public void onAsyncUpdateServer() {
-        super.onAsyncUpdateServer();
+        commitAsyncRecipeTick();
+    }
+
+    @Override
+    public void prepareAsyncRecipeTick() {
         energySlot.fillContainerOrConvert();
         ItemStack infuseInput = extraSlot.getStack();
         if (!infuseInput.isEmpty()) {
@@ -119,8 +123,12 @@ public class TileEntityMetallurgicInfuser extends TileEntityUpgradeableMachine<I
                 recipeCacheLookupMonitor.onChange();
             }
         }
-        processRecipe();
-        prevEnergy = getEnergy();
+    }
+
+    @Override
+    protected mekanism.common.recipe.cache.RecipeLaneCommitTarget createAsyncRecipeCommitTarget(CachedRecipe<MetallurgicInfuserRecipe> cache) {
+        return new mekanism.common.recipe.cache.RecipeLaneCommitTarget(cache)
+              .input("item.0", inputSlot).input("infuse.1", infuseStored).output("item.0", outputSlot);
     }
 
     @Override

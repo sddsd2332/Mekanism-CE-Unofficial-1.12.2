@@ -903,6 +903,7 @@ public class TileComponentConfig implements ITileComponent, ISpecificContainerTr
     }
 
     private void notifyConfigChangeListeners(TransmissionType type, EnumFacing side) {
+        tileEntity.invalidateProcessingState();
         for (Consumer<EnumFacing> listener : configChangeListeners.getOrDefault(type, Collections.emptyList())) {
             listener.accept(side);
         }

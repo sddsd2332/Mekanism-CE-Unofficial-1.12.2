@@ -15,6 +15,7 @@ import net.minecraftforge.event.world.ExplosionEvent;
 import net.minecraftforge.event.world.WorldEvent;
 import net.minecraftforge.fml.common.eventhandler.EventPriority;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import net.minecraftforge.fml.common.FMLCommonHandler;
 
 import javax.annotation.Nonnull;
 
@@ -53,12 +54,17 @@ public final class QIOAutomationEventHandler {
         }
         QIOAutomationHostProvider hostProvider = new QIOAutomationHostProvider(tile);
         event.addCapability(QIOAutomationCapabilities.NAME, hostProvider);
+        if (!FMLCommonHandler.instance().getEffectiveSide().isClient()) {
+            QIOAutomationTileTickService.INSTANCE.registerHost(tile, hostProvider.host());
+        }
         QIOAutomationDeviceRegistry.INSTANCE.trackPending(hostProvider.host());
     }
 
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public void onBlockBreak(@Nonnull BlockEvent.BreakEvent event) {
         if (!event.getWorld().isRemote) {
+            QIOAutomationTileTickService.INSTANCE.unregisterHost(
+                  event.getWorld().getTileEntity(event.getPos()));
             QIOAutomationDeviceDirectoryCleanupService.forgetLoadedTile(
                   event.getWorld().getTileEntity(event.getPos()));
         }
@@ -70,6 +76,8 @@ public final class QIOAutomationEventHandler {
             return;
         }
         for (BlockPos position : event.getAffectedBlocks()) {
+            QIOAutomationTileTickService.INSTANCE.unregisterHost(
+                  event.getWorld().getTileEntity(position));
             QIOAutomationDeviceDirectoryCleanupService.forgetLoadedTile(
                   event.getWorld().getTileEntity(position));
         }
@@ -96,6 +104,7 @@ public final class QIOAutomationEventHandler {
         if (!event.getWorld().isRemote) {
             QIOAutomationDeviceDirectoryCleanupService.discardDimension(
                   event.getWorld().provider.getDimension());
+            QIOAutomationTileTickService.INSTANCE.clearHosts();
         }
     }
 }

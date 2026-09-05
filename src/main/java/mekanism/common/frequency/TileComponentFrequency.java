@@ -134,6 +134,7 @@ public class TileComponentFrequency implements ITileComponent {
             }
         }
         if (!frequency.equals(oldFrequency)) {
+            tile.invalidateProcessingState();
             deactivate(type, data);
             frequency.update(tile);
             data.frequency = frequency;
@@ -165,6 +166,7 @@ public class TileComponentFrequency implements ITileComponent {
 
     private <FREQ extends Frequency> void unsetFrequency(FrequencyType<FREQ> type, FrequencyData data) {
         if (data != null && data.frequency != null) {
+            tile.invalidateProcessingState();
             deactivate(type, data);
             data.frequency = null;
             setNeedsNotify(data);
@@ -200,6 +202,7 @@ public class TileComponentFrequency implements ITileComponent {
         }
         FREQ frequency = (FREQ) data.frequency;
         if (frequency.isRemoved()) {
+            tile.invalidateProcessingState();
             deactivate(type, data);
             data.frequency = null;
             setNeedsNotify(data);

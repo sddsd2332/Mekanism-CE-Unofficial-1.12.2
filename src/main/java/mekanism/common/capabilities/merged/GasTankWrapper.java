@@ -49,6 +49,11 @@ public class GasTankWrapper implements IExtendedGasTank, IContentsListenerRegist
         internal.setStackUnchecked(stack);
     }
 
+    @Override
+    public void setStackUncheckedNoUpdate(@Nullable GasStack stack) {
+        internal.setStackUncheckedNoUpdate(stack);
+    }
+
     private boolean canInsert() {
         return insertCheck.getAsBoolean();
     }

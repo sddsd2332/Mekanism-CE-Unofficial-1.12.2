@@ -60,6 +60,11 @@ public class ItemStackConstantFarmCachedRecipe<RECIPE extends FarmMachineRecipe<
     }
 
     @Override
+    public java.util.Map<String, Long> getPlanInputMultipliers() {
+        return java.util.Collections.singletonMap(gasRecipe ? "gas.1" : "fluid.1", secondaryUsageMultiplier);
+    }
+
+    @Override
     protected void calculateOperationsThisTick(OperationTracker tracker) {
         super.calculateOperationsThisTick(tracker);
         if (!tracker.shouldContinueChecking()) {
@@ -129,6 +134,12 @@ public class ItemStackConstantFarmCachedRecipe<RECIPE extends FarmMachineRecipe<
         super.resetCache();
         secondaryUsedSoFar = 0;
         secondaryUsedSoFarChanged.accept(0);
+    }
+
+    @Override
+    protected void applyPlannedResourceState(RecipeLaneSnapshot snapshot, RecipeLanePlan plan) {
+        secondaryUsedSoFar += plan.getOperations() * snapshot.getPerTickInputMultiplier(gasRecipe ? "gas.1" : "fluid.1");
+        secondaryUsedSoFarChanged.accept(secondaryUsedSoFar);
     }
 
     @Override

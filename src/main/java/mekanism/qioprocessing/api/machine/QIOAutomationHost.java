@@ -104,6 +104,16 @@ public interface QIOAutomationHost extends INBTSerializable<NBTTagCompound> {
     /** 返回用于端点快照和并发校验的配置版本号。 */
     long getConfigurationRevision();
 
+    /** Runtime revision for lease/token ownership used by machine plan validation. */
+    default long getLeaseRevision() {
+        return getConfigurationRevision();
+    }
+
+    /** Runtime revision for leased port groups used by machine plan validation. */
+    default long getPortOwnershipRevision() {
+        return getLeaseRevision();
+    }
+
     /** 返回管理端是否暂时暂停了该机器。 */
     default boolean isManagementPaused() {
         return false;

@@ -263,6 +263,9 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
     }
 
     private void onUpgradeChanged(Upgrade upgrade, int previousAmount, int amount) {
+        // Upgrade count and derived machine limits are part of the snapshot
+        // contract, so invalidate plans before recalculating their values.
+        tileEntity.invalidateProcessingState();
         tileEntity.recalculateUpgradables(upgrade);
         upgrade.onChanged(tileEntity, previousAmount, amount);
         if (upgrade == Upgrade.MUFFLING) {

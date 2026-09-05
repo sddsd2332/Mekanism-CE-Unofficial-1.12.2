@@ -115,8 +115,25 @@ public class TileEntityChemicalCrystallizer extends TileEntityBasicMachine<GasIn
     }
 
     @Override
+    protected mekanism.common.recipe.cache.RecipeLaneCommitTarget createAsyncRecipeCommitTarget(CachedRecipe<CrystallizerRecipe> cache) {
+        return new mekanism.common.recipe.cache.RecipeLaneCommitTarget(cache)
+              .input("gas.0", inputTank).output("item.0", outputSlot);
+    }
+
+    @Override
+    public void afterAsyncRecipeCommit(mekanism.common.recipe.cache.RecipeRunSnapshot snapshot,
+          mekanism.common.recipe.cache.RecipeExecutionPlan plan) {
+        super.afterAsyncRecipeCommit(snapshot, plan);
+        finishRecipeTick();
+    }
+
+    @Override
     public void onAsyncUpdateServer() {
-        super.onAsyncUpdateServer();
+        commitAsyncRecipeTick();
+    }
+
+    @Override
+    public void prepareAsyncRecipeTick() {
         if (updateDelay > 0) {
             updateDelay--;
             if (updateDelay == 0) {
@@ -125,7 +142,9 @@ public class TileEntityChemicalCrystallizer extends TileEntityBasicMachine<GasIn
         }
         energySlot.fillContainerOrConvert();
         inputSlot.fillTank();
-        processRecipe();
+    }
+
+    private void finishRecipeTick() {
         prevEnergy = getEnergy();
         if (needsPacket) {
             Mekanism.packetHandler.sendUpdatePacket(this);
