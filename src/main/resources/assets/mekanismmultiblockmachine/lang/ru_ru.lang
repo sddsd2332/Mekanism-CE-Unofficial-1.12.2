@@ -1,0 +1,37 @@
+gui.protection=защита
+gui.protection.off=принудительный запуск включён
+gui.Blades_damaged=Лопасти повреждены
+gui.Blades_damaged_number=Количество повреждений
+gui.forced_run=Принудительный запуск
+gui.forced_run_off=Отключить принудительный запуск
+gui.updateRun=Обновить запуск
+gui.protection2=В этой зоне уже есть большие ветрогенераторы
+tile.LargeWindGenerator.name=Большой ветрогенератор
+tooltip.LargeWindGenerator=Большой генератор, использующий силу ветра для выработки энергии, более эффективный на больших высотах
+tile.LargeGasGenerator.name=Большой газовый генератор
+tooltip.LargeGasGenerator=Большой генератор, использующий молекулярно изменяемые газы для выработки энергии
+tile.LargeElectrolyticSeparator.name=Большой электролитический сепаратор
+tooltip.LargeElectrolyticSeparator=Большая машина, использующая процесс электролиза для разделения определённого газа на два различных газа
+tile.LargeChemicalInfuser.name=Большой химический инфузер
+tooltip.LargeChemicalInfuser=Большая машина, производящая новый газ путём смешивания двух других
+tile.LargeChemicalWasher.name=Большая химическая мойка
+tooltip.LargeChemicalWasher=Большая ультимативная машина, очищающая необработанную суспензию и подготавливающая её к кристаллизации
+tile.LargeSolarNeutronActivator.name=Большой солнечный нейтронный активатор
+tooltip.LargeSolarNeutronActivator=Большая машина, направляющая нейтронное излучение Солнца в собственную камеру, способная производить различные изотопы
+item.high_frequency_fusion_molding_module.name=Модуль плазменного сопла
+item.gas_adsorption_fractionation_module.name=Модуль очистки газа
+item.LaserLenses.name=Линзы лазера
+item.advanced_electrolysis_core.name=Улучшенное ядро электролиза
+item.ThreadUpgrade.name=Улучшение потоков
+upgrade.thread=Дополнительные потоки
+upgrade.thread.desc=Параллельная обработка существующих рабочих рецептов для машин
+tile.MidsizeGasTank.name=Газовые резервуары среднего размера
+tile.MultiblockGasTank.name=Большие газовые резервуары
+tooltip.canPlace.pos=Невозможно установить машину, позиция содержит блок
+tooltip.tileEntity.pos=Невозможно установить машину, в этом месте уже находится такая же машина
+
+# Creative tab
+itemGroup.tabMekanismMultiblockMachine=Многоблочные машины Mekanism
+mekanism.configgui.ctgy.multiblock.multiblock=Настройка мультиблока
+mekanism.configgui.ctgy.multiblock.multiblockmachinegenerators=Настройка мультиблочных генераторов
+mekanism.configgui.ctgy.multiblock.multiblockmachines=Настройка мультиблочных машин
