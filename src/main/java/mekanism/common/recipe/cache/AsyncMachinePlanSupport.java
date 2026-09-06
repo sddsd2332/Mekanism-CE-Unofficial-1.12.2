@@ -9,7 +9,6 @@ import mekanism.common.base.IActiveState;
 import mekanism.common.base.IUpgradeTile;
 import mekanism.common.recipe.RecipeHandler;
 import mekanism.common.recipe.RecipeSnapshotCompiler;
-import mekanism.common.recipe.machines.MachineRecipe;
 import mekanism.common.tile.prefab.TileEntityBasicBlock;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
 import mekanism.common.tile.prefab.TileEntityElectricBlock;
@@ -237,7 +236,7 @@ public final class AsyncMachinePlanSupport {
         if (recipeSource == null) {
             return "missing";
         }
-        return RecipeSnapshotCompiler.semanticSignature(copyRecipeSource(recipeSource));
+        return RecipeSnapshotCompiler.semanticSignature(recipeSource);
     }
 
     public static synchronized void invalidateCompiledSource(TileEntityBasicBlock tile) {
@@ -287,29 +286,6 @@ public final class AsyncMachinePlanSupport {
         List<RecipeSemanticsSnapshot> semantics = new ArrayList<>(values.size());
         for (Object value : values) semantics.add(RecipeSemanticsCompiler.compile(value, mode));
         return Collections.unmodifiableList(semantics);
-    }
-
-    private static Object copyRecipeSource(Object source) {
-        if (source instanceof MachineRecipe<?, ?, ?>) {
-            return ((MachineRecipe<?, ?, ?>) source).copy();
-        }
-        if (source instanceof Iterable<?>) {
-            List<Object> copy = new ArrayList<>();
-            for (Object value : (Iterable<?>) source) {
-                copy.add(value instanceof MachineRecipe<?, ?, ?> ?
-                      ((MachineRecipe<?, ?, ?>) value).copy() : value);
-            }
-            return copy;
-        }
-        if (source instanceof Object[]) {
-            List<Object> copy = new ArrayList<>();
-            for (Object value : (Object[]) source) {
-                copy.add(value instanceof MachineRecipe<?, ?, ?> ?
-                      ((MachineRecipe<?, ?, ?>) value).copy() : value);
-            }
-            return copy;
-        }
-        return source;
     }
 
     private static long seed(TileEntityBasicBlock tile, long worldTime, long stateVersion) {

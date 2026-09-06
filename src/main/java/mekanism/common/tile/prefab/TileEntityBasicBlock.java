@@ -24,6 +24,7 @@ import mekanism.common.inventory.container.MekanismTileContainer;
 import mekanism.common.network.PacketDataRequest.DataRequestMessage;
 import mekanism.common.network.PacketTileEntity.TileEntityMessage;
 import mekanism.common.recipe.RecipeHandler;
+import mekanism.common.recipe.UnsupportedRecipeSignatureException;
 import mekanism.common.recipe.cache.RecipeExecutionPlan;
 import mekanism.common.recipe.cache.RecipeRunSnapshot;
 import mekanism.common.recipe.cache.AsyncMachinePlanSupport;
@@ -74,6 +75,8 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
     private final AtomicLong processingStateVersion = new AtomicLong();
     /** At most one calculation may be waiting for a commit for this tile. */
     private final AtomicReference<PendingAsyncPlan> pendingAsyncPlan = new AtomicReference<>();
+    @Nullable
+    private String lastRecipeSignatureFailure;
     private boolean serverEjectionSuppressedForCurrentTick;
 
     private static final class PendingAsyncPlan {
@@ -380,6 +383,9 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
         Object snapshot;
         try {
             snapshot = planner.captureSnapshot();
+        } catch (UnsupportedRecipeSignatureException error) {
+            reportUnsupportedRecipeSignature(error);
+            return;
         } catch (Throwable error) {
             Mekanism.logger.warn("Unable to capture async machine snapshot for {}", getClass().getName(), error);
             return;
@@ -427,7 +433,11 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
             IAsyncMachinePlanner planner = (IAsyncMachinePlanner) getAsyncMachinePlanner();
             if (planner == null) return;
             if (pending.failure != null) {
-                Mekanism.logger.warn("Async machine calculation failed for {} at {}", getClass().getName(), getPos(), pending.failure);
+                if (pending.failure instanceof UnsupportedRecipeSignatureException) {
+                    reportUnsupportedRecipeSignature((UnsupportedRecipeSignatureException) pending.failure);
+                } else {
+                    Mekanism.logger.warn("Async machine calculation failed for {} at {}", getClass().getName(), getPos(), pending.failure);
+                }
                 invokeDiscarded(pending, pending.failure);
                 return;
             }
@@ -444,6 +454,10 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
             } else {
                 planner.commitPlan(pending.snapshot, pending.plan);
             }
+            lastRecipeSignatureFailure = null;
+        } catch (UnsupportedRecipeSignatureException error) {
+            reportUnsupportedRecipeSignature(error);
+            invokeDiscarded(pending, error);
         } catch (Throwable error) {
             Mekanism.logger.warn("Async machine {} failed for {} at {}", phase, getClass().getName(), getPos(), error);
             invokeDiscarded(pending, error);
@@ -505,6 +519,8 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
             Object snapshot = planner.captureSnapshot();
             if (snapshot == null) return;
             runPlannerSynchronously(planner, snapshot);
+        } catch (UnsupportedRecipeSignatureException error) {
+            reportUnsupportedRecipeSignature(error);
         } catch (Throwable error) {
             Mekanism.logger.warn("Synchronous machine planner failed for {}", getClass().getName(), error);
         }
@@ -512,19 +528,38 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
 
     @SuppressWarnings("unchecked")
     private void runPlannerSynchronously(IAsyncMachinePlanner planner, Object snapshot) {
+        Object plan = null;
         try {
-            Object plan = planner.calculatePlan(snapshot);
+            plan = planner.calculatePlan(snapshot);
             if (plan != null && planner.isPlanStillValid(snapshot, plan)) {
                 if (snapshot instanceof RecipeRunSnapshot) {
-                    RecipeRandomContext.run(((RecipeRunSnapshot) snapshot).getRandomSeed(), () -> planner.commitPlan(snapshot, plan));
+                    Object completedPlan = plan;
+                    RecipeRandomContext.run(((RecipeRunSnapshot) snapshot).getRandomSeed(), () -> planner.commitPlan(snapshot, completedPlan));
                 } else {
                     planner.commitPlan(snapshot, plan);
                 }
+                lastRecipeSignatureFailure = null;
             } else {
                 planner.onPlanDiscarded(snapshot, plan, null);
             }
+        } catch (UnsupportedRecipeSignatureException error) {
+            reportUnsupportedRecipeSignature(error);
+            try {
+                planner.onPlanDiscarded(snapshot, plan, error);
+            } catch (Throwable discardError) {
+                Mekanism.logger.warn("Synchronous machine discard callback failed for {}", getClass().getName(), discardError);
+            }
         } catch (Throwable error) {
             Mekanism.logger.warn("Synchronous machine planner failed for {}", getClass().getName(), error);
+        }
+    }
+
+    private void reportUnsupportedRecipeSignature(UnsupportedRecipeSignatureException error) {
+        String failure = error.getMessage();
+        if (!failure.equals(lastRecipeSignatureFailure)) {
+            lastRecipeSignatureFailure = failure;
+            Mekanism.logger.warn("Recipe planning skipped for {} at {}: {}. Repeated identical signature warnings are suppressed until a successful commit.",
+                  getClass().getName(), getPos(), failure);
         }
     }
 

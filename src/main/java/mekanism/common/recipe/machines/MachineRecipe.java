@@ -32,6 +32,6 @@ public abstract class MachineRecipe<INPUT extends MachineInput<?>, OUTPUT extend
 
     /** Stable semantic projection; never exposes the mutable recipe fields. */
     public final String semanticSignature() {
-        return RecipeSnapshotCompiler.semanticSignature(copyForAsync());
+        return RecipeSnapshotCompiler.semanticSignature(this);
     }
 }
