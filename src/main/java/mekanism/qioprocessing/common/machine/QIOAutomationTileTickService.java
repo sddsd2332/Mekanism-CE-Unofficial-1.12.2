@@ -1,14 +1,20 @@
 package mekanism.qioprocessing.common.machine;
 
 import mekanism.api.processing.QIOAutomationMode;
+import mekanism.common.recipe.cache.AsyncMachinePlanSupport;
+import mekanism.qioprocessing.api.machine.QIOAutomationHost;
 import mekanism.qioprocessing.common.execution.QIOProcessingExecutionService;
 import net.minecraft.tileentity.TileEntity;
 import mekanism.common.Mekanism;
 import mekanism.common.tile.prefab.TileEntityBasicBlock;
+import net.minecraft.world.World;
+import net.minecraft.world.chunk.Chunk;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 
@@ -37,13 +43,50 @@ public final class QIOAutomationTileTickService {
     }
 
     void unregisterHost(@Nullable TileEntity tile) {
-        if (tile != null) {
-            hosts.remove(tile);
+        if (tile != null && hosts.remove(tile) != null && tile instanceof TileEntityBasicBlock) {
+            TileEntityBasicBlock machine = (TileEntityBasicBlock) tile;
+            machine.invalidateProcessingState();
+            machine.cancelPendingAsyncPlan(null);
+            AsyncMachinePlanSupport.invalidateCompiledSource(machine);
         }
     }
 
+    /** Only the departing World instance is removed, even if a dimension ID has been reused. */
+    void unregisterWorld(@Nonnull World world) {
+        List<TileEntity> removed = new ArrayList<>();
+        for (TileEntity tile : hosts.keySet()) {
+            if (tile.getWorld() == world) removed.add(tile);
+        }
+        removed.forEach(this::unregisterHost);
+    }
+
+    void unregisterChunk(@Nonnull Chunk chunk) {
+        new ArrayList<>(chunk.getTileEntityMap().values()).forEach(this::unregisterHost);
+    }
+
+    /** Restores reused Tile instances at a lifecycle boundary, never by probing capabilities each tick. */
+    void registerChunk(@Nonnull Chunk chunk) {
+        for (TileEntity tile : new ArrayList<>(chunk.getTileEntityMap().values())) {
+            if (tile.isInvalid() || tile.getWorld() != chunk.getWorld() || chunk.getWorld().isRemote ||
+                getRegisteredHost(tile) != null || QIOAutomationCapabilities.AUTOMATION_HOST == null) continue;
+            try {
+                if (!tile.hasCapability(QIOAutomationCapabilities.AUTOMATION_HOST, null)) continue;
+                QIOAutomationHost exposed = tile.getCapability(QIOAutomationCapabilities.AUTOMATION_HOST, null);
+                if (exposed instanceof DefaultQIOAutomationHost && ((DefaultQIOAutomationHost) exposed).tile() == tile) {
+                    DefaultQIOAutomationHost host = (DefaultQIOAutomationHost) exposed;
+                    registerHost(tile, host);
+                    QIOAutomationDeviceRegistry.INSTANCE.trackPending(host);
+                }
+            } catch (RuntimeException | LinkageError error) {
+                Mekanism.logger.warn("Unable to restore QIO machine tick registration for {} at {}",
+                      tile.getClass().getName(), tile.getPos(), error);
+            }
+        }
+    }
+
+    /** Full-server shutdown only; world and chunk events use scoped removal. */
     void clearHosts() {
-        hosts.clear();
+        new ArrayList<>(hosts.keySet()).forEach(this::unregisterHost);
     }
 
     @Nullable

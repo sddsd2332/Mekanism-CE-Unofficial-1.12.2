@@ -188,6 +188,8 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
     private EnergyInventorySlot energySlot;
     private InputInventorySlot extraSlot;
     private ProcessInfo[] processInfoSlots;
+    /** Reused recipe source view for async capture; the compiler copies identities on cache misses. */
+    private final List<MachineRecipe<?, ?, ?>> asyncRecipeSources = new ArrayList<>();
     private List<IInventorySlot> processInputSlots;
     private List<IInventorySlot> processOutputSlots;
     private IInputHandler<ItemStack, ItemStack>[] itemInputHandlers;
@@ -220,6 +222,9 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
         errorTracker = new ErrorTracker(FACTORY_ERROR_TYPES, FACTORY_GLOBAL_ERROR_TYPES, processCount);
         activeStates = new boolean[processCount];
         usedSoFar = new long[processCount];
+        for (int process = 0; process < processCount; process++) {
+            asyncRecipeSources.add(null);
+        }
         for (int process = 0; process < processCount; process++) {
             int processNumber = process;
             recipeCacheLookupMonitors[processNumber] = new FactoryRecipeCacheLookupMonitor<>(this, processNumber, this::markSortingNeeded);
@@ -1004,11 +1009,10 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
 
     @Override
     public Object getAsyncRecipeSnapshotSource() {
-        List<MachineRecipe<?, ?, ?>> recipes = new ArrayList<>(getProcessCount());
         for (int process = 0; process < getProcessCount(); process++) {
-            recipes.add(getRecipe(process));
+            asyncRecipeSources.set(process, getRecipe(process));
         }
-        return recipes;
+        return asyncRecipeSources;
     }
 
     @Override

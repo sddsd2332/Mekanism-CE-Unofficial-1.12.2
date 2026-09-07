@@ -325,7 +325,7 @@ public abstract class TileEntityBasicMachine<INPUT extends MachineInput<INPUT>, 
             return false;
         }
         RECIPE currentRecipe = getRecipe();
-        return snapshot.getConfigurationVersion() == getProcessingStateVersion() &&
+        return snapshot.getConfigurationVersion() == getAsyncConfigurationVersion() &&
               snapshot.getQioLeaseVersion() == getAsyncLeaseVersion() &&
               snapshot.getPortOwnershipVersion() == getAsyncPortOwnershipVersion() &&
               snapshot.getMode().equals(getAsyncMode()) &&

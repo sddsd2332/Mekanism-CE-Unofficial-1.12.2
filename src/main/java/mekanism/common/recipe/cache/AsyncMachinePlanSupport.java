@@ -72,7 +72,7 @@ public final class AsyncMachinePlanSupport {
 
     public static RecipeRunSnapshot capture(TileEntityBasicBlock tile, @Nullable Object recipeSource,
           long categoryGeneration) {
-        return capture(tile, recipeSource, categoryGeneration, tile.getProcessingStateVersion(), 0, 0, "");
+        return capture(tile, recipeSource, categoryGeneration, configurationVersion(tile), 0, 0, "");
     }
 
     public static RecipeRunSnapshot capture(TileEntityBasicBlock tile, @Nullable Object recipeSource,
@@ -219,13 +219,34 @@ public final class AsyncMachinePlanSupport {
 
     public static boolean isStillValid(TileEntityBasicBlock tile, RecipeRunSnapshot snapshot,
           RecipeExecutionPlan plan, @Nullable Object currentRecipeSource, long categoryGeneration) {
-        return plan != null && plan.isValidFor(snapshot) &&
-              tile.getProcessingStateVersion() == snapshot.getMachineStateVersion() &&
-              RecipeHandler.getGlobalRecipeGeneration() == snapshot.getGlobalRecipeGeneration() &&
-              categoryGeneration == snapshot.getCategoryRecipeGeneration() &&
-              snapshot.getConfigurationVersion() == tile.getProcessingStateVersion() &&
-              recipeId(tile, currentRecipeSource).equals(snapshot.getRecipeId()) &&
-              recipeSignature(currentRecipeSource).equals(snapshot.getRecipeSignature());
+        return isStillValid(tile, snapshot, plan, currentRecipeSource, categoryGeneration, configurationVersion(tile));
+    }
+
+    /** Explicit configuration revision for standalone planners with their own counter. */
+    public static boolean isStillValid(TileEntityBasicBlock tile, RecipeRunSnapshot snapshot,
+          RecipeExecutionPlan plan, @Nullable Object currentRecipeSource, long categoryGeneration,
+          long configurationVersion) {
+        if (plan == null || !plan.isValidFor(snapshot) ||
+            tile.getProcessingStateVersion() != snapshot.getMachineStateVersion() ||
+            RecipeHandler.getGlobalRecipeGeneration() != snapshot.getGlobalRecipeGeneration() ||
+            categoryGeneration != snapshot.getCategoryRecipeGeneration() ||
+            snapshot.getConfigurationVersion() != configurationVersion ||
+            !recipeId(tile, currentRecipeSource).equals(snapshot.getRecipeId())) return false;
+        String signature;
+        try {
+            signature = recipeSignature(currentRecipeSource);
+        } catch (RuntimeException | LinkageError error) {
+            invalidateCompiledSource(tile);
+            throw error;
+        }
+        if (signature.equals(snapshot.getRecipeSignature())) return true;
+        invalidateCompiledSource(tile, snapshot);
+        return false;
+    }
+
+    private static long configurationVersion(TileEntityBasicBlock tile) {
+        return tile instanceof IAsyncRecipeMachine ? ((IAsyncRecipeMachine) tile).getAsyncConfigurationVersion() :
+              tile.getProcessingStateVersion();
     }
 
     public static String recipeId(TileEntityBasicBlock tile, @Nullable Object recipeSource) {
@@ -243,16 +264,26 @@ public final class AsyncMachinePlanSupport {
         if (tile != null) COMPILED_SOURCES.remove(tile);
     }
 
+    private static synchronized void invalidateCompiledSource(TileEntityBasicBlock tile, RecipeRunSnapshot snapshot) {
+        CompiledSource compiled = COMPILED_SOURCES.get(tile);
+        // Rechecking an older plan must not evict a definition already rebuilt for the next tick.
+        if (compiled != null && compiled.globalGeneration == snapshot.getGlobalRecipeGeneration() &&
+            compiled.categoryGeneration == snapshot.getCategoryRecipeGeneration() &&
+            compiled.mode.equals(snapshot.getMode()) && compiled.signature.equals(snapshot.getRecipeSignature())) {
+            COMPILED_SOURCES.remove(tile);
+        }
+    }
+
     private static synchronized CompiledSource compileSource(TileEntityBasicBlock tile,
           @Nullable Object source, long globalGeneration, long categoryGeneration, String mode) {
         CompiledSource existing = COMPILED_SOURCES.get(tile);
         String checkedMode = mode == null ? "" : mode;
-        List<Object> identities = sourceIdentities(source);
         if (existing != null && existing.globalGeneration == globalGeneration &&
             existing.categoryGeneration == categoryGeneration && existing.mode.equals(checkedMode) &&
-            sameIdentities(existing.identities, identities)) {
+            sameIdentities(existing.identities, source)) {
             return existing;
         }
+        List<Object> identities = sourceIdentities(source);
         CompiledSource compiled = new CompiledSource(globalGeneration, categoryGeneration, checkedMode,
               identities, recipeSignature(source), RecipeSemanticsCompiler.compile(source, checkedMode),
               compileLaneSemantics(identities, checkedMode));
@@ -273,12 +304,22 @@ public final class AsyncMachinePlanSupport {
         return identities;
     }
 
-    private static boolean sameIdentities(List<Object> first, List<Object> second) {
-        if (first.size() != second.size()) return false;
-        for (int index = 0; index < first.size(); index++) {
-            if (first.get(index) != second.get(index)) return false;
+    private static boolean sameIdentities(List<Object> first, @Nullable Object source) {
+        if (source instanceof Iterable<?>) {
+            int index = 0;
+            for (Object value : (Iterable<?>) source) {
+                if (index >= first.size() || first.get(index++) != value) return false;
+            }
+            return index == first.size();
+        } else if (source instanceof Object[]) {
+            Object[] values = (Object[]) source;
+            if (first.size() != values.length) return false;
+            for (int index = 0; index < values.length; index++) {
+                if (first.get(index) != values[index]) return false;
+            }
+            return true;
         }
-        return true;
+        return first.size() == (source == null ? 0 : 1) && (first.isEmpty() || first.get(0) == source);
     }
 
     private static List<RecipeSemanticsSnapshot> compileLaneSemantics(List<Object> values, String mode) {

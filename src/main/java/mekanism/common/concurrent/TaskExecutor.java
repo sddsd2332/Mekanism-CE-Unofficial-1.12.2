@@ -25,6 +25,8 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.concurrent.locks.LockSupport;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Asynchronous system based on MMCE
@@ -60,11 +62,14 @@ public class TaskExecutor {
     private final Queue<ActionExecutor> submitted = Queues.createConcurrentQueue();
 
     private final Queue<ActionExecutor> executors = Queues.createConcurrentQueue();
+    private static final int PLAN_BATCH_SIZE = 256;
+    /** Only the admission lock owns the unfinished batch; workers receive sealed lists. */
+    private List<Action> pendingPlanBatch = new ArrayList<>(PLAN_BATCH_SIZE);
     private final Long2ObjectMap<ExecuteGroup> executeGroups = new Long2ObjectOpenHashMap<>();
 
     private final Queue<ForkJoinTask<?>> forkJoinTasks = Queues.createConcurrentQueue();
 
-    private final Queue<PlanCommitAction> planCommitActions = new PriorityBlockingQueue<>();
+    private final Queue<PlanCommitAction> planCommitActions = Queues.createConcurrentQueue();
     private final Queue<Action> mainThreadActions = Queues.createConcurrentQueue();
     private final Queue<TileEntitySynchronized> requireUpdateTEQueue = Queues.createConcurrentQueue();
     private final Queue<TileEntitySynchronized> requireMarkNoUpdateTEQueue = Queues.createConcurrentQueue();
@@ -167,9 +172,10 @@ public class TaskExecutor {
         // Async work may enqueue more async work. Drain it to a fixed point before
         // running any post-async main-thread action so container/world phases cannot overlap.
         do {
+            flushPlanBatch();
             submitTask();
             executed += awaitActionExecutors();
-        } while (!executors.isEmpty() || !submitted.isEmpty() || hasPendingExecuteGroupTasks());
+        } while (!executors.isEmpty() || hasPendingPlanBatch() || !submitted.isEmpty() || hasPendingExecuteGroupTasks());
 
         executed += executePlanCommitActions();
         executed += executeMainThreadActions();
@@ -199,19 +205,30 @@ public class TaskExecutor {
     }
 
     private int executePlanCommitActions() {
+        if (planCommitActions.isEmpty()) return 0;
         int executed = 0;
-        PlanCommitAction action;
-        while ((action = planCommitActions.poll()) != null) {
-            try {
-                if (acceptingTasks) action.action.doAction();
-            } catch (Throwable error) {
-                Mekanism.logger.warn("An error occurred during machine plan commit!");
-                Mekanism.logger.warn(ThrowableUtil.stackTraceToString(error));
-            } finally {
-                cleanupPlan(action);
+        List<PlanCommitAction> callbacks = new ArrayList<>();
+        do {
+            PlanCommitAction action;
+            while ((action = planCommitActions.poll()) != null) {
+                callbacks.add(action);
             }
-            executed++;
-        }
+            // Capture normally arrives in order, so TimSort's sorted-input path is linear.
+            // Sorting here avoids a heap insertion and removal for every machine.
+            Collections.sort(callbacks);
+            for (PlanCommitAction callback : callbacks) {
+                try {
+                    if (acceptingTasks) callback.action.doAction();
+                } catch (Throwable error) {
+                    Mekanism.logger.warn("An error occurred during machine plan commit!");
+                    Mekanism.logger.warn(ThrowableUtil.stackTraceToString(error));
+                } finally {
+                    cleanupPlan(callback);
+                }
+                executed++;
+            }
+            callbacks.clear();
+        } while (!planCommitActions.isEmpty());
         return executed;
     }
 
@@ -358,6 +375,56 @@ public class TaskExecutor {
         }
     }
 
+    /**
+     * Queues a pure plan calculation for batched worker execution and its ordered
+     * main-thread commit callback. Batching is an executor optimization only; each
+     * callback retains its own snapshot, validation and cleanup semantics.
+     */
+    public void addPlanCalculation(final long sequence, final Action calculation,
+          final Action commit, final Action cleanup) {
+        Objects.requireNonNull(calculation, "Plan calculation cannot be null");
+        Objects.requireNonNull(commit, "Plan commit task cannot be null");
+        Objects.requireNonNull(cleanup, "Plan cleanup cannot be null");
+        boolean published = false;
+        synchronized (admissionLock) {
+            requireAcceptingTasks();
+            planCommitActions.offer(new PlanCommitAction(sequence, commit, cleanup));
+            pendingPlanBatch.add(calculation);
+            if (pendingPlanBatch.size() == PLAN_BATCH_SIZE) {
+                publishPlanBatch();
+                published = true;
+            }
+        }
+        if (published && inTick) submitter.unpark();
+    }
+
+    private boolean hasPendingPlanBatch() {
+        synchronized (admissionLock) {
+            return !pendingPlanBatch.isEmpty();
+        }
+    }
+
+    private void flushPlanBatch() {
+        synchronized (admissionLock) {
+            if (!pendingPlanBatch.isEmpty()) publishPlanBatch();
+        }
+    }
+
+    /** Called with admissionLock held, including when shutdown flushes the tail. */
+    private void publishPlanBatch() {
+        List<Action> batch = pendingPlanBatch;
+        pendingPlanBatch = new ArrayList<>(PLAN_BATCH_SIZE);
+        executors.offer(new ActionExecutor(() -> {
+            for (Action action : batch) {
+                try {
+                    action.doAction();
+                } catch (Throwable error) {
+                    Mekanism.logger.warn("An error occurred during batched machine plan calculation!", error);
+                }
+            }
+        }));
+    }
+
     private void requireAcceptingTasks() {
         if (!acceptingTasks) throw new RejectedExecutionException("Task executor is shutting down");
     }
@@ -466,9 +533,10 @@ public class TaskExecutor {
         }
         submitter.stopAndWait();
         do {
+            flushPlanBatch();
             submitTask();
             awaitActionExecutors();
-        } while (!executors.isEmpty() || !submitted.isEmpty() || hasPendingExecuteGroupTasks());
+        } while (!executors.isEmpty() || hasPendingPlanBatch() || !submitted.isEmpty() || hasPendingExecuteGroupTasks());
         ForkJoinTask<?> task;
         while ((task = forkJoinTasks.poll()) != null) {
             task.cancel(false);

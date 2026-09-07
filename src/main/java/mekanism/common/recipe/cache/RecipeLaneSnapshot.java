@@ -148,11 +148,34 @@ public final class RecipeLaneSnapshot {
     }
 
     RecipeLaneSnapshot withRecipeSemantics(boolean present, RecipeSemanticsSnapshot semantics) {
-        return new RecipeLaneSnapshot(laneIndex, operatingTicks, requiredTicks,
-              baselineMaxOperations, active, present, inputs, outputContents,
-              outputCapacities, sharedInputKeys, sharedOutputKeys, errors, semantics,
-              energyPerTick, pooledOutputs, interchangeableOutputs, pausedForErrors, perTickInputMultipliers, outputInsertionLimits, templateInputKeys,
-              keepProgressWithoutRecipe, maxProcessingPasses);
+        if (present == recipePresent && semantics == recipeSemantics) return this;
+        return new RecipeLaneSnapshot(this, present, semantics);
+    }
+
+    /** Only accepts an already frozen lane; public constructors still copy caller-owned data. */
+    private RecipeLaneSnapshot(RecipeLaneSnapshot source, boolean present, RecipeSemanticsSnapshot semantics) {
+        laneIndex = source.laneIndex;
+        operatingTicks = source.operatingTicks;
+        requiredTicks = source.requiredTicks;
+        baselineMaxOperations = source.baselineMaxOperations;
+        maxProcessingPasses = source.maxProcessingPasses;
+        active = source.active;
+        recipePresent = present;
+        keepProgressWithoutRecipe = source.keepProgressWithoutRecipe;
+        inputs = source.inputs;
+        outputContents = source.outputContents;
+        outputCapacities = source.outputCapacities;
+        sharedInputKeys = source.sharedInputKeys;
+        templateInputKeys = source.templateInputKeys;
+        sharedOutputKeys = source.sharedOutputKeys;
+        errors = source.errors;
+        recipeSemantics = Objects.requireNonNull(semantics, "Lane recipe semantics cannot be null");
+        energyPerTick = source.energyPerTick;
+        pooledOutputs = source.pooledOutputs;
+        interchangeableOutputs = source.interchangeableOutputs;
+        pausedForErrors = source.pausedForErrors;
+        perTickInputMultipliers = source.perTickInputMultipliers;
+        outputInsertionLimits = source.outputInsertionLimits;
     }
 
     public int getLaneIndex() { return laneIndex; }

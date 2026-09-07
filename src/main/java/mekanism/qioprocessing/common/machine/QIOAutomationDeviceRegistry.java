@@ -436,6 +436,7 @@ public final class QIOAutomationDeviceRegistry {
     }
 
     public synchronized void shutdown() {
+        QIOAutomationTileTickService.INSTANCE.clearHosts();
         byUUID.clear();
         pending.clear();
         quarantinedUUIDs.clear();

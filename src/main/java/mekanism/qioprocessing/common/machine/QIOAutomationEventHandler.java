@@ -86,6 +86,7 @@ public final class QIOAutomationEventHandler {
     @SubscribeEvent
     public void onChunkLoad(@Nonnull ChunkEvent.Load event) {
         if (!event.getWorld().isRemote) {
+            QIOAutomationTileTickService.INSTANCE.registerChunk(event.getChunk());
             QIOAutomationDeviceDirectoryCleanupService.queueChunk(event.getWorld(),
                   event.getChunk().x, event.getChunk().z);
         }
@@ -94,6 +95,7 @@ public final class QIOAutomationEventHandler {
     @SubscribeEvent
     public void onChunkUnload(@Nonnull ChunkEvent.Unload event) {
         if (!event.getWorld().isRemote) {
+            QIOAutomationTileTickService.INSTANCE.unregisterChunk(event.getChunk());
             QIOAutomationDeviceDirectoryCleanupService.discardChunk(event.getWorld(),
                   event.getChunk().x, event.getChunk().z);
         }
@@ -104,7 +106,7 @@ public final class QIOAutomationEventHandler {
         if (!event.getWorld().isRemote) {
             QIOAutomationDeviceDirectoryCleanupService.discardDimension(
                   event.getWorld().provider.getDimension());
-            QIOAutomationTileTickService.INSTANCE.clearHosts();
+            QIOAutomationTileTickService.INSTANCE.unregisterWorld(event.getWorld());
         }
     }
 }

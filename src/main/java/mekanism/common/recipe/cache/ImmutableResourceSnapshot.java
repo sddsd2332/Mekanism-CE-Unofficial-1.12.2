@@ -14,6 +14,9 @@ import java.util.Objects;
  */
 public final class ImmutableResourceSnapshot {
 
+    private static final ImmutableResourceSnapshot EMPTY = new ImmutableResourceSnapshot(
+          Kind.EMPTY, null, null, null, null, 0);
+
     public enum Kind {
         EMPTY,
         ITEM,
@@ -32,6 +35,8 @@ public final class ImmutableResourceSnapshot {
     @Nullable
     private final String descriptor;
     private final long amount;
+    private volatile String cachedSemanticKey;
+    private volatile String cachedIdentityKey;
 
     private ImmutableResourceSnapshot(Kind kind, @Nullable ItemStack item, @Nullable FluidStack fluid,
           @Nullable GasStack gas, @Nullable String descriptor, long amount) {
@@ -44,7 +49,7 @@ public final class ImmutableResourceSnapshot {
     }
 
     public static ImmutableResourceSnapshot empty() {
-        return new ImmutableResourceSnapshot(Kind.EMPTY, ItemStack.EMPTY, null, null, null, 0);
+        return EMPTY;
     }
 
     public static ImmutableResourceSnapshot of(@Nullable ItemStack stack) {
@@ -98,17 +103,24 @@ public final class ImmutableResourceSnapshot {
 
     @Nullable
     public ItemStack getItemCopy() {
-        return item == null ? null : item.copy();
+        if (kind == Kind.EMPTY) return ItemStack.EMPTY;
+        if (item == null) return null;
+        ItemStack copy = item.copy();
+        copy.setCount((int) amount);
+        return copy;
     }
 
     @Nullable
     public FluidStack getFluidCopy() {
-        return fluid == null ? null : fluid.copy();
+        if (fluid == null) return null;
+        FluidStack copy = fluid.copy();
+        copy.amount = (int) amount;
+        return copy;
     }
 
     @Nullable
     public GasStack getGasCopy() {
-        return gas == null ? null : gas.copy();
+        return gas == null ? null : gas.copy().withAmount((int) amount);
     }
 
     @Nullable
@@ -118,20 +130,32 @@ public final class ImmutableResourceSnapshot {
 
     /** Stable value used for plan/signature comparisons. */
     public String semanticKey() {
+        String cached = cachedSemanticKey;
+        if (cached == null) cachedSemanticKey = cached = createSemanticKey();
+        return cached;
+    }
+
+    private String createSemanticKey() {
         if (kind == Kind.ITEM && item != null) {
             return "item:" + String.valueOf(item.getItem().getRegistryName()) + ':' + item.getMetadata() + ':' +
-                  item.getCount() + ':' + (item.hasTagCompound() ? item.getTagCompound().toString() : "");
+                  amount + ':' + (item.hasTagCompound() ? item.getTagCompound().toString() : "");
         } else if (kind == Kind.FLUID && fluid != null) {
-            return "fluid:" + String.valueOf(fluid.getFluid().getName()) + ':' + fluid.amount + ':' +
+            return "fluid:" + String.valueOf(fluid.getFluid().getName()) + ':' + amount + ':' +
                   (fluid.tag == null ? "" : fluid.tag.toString());
         } else if (kind == Kind.GAS && gas != null) {
-            return "gas:" + (gas.getGas() == null ? "" : gas.getGas().getName()) + ':' + gas.amount;
+            return "gas:" + (gas.getGas() == null ? "" : gas.getGas().getName()) + ':' + amount;
         }
         return kind.name().toLowerCase() + ':' + String.valueOf(descriptor) + ':' + amount;
     }
 
     /** Resource identity without its quantity, suitable for recipe matching. */
     public String identityKey() {
+        String cached = cachedIdentityKey;
+        if (cached == null) cachedIdentityKey = cached = createIdentityKey();
+        return cached;
+    }
+
+    private String createIdentityKey() {
         if (kind == Kind.ITEM && item != null) {
             return "item:" + String.valueOf(item.getItem().getRegistryName()) + ':' + item.getMetadata() + ':' +
                   (item.hasTagCompound() ? item.getTagCompound().toString() : "");
@@ -162,21 +186,20 @@ public final class ImmutableResourceSnapshot {
     public ImmutableResourceSnapshot withAmount(long newAmount) {
         long checked = Math.max(0, newAmount);
         if (checked == 0) return empty();
-        int bounded = checked >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) checked;
-        if (kind == Kind.ITEM && item != null) {
-            ItemStack copy = item.copy();
-            copy.setCount(bounded);
-            return of(copy);
-        } else if (kind == Kind.FLUID && fluid != null) {
-            FluidStack copy = fluid.copy();
-            copy.amount = bounded;
-            return of(copy);
-        } else if (kind == Kind.GAS && gas != null) {
-            return of(gas.copy().withAmount(bounded));
-        } else if (kind == Kind.OTHER) {
-            return descriptor(descriptor, checked);
-        }
-        return empty();
+        if (kind == Kind.EMPTY) return empty();
+        long bounded = kind == Kind.OTHER ? checked : Math.min(Integer.MAX_VALUE, checked);
+        return bounded == amount ? this : new ImmutableResourceSnapshot(this, bounded);
+    }
+
+    /** Quantity changes are pure: ItemStack.copy may invoke Forge capability listeners. */
+    private ImmutableResourceSnapshot(ImmutableResourceSnapshot source, long amount) {
+        kind = source.kind;
+        item = source.item;
+        fluid = source.fluid;
+        gas = source.gas;
+        descriptor = source.descriptor;
+        this.amount = amount;
+        cachedIdentityKey = source.cachedIdentityKey;
     }
 
     @Override
@@ -187,7 +210,7 @@ public final class ImmutableResourceSnapshot {
 
     @Override
     public int hashCode() {
-        return Objects.hash(semanticKey());
+        return 31 + semanticKey().hashCode();
     }
 
     @Override

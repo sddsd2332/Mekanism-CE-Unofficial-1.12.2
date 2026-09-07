@@ -375,7 +375,13 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
         if (pendingAsyncPlan.get() != null || isInvalid()) {
             return;
         }
-        IAsyncPlanCalculator calculator = planner.getAsyncPlanCalculator();
+        IAsyncPlanCalculator calculator;
+        try {
+            calculator = planner.getAsyncPlanCalculator();
+        } catch (LinkageError | RuntimeException error) {
+            runPlannerSynchronously(planner);
+            return;
+        }
         if (!AsyncPlanSafetyValidator.isDetached(calculator)) {
             runPlannerSynchronously(planner);
             return;
@@ -404,9 +410,9 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
             return;
         }
         try {
-            Mekanism.EXECUTE_MANAGER.addPlanCommitTask(pending.commitSequence,
-                  () -> finishAsyncPlan(pending), () -> pendingAsyncPlan.compareAndSet(pending, null));
-            Mekanism.EXECUTE_MANAGER.addTask(() -> calculateAsyncPlan(pending, calculator));
+            Mekanism.EXECUTE_MANAGER.addPlanCalculation(pending.commitSequence,
+                  () -> calculateAsyncPlan(pending, calculator), () -> finishAsyncPlan(pending),
+                  () -> pendingAsyncPlan.compareAndSet(pending, null));
         } catch (Throwable error) {
             if (pendingAsyncPlan.compareAndSet(pending, null)) {
                 invokeDiscarded(pending, error);
@@ -509,8 +515,12 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
      * by the base class and therefore never acquires the container lock on a worker.
      */
     public boolean supportsAsync() {
-        IAsyncMachinePlanner<?, ?> planner = getAsyncMachinePlanner();
-        return planner != null && AsyncPlanSafetyValidator.isDetached(planner.getAsyncPlanCalculator());
+        try {
+            IAsyncMachinePlanner<?, ?> planner = getAsyncMachinePlanner();
+            return planner != null && AsyncPlanSafetyValidator.isDetached(planner.getAsyncPlanCalculator());
+        } catch (LinkageError | RuntimeException error) {
+            return false;
+        }
     }
 
     @SuppressWarnings("unchecked")

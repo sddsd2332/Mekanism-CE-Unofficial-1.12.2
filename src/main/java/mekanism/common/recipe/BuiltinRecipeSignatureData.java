@@ -30,7 +30,7 @@ final class BuiltinRecipeSignatureData {
           ReplicatorFluidStackRecipe.class, ReplicatorGasStackRecipe.class, ReplicatorItemStackRecipe.class,
           RollingRecipe.class, RotaryRecipe.class, SawmillRecipe.class, SeparatorRecipe.class,
           SmeltingRecipe.class, SolarNeutronRecipe.class, StampingRecipe.class,
-          ThermalEvaporationRecipe.class, TurningRecipe.class)));
+          ThermalEvaporationRecipe.class, TurningRecipe.class, WasherRecipe.class)));
 
     private BuiltinRecipeSignatureData() {
     }
