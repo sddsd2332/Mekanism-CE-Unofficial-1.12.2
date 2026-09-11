@@ -76,10 +76,8 @@ public abstract class TileEntityOperationalMachine extends TileEntityMachine imp
             if (!isRecalculatingAllUpgradables()) {
                 energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK);
             }
-            markProcessingStateChanged();
         } else if (upgrade == Upgrade.ENERGY && !isRecalculatingAllUpgradables()) {
             energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK); // incorporate speed upgrades
-            markProcessingStateChanged();
         }
     }
 
@@ -88,7 +86,6 @@ public abstract class TileEntityOperationalMachine extends TileEntityMachine imp
         super.onAllUpgradablesRecalculated(upgrades);
         if (upgrades.contains(Upgrade.SPEED) || upgrades.contains(Upgrade.ENERGY)) {
             energyPerTick = MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK);
-            markProcessingStateChanged();
         }
     }
 

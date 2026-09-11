@@ -48,11 +48,6 @@ public class ItemStackConstantGasCachedRecipe<OUTPUT, RECIPE extends IConstantGa
     }
 
     @Override
-    public java.util.Map<String, Long> getPlanInputMultipliers() {
-        return java.util.Collections.singletonMap("gas.1", gasUsageMultiplier);
-    }
-
-    @Override
     protected void calculateOperationsThisTick(OperationTracker tracker) {
         super.calculateOperationsThisTick(tracker);
         if (tracker.shouldContinueChecking()) {
@@ -95,12 +90,6 @@ public class ItemStackConstantGasCachedRecipe<OUTPUT, RECIPE extends IConstantGa
     protected void resetCache() {
         super.resetCache();
         gasUsedSoFar = 0;
-        gasUsedSoFarChanged.accept(gasUsedSoFar);
-    }
-
-    @Override
-    protected void applyPlannedResourceState(RecipeLaneSnapshot snapshot, RecipeLanePlan plan) {
-        gasUsedSoFar += plan.getOperations() * snapshot.getPerTickInputMultiplier("gas.1");
         gasUsedSoFarChanged.accept(gasUsedSoFar);
     }
 

@@ -15,11 +15,6 @@ public interface IExtendedGasTank extends IGasTank, GasTankInfo, INBTSerializabl
 
     void setStackUnchecked(@Nullable GasStack stack);
 
-    /** Listener-free server transaction write. The caller must validate first and notify after commit. */
-    default void setStackUncheckedNoUpdate(@Nullable GasStack stack) {
-        throw new UnsupportedOperationException("This tank does not support atomic recipe writes");
-    }
-
     boolean isValid(@Nullable GasStack stack);
 
     @Nullable

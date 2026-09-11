@@ -26,7 +26,7 @@ public class MetallurgicInfuserRecipe extends MachineRecipe<InfusionInput, ItemS
 
     @Override
     public MetallurgicInfuserRecipe copy() {
-        return new MetallurgicInfuserRecipe(getInput().copy(), getOutput().copy());
+        return new MetallurgicInfuserRecipe(getInput(), getOutput());
     }
 
 }

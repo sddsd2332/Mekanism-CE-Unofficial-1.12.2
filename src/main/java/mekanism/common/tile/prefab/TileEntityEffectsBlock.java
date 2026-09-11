@@ -153,7 +153,6 @@ public abstract class TileEntityEffectsBlock extends TileEntityElectricBlock imp
         boolean stateChange = isActive != active;
         if (stateChange) {
             isActive = active;
-            markProcessingStateChanged();
             Mekanism.packetHandler.sendUpdatePacket(this);
         }
     }

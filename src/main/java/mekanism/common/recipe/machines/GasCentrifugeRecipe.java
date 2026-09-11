@@ -17,7 +17,7 @@ public class GasCentrifugeRecipe extends MachineRecipe<GasInput, GasOutput, GasC
 
     @Override
     public GasCentrifugeRecipe copy() {
-        return new GasCentrifugeRecipe(getInput().copy(), getOutput().copy());
+        return new GasCentrifugeRecipe(getInput(), getOutput());
     }
 
     public boolean canOperate(IExtendedGasTank inputTank, IExtendedGasTank outputTank) {

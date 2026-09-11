@@ -17,7 +17,6 @@ import mekanism.common.integration.crafttweaker.CrafttweakerIntegration;
 import mekanism.common.integration.farmersdelightlegacy.FarmersDelightLegacyIntegration;
 import mekanism.common.integration.fluxnetworks.FluxNetworksIntegration;
 import mekanism.common.integration.groovyscript.DeferredGasFluidMappings;
-import mekanism.common.integration.groovyscript.GroovyRecipeReloadHandler;
 import mekanism.common.integration.mysticalagriculture.MysticalAgricultureSeed;
 import mekanism.common.integration.mysticalagriculture.MysticalCreationsSeed;
 import mekanism.common.integration.wrenches.Wrenches;
@@ -147,7 +146,6 @@ public final class MekanismHooks {
         GroovyScriptLoaded = Loader.isModLoaded(GROOVYSCRIPT_MOD_ID);
         if (GroovyScriptLoaded) {
             DeferredGasFluidMappings.registerEventHandler();
-            GroovyRecipeReloadHandler.register();
         }
         FluxNetWorksLoaded = Loader.isModLoaded(FLUX_NETWORKS_MOD_ID);
         GTCEULoaded = Mods.GTCeU.isPresent();

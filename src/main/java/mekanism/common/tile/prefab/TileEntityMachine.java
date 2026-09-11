@@ -105,11 +105,7 @@ public abstract class TileEntityMachine extends TileEntityEffectsBlock implement
 
     @Override
     public void setControlType(@Nonnull RedstoneControl type) {
-        RedstoneControl previous = controlType;
         controlType = Objects.requireNonNull(type);
-        if (previous != controlType) {
-            markProcessingStateChanged();
-        }
         MekanismUtils.saveChunk(this);
     }
 
@@ -135,7 +131,6 @@ public abstract class TileEntityMachine extends TileEntityEffectsBlock implement
             maxEnergy = MekanismUtils.getMaxEnergy(this, BASE_MAX_ENERGY);
             energyPerTick = MekanismUtils.getBaseEnergyPerTick(this, BASE_ENERGY_PER_TICK);
             setEnergy(Math.min(getMaxEnergy(), getEnergy()));
-            markProcessingStateChanged();
         }
     }
 }

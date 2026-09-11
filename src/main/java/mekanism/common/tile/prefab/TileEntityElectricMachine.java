@@ -14,7 +14,6 @@ import mekanism.common.inventory.slot.OutputInventorySlot;
 import mekanism.common.inventory.warning.WarningTracker.WarningType;
 import mekanism.common.recipe.RecipeHandler;
 import mekanism.common.recipe.cache.CachedRecipe;
-import mekanism.common.recipe.cache.IAsyncRecipeMachine;
 import mekanism.common.recipe.cache.CachedRecipe.OperationTracker.RecipeError;
 import mekanism.common.recipe.cache.OneInputCachedRecipe;
 import mekanism.common.recipe.cache.inputs.InputHelper;
@@ -107,30 +106,12 @@ public abstract class TileEntityElectricMachine<RECIPE extends BasicMachineRecip
 
     @Override
     public void onAsyncUpdateServer() {
-        // Explicit recipe planners own the complete capture/calculate/commit
-        // lifecycle. Keep this compatibility entry point from running the
-        // legacy CachedRecipe loop for those machines.
-        if (getAsyncMachinePlanner() != null) {
-            ((IAsyncRecipeMachine) this).commitAsyncRecipeTick();
-            return;
-        }
         super.onAsyncUpdateServer();
-        prepareAsyncRecipeTick();
-        processRecipe();
-        prevEnergy = getEnergy();
-    }
-
-    @Override
-    public void prepareAsyncRecipeTick() {
         if (energySlot != null) {
             energySlot.fillContainerOrConvert();
         }
-    }
-
-    @Override
-    protected mekanism.common.recipe.cache.RecipeLaneCommitTarget createAsyncRecipeCommitTarget(CachedRecipe<RECIPE> cache) {
-        return new mekanism.common.recipe.cache.RecipeLaneCommitTarget(cache)
-              .input("item.0", inputSlot).output("item.0", outputSlot);
+        processRecipe();
+        prevEnergy = getEnergy();
     }
 
     @Override

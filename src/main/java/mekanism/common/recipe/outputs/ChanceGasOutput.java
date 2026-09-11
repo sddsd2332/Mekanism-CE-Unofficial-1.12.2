@@ -5,8 +5,6 @@ import mekanism.api.AutomationType;
 import mekanism.api.gas.GasStack;
 import mekanism.api.gas.IExtendedGasTank;
 import net.minecraft.nbt.NBTTagCompound;
-import mekanism.common.recipe.cache.RecipeExecutionPlanner;
-import mekanism.common.recipe.cache.RecipeRandomContext;
 
 import java.util.Random;
 
@@ -31,7 +29,7 @@ public class ChanceGasOutput extends MachineOutput<ChanceGasOutput> {
     }
 
     public boolean checkSecondary() {
-        return RecipeRandomContext.nextDouble(rand) <= primaryChance;
+        return rand.nextDouble() <= primaryChance;
     }
 
     public GasStack getMaxOutput() {
@@ -40,11 +38,6 @@ public class ChanceGasOutput extends MachineOutput<ChanceGasOutput> {
 
     public GasStack getOutput() {
         return primaryChance > 0 && checkSecondary() && output != null && output.amount > 0 ? output.copy() : null;
-    }
-
-    public GasStack getOutput(long randomSeed, long operationIndex) {
-        return primaryChance > 0 && RecipeExecutionPlanner.roll(randomSeed, operationIndex, primaryChance) &&
-              output != null && output.amount > 0 ? output.copy() : null;
     }
 
     @Override

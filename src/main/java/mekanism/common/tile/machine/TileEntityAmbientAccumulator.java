@@ -20,7 +20,6 @@ import mekanism.common.recipe.RecipeHandler;
 import mekanism.common.recipe.cache.CachedRecipe;
 import mekanism.common.recipe.cache.CachedRecipe.OperationTracker.RecipeError;
 import mekanism.common.recipe.cache.IRecipeLookupHandler;
-import mekanism.common.recipe.cache.IAsyncRecipeMachine;
 import mekanism.common.recipe.cache.NoInputCachedRecipe;
 import mekanism.common.recipe.cache.RecipeCacheLookupMonitor;
 import mekanism.common.recipe.cache.outputs.OutputHelper;
@@ -44,8 +43,7 @@ import net.minecraftforge.fml.common.FMLCommonHandler;
 import javax.annotation.Nonnull;
 
     public class TileEntityAmbientAccumulator extends TileEntityContainerBlock implements IRedstoneControl,
-        IActiveState, ITankManager, ISecurityTile, IComparatorSupport, ISideConfiguration, ISustainedData,
-        IRecipeLookupHandler<AmbientGasRecipe>, IAsyncRecipeMachine {
+        IActiveState, ITankManager, ISecurityTile, IComparatorSupport, ISideConfiguration, ISustainedData, IRecipeLookupHandler<AmbientGasRecipe> {
     private final RecipeCacheLookupMonitor<AmbientGasRecipe> recipeCacheLookupMonitor = new RecipeCacheLookupMonitor<>(this);
     public BasicGasTank collectedGas;
     public RedstoneControl controlType = RedstoneControl.DISABLED;
@@ -118,20 +116,15 @@ import javax.annotation.Nonnull;
 
     @Override
     public void onAsyncUpdateServer() {
-        commitAsyncRecipeTick();
-    }
-
-    @Override
-    public void prepareAsyncRecipeTick() {
         gasSlot.drainTank();
-    }
+        AmbientGasRecipe recipe = getRecipe();
 
-    @Override
-    public void commitAsyncRecipeTick() {
-        IAsyncRecipeMachine.super.commitAsyncRecipeTick();
-    }
-
-    private void finishRecipeTick() {
+        if (recipe == null) {
+            recipeCacheLookupMonitor.clear();
+            setActive(false);
+        } else {
+            recipeCacheLookupMonitor.updateAndProcess();
+        }
 
         if (serverWorldTime % 20 == 0) {
             Mekanism.packetHandler.sendUpdatePacket(this);
@@ -142,35 +135,6 @@ import javax.annotation.Nonnull;
             updateComparatorOutputLevelSync();
             currentRedstoneLevel = newRedstoneLevel;
         }
-    }
-
-    @Override
-    public Object getAsyncRecipeSnapshotSource() {
-        return getRecipe();
-    }
-
-    @Override
-    public long getAsyncRecipeCategoryGeneration() {
-        return RecipeHandler.Recipe.AMBIENT_ACCUMULATOR.getRecipeGeneration();
-    }
-
-    @Override
-    public java.util.Map<Integer, mekanism.common.recipe.cache.RecipeLaneCommitTarget> getAsyncRecipeCommitTargets() {
-        return java.util.Collections.singletonMap(0,
-              new mekanism.common.recipe.cache.RecipeLaneCommitTarget(recipeCacheLookupMonitor.prepareCache())
-                    .output("gas.0", collectedGas));
-    }
-
-    @Override
-    public void afterAsyncRecipeCommit(mekanism.common.recipe.cache.RecipeRunSnapshot snapshot,
-          mekanism.common.recipe.cache.RecipeExecutionPlan plan) {
-        if (!snapshot.getLane(0).isRecipePresent()) setActive(false);
-        finishRecipeTick();
-    }
-
-    @Override
-    public String getAsyncMode() {
-        return Integer.toString(world == null ? cachedDimensionId : world.provider.getDimension());
     }
 
     public AmbientGasRecipe getRecipe() {

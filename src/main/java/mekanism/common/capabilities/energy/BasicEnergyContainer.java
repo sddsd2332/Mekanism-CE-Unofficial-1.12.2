@@ -79,20 +79,16 @@ public class BasicEnergyContainer implements IEnergyContainer, IContentsListener
 
     @Override
     public void setEnergy(double energy) {
-        double previous = stored;
-        setEnergyNoUpdate(energy);
-        if (previous != stored) onContentsChanged();
-    }
-
-    /** Used only inside server-thread transactions; callers notify after the entire transaction succeeds. */
-    public void setEnergyNoUpdate(double energy) {
         if (Double.isNaN(energy) || Double.isInfinite(energy)) {
             energy = 0;
         } else if (energy < 0) {
             throw new IllegalArgumentException("Energy cannot be negative");
         }
         energy = clampEnergy(energy);
-        stored = energy;
+        if (stored != energy) {
+            stored = energy;
+            onContentsChanged();
+        }
     }
 
     protected double getInsertRate(@Nullable AutomationType automationType) {

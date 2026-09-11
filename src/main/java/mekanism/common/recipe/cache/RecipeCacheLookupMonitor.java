@@ -15,7 +15,6 @@ public class RecipeCacheLookupMonitor<RECIPE> implements ICachedRecipeHolder<REC
     protected boolean hasNoRecipe;
     protected boolean shouldUnpause;
     private int cachedRecipeVersion = RecipeHandler.getGlobalRecipeVersion();
-    private long cachedRecipeGeneration = RecipeHandler.getGlobalRecipeGeneration();
     private boolean observedRecipeFlush;
 
     public RecipeCacheLookupMonitor(IRecipeLookupHandler<RECIPE> handler) {
@@ -51,17 +50,6 @@ public class RecipeCacheLookupMonitor<RECIPE> implements ICachedRecipeHolder<REC
     }
 
     public boolean updateAndProcess() {
-        prepareCache();
-        if (cachedRecipe != null) {
-            cachedRecipe.process();
-            return true;
-        }
-        return false;
-    }
-
-    /** Resolves and unpauses the live cache without consuming resources or advancing progress. */
-    @Nullable
-    public CachedRecipe<RECIPE> prepareCache() {
         CachedRecipe<RECIPE> oldCache = cachedRecipe;
         cachedRecipe = getUpdatedCache(cacheIndex);
         if (cachedRecipe != oldCache) {
@@ -72,41 +60,10 @@ public class RecipeCacheLookupMonitor<RECIPE> implements ICachedRecipeHolder<REC
                 shouldUnpause = false;
                 cachedRecipe.unpauseErrors();
             }
+            cachedRecipe.process();
+            return true;
         }
-        return cachedRecipe;
-    }
-
-    /**
-     * Resolves the live cache on the server thread and performs only pure planning
-     * against the supplied immutable snapshot. No handler is read or written by the
-     * calculation itself.
-     */
-    @Nullable
-    public RecipeExecutionPlan calculatePlan(RecipeRunSnapshot snapshot) {
-        CachedRecipe<RECIPE> current = cachedRecipe;
-        return current == null ? null : current.calculatePlan(snapshot);
-    }
-
-    /** Returns whether a worker plan still matches the captured immutable values. */
-    public boolean isPlanValid(RecipeRunSnapshot snapshot, RecipeExecutionPlan plan) {
-        CachedRecipe<RECIPE> current = cachedRecipe;
-        return current != null && current.isPlanValid(snapshot, plan);
-    }
-
-    /**
-     * Re-resolves a cache after an atomic plan only when its live inputs no
-     * longer match. Unlike {@link #prepareCache()}, this deliberately ignores
-     * the world-wide flush flag because the plan already captured and checked
-     * the current recipe generation.
-     */
-    public void refreshAfterPlanCommit() {
-        CachedRecipe<RECIPE> current = cachedRecipe;
-        if (current == null || current.isInputValid()) return;
-        RECIPE recipe = getRecipe(cacheIndex);
-        CachedRecipe<RECIPE> replacement = recipe == null ? null : createNewCachedRecipe(recipe, cacheIndex);
-        cachedRecipe = replacement;
-        hasNoRecipe = replacement == null;
-        if (replacement != current) handler.onCachedRecipeChanged(replacement, cacheIndex);
+        return false;
     }
 
     @Override
@@ -129,11 +86,6 @@ public class RecipeCacheLookupMonitor<RECIPE> implements ICachedRecipeHolder<REC
             handler.onCachedRecipeChanged(null, cacheIndex);
         }
         hasNoRecipe = false;
-    }
-
-    /** Generation captured by this monitor's current lookup cache. */
-    public long getRecipeGeneration() {
-        return cachedRecipeGeneration;
     }
 
     protected boolean cachedIndexMatches(int cacheIndex) {
@@ -177,11 +129,10 @@ public class RecipeCacheLookupMonitor<RECIPE> implements ICachedRecipeHolder<REC
 
     @Override
     public boolean invalidateCache() {
-        long recipeGeneration = RecipeHandler.getGlobalRecipeGeneration();
+        int recipeVersion = RecipeHandler.getGlobalRecipeVersion();
         boolean flush = CommonWorldTickHandler.flushTagAndRecipeCaches;
-        if (cachedRecipeGeneration != recipeGeneration) {
-            cachedRecipeGeneration = recipeGeneration;
-            cachedRecipeVersion = RecipeHandler.getGlobalRecipeVersion();
+        if (cachedRecipeVersion != recipeVersion) {
+            cachedRecipeVersion = recipeVersion;
             observedRecipeFlush = flush;
             handler.onRecipeCacheInvalidated(cacheIndex);
             return true;

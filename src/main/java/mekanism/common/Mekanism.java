@@ -518,7 +518,6 @@ public class Mekanism {
 
     @EventHandler
     public void serverStarting(FMLServerStartingEvent event) {
-        EXECUTE_MANAGER.resume();
         if (MekanismConfig.current().general.voiceServerEnabled.val()) {
             voiceManager.start();
         }
@@ -527,7 +526,6 @@ public class Mekanism {
 
     @EventHandler
     public void serverStopping(FMLServerStoppingEvent event) {
-        EXECUTE_MANAGER.shutdown();
         if (MekanismConfig.current().general.voiceServerEnabled.val()) {
             voiceManager.stop();
         }

@@ -219,35 +219,17 @@ public abstract class TileEntityAdvancedElectricMachine<RECIPE extends AdvancedM
 
     @Override
     public void onAsyncUpdateServer() {
-        commitAsyncRecipeTick();
-    }
-
-    @Override
-    public void prepareAsyncRecipeTick() {
+        super.onAsyncUpdateServer();
         if (energySlot != null) {
             energySlot.fillContainerOrConvert();
         }
         handleSecondaryFuel();
         secondaryEnergyThisTick = useStatisticalMechanics() ? secondaryEnergySampler.sample(secondaryEnergyPerTick) : ceilSecondaryEnergyPerTick(secondaryEnergyPerTick);
-    }
-
-    private void updatePreviousGas() {
+        processRecipe();
+        prevEnergy = getEnergy();
         if (!(gasTank.getGasType() == null || gasTank.getStored() == 0)) {
             prevGas = gasTank.getGasType();
         }
-    }
-
-    @Override
-    protected mekanism.common.recipe.cache.RecipeLaneCommitTarget createAsyncRecipeCommitTarget(CachedRecipe<RECIPE> cache) {
-        return new mekanism.common.recipe.cache.RecipeLaneCommitTarget(cache)
-              .input("item.0", inputSlot).input("gas.1", gasTank).output("item.0", outputSlot);
-    }
-
-    @Override
-    public void afterAsyncRecipeCommit(mekanism.common.recipe.cache.RecipeRunSnapshot snapshot,
-          mekanism.common.recipe.cache.RecipeExecutionPlan plan) {
-        super.afterAsyncRecipeCommit(snapshot, plan);
-        updatePreviousGas();
     }
 
     /**

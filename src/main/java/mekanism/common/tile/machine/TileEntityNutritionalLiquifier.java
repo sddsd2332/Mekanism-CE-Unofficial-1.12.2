@@ -125,25 +125,8 @@ public class TileEntityNutritionalLiquifier extends TileEntityBasicMachine<ItemS
     }
 
     @Override
-    protected mekanism.common.recipe.cache.RecipeLaneCommitTarget createAsyncRecipeCommitTarget(CachedRecipe<NutritionalRecipe> cache) {
-        return new mekanism.common.recipe.cache.RecipeLaneCommitTarget(cache)
-              .input("item.0", inputSlot).output("gas.0", gasTank);
-    }
-
-    @Override
-    public void afterAsyncRecipeCommit(mekanism.common.recipe.cache.RecipeRunSnapshot snapshot,
-          mekanism.common.recipe.cache.RecipeExecutionPlan plan) {
-        super.afterAsyncRecipeCommit(snapshot, plan);
-        finishRecipeTick();
-    }
-
-    @Override
     public void onAsyncUpdateServer() {
-        commitAsyncRecipeTick();
-    }
-
-    @Override
-    public void prepareAsyncRecipeTick() {
+        super.onAsyncUpdateServer();
         if (updateDelay > 0) {
             updateDelay--;
             if (updateDelay == 0) {
@@ -152,9 +135,7 @@ public class TileEntityNutritionalLiquifier extends TileEntityBasicMachine<ItemS
         }
         energySlot.fillContainerOrConvert();
         gasSlot.drainTank();
-    }
-
-    private void finishRecipeTick() {
+        processRecipe();
         prevEnergy = getEnergy();
         if (needsPacket) {
             Mekanism.packetHandler.sendUpdatePacket(this);

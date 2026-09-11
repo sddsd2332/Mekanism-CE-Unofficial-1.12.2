@@ -48,6 +48,12 @@ public abstract class MachineInput<INPUT extends MachineInput<INPUT>> {
         return ITEM_MATCHER_OVERRIDES.getOrDefault(container.getItem().getClass(), DEFAULT_MATCHER).test(container, contained);
     }
 
+    /** Capture-side check; an arbitrary item matcher cannot be executed by a detached worker. */
+    public static boolean hasCustomItemMatcher(ItemStack stack) {
+        ItemStackIngredientMatcher matcher = ITEM_MATCHER_OVERRIDES.get(stack.getItem().getClass());
+        return matcher != null && matcher != DEFAULT_MATCHER;
+    }
+
     private static boolean inputItemMatchesDefault(ItemStack container, ItemStack contained) {
         if (OreDictCache.getOreDictName(container).contains("treeSapling")) {
             return StackUtils.equalsWildcard(container, contained);

@@ -89,7 +89,7 @@ public final class MultiblockMachineRecipeProviders {
 
                   @Override
                   public int getConfigurationRevision(TILE tile) {
-                       return RecipeHandler.foldRecipeGeneration(RecipeHandler.getGlobalRecipeGeneration(), 0);
+                      return RecipeHandler.getGlobalRecipeVersion();
                   }
 
                   @Override

@@ -29,9 +29,6 @@ import mekanism.common.recipe.RecipeHandler;
 import mekanism.common.recipe.cache.CachedRecipe;
 import mekanism.common.recipe.cache.CachedRecipe.OperationTracker.RecipeError;
 import mekanism.common.recipe.cache.NucleosynthesizerRecipeCacheLookupMonitor;
-import mekanism.common.recipe.cache.RecipeLaneCommitTarget;
-import mekanism.common.recipe.cache.RecipeRunSnapshot;
-import mekanism.common.recipe.cache.RecipeExecutionPlan;
 import mekanism.common.recipe.cache.TwoInputCachedRecipe;
 import mekanism.common.recipe.cache.inputs.InputHelper;
 import mekanism.common.recipe.cache.outputs.OutputHelper;
@@ -126,38 +123,14 @@ public class TileEntityAntiprotonicNucleosynthesizer extends TileEntityUpgradeab
 
     @Override
     public void onAsyncUpdateServer() {
-        commitAsyncRecipeTick();
-    }
-
-    @Override
-    public void prepareAsyncRecipeTick() {
+        super.onAsyncUpdateServer();
         energySlot.fillContainerOrConvert();
         gasInputSlot.fillTankOrConvert();
-    }
-
-    private void finishRecipeTick() {
+        clientEnergyUsed = ((NucleosynthesizerRecipeCacheLookupMonitor) recipeCacheLookupMonitor).updateAndProcess(getMainEnergyContainer());
         if (clientEnergyUsed <= 0 && prevEnergy >= getEnergy()) {
             setActive(false);
         }
         prevEnergy = getEnergy();
-    }
-
-    @Override
-    protected RecipeLaneCommitTarget createAsyncRecipeCommitTarget(CachedRecipe<NucleosynthesizerRecipe> cache) {
-        double rate = getMainEnergyContainer().getEnergyPerTick();
-        int passes = rate > 0 ? Math.max(1, (int) Math.sqrt(getEnergy() / rate)) : 1;
-        return new RecipeLaneCommitTarget(cache).input("item.0", inputSlot).input("gas.1", inputGasTank)
-              .output("item.0", outputSlot).maxProcessingPasses(passes).keepProgressWithoutRecipe(operatingTicks);
-    }
-
-    @Override
-    public void afterAsyncRecipeCommit(RecipeRunSnapshot snapshot, RecipeExecutionPlan plan) {
-        clientEnergyUsed = plan.getEnergyAsDouble();
-        operatingTicks = plan.getLane(0).getNewOperatingTicks();
-        // Earlier successful passes activate the machine even if the final inactive callback is suppressed.
-        if (plan.getOperations() > 0 && prevEnergy < getEnergy()) setActive(true);
-        finishRecipeTick();
-        recipeCacheLookupMonitor.refreshAfterPlanCommit();
     }
 
     @Override

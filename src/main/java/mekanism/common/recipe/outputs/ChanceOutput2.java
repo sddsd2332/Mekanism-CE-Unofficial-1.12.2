@@ -5,8 +5,6 @@ import mekanism.api.AutomationType;
 import mekanism.api.inventory.IInventorySlot;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import mekanism.common.recipe.cache.RecipeExecutionPlanner;
-import mekanism.common.recipe.cache.RecipeRandomContext;
 
 import java.util.Random;
 
@@ -34,7 +32,7 @@ public class ChanceOutput2 extends MachineOutput<ChanceOutput2> {
     }
 
     public boolean checkSecondary() {
-        return RecipeRandomContext.nextDouble(rand) <= primaryChance;
+        return rand.nextDouble() <= primaryChance;
     }
 
     public boolean hasPrimary() {
@@ -47,11 +45,6 @@ public class ChanceOutput2 extends MachineOutput<ChanceOutput2> {
 
     public ItemStack getPrimaryOutput() {
         return primaryChance > 0 && checkSecondary() ? primaryOutput.copy() : ItemStack.EMPTY;
-    }
-
-    public ItemStack getPrimaryOutput(long randomSeed, long operationIndex) {
-        return primaryChance > 0 && RecipeExecutionPlanner.roll(randomSeed, operationIndex, primaryChance) ?
-              primaryOutput.copy() : ItemStack.EMPTY;
     }
 
     public boolean applyOutputs(IInventorySlot primarySlot, boolean doEmit) {

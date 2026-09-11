@@ -385,8 +385,7 @@ public final class MekanismMachineRecipeProviders {
 
                   @Override
                   public int getConfigurationRevision(TILE tile) {
-                      return RecipeHandler.foldRecipeGeneration(RecipeHandler.getGlobalRecipeGeneration(),
-                            configurationRevision.applyAsInt(tile));
+                      return 31 * RecipeHandler.getGlobalRecipeVersion() + configurationRevision.applyAsInt(tile);
                   }
 
                   @Override

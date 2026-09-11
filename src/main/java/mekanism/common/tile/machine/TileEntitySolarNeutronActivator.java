@@ -24,7 +24,6 @@ import mekanism.common.recipe.RecipeHandler;
 import mekanism.common.recipe.cache.CachedRecipe;
 import mekanism.common.recipe.cache.CachedRecipe.OperationTracker.RecipeError;
 import mekanism.common.recipe.cache.IRecipeLookupHandler;
-import mekanism.common.recipe.cache.IAsyncRecipeMachine;
 import mekanism.common.recipe.cache.OneInputCachedRecipe;
 import mekanism.common.recipe.cache.RecipeCacheLookupMonitor;
 import mekanism.common.recipe.cache.inputs.InputHelper;
@@ -58,7 +57,7 @@ import java.util.Objects;
 import java.util.Set;
 
 public class TileEntitySolarNeutronActivator extends TileEntityContainerBlock implements IUpgradeTile, IRedstoneControl, ISecurityTile, IComputerIntegration, ISideConfiguration, IConfigCardAccess, IBoundingBlock, ISustainedData, ITankManager, IUpgradeInfoHandler, IComparatorSupport, IActiveState, ISpecialSelectionWireframeTile,
-        IRecipeLookupHandler<SolarNeutronRecipe>, IAsyncRecipeMachine {
+        IRecipeLookupHandler<SolarNeutronRecipe> {
 
     public static final int MAX_GAS = 10000;
     private final RecipeCacheLookupMonitor<SolarNeutronRecipe> recipeCacheLookupMonitor = new RecipeCacheLookupMonitor<>(this);
@@ -169,35 +168,21 @@ public class TileEntitySolarNeutronActivator extends TileEntityContainerBlock im
     public void onUpdateServer() {
         super.onUpdateServer();
         serverWorldTime = world.getTotalWorldTime();
-        seesSunThisTick = hasCurrentSunlight();
-    }
-
-    private boolean hasCurrentSunlight() {
-        if (world == null) return seesSunThisTick;
         boolean seesSun = world.isDaytime() && world.canSeeSky(getPos().up()) && !world.provider.isNether();
         if (needsRainCheck) {
             seesSun &= !(world.isRaining() || world.isThundering());
         }
-        return seesSun;
+        seesSunThisTick = seesSun;
     }
 
     @Override
     public void onAsyncUpdateServer() {
-        commitAsyncRecipeTick();
-    }
-
-    @Override
-    public void prepareAsyncRecipeTick() {
+        super.onAsyncUpdateServer();
         inputSlot.fillTank();
         outputSlot.drainTank();
-    }
-
-    @Override
-    public void commitAsyncRecipeTick() {
-        IAsyncRecipeMachine.super.commitAsyncRecipeTick();
-    }
-
-    private void finishRecipeTick() {
+        if (!recipeCacheLookupMonitor.updateAndProcess()) {
+            setActive(false);
+        }
 
         // Every 20 ticks (once a second), send update to client. Note that this is a 50% reduction in network
         // traffic from previous implementation that send the update every 10 ticks.
@@ -210,35 +195,6 @@ public class TileEntitySolarNeutronActivator extends TileEntityContainerBlock im
             updateComparatorOutputLevelSync();
             currentRedstoneLevel = newRedstoneLevel;
         }
-    }
-
-    @Override
-    public Object getAsyncRecipeSnapshotSource() {
-        return getRecipe();
-    }
-
-    @Override
-    public long getAsyncRecipeCategoryGeneration() {
-        return RecipeHandler.Recipe.SOLAR_NEUTRON_ACTIVATOR.getRecipeGeneration();
-    }
-
-    @Override
-    public String getAsyncMode() {
-        return hasCurrentSunlight() ? "sun" : "no_sun";
-    }
-
-    @Override
-    public java.util.Map<Integer, mekanism.common.recipe.cache.RecipeLaneCommitTarget> getAsyncRecipeCommitTargets() {
-        return java.util.Collections.singletonMap(0,
-              new mekanism.common.recipe.cache.RecipeLaneCommitTarget(recipeCacheLookupMonitor.prepareCache())
-                    .input("gas.0", inputTank).output("gas.0", outputTank));
-    }
-
-    @Override
-    public void afterAsyncRecipeCommit(mekanism.common.recipe.cache.RecipeRunSnapshot snapshot,
-          mekanism.common.recipe.cache.RecipeExecutionPlan plan) {
-        if (!snapshot.getLane(0).isRecipePresent()) setActive(false);
-        finishRecipeTick();
     }
 
     public int getUpgradedUsage(SolarNeutronRecipe recipe) {

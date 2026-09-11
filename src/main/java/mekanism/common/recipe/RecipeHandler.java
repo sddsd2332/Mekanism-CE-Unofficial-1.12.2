@@ -12,6 +12,7 @@ import mekanism.common.MekanismItems;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.recipe.inputs.*;
+import mekanism.common.recipe.lookup.cache.InputRecipeCache;
 import mekanism.common.recipe.machines.*;
 import mekanism.common.recipe.outputs.*;
 import mekanism.common.util.StackUtils;
@@ -26,10 +27,7 @@ import java.lang.reflect.Constructor;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Class used to handle machine recipes. This is used for both adding and fetching recipes.
@@ -38,15 +36,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public final class RecipeHandler {
 
-    /**
-     * The legacy int version is retained for binary/source compatibility. New code
-     * must use {@link #getGlobalRecipeGeneration()} so a long running server cannot
-     * accidentally accept a wrapped generation.
-     */
-    private static volatile int globalRecipeVersion;
-    private static final AtomicLong GLOBAL_RECIPE_GENERATION = new AtomicLong();
-    private static final CopyOnWriteArrayList<Consumer<RecipeGeneration>> GENERATION_LISTENERS =
-          new CopyOnWriteArrayList<>();
+    private static int globalRecipeVersion;
 
     public static <INPUT extends MachineInput<INPUT>, OUTPUT extends MachineOutput<OUTPUT>, RECIPE extends MachineRecipe<INPUT, OUTPUT, RECIPE>>
     void addRecipe(@Nonnull Recipe<INPUT, OUTPUT, RECIPE> recipeMap, @Nonnull RECIPE recipe) {
@@ -64,115 +54,13 @@ public final class RecipeHandler {
         toRemove.forEach(iterInput -> recipeMap.get().remove(iterInput));
     }
 
-    /**
-     * Marks a recipe mutation. This is intentionally the single publication point
-     * for map changes so cache invalidation and QIO directory wakeups observe the
-     * same generation.
-     */
     public static void markRecipeCachesInvalid() {
-        advanceRecipeGeneration(-1);
-    }
-
-    private static void markRecipeCachesInvalid(long categoryGeneration) {
-        advanceRecipeGeneration(categoryGeneration);
-    }
-
-    private static void advanceRecipeGeneration(long categoryGeneration) {
-        long generation = GLOBAL_RECIPE_GENERATION.updateAndGet(previous -> {
-            if (previous == Long.MAX_VALUE) {
-                throw new IllegalStateException("Global recipe generation exhausted");
-            }
-            return previous + 1;
-        });
-        // Keep the old API useful while avoiding undefined integer overflow.
-        globalRecipeVersion = generation > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) generation;
+        globalRecipeVersion++;
         CommonWorldTickHandler.flushTagAndRecipeCaches = true;
-        publishGeneration(new RecipeGeneration(generation,
-              categoryGeneration < 0 ? generation : Math.max(0, categoryGeneration)));
     }
 
     public static int getGlobalRecipeVersion() {
         return globalRecipeVersion;
-    }
-
-    /** Returns the monotonic global recipe generation used by asynchronous plans. */
-    public static long getGlobalRecipeGeneration() {
-        return GLOBAL_RECIPE_GENERATION.get();
-    }
-
-    /** Alias matching the terminology used by integrations and reload hooks. */
-    public static long getRecipeGeneration() {
-        return getGlobalRecipeGeneration();
-    }
-
-    /**
-     * Folds the monotonic long generation into the legacy int Provider revision
-     * without relying on a saturating counter. The provider API remains binary
-     * compatible while every generation participates in route invalidation.
-     */
-    public static int foldRecipeGeneration(long generation, int localRevision) {
-        if (generation < 0) {
-            throw new IllegalArgumentException("Recipe generation cannot be negative");
-        }
-        int high = (int) (generation ^ generation >>> 32);
-        return 31 * high + localRevision;
-    }
-
-    /** Captures an immutable semantic recipe definition at the current generation. */
-    @Nullable
-    public static <INPUT extends MachineInput<INPUT>, OUTPUT extends MachineOutput<OUTPUT>, RECIPE extends MachineRecipe<INPUT, OUTPUT, RECIPE>>
-    RecipeDefinitionSnapshot snapshotRecipe(@Nonnull Recipe<INPUT, OUTPUT, RECIPE> category,
-          @Nullable RECIPE recipe) {
-        return category.snapshot(recipe);
-    }
-
-    /** Captures all active categories without exposing their mutable maps. */
-    @Nonnull
-    public static List<RecipeDefinitionSnapshot> snapshotAllDefinitions() {
-        List<RecipeDefinitionSnapshot> definitions = new ArrayList<>();
-        for (Recipe<?, ?, ?> category : Recipe.values()) {
-            definitions.addAll(category.snapshotDefinitions());
-        }
-        return Collections.unmodifiableList(definitions);
-    }
-
-    /**
-     * Explicit reload-completion boundary. Third-party script engines may mutate a
-     * recipe object in place or bypass RecipeMap, so a completed reload always gets a
-     * fresh generation even when no map callback was observed.
-     */
-    public static void markRecipeReloadComplete() {
-        markRecipeCachesInvalid();
-    }
-
-    public static void notifyRecipeReloadComplete() {
-        markRecipeReloadComplete();
-    }
-
-    public static void onGroovyScriptReloadComplete() {
-        markRecipeReloadComplete();
-    }
-
-    public static void addRecipeGenerationListener(Consumer<RecipeGeneration> listener) {
-        GENERATION_LISTENERS.add(Objects.requireNonNull(listener, "Recipe generation listener cannot be null"));
-    }
-
-    public static void removeRecipeGenerationListener(Consumer<RecipeGeneration> listener) {
-        if (listener != null) {
-            GENERATION_LISTENERS.remove(listener);
-        }
-    }
-
-    private static void publishGeneration(RecipeGeneration generation) {
-        for (Consumer<RecipeGeneration> listener : GENERATION_LISTENERS) {
-            try {
-                listener.accept(generation);
-            } catch (Throwable error) {
-                // A compat module must not abort recipe publication for every other
-                // module. The next generation notification remains retryable.
-                mekanism.common.Mekanism.logger.warn("Recipe generation listener failed", error);
-            }
-        }
     }
 
     /**
@@ -633,6 +521,11 @@ public final class RecipeHandler {
     @Nullable
     public static <INPUT extends MachineInput<INPUT>, RECIPE extends MachineRecipe<INPUT, ?, RECIPE>>
     RECIPE getRecipe(@Nonnull INPUT input, @Nonnull Map<INPUT, RECIPE> recipes) {
+        if (recipes instanceof Recipe.IndexedRecipeMap) {
+            @SuppressWarnings("unchecked")
+            RECIPE indexed = (RECIPE) ((Recipe.IndexedRecipeMap) recipes).findIndexed(input);
+            return indexed;
+        }
         if (input.isValid()) {
             RECIPE recipe = recipes.get(input);
             if (recipe == null && input instanceof IWildInput) {
@@ -648,7 +541,7 @@ public final class RecipeHandler {
     @Nullable
     public static <INPUT extends MachineInput<INPUT>, RECIPE extends MachineRecipe<INPUT, ?, RECIPE>>
     RECIPE getRecipe(@Nonnull INPUT input, @Nonnull Recipe<INPUT, ?, RECIPE> type) {
-        return getRecipe(input, type.get());
+        return type.findRecipe(input);
     }
 
     /**
@@ -994,6 +887,7 @@ public final class RecipeHandler {
         }
 
         private final HashMap<INPUT, RECIPE> recipes = new RecipeMap();
+        private final InputRecipeCache<INPUT, RECIPE> inputCache = new InputRecipeCache<>();
         private final String recipeName;
         @Nonnull
         private final String jeiCategory;
@@ -1002,7 +896,6 @@ public final class RecipeHandler {
         private Class<OUTPUT> outputClass;
         private Class<RECIPE> recipeClass;
         private int recipeVersion;
-        private volatile long recipeGeneration;
 
         private Recipe(MachineType type, Class<INPUT> input, Class<OUTPUT> output, Class<RECIPE> recipe) {
             this(type.getBlockName(), input, output, recipe);
@@ -1023,6 +916,22 @@ public final class RecipeHandler {
             recipes.put(recipe.getInput(), recipe);
         }
 
+        /** High-version-style lazy input cache for this recipe category. */
+        @Nullable
+        public RECIPE findRecipe(@Nonnull INPUT input) {
+            return inputCache.findFirstRecipe(input, recipes.values());
+        }
+
+        @Nonnull
+        public List<RECIPE> getCachedRecipes() {
+            return inputCache.getRecipes(recipes.values());
+        }
+
+        @Nonnull
+        public InputRecipeCache<INPUT, RECIPE> getInputCache() {
+            return inputCache;
+        }
+
         public void remove(@Nonnull RECIPE recipe) {
             recipes.remove(recipe.getInput());
         }
@@ -1031,62 +940,10 @@ public final class RecipeHandler {
             return recipeVersion;
         }
 
-        /** Monotonic category generation for new asynchronous planning code. */
-        public long getRecipeGeneration() {
-            return recipeGeneration;
-        }
-
-        public long getRecipeVersionLong() {
-            return recipeGeneration;
-        }
-
-        public RecipeGeneration getGeneration() {
-            return new RecipeGeneration(RecipeHandler.getGlobalRecipeGeneration(), recipeGeneration);
-        }
-
-        /**
-         * Returns a stable copy of the currently registered recipe values. The live
-         * HashMap is intentionally never exposed to worker code.
-         */
-        @Nonnull
-        public synchronized List<RECIPE> snapshotRecipes() {
-            List<RECIPE> copy = new ArrayList<>(recipes.size());
-            for (RECIPE recipe : recipes.values()) {
-                if (recipe != null) {
-                    copy.add(recipe.copy());
-                }
-            }
-            return Collections.unmodifiableList(copy);
-        }
-
-        /** Returns only immutable semantic projections suitable for worker tasks. */
-        @Nonnull
-        public synchronized List<RecipeDefinitionSnapshot> snapshotDefinitions() {
-            List<RecipeDefinitionSnapshot> definitions = new ArrayList<>(recipes.size());
-            RecipeGeneration generation = getGeneration();
-            for (RECIPE recipe : recipes.values()) {
-                if (recipe != null) {
-                    definitions.add(RecipeSnapshotCompiler.compile(recipeName, generation, recipe));
-                }
-            }
-            return Collections.unmodifiableList(definitions);
-        }
-
-        /** Compiles one recipe into a registry-independent semantic definition. */
-        @Nullable
-        public RecipeDefinitionSnapshot snapshot(@Nullable RECIPE recipe) {
-            return recipe == null ? null : RecipeSnapshotCompiler.compile(recipeName, getGeneration(), recipe);
-        }
-
         private void onRecipesChanged() {
-            if (recipeVersion < Integer.MAX_VALUE) {
-                recipeVersion++;
-            }
-            if (recipeGeneration == Long.MAX_VALUE) {
-                throw new IllegalStateException("Recipe generation exhausted for " + recipeName);
-            }
-            recipeGeneration++;
-            markRecipeCachesInvalid(recipeGeneration);
+            recipeVersion++;
+            inputCache.clear();
+            markRecipeCachesInvalid();
         }
 
         public String getRecipeName() {
@@ -1217,7 +1074,28 @@ public final class RecipeHandler {
             return recipes;
         }
 
-        private class RecipeMap extends HashMap<INPUT, RECIPE> {
+        private interface IndexedRecipeMap {
+            @Nullable
+            MachineRecipe<?, ?, ?> findIndexed(MachineInput<?> input);
+
+            boolean containsIndexed(MachineInput<?> input);
+        }
+
+        private class RecipeMap extends HashMap<INPUT, RECIPE> implements IndexedRecipeMap {
+
+            @Override
+            public MachineRecipe<?, ?, ?> findIndexed(MachineInput<?> input) {
+                @SuppressWarnings("unchecked")
+                INPUT typed = (INPUT) input;
+                return findRecipe(typed);
+            }
+
+            @Override
+            public boolean containsIndexed(MachineInput<?> input) {
+                @SuppressWarnings("unchecked")
+                INPUT typed = (INPUT) input;
+                return inputCache.containsInput(typed, recipes.values());
+            }
 
             @Override
             public RECIPE put(INPUT key, RECIPE value) {
@@ -1341,7 +1219,7 @@ public final class RecipeHandler {
             public RECIPE putIfAbsent(INPUT key, RECIPE value) {
                 boolean hadKey = containsKey(key);
                 RECIPE previous = super.putIfAbsent(key, value);
-                if (!hadKey || previous == null && value != null) {
+                if (!hadKey) {
                     onRecipesChanged();
                 }
                 return previous;

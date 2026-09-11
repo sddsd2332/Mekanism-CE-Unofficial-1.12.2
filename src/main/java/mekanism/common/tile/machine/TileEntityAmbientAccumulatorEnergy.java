@@ -25,7 +25,6 @@ import mekanism.common.recipe.RecipeHandler;
 import mekanism.common.recipe.cache.CachedRecipe;
 import mekanism.common.recipe.cache.CachedRecipe.OperationTracker.RecipeError;
 import mekanism.common.recipe.cache.IRecipeLookupHandler;
-import mekanism.common.recipe.cache.IAsyncRecipeMachine;
 import mekanism.common.recipe.cache.NoInputCachedRecipe;
 import mekanism.common.recipe.cache.RecipeCacheLookupMonitor;
 import mekanism.common.recipe.cache.outputs.OutputHelper;
@@ -51,8 +50,7 @@ import java.util.List;
 import java.util.Set;
 
 public class TileEntityAmbientAccumulatorEnergy extends TileEntityMachine implements ISustainedData,
-        IUpgradeInfoHandler, ITankManager, IComparatorSupport, ISideConfiguration, IConfigCardAccess,
-        IRecipeLookupHandler<AmbientGasRecipe>, IAsyncRecipeMachine {
+        IUpgradeInfoHandler, ITankManager, IComparatorSupport, ISideConfiguration, IConfigCardAccess, IRecipeLookupHandler<AmbientGasRecipe> {
 
     public static final int MAX_GAS = GasTankTier.BASIC.getBaseStorage();
     private final RecipeCacheLookupMonitor<AmbientGasRecipe> recipeCacheLookupMonitor = new RecipeCacheLookupMonitor<>(this);
@@ -128,57 +126,24 @@ public class TileEntityAmbientAccumulatorEnergy extends TileEntityMachine implem
 
     @Override
     public void onAsyncUpdateServer() {
-        commitAsyncRecipeTick();
-    }
-
-    @Override
-    public void prepareAsyncRecipeTick() {
+        super.onAsyncUpdateServer();
         energySlot.fillContainerOrConvert();
         gasSlot.drainTank();
-    }
-
-    @Override
-    public void commitAsyncRecipeTick() {
-        IAsyncRecipeMachine.super.commitAsyncRecipeTick();
-    }
-
-    private void finishRecipeTick() {
+        AmbientGasRecipe recipe = getRecipe();
+        if (recipe == null) {
+            recipeCacheLookupMonitor.clear();
+            if (prevEnergy >= getEnergy()) {
+                setActive(false);
+            }
+        } else {
+            clientEnergyUsed = recipeCacheLookupMonitor.updateAndProcess(getMainEnergyContainer());
+        }
         prevEnergy = getEnergy();
         int newRedstoneLevel = getRedstoneLevel();
         if (newRedstoneLevel != currentRedstoneLevel) {
             updateComparatorOutputLevelSync();
             currentRedstoneLevel = newRedstoneLevel;
         }
-    }
-
-    @Override
-    public Object getAsyncRecipeSnapshotSource() {
-        return getRecipe();
-    }
-
-    @Override
-    public long getAsyncRecipeCategoryGeneration() {
-        return RecipeHandler.Recipe.AMBIENT_ACCUMULATOR.getRecipeGeneration();
-    }
-
-    @Override
-    public java.util.Map<Integer, mekanism.common.recipe.cache.RecipeLaneCommitTarget> getAsyncRecipeCommitTargets() {
-        return java.util.Collections.singletonMap(0,
-              new mekanism.common.recipe.cache.RecipeLaneCommitTarget(recipeCacheLookupMonitor.prepareCache())
-                    .output("gas.0", outputTank));
-    }
-
-    @Override
-    public void afterAsyncRecipeCommit(mekanism.common.recipe.cache.RecipeRunSnapshot snapshot,
-          mekanism.common.recipe.cache.RecipeExecutionPlan plan) {
-        clientEnergyUsed = plan.getEnergyAsDouble();
-        if (!snapshot.getLane(0).isRecipePresent() && prevEnergy >= getEnergy()) setActive(false);
-        finishRecipeTick();
-    }
-
-    @Override
-    public String getAsyncMode() {
-        return Integer.toString(world == null ? cachedDimensionId : world.provider.getDimension());
     }
 
     public AmbientGasRecipe getRecipe() {

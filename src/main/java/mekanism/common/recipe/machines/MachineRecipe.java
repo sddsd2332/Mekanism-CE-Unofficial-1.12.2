@@ -2,7 +2,6 @@ package mekanism.common.recipe.machines;
 
 import mekanism.common.recipe.inputs.MachineInput;
 import mekanism.common.recipe.outputs.MachineOutput;
-import mekanism.common.recipe.RecipeSnapshotCompiler;
 
 public abstract class MachineRecipe<INPUT extends MachineInput<?>, OUTPUT extends MachineOutput<?>, RECIPE extends MachineRecipe<INPUT, OUTPUT, RECIPE>> {
 
@@ -23,15 +22,4 @@ public abstract class MachineRecipe<INPUT extends MachineInput<?>, OUTPUT extend
     }
 
     public abstract RECIPE copy();
-
-    /** Explicit name for the defensive copy used at an async capture boundary. */
-    @SuppressWarnings("unchecked")
-    public RECIPE copyForAsync() {
-        return (RECIPE) copy();
-    }
-
-    /** Stable semantic projection; never exposes the mutable recipe fields. */
-    public final String semanticSignature() {
-        return RecipeSnapshotCompiler.semanticSignature(this);
-    }
 }

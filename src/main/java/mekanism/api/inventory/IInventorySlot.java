@@ -48,11 +48,6 @@ public interface IInventorySlot extends INBTSerializable<NBTTagCompound>, IConte
      */
     void setStack(ItemStack stack);
 
-    /** Listener-free server transaction write. The caller must validate first and notify after commit. */
-    default void setStackUncheckedNoUpdate(ItemStack stack) {
-        throw new UnsupportedOperationException("This slot does not support atomic recipe writes");
-    }
-
     /**
      * <p>
      * Inserts an {@link ItemStack} into this {@link IInventorySlot} and return the remainder. The {@link ItemStack} <em>should not</em> be modified in this function!
