@@ -16,6 +16,7 @@ public class RecipeCacheLookupMonitor<RECIPE> implements ICachedRecipeHolder<REC
     protected boolean shouldUnpause;
     private int cachedRecipeVersion = RecipeHandler.getGlobalRecipeVersion();
     private boolean observedRecipeFlush;
+    private volatile boolean needsProcessingCheck = true;
 
     public RecipeCacheLookupMonitor(IRecipeLookupHandler<RECIPE> handler) {
         this(handler, 0);
@@ -38,7 +39,14 @@ public class RecipeCacheLookupMonitor<RECIPE> implements ICachedRecipeHolder<REC
     }
 
     public void unpause() {
+        needsProcessingCheck = true;
         shouldUnpause = true;
+    }
+
+    /** A wake arriving during processing stays pending for the next server tick. */
+    public final boolean canSkipProcessing() {
+        return !needsProcessingCheck && cachedRecipeVersion == RecipeHandler.getGlobalRecipeVersion() &&
+              !CommonWorldTickHandler.flushTagAndRecipeCaches;
     }
 
     public double updateAndProcess(IEnergyContainer energyContainer) {
@@ -50,6 +58,7 @@ public class RecipeCacheLookupMonitor<RECIPE> implements ICachedRecipeHolder<REC
     }
 
     public boolean updateAndProcess() {
+        needsProcessingCheck = false;
         CachedRecipe<RECIPE> oldCache = cachedRecipe;
         cachedRecipe = getUpdatedCache(cacheIndex);
         if (cachedRecipe != oldCache) {
@@ -81,6 +90,7 @@ public class RecipeCacheLookupMonitor<RECIPE> implements ICachedRecipeHolder<REC
     }
 
     public void clear() {
+        needsProcessingCheck = true;
         if (cachedRecipe != null) {
             cachedRecipe = null;
             handler.onCachedRecipeChanged(null, cacheIndex);

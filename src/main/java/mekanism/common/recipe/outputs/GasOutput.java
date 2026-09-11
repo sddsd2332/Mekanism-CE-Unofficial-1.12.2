@@ -6,11 +6,7 @@ import mekanism.api.gas.GasStack;
 import mekanism.api.gas.IExtendedGasTank;
 import net.minecraft.nbt.NBTTagCompound;
 
-import java.util.Random;
-
 public class GasOutput extends MachineOutput<GasOutput> {
-
-    private static Random rand = new Random();
 
     public GasStack output;
 

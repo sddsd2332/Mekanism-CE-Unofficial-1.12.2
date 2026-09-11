@@ -231,6 +231,11 @@ public abstract class TileEntityBasicMachine<INPUT extends MachineInput<INPUT>, 
         }
     }
 
+    protected final boolean isEmptyRecipeStateSettled() {
+        return !getActive() && operatingTicks == 0 && prevEnergy == getEnergy() &&
+              recipeCacheLookupMonitor.canSkipProcessing();
+    }
+
     protected double processRecipe(IEnergyContainer energyContainer) {
         double energyUsed = recipeCacheLookupMonitor.updateAndProcess(energyContainer);
         if (recipeCacheLookupMonitor.getCachedRecipe(0) == null) {

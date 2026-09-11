@@ -9,10 +9,12 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraftforge.common.util.Constants;
 
+import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Random;
 
 /**
@@ -21,7 +23,9 @@ import java.util.Random;
 public class FarmOutput extends MachineOutput<FarmOutput> {
 
     public static final int MAX_CHANCE_OUTPUTS = 63;
-    private static final Random RANDOM = new Random();
+
+    /** Legacy shared source, only used by the no-argument overloads. See {@link #getOutputs(Random)}. */
+    private static final Random LEGACY_RANDOM = new Random();
 
     public ItemStack primaryOutput = ItemStack.EMPTY;
     private List<FarmChanceOutput> chanceOutputs = Collections.emptyList();
@@ -150,10 +154,16 @@ public class FarmOutput extends MachineOutput<FarmOutput> {
     }
 
     public List<ItemStack> getOutputs() {
-        return getOutputs(RANDOM);
+        return getOutputs(LEGACY_RANDOM);
     }
 
-    public List<ItemStack> getOutputs(Random random) {
+    /**
+     * Rolls all chance outputs with an explicit random source.
+     *
+     * @param random the source to draw from; must not be null
+     */
+    public List<ItemStack> getOutputs(@Nonnull Random random) {
+        Objects.requireNonNull(random, "Random source cannot be null");
         List<ItemStack> outputs = new ArrayList<>(chanceOutputs.size() + 1);
         outputs.add(getGuaranteedOutput());
         for (FarmChanceOutput chanceOutput : chanceOutputs) {
@@ -173,11 +183,21 @@ public class FarmOutput extends MachineOutput<FarmOutput> {
     }
 
     public ItemStack getSecondaryOutput() {
+        return getSecondaryOutput(LEGACY_RANDOM);
+    }
+
+    /**
+     * Rolls the first chance output with an explicit random source.
+     *
+     * @param random the source to draw from; must not be null
+     */
+    public ItemStack getSecondaryOutput(@Nonnull Random random) {
+        Objects.requireNonNull(random, "Random source cannot be null");
         if (chanceOutputs.isEmpty()) {
             return ItemStack.EMPTY;
         }
         FarmChanceOutput output = chanceOutputs.get(0);
-        return RANDOM.nextDouble() < output.getChance() ? output.getOutput() : ItemStack.EMPTY;
+        return random.nextDouble() < output.getChance() ? output.getOutput() : ItemStack.EMPTY;
     }
 
     public ItemStack nextSecondaryOutput() {
@@ -185,10 +205,20 @@ public class FarmOutput extends MachineOutput<FarmOutput> {
     }
 
     public boolean applyOutputs(IInventorySlot primarySlot, IInventorySlot secondarySlot, boolean doEmit) {
+        return applyOutputs(primarySlot, secondarySlot, doEmit, LEGACY_RANDOM);
+    }
+
+    /**
+     * Applies this output with an explicit random source.
+     *
+     * @param random the source used when {@code doEmit} is true; must not be null
+     */
+    public boolean applyOutputs(IInventorySlot primarySlot, IInventorySlot secondarySlot, boolean doEmit, @Nonnull Random random) {
+        Objects.requireNonNull(random, "Random source cannot be null");
         if (!insert(primarySlot, primaryOutput, doEmit)) {
             return false;
         }
-        ItemStack secondary = doEmit ? getSecondaryOutput() : getMaxSecondaryOutput();
+        ItemStack secondary = doEmit ? getSecondaryOutput(random) : getMaxSecondaryOutput();
         return secondary.isEmpty() || insert(secondarySlot, secondary, doEmit);
     }
 

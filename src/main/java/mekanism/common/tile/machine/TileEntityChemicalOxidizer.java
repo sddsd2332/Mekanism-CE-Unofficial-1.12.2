@@ -112,6 +112,16 @@ public class TileEntityChemicalOxidizer extends TileEntityBasicMachine<ItemStack
         processRecipe();
         prevEnergy = getEnergy();
     }
+
+    @Override
+    protected boolean supportsAsyncIdleSkipping() {
+        return getClass() == TileEntityChemicalOxidizer.class;
+    }
+
+    @Override
+    protected boolean isAsyncUpdateIdle() {
+        return inputSlot.isEmpty() && energySlot.isEmpty() && gasSlot.isEmpty() && isEmptyRecipeStateSettled();
+    }
     @Override
     public void addTileSyncTask(){
     }

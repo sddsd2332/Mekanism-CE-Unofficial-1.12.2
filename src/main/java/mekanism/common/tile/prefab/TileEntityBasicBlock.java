@@ -71,6 +71,7 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
 
     private final ReentrantLock containerTransactionLock = new ReentrantLock();
     private boolean serverEjectionSuppressedForCurrentTick;
+    private boolean asyncUpdateSubmitted;
 
     /**
      * Installs the optional-module callback which runs immediately before tile components.
@@ -124,6 +125,7 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
 
     @Override
     public void doRestrictedTick() {
+        asyncUpdateSubmitted = false;
         beginServerTick();
         if (checkInvalidBlock()) {
             return;
@@ -136,8 +138,9 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
         //TODO：切换为四种状态：同时更新,客户端更新,服务端更新，服务端异步更新
         if (!isRemote()) {
             onUpdateServer(); //服务端更新
-            if (supportsAsync()) { //如果支持异步
+            if (supportsAsync() && !trySkipAsyncUpdate()) { //如果支持异步
                 Mekanism.EXECUTE_MANAGER.addTask(this::runAsyncUpdateServer); //进行服务端异步更新
+                asyncUpdateSubmitted = true;
             }
         } else {
             onUpdateClient(); //进行客户端更新
@@ -279,6 +282,39 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
             return false;
         }
         return declaringClass != TileEntityElectricBlock.class || ((TileEntityElectricBlock) this).hasTileSyncTask();
+    }
+
+    public final boolean wasAsyncUpdateSubmitted() {
+        return asyncUpdateSubmitted;
+    }
+
+    protected boolean supportsAsyncIdleSkipping() {
+        return false;
+    }
+
+    /** Called with the local container lock; no recipe lookup or capability discovery belongs here. */
+    protected boolean isAsyncUpdateIdle() {
+        return false;
+    }
+
+    /** Small tile-owned bookkeeping which must continue even without a worker task. */
+    protected void onAsyncUpdateSkipped() {
+    }
+
+    private boolean trySkipAsyncUpdate() {
+        if (!MekanismConfig.current().mekce.SkipIdleMachineAsyncTasks.val() || !supportsAsyncIdleSkipping() ||
+              !containerTransactionLock.tryLock()) {
+            return false;
+        }
+        try {
+            if (!isAsyncUpdateIdle()) {
+                return false;
+            }
+            onAsyncUpdateSkipped();
+            return true;
+        } finally {
+            containerTransactionLock.unlock();
+        }
     }
 
     private void runAsyncUpdateServer() {

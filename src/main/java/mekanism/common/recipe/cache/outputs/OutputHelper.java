@@ -15,9 +15,11 @@ import net.minecraft.item.ItemStack;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.items.ItemHandlerHelper;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
 
 public final class OutputHelper {
 
@@ -61,16 +63,36 @@ public final class OutputHelper {
 
     public static IOutputHandler<ChanceOutput> getOutputHandler(IInventorySlot primarySlot, RecipeError primaryNotEnoughSpaceError,
           IInventorySlot secondarySlot, RecipeError secondaryNotEnoughSpaceError) {
+        return getOutputHandler(primarySlot, primaryNotEnoughSpaceError, secondarySlot, secondaryNotEnoughSpaceError, null);
+    }
+
+    /**
+     * Creates a chance output handler that draws from an explicit random source.
+     *
+     * @param random the source to roll probability outputs with, or null to keep using the legacy shared source
+     */
+    public static IOutputHandler<ChanceOutput> getOutputHandler(IInventorySlot primarySlot, IInventorySlot secondarySlot,
+          RecipeError notEnoughSpaceError, @Nullable Random random) {
+        return getOutputHandler(primarySlot, notEnoughSpaceError, secondarySlot, notEnoughSpaceError, random);
+    }
+
+    /**
+     * Creates a chance output handler that draws from an explicit random source.
+     *
+     * @param random the source to roll probability outputs with, or null to keep using the legacy shared source
+     */
+    public static IOutputHandler<ChanceOutput> getOutputHandler(IInventorySlot primarySlot, RecipeError primaryNotEnoughSpaceError,
+          IInventorySlot secondarySlot, RecipeError secondaryNotEnoughSpaceError, @Nullable Random random) {
         return new IOutputHandler<>() {
 
             @Override
             public void handleOutput(ChanceOutput toOutput, int operations) {
                 growOutput(primarySlot, toOutput.getMainOutput(), operations);
-                ItemStack secondaryOutput = toOutput.getSecondaryOutput();
+                ItemStack secondaryOutput = random == null ? toOutput.getSecondaryOutput() : toOutput.getSecondaryOutput(random);
                 for (int i = 0; i < operations; i++) {
                     growOutput(secondarySlot, secondaryOutput, 1);
                     if (i < operations - 1) {
-                        secondaryOutput = toOutput.nextSecondaryOutput();
+                        secondaryOutput = random == null ? toOutput.nextSecondaryOutput() : toOutput.nextSecondaryOutput(random);
                     }
                 }
             }
@@ -86,12 +108,21 @@ public final class OutputHelper {
     }
 
     public static IOutputHandler<ChanceOutput2> getOutputHandlerChance2(IInventorySlot slot, RecipeError notEnoughSpaceError) {
+        return getOutputHandlerChance2(slot, notEnoughSpaceError, null);
+    }
+
+    /**
+     * Creates a chance output handler that draws from an explicit random source.
+     *
+     * @param random the source to roll probability outputs with, or null to keep using the legacy shared source
+     */
+    public static IOutputHandler<ChanceOutput2> getOutputHandlerChance2(IInventorySlot slot, RecipeError notEnoughSpaceError, @Nullable Random random) {
         return new IOutputHandler<>() {
 
             @Override
             public void handleOutput(ChanceOutput2 toOutput, int operations) {
                 for (int i = 0; i < operations; i++) {
-                    growOutput(slot, toOutput.getPrimaryOutput(), 1);
+                    growOutput(slot, random == null ? toOutput.getPrimaryOutput() : toOutput.getPrimaryOutput(random), 1);
                 }
             }
 
@@ -109,12 +140,22 @@ public final class OutputHelper {
 
     public static IOutputHandler<FarmOutput> getFarmOutputHandler(List<? extends IInventorySlot> outputSlots,
           RecipeError notEnoughSpaceError) {
+        return getFarmOutputHandler(outputSlots, notEnoughSpaceError, null);
+    }
+
+    /**
+     * Creates a farm output handler that draws from an explicit random source.
+     *
+     * @param random the source to roll chance outputs with, or null to keep using the legacy shared source
+     */
+    public static IOutputHandler<FarmOutput> getFarmOutputHandler(List<? extends IInventorySlot> outputSlots,
+          RecipeError notEnoughSpaceError, @Nullable Random random) {
         return new IOutputHandler<>() {
 
             @Override
             public void handleOutput(FarmOutput toOutput, int operations) {
                 for (int i = 0; i < operations; i++) {
-                    insertFarmOutputs(outputSlots, mergeFarmOutputs(toOutput.getOutputs()));
+                    insertFarmOutputs(outputSlots, mergeFarmOutputs(random == null ? toOutput.getOutputs() : toOutput.getOutputs(random)));
                 }
             }
 
@@ -261,12 +302,26 @@ public final class OutputHelper {
     }
 
     public static IOutputHandler<ChanceGasOutput> getChanceGasOutputHandler(IExtendedGasTank tank, RecipeError notEnoughSpaceError) {
+        return getChanceGasOutputHandler(tank, notEnoughSpaceError, null);
+    }
+
+    /**
+     * Creates a chance gas output handler that draws from an explicit random source.
+     *
+     * @param random the source to roll probability outputs with, or null to keep using the legacy shared source
+     */
+    public static IOutputHandler<ChanceGasOutput> getChanceGasOutputHandler(IExtendedGasTank tank, RecipeError notEnoughSpaceError,
+          @Nullable Random random) {
         return new IOutputHandler<>() {
 
             @Override
             public void handleOutput(ChanceGasOutput toOutput, int operations) {
                 if (toOutput != null) {
-                    toOutput.applyOutputs(tank, true, operations);
+                    if (random == null) {
+                        toOutput.applyOutputs(tank, true, operations);
+                    } else {
+                        toOutput.applyOutputs(tank, true, operations, random);
+                    }
                 }
             }
 

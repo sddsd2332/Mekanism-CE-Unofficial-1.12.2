@@ -6,11 +6,14 @@ import mekanism.api.inventory.IInventorySlot;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 
+import javax.annotation.Nonnull;
+import java.util.Objects;
 import java.util.Random;
 
 public class ChanceOutput2 extends MachineOutput<ChanceOutput2> {
 
-    private static Random rand = new Random();
+    /** Legacy shared source, only used by the no-argument overloads. See {@link #checkSecondary(Random)}. */
+    private static final Random LEGACY_RANDOM = new Random();
 
     public ItemStack primaryOutput = ItemStack.EMPTY;
 
@@ -32,7 +35,18 @@ public class ChanceOutput2 extends MachineOutput<ChanceOutput2> {
     }
 
     public boolean checkSecondary() {
-        return rand.nextDouble() <= primaryChance;
+        return checkSecondary(LEGACY_RANDOM);
+    }
+
+    /**
+     * Rolls the primary output chance with an explicit random source.
+     *
+     * @param random the source to draw from; must not be null
+     * @return true when the primary output should be produced
+     */
+    public boolean checkSecondary(@Nonnull Random random) {
+        Objects.requireNonNull(random, "Random source cannot be null");
+        return random.nextDouble() <= primaryChance;
     }
 
     public boolean hasPrimary() {
@@ -44,11 +58,31 @@ public class ChanceOutput2 extends MachineOutput<ChanceOutput2> {
     }
 
     public ItemStack getPrimaryOutput() {
-        return primaryChance > 0 && checkSecondary() ? primaryOutput.copy() : ItemStack.EMPTY;
+        return getPrimaryOutput(LEGACY_RANDOM);
+    }
+
+    /**
+     * Rolls the primary output with an explicit random source.
+     *
+     * @param random the source to draw from; must not be null
+     * @return a copy of the primary output when the roll succeeds, otherwise empty
+     */
+    public ItemStack getPrimaryOutput(@Nonnull Random random) {
+        return primaryChance > 0 && checkSecondary(random) ? primaryOutput.copy() : ItemStack.EMPTY;
     }
 
     public boolean applyOutputs(IInventorySlot primarySlot, boolean doEmit) {
-        ItemStack output = doEmit ? getPrimaryOutput() : getMaxPrimaryOutput();
+        return applyOutputs(primarySlot, doEmit, LEGACY_RANDOM);
+    }
+
+    /**
+     * Applies this output with an explicit random source.
+     *
+     * @param random the source used when {@code doEmit} is true; must not be null
+     */
+    public boolean applyOutputs(IInventorySlot primarySlot, boolean doEmit, @Nonnull Random random) {
+        Objects.requireNonNull(random, "Random source cannot be null");
+        ItemStack output = doEmit ? getPrimaryOutput(random) : getMaxPrimaryOutput();
         if (!output.isEmpty()) {
             return !applyOutputs(primarySlot, doEmit, output);
         }

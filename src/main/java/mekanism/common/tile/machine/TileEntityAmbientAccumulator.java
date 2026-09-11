@@ -53,6 +53,8 @@ import javax.annotation.Nonnull;
     private int currentRedstoneLevel;
 
     private boolean isActive;
+    private final java.util.Random recipeRandom = new java.util.Random();
+    private boolean recipeRandomSeeded;
 
     public int cachedDimensionId;
     public AmbientGasRecipe cachedRecipe;
@@ -177,11 +179,24 @@ import javax.annotation.Nonnull;
         return getRecipe();
     }
 
+    /**
+     * Returns this machine's probability source, seeded from the machine position on first use.
+     */
+    private java.util.Random accumulatorRecipeRandom() {
+        if (!recipeRandomSeeded) {
+            if (world != null) {
+                recipeRandom.setSeed(mekanism.common.recipe.cache.RecipeRandom.deriveSeed(pos.toLong(), 0));
+                recipeRandomSeeded = true;
+            }
+        }
+        return recipeRandom;
+    }
+
     @Override
     public CachedRecipe<AmbientGasRecipe> createNewCachedRecipe(AmbientGasRecipe recipe, int cacheIndex) {
         return new NoInputCachedRecipe<>(recipe, () -> false,
               () -> recipe.getInput().ingredient == cachedDimensionId,
-              OutputHelper.getChanceGasOutputHandler(collectedGas, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
+              OutputHelper.getChanceGasOutputHandler(collectedGas, RecipeError.NOT_ENOUGH_OUTPUT_SPACE, accumulatorRecipeRandom()),
               () -> recipe.getOutput().copy(),
               output -> output == null || output.getMaxOutput() == null)
               .setCanHolderFunction(() -> MekanismUtils.canFunction(this))

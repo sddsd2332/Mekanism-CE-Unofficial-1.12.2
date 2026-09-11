@@ -47,6 +47,8 @@ public abstract class TileEntityChanceMachine2<RECIPE extends Chance2MachineReci
           RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
     );
     private static final String[] methods = new String[]{"getEnergy", "getProgress", "isActive", "facing", "canOperate", "getMaxEnergy", "getEnergyNeeded"};
+    private final java.util.Random recipeRandom = new java.util.Random();
+    private boolean recipeRandomSeeded;
     protected InputInventorySlot inputSlot;
     protected EnergyInventorySlot energySlot;
     protected OutputInventorySlot outputSlot;
@@ -128,11 +130,25 @@ public abstract class TileEntityChanceMachine2<RECIPE extends Chance2MachineReci
         return recipe != null && recipe.getOutput().applyOutputs(outputSlot, false);
     }
 
+    /**
+     * Returns this machine's probability source. Seeded from the machine position on first use so that a machine
+     * replays the same output sequence for the same inputs and no longer shares a process-wide source.
+     */
+    protected java.util.Random chanceRecipeRandom() {
+        if (!recipeRandomSeeded) {
+            if (world != null) {
+                recipeRandom.setSeed(mekanism.common.recipe.cache.RecipeRandom.deriveSeed(pos.toLong(), 0));
+                recipeRandomSeeded = true;
+            }
+        }
+        return recipeRandom;
+    }
+
     @Override
     public CachedRecipe<RECIPE> createNewCachedRecipe(RECIPE recipe, int cacheIndex) {
         return new OneInputCachedRecipe<>(recipe, this::shouldRecheckAllRecipeErrors,
               InputHelper.getInputHandler(inputSlot, RecipeError.NOT_ENOUGH_INPUT),
-              OutputHelper.getOutputHandlerChance2(outputSlot, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
+              OutputHelper.getOutputHandlerChance2(outputSlot, RecipeError.NOT_ENOUGH_OUTPUT_SPACE, chanceRecipeRandom()),
               () -> recipe.getInput().ingredient,
               input -> mekanism.common.recipe.inputs.MachineInput.inputContains(input, recipe.getInput().ingredient),
               input -> recipe.getOutput().copy(), ItemStack::isEmpty, output -> false)

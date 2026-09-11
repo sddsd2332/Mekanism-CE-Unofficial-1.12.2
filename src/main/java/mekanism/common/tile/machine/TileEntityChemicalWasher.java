@@ -174,6 +174,17 @@ public class TileEntityChemicalWasher extends TileEntityBasicMachine<GasAndFluid
     }
 
     @Override
+    protected boolean supportsAsyncIdleSkipping() {
+        return getClass() == TileEntityChemicalWasher.class;
+    }
+
+    @Override
+    protected boolean isAsyncUpdateIdle() {
+        return inputTank.isEmpty() && fluidTank.isEmpty() && inputSlot.isEmpty() && gasSlot.isEmpty() && energySlot.isEmpty() &&
+              clientEnergyUsed == 0 && currentRedstoneLevel == getRedstoneLevel() && isEmptyRecipeStateSettled();
+    }
+
+    @Override
     protected void clearRecipeLookupCache() {
         super.clearRecipeLookupCache();
         cachedRecipe = null;

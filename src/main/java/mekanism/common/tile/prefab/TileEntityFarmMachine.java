@@ -101,6 +101,8 @@ public abstract class TileEntityFarmMachine<RECIPE extends FarmMachineRecipe<REC
     protected OutputInventorySlot secondaryOutputSlot;
     protected final List<OutputInventorySlot> outputSlots = new ArrayList<>(OUTPUT_SLOT_COUNT);
     protected final GasUsageMultiplier gasUsageMultiplier;
+    private final java.util.Random recipeRandom = new java.util.Random();
+    private boolean recipeRandomSeeded;
 
 
     public TileEntityFarmMachine(String soundPath, MachineType type, int ticksRequired, int secondaryPerTick) {
@@ -390,13 +392,27 @@ public abstract class TileEntityFarmMachine<RECIPE extends FarmMachineRecipe<REC
         return recipe != null && OutputHelper.canFitFarmOutput(outputSlots, recipe.getOutput());
     }
 
+    /**
+     * Returns this machine's probability source. Seeded from the machine position on first use so that a farm
+     * replays the same output sequence for the same inputs and no longer shares a process-wide source.
+     */
+    protected java.util.Random farmRecipeRandom() {
+        if (!recipeRandomSeeded) {
+            if (world != null) {
+                recipeRandom.setSeed(mekanism.common.recipe.cache.RecipeRandom.deriveSeed(pos.toLong(), 0));
+                recipeRandomSeeded = true;
+            }
+        }
+        return recipeRandom;
+    }
+
     @Override
     public CachedRecipe<RECIPE> createNewCachedRecipe(RECIPE recipe, int cacheIndex) {
         return new ItemStackConstantFarmCachedRecipe<>(recipe, this::shouldRecheckAllRecipeErrors,
               InputHelper.getInputHandler(inputSlot, RecipeError.NOT_ENOUGH_INPUT),
               InputHelper.getConstantGasInputHandler(mergedTank.getGasTank(), RecipeError.NOT_ENOUGH_SECONDARY_INPUT, false),
               InputHelper.getConstantFluidInputHandler(mergedTank.getFluidTank(), RecipeError.NOT_ENOUGH_SECONDARY_INPUT, false),
-              OutputHelper.getFarmOutputHandler(outputSlots, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
+              OutputHelper.getFarmOutputHandler(outputSlots, RecipeError.NOT_ENOUGH_OUTPUT_SPACE, farmRecipeRandom()),
               gasUsageMultiplier, used -> usedSoFar = used)
               .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
               .setActive(active -> {

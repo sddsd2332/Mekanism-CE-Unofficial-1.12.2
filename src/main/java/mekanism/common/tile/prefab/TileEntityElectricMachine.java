@@ -24,6 +24,13 @@ import mekanism.common.recipe.outputs.ItemStackOutput;
 import mekanism.common.tile.component.TileComponentConfig;
 import mekanism.common.tile.component.TileComponentEjector;
 import mekanism.common.tile.component.config.DataType;
+import mekanism.common.tile.machine.TileEntityBrushed;
+import mekanism.common.tile.machine.TileEntityCrusher;
+import mekanism.common.tile.machine.TileEntityEnergizedSmelter;
+import mekanism.common.tile.machine.TileEntityEnrichmentChamber;
+import mekanism.common.tile.machine.TileEntityRolling;
+import mekanism.common.tile.machine.TileEntityStamping;
+import mekanism.common.tile.machine.TileEntityTurning;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.items.ItemHandlerHelper;
@@ -112,6 +119,19 @@ public abstract class TileEntityElectricMachine<RECIPE extends BasicMachineRecip
         }
         processRecipe();
         prevEnergy = getEnergy();
+    }
+
+    @Override
+    protected boolean supportsAsyncIdleSkipping() {
+        Class<?> type = getClass();
+        return type == TileEntityEnergizedSmelter.class || type == TileEntityEnrichmentChamber.class ||
+              type == TileEntityCrusher.class || type == TileEntityStamping.class ||
+              type == TileEntityRolling.class || type == TileEntityBrushed.class || type == TileEntityTurning.class;
+    }
+
+    @Override
+    protected boolean isAsyncUpdateIdle() {
+        return inputSlot.isEmpty() && energySlot.isEmpty() && isEmptyRecipeStateSettled();
     }
 
     @Override

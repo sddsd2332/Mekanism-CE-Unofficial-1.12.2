@@ -49,6 +49,8 @@ public abstract class TileEntityChanceMachine<RECIPE extends ChanceMachineRecipe
     );
     private static final String[] methods = new String[]{"getEnergy", "getProgress", "isActive", "facing", "canOperate", "getMaxEnergy", "getEnergyNeeded"};
     private final RecipeError secondaryOutputSpaceError;
+    private final java.util.Random recipeRandom = new java.util.Random();
+    private boolean recipeRandomSeeded;
     protected InputInventorySlot inputSlot;
     protected EnergyInventorySlot energySlot;
     protected OutputInventorySlot outputSlot;
@@ -139,11 +141,27 @@ public abstract class TileEntityChanceMachine<RECIPE extends ChanceMachineRecipe
         return recipe != null && recipe.getOutput().applyOutputs(outputSlot, secondaryOutputSlot, false);
     }
 
+    /**
+     * Returns this machine's probability source. The seed is derived from the machine position so that a machine
+     * replays the same output sequence for the same inputs, and so that machines no longer share one process-wide
+     * source. Seeding is deferred until the first use because the position is not assigned during construction.
+     */
+    protected java.util.Random chanceRecipeRandom() {
+        if (!recipeRandomSeeded) {
+            if (world != null) {
+                recipeRandom.setSeed(mekanism.common.recipe.cache.RecipeRandom.deriveSeed(pos.toLong(), 0));
+                recipeRandomSeeded = true;
+            }
+        }
+        return recipeRandom;
+    }
+
     @Override
     public CachedRecipe<RECIPE> createNewCachedRecipe(RECIPE recipe, int cacheIndex) {
         return new OneInputCachedRecipe<>(recipe, this::shouldRecheckAllRecipeErrors,
               InputHelper.getInputHandler(inputSlot, RecipeError.NOT_ENOUGH_INPUT),
-              OutputHelper.getOutputHandler(outputSlot, RecipeError.NOT_ENOUGH_OUTPUT_SPACE, secondaryOutputSlot, secondaryOutputSpaceError),
+              OutputHelper.getOutputHandler(outputSlot, RecipeError.NOT_ENOUGH_OUTPUT_SPACE, secondaryOutputSlot, secondaryOutputSpaceError,
+                    chanceRecipeRandom()),
               () -> recipe.getInput().ingredient,
               input -> mekanism.common.recipe.inputs.MachineInput.inputContains(input, recipe.getInput().ingredient),
               input -> recipe.getOutput().copy(), ItemStack::isEmpty, output -> false)

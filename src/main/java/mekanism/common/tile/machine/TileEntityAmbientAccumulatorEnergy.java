@@ -64,6 +64,8 @@ public class TileEntityAmbientAccumulatorEnergy extends TileEntityMachine implem
     private int cachedRecipeVersion = -1;
     private GasInventorySlot gasSlot;
     private EnergyInventorySlot energySlot;
+    private final java.util.Random recipeRandom = new java.util.Random();
+    private boolean recipeRandomSeeded;
 
     public TileEntityAmbientAccumulatorEnergy() {
         super("machine.washer", BlockStateMachine.MachineType.AMBIENT_ACCUMULATOR_ENERGY, 2);
@@ -217,11 +219,24 @@ public class TileEntityAmbientAccumulatorEnergy extends TileEntityMachine implem
         return getRecipe();
     }
 
+    /**
+     * Returns this machine's probability source, seeded from the machine position on first use.
+     */
+    private java.util.Random accumulatorRecipeRandom() {
+        if (!recipeRandomSeeded) {
+            if (world != null) {
+                recipeRandom.setSeed(mekanism.common.recipe.cache.RecipeRandom.deriveSeed(pos.toLong(), 0));
+                recipeRandomSeeded = true;
+            }
+        }
+        return recipeRandom;
+    }
+
     @Override
     public CachedRecipe<AmbientGasRecipe> createNewCachedRecipe(AmbientGasRecipe recipe, int cacheIndex) {
         return new NoInputCachedRecipe<>(recipe, () -> false,
               () -> recipe.getInput().ingredient == cachedDimensionId,
-              OutputHelper.getChanceGasOutputHandler(outputTank, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
+              OutputHelper.getChanceGasOutputHandler(outputTank, RecipeError.NOT_ENOUGH_OUTPUT_SPACE, accumulatorRecipeRandom()),
               () -> recipe.getOutput().copy(),
               output -> output == null || output.getMaxOutput() == null)
               .setCanHolderFunction(() -> MekanismUtils.canFunction(this))

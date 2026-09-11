@@ -117,20 +117,45 @@ public class TileEntityChemicalCrystallizer extends TileEntityBasicMachine<GasIn
     @Override
     public void onAsyncUpdateServer() {
         super.onAsyncUpdateServer();
+        tickUpdateDelay();
+        energySlot.fillContainerOrConvert();
+        inputSlot.fillTank();
+        processRecipe();
+        prevEnergy = getEnergy();
+        sendPendingUpdate();
+    }
+
+    private void tickUpdateDelay() {
         if (updateDelay > 0) {
             updateDelay--;
             if (updateDelay == 0) {
                 needsPacket = true;
             }
         }
-        energySlot.fillContainerOrConvert();
-        inputSlot.fillTank();
-        processRecipe();
-        prevEnergy = getEnergy();
+    }
+
+    private void sendPendingUpdate() {
         if (needsPacket) {
             Mekanism.packetHandler.sendUpdatePacket(this);
         }
         needsPacket = false;
+    }
+
+    @Override
+    protected boolean supportsAsyncIdleSkipping() {
+        return getClass() == TileEntityChemicalCrystallizer.class;
+    }
+
+    @Override
+    protected boolean isAsyncUpdateIdle() {
+        return inputTank.isEmpty() && inputSlot.isEmpty() && energySlot.isEmpty() && isEmptyRecipeStateSettled();
+    }
+
+    @Override
+    protected void onAsyncUpdateSkipped() {
+        tickUpdateDelay();
+        setActive(false);
+        sendPendingUpdate();
     }
 
     @Override

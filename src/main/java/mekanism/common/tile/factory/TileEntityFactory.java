@@ -200,6 +200,9 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
     private IOutputHandler<ItemStack>[] itemOutputHandlers;
     private IOutputHandler<ChanceOutput>[] chanceOutputHandlers;
     private IOutputHandler<ChanceOutput2>[] chance2OutputHandlers;
+    /** One probability source per process, so that lanes no longer share a process-wide source. */
+    private java.util.Random[] processRecipeRandoms;
+    private boolean processRecipeRandomsSeeded;
     private IOutputHandler<GasStack> gasOutputHandler;
     private IOutputHandler<PressurizedOutput>[] pressurizedOutputHandlers;
 
@@ -371,6 +374,10 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
         chanceOutputHandlers = new IOutputHandler[processCount];
         chance2OutputHandlers = new IOutputHandler[processCount];
         pressurizedOutputHandlers = new IOutputHandler[processCount];
+        processRecipeRandoms = new java.util.Random[processCount];
+        for (int process = 0; process < processCount; process++) {
+            processRecipeRandoms[process] = new java.util.Random();
+        }
         gasInputHandler = InputHelper.getGasInputHandler(gasTank, RecipeError.NOT_ENOUGH_INPUT, this::depleteRecipeInput);
         secondaryGasInputHandler = InputHelper.getGasInputHandler(gasTank, RecipeError.NOT_ENOUGH_SECONDARY_INPUT, this::depleteRecipeInput);
         constantGasInputHandler = InputHelper.getConstantGasInputHandler(gasTank, RecipeError.NOT_ENOUGH_SECONDARY_INPUT, false, this::depleteRecipeInput);
@@ -427,10 +434,29 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
             processOutputSlots.add(secondaryOutputSlot);
             itemInputHandlers[processNumber] = InputHelper.getInputHandler(inputSlot, RecipeError.NOT_ENOUGH_INPUT, this::depleteRecipeInput);
             itemOutputHandlers[processNumber] = OutputHelper.getOutputHandler(outputSlot, RecipeError.NOT_ENOUGH_OUTPUT_SPACE);
-            chanceOutputHandlers[processNumber] = OutputHelper.getOutputHandler(outputSlot, secondaryOutputSlot, RecipeError.NOT_ENOUGH_OUTPUT_SPACE);
-            chance2OutputHandlers[processNumber] = OutputHelper.getOutputHandlerChance2(outputSlot, RecipeError.NOT_ENOUGH_OUTPUT_SPACE);
+            chanceOutputHandlers[processNumber] = OutputHelper.getOutputHandler(outputSlot, secondaryOutputSlot, RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
+                  processRecipeRandom(processNumber));
+            chance2OutputHandlers[processNumber] = OutputHelper.getOutputHandlerChance2(outputSlot, RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
+                  processRecipeRandom(processNumber));
             pressurizedOutputHandlers[processNumber] = OutputHelper.getOutputHandler(outputSlot, gasOutTank, RecipeError.NOT_ENOUGH_OUTPUT_SPACE);
         }
+    }
+
+    /**
+     * Returns the probability source for one process. Each process gets its own source, seeded from the machine
+     * position, so that lanes replay deterministically and no longer share a process-wide source.
+     */
+    private java.util.Random processRecipeRandom(int process) {
+        if (!processRecipeRandomsSeeded) {
+            if (world != null && processRecipeRandoms != null) {
+                for (int lane = 0; lane < processRecipeRandoms.length; lane++) {
+                    processRecipeRandoms[lane].setSeed(mekanism.common.recipe.cache.RecipeRandom.deriveSeed(pos.toLong(), lane));
+                }
+                processRecipeRandomsSeeded = true;
+            }
+        }
+        return processRecipeRandoms == null || process < 0 || process >= processRecipeRandoms.length
+              ? new java.util.Random() : processRecipeRandoms[process];
     }
 
     private int getProcessOutputSlotY(boolean secondary) {
@@ -1005,6 +1031,33 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
 
     private void fillEnergySlot() {
         energySlot.fillContainerOrConvert();
+    }
+
+    @Override
+    protected boolean supportsAsyncIdleSkipping() {
+        Class<?> type = getClass();
+        return type == TileEntityBasicFactory.class || type == TileEntityAdvancedFactory.class ||
+              type == TileEntityEliteFactory.class || type == TileEntityUltimateFactory.class;
+    }
+
+    @Override
+    protected boolean isAsyncUpdateIdle() {
+        // Only the simple item modes have no secondary-fuel or environmental work.
+        switch (recipeType) {
+            case SMELTING, ENRICHING, CRUSHING, STAMPING, ROLLING, BRUSHED, TURNING -> { }
+            default -> { return false; }
+        }
+        if (getActive() || lastUsage != 0 || prevEnergy != getEnergy() || !energySlot.isEmpty() ||
+              !extraSlot.isEmpty() || areRecipeCachesInvalid()) {
+            return false;
+        }
+        for (ProcessInfo process : processInfoSlots) {
+            if (!process.inputSlot().isEmpty() || progress[process.process()] != 0 || activeStates[process.process()] ||
+                  !getRecipeCacheLookupMonitor(process).canSkipProcessing()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void dropLegacyTypeSlotItems() {

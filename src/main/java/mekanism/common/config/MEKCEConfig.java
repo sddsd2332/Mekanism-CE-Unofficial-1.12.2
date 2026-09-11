@@ -100,6 +100,9 @@ public class MEKCEConfig extends BaseConfig {
     public final BooleanOption AllowMultiplePlayersOpenSameMachineGui = new BooleanOption(this, "AllowMultiplePlayersOpenSameMachineGui", true,
             "If true, multiple players may open the same machine GUI at the same time.");
 
+    public final BooleanOption SkipIdleMachineAsyncTasks = new BooleanOption(this, "SkipIdleMachineAsyncTasks", true,
+            "Skip asynchronous submission for explicitly supported empty machines. Disable to restore unconditional submission.");
+
     public final IntOption DigitalMinerMinY = new IntOption(this,"DigitalMinerMinY",0,"The minimum Y value of DigitalMiner");
     public final IntOption DigitalMinerMaxY = new IntOption(this,"DigitalMinerMaxY",255,"The maximum Y value of DigitalMiner");
     public final BooleanOption BananaRadiation = new BooleanOption(this,"BananaRadiation",false,"When the player consumes a mineral item containing bananas, they gain a small amount of radiation.");

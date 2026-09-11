@@ -155,22 +155,50 @@ public class TileEntityChemicalDissolutionChamber extends TileEntityBasicMachine
     @Override
     public void onAsyncUpdateServer() {
         super.onAsyncUpdateServer();
-        if (updateDelay > 0) {
-            updateDelay--;
-            if (updateDelay == 0) {
-                needsPacket = true;
-            }
-        }
+        tickUpdateDelay();
         energySlot.fillContainerOrConvert();
         injectSlot.fillTank();
         outputSlot.drainTank();
         injectUsageThisTick = Math.max(BASE_INJECT_USAGE, injectUsageSampler.sample(injectUsage));
         processRecipe();
         prevEnergy = getEnergy();
+        sendPendingUpdate();
+    }
+
+    private void tickUpdateDelay() {
+        if (updateDelay > 0) {
+            updateDelay--;
+            if (updateDelay == 0) {
+                needsPacket = true;
+            }
+        }
+    }
+
+    private void sendPendingUpdate() {
         if (needsPacket) {
             Mekanism.packetHandler.sendUpdatePacket(this);
         }
         needsPacket = false;
+    }
+
+    @Override
+    protected boolean supportsAsyncIdleSkipping() {
+        return getClass() == TileEntityChemicalDissolutionChamber.class;
+    }
+
+    @Override
+    protected boolean isAsyncUpdateIdle() {
+        return inputSlot.isEmpty() && injectSlot.isEmpty() && outputSlot.isEmpty() && energySlot.isEmpty() &&
+              isEmptyRecipeStateSettled();
+    }
+
+    @Override
+    protected void onAsyncUpdateSkipped() {
+        tickUpdateDelay();
+        // Preserve the existing per-tick random sequence even while the recipe input is empty.
+        injectUsageThisTick = Math.max(BASE_INJECT_USAGE, injectUsageSampler.sample(injectUsage));
+        setActive(false);
+        sendPendingUpdate();
     }
 
     @Override
