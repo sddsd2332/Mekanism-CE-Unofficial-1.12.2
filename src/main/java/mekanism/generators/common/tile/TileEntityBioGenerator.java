@@ -104,6 +104,17 @@ public class TileEntityBioGenerator extends TileEntityGenerator implements ISust
     }
 
     @Override
+    protected boolean supportsAsyncIdleSkipping() {
+        return getClass() == TileEntityBioGenerator.class;
+    }
+
+    @Override
+    protected boolean isAsyncUpdateIdle() {
+        return bioFuelTank.isEmpty() && fuelSlot.isEmpty() && energySlot.isEmpty() && !getActive() &&
+              !activeChanged && lastBioFuelRenderLevel == -1 && currentRedstoneLevel == getRedstoneLevel();
+    }
+
+    @Override
     public void readCustomNBT(NBTTagCompound nbtTags) {
         super.readCustomNBT(nbtTags);
         if (!hasStoredFluidTanks(nbtTags) && nbtTags.hasKey("bioFuelTank")) {

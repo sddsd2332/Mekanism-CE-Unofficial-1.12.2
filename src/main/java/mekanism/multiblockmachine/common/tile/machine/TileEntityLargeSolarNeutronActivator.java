@@ -223,18 +223,36 @@ public class TileEntityLargeSolarNeutronActivator extends TileEntityContainerBlo
         if (!recipeCacheLookupMonitor.updateAndProcess()) {
             setActive(false);
         }
-
-        // Every 20 ticks (once a second), send update to client. Note that this is a 50% reduction in network
-        // traffic from previous implementation that send the update every 10 ticks.
-        if (serverWorldTime % 20 == 0) {
-            Mekanism.packetHandler.sendUpdatePacket(this);
-        }
-
+        sendPeriodicUpdate();
         int newRedstoneLevel = getRedstoneLevel();
         if (newRedstoneLevel != currentRedstoneLevel) {
             updateComparatorOutputLevelSync();
             currentRedstoneLevel = newRedstoneLevel;
         }
+    }
+
+    private void sendPeriodicUpdate() {
+        // Every 20 ticks (once a second), send update to client. Note that this is a 50% reduction in network
+        // traffic from previous implementation that send the update every 10 ticks.
+        if (serverWorldTime % 20 == 0) {
+            Mekanism.packetHandler.sendUpdatePacket(this);
+        }
+    }
+
+    @Override
+    protected boolean supportsAsyncIdleSkipping() {
+        return getClass() == TileEntityLargeSolarNeutronActivator.class;
+    }
+
+    @Override
+    protected boolean isAsyncUpdateIdle() {
+        return inputTank.isEmpty() && inputSlot.isEmpty() && outputSlot.isEmpty() && !getActive() &&
+              operatingTicks == 0 && currentRedstoneLevel == getRedstoneLevel() && recipeCacheLookupMonitor.canSkipProcessing();
+    }
+
+    @Override
+    protected void onAsyncUpdateSkipped() {
+        sendPeriodicUpdate();
     }
 
     public int getUpgradedUsage(SolarNeutronRecipe recipe) {

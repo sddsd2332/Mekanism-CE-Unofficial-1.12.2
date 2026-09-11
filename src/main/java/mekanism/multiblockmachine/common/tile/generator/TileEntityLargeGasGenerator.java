@@ -144,6 +144,19 @@ public class TileEntityLargeGasGenerator extends TileEntityGenerator implements 
         }
     }
 
+    @Override
+    protected boolean supportsAsyncIdleSkipping() {
+        return getClass() == TileEntityLargeGasGenerator.class;
+    }
+
+    @Override
+    protected boolean isAsyncUpdateIdle() {
+        return fuelTank.isEmpty() && fuelSlot.isEmpty() && energySlot.isEmpty() && burnTicks == 0 &&
+              maxBurnTicks == 0 && generationRate == 0 && clientUsed == 0 && !getActive() &&
+              cachedRecipeVersion == RecipeHandler.Recipe.GAS_FUEL_TO_ENERGY_RECIPE.getRecipeVersion() &&
+              currentRedstoneLevel == getRedstoneLevel();
+    }
+
     public int getThread() {
         int thread = 1;
         if (isUpgradeInstalled(MultiblockMachineUpgrades.THREAD)) {

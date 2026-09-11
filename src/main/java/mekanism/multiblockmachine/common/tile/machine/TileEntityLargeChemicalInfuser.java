@@ -165,23 +165,45 @@ public class TileEntityLargeChemicalInfuser extends TileEntityBasicMachine<Chemi
     @Override
     public void onAsyncUpdateServer() {
         super.onAsyncUpdateServer();
-        if (updateDelay > 0) {
-            updateDelay--;
-            if (updateDelay == 0) {
-                needsPacket = true;
-            }
-        }
+        tickUpdateDelay();
         energySlot.fillContainerOrConvert();
         leftSlot.fillTank();
         rightSlot.fillTank();
         centerSlot.drainTank();
         clientEnergyUsed = processRecipe(getMainEnergyContainer());
         prevEnergy = getEnergy();
+        sendPendingUpdate();
+    }
+
+    private void tickUpdateDelay() {
+        if (updateDelay > 0 && --updateDelay == 0) {
+            needsPacket = true;
+        }
+    }
+
+    private void sendPendingUpdate() {
         if (needsPacket) {
             Mekanism.packetHandler.sendUpdatePacket(this);
             needsPacket = false;
         }
+    }
 
+    @Override
+    protected boolean supportsAsyncIdleSkipping() {
+        return getClass() == TileEntityLargeChemicalInfuser.class;
+    }
+
+    @Override
+    protected boolean isAsyncUpdateIdle() {
+        return leftTank.isEmpty() && rightTank.isEmpty() && leftSlot.isEmpty() && rightSlot.isEmpty() &&
+              centerSlot.isEmpty() && energySlot.isEmpty() && clientEnergyUsed == 0 && isEmptyRecipeStateSettled();
+    }
+
+    @Override
+    protected void onAsyncUpdateSkipped() {
+        tickUpdateDelay();
+        setActive(false);
+        sendPendingUpdate();
     }
 
     public int getUpgradedUsage(ChemicalInfuserRecipe recipe) {

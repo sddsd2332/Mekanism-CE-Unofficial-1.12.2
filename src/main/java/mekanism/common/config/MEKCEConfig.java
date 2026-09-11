@@ -101,7 +101,7 @@ public class MEKCEConfig extends BaseConfig {
             "If true, multiple players may open the same machine GUI at the same time.");
 
     public final BooleanOption SkipIdleMachineAsyncTasks = new BooleanOption(this, "SkipIdleMachineAsyncTasks", true,
-            "Skip asynchronous submission for explicitly supported empty machines. Disable to restore unconditional submission.");
+            "Skip asynchronous submission for explicitly supported idle machines and generators. Disable to restore unconditional submission.");
 
     public final IntOption DigitalMinerMinY = new IntOption(this,"DigitalMinerMinY",0,"The minimum Y value of DigitalMiner");
     public final IntOption DigitalMinerMaxY = new IntOption(this,"DigitalMinerMaxY",255,"The maximum Y value of DigitalMiner");

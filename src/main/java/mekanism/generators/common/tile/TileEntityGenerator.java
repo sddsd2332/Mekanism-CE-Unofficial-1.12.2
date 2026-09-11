@@ -61,6 +61,14 @@ public abstract class TileEntityGenerator extends TileEntityEffectsBlock impleme
         }
     }
 
+    @Override
+    protected void onAsyncUpdateSkipped() {
+        // Large generators also emit through their tile sync callback, after all worker updates finish.
+        if (hasTileSyncTask()) {
+            Mekanism.EXECUTE_MANAGER.addSyncTask(this::addTileSyncTask);
+        }
+    }
+
 
 
     @Override

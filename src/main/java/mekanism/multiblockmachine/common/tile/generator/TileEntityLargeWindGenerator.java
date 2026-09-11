@@ -193,6 +193,16 @@ public class TileEntityLargeWindGenerator extends TileEntityGenerator implements
         }
     }
 
+    @Override
+    protected boolean supportsAsyncIdleSkipping() {
+        return getClass() == TileEntityLargeWindGenerator.class;
+    }
+
+    @Override
+    protected boolean isAsyncUpdateIdle() {
+        return energySlot.isEmpty() && (isBlacklistDimension || !getActive() || getEnergyContainer().getNeeded() <= 0);
+    }
+
 
     private void RangeStops() {
         if (machineStop2) {

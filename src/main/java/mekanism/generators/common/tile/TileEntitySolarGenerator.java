@@ -99,6 +99,17 @@ public class TileEntitySolarGenerator extends TileEntityGenerator implements ISp
         productionThisTick = getProduction();
     }
 
+    @Override
+    protected boolean supportsAsyncIdleSkipping() {
+        return getClass() == TileEntitySolarGenerator.class || getClass() == TileEntityAdvancedSolarGenerator.class;
+    }
+
+    @Override
+    protected boolean isAsyncUpdateIdle() {
+        // Sunlight and production are refreshed on the server thread before this check, including at dawn.
+        return energySlot.isEmpty() && !getActive() && !canOperate();
+    }
+
     protected boolean canSeeSky() {
         return world.canSeeSky(getPos());
     }

@@ -117,6 +117,20 @@ public class TileEntityGasGenerator extends TileEntityGenerator implements ISust
         }
     }
 
+    @Override
+    protected boolean supportsAsyncIdleSkipping() {
+        return getClass() == TileEntityGasGenerator.class;
+    }
+
+    @Override
+    protected boolean isAsyncUpdateIdle() {
+        return fuelTank.isEmpty() && fuelSlot.isEmpty() && energySlot.isEmpty() && burnTicks == 0 &&
+              maxBurnTicks == 0 && generationRate == 0 && clientUsed == 0 && !getActive() &&
+              output == MekanismConfig.current().general.FROM_H2.val() * 2 &&
+              cachedRecipeVersion == RecipeHandler.Recipe.GAS_FUEL_TO_ENERGY_RECIPE.getRecipeVersion() &&
+              currentRedstoneLevel == getRedstoneLevel();
+    }
+
     public void reset() {
         burnTicks = 0;
         maxBurnTicks = 0;

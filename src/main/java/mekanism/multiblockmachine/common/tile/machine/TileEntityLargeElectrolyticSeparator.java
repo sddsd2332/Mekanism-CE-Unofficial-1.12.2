@@ -204,18 +204,23 @@ public class TileEntityLargeElectrolyticSeparator extends TileEntityBasicMachine
     @Override
     public void onAsyncUpdateServer() {
         super.onAsyncUpdateServer();
-        if (updateDelay > 0) {
-            updateDelay--;
-            if (updateDelay == 0) {
-                needsPacket = true;
-            }
-        }
+        tickUpdateDelay();
         energySlot.fillContainerOrConvert();
         inputSlot.fillTank();
         leftSlot.drainTank();
         rightSlot.drainTank();
         clientEnergyUsed = processRecipe(getMainEnergyContainer());
         prevEnergy = getEnergy();
+        finishRecipeTick();
+    }
+
+    private void tickUpdateDelay() {
+        if (updateDelay > 0 && --updateDelay == 0) {
+            needsPacket = true;
+        }
+    }
+
+    private void finishRecipeTick() {
         dumpAmount = 8 * Math.min((int) Math.pow(2, upgradeComponent.getUpgrades(Upgrade.SPEED)), MekanismConfig.current().mekce.MAXspeedmachines.val());
         dumpAmount *= processes;
         dumpAmount *= getThread();
@@ -232,6 +237,25 @@ public class TileEntityLargeElectrolyticSeparator extends TileEntityBasicMachine
               () -> Arrays.asList(new TankProvider.Gas(leftTank), new TankProvider.Gas(rightTank)));
         handleTank(leftTank, dumpLeft, getLeftTankside(), dumpAmount, 0);
         handleTank(rightTank, dumpRight, getRightTankside(), dumpAmount, 1);
+    }
+
+    @Override
+    protected boolean supportsAsyncIdleSkipping() {
+        return getClass() == TileEntityLargeElectrolyticSeparator.class;
+    }
+
+    @Override
+    protected boolean isAsyncUpdateIdle() {
+        return fluidTank.isEmpty() && inputSlot.isEmpty() && leftSlot.isEmpty() && rightSlot.isEmpty() &&
+              energySlot.isEmpty() && clientEnergyUsed == 0 && currentRedstoneLevel == getRedstoneLevel() &&
+              isEmptyRecipeStateSettled();
+    }
+
+    @Override
+    protected void onAsyncUpdateSkipped() {
+        tickUpdateDelay();
+        setActive(false);
+        finishRecipeTick();
     }
 
     @Override

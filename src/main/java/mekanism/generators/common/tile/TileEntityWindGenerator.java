@@ -86,6 +86,16 @@ public class TileEntityWindGenerator extends TileEntityGenerator implements IBou
         }
     }
 
+    @Override
+    protected boolean supportsAsyncIdleSkipping() {
+        return getClass() == TileEntityWindGenerator.class;
+    }
+
+    @Override
+    protected boolean isAsyncUpdateIdle() {
+        return energySlot.isEmpty() && (isBlacklistDimension || !getActive() || getEnergyContainer().getNeeded() <= 0);
+    }
+
     public double getEnergyAdd(){
         return MekanismConfig.current().generators.windGenerationMin.val() * currentMultiplier;
     }

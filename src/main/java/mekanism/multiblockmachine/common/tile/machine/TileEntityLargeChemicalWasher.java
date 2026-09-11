@@ -184,12 +184,7 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
     @Override
     public void onAsyncUpdateServer() {
         super.onAsyncUpdateServer();
-        if (updateDelay > 0) {
-            updateDelay--;
-            if (updateDelay == 0) {
-                needsPacket = true;
-            }
-        }
+        tickUpdateDelay();
         energySlot.fillContainerOrConvert();
         manageBuckets();
         outputGasSlot.drainTank();
@@ -200,10 +195,39 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
             updateComparatorOutputLevelSync();
             currentRedstoneLevel = newRedstoneLevel;
         }
+        sendPendingUpdate();
+    }
+
+    private void tickUpdateDelay() {
+        if (updateDelay > 0 && --updateDelay == 0) {
+            needsPacket = true;
+        }
+    }
+
+    private void sendPendingUpdate() {
         if (needsPacket) {
             Mekanism.packetHandler.sendUpdatePacket(this);
             needsPacket = false;
         }
+    }
+
+    @Override
+    protected boolean supportsAsyncIdleSkipping() {
+        return getClass() == TileEntityLargeChemicalWasher.class;
+    }
+
+    @Override
+    protected boolean isAsyncUpdateIdle() {
+        return inputTank.isEmpty() && fluidTank.isEmpty() && inputSlot.isEmpty() && outputGasSlot.isEmpty() &&
+              energySlot.isEmpty() && clientEnergyUsed == 0 && currentRedstoneLevel == getRedstoneLevel() &&
+              isEmptyRecipeStateSettled();
+    }
+
+    @Override
+    protected void onAsyncUpdateSkipped() {
+        tickUpdateDelay();
+        setActive(false);
+        sendPendingUpdate();
     }
 
     @Override
