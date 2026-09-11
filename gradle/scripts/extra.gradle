@@ -3,3 +3,107 @@
 
 // If you wish to use the default helper methods, uncomment the line below
 // apply from: 'gradle/scripts/helpers.gradle'
+// The shaded archive contains more than 65,535 entries, so it must use ZIP64.
+tasks.named('shadowJar').configure {
+    setZip64(true)
+}
+
+// Opt-in real-server stress smoke. The source set is never part of published jars.
+if (providers.gradleProperty('machine_stress_smoke_test').getOrElse('false').toBoolean()) {
+    def scenario = providers.gradleProperty('machine_stress_scenario').getOrElse('mixed')
+    def count = providers.gradleProperty('machine_stress_count').getOrElse('1000')
+    def maxMachineMs = providers.gradleProperty('machine_stress_max_ms').getOrElse('')
+    def runId = providers.gradleProperty('machine_stress_run_id').getOrElse(java.util.UUID.randomUUID().toString())
+    if (!(scenario in ['recipe-different', 'no-recipe', 'mixed'])) {
+        throw new GradleException('Unknown machine stress scenario: ' + scenario)
+    }
+    if (!(count.isInteger()) || count.toInteger() < 1 || count.toInteger() > 196608) {
+        throw new GradleException('machine_stress_count must be between 1 and 196608')
+    }
+    if (!(runId ==~ /[A-Za-z0-9_-]+/)) throw new GradleException('Invalid machine_stress_run_id')
+    sourceSets {
+        machineStressSmoke {
+            java.srcDirs = ['src/smoke/java']
+            // The pre-refactor baseline lacks the QIO plan-lifecycle APIs. Keep
+            // that optional fixture explicit; enabling it still compiles all its checks.
+            if (!providers.gradleProperty('qio_lifecycle_smoke_test').getOrElse('false').toBoolean()) {
+                java.exclude 'mekanism/qioprocessing/common/machine/QIOHostLifecycleSmoke.java'
+            }
+            resources.srcDirs = ['src/smoke/resources']
+            compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+            runtimeClasspath += sourceSets.main.runtimeClasspath
+        }
+    }
+    configurations.machineStressSmokeAnnotationProcessor.extendsFrom configurations.annotationProcessor
+    ['runServer', 'runClient'].each { runTaskName ->
+        def client = runTaskName == 'runClient'
+        def reportName = "${scenario}-${count}-${client ? 'client' : 'server'}-${runId}"
+        def resultFile = layout.buildDirectory.file("reports/machine-stress-smoke/${reportName}/result.txt").get().asFile
+        def runDirectory = file("run/machine-stress/${reportName}")
+        def preserveLog = tasks.register("${runTaskName}MachineStressLog") {
+            doLast {
+                project.copy {
+                    from new File(runDirectory, 'logs/latest.log')
+                    into resultFile.parentFile
+                    rename { 'latest.log' }
+                }
+            }
+        }
+        tasks.named(runTaskName).configure {
+        workingDir = runDirectory
+        dependsOn tasks.named('machineStressSmokeClasses')
+        classpath += sourceSets.machineStressSmoke.output
+        if (!client) {
+            args '--world', "mekanism-machine-stress-${runId}"
+            args '--port', '0'
+        }
+        systemProperty 'mekanism.machine.stress.result', resultFile.absolutePath
+        systemProperty 'mekanism.machine.stress.scenario', scenario
+        systemProperty 'mekanism.machine.stress.count', count
+        systemProperty 'mekanism.machine.stress.client', client
+        systemProperty 'mekanism.machine.stress.runId', runId
+        systemProperty 'mekanism.machine.stress.qioLifecycle', providers.gradleProperty('qio_lifecycle_smoke_test').getOrElse('false')
+        systemProperty 'mekanism.machine.stress.warmup', providers.gradleProperty('machine_stress_warmup').getOrElse('20')
+        systemProperty 'mekanism.machine.stress.samples', providers.gradleProperty('machine_stress_samples').getOrElse('20')
+        systemProperty 'mekanism.machine.stress.recipeCycles', providers.gradleProperty('machine_stress_recipe_cycles').getOrElse('0')
+        systemProperty 'mekanism.machine.stress.recipePattern', providers.gradleProperty('machine_stress_recipe_pattern').getOrElse('cached')
+        if (providers.gradleProperty('machine_stress_recipe_cycles').getOrElse('0').toInteger() > 0) {
+            systemProperty 'fml.coreMods.load', 'mekanism.stress.timing.RecipeTimingCoremod'
+        }
+        systemProperty 'mekanism.machine.stress.maxMs', maxMachineMs
+        maxHeapSize = providers.gradleProperty('machine_stress_heap').getOrElse('12G')
+        timeout = java.time.Duration.ofMinutes(20)
+        finalizedBy preserveLog
+        doFirst {
+            resultFile.parentFile.mkdirs()
+            if (resultFile.exists()) throw new GradleException('Stress run id already has results: ' + resultFile)
+            if (runDirectory.exists()) throw new GradleException('Stress run directory already exists: ' + runDirectory)
+            runDirectory.mkdirs()
+            project.copy {
+                from('run/config') { into 'config'; exclude '**/*.sparkprofile' }
+                from('run/scripts') { into 'scripts' }
+                from('run/eula.txt')
+                into runDirectory
+            }
+            def serverProperties = new Properties()
+            def sourceProperties = file('run/server.properties')
+            if (sourceProperties.isFile()) sourceProperties.withInputStream { serverProperties.load(it) }
+            serverProperties.setProperty('max-tick-time', '-1')
+            serverProperties.setProperty('level-type', 'FLAT')
+            serverProperties.setProperty('spawn-npcs', 'false')
+            serverProperties.setProperty('spawn-animals', 'false')
+            serverProperties.setProperty('spawn-monsters', 'false')
+            serverProperties.setProperty('view-distance', '3')
+            new File(runDirectory, 'server.properties').withOutputStream {
+                serverProperties.store(it, 'Isolated machine stress smoke; optional performance threshold is reported separately')
+            }
+        }
+        doLast {
+            if (!resultFile.isFile() || !resultFile.text.startsWith('PASS')) {
+                throw new GradleException('Machine stress smoke failed: ' +
+                      (resultFile.isFile() ? resultFile.text : 'no result was written'))
+            }
+        }
+        }
+    }
+}

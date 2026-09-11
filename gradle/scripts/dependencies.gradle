@@ -136,6 +136,8 @@ dependencies {
     implementation rfg.deobf("curse.maven:actually-additions-228404:3117927")
     implementation rfg.deobf(files("libs/MekanismMixinHelp-1.3.1-dev.jar"))
     implementation rfg.deobf(files("libs/MekanismCeU-MoreMachine-1.9.0-dev.jar"))
+
+    implementation rfg.deobf("curse.maven:spark-361579:3542217")
 }
 
 
@@ -156,4 +158,3 @@ tasks.shadowJar {
     archiveClassifier = 'uberdev'
     configurations = [ project.configurations.shade ]
 }
-
