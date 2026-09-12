@@ -1,5 +1,6 @@
 package mekanism.client.gui;
 
+import mekanism.api.EnumColor;
 import mekanism.api.text.ILangEntry;
 import mekanism.client.gui.element.GuiElement;
 import mekanism.client.gui.element.GuiElement.IHoverable;
@@ -16,6 +17,7 @@ import mekanism.client.gui.warning.WarningTracker.WarningType;
 import mekanism.client.render.IFancyFontRenderer;
 import mekanism.client.render.MekanismRenderer;
 import mekanism.common.Mekanism;
+import mekanism.common.MekanismLang;
 import mekanism.common.base.ISideConfiguration;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.inventory.container.MekanismContainer;
@@ -28,6 +30,7 @@ import mekanism.common.lib.collection.LRU;
 import mekanism.common.tile.component.config.DataType;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.text.TextUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.renderer.GlStateManager;
@@ -834,6 +837,24 @@ public abstract class GuiMekanism<CONTAINER extends Container> extends VirtualSl
         GlStateManager.translate(0, 0, 500);
     }
 
+    @Nonnull
+    @Override
+    public List<String> getItemToolTip(@Nonnull ItemStack stack) {
+        List<String> tooltip = new ArrayList<>(super.getItemToolTip(stack));
+        addStoredCountTooltip(stack, tooltip);
+        return tooltip;
+    }
+
+    private void addStoredCountTooltip(ItemStack stack, List<String> tooltip) {
+        if (GuiUtils.usesCompactItemCount(stack)) {
+            String countTooltip = MekanismLang.QIO_STORED_COUNT.translateColored(EnumColor.GREY, EnumColor.INDIGO,
+                  TextUtils.format(stack.getCount())).getFormattedText();
+            if (!tooltip.contains(countTooltip)) {
+                tooltip.add(countTooltip);
+            }
+        }
+    }
+
     @Override
     public void renderItemTooltip(@Nonnull ItemStack stack, int xAxis, int yAxis) {
         renderToolTip(stack, xAxis, yAxis);
@@ -851,9 +872,10 @@ public abstract class GuiMekanism<CONTAINER extends Container> extends VirtualSl
         } else {
             FontRenderer font = stack.getItem().getFontRenderer(stack);
             net.minecraftforge.fml.client.config.GuiUtils.preItemToolTip(stack);
-            List<String> tooltip = new ArrayList<>(getItemToolTip(stack));
+            List<String> tooltip = new ArrayList<>(super.getItemToolTip(stack));
             int boundedInsertionIndex = Math.max(0, Math.min(insertionIndex, tooltip.size()));
             tooltip.addAll(boundedInsertionIndex, toInsert);
+            addStoredCountTooltip(stack, tooltip);
             drawHoveringText(tooltip, xAxis, yAxis, (font == null ? this.fontRenderer : font));
             net.minecraftforge.fml.client.config.GuiUtils.postItemToolTip();
         }

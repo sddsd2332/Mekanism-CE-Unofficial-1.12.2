@@ -7,6 +7,7 @@ import mekanism.client.gui.element.Widget;
 import mekanism.client.render.MekanismRenderer;
 import mekanism.common.InfuseStorage;
 import mekanism.common.Mekanism;
+import mekanism.common.util.UnitDisplayUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.renderer.*;
@@ -515,7 +516,7 @@ public class GuiUtils {
                     //When we render items ourselves in virtual slots or scroll slots we want to compress the z scale
                     // for rendering the stored count so that it doesn't clip with later windows
                     GlStateManager.translate(0, 0, -25);
-                    renderer.renderItemOverlayIntoGUI(font, stack, xAxis, yAxis, text);
+                    renderItemOverlay(renderer, font, stack, xAxis, yAxis, text);
                 }
             } catch (Exception e) {
                 Mekanism.logger.error("Failed to render stack into gui: {}", stack, e);
@@ -524,6 +525,38 @@ public class GuiUtils {
                 resetGuiItemRenderState();
                 GlStateManager.popMatrix();
             }
+        }
+    }
+
+    public static boolean usesCompactItemCount(@Nonnull ItemStack stack) {
+        return !stack.isEmpty() && (stack.getCount() > 64 || stack.getCount() > stack.getMaxStackSize());
+    }
+
+    public static void renderItemOverlay(RenderItem renderer, FontRenderer font, @Nonnull ItemStack stack, int x, int y,
+          @Nullable String text) {
+        if (text != null || !usesCompactItemCount(stack)) {
+            renderer.renderItemOverlayIntoGUI(font, stack, x, y, text);
+            return;
+        }
+        // Suppress only the vanilla count; durability and cooldown overlays still render normally.
+        renderer.renderItemOverlayIntoGUI(font, stack, x, y, "");
+        String count = stack.getCount() < 10_000 ? Integer.toString(stack.getCount()) : UnitDisplayUtils.getDisplay(stack.getCount(), 1);
+        int textWidth = font.getStringWidth(count);
+        float scale = textWidth > 0 ? Math.min(0.6F, 16F / textWidth) : 0.6F;
+        GlStateManager.pushMatrix();
+        try {
+            GlStateManager.disableLighting();
+            GlStateManager.disableDepth();
+            GlStateManager.disableBlend();
+            MekanismRenderer.resetColor();
+            GlStateManager.translate(x + 16 - textWidth * scale, y + 13 - scale * 4, 200);
+            GlStateManager.scale(scale, scale, scale);
+            font.drawString(count, 0, 0, 0xFFFFFFFF);
+        } finally {
+            GlStateManager.popMatrix();
+            GlStateManager.enableLighting();
+            GlStateManager.enableDepth();
+            GlStateManager.enableBlend();
         }
     }
 

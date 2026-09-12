@@ -219,7 +219,11 @@ public class GuiSlot extends GuiTexturedElement implements IRecipeViewerGhostTar
         } else if (storedStackSupplier != null) {
             ItemStack stored = storedStackSupplier.get();
             if (!stored.isEmpty()) {
-                gui().renderItem(stored, relativeX + 1, relativeY + 1);
+                if (GuiUtils.usesCompactItemCount(stored)) {
+                    gui().renderItemWithOverlay(stored, relativeX + 1, relativeY + 1, 1, null);
+                } else {
+                    gui().renderItem(stored, relativeX + 1, relativeY + 1);
+                }
             }
         }
     }

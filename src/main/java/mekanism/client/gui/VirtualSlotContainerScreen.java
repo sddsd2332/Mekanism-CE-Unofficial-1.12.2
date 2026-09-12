@@ -106,7 +106,7 @@ public abstract class VirtualSlotContainerScreen<T extends Container> extends Gu
                 font = fontRenderer;
             }
             itemRender.renderItemAndEffectIntoGUI(stack, x, y);
-            itemRender.renderItemOverlayIntoGUI(font, stack, x, y - overlayYOffset, altText);
+            GuiUtils.renderItemOverlay(itemRender, font, stack, x, y - overlayYOffset, altText);
         } finally {
             zLevel = previousZLevel;
             itemRender.zLevel = previousItemZLevel;
