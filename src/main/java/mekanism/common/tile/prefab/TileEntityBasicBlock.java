@@ -5,10 +5,12 @@ import it.unimi.dsi.fastutil.objects.ReferenceOpenHashSet;
 import mekanism.api.Coord4D;
 import mekanism.api.IContainerTransaction;
 import mekanism.api.TileNetworkList;
+import mekanism.api.gas.IGasHandler;
 import mekanism.common.Mekanism;
 import mekanism.common.base.IBoundingBlock;
 import mekanism.common.base.ITileComponent;
 import mekanism.common.base.ITileNetwork;
+import mekanism.common.base.EnergyAcceptorWrapper;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.config.MekanismConfig;
@@ -20,15 +22,21 @@ import mekanism.common.network.PacketDataRequest.DataRequestMessage;
 import mekanism.common.network.PacketTileEntity.TileEntityMessage;
 import mekanism.common.tile.base.TileEntityRestrictedTick;
 import mekanism.common.tile.component.TileComponentUpgrade;
+import mekanism.common.util.CapabilityUtils;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.block.Block;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraftforge.common.capabilities.Capability;
+import net.minecraftforge.fluids.capability.CapabilityFluidHandler;
+import net.minecraftforge.fluids.capability.IFluidHandler;
+import net.minecraftforge.items.IItemHandler;
+import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.common.Optional.Interface;
 import net.minecraftforge.fml.relauncher.Side;
@@ -52,6 +60,18 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
 
     private static volatile Consumer<TileEntityBasicBlock> serverPreComponentTickListener = tile -> {
     };
+    private final TileEntity[] cachedEnergyAcceptorTiles = new TileEntity[6];
+    private final EnergyAcceptorWrapper[] cachedEnergyAcceptors = new EnergyAcceptorWrapper[6];
+    private final boolean[] cachedEnergyAcceptorResolved = new boolean[6];
+    private final TileEntity[] cachedGasHandlerTiles = new TileEntity[6];
+    private final IGasHandler[] cachedGasHandlers = new IGasHandler[6];
+    private final boolean[] cachedGasHandlerResolved = new boolean[6];
+    private final TileEntity[] cachedFluidHandlerTiles = new TileEntity[6];
+    private final IFluidHandler[] cachedFluidHandlers = new IFluidHandler[6];
+    private final boolean[] cachedFluidHandlerResolved = new boolean[6];
+    private final TileEntity[] cachedItemHandlerTiles = new TileEntity[6];
+    private final IItemHandler[] cachedItemHandlers = new IItemHandler[6];
+    private final boolean[] cachedItemHandlerResolved = new boolean[6];
 
     private static final ClassValue<Class<?>> ASYNC_UPDATE_DECLARING_CLASS = new ClassValue<Class<?>>() {
         @Override
@@ -273,6 +293,7 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
     @Override
     public void invalidate() {
         super.invalidate();
+        clearCachedEnergyAcceptors();
         components.forEach(ITileComponent::invalidate);
     }
 
@@ -483,7 +504,64 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
     public void onNeighborChange(Block block) {
         if (!isRemote()) {
             updatePower();
+            clearCachedEnergyAcceptors();
         }
+    }
+
+    public final EnergyAcceptorWrapper getCachedEnergyAcceptor(TileEntity tile, EnumFacing side) {
+        int index = side.ordinal();
+        if (!cachedEnergyAcceptorResolved[index] || cachedEnergyAcceptorTiles[index] != tile) {
+            cachedEnergyAcceptorTiles[index] = tile;
+            cachedEnergyAcceptors[index] = EnergyAcceptorWrapper.get(tile, side);
+            cachedEnergyAcceptorResolved[index] = true;
+        }
+        return cachedEnergyAcceptors[index];
+    }
+
+    public final IGasHandler getCachedGasHandler(TileEntity tile, EnumFacing side) {
+        int index = side.ordinal();
+        if (!cachedGasHandlerResolved[index] || cachedGasHandlerTiles[index] != tile) {
+            cachedGasHandlerTiles[index] = tile;
+            cachedGasHandlers[index] = CapabilityUtils.getCapability(tile, Capabilities.GAS_HANDLER_CAPABILITY, side);
+            cachedGasHandlerResolved[index] = true;
+        }
+        return cachedGasHandlers[index];
+    }
+
+    public final IFluidHandler getCachedFluidHandler(TileEntity tile, EnumFacing side) {
+        int index = side.ordinal();
+        if (!cachedFluidHandlerResolved[index] || cachedFluidHandlerTiles[index] != tile) {
+            cachedFluidHandlerTiles[index] = tile;
+            cachedFluidHandlers[index] = CapabilityUtils.getCapability(tile, CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, side);
+            cachedFluidHandlerResolved[index] = true;
+        }
+        return cachedFluidHandlers[index];
+    }
+
+    public final IItemHandler getCachedNeighborItemHandler(EnumFacing side) {
+        int index = side.ordinal();
+        TileEntity tile = MekanismUtils.getTileEntity(world, getPos().offset(side));
+        if (!cachedItemHandlerResolved[index] || cachedItemHandlerTiles[index] != tile) {
+            cachedItemHandlerTiles[index] = tile;
+            cachedItemHandlers[index] = CapabilityUtils.getCapability(tile, CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, side.getOpposite());
+            cachedItemHandlerResolved[index] = true;
+        }
+        return cachedItemHandlers[index];
+    }
+
+    private void clearCachedEnergyAcceptors() {
+        java.util.Arrays.fill(cachedEnergyAcceptorTiles, null);
+        java.util.Arrays.fill(cachedEnergyAcceptors, null);
+        java.util.Arrays.fill(cachedEnergyAcceptorResolved, false);
+        java.util.Arrays.fill(cachedGasHandlerTiles, null);
+        java.util.Arrays.fill(cachedGasHandlers, null);
+        java.util.Arrays.fill(cachedGasHandlerResolved, false);
+        java.util.Arrays.fill(cachedFluidHandlerTiles, null);
+        java.util.Arrays.fill(cachedFluidHandlers, null);
+        java.util.Arrays.fill(cachedFluidHandlerResolved, false);
+        java.util.Arrays.fill(cachedItemHandlerTiles, null);
+        java.util.Arrays.fill(cachedItemHandlers, null);
+        java.util.Arrays.fill(cachedItemHandlerResolved, false);
     }
 
     private void updatePower() {

@@ -72,6 +72,7 @@ final class QIORecipeCatalogPersistence {
         try {
             Directories directories = new Directories(worldDirectory);
             synchronized (directoryLock(directories)) {
+                boolean hadCacheState = hasCacheState(directories);
                 List<ManifestSource> manifests = new ArrayList<>(2);
                 readManifest(directories.manifest, true, manifests);
                 readManifest(QIOProcessingStorageIO.backupFile(directories.manifest), false,
@@ -79,22 +80,48 @@ final class QIORecipeCatalogPersistence {
                 Set<UUID> attempted = new LinkedHashSet<>();
                 List<Candidate> result = new ArrayList<>(2);
                 boolean[] environmentMismatch = new boolean[1];
+                int[] lookupStats = new int[3];
                 for (ManifestSource source : manifests) {
                     Manifest manifest = source.manifest;
                     if (manifest.active != null && attempted.add(manifest.active)) {
+                        Mekanism.logger.info(
+                              "[QIO Recipe Catalog] Cache lookup: considering generation {} ({})",
+                              manifest.active, source.primary ? "active" : "backup active");
                         readCandidate(directories, manifest.active,
                               !source.primary, expectedEnvironmentSignature,
-                              environmentMismatch, result);
+                              environmentMismatch, lookupStats, result);
                     }
                     if (manifest.previous != null && attempted.add(manifest.previous)) {
+                        Mekanism.logger.info(
+                              "[QIO Recipe Catalog] Cache lookup: considering generation {} ({})",
+                              manifest.previous, "previous");
                         readCandidate(directories, manifest.previous, true,
-                              expectedEnvironmentSignature, environmentMismatch, result);
+                              expectedEnvironmentSignature, environmentMismatch, lookupStats, result);
                     }
                 }
                 if (result.isEmpty() && !environmentMismatch[0] &&
                     hasCacheState(directories)) {
                     quarantineInvalidCache(directories);
                 }
+                if (result.isEmpty()) {
+                    if (!hadCacheState) {
+                        Mekanism.logger.info(
+                              "[QIO Recipe Catalog] Cache miss: no persistent catalog files found");
+                    } else if (environmentMismatch[0]) {
+                        Mekanism.logger.info(
+                              "[QIO Recipe Catalog] Cache miss: all persistent catalogs belong to a different Forge environment");
+                    } else {
+                        Mekanism.logger.info(
+                              "[QIO Recipe Catalog] Cache miss: no readable compatible catalog generation found");
+                    }
+                } else {
+                    Mekanism.logger.info(
+                          "[QIO Recipe Catalog] Cache lookup found {} compatible catalog generation(s)",
+                          result.size());
+                }
+                Mekanism.logger.info(
+                      "[QIO Recipe Catalog] Cache lookup summary: attempted={} compatible={} environmentMismatches={} invalid={}",
+                      lookupStats[0], result.size(), lookupStats[1], lookupStats[2]);
                 return Collections.unmodifiableList(result);
             }
         } catch (IOException | RuntimeException error) {
@@ -267,7 +294,8 @@ final class QIORecipeCatalogPersistence {
 
     private static void readCandidate(Directories directories, UUID generation,
           boolean manifestRepairRequired, @Nullable String expectedEnvironmentSignature,
-          boolean[] environmentMismatch, List<Candidate> output) {
+          boolean[] environmentMismatch, int[] lookupStats, List<Candidate> output) {
+        lookupStats[0]++;
         try {
             LoadedGeneration loaded = readGeneration(
                   child(directories.generations, generation.toString()), generation,
@@ -275,11 +303,13 @@ final class QIORecipeCatalogPersistence {
             output.add(new Candidate(loaded.cache, loaded.environmentSignature, generation,
                   manifestRepairRequired));
         } catch (EnvironmentMismatchException mismatch) {
+            lookupStats[1]++;
             environmentMismatch[0] = true;
             Mekanism.logger.info(
-                  "Skipping QIO recipe catalog generation {} from a different Forge environment",
-                  generation);
+                  "[QIO Recipe Catalog] Generation {} rejected: environment signature mismatch expected={} stored={}",
+                  generation, expectedEnvironmentSignature, mismatch.storedSignature);
         } catch (IOException | RuntimeException error) {
+            lookupStats[2]++;
             Mekanism.logger.warn("Ignoring invalid QIO recipe catalog generation {}",
                   generation, error);
         }
@@ -306,7 +336,7 @@ final class QIORecipeCatalogPersistence {
         }
         if (expectedEnvironmentSignature != null &&
             !expectedEnvironmentSignature.equals(environmentSignature)) {
-            throw new EnvironmentMismatchException();
+            throw new EnvironmentMismatchException(environmentSignature);
         }
         Map<String, List<NBTTagCompound>> categories = new LinkedHashMap<>();
         Set<String> names = new HashSet<>();
@@ -903,6 +933,12 @@ final class QIORecipeCatalogPersistence {
     }
 
     private static final class EnvironmentMismatchException extends IOException {
+
+        private final String storedSignature;
+
+        private EnvironmentMismatchException(String storedSignature) {
+            this.storedSignature = storedSignature;
+        }
     }
 
     static final class Candidate {

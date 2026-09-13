@@ -4,6 +4,7 @@ import mekanism.api.Action;
 import mekanism.api.AutomationType;
 import mekanism.api.fluid.IExtendedFluidTank;
 import mekanism.common.content.network.distribution.FluidHandlerTarget;
+import mekanism.common.tile.prefab.TileEntityBasicBlock;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
@@ -15,6 +16,7 @@ import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.fluids.capability.IFluidHandlerItem;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Set;
 
 public final class FluidUtils {
@@ -31,21 +33,33 @@ public final class FluidUtils {
     }
 
     public static void emit(Set<EnumFacing> outputSides, IExtendedFluidTank tank, TileEntity from, int maxOutput) {
+        emit(outputSides, tank, from, maxOutput, from instanceof TileEntityBasicBlock ? (TileEntityBasicBlock) from : null);
+    }
+
+    public static void emit(Set<EnumFacing> outputSides, IExtendedFluidTank tank, TileEntity from, int maxOutput,
+          @Nullable TileEntityBasicBlock cacheOwner) {
         if (!tank.isEmpty() && maxOutput > 0) {
             FluidStack simulated = tank.extract(maxOutput, Action.SIMULATE, AutomationType.INTERNAL);
             if (simulated != null && simulated.amount > 0) {
-                tank.extract(emit(outputSides, simulated, from), Action.EXECUTE, AutomationType.INTERNAL);
+                tank.extract(emit(outputSides, simulated, from, cacheOwner), Action.EXECUTE, AutomationType.INTERNAL);
             }
         }
     }
 
     public static int emit(Set<EnumFacing> sides, @Nonnull FluidStack stack, TileEntity from) {
+        return emit(sides, stack, from, from instanceof TileEntityBasicBlock ? (TileEntityBasicBlock) from : null);
+    }
+
+    public static int emit(Set<EnumFacing> sides, @Nonnull FluidStack stack, TileEntity from,
+          @Nullable TileEntityBasicBlock cacheOwner) {
         if (stack.amount <= 0 || sides.isEmpty()) {
             return 0;
         }
         FluidHandlerTarget target = new FluidHandlerTarget(stack, 6);
         EmitUtils.forEachSide(from.getWorld(), from.getPos(), sides, (acceptor, side) -> {
-            IFluidHandler handler = CapabilityUtils.getCapability(acceptor, CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, side.getOpposite());
+            IFluidHandler handler = cacheOwner == null ?
+                  CapabilityUtils.getCapability(acceptor, CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, side.getOpposite()) :
+                  cacheOwner.getCachedFluidHandler(acceptor, side.getOpposite());
             if (handler != null && PipeUtils.canFill(handler, stack)) {
                 target.addHandler(handler);
             }

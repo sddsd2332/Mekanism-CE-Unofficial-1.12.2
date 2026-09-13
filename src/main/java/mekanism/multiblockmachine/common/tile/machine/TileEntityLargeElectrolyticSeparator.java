@@ -233,6 +233,9 @@ public class TileEntityLargeElectrolyticSeparator extends TileEntityBasicMachine
     @Override
     protected void onUpdateServerPreComponents() {
         super.onUpdateServerPreComponents();
+        if (leftTank.isEmpty() && rightTank.isEmpty()) {
+            return;
+        }
         gasSpeedController.ensureSize(2,
               () -> Arrays.asList(new TankProvider.Gas(leftTank), new TankProvider.Gas(rightTank)));
         handleTank(leftTank, dumpLeft, getLeftTankside(), dumpAmount, 0);

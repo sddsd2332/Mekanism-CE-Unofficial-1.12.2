@@ -4,6 +4,7 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.ResourceLocation;
+import net.minecraftforge.fml.common.registry.ForgeRegistries;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -82,17 +83,46 @@ public final class QIORecipeStackUtils {
             // Copy only the fields that belong to the recipe-selection contract.  Copying the
             // complete input compound before removing ForgeCaps would still allocate the full
             // (possibly megabyte-sized) capability tree from an old or foreign cache record.
-            NBTTagCompound stable = new NBTTagCompound();
+            String itemName;
             if (data.hasKey("id", 8)) {
-                stable.setString("id", data.getString("id"));
+                itemName = data.getString("id");
             } else if (data.hasKey("id", 3)) {
                 // Accept the legacy numeric item-id representation as well.
-                stable.setString("id", Integer.toString(data.getInteger("id")));
+                itemName = Integer.toString(data.getInteger("id"));
             } else {
                 return ItemStack.EMPTY;
             }
-            stable.setByte("Count", data.hasKey("Count", 1) ? data.getByte("Count") : 1);
-            stable.setShort("Damage", data.hasKey("Damage", 2) ? data.getShort("Damage") : 0);
+
+            int count = data.hasKey("Count", 1) ? data.getByte("Count") : 1;
+            int metadata = data.hasKey("Damage", 2) ? data.getShort("Damage") : 0;
+            ResourceLocation registryName;
+            try {
+                registryName = new ResourceLocation(itemName);
+            } catch (RuntimeException ignored) {
+                registryName = null;
+            }
+            if (registryName != null) {
+                // ItemStack(NBTTagCompound) resolves through the legacy item registry.  Some
+                // 1.12 integrations leave an alias there, so it can produce a different Item
+                // instance than ForgeRegistries.ITEMS.getValue(owner). Resolve by the Forge
+                // name first to keep restored cache objects tied to the active registry entry.
+                Item item = ForgeRegistries.ITEMS.getValue(registryName);
+                if (item != null) {
+                    ItemStack stack = new ItemStack(item, count, metadata);
+                    if (data.hasKey("tag", 10)) {
+                        stack.setTagCompound(data.getCompoundTag("tag").copy());
+                    }
+                    return copyForRecipeSelection(stack);
+                }
+            }
+
+            // Keep the legacy fallback for numeric and old aliases. Cache restore diagnostics
+            // are emitted by the caller when this fallback produces a different registry item.
+
+            NBTTagCompound stable = new NBTTagCompound();
+            stable.setString("id", itemName);
+            stable.setByte("Count", (byte) count);
+            stable.setShort("Damage", (short) metadata);
             if (data.hasKey("tag", 10)) {
                 stable.setTag("tag", data.getCompoundTag("tag").copy());
             }

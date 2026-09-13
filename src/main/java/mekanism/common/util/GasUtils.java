@@ -6,6 +6,7 @@ import mekanism.api.gas.*;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.content.network.distribution.GasHandlerTarget;
 import mekanism.common.inventory.slot.gas.GasInventorySlot;
+import mekanism.common.tile.prefab.TileEntityBasicBlock;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
@@ -181,10 +182,15 @@ public final class GasUtils {
     }
 
     public static void emit(Set<EnumFacing> outputSides, IExtendedGasTank tank, TileEntity from, int maxOutput) {
+        emit(outputSides, tank, from, maxOutput, from instanceof TileEntityBasicBlock ? (TileEntityBasicBlock) from : null);
+    }
+
+    public static void emit(Set<EnumFacing> outputSides, IExtendedGasTank tank, TileEntity from, int maxOutput,
+          @Nullable TileEntityBasicBlock cacheOwner) {
         if (!tank.isEmpty() && maxOutput > 0) {
             GasStack simulated = tank.extract(maxOutput, Action.SIMULATE, AutomationType.INTERNAL);
             if (simulated != null && simulated.amount > 0) {
-                tank.extract(emit(simulated, from, outputSides), Action.EXECUTE, AutomationType.INTERNAL);
+                tank.extract(emit(simulated, from, outputSides, cacheOwner), Action.EXECUTE, AutomationType.INTERNAL);
             }
         }
     }
@@ -198,13 +204,23 @@ public final class GasUtils {
      * @return the amount of gas emitted
      */
     public static int emit(GasStack stack, TileEntity from, Set<EnumFacing> sides) {
-        return emit(stack, from, sides, new GasHandlerTarget(stack, 6));
+        return emit(stack, from, sides, new GasHandlerTarget(stack, 6),
+              from instanceof TileEntityBasicBlock ? (TileEntityBasicBlock) from : null);
+    }
+
+    public static int emit(GasStack stack, TileEntity from, Set<EnumFacing> sides, @Nullable TileEntityBasicBlock cacheOwner) {
+        return emit(stack, from, sides, new GasHandlerTarget(stack, 6), cacheOwner);
     }
 
     /**
      * Emits gas using a caller-owned target. The target is reset before collection so its backing lists can be reused safely.
      */
     public static int emit(GasStack stack, TileEntity from, Set<EnumFacing> sides, GasHandlerTarget target) {
+        return emit(stack, from, sides, target, null);
+    }
+
+    private static int emit(GasStack stack, TileEntity from, Set<EnumFacing> sides, GasHandlerTarget target,
+          @Nullable TileEntityBasicBlock cacheOwner) {
         target.reset(stack);
         if (stack == null || stack.amount == 0 || sides.isEmpty()) {
             return 0;
@@ -217,12 +233,12 @@ public final class GasUtils {
                 //Invert to get access side
                 final EnumFacing accessSide = side.getOpposite();
                 //Collect cap
-                CapabilityUtils.runIfCap(acceptor, Capabilities.GAS_HANDLER_CAPABILITY, accessSide,
-                        (handler) -> {
-                            if (canReceiveGas(handler, accessSide, stack)) {
-                                target.addHandler(accessSide, handler);
-                            }
-                        });
+                IGasHandler handler = cacheOwner == null ?
+                      CapabilityUtils.getCapability(acceptor, Capabilities.GAS_HANDLER_CAPABILITY, accessSide) :
+                      cacheOwner.getCachedGasHandler(acceptor, accessSide);
+                if (handler != null && canReceiveGas(handler, accessSide, stack)) {
+                    target.addHandler(accessSide, handler);
+                }
             });
         }
         if (target.getHandlerCount() > 0) {

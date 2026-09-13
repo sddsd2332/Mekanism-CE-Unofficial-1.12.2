@@ -226,6 +226,9 @@ public class TileEntityLargeChemicalInfuser extends TileEntityBasicMachine<Chemi
     @Override
     protected void onUpdateServerPreComponents() {
         super.onUpdateServerPreComponents();
+        if (centerTank.isEmpty()) {
+            return;
+        }
         gasSpeedController.ensureSize(2,
               () -> Arrays.asList(new TankProvider.Gas(centerTank), new TankProvider.Gas(centerTank)));
         handleTank(centerTank, getLeftTankside(), 0);

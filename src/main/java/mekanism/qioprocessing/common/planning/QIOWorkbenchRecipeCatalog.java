@@ -41,6 +41,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Iterator;
@@ -3810,6 +3811,8 @@ public final class QIOWorkbenchRecipeCatalog {
                 candidateRecords.add(record);
             }
             Map<String, Integer> profileIds = new LinkedHashMap<>();
+            Map<Map<String, Map<PortableResourceDescriptor, Long>>, String> profileKeys =
+                  new IdentityHashMap<>();
             List<NBTTagCompound> candidateProfileRecords = new ArrayList<>();
             for (CachedRecipe cached : recipesById.values()) {
                 for (Map<String, Map<PortableResourceDescriptor, Long>> slotProfiles :
@@ -3817,8 +3820,8 @@ public final class QIOWorkbenchRecipeCatalog {
                     // Profile contents can contain large capability/NBT identities.  Keep the
                     // canonical form in memory for equality, but use a fixed-size key for the
                     // cache's profile table so no unbounded string reaches NBT UTF encoding.
-                    String canonical = profileCanonical(slotProfiles);
-                    String profileKey = sha256(canonical);
+                    String profileKey = profileKeys.computeIfAbsent(slotProfiles,
+                          value -> sha256(profileCanonical(value)));
                     if (!profileIds.containsKey(profileKey)) {
                         int profileId = profileIds.size();
                         profileIds.put(profileKey, profileId);
@@ -3882,8 +3885,13 @@ public final class QIOWorkbenchRecipeCatalog {
                     NBTTagCompound slotRecord = new NBTTagCompound();
                     if (definition.isShapeless()) slotRecord.setInteger("occurrence", slot);
                     else slotRecord.setInteger("slot", slot);
-                    int profileId = profileIds.get(sha256(profileCanonical(
-                          recipe.candidateOutputProfiles.get(slot))));
+                    String profileKey = profileKeys.get(recipe.candidateOutputProfiles.get(slot));
+                    if (profileKey == null) {
+                        profileKey = profileKeys.computeIfAbsent(
+                              recipe.candidateOutputProfiles.get(slot),
+                              value -> sha256(profileCanonical(value)));
+                    }
+                    int profileId = profileIds.get(profileKey);
                     slotRecord.setInteger("profileId", profileId);
                     slots.appendTag(slotRecord);
                 }
@@ -4138,7 +4146,7 @@ public final class QIOWorkbenchRecipeCatalog {
                     throw new IllegalArgumentException(
                           "Cached QIO matcher kind is invalid", error);
                 }
-                NBTTagList storedCandidateIds = record.getTagList("candidateIds", 8);
+                NBTTagList storedCandidateIds = record.getTagList("candidateIds", 10);
                 if (storedCandidateIds.tagCount() > DEFAULT_MAX_CANDIDATES_PER_INGREDIENT) {
                     throw new IllegalArgumentException(
                           "Cached QIO matcher has too many choices");
@@ -4146,7 +4154,8 @@ public final class QIOWorkbenchRecipeCatalog {
                 List<IngredientChoice> choices = new ArrayList<>(storedCandidateIds.tagCount());
                 Set<String> seen = new LinkedHashSet<>();
                 for (int choice = 0; choice < storedCandidateIds.tagCount(); choice++) {
-                    String candidateId = storedCandidateIds.getStringTagAt(choice);
+                    String candidateId = storedCandidateIds.getCompoundTagAt(choice)
+                          .getString("value");
                     IngredientChoice selected = candidatesById.get(candidateId);
                     if (selected == null || !seen.add(candidateId)) {
                         throw new IllegalArgumentException("Cached QIO matcher candidate is invalid");
@@ -4415,7 +4424,7 @@ public final class QIOWorkbenchRecipeCatalog {
                 }
                 Map<String, Map<PortableResourceDescriptor, Long>> candidates =
                       profileTable.get(profileId);
-                if (candidates == null || candidates.isEmpty()) {
+                if (candidates == null) {
                     throw new IllegalArgumentException("Cached QIO output profile reference is invalid");
                 }
                 for (String candidateId : candidates.keySet()) {
@@ -4577,6 +4586,9 @@ public final class QIOWorkbenchRecipeCatalog {
         interface BuildListener {
             void scanComplete(int recipeCount);
             void cacheStarted(int recipeCount);
+
+            default void stageComplete(String stage, long elapsedNanos, int processed) {
+            }
         }
 
         /**
@@ -4616,6 +4628,9 @@ public final class QIOWorkbenchRecipeCatalog {
             @Nullable private CompletableFuture<QIOForgeRecipeData> forgeFuture;
             private QIOForgeRecipeData forgeData = QIOForgeRecipeData.empty();
             @Nullable private RecipeOutputIndex result;
+            private Stage reportedStage;
+            private long reportedStageNanos;
+            private int reportedStageProgress;
 
             private Capture(@Nullable World world,
                   Collection<? extends IRecipe> recipes, BuildListener listener,
@@ -4645,6 +4660,8 @@ public final class QIOWorkbenchRecipeCatalog {
                     builder = newBuilder(world, QIOForgeRecipeData.empty());
                     stage = Stage.RECIPE_SNAPSHOT;
                 }
+                reportedStage = stage;
+                reportedStageNanos = System.nanoTime();
             }
 
             private static Builder newBuilder(@Nullable World world,
@@ -4670,11 +4687,13 @@ public final class QIOWorkbenchRecipeCatalog {
                       saturatedAdd(System.nanoTime(), maximumNanos);
                 int processed = 0;
                 while (stage != Stage.COMPLETE) {
+                    reportStageIfChanged();
                     if (stage == Stage.FORGE_CAPTURE) {
                         QIOForgeRecipeData.Capture active = Objects.requireNonNull(forgeCapture,
                               "forgeCapture");
                         processed += active.process(maximumRecipes - processed, deadline);
                         if (!active.isComplete()) return false;
+                        reportedStageProgress = active.getProgress();
                         if (worker == null) {
                             forgeData = active.finish();
                             builder = newBuilder(world, forgeData);
@@ -4797,7 +4816,34 @@ public final class QIOWorkbenchRecipeCatalog {
                         stage = Stage.COMPLETE;
                     }
                 }
+                reportStageIfChanged();
                 return true;
+            }
+
+            private void reportStageIfChanged() {
+                if (stage == reportedStage) {
+                    return;
+                }
+                long now = System.nanoTime();
+                listener.stageComplete(reportedStage.name(), now - reportedStageNanos,
+                      stageProgress(reportedStage));
+                reportedStage = stage;
+                reportedStageNanos = now;
+                reportedStageProgress = stageProgress(stage);
+            }
+
+            private int stageProgress(Stage value) {
+                return switch (value) {
+                    case FORGE_CAPTURE -> forgeCapture == null ? reportedStageProgress : forgeCapture.getProgress();
+                    case FORGE_INDEX -> forgeFuture == null || forgeFuture.isDone() ? 1 : 0;
+                    case RECIPE_SNAPSHOT -> recipes.size();
+                    case SCAN -> recipeIndex;
+                    case SYMBOL_INPUT -> logicalRecipes.size();
+                    case SYMBOLS -> symbolFuture == null || symbolFuture.isDone() ? 1 : 0;
+                    case COMPILE -> compileIndex;
+                    case INDEX -> indexFuture == null || indexFuture.isDone() ? 1 : 0;
+                    case COMPLETE -> 1;
+                };
             }
 
             @Nonnull

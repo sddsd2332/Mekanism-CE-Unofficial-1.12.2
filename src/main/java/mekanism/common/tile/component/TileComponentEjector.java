@@ -216,7 +216,7 @@ public class TileComponentEjector implements ITileComponent, ISpecificContainerT
                 continue;
             }
             List<IInventorySlot> outputSlots = inventorySlotInfo.getOutputSlots();
-            if (outputSlots.isEmpty()) {
+            if (outputSlots.isEmpty() || !hasOutputItems(outputSlots)) {
                 continue;
             }
             if (outputData == null) {
@@ -241,19 +241,28 @@ public class TileComponentEjector implements ITileComponent, ISpecificContainerT
                 continue;
             }
             List<IInventorySlot> sideSlots = self.getInventorySlots(side);
-            TileEntity tile = MekanismUtils.getTileEntity(self.getWorld(), self.getPos().offset(side));
-            if (tile == null) {
+            IItemHandler targetHandler = self.getCachedNeighborItemHandler(side);
+            if (targetHandler == null) {
                 continue;
             }
             TransitRequest ejectMap = getEjectItemMap(handler, sideSlots, outputSlots);
             while (!ejectMap.isEmpty()) {
-                TransitResponse response = ejectMap.eject(self, InventoryUtils.getItemHandler(tile, side.getOpposite()), 0, ignored -> outputColor);
+                TransitResponse response = ejectMap.eject(self, targetHandler, 0, ignored -> outputColor);
                 if (response.isEmpty()) {
                     break;
                 }
                 response.useAll();
             }
         }
+    }
+
+    private boolean hasOutputItems(List<IInventorySlot> outputSlots) {
+        for (IInventorySlot slot : outputSlots) {
+            if (!slot.isEmpty()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean ejectByConfig(TransmissionType type) {

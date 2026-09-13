@@ -197,6 +197,9 @@ public class TileEntityLargeSolarNeutronActivator extends TileEntityContainerBlo
     @Override
     protected void onUpdateServerPreComponents() {
         super.onUpdateServerPreComponents();
+        if (outputTank.isEmpty()) {
+            return;
+        }
         gasSpeedController.ensureSize(2,
               () -> Arrays.asList(new TankProvider.Gas(outputTank), new TankProvider.Gas(outputTank)));
         handleTank(outputTank, getLeftTankside(), MekanismUtils.getLeft(facing), 0);

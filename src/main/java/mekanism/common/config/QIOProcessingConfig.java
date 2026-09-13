@@ -131,7 +131,7 @@ public class QIOProcessingConfig extends BaseConfig {
           .setRequiresGameRestart();
     public final EnumOption<QIORecipeCatalogScanMode> recipeCatalogScanMode =
           new EnumOption<>(this, "recipe_catalog", "scanMode",
-                QIORecipeCatalogScanMode.DISABLED,
+                QIORecipeCatalogScanMode.FIRST_ONLY,
                 "Workbench recipe scan policy. FULL validates every startup; FIRST_ONLY " +
                       "rebuilds only without a compatible cache; CHANGED also rebuilds after " +
                       "a player encodes an uncached recipe; DISABLED skips the global catalog, " +
@@ -144,7 +144,7 @@ public class QIOProcessingConfig extends BaseConfig {
     public void load(Configuration config) {
         super.load(config);
         config.get("recipe_catalog", "scanMode",
-              QIORecipeCatalogScanMode.DISABLED.name())
+              QIORecipeCatalogScanMode.FIRST_ONLY.name())
               .setValidValues(new String[]{"FULL", "FIRST_ONLY", "CHANGED", "DISABLED"});
         recipeCatalogCapturesPerTick.load(config);
         recipeCatalogCaptureTimePerTick.load(config);

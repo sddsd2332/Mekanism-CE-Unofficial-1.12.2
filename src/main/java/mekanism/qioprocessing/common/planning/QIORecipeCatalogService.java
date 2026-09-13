@@ -140,6 +140,9 @@ public final class QIORecipeCatalogService {
         }
         List<IRecipe> recipes = getStableRecipeSnapshot();
         environmentSignature = environmentSignature(recipes);
+        Mekanism.logger.info(
+              "[QIO Recipe Catalog] Environment signature for this startup = {}",
+              environmentSignature);
         ensureWorkers();
         cacheSaveToken = new QIORecipeCatalogPersistence.SaveToken();
         File worldDirectory = worldDirectory(world);
@@ -255,9 +258,12 @@ public final class QIORecipeCatalogService {
             scheduleCacheSave(next,
                   clearEpochAfterSave > completedRescanEpoch || loadedCacheRequiresRepair,
                   clearEpochAfterSave);
+                Mekanism.logger.info(
+                      "[QIO Recipe Catalog] Build completed: published {} workbench recipes in {} active server seconds",
+                      next.getRecipeCount(), activeCaptureSeconds());
             Mekanism.logger.info(
-                  "[QIO Recipe Catalog] Build completed: published {} workbench recipes in {} active server seconds",
-                  next.getRecipeCount(), activeCaptureSeconds());
+                  "[QIO Recipe Catalog] Build signatures: environment={} forge={}",
+                  environmentSignature, next.getForgeSignature());
             return true;
         } catch (RuntimeException error) {
             Mekanism.logger.error(
@@ -565,6 +571,14 @@ public final class QIORecipeCatalogService {
                 Mekanism.logger.info("Caching {} global QIO workbench recipes",
                       recipeCount);
             }
+
+            @Override
+            public void stageComplete(String stage, long elapsedNanos, int processed) {
+                Mekanism.logger.info(
+                      "[QIO Recipe Catalog] Stage {} completed in {} ms (processed {})",
+                      stage, String.format(Locale.ROOT, "%.3f", elapsedNanos / 1_000_000D),
+                      processed);
+            }
         };
     }
 
@@ -649,7 +663,7 @@ public final class QIORecipeCatalogService {
 
     private boolean advanceCacheRestore(int maximumRecords, long maximumNanos) {
         QIOWorkbenchRecipeCatalog.RecipeOutputIndex.CacheRestore active = cacheRestore;
-        if (active == null) return false;
+            if (active == null) return false;
         try {
             if (!active.process(maximumRecords, maximumNanos, catalogWorkers,
                   catalogWorkerCount)) {
@@ -681,7 +695,10 @@ public final class QIORecipeCatalogService {
                       restored.getRecipeCount(), activeScanMode,
                       activeScanMode.scansAfterCatalogMiss() && isRescanRequired() ?
                             "; a persisted rescan is required" :
-                            "; full scan skipped");
+                      "; full scan skipped");
+                Mekanism.logger.info(
+                      "[QIO Recipe Catalog] Cache restore signatures: environment={} forge={} generation={}",
+                      environmentSignature, restored.getForgeSignature(), candidate.diskGeneration);
                 if (activeScanMode.scansAfterCatalogMiss() && isRescanRequired()) {
                     startFullCapture(getStableRecipeSnapshot(),
                           "the persisted CHANGED-mode rescan marker");
@@ -690,9 +707,13 @@ public final class QIORecipeCatalogService {
                 }
             }
             return true;
-        } catch (RuntimeException error) {
-            Mekanism.logger.warn("Ignoring an incompatible QIO recipe catalog generation",
+            } catch (RuntimeException error) {
+            Mekanism.logger.warn(
+                  "Ignoring incompatible QIO recipe catalog generation {} during restore",
+                  activeCacheCandidate == null ? "<unknown>" : activeCacheCandidate.diskGeneration,
                   error);
+            Mekanism.logger.info(
+                  "[QIO Recipe Catalog] Cache miss: compatible generation restore failed; rebuilding the catalog");
             active.cancel();
             cacheRestore = null;
             activeCacheCandidate = null;
@@ -711,8 +732,9 @@ public final class QIORecipeCatalogService {
                       .beginCacheRestore(candidate.cache);
                 return;
             } catch (RuntimeException error) {
-                Mekanism.logger.warn("Ignoring an incompatible QIO recipe catalog generation",
-                      error);
+                Mekanism.logger.warn(
+                      "Ignoring incompatible QIO recipe catalog generation {} before restore",
+                      candidate.diskGeneration, error);
             }
         }
         activeCacheCandidate = null;
@@ -720,6 +742,8 @@ public final class QIORecipeCatalogService {
         cacheCandidates = Collections.emptyList();
         cacheCandidateIndex = 0;
         if (capture == null && (!generationTrusted || recipeOutputIndex == null)) {
+            Mekanism.logger.info(
+                  "[QIO Recipe Catalog] Cache lookup exhausted: no compatible generation could be restored");
             startFullCapture(getStableRecipeSnapshot(),
                   "no compatible cached directory");
         }

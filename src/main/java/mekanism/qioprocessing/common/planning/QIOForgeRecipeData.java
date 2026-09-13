@@ -1,5 +1,6 @@
 package mekanism.qioprocessing.common.planning;
 
+import mekanism.common.Mekanism;
 import mekanism.qioprocessing.api.resource.PortableResourceDescriptor;
 import mekanism.qioprocessing.common.util.QIORecipeStackUtils;
 import net.minecraft.block.Block;
@@ -412,6 +413,14 @@ final class QIOForgeRecipeData {
             }
             FrozenStack stack = FrozenStack.read(record);
             if (stack.prototype.getItem() != entry.item) {
+                ResourceLocation entryName = entry.item.getRegistryName();
+                ResourceLocation variantName = stack.prototype.getItem().getRegistryName();
+                Mekanism.logger.error(
+                      "[QIO Restore] Forge variant identity mismatch: owner={} rawId={} " +
+                      "entryItem={} entryName={} variantItem={} variantName={} sameObject={} " +
+                      "recordKeys={}", owner, record.getString("id"), entry.item, entryName,
+                      stack.prototype.getItem(), variantName,
+                      stack.prototype.getItem() == entry.item, record.getKeySet());
                 throw new IllegalArgumentException("Cached Forge variant owner changed: " + owner);
             }
             FrozenStackAccumulator accumulator = variants.computeIfAbsent(owner,
@@ -568,6 +577,16 @@ final class QIOForgeRecipeData {
             return stage == Stage.COMPLETE;
         }
 
+        int getProgress() {
+            return switch (stage) {
+                case ITEMS -> itemIndex;
+                case VARIANTS -> variantIndex;
+                case ORES -> oreIndex;
+                case FREEZE_ITEMS -> freezeIndex;
+                case COMPLETE -> items.size();
+            };
+        }
+
         @Nonnull
         QIOForgeRecipeData finish() {
             if (!isComplete()) {
@@ -614,16 +633,25 @@ final class QIOForgeRecipeData {
                     stack.getItem() != activeVariantEntry.item ||
                     stack.getMetadata() == OreDictionary.WILDCARD_VALUE) return;
                 try {
-                    activeVariants.add(new FrozenStack(captured));
+                    FrozenStack frozen = new FrozenStack(captured);
+                    // A third-party ItemStack hook may replace the item while the frozen
+                    // copy is constructed. Do not persist that replacement under the
+                    // original registry entry; it cannot be restored as the same variant.
+                    if (frozen.prototype.getItem() == activeVariantEntry.item) {
+                        activeVariants.add(frozen);
+                    }
                 } catch (RuntimeException ignored) {
                 }
                 return;
             }
             if (activeVariants.isEmpty()) {
                 ItemStack fallback = new ItemStack(activeVariantEntry.item);
-                if (!fallback.isEmpty()) {
+                if (!fallback.isEmpty() && fallback.getItem() == activeVariantEntry.item) {
                     try {
-                        activeVariants.add(new FrozenStack(fallback));
+                        FrozenStack frozen = new FrozenStack(fallback);
+                        if (frozen.prototype.getItem() == activeVariantEntry.item) {
+                            activeVariants.add(frozen);
+                        }
                     } catch (RuntimeException ignored) {
                     }
                 }

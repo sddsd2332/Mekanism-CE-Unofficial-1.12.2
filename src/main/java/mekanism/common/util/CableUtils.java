@@ -17,6 +17,7 @@ import mekanism.common.capabilities.Capabilities;
 import mekanism.common.content.network.distribution.EnergyAcceptorTarget;
 import mekanism.common.integration.ic2.IC2Integration;
 import mekanism.common.tile.multiblock.TileEntityInductionPort;
+import mekanism.common.tile.prefab.TileEntityBasicBlock;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
@@ -163,12 +164,10 @@ public final class CableUtils {
         EnergyAcceptorTarget target = new EnergyAcceptorTarget();
         for (EnumFacing side : sides) {
             TileEntity tile = coord.offset(side).getTileEntity(tileEntity.getWorld());
-            if (tile != null && (isValidAcceptorOnSide(tileEntity, tile, side) || isCable(tile))) {
-                EnumFacing opposite = side.getOpposite();
-                EnergyAcceptorWrapper acceptor = EnergyAcceptorWrapper.get(tile, opposite);
-                if (acceptor != null && acceptor.canReceiveEnergy(opposite) && acceptor.needsEnergy(opposite)) {
-                    target.addHandler(opposite, acceptor);
-                }
+            EnumFacing opposite = side.getOpposite();
+            EnergyAcceptorWrapper acceptor = getCachedAcceptor(tileEntity, tile, opposite);
+            if (acceptor != null && acceptor.canReceiveEnergy(opposite) && acceptor.needsEnergy(opposite)) {
+                target.addHandler(opposite, acceptor);
             }
         }
 
@@ -199,13 +198,11 @@ public final class CableUtils {
         Coord4D coord = Coord4D.get(tileEntity);
         EnergyAcceptorTarget target = new EnergyAcceptorTarget();
         for (EnumFacing side : sides) {
+            EnumFacing opposite = side.getOpposite();
             TileEntity tile = coord.offset(side).getTileEntity(tileEntity.getWorld());
-            if (tile != null && (isValidAcceptorOnSide(tileEntity, tile, side) || isCable(tile))) {
-                EnumFacing opposite = side.getOpposite();
-                EnergyAcceptorWrapper acceptor = EnergyAcceptorWrapper.get(tile, opposite);
-                if (acceptor != null && acceptor.canReceiveEnergy(opposite) && acceptor.needsEnergy(opposite)) {
-                    target.addHandler(opposite, acceptor);
-                }
+            EnergyAcceptorWrapper acceptor = getCachedAcceptor(tileEntity, tile, opposite);
+            if (acceptor != null && acceptor.canReceiveEnergy(opposite) && acceptor.needsEnergy(opposite)) {
+                target.addHandler(opposite, acceptor);
             }
         }
 
@@ -242,14 +239,11 @@ public final class CableUtils {
                 continue;
             }
             TileEntity tile = coord.offset(side, i).getTileEntity(tileEntity.getWorld());
-            //If it can accept energy or it is a cable
-            if (tile != null && (isValidAcceptorOnSide(tileEntity, tile, side) || isCable(tile))) {
-                //Get the opposite side as the current side is relative to us
-                EnumFacing opposite = side.getOpposite();
-                EnergyAcceptorWrapper acceptor = EnergyAcceptorWrapper.get(tile, opposite);
-                if (acceptor != null && acceptor.canReceiveEnergy(opposite) && acceptor.needsEnergy(opposite)) {
-                    target.addHandler(opposite, acceptor);
-                }
+            //Get the opposite side as the current side is relative to us
+            EnumFacing opposite = side.getOpposite();
+            EnergyAcceptorWrapper acceptor = getCachedAcceptor(tileEntity, tile, opposite);
+            if (acceptor != null && acceptor.canReceiveEnergy(opposite) && acceptor.needsEnergy(opposite)) {
+                target.addHandler(opposite, acceptor);
             }
         }
 
@@ -262,5 +256,12 @@ public final class CableUtils {
                 emitter.setEnergy(emitter.getEnergy() - sent);
             }
         }
+    }
+
+    private static EnergyAcceptorWrapper getCachedAcceptor(TileEntity source, TileEntity tile, EnumFacing side) {
+        if (source instanceof TileEntityBasicBlock basicBlock) {
+            return basicBlock.getCachedEnergyAcceptor(tile, side);
+        }
+        return EnergyAcceptorWrapper.get(tile, side);
     }
 }

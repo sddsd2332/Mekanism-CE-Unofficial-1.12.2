@@ -233,6 +233,9 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
     @Override
     protected void onUpdateServerPreComponents() {
         super.onUpdateServerPreComponents();
+        if (outputTank.isEmpty()) {
+            return;
+        }
         gasSpeedController.ensureSize(1,
               () -> Collections.singletonList(new TankProvider.Gas(outputTank)));
         handleTank(outputTank, getRightTankSide(), facing);
