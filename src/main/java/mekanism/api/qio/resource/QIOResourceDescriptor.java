@@ -1,10 +1,13 @@
 package mekanism.api.qio.resource;
 
+import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTBase;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.common.util.Constants.NBT;
+import mekanism.api.gas.GasStack;
+import net.minecraftforge.fluids.FluidStack;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -31,6 +34,15 @@ public final class QIOResourceDescriptor implements Comparable<QIOResourceDescri
     private final int semanticTypeHash;
     private final String stableKey;
     private final int hashCode;
+    /** Lazily decoded immutable-by-convention template for the hot item transfer path. */
+    @Nullable
+    private transient volatile ItemStack itemStackTemplate;
+    /** Lazily decoded amount-free template for built-in fluid transfers. */
+    @Nullable
+    private transient volatile FluidStack fluidStackTemplate;
+    /** Lazily decoded amount-free template for built-in gas transfers. */
+    @Nullable
+    private transient volatile GasStack gasStackTemplate;
 
     private QIOResourceDescriptor(ResourceLocation codecId, String family, int codecVersion,
           long storageUnitsPerUnit, NBTTagCompound payload) {
@@ -132,6 +144,67 @@ public final class QIOResourceDescriptor implements Comparable<QIOResourceDescri
         } catch (RuntimeException ignored) {
             return null;
         }
+    }
+
+    /**
+     * Resolves the item codec once per descriptor and returns a mutable caller-owned copy.
+     * Resource descriptors are immutable, while ItemStack is mutable, so the cached template
+     * must never escape directly to a machine port or integration.
+     */
+    @Nullable
+    public ItemStack resolveItemStackTemplate() {
+        if (!semanticIdentity || !QIOResourceCodecs.ITEM_STACK_ID.equals(codecId)) {
+            return null;
+        }
+        ItemStack template = itemStackTemplate;
+        if (template == null) {
+            ItemStack resolved = resolve(QIOResourceCodecs.ITEM_STACK);
+            if (resolved == null || resolved.isEmpty()) {
+                return null;
+            }
+            resolved.setCount(1);
+            itemStackTemplate = resolved;
+            template = resolved;
+        }
+        return template.copy();
+    }
+
+    /** Resolves the fluid codec once per descriptor and returns a caller-owned copy. */
+    @Nullable
+    public FluidStack resolveFluidStackTemplate() {
+        if (!semanticIdentity || !QIOResourceCodecs.FLUID_STACK_ID.equals(codecId)) {
+            return null;
+        }
+        FluidStack template = fluidStackTemplate;
+        if (template == null) {
+            FluidStack resolved = resolve(QIOResourceCodecs.FLUID_STACK);
+            if (resolved == null || resolved.getFluid() == null) {
+                return null;
+            }
+            resolved.amount = 1;
+            fluidStackTemplate = resolved;
+            template = resolved;
+        }
+        return new FluidStack(template, 1);
+    }
+
+    /** Resolves the gas codec once per descriptor and returns a caller-owned copy. */
+    @Nullable
+    public GasStack resolveGasStackTemplate() {
+        if (!semanticIdentity || !QIOResourceCodecs.GAS_STACK_ID.equals(codecId)) {
+            return null;
+        }
+        GasStack template = gasStackTemplate;
+        if (template == null) {
+            GasStack resolved = resolve(QIOResourceCodecs.GAS_STACK);
+            if (resolved == null || resolved.getGas() == null) {
+                return null;
+            }
+            resolved.amount = 1;
+            gasStackTemplate = resolved;
+            template = resolved;
+        }
+        return new GasStack(template.getGas(), 1);
     }
 
     @Nullable

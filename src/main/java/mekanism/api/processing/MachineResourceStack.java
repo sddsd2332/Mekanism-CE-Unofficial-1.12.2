@@ -149,8 +149,8 @@ public final class MachineResourceStack {
         if (amount > Integer.MAX_VALUE) {
             return ItemStack.EMPTY;
         }
-        ItemStack copy = descriptor.resolve(QIOResourceCodecs.ITEM_STACK);
-        if (copy == null) {
+        ItemStack copy = descriptor.resolveItemStackTemplate();
+        if (copy == null || copy.isEmpty()) {
             return ItemStack.EMPTY;
         }
         copy.setCount((int) amount);
@@ -162,7 +162,7 @@ public final class MachineResourceStack {
         if (amount > Integer.MAX_VALUE) {
             return null;
         }
-        FluidStack template = descriptor.resolve(QIOResourceCodecs.FLUID_STACK);
+        FluidStack template = descriptor.resolveFluidStackTemplate();
         return template == null ? null : new FluidStack(template, (int) amount);
     }
 
@@ -171,7 +171,7 @@ public final class MachineResourceStack {
         if (amount > Integer.MAX_VALUE) {
             return null;
         }
-        GasStack template = descriptor.resolve(QIOResourceCodecs.GAS_STACK);
+        GasStack template = descriptor.resolveGasStackTemplate();
         return template == null ? null : new GasStack(template.getGas(), (int) amount);
     }
 
