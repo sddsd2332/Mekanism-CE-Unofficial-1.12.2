@@ -278,7 +278,10 @@ final class QIORecipeCatalogPersistence {
                 return null;
             }
             published = true;
-            retainGenerations(directories.generations, generation, next.previous);
+            // Keep completed generations during cache investigation. The manifest still
+            // selects only active/previous candidates, while older generations remain available
+            // for byte-level comparison and manual recovery.
+            // retainGenerations(directories.generations, generation, next.previous);
             return generation;
         } catch (SaveCancelledException ignored) {
             return null;

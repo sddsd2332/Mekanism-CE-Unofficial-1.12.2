@@ -15,12 +15,14 @@ import mekanism.common.inventory.container.sync.SyncableInt;
 import mekanism.common.inventory.slot.UpgradeInventorySlot;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
 import mekanism.common.upgrade.ExternalUpgradeSupportRegistry;
+import mekanism.common.upgrade.UpgradeSupportValidity;
 import mekanism.common.util.UpgradeUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.common.util.Constants.NBT;
 
 import java.util.*;
+import java.util.function.BooleanSupplier;
 
 public class TileComponentUpgrade implements ITileComponent, ISpecificContainerTracker {
 
@@ -43,6 +45,40 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
     private final UpgradeInventorySlot upgradeSlot;
     private final UpgradeInventorySlot upgradeOutputSlot;
     private boolean canCheckUpgrades = true;
+    private volatile long configurationVersion;
+    private Map<UpgradeSupportValidity, Boolean> supportValidityTokens;
+
+    /** Revision of installed upgrades and locally declared support, for dependent state caches. */
+    public long getConfigurationVersion() {
+        return configurationVersion;
+    }
+
+    /**
+     * Tracks a computed support result until either observed revision changes. A false token never becomes
+     * true again, even when a concurrent computation publishes its snapshot after invalidation. This only
+     * tracks revisions: callers must still check component identity and exclude dynamic support predicates.
+     */
+    public synchronized BooleanSupplier trackSupportValidity(long expectedConfigurationVersion, long expectedDeclarationVersion) {
+        UpgradeSupportValidity token = new UpgradeSupportValidity();
+        if (configurationVersion != expectedConfigurationVersion) {
+            token.invalidate();
+        } else {
+            ExternalUpgradeSupportRegistry.trackSupportValidity(expectedDeclarationVersion, token);
+            if (token.getAsBoolean()) {
+                if (supportValidityTokens == null) supportValidityTokens = new WeakHashMap<>();
+                supportValidityTokens.put(token, Boolean.TRUE);
+            }
+        }
+        return token;
+    }
+
+    private synchronized void configurationChanged() {
+        configurationVersion = configurationVersion + 1;
+        if (supportValidityTokens != null) {
+            supportValidityTokens.keySet().forEach(UpgradeSupportValidity::invalidate);
+            supportValidityTokens.clear();
+        }
+    }
 
     public TileComponentUpgrade(TileEntityContainerBlock tile) {
         tileEntity = tile;
@@ -71,6 +107,7 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
         upgrades.putAll(upgrade.upgrades);
         supported.clear();
         supported.addAll(upgrade.supported);
+        configurationChanged();
         upgradeSlot.setStackUnchecked(upgrade.upgradeSlot.getStack());
         upgradeOutputSlot.setStackUnchecked(upgrade.upgradeOutputSlot.getStack());
         upgradeTicks = upgrade.upgradeTicks;
@@ -263,6 +300,7 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
     }
 
     private void onUpgradeChanged(Upgrade upgrade, int previousAmount, int amount) {
+        configurationChanged();
         tileEntity.recalculateUpgradables(upgrade);
         upgrade.onChanged(tileEntity, previousAmount, amount);
         if (upgrade == Upgrade.MUFFLING) {
@@ -309,9 +347,9 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
             return;
         }
         if (isSupported) {
-            supported.add(upgrade);
+            if (supported.add(upgrade)) configurationChanged();
         } else {
-            supported.remove(upgrade);
+            if (supported.remove(upgrade)) configurationChanged();
         }
         canCheckUpgrades = true;
     }
@@ -335,7 +373,10 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
     }
 
     public void clearSupportedTypes() {
-        supported.clear();
+        if (!supported.isEmpty()) {
+            supported.clear();
+            configurationChanged();
+        }
         canCheckUpgrades = true;
     }
 
@@ -359,6 +400,7 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
             }
         }
         upgradeTicks = dataStream.readInt();
+        configurationChanged();
         tileEntity.recalculateAllUpgradables(getSupportedTypes());
     }
 
@@ -394,11 +436,13 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
             NBTTagCompound upgradeNBT = nbtTags.getCompoundTag(NBTConstants.COMPONENT_UPGRADE);
             upgrades.clear();
             upgrades.putAll(Upgrade.buildMap(upgradeNBT));
+            configurationChanged();
             if (upgradeNBT.hasKey(NBTConstants.ITEMS, NBT.TAG_LIST)) {
                 DataHandlerUtils.readContainers(getSlots(), upgradeNBT.getTagList(NBTConstants.ITEMS, NBT.TAG_COMPOUND));
             }
         } else {
             upgrades.clear();
+            configurationChanged();
             upgradeSlot.setEmpty();
             upgradeOutputSlot.setEmpty();
         }
@@ -432,6 +476,7 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
                     } else {
                         upgrades.put(upgrade, value);
                     }
+                    configurationChanged();
                 }));
             }
         }

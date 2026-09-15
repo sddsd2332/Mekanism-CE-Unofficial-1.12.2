@@ -1,5 +1,6 @@
 package mekanism.api.qio.resource;
 
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTBase;
 import net.minecraft.nbt.NBTTagCompound;
@@ -19,6 +20,18 @@ import java.util.Objects;
 /** Immutable, amount-free and world-independent QIO resource identity. */
 public final class QIOResourceDescriptor implements Comparable<QIOResourceDescriptor> {
 
+    private static final ClassValue<Boolean> PLAIN_ITEM_LIMIT = new ClassValue<Boolean>() {
+        @Override
+        protected Boolean computeValue(Class<?> type) {
+            try {
+                // Forge-added overload keeps this name in both development and production jars.
+                return type.getMethod("getItemStackLimit", ItemStack.class).getDeclaringClass() == Item.class;
+            } catch (ReflectiveOperationException | SecurityException unavailable) {
+                return false;
+            }
+        }
+    };
+
     private static final String CODEC = "codec";
     private static final String FAMILY = "family";
     private static final String CODEC_VERSION = "codecVersion";
@@ -31,6 +44,10 @@ public final class QIOResourceDescriptor implements Comparable<QIOResourceDescri
     private final long storageUnitsPerUnit;
     private final NBTTagCompound payload;
     private final boolean semanticIdentity;
+    /** The registry is append-only: a registered id can never be replaced or removed. */
+    @Nullable
+    private final QIOResourceCodec<?> resolvedCodec;
+    private final boolean fixedBuiltinMetadata;
     private final int semanticTypeHash;
     private final String stableKey;
     private final int hashCode;
@@ -60,6 +77,9 @@ public final class QIOResourceDescriptor implements Comparable<QIOResourceDescri
               "QIO resource payload cannot be null"));
         QIOResourceCodec<?> registered = QIOResourceCodecRegistry.INSTANCE.get(codecId);
         SemanticIdentity identity = createSemanticIdentity(registered, canonicalPayload);
+        resolvedCodec = identity == null ? null : registered;
+        fixedBuiltinMetadata = resolvedCodec != null && (resolvedCodec == QIOResourceCodecs.ITEM_STACK ||
+              resolvedCodec == QIOResourceCodecs.FLUID_STACK || resolvedCodec == QIOResourceCodecs.GAS_STACK);
         if (identity == null) {
             this.payload = canonicalPayload;
             semanticIdentity = false;
@@ -127,7 +147,8 @@ public final class QIOResourceDescriptor implements Comparable<QIOResourceDescri
 
     /** Whether the currently registered codec can safely decode this exact persisted descriptor. */
     public boolean isResolved() {
-        return semanticIdentity && matchesMetadata(QIOResourceCodecRegistry.INSTANCE.get(codecId));
+        // Built-in codec metadata is final and was validated at construction. Extension codecs retain live checks.
+        return fixedBuiltinMetadata || semanticIdentity && matchesMetadata(resolvedCodec);
     }
 
     @Nullable
@@ -135,7 +156,7 @@ public final class QIOResourceDescriptor implements Comparable<QIOResourceDescri
         if (!semanticIdentity) {
             return null;
         }
-        QIOResourceCodec<?> codec = QIOResourceCodecRegistry.INSTANCE.get(codecId);
+        QIOResourceCodec<?> codec = resolvedCodec;
         if (!matchesMetadata(codec)) {
             return null;
         }
@@ -153,6 +174,12 @@ public final class QIOResourceDescriptor implements Comparable<QIOResourceDescri
      */
     @Nullable
     public ItemStack resolveItemStackTemplate() {
+        ItemStack template = getItemStackTemplate();
+        return template == null ? null : template.copy();
+    }
+
+    @Nullable
+    private ItemStack getItemStackTemplate() {
         if (!semanticIdentity || !QIOResourceCodecs.ITEM_STACK_ID.equals(codecId)) {
             return null;
         }
@@ -166,7 +193,30 @@ public final class QIOResourceDescriptor implements Comparable<QIOResourceDescri
             itemStackTemplate = resolved;
             template = resolved;
         }
-        return template.copy();
+        return template;
+    }
+
+    /**
+     * Remaining physical space for plain items, without exposing the private template or constructing a stack.
+     * Returns -1 when the caller must use its normal stack-based limit query. Custom item implementations may
+     * inspect the offered count, NBT or capabilities in getItemStackLimit and are deliberately not inferred safe.
+     * This only checks type/space; slot-specific insertion rules still belong to the slot.
+     */
+    public int getPlainItemSpace(@Nonnull ItemStack stored, int slotLimit, boolean obeyStackLimit) {
+        ItemStack template = getItemStackTemplate();
+        if (template == null) {
+            return 0;
+        }
+        Class<?> itemClass = template.getItem().getClass();
+        if (!PLAIN_ITEM_LIMIT.get(itemClass) || payload.hasKey("ForgeCaps")) {
+            return -1;
+        }
+        if (!stored.isEmpty() && (!ItemStack.areItemsEqual(stored, template) ||
+              !ItemStack.areItemStackTagsEqual(stored, template))) {
+            return 0;
+        }
+        int maximum = obeyStackLimit ? Math.min(slotLimit, template.getMaxStackSize()) : slotLimit;
+        return Math.max(0, maximum - stored.getCount());
     }
 
     /** Resolves the fluid codec once per descriptor and returns a caller-owned copy. */
@@ -278,7 +328,7 @@ public final class QIOResourceDescriptor implements Comparable<QIOResourceDescri
         if (semanticTypeHash != other.semanticTypeHash) {
             return false;
         }
-        QIOResourceCodec<?> codec = QIOResourceCodecRegistry.INSTANCE.get(codecId);
+        QIOResourceCodec<?> codec = resolvedCodec;
         if (!matchesMetadata(codec) || !other.matchesMetadata(codec)) {
             return codecVersion == other.codecVersion && payload.equals(other.payload);
         }

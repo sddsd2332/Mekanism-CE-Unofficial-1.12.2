@@ -170,6 +170,11 @@ public abstract class MachinePort {
     /** Exact remaining capacity for this resource, independent of whether the port is input or output. */
     public abstract long getAvailableCapacity(@Nullable MachineResourceStack stack);
 
+    /** Capacity capped at the requested limit. Implementations may stop once that much room is found. */
+    public long getAvailableCapacity(@Nullable MachineResourceStack stack, long limit) {
+        return limit <= 0 ? 0 : Math.min(limit, getAvailableCapacity(stack));
+    }
+
     @Nullable
     public final MachineResourceStack extract(@Nullable MachineResourceStack expected) {
         if (!role.allowsOutput() || !acceptsResource(expected) || extract(expected, Action.SIMULATE) == null) {
@@ -217,6 +222,11 @@ public abstract class MachinePort {
     protected abstract MachineResourceStack extract(@Nullable MachineResourceStack expected, Action action);
 
     public abstract Object container();
+
+    /** Conservative admission hint; a true result is not permission to insert a particular resource. */
+    public boolean mayHaveInputSpace() {
+        return true;
+    }
 
     public Snapshot snapshot() {
         Object container = container();
@@ -357,6 +367,11 @@ public abstract class MachinePort {
         private final IInventorySlot slot;
         private final AutomationType automationType;
 
+        @Override
+        public boolean mayHaveInputSpace() {
+            return slot.mayHaveSpaceForInsertion();
+        }
+
         private ItemPort(String portId, Role role, IInventorySlot slot, AutomationType automationType,
               Purpose purpose, String portGroupId, long laneId) {
             super(MachineResourceKind.ITEM, portId, role, purpose, portGroupId, laneId);
@@ -368,7 +383,7 @@ public abstract class MachinePort {
         protected boolean insert(@Nullable MachineResourceStack stack, Action action) {
             ItemStack item = stack == null ? ItemStack.EMPTY : stack.itemStack();
             return acceptsResource(stack) && !item.isEmpty() &&
-                  slot.insertItem(item, action, automationType).isEmpty();
+                  slot.insertItemCount(item, action, automationType) == item.getCount();
         }
 
         @Nullable
@@ -398,20 +413,10 @@ public abstract class MachinePort {
 
         @Override
         public long getAvailableCapacity(@Nullable MachineResourceStack stack) {
-            if (!acceptsResource(stack)) {
+            if (!acceptsResource(stack) || stack.amount() > Integer.MAX_VALUE) {
                 return 0;
             }
-            ItemStack expected = stack.itemStack();
-            if (expected.isEmpty()) {
-                return 0;
-            }
-            ItemStack current = slot.getStack();
-            if (!current.isEmpty() && (!ItemStack.areItemsEqual(current, expected) ||
-                  !ItemStack.areItemStackTagsEqual(current, expected))) {
-                return 0;
-            }
-            return Math.max(0, (long) slot.getLimit(expected) -
-                  (current.isEmpty() ? 0 : current.getCount()));
+            return slot.getResourceCapacity(stack.descriptor(), (int) stack.amount(), false, automationType);
         }
 
         @Override
@@ -428,6 +433,14 @@ public abstract class MachinePort {
     private static final class ItemGroupPort extends MachinePort {
 
         private final List<IInventorySlot> slots;
+
+        @Override
+        public boolean mayHaveInputSpace() {
+            for (int i = 0, size = slots.size(); i < size; i++) {
+                if (slots.get(i).mayHaveSpaceForInsertion()) return true;
+            }
+            return false;
+        }
 
         private ItemGroupPort(String portId, Role role, List<? extends IInventorySlot> slots,
               Purpose purpose, String portGroupId, long laneId) {
@@ -453,6 +466,8 @@ public abstract class MachinePort {
                 }
             }
             int remaining = (int) stack.amount();
+            // One caller-owned offer per operation; never mutate the descriptor's private template.
+            ItemStack offered = expected.copy();
             for (int index = 0; index < compatible.size() && remaining > 0; index++) {
                 IInventorySlot slot = compatible.get(index);
                 ItemStack current = slot.getStack();
@@ -462,14 +477,12 @@ public abstract class MachinePort {
                     continue;
                 }
                 int slotsLeft = compatible.size() - index;
-                int share = (remaining + slotsLeft - 1) / slotsLeft;
-                ItemStack offered = expected.copy();
+                int share = 1 + (remaining - 1) / slotsLeft;
                 offered.setCount(Math.min(share, capacity));
                 if (offered.isEmpty()) {
                     continue;
                 }
-                ItemStack remainder = slot.insertItem(offered, action, AutomationType.INTERNAL);
-                int inserted = offered.getCount() - (remainder.isEmpty() ? 0 : remainder.getCount());
+                int inserted = slot.insertItemCount(offered, action, AutomationType.INTERNAL);
                 remaining -= inserted;
             }
             return remaining == 0;
@@ -564,31 +577,18 @@ public abstract class MachinePort {
 
         @Override
         public long getAvailableCapacity(@Nullable MachineResourceStack stack) {
-            if (!acceptsResource(stack)) {
-                return 0;
-            }
-            ItemStack expected = stack.itemStack();
-            if (expected.isEmpty()) {
-                return 0;
-            }
+            return getAvailableCapacity(stack, Long.MAX_VALUE);
+        }
+
+        @Override
+        public long getAvailableCapacity(@Nullable MachineResourceStack stack, long limit) {
+            if (limit <= 0 || !acceptsResource(stack) || stack.amount() > Integer.MAX_VALUE) return 0;
             long capacity = 0;
-            for (IInventorySlot slot : slots) {
-                ItemStack current = slot.getStack();
-                if (!current.isEmpty() && (!ItemStack.areItemsEqual(current, expected) ||
-                      !ItemStack.areItemStackTagsEqual(current, expected))) {
-                    continue;
-                }
-                int room = Math.max(0, slot.getLimit(expected) -
-                      (current.isEmpty() ? 0 : current.getCount()));
-                if (room == 0) {
-                    continue;
-                }
-                ItemStack offered = expected.copy();
-                offered.setCount(room);
-                ItemStack remainder = slot.insertItem(offered, Action.SIMULATE,
+            for (int i = 0, size = slots.size(); i < size; i++) {
+                int accepted = slots.get(i).getResourceCapacity(stack.descriptor(), (int) stack.amount(), true,
                       AutomationType.INTERNAL);
-                capacity = Math.addExact(capacity,
-                      offered.getCount() - (remainder.isEmpty() ? 0 : remainder.getCount()));
+                if (accepted >= limit - capacity) return limit;
+                capacity = Math.addExact(capacity, accepted);
             }
             return capacity;
         }

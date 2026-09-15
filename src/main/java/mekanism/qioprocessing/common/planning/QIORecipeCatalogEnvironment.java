@@ -1,5 +1,6 @@
 package mekanism.qioprocessing.common.planning;
 
+import mekanism.common.Mekanism;
 import net.minecraft.block.Block;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -40,34 +41,53 @@ final class QIORecipeCatalogEnvironment {
 
         List<ModContainer> mods = new ArrayList<>(Loader.instance().getActiveModList());
         mods.sort(Comparator.comparing(ModContainer::getModId));
+        MessageDigest modsDigest = sha256();
+        appendString(modsDigest, FORMAT);
         appendInt(digest, mods.size());
+        appendInt(modsDigest, mods.size());
         for (ModContainer mod : mods) {
             appendString(digest, mod.getModId());
             appendString(digest, mod.getVersion());
+            appendString(modsDigest, mod.getModId());
+            appendString(modsDigest, mod.getVersion());
         }
 
         List<Item> items = new ArrayList<>(ForgeRegistries.ITEMS.getValuesCollection());
         items.removeIf(item -> item == null || item.getRegistryName() == null);
         items.sort(Comparator.comparing(item -> item.getRegistryName().toString()));
+        MessageDigest itemsDigest = sha256();
+        appendString(itemsDigest, FORMAT);
         appendInt(digest, items.size());
+        appendInt(itemsDigest, items.size());
         for (Item item : items) {
             appendString(digest, item.getRegistryName().toString());
             appendInt(digest, Item.getIdFromItem(item));
+            appendString(itemsDigest, item.getRegistryName().toString());
+            appendInt(itemsDigest, Item.getIdFromItem(item));
         }
 
         List<Block> blocks = new ArrayList<>(ForgeRegistries.BLOCKS.getValuesCollection());
         blocks.removeIf(block -> block == null || block.getRegistryName() == null);
         blocks.sort(Comparator.comparing(block -> block.getRegistryName().toString()));
+        MessageDigest blocksDigest = sha256();
+        appendString(blocksDigest, FORMAT);
         appendInt(digest, blocks.size());
+        appendInt(blocksDigest, blocks.size());
         for (Block block : blocks) {
             appendString(digest, block.getRegistryName().toString());
             appendInt(digest, Block.getIdFromBlock(block));
+            appendString(blocksDigest, block.getRegistryName().toString());
+            appendInt(blocksDigest, Block.getIdFromBlock(block));
         }
 
         FingerprintContext context = new FingerprintContext();
+        MessageDigest recipesDigest = sha256();
+        appendString(recipesDigest, FORMAT);
         appendInt(digest, recipes.size());
+        appendInt(recipesDigest, recipes.size());
         for (IRecipe recipe : recipes) {
             appendRecipe(digest, recipe, context);
+            appendRecipe(recipesDigest, recipe, context);
         }
 
         String[] capturedOreNames = OreDictionary.getOreNames();
@@ -78,14 +98,25 @@ final class QIORecipeCatalogEnvironment {
             }
         }
         oreNames.sort(String::compareTo);
+        MessageDigest oresDigest = sha256();
+        appendString(oresDigest, FORMAT);
         appendInt(digest, oreNames.size());
+        appendInt(oresDigest, oreNames.size());
         for (String oreName : oreNames) {
             // Forge exposes a mutable ore list. Snapshot it before hashing so a late registry
             // mutation cannot invalidate the iterator or mix two logical generations.
             List<ItemStack> values = new ArrayList<>(OreDictionary.getOres(oreName, false));
             appendOre(digest, oreName, OreDictionary.getOreID(oreName), values, context);
+            appendOre(oresDigest, oreName, OreDictionary.getOreID(oreName), values, context);
         }
-        return lowerHex(digest.digest());
+        String result = lowerHex(digest.digest());
+        Mekanism.logger.info("[QIO Env] mods={} h={}", mods.size(), lowerHex(modsDigest.digest()));
+        Mekanism.logger.info("[QIO Env] items={} h={}", items.size(), lowerHex(itemsDigest.digest()));
+        Mekanism.logger.info("[QIO Env] blocks={} h={}", blocks.size(), lowerHex(blocksDigest.digest()));
+        Mekanism.logger.info("[QIO Env] recipes={} h={}", recipes.size(), lowerHex(recipesDigest.digest()));
+        Mekanism.logger.info("[QIO Env] ores={} h={}", oreNames.size(), lowerHex(oresDigest.digest()));
+        Mekanism.logger.info("[QIO Env] environment={}", result);
+        return result;
     }
 
     /** Package-visible deterministic record used by focused compatibility tests. */

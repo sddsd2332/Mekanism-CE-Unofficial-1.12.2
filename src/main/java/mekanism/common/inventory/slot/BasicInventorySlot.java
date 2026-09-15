@@ -8,10 +8,12 @@ import mekanism.api.IContentsSnapshot;
 import mekanism.api.NBTConstants;
 import mekanism.api.functions.ConstantPredicates;
 import mekanism.api.inventory.IInventorySlot;
+import mekanism.api.qio.resource.QIOResourceDescriptor;
 import mekanism.common.inventory.container.slot.ContainerSlotType;
 import mekanism.common.inventory.container.slot.InventoryContainerSlot;
 import mekanism.common.inventory.container.slot.SlotOverlay;
 import mekanism.common.inventory.warning.ISupportsWarning;
+import mekanism.common.util.MachineStressDiagnostics;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.common.util.Constants.NBT;
@@ -23,6 +25,22 @@ import java.util.Objects;
 import java.util.function.*;
 
 public class BasicInventorySlot implements IInventorySlot, IContentsListenerRegistry, IContentsSnapshot {
+
+    private static final ClassValue<Boolean> CUSTOM_INSERT = new ClassValue<Boolean>() {
+        @Override
+        protected Boolean computeValue(Class<?> type) {
+            Class<?> current = type;
+            while (current != null && BasicInventorySlot.class.isAssignableFrom(current)) {
+                try {
+                    current.getDeclaredMethod("insertItem", ItemStack.class, Action.class, AutomationType.class);
+                    return current != BasicInventorySlot.class;
+                } catch (NoSuchMethodException ignored) {
+                    current = current.getSuperclass();
+                }
+            }
+            return false;
+        }
+    };
 
     public static final Predicate<ItemStack> alwaysTrue = ConstantPredicates.alwaysTrue();
     public static final Predicate<ItemStack> alwaysFalse = ConstantPredicates.alwaysFalse();
@@ -153,6 +171,7 @@ public class BasicInventorySlot implements IInventorySlot, IContentsListenerRegi
         } else {
             throw new RuntimeException("Invalid stack for slot: " + stack);
         }
+        if (MachineStressDiagnostics.ENABLED) MachineStressDiagnostics.record(this, notifyChange ? "slot_set_write" : "slot_quiet_write");
         if (notifyChange) {
             onContentsChanged();
         }
@@ -175,17 +194,53 @@ public class BasicInventorySlot implements IInventorySlot, IContentsListenerRegi
                 if (sameType) {
                     current.grow(toAdd);
                     onContentsChanged();
+                    if (MachineStressDiagnostics.ENABLED) MachineStressDiagnostics.record(this, "slot_grow_write");
                 } else {
                     ItemStack toSet = stack.copy();
                     toSet.setCount(toAdd);
                     setStackUnchecked(toSet);
                 }
             }
+            if (toAdd == stack.getCount()) {
+                return ItemStack.EMPTY;
+            }
             ItemStack remainder = stack.copy();
             remainder.setCount(stack.getCount() - toAdd);
             return remainder;
         }
         return stack;
+    }
+
+    @Override
+    public int insertItemCount(@Nonnull ItemStack stack, @Nonnull Action action, @Nonnull AutomationType automationType) {
+        // Preserve special slot subclasses which redefine the remainder-based contract.
+        if (CUSTOM_INSERT.get(getClass())) {
+            return IInventorySlot.super.insertItemCount(stack, action, automationType);
+        }
+        if (stack.isEmpty()) {
+            return 0;
+        }
+        int needed = getLimit(stack) - current.getCount();
+        if (needed <= 0 || !isItemValidForInsertion(stack, automationType)) {
+            return 0;
+        }
+        boolean sameType = false;
+        if (current.isEmpty() || (sameType = ItemHandlerHelper.canItemStacksStack(current, stack))) {
+            int toAdd = Math.min(stack.getCount(), needed);
+            if (action.execute()) {
+                if (sameType) {
+                    current.grow(toAdd);
+                    if (MachineStressDiagnostics.ENABLED) MachineStressDiagnostics.record(this, "slot_grow_write");
+                    onContentsChanged();
+                } else {
+                    ItemStack toSet = stack.copy();
+                    toSet.setCount(toAdd);
+                    setStackUnchecked(toSet);
+                }
+            }
+            return toAdd;
+        }
+        return 0;
     }
 
     @Nonnull
@@ -199,6 +254,7 @@ public class BasicInventorySlot implements IInventorySlot, IContentsListenerRegi
         toReturn.setCount(amount);
         if (action.execute()) {
             current.shrink(amount);
+            if (MachineStressDiagnostics.ENABLED) MachineStressDiagnostics.record(this, "slot_extract_write");
             if (current.getCount() <= 0) {
                 current = ItemStack.EMPTY;
             }
@@ -213,6 +269,33 @@ public class BasicInventorySlot implements IInventorySlot, IContentsListenerRegi
     }
 
     @Override
+    public boolean mayHaveSpaceForInsertion() {
+        // These exact classes use our hard upper bound for every insertion. Subclasses may replace that contract.
+        Class<?> type = getClass();
+        if (type != BasicInventorySlot.class && type != InputInventorySlot.class &&
+            type != FactoryInputInventorySlot.class && type != OutputInventorySlot.class) {
+            return true;
+        }
+        // Do not call item limits or validators: they can depend on the offered item, count, or capabilities.
+        return current.isEmpty() || current.getCount() < limit;
+    }
+
+    @Override
+    public int getResourceCapacity(QIOResourceDescriptor resource, int templateCount, boolean checkInsertion,
+          AutomationType automationType) {
+        if (templateCount <= 0) return 0;
+        // Exact classes only: subclasses may override limits, insertion, or stack access.
+        boolean plainSlot = getClass() == BasicInventorySlot.class || getClass() == OutputInventorySlot.class;
+        boolean plainInsertion = validator == alwaysTrue && (canInsert == alwaysTrueBi ||
+              canInsert == internalOnly && automationType == AutomationType.INTERNAL);
+        if (plainSlot && (!checkInsertion || plainInsertion)) {
+            int space = resource.getPlainItemSpace(current, limit, obeyStackLimit);
+            if (space >= 0) return space;
+        }
+        return IInventorySlot.super.getResourceCapacity(resource, templateCount, checkInsertion, automationType);
+    }
+
+    @Override
     public boolean isItemValid(@Nonnull ItemStack stack) {
         return validator.test(stack);
     }
@@ -223,6 +306,15 @@ public class BasicInventorySlot implements IInventorySlot, IContentsListenerRegi
 
     @Override
     public void onContentsChanged() {
+        MachineStressDiagnostics.Source previous = MachineStressDiagnostics.ENABLED ? MachineStressDiagnostics.beginNotification(this) : null;
+        try {
+            notifyContentsListeners();
+        } finally {
+            if (MachineStressDiagnostics.ENABLED) MachineStressDiagnostics.endNotification(previous);
+        }
+    }
+
+    private void notifyContentsListeners() {
         if (listener != null) {
             listener.onContentsChanged();
         }
@@ -340,6 +432,7 @@ public class BasicInventorySlot implements IInventorySlot, IContentsListenerRegi
             return amount;
         }
         current.setCount(amount);
+        if (MachineStressDiagnostics.ENABLED) MachineStressDiagnostics.record(this, "slot_count_write");
         onContentsChanged();
         return amount;
     }

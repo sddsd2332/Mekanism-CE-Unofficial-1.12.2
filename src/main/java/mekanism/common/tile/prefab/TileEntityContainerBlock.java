@@ -11,6 +11,7 @@ import mekanism.api.heat.IHeatCapacitor;
 import mekanism.api.heat.IHeatHandler;
 import mekanism.api.inventory.IInventorySlot;
 import mekanism.common.Upgrade;
+import mekanism.common.util.MachineStressDiagnostics;
 import mekanism.common.base.IEnergyWrapper;
 import mekanism.common.base.ISideConfiguration;
 import mekanism.common.base.ISustainedInventory;
@@ -1048,6 +1049,7 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
 
     @Override
     public void onContentsChanged() {
+        if (MachineStressDiagnostics.ENABLED) MachineStressDiagnostics.recordTile(this);
         markNoUpdateSync();
         if (world != null && !world.isRemote) {
             contentsChangedListener.accept(this);

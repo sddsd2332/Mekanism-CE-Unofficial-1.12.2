@@ -5,6 +5,7 @@ import mekanism.api.AutomationType;
 import mekanism.api.IContentsListener;
 import mekanism.api.energy.IEnergyContainer;
 import mekanism.api.heat.HeatAPI;
+import mekanism.common.util.MachineStressDiagnostics;
 import net.minecraft.util.EnumFacing;
 
 import javax.annotation.Nullable;
@@ -73,8 +74,11 @@ public class MachineEnergyContainer implements IEnergyContainer {
     }
 
     public void onContentsChanged() {
-        if (listener != null) {
-            listener.onContentsChanged();
+        MachineStressDiagnostics.Source previous = MachineStressDiagnostics.ENABLED ? MachineStressDiagnostics.beginNotification(this) : null;
+        try {
+            if (listener != null) listener.onContentsChanged();
+        } finally {
+            if (MachineStressDiagnostics.ENABLED) MachineStressDiagnostics.endNotification(previous);
         }
     }
 
@@ -89,6 +93,7 @@ public class MachineEnergyContainer implements IEnergyContainer {
         double clamped = HeatAPI.isFinite(energy) ? Math.max(0, Math.min(energy, getMaxEnergy())) : 0;
         if (Double.compare(getEnergy(), clamped) != 0) {
             setter.accept(clamped);
+            if (MachineStressDiagnostics.ENABLED) MachineStressDiagnostics.record(this, "energy_write");
             onContentsChanged();
         }
     }
