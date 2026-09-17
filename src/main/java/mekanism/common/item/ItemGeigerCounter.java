@@ -52,6 +52,10 @@ public class ItemGeigerCounter extends ItemMekanism {
         if (!player.isSneaking()) {
             if (!world.isRemote) {
                 LevelAndMaxMagnitude radiation = RadiationManager.INSTANCE.getRadiationLevelAndMaxMagnitude(player);
+                if (!radiation.isAvailable()) {
+                    player.sendMessage(new net.minecraft.util.text.TextComponentTranslation("cmd.mek.radiation.unavailable"));
+                    return new ActionResult<>(EnumActionResult.FAIL, itemstack);
+                }
                 double magnitude = radiation.getLevel();
                 player.sendMessage(MekanismLang.RADIATION_EXPOSURE.translateColored(EnumColor.GREY)
                       .appendText(RadiationScale.getSeverityColor(magnitude) +

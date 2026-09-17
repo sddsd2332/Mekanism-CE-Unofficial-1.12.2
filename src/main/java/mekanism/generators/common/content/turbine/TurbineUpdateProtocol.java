@@ -188,6 +188,9 @@ public class TurbineUpdateProtocol extends UpdateProtocol<SynchronizedTurbineDat
         TurbineCache mergeCache = (TurbineCache) merge;
         turbineCache.fluid = mergeFluidStack(turbineCache.fluid, mergeCache.fluid);
         turbineCache.electricity += mergeCache.electricity;
+        turbineCache.ventWater += mergeCache.ventWater;
+        turbineCache.lastSteamInput += mergeCache.lastSteamInput;
+        turbineCache.newSteamInput += mergeCache.newSteamInput;
         turbineCache.dumpMode = mergeCache.dumpMode;
     }
 

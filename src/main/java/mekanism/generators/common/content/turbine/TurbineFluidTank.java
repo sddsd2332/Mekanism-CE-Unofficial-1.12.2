@@ -62,7 +62,9 @@ public class TurbineFluidTank extends MultiblockFluidTank<TileEntityTurbineCasin
         FluidStack remainder = super.insert(resource, action, AutomationType.EXTERNAL);
         int filled = resource.amount - (remainder == null ? 0 : remainder.amount);
         if (action.execute() && filled > 0) {
-            multiblock.structure.newSteamInput += filled;
+            // This is a per-tick rate counter, not another stored steam inventory. Saturate the
+            // display/dump rate if repeated fill/drain cycles exceed the integer range.
+            multiblock.structure.newSteamInput = (int) Math.min(Integer.MAX_VALUE, (long) multiblock.structure.newSteamInput + filled);
         }
         if (filled < multiblock.structure.getFluidCapacity() && multiblock.structure.dumpMode != GasMode.IDLE) {
             filled = Math.min(multiblock.structure.getFluidCapacity(), resource.amount);

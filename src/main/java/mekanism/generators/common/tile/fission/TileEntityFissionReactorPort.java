@@ -50,8 +50,8 @@ public class TileEntityFissionReactorPort extends TileEntityFissionReactorCasing
     @Override
     protected IFluidTankHolder getInitialFluidTanks(IContentsListener listener) {
         return ProxiedFluidTankHolder.create(
-              side -> structure != null && mode == PortMode.INPUT && structure.gasCoolantTank.getStored() == 0,
-              side -> structure != null && mode == PortMode.OUTPUT_COOLANT,
+              side -> isFormed() && mode == PortMode.INPUT && structure.gasCoolantTank.getStored() == 0,
+              side -> isFormed() && mode == PortMode.OUTPUT_COOLANT,
               this::getFissionFluidTanks
         );
     }
@@ -59,14 +59,14 @@ public class TileEntityFissionReactorPort extends TileEntityFissionReactorCasing
     @Override
     protected IGasTankHolder getInitialGasTanks(IContentsListener listener) {
         return ProxiedGasTankHolder.create(
-              side -> structure != null && mode == PortMode.INPUT,
-              side -> structure != null && mode != PortMode.INPUT,
+              side -> isFormed() && mode == PortMode.INPUT,
+              side -> isFormed() && mode != PortMode.INPUT,
               this::getFissionGasTanks
         );
     }
 
     private List<IExtendedFluidTank> getFissionFluidTanks(EnumFacing side) {
-        if (structure == null) {
+        if (!isFormed()) {
             return Collections.emptyList();
         }
         return switch (mode) {
@@ -77,7 +77,7 @@ public class TileEntityFissionReactorPort extends TileEntityFissionReactorCasing
     }
 
     private List<IExtendedGasTank> getFissionGasTanks(EnumFacing side) {
-        if (structure == null) {
+        if (!isFormed()) {
             return Collections.emptyList();
         }
         return switch (mode) {
@@ -87,10 +87,14 @@ public class TileEntityFissionReactorPort extends TileEntityFissionReactorCasing
         };
     }
 
+    private boolean isFormed() {
+        return structure != null && structure.isFormed();
+    }
+
     @Override
     public void onUpdateServer() {
         super.onUpdateServer();
-        if (structure == null || mode == PortMode.INPUT) {
+        if (!isFormed() || mode == PortMode.INPUT) {
             return;
         }
 

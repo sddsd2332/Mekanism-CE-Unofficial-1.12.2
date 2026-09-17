@@ -64,7 +64,7 @@ public class TileEntityDynamicValve extends TileEntityDynamicTank implements ICo
     }
 
     private boolean isFormed() {
-        return (!isRemote() && structure != null) || (isRemote() && clientHasStructure);
+        return (!isRemote() && structure != null && structure.isFormed()) || (isRemote() && clientHasStructure);
     }
 
     @Override
@@ -88,7 +88,7 @@ public class TileEntityDynamicValve extends TileEntityDynamicTank implements ICo
             updateComparatorOutputLevelSync();
             currentRedstoneLevel = newRedstoneLevel;
         }
-        if (structure != null && eject) {
+        if (structure != null && structure.isFormed() && eject) {
             if (fluidTank.getFluid() != null && fluidTank.getFluid().getFluid() != null) {
                 FluidUtils.emit(EnumSet.allOf(EnumFacing.class), fluidTank, this);
             }

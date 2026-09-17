@@ -5,10 +5,14 @@ import mekanism.common.base.IUpgradeTile;
 import mekanism.common.inventory.container.slot.VirtualInventoryContainerSlot;
 import mekanism.common.inventory.container.slot.InventoryContainerSlot;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
+import mekanism.common.tile.multiblock.TileEntityMultiblock;
+import mekanism.common.multiblock.SynchronizedData;
 import mekanism.common.util.SecurityUtils;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.inventory.Slot;
+import net.minecraft.inventory.ClickType;
+import net.minecraft.item.ItemStack;
 import net.minecraft.util.ResourceLocation;
 
 import javax.annotation.Nonnull;
@@ -22,6 +26,7 @@ public class MekanismTileContainer<TILE extends TileEntityContainerBlock> extend
 
     @Nullable
     protected final TILE tile;
+    private final SynchronizedData<?> openedStructure;
     @Nullable
     private VirtualInventoryContainerSlot upgradeSlot;
     @Nullable
@@ -31,6 +36,7 @@ public class MekanismTileContainer<TILE extends TileEntityContainerBlock> extend
     public MekanismTileContainer(@Nullable TILE tile, InventoryPlayer inv) {
         super(inv);
         this.tile = tile;
+        openedStructure = tile instanceof TileEntityMultiblock<?> multiblock ? multiblock.structure : null;
         if (tile != null) {
             addContainerTrackers();
             addSlotsAndOpen();
@@ -86,8 +92,22 @@ public class MekanismTileContainer<TILE extends TileEntityContainerBlock> extend
         // later, so only enforce it on the authoritative server; all server
         // packet handlers still call this method and therefore retain the
         // permission check.
-        return tile != null && tile.isUsableByPlayer(player) &&
+        return isOpenedStructureAvailable() && tile != null && tile.isUsableByPlayer(player) &&
               (player.world.isRemote || SecurityUtils.canAccess(player, tile));
+    }
+
+    private boolean isOpenedStructureAvailable() {
+        return !(tile instanceof TileEntityMultiblock<?> multiblock) ||
+              openedStructure != null && openedStructure == multiblock.structure && openedStructure.isFormed();
+    }
+
+    @Nonnull
+    @Override
+    public ItemStack slotClick(int slotId, int dragType, ClickType clickType, EntityPlayer player) {
+        if (!isOpenedStructureAvailable()) {
+            return ItemStack.EMPTY;
+        }
+        return super.slotClick(slotId, dragType, clickType, player);
     }
 
     @Override

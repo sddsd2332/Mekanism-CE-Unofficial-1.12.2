@@ -132,6 +132,9 @@ public class InventoryContainerSlot extends Slot implements IInsertableSlot {
     }
 
     public void set(@Nonnull ItemStack stack) {
+        if (!slot.isTransferAllowed()) {
+            return;
+        }
         uncheckedStackSetter.accept(stack);
         setChanged();
     }

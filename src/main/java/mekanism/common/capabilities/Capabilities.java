@@ -146,6 +146,8 @@ public class Capabilities {
 
         DefaultRadiationShielding.register();
         DefaultRadiationEntity.register();
+        mekanism.common.lib.radiation.RadiationWorldData.register();
+        mekanism.common.lib.radiation.MeltdownWorldData.register();
         DefaultMekaFishHook.register();
     }
 

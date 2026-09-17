@@ -46,9 +46,11 @@ public class SynchronizedTankData extends SynchronizedData<SynchronizedTankData>
         fluidTanks.add(inventoryMergedTank.getFluidTank());
         gasTanks.add(inventoryMergedTank.getGasTank());
         inputSlot = HybridInventorySlot.inputOrDrain(inventoryMergedTank, this, 146, 20);
+        inputSlot.setTransferAllowed(this::isFormed);
         inputSlot.setSlotType(ContainerSlotType.INPUT);
         inventorySlots.add(inputSlot);
         outputSlot = HybridInventorySlot.outputOrFill(inventoryMergedTank, this, 146, 51);
+        outputSlot.setTransferAllowed(this::isFormed);
         outputSlot.setSlotType(ContainerSlotType.OUTPUT);
         inventorySlots.add(outputSlot);
     }

@@ -112,13 +112,17 @@ public class TileEntityFissionReactorCasing extends TileEntityMultiblock<Synchro
         if (structure == null || structure.minLocation == null || structure.maxLocation == null) {
             return;
         }
+        if (!RadiationManager.INSTANCE.canCreateMeltdown(world)) {
+            if (world.getTotalWorldTime() % 1200 == 0) Mekanism.logger.error("Cannot release fission contents: world radiation/meltdown attachment unavailable at {}", pos);
+            return;
+        }
         BlockPos minPos = structure.minLocation.getPos();
         BlockPos maxPos = structure.maxLocation.getPos();
         Coord4D center = structure.getReactorCenter();
         if (MekanismAPI.getRadiationManager().isRadiationEnabled()) {
             double releasedRadiation = structure.collectRadiationForMeltdown();
             if (releasedRadiation > 0) {
-                MekanismAPI.getRadiationManager().radiate(center, releasedRadiation);
+                MekanismAPI.getRadiationManager().radiate(world, center.getPos(), releasedRadiation);
             }
         }
         double magnitude = structure.getEstimatedMeltdownMagnitude();
@@ -241,7 +245,7 @@ public class TileEntityFissionReactorCasing extends TileEntityMultiblock<Synchro
     @Override
     public void handlePacketData(ByteBuf dataStream) {
         if (!isRemote()) {
-            if (structure != null) {
+            if (structure != null && structure.isFormed()) {
                 int type = dataStream.readInt();
                 if (type == 0) {
                     structure.active = !structure.active && !structure.isForceDisabled();

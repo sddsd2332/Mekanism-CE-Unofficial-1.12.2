@@ -101,7 +101,10 @@ public class ItemGaugeDropper extends ItemMekanism implements ILegacyGasItem {
             GasStack gas = getStoredGas(stack);
             FluidStack fluidStack = FluidContainerUtils.getFluidContained(stack);
             if (gas != null){
-                MekanismAPI.getRadiationManager().dumpRadiation(new Coord4D(player), gas);
+                if (gas.getGas().isRadiation() && !MekanismAPI.getRadiationManager().dumpRadiation(world, player.getPosition(), gas)) {
+                    player.sendMessage(new net.minecraft.util.text.TextComponentTranslation("cmd.mek.radiation.unavailable"));
+                    return new ActionResult<>(EnumActionResult.FAIL, stack);
+                }
             }
             setStoredGas(stack, null);
             IFluidHandlerItem fluidHandler = FluidContainerUtils.getFluidHandlerCapability(stack);

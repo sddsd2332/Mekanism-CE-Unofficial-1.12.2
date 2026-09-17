@@ -57,10 +57,10 @@ public class SynchronizedFissionData extends SynchronizedData<SynchronizedFissio
           this::isValidFluidCoolant, this);
     public final VariableCapacityFluidTank steamTank = VariableCapacityFluidTank.output(this, this::getSteamCapacity,
           stack -> stack.getFluid() == FluidRegistry.getFluid("steam"), this);
-    public final ValidatingGasTank fuelTank = new ValidatingGasTank(1, gas -> gas == MekanismFluids.FissileFuel);
-    public final ValidatingGasTank wasteTank = new ValidatingGasTank(1, gas -> gas == MekanismFluids.NuclearWaste);
-    public final ValidatingGasTank gasCoolantTank = new ValidatingGasTank(1, this::isValidGasCoolant);
-    public final ValidatingGasTank heatedCoolantTank = new ValidatingGasTank(1, gas -> gas == MekanismFluids.SuperheatedSodium);
+    public final ValidatingGasTank fuelTank = new ValidatingGasTank(1, gas -> gas == MekanismFluids.FissileFuel, this::isFormed);
+    public final ValidatingGasTank wasteTank = new ValidatingGasTank(1, gas -> gas == MekanismFluids.NuclearWaste, this::isFormed);
+    public final ValidatingGasTank gasCoolantTank = new ValidatingGasTank(1, this::isValidGasCoolant, this::isFormed);
+    public final ValidatingGasTank heatedCoolantTank = new ValidatingGasTank(1, gas -> gas == MekanismFluids.SuperheatedSodium, this::isFormed);
 
     public int fuelAssemblies;
     public int surfaceArea;
@@ -395,6 +395,11 @@ public class SynchronizedFissionData extends SynchronizedData<SynchronizedFissio
     }
 
     void burnFuel(World world) {
+        // Do not consume fuel if its radioactive overflow cannot be accounted for.
+        if (MekanismAPI.getRadiationManager().isRadiationEnabled() && !mekanism.common.lib.radiation.RadiationManager.INSTANCE.isAvailable(world)) {
+            lastBurnRate = 0;
+            return;
+        }
         double storedFuelAmount = Math.max(0, fuelTank.getStored());
         double residualFuel = HeatAPI.isFinite(burnRemaining) ? Math.max(0, burnRemaining) : 0;
         if (storedFuelAmount <= 0 && residualFuel <= 0) {
@@ -663,7 +668,7 @@ public class SynchronizedFissionData extends SynchronizedData<SynchronizedFissio
         }
         Coord4D center = getReactorCenter();
         if (center != null) {
-            MekanismAPI.getRadiationManager().radiate(center, magnitude);
+            MekanismAPI.getRadiationManager().radiate(world, center.getPos(), magnitude);
         }
     }
 

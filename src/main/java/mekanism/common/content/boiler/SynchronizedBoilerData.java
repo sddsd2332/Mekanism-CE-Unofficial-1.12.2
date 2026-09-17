@@ -59,13 +59,20 @@ public class SynchronizedBoilerData extends SynchronizedData<SynchronizedBoilerD
     public boolean clientHot;
 
     public double biomeAmbientTemp = HeatAPI.AMBIENT_TEMP;
-    private final VariableHeatCapacitor heatCapacitor = VariableHeatCapacitor.create(
+    private final VariableHeatCapacitor heatCapacitor = new VariableHeatCapacitor(
           CASING_HEAT_CAPACITY,
           () -> CASING_INVERSE_CONDUCTION_COEFFICIENT,
           () -> CASING_INSULATION_COEFFICIENT,
           () -> biomeAmbientTemp,
           this
-    );
+    ) {
+        @Override
+        public void handleHeat(double transfer) {
+            if (isFormed()) {
+                super.handleHeat(transfer);
+            }
+        }
+    };
 
     public int superheatingElements;
 

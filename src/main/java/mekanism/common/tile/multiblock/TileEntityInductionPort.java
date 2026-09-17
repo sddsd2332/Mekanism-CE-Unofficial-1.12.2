@@ -46,7 +46,7 @@ import java.util.Collections;
         @Interface(iface = "ic2.api.energy.tile.IEnergySource", modid = MekanismHooks.IC2_MOD_ID),
         @Interface(iface = "ic2.api.tile.IEnergyStorage", modid = MekanismHooks.IC2_MOD_ID)
 })
-public class TileEntityInductionPort extends TileEntityInductionCasing implements IEnergyWrapper, IConfigurable, IActiveState, IComparatorSupport {
+public class TileEntityInductionPort extends TileEntityInductionCasing implements IEnergyWrapper, IConfigurable, IActiveState, IComparatorSupport, mekanism.common.base.IWholeEnergyTransfer {
 
     private boolean ic2Registered = false;
     private int currentRedstoneLevel;
@@ -68,7 +68,7 @@ public class TileEntityInductionPort extends TileEntityInductionCasing implement
         return ProxiedEnergyContainerHolder.create(
                 side -> side != null && sideIsConsumer(side),
                 side -> side != null && sideIsOutput(side),
-                side -> structure == null ? Collections.emptyList() : structure.getEnergyContainers(side)
+                side -> structure == null || !structure.isFormed() ? Collections.emptyList() : structure.getEnergyContainers(side)
         );
     }
 
@@ -84,7 +84,7 @@ public class TileEntityInductionPort extends TileEntityInductionCasing implement
     @Override
     public void onUpdateServer() {
         super.onUpdateServer();
-        if (structure != null && mode && getEnergy() > 0) {
+        if (structure != null && structure.isFormed() && mode && getEnergy() > 0) {
             CableUtils.emit(this);
         }
         int newRedstoneLevel = getRedstoneLevel();
@@ -96,7 +96,7 @@ public class TileEntityInductionPort extends TileEntityInductionCasing implement
 
     @Override
     public boolean sideIsOutput(EnumFacing side) {
-        if (structure != null && mode) {
+        if (structure != null && structure.isFormed() && mode) {
             return !structure.locations.contains(Coord4D.get(this).offset(side));
         }
         return false;
@@ -104,7 +104,7 @@ public class TileEntityInductionPort extends TileEntityInductionCasing implement
 
     @Override
     public boolean sideIsConsumer(EnumFacing side) {
-        return (structure != null && !mode);
+        return (structure != null && structure.isFormed() && !mode);
     }
 
     @Method(modid = MekanismHooks.IC2_MOD_ID)
@@ -125,7 +125,7 @@ public class TileEntityInductionPort extends TileEntityInductionCasing implement
 
     @Override
     public double getMaxOutput() {
-        return structure != null ? structure.getRemainingOutput() : 0;
+        return structure != null && structure.isFormed() ? structure.getRemainingOutput() : 0;
     }
 
     @Override
@@ -186,21 +186,19 @@ public class TileEntityInductionPort extends TileEntityInductionCasing implement
     @Override
     @Method(modid = MekanismHooks.REDSTONEFLUX_MOD_ID)
     public int receiveEnergy(EnumFacing from, int maxReceive, boolean simulate) {
-        if (sideIsConsumer(from)) {
-            double received = addEnergy(RFIntegration.fromRF(maxReceive), simulate);
-            return RFIntegration.toRF(received);
-        }
-        return 0;
+        return (int) transferEnergyUnits(from, maxReceive, RFIntegration.fromRF(1), true, simulate);
     }
 
     @Override
     @Method(modid = MekanismHooks.REDSTONEFLUX_MOD_ID)
     public int extractEnergy(EnumFacing from, int maxExtract, boolean simulate) {
-        if (sideIsOutput(from)) {
-            double sent = removeEnergy(RFIntegration.fromRF(maxExtract), simulate);
-            return RFIntegration.toRF(sent);
-        }
-        return 0;
+        return (int) transferEnergyUnits(from, maxExtract, 1 / RFIntegration.toRFAsDouble(1), false, simulate);
+    }
+
+    @Override
+    public long transferEnergyUnits(EnumFacing side, long maximum, double factor, boolean input, boolean simulate) {
+        if (structure == null || !(input ? sideIsConsumer(side) : sideIsOutput(side))) return 0;
+        return structure.transferWholeUnits(maximum, factor, input, simulate);
     }
 
     @Override
@@ -291,7 +289,7 @@ public class TileEntityInductionPort extends TileEntityInductionCasing implement
     @Override
     @Method(modid = MekanismHooks.IC2_MOD_ID)
     public double getDemandedEnergy() {
-        return IC2Integration.toEU(getMaxEnergy() - getEnergy());
+        return structure != null && structure.isFormed() ? IC2Integration.toEU(getMaxEnergy() - getEnergy()) : 0;
     }
 
     @Override
@@ -314,11 +312,12 @@ public class TileEntityInductionPort extends TileEntityInductionCasing implement
     @Override
     @Method(modid = MekanismHooks.IC2_MOD_ID)
     public double injectEnergy(EnumFacing direction, double amount, double voltage) {
+        if (direction == null || !sideIsConsumer(direction)) return amount;
         TileEntity tile = MekanismUtils.getTileEntity(world, getPos().offset(direction));
         if (tile == null || CapabilityUtils.hasCapability(tile, Capabilities.GRID_TRANSMITTER_CAPABILITY, direction.getOpposite())) {
             return amount;
         }
-        return amount - IC2Integration.toEU(acceptEnergy(direction, IC2Integration.fromEU(amount), false));
+        return structure.insertConverted(amount, IC2Integration.fromEU(1), false);
     }
 
     @Override

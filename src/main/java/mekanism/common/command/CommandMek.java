@@ -3,6 +3,7 @@ package mekanism.common.command;
 
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import mekanism.api.MekanismAPI;
+import mekanism.common.multiblock.MultiblockManager;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.CommandException;
@@ -29,6 +30,12 @@ import java.util.UUID;
 import static mekanism.common.concurrent.TaskExecutor.*;
 
 public class CommandMek extends CommandTreeBase {
+    // Let level-2 radiation commands reach their own checks; other children retain their levels.
+    @Override
+    public int getRequiredPermissionLevel() {
+        return 2;
+    }
+
     private static final DecimalFormat DECIMAL_FORMAT = new DecimalFormat("#,###.##");
 
     private final Map<UUID, Deque<BlockPos>> tpStack = new Object2ObjectOpenHashMap<>();
@@ -39,7 +46,20 @@ public class CommandMek extends CommandTreeBase {
         addSubcommand(new Cmd("tp", "cmd.mek.tp", this::teleportPush));
         addSubcommand(new Cmd("tpop", "cmd.mek.tpop", this::teleportPop));
         addSubcommand(new Cmd("performance_report", "cmd.mekceu.performance_report", CommandMek::performanceReport));
+        addSubcommand(new Cmd("multiblock_retry_history", "/mek multiblock_retry_history", (server, sender, args) ->
+              sender.sendMessage(new TextComponentString("Retried multiblock history loads in this world: " +
+                    MultiblockManager.retryLegacyHistory(sender.getEntityWorld())))));
+        addSubcommand(new Cmd("multiblock_recover", "/mek multiblock_recover", (server, sender, args) -> {
+            try {
+                sender.sendMessage(new TextComponentString("Recovering multiblock stores in this world: " + MultiblockManager.recoverStores(sender.getEntityWorld())));
+            } catch (java.io.IOException error) {
+                throw new CommandException("Multiblock recovery could not start: %s", error.getMessage());
+            }
+        }));
         addSubcommand(new CommandChunk());
+        addSubcommand(new Cmd("multiblock_status", "/mek multiblock_status", (server, sender, args) -> {
+            for (String line : MultiblockManager.persistenceStatus(sender.getEntityWorld())) sender.sendMessage(new TextComponentString(line));
+        }));
         addSubcommand(new RadiationCommand());
     }
 

@@ -535,7 +535,7 @@ public class Mekanism {
         activeVibrators.clear();
         worldTickHandler.resetRegenChunks();
         //Reset consistent managers
-        MultiblockManager.reset();
+        MultiblockManager.saveAll();
         SynchronizedBoilerData.hotMap.clear();
         FrequencyManager.reset();
         TransporterManager.reset();
@@ -543,8 +543,14 @@ public class Mekanism {
         TransmitterNetworkRegistry.reset();
      //   ModuleHelper.get().resetSupportedContainers();
 
-        RadiationManager.INSTANCE.reset();
         QIOStorageManager.shutdown();
+    }
+
+    @EventHandler
+    public void serverStopped(FMLServerStoppedEvent event) {
+        // WorldSavedData still reads the manager during the final world save after stopping.
+        RadiationManager.INSTANCE.reset();
+        MultiblockManager.shutdown();
     }
 
     @EventHandler
@@ -933,6 +939,7 @@ public class Mekanism {
 
     @SubscribeEvent
     public void onWorldSave(WorldEvent.Save event) {
+        if (!event.getWorld().isRemote) MultiblockManager.save(event.getWorld());
         if (!event.getWorld().isRemote && event.getWorld().provider.getDimension() == 0) {
             QIOStorageManager.flush();
         }
@@ -940,6 +947,9 @@ public class Mekanism {
 
     @SubscribeEvent
     public void onWorldUnload(WorldEvent.Unload event) {
+        if (!event.getWorld().isRemote) {
+            MultiblockManager.unload(event.getWorld());
+        }
         // Make sure the global fake player drops its reference to the World
         // when the server shuts down
         if (event.getWorld() instanceof WorldServer) {

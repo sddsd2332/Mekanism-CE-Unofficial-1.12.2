@@ -58,12 +58,18 @@ public class TeslaIntegration implements ITeslaHolder, ITeslaConsumer, ITeslaPro
     @Override
     @Method(modid = MekanismHooks.TESLA_MOD_ID)
     public long takePower(long power, boolean simulate) {
+        if (tileEntity instanceof mekanism.common.base.IWholeEnergyTransfer transfer) {
+            return transfer.transferEnergyUnits(side, power, 1 / MekanismConfig.current().general.TO_TESLA.val(), false, simulate);
+        }
         return toTesla(tileEntity.pullEnergy(side, fromTesla(power), simulate));
     }
 
     @Override
     @Method(modid = MekanismHooks.TESLA_MOD_ID)
     public long givePower(long power, boolean simulate) {
+        if (tileEntity instanceof mekanism.common.base.IWholeEnergyTransfer transfer) {
+            return transfer.transferEnergyUnits(side, power, fromTesla(1), true, simulate);
+        }
         return toTesla(tileEntity.acceptEnergy(side, fromTesla(power), simulate));
     }
 }

@@ -6,6 +6,32 @@ import net.minecraft.nbt.NBTTagCompound;
 
 public class SPSCache extends MultiblockCache<SynchronizedSPSData> {
 
+    @Override
+    public void validateMerge(MultiblockCache<SynchronizedSPSData> incoming) throws java.io.IOException {
+        super.validateMerge(incoming);
+        SPSCache other = (SPSCache) incoming;
+        validateGasMerge(inputGas, other.inputGas);
+        validateGasMerge(outputGas, other.outputGas);
+        validateSum(progress, other.progress, Double.MAX_VALUE, "SPS progress");
+        validateSum(receivedEnergy, other.receivedEnergy, Double.MAX_VALUE, "SPS energy");
+        requireMerge(inputProcessed >= 0 && other.inputProcessed >= 0 && (long) inputProcessed + other.inputProcessed <= Integer.MAX_VALUE,
+              "Merged SPS processed input exceeds integer capacity");
+    }
+
+    @Override
+    public void validateCapacity(SynchronizedSPSData target) throws java.io.IOException {
+        super.validateCapacity(target);
+        requireMerge(inputGas == null || target.inputTank.isValid(inputGas), "Invalid SPS input gas; source inventory is retained");
+        requireMerge(outputGas == null || target.outputTank.isValid(outputGas), "Invalid SPS output gas; source inventory is retained");
+        validateSum(progress, 0, Double.MAX_VALUE, "SPS progress");
+        validateSum(receivedEnergy, 0, Double.MAX_VALUE, "SPS energy");
+        validateSum(lastReceivedEnergy, 0, Double.MAX_VALUE, "SPS previous energy");
+        validateSum(lastProcessed, 0, Double.MAX_VALUE, "SPS previous processing");
+        requireMerge(inputProcessed >= 0, "Invalid SPS processed input; source inventory is retained");
+        if (inputGas != null) validateAmount(inputGas.amount, target.inputTank.getMaxGas(), "SPS input");
+        if (outputGas != null) validateAmount(outputGas.amount, target.outputTank.getMaxGas(), "SPS output");
+    }
+
     public GasStack inputGas;
     public GasStack outputGas;
     public double progress;
@@ -41,6 +67,8 @@ public class SPSCache extends MultiblockCache<SynchronizedSPSData> {
 
     @Override
     public void load(NBTTagCompound nbtTags) {
+        inputGas = null;
+        outputGas = null;
         if (nbtTags.hasKey("cachedSPSInput")) {
             inputGas = GasStack.readFromNBT(nbtTags.getCompoundTag("cachedSPSInput"));
         }

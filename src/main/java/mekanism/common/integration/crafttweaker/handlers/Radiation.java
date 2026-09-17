@@ -19,13 +19,13 @@ public class Radiation {
     @ZenMethod
     public static void addRadiation(IGasStack gasInput, double posX, double posY, double posZ, int dimensionId) {
         if (IngredientHelper.checkNotNull(NAME, gasInput)) {
-            MekanismAPI.getRadiationManager().dumpRadiation(new Coord4D(posX, posY, posZ, dimensionId), GasHelper.toGas(gasInput));
+            MekanismAPI.getRadiationManager().dumpRadiation(mekanism.common.lib.radiation.RadiationManager.INSTANCE.loadedWorld(dimensionId), new net.minecraft.util.math.BlockPos(posX, posY, posZ), GasHelper.toGas(gasInput));
         }
     }
 
     @ZenMethod
     public static void addRadiation(double magnitude, double posX, double posY, double posZ, int dimensionId) {
-        MekanismAPI.getRadiationManager().radiate(new Coord4D(posX, posY, posZ, dimensionId), magnitude);
+        MekanismAPI.getRadiationManager().radiate(mekanism.common.lib.radiation.RadiationManager.INSTANCE.loadedWorld(dimensionId), new net.minecraft.util.math.BlockPos(posX, posY, posZ), magnitude);
     }
 
 }

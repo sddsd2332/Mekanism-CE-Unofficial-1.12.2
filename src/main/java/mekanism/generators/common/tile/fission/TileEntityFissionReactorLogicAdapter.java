@@ -23,6 +23,7 @@ public class TileEntityFissionReactorLogicAdapter extends TileEntityFissionReact
 
     private LogicMode logicMode = LogicMode.DISABLED;
     private int currentRedstoneLevel;
+    private boolean activationPending;
 
     public TileEntityFissionReactorLogicAdapter() {
         super("FissionReactorLogicAdapter");
@@ -32,6 +33,7 @@ public class TileEntityFissionReactorLogicAdapter extends TileEntityFissionReact
     @Override
     public void onUpdateServer() {
         super.onUpdateServer();
+        if (activationPending) applyActivationLogic();
         int newRedstoneLevel = getRedstoneLevel();
         if (newRedstoneLevel != currentRedstoneLevel) {
             updateComparatorOutputLevelSync();
@@ -139,7 +141,8 @@ public class TileEntityFissionReactorLogicAdapter extends TileEntityFissionReact
     }
 
     private void applyActivationLogic() {
-        if (structure != null && logicMode == LogicMode.ACTIVATION) {
+        activationPending = logicMode == LogicMode.ACTIVATION && (structure == null || !structure.isFormed());
+        if (structure != null && structure.isFormed() && logicMode == LogicMode.ACTIVATION) {
             structure.active = redstone && !structure.isForceDisabled();
         }
     }

@@ -25,8 +25,8 @@ public class SynchronizedSPSData extends SynchronizedData<SynchronizedSPSData> {
     public static final int OUTPUT_CAPACITY = 1_000;
     public static final double ENERGY_PER_INPUT = 1_000_000D;
 
-    public final ValidatingGasTank inputTank = new ValidatingGasTank(INPUT_CAPACITY, gas -> gas == MekanismFluids.Polonium);
-    public final ValidatingGasTank outputTank = new ValidatingGasTank(OUTPUT_CAPACITY, gas -> gas == MekanismFluids.Antimatter);
+    public final ValidatingGasTank inputTank = new ValidatingGasTank(INPUT_CAPACITY, gas -> gas == MekanismFluids.Polonium, this::isFormed);
+    public final ValidatingGasTank outputTank = new ValidatingGasTank(OUTPUT_CAPACITY, gas -> gas == MekanismFluids.Antimatter, this::isFormed);
 
     public final Map<Coord4D, Coord4D> portToCoilMap = new Object2ObjectOpenHashMap<>();
     public final Map<Coord4D, Integer> coilLevels = new Object2ObjectOpenHashMap<>();
@@ -50,21 +50,25 @@ public class SynchronizedSPSData extends SynchronizedData<SynchronizedSPSData> {
     }
 
     public void tick(World world) {
+        emitProcessedOutput();
         double processed = 0;
         couldOperate = canOperate();
 
-        if (couldOperate && receivedEnergy > 0) {
+        if (couldOperate && (receivedEnergy > 0 || progress >= 1)) {
             double lastProgress = progress;
+            long consumedInput;
             int inputNeeded = (INPUT_PER_ANTIMATTER - inputProcessed) + INPUT_PER_ANTIMATTER * (outputTank.getNeeded() - 1);
             double processable = receivedEnergy / ENERGY_PER_INPUT;
             if (processable + progress >= inputNeeded) {
                 processed = process(inputNeeded);
+                consumedInput = (long) processed;
                 progress = 0;
             } else {
                 processed = processable;
                 progress += processable;
                 int toProcess = MathUtils.clampToInt(progress);
                 long actualProcessed = process(toProcess);
+                consumedInput = actualProcessed;
                 if (actualProcessed < toProcess) {
                     long processedDif = toProcess - actualProcessed;
                     progress -= processedDif;
@@ -72,9 +76,10 @@ public class SynchronizedSPSData extends SynchronizedData<SynchronizedSPSData> {
                 }
                 progress %= 1;
             }
-            if (lastProgress != progress) {
-                // no-op: kept for parity with legacy SPS flow where progress transitions are tracked
-            }
+            // Merged snapshots can carry whole prepaid operations. Do not discard those
+            // when fresh input or output space is insufficient this tick.
+            progress = Math.max(progress, Math.max(0, lastProgress - consumedInput));
+            processed = Math.max(0, processed);
         }
 
         lastReceivedEnergy = receivedEnergy;
@@ -97,12 +102,16 @@ public class SynchronizedSPSData extends SynchronizedData<SynchronizedSPSData> {
         GasStack extracted = inputTank.extract(operations, Action.EXECUTE, AutomationType.INTERNAL);
         long processed = extracted == null ? 0 : extracted.amount;
         inputProcessed += MathUtils.clampToInt(processed);
-        if (inputProcessed >= INPUT_PER_ANTIMATTER) {
-            GasStack toAdd = new GasStack(MekanismFluids.Antimatter, inputProcessed / INPUT_PER_ANTIMATTER);
-            outputTank.insert(toAdd, Action.EXECUTE, AutomationType.INTERNAL);
-            inputProcessed %= INPUT_PER_ANTIMATTER;
-        }
+        emitProcessedOutput();
         return processed;
+    }
+
+    private void emitProcessedOutput() {
+        int available = Math.min(inputProcessed / INPUT_PER_ANTIMATTER, outputTank.getNeeded());
+        if (available <= 0) return;
+        GasStack remainder = outputTank.insert(new GasStack(MekanismFluids.Antimatter, available), Action.EXECUTE, AutomationType.INTERNAL);
+        int inserted = available - (remainder == null ? 0 : remainder.amount);
+        inputProcessed -= inserted * INPUT_PER_ANTIMATTER;
     }
 
     public boolean canOperate() {

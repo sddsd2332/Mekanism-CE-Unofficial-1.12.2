@@ -93,7 +93,7 @@ public class TileEntityBoilerCasing extends TileEntityMultiblock<SynchronizedBoi
     @Override
     public void onUpdateServer() {
         super.onUpdateServer();
-        if (structure != null) {
+        if (structure != null && structure.isFormed()) {
             simulateAdjacent();
             if (structure.sanitizeStoredSubstances()) {
                 markNoUpdateSync();
@@ -220,9 +220,9 @@ public class TileEntityBoilerCasing extends TileEntityMultiblock<SynchronizedBoi
     @Override
     protected IHeatCapacitorHolder getInitialHeatCapacitors(IContentsListener listener) {
         return ProxiedHeatCapacitorHolder.create(
-              side -> structure != null,
-              side -> structure != null,
-              side -> structure == null ? Collections.emptyList() : Collections.singletonList(structure.getHeatCapacitor())
+              side -> structure != null && structure.isFormed(),
+              side -> structure != null && structure.isFormed(),
+              side -> structure == null || !structure.isFormed() ? Collections.emptyList() : Collections.singletonList(structure.getHeatCapacitor())
         );
     }
 

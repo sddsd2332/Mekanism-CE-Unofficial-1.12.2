@@ -37,14 +37,18 @@ public class TileEntityTurbineVent extends TileEntityTurbineCasing {
     }
 
     private boolean isFormed() {
-        return (!isRemote() && structure != null) || (isRemote() && clientHasStructure);
+        return (!isRemote() && structure != null && structure.isFormed()) || (isRemote() && clientHasStructure);
     }
 
 
     @Override
     public void onUpdateServer() {
         super.onUpdateServer();
-        if (structure != null && structure.getVentWaterAmount() > 0) {
+        ejectWater();
+    }
+
+    protected void ejectWater() {
+        if (structure != null && structure.isFormed() && structure.getVentWaterAmount() > 0) {
             EmitUtils.forEachSide(getWorld(), getPos(), EnumSet.allOf(EnumFacing.class), (tile, side) -> {
                 FluidStack fluidStack = ventTank.getFluid();
                 if (fluidStack == null) {

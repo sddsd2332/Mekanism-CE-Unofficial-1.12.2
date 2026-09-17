@@ -15,6 +15,7 @@ import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.nbt.NBTBase;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumHand;
@@ -70,6 +71,27 @@ public abstract class TileEntityMultiblock<T extends SynchronizedData<T>> extend
 
     /** World time represented by cachedData, used to choose the newest replica after chunk loading. */
     public long cachedDataTimestamp = Long.MIN_VALUE;
+    /** 0 is a legacy replica, 1 is a manager-owned reference, -1 is an unreadable reference. */
+    public int cacheFormat;
+    private NBTBase unreadableCacheReference;
+    private boolean cacheRetry;
+    private long cacheRetryTick;
+
+    public void requestCacheRetry() {
+        if (!cacheRetry) {
+            cacheRetry = true;
+            cacheRetryTick = ticker + 20;
+        }
+    }
+
+    private String cacheFormationFailure;
+
+    public void reportCacheFormationFailure(@Nullable String reason) {
+        if (reason != null && !Objects.equals(reason, cacheFormationFailure)) {
+            Mekanism.logger.warn("Multiblock {} at {} cannot claim its cache: {}", getManager().name, getPos(), reason);
+        }
+        cacheFormationFailure = reason;
+    }
 
     private static final int MULTIBLOCK_OCCLUSION_CACHE_INTERVAL = 20;
     private static final int MULTIBLOCK_OCCLUSION_MAX_SAMPLE_BLOCKS = 32;
@@ -124,7 +146,8 @@ public abstract class TileEntityMultiblock<T extends SynchronizedData<T>> extend
             if (cachedID != null) {
                 getManager().updateCache(this);
             }
-            if (ticker == 5) {
+            if (ticker == 5 || cacheRetry && ticker >= cacheRetryTick) {
+                cacheRetry = false;
                 doUpdate();
             }
         }
@@ -186,7 +209,7 @@ public abstract class TileEntityMultiblock<T extends SynchronizedData<T>> extend
         }
         long gameTime = world.getTotalWorldTime();
         return structure.inventoryID == null ? structure.tryClaimServerTick(gameTime) :
-              getManager().tryClaimServerTick(world.provider.getDimension(), structure.inventoryID, gameTime);
+              getManager().tryClaimServerTick(world, structure.inventoryID, gameTime);
     }
 
     /** Synchronizes both this tile's persisted replica and the manager's canonical runtime cache. */
@@ -197,7 +220,9 @@ public abstract class TileEntityMultiblock<T extends SynchronizedData<T>> extend
             if (world != null) {
                 cachedDataTimestamp = world.getTotalWorldTime();
             }
-            getManager().updateCache(this);
+            // Explicit snapshots run after machine processing or before reformation. The cheap
+            // once-per-tick sync may already have run before those mutations in the base tick.
+            getManager().updateCache(this, true);
         }
     }
 
@@ -208,7 +233,7 @@ public abstract class TileEntityMultiblock<T extends SynchronizedData<T>> extend
         }
         cachedID = structure.inventoryID;
         long gameTime = world.getTotalWorldTime();
-        boolean syncCanonical = getManager().tryClaimCacheSync(world.provider.getDimension(), cachedID, gameTime);
+        boolean syncCanonical = getManager().tryClaimCacheSync(world, cachedID, gameTime);
         if (syncCanonical) {
             cachedData.sync(structure);
             cachedDataTimestamp = gameTime;
@@ -303,10 +328,27 @@ public abstract class TileEntityMultiblock<T extends SynchronizedData<T>> extend
     public void readCustomNBT(NBTTagCompound nbtTags) {
         super.readCustomNBT(nbtTags);
         if (structure == null) {
+            cachedID = null;
+            cachedData = getNewCache();
+            cachedDataTimestamp = Long.MIN_VALUE;
+            cacheFormat = 0;
+            unreadableCacheReference = null;
+            if (nbtTags.hasKey("managedCache")) {
+                NBTTagCompound reference = nbtTags.getCompoundTag("managedCache");
+                if (nbtTags.hasKey("managedCache", 10) && reference.hasKey("version", 3) && reference.getInteger("version") == 1 &&
+                      reference.hasKey("id", 8) && isValidCacheID(reference.getString("id"))) {
+                    cacheFormat = 1;
+                    cachedID = UUID.fromString(reference.getString("id")).toString();
+                } else {
+                    cacheFormat = -1;
+                    unreadableCacheReference = nbtTags.getTag("managedCache").copy();
+                }
+                return;
+            }
             if (nbtTags.hasKey("cachedID")) {
                 String loadedID = nbtTags.getString("cachedID");
                 if (isValidCacheID(loadedID)) {
-                    cachedID = loadedID;
+                    cachedID = UUID.fromString(loadedID).toString();
                     long loadedTimestamp = nbtTags.hasKey("cachedDataTimestamp") ? nbtTags.getLong("cachedDataTimestamp") : Long.MIN_VALUE;
                     long currentTime = world == null ? Long.MAX_VALUE : world.getTotalWorldTime();
                     cachedDataTimestamp = loadedTimestamp >= 0 && loadedTimestamp <= currentTime ? loadedTimestamp : Long.MIN_VALUE;
@@ -335,6 +377,10 @@ public abstract class TileEntityMultiblock<T extends SynchronizedData<T>> extend
     @Override
     public void writeCustomNBT(NBTTagCompound nbtTags) {
         super.writeCustomNBT(nbtTags);
+        if (cacheFormat == -1) {
+            if (unreadableCacheReference != null) nbtTags.setTag("managedCache", unreadableCacheReference.copy());
+            return;
+        }
         // Ensure the serialized cache reflects the latest formed structure state.
         if (structure != null && structure.inventoryID != null) {
             cachedID = structure.inventoryID;
@@ -344,10 +390,32 @@ public abstract class TileEntityMultiblock<T extends SynchronizedData<T>> extend
             }
         }
         if (cachedID != null) {
+            if (cacheFormat == 1) {
+                if (world != null && !world.isRemote) getManager().updateCache(this, structure != null);
+                NBTTagCompound reference = new NBTTagCompound();
+                reference.setInteger("version", 1);
+                reference.setString("id", cachedID);
+                nbtTags.setTag("managedCache", reference);
+                nbtTags.removeTag("cachedID");
+                nbtTags.removeTag("cachedDataTimestamp");
+                return;
+            }
             nbtTags.setString("cachedID", cachedID);
             nbtTags.setLong("cachedDataTimestamp", cachedDataTimestamp);
             cachedData.save(nbtTags);
         }
+    }
+
+    @Override
+    public void onChunkUnload() {
+        if (world != null && !world.isRemote) getProtocol().detachCurrentStructure();
+        super.onChunkUnload();
+    }
+
+    @Override
+    public void invalidate() {
+        if (world != null && !world.isRemote) getProtocol().detachCurrentStructure();
+        super.invalidate();
     }
 
     @Nullable

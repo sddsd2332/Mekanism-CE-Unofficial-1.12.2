@@ -67,12 +67,12 @@ public class TileEntityTurbineValve extends TileEntityTurbineCasing implements I
         return ProxiedEnergyContainerHolder.create(
               side -> false,
               side -> side != null && sideIsOutput(side),
-              side -> structure == null ? Collections.emptyList() : structure.getEnergyContainers(side)
+              side -> structure == null || !structure.isFormed() ? Collections.emptyList() : structure.getEnergyContainers(side)
         );
     }
 
     private boolean isFormed() {
-        return (!isRemote() && structure != null) || (isRemote() && clientHasStructure);
+        return (!isRemote() && structure != null && structure.isFormed()) || (isRemote() && clientHasStructure);
     }
 
     @Override
@@ -86,7 +86,7 @@ public class TileEntityTurbineValve extends TileEntityTurbineCasing implements I
     @Override
     public void onUpdateServer() {
         super.onUpdateServer();
-        if (structure != null) {
+        if (structure != null && structure.isFormed()) {
             CableUtils.emit(this);
         }
         int newRedstoneLevel = getRedstoneLevel();
@@ -98,7 +98,7 @@ public class TileEntityTurbineValve extends TileEntityTurbineCasing implements I
 
     @Override
     public boolean sideIsOutput(EnumFacing side) {
-        if (structure != null) {
+        if (structure != null && structure.isFormed()) {
             return !structure.locations.contains(Coord4D.get(this).offset(side));
         }
         return false;
@@ -263,7 +263,7 @@ public class TileEntityTurbineValve extends TileEntityTurbineCasing implements I
     @Override
     @Method(modid = MekanismHooks.IC2_MOD_ID)
     public double getOfferedEnergy() {
-        return IC2Integration.toEU(Math.min(getEnergy(), getMaxOutput()));
+        return structure != null && structure.isFormed() ? IC2Integration.toEU(Math.min(getEnergy(), getMaxOutput())) : 0;
     }
 
     @Override

@@ -9,6 +9,7 @@ import mekanism.api.gas.IExtendedGasTank;
 import mekanism.api.heat.IHeatHandler;
 import mekanism.api.inventory.IInventorySlot;
 import mekanism.api.inventory.IMekanismInventory;
+import mekanism.common.tile.TileEntityStructuralGlass;
 import net.minecraft.util.EnumFacing;
 
 import javax.annotation.Nonnull;
@@ -17,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.IdentityHashMap;
 import java.util.function.BiPredicate;
 
 public abstract class SynchronizedData<T extends SynchronizedData<T>> implements IMekanismInventory {
@@ -47,6 +49,7 @@ public abstract class SynchronizedData<T extends SynchronizedData<T>> implements
 
     public boolean destroyed;
     private boolean formed;
+    private final Set<TileEntityStructuralGlass> structuralGlass = Collections.newSetFromMap(new IdentityHashMap<>());
 
     public Set<Coord4D> internalLocations = new ObjectOpenHashSet<>();
 
@@ -114,6 +117,15 @@ public abstract class SynchronizedData<T extends SynchronizedData<T>> implements
 
     public void setFormed(boolean formed) {
         this.formed = formed;
+        if (!formed) {
+            for (TileEntityStructuralGlass glass : structuralGlass) glass.clearController(this);
+            structuralGlass.clear();
+        }
+    }
+
+    public void bindStructuralGlass(TileEntityStructuralGlass glass, Coord4D controller) {
+        glass.setController(controller, this);
+        structuralGlass.add(glass);
     }
 
     /** Claims ownership of structure-wide processing for the given server tick. */

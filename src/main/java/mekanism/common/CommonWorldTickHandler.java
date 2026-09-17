@@ -64,9 +64,6 @@ public class CommonWorldTickHandler {
             if (!FrequencyManager.loaded && world.provider.getDimension() == 0) {
                 FrequencyManager.load(world);
             }
-            if (!RadiationManager.loaded){
-                RadiationManager.INSTANCE.createOrLoad(world);
-            }
         }
     }
 
@@ -117,6 +114,7 @@ public class CommonWorldTickHandler {
 
     @SubscribeEvent
     public void onTick(TickEvent.ServerTickEvent event) {
+        if (event.side.isServer() && event.phase == Phase.START) RadiationManager.INSTANCE.tickServer();
         if (event.side.isServer() && event.phase == Phase.END) {
             serverTick();
         }
@@ -126,7 +124,6 @@ public class CommonWorldTickHandler {
         // Frequencies are global to the save, so tick them once per server tick
         // instead of once for every loaded dimension.
         FrequencyManager.tickServer();
-        RadiationManager.INSTANCE.tickServer();
     }
 
 }

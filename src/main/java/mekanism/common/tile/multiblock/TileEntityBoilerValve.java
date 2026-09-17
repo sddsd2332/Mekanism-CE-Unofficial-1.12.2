@@ -98,7 +98,7 @@ public class TileEntityBoilerValve extends TileEntityBoilerCasing implements ICo
     }
 
     private boolean isFormed() {
-        return (!isRemote() && structure != null) || (isRemote() && clientHasStructure);
+        return (!isRemote() && structure != null && structure.isFormed()) || (isRemote() && clientHasStructure);
     }
 
     @Override
@@ -123,7 +123,7 @@ public class TileEntityBoilerValve extends TileEntityBoilerCasing implements ICo
     @Override
     public void onUpdateServer() {
         super.onUpdateServer();
-        if (structure != null) {
+        if (structure != null && structure.isFormed()) {
             if (mode == PortMode.OUTPUT_STEAM && structure.steamStored != null && structure.steamStored.amount > 0) {
                 FluidUtils.emit(EnumSet.allOf(EnumFacing.class), steamTank, this);
             }

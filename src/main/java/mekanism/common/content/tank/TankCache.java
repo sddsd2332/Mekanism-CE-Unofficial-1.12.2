@@ -8,6 +8,23 @@ import net.minecraftforge.fluids.FluidStack;
 
 public class TankCache extends MultiblockCache<SynchronizedTankData> {
 
+    @Override
+    public void validateMerge(MultiblockCache<SynchronizedTankData> incoming) throws java.io.IOException {
+        super.validateMerge(incoming);
+        TankCache other = (TankCache) incoming;
+        requireMerge((fluid == null && other.fluid == null) || (gas == null && other.gas == null), "Dynamic tank cannot merge fluid and gas inventories");
+        validateFluidMerge(fluid, other.fluid);
+        validateGasMerge(gas, other.gas);
+    }
+
+    @Override
+    public void validateCapacity(SynchronizedTankData target) throws java.io.IOException {
+        super.validateCapacity(target);
+        requireMerge(fluid == null || gas == null, "Dynamic tank has conflicting stored media");
+        if (fluid != null) validateAmount(fluid.amount, target.getFluidCapacity(), "fluid");
+        if (gas != null) validateAmount(gas.amount, target.getGasCapacity(), "gas");
+    }
+
     public FluidStack fluid;
 
     public GasStack gas;
@@ -50,6 +67,8 @@ public class TankCache extends MultiblockCache<SynchronizedTankData> {
 
     @Override
     public void load(NBTTagCompound nbtTags) {
+        fluid = null;
+        gas = null;
         editMode = ContainerEditMode.byIndexStatic(nbtTags.getInteger("editMode"));
         loadInventory(nbtTags);
         if (nbtTags.hasKey("cachedFluid")) {

@@ -45,6 +45,15 @@ import java.util.Map;
 @MethodsReturnNonnullByDefault
 public interface IRadiationManager {
 
+    /** Explicit world identity. Unavailable environmental queries return NaN, never baseline. */
+    double getRadiationLevel(World world, BlockPos pos);
+    boolean radiate(World world, BlockPos pos, double magnitude);
+    boolean dumpRadiation(World world, BlockPos pos, GasStack stack);
+    List<IRadiationSource> getRadiationSources(World world);
+    List<IRadiationSource> getRadiationSources(World world, int chunkX, int chunkZ);
+    void removeRadiationSource(World world, BlockPos pos);
+    void removeRadiationSources(World world, int chunkX, int chunkZ);
+
     /**
      * Helper to expose the ability to check if Mekanism's radiation system is enabled in the config.
      */
@@ -89,7 +98,8 @@ public interface IRadiationManager {
     double getRadiationLevel(Entity entity);
 
     /**
-     * Gets an unmodifiable table of the radiation sources tracked by this manager. This table keeps track of radiation sources on both a chunk and position based level.
+     * Legacy dimension-keyed snapshot of loaded worlds. Same-dimension plugin worlds cannot be represented
+     * distinctly here; use the explicit World APIs for those. Entries are detached from authoritative data.
      *
      * @return Unmodifiable table of radiation sources.
      */
@@ -182,6 +192,44 @@ public interface IRadiationManager {
         }
     }
 
+    default void dumpRadiation(World world, BlockPos pos, IGasHandler gasHandler, boolean clearRadioactive) {
+        if (gasHandler instanceof IMekanismGasHandler mekanismGasHandler) {
+            for (int tank = 0, tanks = mekanismGasHandler.getCountGasTanks(null); tank < tanks; tank++) {
+                GasStack gasStack = mekanismGasHandler.getGasInTank(tank, null);
+                if (gasStack != null && dumpRadiation(world, pos, gasStack) && clearRadioactive) {
+                    mekanismGasHandler.setGasInTank(tank, null, null);
+                }
+            }
+        } else if (gasHandler instanceof IExtendedGasHandler extendedGasHandler) {
+            for (int tank = 0, tanks = extendedGasHandler.getCountGasTanks(); tank < tanks; tank++) {
+                GasStack gasStack = extendedGasHandler.getGasInTank(tank);
+                if (gasStack != null && dumpRadiation(world, pos, gasStack) && clearRadioactive) {
+                    extendedGasHandler.setGasInTank(tank, null);
+                }
+            }
+        } else if (gasHandler != null) {
+            if (clearRadioactive) {
+                // Plain IGasHandler still needs the legacy tank info bridge for mutable clear semantics.
+                for (GasTankInfo info : gasHandler.getTankInfo()) {
+                    if (info instanceof IExtendedGasTank) {
+                        IExtendedGasTank tank = (IExtendedGasTank) info;
+                        if (dumpRadiation(world, pos, tank.getGas())) tank.setEmpty();
+                    } else if (info instanceof GasTank) {
+                        GasTank tank = (GasTank) info;
+                        if (dumpRadiation(world, pos, tank.getGas())) tank.setGas(null);
+                    }
+                }
+            } else {
+                for (int tank = 0, tanks = gasHandler.getLegacyTankCount(); tank < tanks; tank++) {
+                    GasStack gasStack = gasHandler.getLegacyGasInTank(tank);
+                    if (gasStack != null) {
+                        dumpRadiation(world, pos, gasStack);
+                    }
+                }
+            }
+        }
+    }
+
     /**
      * Checks if the given {@link GasStack} is radioactive and if it is dumps a proportionate amount of radiation at the given location.
      *
@@ -195,6 +243,6 @@ public interface IRadiationManager {
     boolean dumpRadiation(Coord4D coord, GasStack stack);
 
     default void dumpRadiation(BlockPos pos, World world, GasStack stack){
-        dumpRadiation(new Coord4D(pos,world),stack);
+        dumpRadiation(world, pos, stack);
     }
 }

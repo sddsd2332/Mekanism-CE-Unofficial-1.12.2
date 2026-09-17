@@ -175,7 +175,7 @@ public abstract class MultiblockGasTank<MULTIBLOCK extends TileEntityMultiblock>
     @Override
     @Nullable
     public GasStack insert(@Nullable GasStack stack, Action action, AutomationType automationType) {
-        if (multiblock.structure == null || multiblock.getWorld().isRemote || stack == null || stack.amount <= 0 || !isValid(stack)) {
+        if (multiblock.structure == null || !multiblock.structure.isFormed() || multiblock.getWorld().isRemote || stack == null || stack.amount <= 0 || !isValid(stack)) {
             return stack;
         }
         int needed = getNeeded();
@@ -202,7 +202,7 @@ public abstract class MultiblockGasTank<MULTIBLOCK extends TileEntityMultiblock>
     @Override
     @Nullable
     public GasStack extract(int amount, Action action, AutomationType automationType) {
-        if (multiblock.structure == null || multiblock.getWorld().isRemote || amount <= 0) {
+        if (multiblock.structure == null || !multiblock.structure.isFormed() || multiblock.getWorld().isRemote || amount <= 0) {
             return null;
         }
         GasStack stored = getGas();

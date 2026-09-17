@@ -45,11 +45,11 @@ public class TileEntityTurbineCasing extends TileEntityMultiblock<SynchronizedTu
     @Override
     public void onUpdateServer() {
         super.onUpdateServer();
-        if (structure != null) {
+        if (structure != null && structure.isFormed()) {
             if (structure.sanitizeStoredFluid()) {
                 markNoUpdateSync();
             }
-            if (isRendering) {
+            if (tryClaimStructureServerTick()) {
                 structure.lastSteamInput = structure.newSteamInput;
                 structure.newSteamInput = 0;
                 int stored = structure.getSteamAmount();
@@ -85,7 +85,7 @@ public class TileEntityTurbineCasing extends TileEntityMultiblock<SynchronizedTu
 
                 if (structure.dumpMode == GasMode.DUMPING && structure.fluidStored != null) {
                     int amount = structure.getSteamAmount();
-                    structure.shrinkSteamStack(Math.min(amount, Math.max(amount / 50, structure.lastSteamInput * 2)));
+                    structure.shrinkSteamStack((int) Math.min(amount, Math.max(amount / 50, (long) structure.lastSteamInput * 2)));
                 }
 
                 float newRotation = (float) flowRate;
@@ -100,6 +100,7 @@ public class TileEntityTurbineCasing extends TileEntityMultiblock<SynchronizedTu
                     sendPacketToRenderer();
                 }
                 structure.prevFluid = structure.fluidStored != null ? structure.fluidStored.copy() : null;
+                syncCachedDataFromStructure();
             }
         }
     }
@@ -173,7 +174,7 @@ public class TileEntityTurbineCasing extends TileEntityMultiblock<SynchronizedTu
     @Override
     public void handlePacketData(ByteBuf dataStream) {
         if (!isRemote()) {
-            if (structure != null) {
+            if (structure != null && structure.isFormed()) {
                 byte type = dataStream.readByte();
                 if (type == 0) {
                     structure.dumpMode = GasMode.values()[structure.dumpMode.ordinal() == GasMode.values().length - 1 ? 0 : structure.dumpMode.ordinal() + 1];

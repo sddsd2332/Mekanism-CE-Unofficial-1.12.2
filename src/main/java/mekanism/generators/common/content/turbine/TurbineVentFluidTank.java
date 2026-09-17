@@ -59,7 +59,7 @@ public class TurbineVentFluidTank extends MultiblockFluidTank<TileEntityTurbineC
     @Override
     @Nullable
     public FluidStack drain(int maxDrain, boolean doDrain) {
-        if (multiblock.structure == null || maxDrain <= 0 || multiblock.structure.getVentWaterAmount() <= 0) {
+        if (multiblock.structure == null || !multiblock.structure.isFormed() || maxDrain <= 0 || multiblock.structure.getVentWaterAmount() <= 0) {
             return null;
         }
         int amount = Math.min(maxDrain, multiblock.structure.getVentWaterAmount());

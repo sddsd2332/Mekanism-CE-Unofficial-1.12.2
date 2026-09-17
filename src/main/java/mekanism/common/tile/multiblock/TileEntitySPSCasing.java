@@ -98,7 +98,7 @@ public class TileEntitySPSCasing extends TileEntityMultiblock<SynchronizedSPSDat
         if (structure.sanitizeStoredGases()) {
             markNoUpdateSync();
         }
-        if (isRendering) {
+        if (tryClaimStructureServerTick()) {
             boolean needsUpdate = structure.needsRenderUpdate();
             double prevEnergy = structure.lastReceivedEnergy;
             double prevProcessed = structure.lastProcessed;
@@ -108,6 +108,7 @@ public class TileEntitySPSCasing extends TileEntityMultiblock<SynchronizedSPSDat
                 sendPacketToRenderer();
             }
             structure.syncPrevTanks();
+            syncCachedDataFromStructure();
         }
         syncSoundState();
     }

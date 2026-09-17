@@ -5,13 +5,18 @@ import mekanism.api.gas.Gas;
 import mekanism.common.capabilities.gas.BasicGasTank;
 
 import java.util.function.Predicate;
+import java.util.function.BooleanSupplier;
 
 public class ValidatingGasTank extends BasicGasTank {
 
     private int capacity;
 
     public ValidatingGasTank(int max, Predicate<Gas> validator) {
-        super(max, alwaysTrueBi, alwaysTrueBi, validator, null);
+        this(max, validator, () -> true);
+    }
+
+    public ValidatingGasTank(int max, Predicate<Gas> validator, BooleanSupplier canTransfer) {
+        super(max, (stack, automation) -> canTransfer.getAsBoolean(), (stack, automation) -> canTransfer.getAsBoolean(), validator, null);
         capacity = max;
     }
 

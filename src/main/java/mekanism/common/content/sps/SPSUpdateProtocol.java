@@ -51,6 +51,7 @@ public class SPSUpdateProtocol extends UpdateProtocol<SynchronizedSPSData> {
 
     @Override
     public void doUpdate() {
+        pointer.syncCachedDataFromStructure();
         SynchronizedSPSData found = findStructure();
         if (found != null) {
             this.structureFound = found;
@@ -61,92 +62,10 @@ public class SPSUpdateProtocol extends UpdateProtocol<SynchronizedSPSData> {
     }
 
     private void form(SynchronizedSPSData found) {
-        //Clear old tiles that are no longer part of the newly formed structure
-        if (pointer.structure != null) {
-            for (Coord4D oldCoord : pointer.structure.locations) {
-                if (!found.locations.contains(oldCoord)) {
-                    TileEntity oldTile = oldCoord.getTileEntity(pointer.getWorld());
-                    if (oldTile instanceof TileEntityMultiblock<?> multiblock && multiblock.getManager() == getManager()) {
-                        if (multiblock.structure != null) {
-                            multiblock.structure.setFormed(false);
-                        }
-                        multiblock.structure = null;
-                    } else if (oldTile instanceof IStructuralMultiblock structural) {
-                        structural.setController(null);
-                    }
-                }
-            }
-        }
-
-        List<String> idsFound = new ArrayList<>();
-        found.locations.forEach(obj -> {
-            TileEntity tileEntity = obj.getTileEntity(pointer.getWorld());
-            if (tileEntity instanceof TileEntityMultiblock<?> block && block.cachedID != null) {
-                idsFound.add(block.cachedID);
-            }
-        });
-        MultiblockCache<SynchronizedSPSData> cache = null;
-        String idToUse = null;
-        if (idsFound.isEmpty()) {
-            cache = getNewCache();
-            idToUse = MultiblockManager.getUniqueInventoryID();
-        } else {
-            List<ItemStack> rejectedItems = new ArrayList<>();
-            Set<String> checkedIds = new HashSet<>();
-            for (String id : idsFound) {
-                if (!checkedIds.add(id)) {
-                    continue;
-                }
-                if (getManager().inventories.get(id) != null) {
-                    if (cache == null) {
-                        cache = getManager().pullInventory(pointer.getWorld(), id);
-                    } else {
-                        mergeCaches(rejectedItems, cache, getManager().pullInventory(pointer.getWorld(), id));
-                    }
-                    idToUse = id;
-                }
-            }
-        }
-        if (cache == null) {
-            if (!idsFound.isEmpty()) {
-                String fallbackId = idsFound.get(0);
-                for (Coord4D obj : found.locations) {
-                    TileEntity tileEntity = obj.getTileEntity(pointer.getWorld());
-                    if (tileEntity instanceof TileEntityMultiblock<?> block && Objects.equals(block.cachedID, fallbackId)) {
-                        cache = (MultiblockCache<SynchronizedSPSData>) block.cachedData;
-                        break;
-                    }
-                }
-                idToUse = fallbackId;
-            }
-            if (cache == null) {
-                cache = getNewCache();
-                if (idToUse == null) {
-                    idToUse = MultiblockManager.getUniqueInventoryID();
-                }
-            }
-        }
-        cache.apply(found);
-        found.inventoryID = idToUse;
-        found.setFormed(true);
-        onFormed();
-
-        List<IStructuralMultiblock> structures = new ArrayList<>();
-        Coord4D toUse = null;
-        for (Coord4D obj : found.locations) {
-            TileEntity tileEntity = obj.getTileEntity(pointer.getWorld());
-            if (tileEntity instanceof TileEntityMultiblock) {
-                ((TileEntityMultiblock<SynchronizedSPSData>) tileEntity).structure = found;
-                if (toUse == null) {
-                    toUse = obj;
-                }
-            } else if (tileEntity instanceof IStructuralMultiblock structural) {
-                structures.add(structural);
-            }
-        }
-        for (IStructuralMultiblock structural : structures) {
-            structural.setController(toUse);
-        }
+        SynchronizedSPSData previous = pointer.structure;
+        String previousId = previous == null ? null : previous.inventoryID;
+        Set<Coord4D> previousLocations = previous == null ? Collections.emptySet() : new HashSet<>(previous.locations);
+        formFoundStructure(previous, previousId, previousLocations);
     }
 
     private void destroyCurrentStructure() {
@@ -197,6 +116,7 @@ public class SPSUpdateProtocol extends UpdateProtocol<SynchronizedSPSData> {
     }
 
     private SynchronizedSPSData validateCandidate(int minX, int maxX, int minY, int maxY, int minZ, int maxZ) {
+        if (!isAreaLoaded(new BlockPos(minX, minY, minZ), new BlockPos(maxX, maxY, maxZ))) return null;
         int dim = pointer.getWorld().provider.getDimension();
         SynchronizedSPSData structure = getNewStructure();
         structure.volLength = STRUCTURE_SIZE;
@@ -220,6 +140,10 @@ public class SPSUpdateProtocol extends UpdateProtocol<SynchronizedSPSData> {
                         boolean isCasing = type == BasicBlockType.SPS_CASING;
                         boolean isPort = type == BasicBlockType.SPS_PORT;
                         boolean isStructuralGlass = type == BasicBlockType.STRUCTURAL_GLASS;
+                        if ((isCasing || isPort || requirement == 2 && isStructuralGlass) && !isViableNode(x, y, z)) {
+                            pointer.requestCacheRetry();
+                            return null;
+                        }
                         if (requirement == 1) {
                             if (!isCasing) {
                                 return null;

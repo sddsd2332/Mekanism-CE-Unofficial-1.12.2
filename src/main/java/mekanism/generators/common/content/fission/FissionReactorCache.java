@@ -9,6 +9,43 @@ import net.minecraftforge.fluids.FluidStack;
 
 public class FissionReactorCache extends MultiblockCache<SynchronizedFissionData> {
 
+    @Override
+    public void validateMerge(MultiblockCache<SynchronizedFissionData> incoming) throws java.io.IOException {
+        super.validateMerge(incoming);
+        FissionReactorCache other = (FissionReactorCache) incoming;
+        validateGasMerge(fuel, other.fuel);
+        validateGasMerge(waste, other.waste);
+        validateGasMerge(gasCoolant, other.gasCoolant);
+        validateGasMerge(heatedCoolant, other.heatedCoolant);
+        validateFluidMerge(coolant, other.coolant);
+        validateFluidMerge(steam, other.steam);
+        validateSum(burnRemaining, other.burnRemaining, HeatAPI.MAX_HEAT, "fission burn remainder");
+        validateSum(partialWaste, other.partialWaste, HeatAPI.MAX_HEAT, "fission partial waste");
+        validateSum(Math.max(0, storedHeat), Math.max(0, other.storedHeat), HeatAPI.MAX_HEAT, "heat");
+        validateSum(heatCapacity, other.heatCapacity, HeatAPI.MAX_HEAT, "heat capacity");
+    }
+
+    @Override
+    public void validateCapacity(SynchronizedFissionData target) throws java.io.IOException {
+        super.validateCapacity(target);
+        target.updateCapacities();
+        requireMerge(fuel == null || target.fuelTank.isValid(fuel), "Invalid fission fuel; source inventory is retained");
+        requireMerge(waste == null || target.wasteTank.isValid(waste), "Invalid fission waste; source inventory is retained");
+        requireMerge(gasCoolant == null || target.gasCoolantTank.isValid(gasCoolant), "Invalid fission gas coolant; source inventory is retained");
+        requireMerge(heatedCoolant == null || target.heatedCoolantTank.isValid(heatedCoolant), "Invalid fission heated coolant; source inventory is retained");
+        requireMerge(coolant == null || target.coolantTank.isFluidValid(coolant), "Invalid fission coolant; source inventory is retained");
+        requireMerge(steam == null || target.steamTank.isFluidValid(steam), "Invalid fission steam; source inventory is retained");
+        requireMerge(coolant == null || gasCoolant == null, "Fission cannot retain liquid and gas coolant together");
+        if (fuel != null) validateAmount(fuel.amount, target.fuelTank.getMaxGas(), "fuel");
+        if (waste != null) validateAmount(waste.amount, target.wasteTank.getMaxGas(), "waste");
+        if (gasCoolant != null) validateAmount(gasCoolant.amount, target.gasCoolantTank.getMaxGas(), "gas coolant");
+        if (heatedCoolant != null) validateAmount(heatedCoolant.amount, target.heatedCoolantTank.getMaxGas(), "heated coolant");
+        if (coolant != null) validateAmount(coolant.amount, target.coolantTank.getCapacity(), "coolant");
+        if (steam != null) validateAmount(steam.amount, target.steamTank.getCapacity(), "steam");
+        requireMerge((long) (coolant == null ? 0 : coolant.amount) + (gasCoolant == null ? 0 : gasCoolant.amount) <= target.coolantTank.getCapacity(),
+              "Combined coolant exceeds target capacity");
+    }
+
     public GasStack fuel;
     public GasStack waste;
     public GasStack gasCoolant;
@@ -73,6 +110,15 @@ public class FissionReactorCache extends MultiblockCache<SynchronizedFissionData
 
     @Override
     public void load(NBTTagCompound nbtTags) {
+        // A snapshot replaces the previous contents, including fields absent in older saves.
+        fuel = null;
+        waste = null;
+        gasCoolant = null;
+        heatedCoolant = null;
+        coolant = null;
+        steam = null;
+        storedHeat = -1;
+        heatCapacity = 0;
         if (nbtTags.hasKey("cachedFuel")) {
             fuel = GasStack.readFromNBT(nbtTags.getCompoundTag("cachedFuel"));
         }

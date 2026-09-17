@@ -154,7 +154,7 @@ public abstract class MultiblockFluidTank<MULTIBLOCK extends TileEntityMultibloc
     @Override
     @Nullable
     public FluidStack insert(@Nullable FluidStack stack, Action action, AutomationType automationType) {
-        if (multiblock.structure != null && !multiblock.getWorld().isRemote) {
+        if (multiblock.structure != null && multiblock.structure.isFormed() && !multiblock.getWorld().isRemote) {
             if (ExtendedFluidHandlerUtils.isEmpty(stack) || !isFluidValid(stack)) {
                 return stack;
             }
@@ -198,7 +198,7 @@ public abstract class MultiblockFluidTank<MULTIBLOCK extends TileEntityMultibloc
     @Override
     @Nullable
     public FluidStack extract(int amount, Action action, AutomationType automationType) {
-        if (multiblock.structure != null && !multiblock.getWorld().isRemote) {
+        if (multiblock.structure != null && multiblock.structure.isFormed() && !multiblock.getWorld().isRemote) {
             FluidStack fluidStack = getFluid();
             if (fluidStack == null || fluidStack.amount <= 0 || amount <= 0) {
                 return null;

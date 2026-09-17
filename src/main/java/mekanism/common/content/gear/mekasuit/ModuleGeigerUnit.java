@@ -25,7 +25,7 @@ public class ModuleGeigerUnit implements ICustomModule<ModuleGeigerUnit> {
     public void addHUDElements(IModule<ModuleGeigerUnit> module, EntityPlayer player, Consumer<IHUDElement> hudElementAdder) {
         if (module.isEnabled()) {
             double magnitude = RadiationManager.INSTANCE.getClientEnvironmentalRadiation();
-            String text = UnitDisplayUtils.getDisplayShort(magnitude, UnitDisplayUtils.RadiationUnit.SVH, 2);
+            String text = Double.isNaN(magnitude) ? net.minecraft.client.resources.I18n.format("radiation.data.unavailable") : UnitDisplayUtils.getDisplayShort(magnitude, UnitDisplayUtils.RadiationUnit.SVH, 2);
             if (MekanismConfig.current().general.radiationDecayTimers.val() && magnitude > RadiationManager.BASELINE) {
                 text += " (" + TextUtils.getHoursMinutesFromTicks(
                       RadiationUtil.getDecayTime(RadiationManager.INSTANCE.getClientMaxMagnitude(), true)) + ")";

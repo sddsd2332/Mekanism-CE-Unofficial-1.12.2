@@ -36,12 +36,17 @@ public class TileEntityInductionCasing extends TileEntityMultiblock<Synchronized
         super(name);
     }
 
+    public void detachMatrixForInternalChange(SynchronizedMatrixData expected) {
+        if (structure == expected) getProtocol().detachCurrentStructure();
+    }
+
     @Override
     public void onUpdateServer(){
         super.onUpdateServer();
-        if (structure != null && isRendering) {
+        if (structure != null && tryClaimStructureServerTick()) {
             structure.tick(world);
             structure.manageInventory();
+            syncCachedDataFromStructure();
         }
     }
 

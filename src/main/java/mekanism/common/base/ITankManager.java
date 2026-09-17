@@ -63,7 +63,10 @@ public interface ITankManager {
                     } else if (button == 2) { //Dump the tank
                         GasStack gas = gasTank.getGas();
                         if (gas != null){
-                            MekanismAPI.getRadiationManager().dumpRadiation(new Coord4D(player), gas);
+                            if (gas.getGas().isRadiation() && !MekanismAPI.getRadiationManager().dumpRadiation(player.world, player.getPosition(), gas)) {
+                                player.sendMessage(new net.minecraft.util.text.TextComponentTranslation("cmd.mek.radiation.unavailable"));
+                                return;
+                            }
                             triggerDropperUse(player);
                         }
                         gasTank.setEmpty();

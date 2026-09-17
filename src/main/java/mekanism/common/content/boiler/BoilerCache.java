@@ -4,10 +4,37 @@ import mekanism.api.NBTConstants;
 import mekanism.api.gas.GasStack;
 import mekanism.api.heat.HeatAPI;
 import mekanism.common.multiblock.MultiblockCache;
+import mekanism.common.MekanismFluids;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.fluids.FluidStack;
+import net.minecraftforge.fluids.FluidRegistry;
 
 public class BoilerCache extends MultiblockCache<SynchronizedBoilerData> {
+
+    @Override
+    public void validateMerge(MultiblockCache<SynchronizedBoilerData> incoming) throws java.io.IOException {
+        super.validateMerge(incoming);
+        BoilerCache other = (BoilerCache) incoming;
+        validateFluidMerge(water, other.water);
+        validateFluidMerge(steam, other.steam);
+        validateGasMerge(input, other.input);
+        validateGasMerge(output, other.output);
+        validateSum(Math.max(0, storedHeat), Math.max(0, other.storedHeat), HeatAPI.MAX_HEAT, "heat");
+        validateSum(heatCapacity, other.heatCapacity, HeatAPI.MAX_HEAT, "heat capacity");
+    }
+
+    @Override
+    public void validateCapacity(SynchronizedBoilerData target) throws java.io.IOException {
+        super.validateCapacity(target);
+        requireMerge(water == null || water.getFluid() == FluidRegistry.WATER, "Invalid boiler water; source inventory is retained");
+        requireMerge(steam == null || steam.getFluid() == FluidRegistry.getFluid("steam"), "Invalid boiler steam; source inventory is retained");
+        requireMerge(input == null || input.getGas() == MekanismFluids.SuperheatedSodium, "Invalid boiler input gas; source inventory is retained");
+        requireMerge(output == null || output.getGas() == MekanismFluids.Sodium, "Invalid boiler output gas; source inventory is retained");
+        if (water != null) validateAmount(water.amount, target.getWaterCapacity(), "water");
+        if (steam != null) validateAmount(steam.amount, target.getSteamCapacity(), "steam");
+        if (input != null) validateAmount(input.amount, target.getInputGasCapacity(), "heated coolant");
+        if (output != null) validateAmount(output.amount, target.getOutputGasCapacity(), "cooled coolant");
+    }
 
     public FluidStack water;
     public FluidStack steam;
@@ -40,6 +67,12 @@ public class BoilerCache extends MultiblockCache<SynchronizedBoilerData> {
 
     @Override
     public void load(NBTTagCompound nbtTags) {
+        water = null;
+        steam = null;
+        input = null;
+        output = null;
+        storedHeat = -1;
+        heatCapacity = 0;
         if (nbtTags.hasKey("cachedWater")) {
             water = FluidStack.loadFluidStackFromNBT(nbtTags.getCompoundTag("cachedWater"));
         }

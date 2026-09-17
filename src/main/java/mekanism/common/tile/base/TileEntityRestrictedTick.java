@@ -53,7 +53,7 @@ public abstract class TileEntityRestrictedTick extends TileEntitySynchronized im
             if (this instanceof IGasHandler handler) {
                 //If we are on a server and radiation is enabled dump all gas tanks with radioactive materials
                 // Note: we handle clearing radioactive contents later in drop calculation due to when things are written to NBT
-                MekanismAPI.getRadiationManager().dumpRadiation(new Coord4D(pos, world), handler, false);
+                MekanismAPI.getRadiationManager().dumpRadiation(world, pos, handler, false);
             }
         }
     }

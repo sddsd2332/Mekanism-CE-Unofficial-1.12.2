@@ -84,7 +84,7 @@ public class TileEntityDynamicTank extends TileEntityMultiblock<SynchronizedTank
             if (structure.sanitizeStoredSubstances()) {
                 markNoUpdateSync();
             }
-            if (isRendering) {
+            if (tryClaimStructureServerTick()) {
                 boolean needsValveUpdate = false;
                 for (ValveData data : structure.valves) {
                     if (data.activeTicks > 0) {
@@ -101,6 +101,7 @@ public class TileEntityDynamicTank extends TileEntityMultiblock<SynchronizedTank
                 structure.prevFluid = structure.fluidStored != null ? structure.fluidStored.copy() : null;
                 structure.prevGas = structure.gasstored != null ? structure.gasstored.copy() : null;
                 manageInventory();
+                syncCachedDataFromStructure();
             }
         }
     }

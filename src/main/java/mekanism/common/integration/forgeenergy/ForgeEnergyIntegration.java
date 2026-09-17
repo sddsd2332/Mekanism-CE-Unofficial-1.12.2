@@ -27,11 +27,17 @@ public class ForgeEnergyIntegration implements IEnergyStorage {
 
     @Override
     public int receiveEnergy(int maxReceive, boolean simulate) {
+        if (tileEntity instanceof mekanism.common.base.IWholeEnergyTransfer transfer) {
+            return (int) transfer.transferEnergyUnits(side, maxReceive, fromForge(1), true, simulate);
+        }
         return toForge(tileEntity.acceptEnergy(side, fromForge(maxReceive), simulate));
     }
 
     @Override
     public int extractEnergy(int maxExtract, boolean simulate) {
+        if (tileEntity instanceof mekanism.common.base.IWholeEnergyTransfer transfer) {
+            return (int) transfer.transferEnergyUnits(side, maxExtract, 1 / MekanismConfig.current().general.TO_FORGE.val(), false, simulate);
+        }
         return toForge(tileEntity.pullEnergy(side, fromForge(maxExtract), simulate));
     }
 

@@ -4,6 +4,7 @@ import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import mekanism.api.Coord4D;
 import mekanism.common.multiblock.IMultiblock;
 import mekanism.common.multiblock.IStructuralMultiblock;
+import mekanism.common.multiblock.SynchronizedData;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
@@ -15,6 +16,7 @@ import java.util.Set;
 public class TileEntityStructuralGlass extends TileEntity implements IStructuralMultiblock {
 
     public Coord4D master;
+    private SynchronizedData<?> owner;
 
     @Override
     public boolean onActivate(EntityPlayer player, EnumHand hand, ItemStack stack) {
@@ -23,7 +25,7 @@ public class TileEntityStructuralGlass extends TileEntity implements IStructural
             if (masterTile instanceof IMultiblock<?> multiblock) {
                 return multiblock.onActivate(player, hand, stack);
             }
-            master = null;
+            setController(null);
         }
         return false;
     }
@@ -35,7 +37,7 @@ public class TileEntityStructuralGlass extends TileEntity implements IStructural
             if (masterTile instanceof IMultiblock<?> multiblock) {
                 multiblock.doUpdate();
             } else {
-                master = null;
+                setController(null);
             }
         } else {
             IMultiblock<?> multiblock = new ControllerFinder().find();
@@ -53,6 +55,16 @@ public class TileEntityStructuralGlass extends TileEntity implements IStructural
     @Override
     public void setController(Coord4D coord) {
         master = coord;
+        owner = null;
+    }
+
+    public void setController(Coord4D coord, SynchronizedData<?> structure) {
+        master = coord;
+        owner = structure;
+    }
+
+    public void clearController(SynchronizedData<?> structure) {
+        if (owner == structure) setController(null);
     }
 
     public class ControllerFinder {

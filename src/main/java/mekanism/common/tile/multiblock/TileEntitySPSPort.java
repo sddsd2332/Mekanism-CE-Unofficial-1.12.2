@@ -77,10 +77,10 @@ public class TileEntitySPSPort extends TileEntitySPSCasing implements IConfigura
     @Override
     public void onUpdateServer() {
         super.onUpdateServer();
-        if (structure != null && outputMode) {
+        if (isFormed() && outputMode) {
             GasUtils.emit(java.util.EnumSet.allOf(EnumFacing.class), structure.outputTank, this, 16);
         }
-        if (structure != null && energy > 0) {
+        if (isFormed() && energy > 0) {
             Coord4D portPos = Coord4D.get(this);
             if (structure.canSupplyPortEnergy(portPos)) {
                 double toSupply = energy;

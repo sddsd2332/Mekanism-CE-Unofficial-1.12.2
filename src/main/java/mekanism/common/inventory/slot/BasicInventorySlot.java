@@ -84,7 +84,16 @@ public class BasicInventorySlot implements IInventorySlot, IContentsListenerRegi
     }
 
     protected ItemStack current = ItemStack.EMPTY;
+    private BooleanSupplier transferAllowed = () -> true;
     private final BiPredicate<ItemStack, AutomationType> canExtract;
+
+    public void setTransferAllowed(BooleanSupplier transferAllowed) {
+        this.transferAllowed = Objects.requireNonNull(transferAllowed);
+    }
+
+    public boolean isTransferAllowed() {
+        return transferAllowed.getAsBoolean();
+    }
     private final BiPredicate<ItemStack, AutomationType> canInsert;
     private final Predicate<ItemStack> validator;
     private final int limit;
@@ -246,7 +255,7 @@ public class BasicInventorySlot implements IInventorySlot, IContentsListenerRegi
     @Nonnull
     @Override
     public ItemStack extractItem(int amount, @Nonnull Action action, @Nonnull AutomationType automationType) {
-        if (isEmpty() || amount < 1 || !canExtract.test(current, automationType)) {
+        if (!isTransferAllowed() || isEmpty() || amount < 1 || !canExtract.test(current, automationType)) {
             return ItemStack.EMPTY;
         }
         amount = Math.min(amount, Math.min(getCount(), current.getMaxStackSize()));
@@ -283,7 +292,7 @@ public class BasicInventorySlot implements IInventorySlot, IContentsListenerRegi
     @Override
     public int getResourceCapacity(QIOResourceDescriptor resource, int templateCount, boolean checkInsertion,
           AutomationType automationType) {
-        if (templateCount <= 0) return 0;
+        if (templateCount <= 0 || checkInsertion && !isTransferAllowed()) return 0;
         // Exact classes only: subclasses may override limits, insertion, or stack access.
         boolean plainSlot = getClass() == BasicInventorySlot.class || getClass() == OutputInventorySlot.class;
         boolean plainInsertion = validator == alwaysTrue && (canInsert == alwaysTrueBi ||
@@ -301,7 +310,7 @@ public class BasicInventorySlot implements IInventorySlot, IContentsListenerRegi
     }
 
     public boolean isItemValidForInsertion(@Nonnull ItemStack stack, @Nonnull AutomationType automationType) {
-        return validator.test(stack) && canInsert.test(stack, automationType);
+        return isTransferAllowed() && validator.test(stack) && canInsert.test(stack, automationType);
     }
 
     @Override
