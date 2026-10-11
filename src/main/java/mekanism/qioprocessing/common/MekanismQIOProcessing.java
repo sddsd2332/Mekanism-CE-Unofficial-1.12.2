@@ -157,8 +157,15 @@ public class MekanismQIOProcessing implements IModule {
 
     @Mod.EventHandler
     public void serverStarted(FMLServerStartedEvent event) {
-        WorkbenchBookRuntime.open(DimensionManager.getWorld(0));
-        QIORecipeCatalogService.INSTANCE.beginRefresh(DimensionManager.getWorld(0));
+        net.minecraft.world.WorldServer overworld = DimensionManager.getWorld(0);
+        if (overworld == null) {
+            Mekanism.logger.warn("QIO workbench startup skipped because the overworld is unavailable");
+            return;
+        }
+        if (!WorkbenchBookRuntime.open(overworld)) {
+            Mekanism.logger.warn("QIO workbench persistence is unavailable because the overworld has no save directory");
+        }
+        QIORecipeCatalogService.INSTANCE.beginRefresh(overworld);
     }
 
     @Mod.EventHandler

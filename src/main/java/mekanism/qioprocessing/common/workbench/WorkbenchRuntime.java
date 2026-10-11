@@ -5,6 +5,7 @@ import mekanism.api.qio.external.QIOFrequencyReference;
 import mekanism.common.Mekanism;
 import mekanism.common.content.qio.QIOFrequencyStorageAccess;
 import mekanism.common.content.qio.QIOStorageManager;
+import mekanism.common.util.WorldDirectoryUtils;
 import mekanism.qioprocessing.common.machine.QIOMachineProviderBootstrap;
 import mekanism.qioprocessing.common.machine.QIOProviderRouteScanner;
 import mekanism.qioprocessing.common.network.WorkbenchNetwork;
@@ -18,10 +19,12 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.WorldServer;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.PlayerEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.SynchronousQueue;
@@ -61,9 +64,8 @@ public final class WorkbenchRuntime {
     private final Map<UUID, Long> lastPatternAttempt = new HashMap<>();
     private final Set<String> quarantinedRecipes = new HashSet<>();
 
-    private WorkbenchRuntime(MinecraftServer server) {
+    private WorkbenchRuntime(MinecraftServer server, java.nio.file.Path worldDirectory) {
         this.server = server;
-        java.nio.file.Path worldDirectory = server.getWorld(0).getSaveHandler().getWorldDirectory().toPath();
         bookStore = new WorkbenchBookStore(worldDirectory.resolve("mekanism/qio_processing/workbench_v1"));
         orderStore = new QIOClaimOrderStore(worldDirectory.resolve("mekanism/qio_processing/claim_orders_v1"));
         executionStore = new QIOWorkbenchExecutionStore(worldDirectory.resolve("mekanism/qio_processing/claim_orders_v1"));
@@ -98,7 +100,13 @@ public final class WorkbenchRuntime {
     public static void start(MinecraftServer server) {
         stop();
         QIOMachineProviderBootstrap.register();
-        current = new WorkbenchRuntime(server);
+        WorldServer overworld = server == null ? null : server.getWorld(0);
+        File worldDirectory = WorldDirectoryUtils.getWorldDirectory(overworld);
+        if (worldDirectory == null) {
+            Mekanism.logger.warn("QIO workbench runtime is disabled because the overworld has no persistent save directory");
+            return;
+        }
+        current = new WorkbenchRuntime(server, worldDirectory.toPath());
     }
 
     public static void stop() {
@@ -466,7 +474,10 @@ public final class WorkbenchRuntime {
     }
 
     private static WorkbenchRuntime currentFor(MinecraftServer server) {
-        if (current == null || current.server != server || !server.isCallingFromMinecraftThread()) {
+        if (current == null || server == null) {
+            throw new IllegalStateException("QIO workbench runtime is unavailable");
+        }
+        if (current.server != server || !server.isCallingFromMinecraftThread()) {
             throw new IllegalStateException("Claim recovery requires the running server thread");
         }
         return current;

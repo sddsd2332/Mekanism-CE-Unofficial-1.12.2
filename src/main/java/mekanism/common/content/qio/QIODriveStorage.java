@@ -1,6 +1,7 @@
 package mekanism.common.content.qio;
 
 import mekanism.common.tier.QIODriveTier;
+import mekanism.common.util.WorldDirectoryUtils;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.world.World;
@@ -37,9 +38,7 @@ public final class QIODriveStorage {
     }
 
     public synchronized void createOrLoad(World world) {
-        if (world != null && !world.isRemote) {
-            createOrLoad(world.getSaveHandler().getWorldDirectory());
-        }
+        createOrLoad(WorldDirectoryUtils.getWorldDirectory(world));
     }
 
     /**

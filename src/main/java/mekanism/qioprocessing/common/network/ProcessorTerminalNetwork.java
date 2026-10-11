@@ -2,6 +2,7 @@ package mekanism.qioprocessing.common.network;
 
 import mekanism.common.content.qio.QIOFrequencyStorageAccess;
 import mekanism.common.inventory.container.MekanismTileContainer;
+import mekanism.common.util.WorldDirectoryUtils;
 import mekanism.qioprocessing.common.planning.QIOWorkbenchOrderPreparation;
 import mekanism.qioprocessing.common.processor.QIOCraftingProcessorTerminalSession;
 import mekanism.qioprocessing.common.recipe.RecipeDeclaration;
@@ -17,6 +18,7 @@ import net.minecraftforge.items.ItemHandlerHelper;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -165,8 +167,7 @@ public final class ProcessorTerminalNetwork {
             QIOCraftingProcessorTerminalSession.Response result = session.runExternal(requestId,
                     player.getUniqueID(), packet.window, tick, () -> {
                         try {
-                            java.nio.file.Path worldDirectory = player.getServer().getWorld(0).getSaveHandler()
-                                    .getWorldDirectory().toPath();
+                            Path worldDirectory = requireOverworldDirectory(player);
                             mekanism.qioprocessing.common.recipe.RecipeCatalog catalog =
                                     RecipeDirectoryService.INSTANCE.catalog();
                             RecipeDeclaration declaration = catalog.byId(data.getString("recipe"));
@@ -194,8 +195,7 @@ public final class ProcessorTerminalNetwork {
             QIOCraftingProcessorTerminalSession.Response result = session.runExternalResponse(requestId,
                     player.getUniqueID(), packet.window, tick, () -> {
                         try {
-                            java.nio.file.Path worldDirectory = player.getServer().getWorld(0).getSaveHandler()
-                                    .getWorldDirectory().toPath();
+                            Path worldDirectory = requireOverworldDirectory(player);
                             WorkbenchBookStore store = new WorkbenchBookStore(
                                     worldDirectory.resolve("mekanism/qio_processing/workbench_v1"));
                             mekanism.qioprocessing.common.workbench.WorkbenchSnapshot book =
@@ -564,11 +564,21 @@ public final class ProcessorTerminalNetwork {
         }
     }
 
-    private static QIOProcessingMaintenanceBookStore maintenanceStore(EntityPlayerMP player) {
-        java.nio.file.Path worldDirectory = player.getServer().getWorld(0).getSaveHandler()
-                .getWorldDirectory().toPath();
+    private static QIOProcessingMaintenanceBookStore maintenanceStore(EntityPlayerMP player) throws IOException {
+        Path worldDirectory = requireOverworldDirectory(player);
         return new QIOProcessingMaintenanceBookStore(
                 worldDirectory.resolve("mekanism/qio_processing/maintenance_v1"));
+    }
+
+    private static Path requireOverworldDirectory(EntityPlayerMP player) throws IOException {
+        if (player == null || player.getServer() == null) {
+            throw new IOException("The server overworld is unavailable");
+        }
+        java.io.File worldDirectory = WorldDirectoryUtils.getWorldDirectory(player.getServer().getWorld(0));
+        if (worldDirectory == null) {
+            throw new IOException("The server overworld has no persistent save directory");
+        }
+        return worldDirectory.toPath();
     }
 
     private static UUID uuid(NBTTagCompound data, String key) {

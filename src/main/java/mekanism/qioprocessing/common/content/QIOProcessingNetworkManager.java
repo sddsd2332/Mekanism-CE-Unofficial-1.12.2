@@ -1,6 +1,7 @@
 package mekanism.qioprocessing.common.content;
 
 import mekanism.common.Mekanism;
+import mekanism.common.util.WorldDirectoryUtils;
 import mekanism.qioprocessing.common.content.material.QIOMaterialClaimCoordinator;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
@@ -51,7 +52,7 @@ public final class QIOProcessingNetworkManager {
     /** 按世界目录创建或加载 QIO 网络索引。 */
     public synchronized void createOrLoad(@Nullable World world) {
         if (world != null && !world.isRemote && world.provider.getDimension() == 0) {
-            createOrLoad(world.getSaveHandler().getWorldDirectory());
+            createOrLoad(WorldDirectoryUtils.getWorldDirectory(world));
         }
     }
 

@@ -4,6 +4,7 @@ import mekanism.api.gas.GasStack;
 import mekanism.api.qio.resource.QIOResourceCodec;
 import mekanism.api.qio.resource.QIOResourceDescriptor;
 import mekanism.common.lib.inventory.HashedItem;
+import mekanism.common.util.WorldDirectoryUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
@@ -42,9 +43,7 @@ public final class QIOResourceTypeRegistry {
     }
 
     public synchronized void createOrLoad(World world) {
-        if (world != null && !world.isRemote) {
-            createOrLoad(world.getSaveHandler().getWorldDirectory());
-        }
+        createOrLoad(WorldDirectoryUtils.getWorldDirectory(world));
     }
 
     /**

@@ -4,9 +4,11 @@ import mekanism.qioprocessing.common.content.QIOProcessingNetworkData;
 import mekanism.qioprocessing.common.content.QIOProcessingNetworkManager;
 import mekanism.qioprocessing.common.content.workbench.QIOWorkbenchConfiguration;
 import mekanism.qioprocessing.common.recipe.RecipeDirectoryService;
+import mekanism.common.util.WorldDirectoryUtils;
 import net.minecraft.world.World;
 
 import javax.annotation.Nullable;
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
@@ -32,9 +34,13 @@ public final class WorkbenchBookRuntime {
     private WorkbenchBookRuntime() {
     }
 
-    public static synchronized void open(World world) {
+    public static synchronized boolean open(World world) {
         requireServerThread(world);
-        Path next = world.getSaveHandler().getWorldDirectory().toPath().resolve(DIRECTORY)
+        File worldDirectory = WorldDirectoryUtils.getWorldDirectory(world);
+        if (worldDirectory == null) {
+            return false;
+        }
+        Path next = worldDirectory.toPath().resolve(DIRECTORY)
                 .toAbsolutePath().normalize();
         if (directory != null && !directory.equals(next)) {
             throw new IllegalStateException("Workbench store is already bound to another world");
@@ -44,15 +50,20 @@ public final class WorkbenchBookRuntime {
             directory = next;
             store = new WorkbenchBookStore(next);
         }
+        return true;
     }
 
     public static synchronized WorkbenchSnapshot loadOrBlank(World world, UUID frequency) throws IOException {
-        open(world);
+        if (!open(world)) {
+            throw new IOException("Workbench store requires a persistent world save directory");
+        }
         return load(Objects.requireNonNull(frequency));
     }
 
     public static synchronized void save(World world, WorkbenchSnapshot snapshot) throws IOException {
-        open(world);
+        if (!open(world)) {
+            throw new IOException("Workbench store requires a persistent world save directory");
+        }
         Objects.requireNonNull(store).save(Objects.requireNonNull(snapshot));
     }
 
