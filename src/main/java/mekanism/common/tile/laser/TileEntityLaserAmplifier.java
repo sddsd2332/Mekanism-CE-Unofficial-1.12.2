@@ -33,7 +33,7 @@ import javax.annotation.Nullable;
 import java.util.Collections;
 
 public class TileEntityLaserAmplifier extends TileEntityContainerBlock implements ILaserReceptor, IRedstoneControl, IEnergyContainer,
-        IComputerIntegration, ISecurityTile {
+        IComputerIntegration, ISecurityTile, mekanism.common.base.IComparatorSupport {
 
     public static final double MAX_ENERGY = 5E9;
     private static final String[] methods = new String[]{"getEnergy", "getMaxEnergy"};
@@ -60,9 +60,9 @@ public class TileEntityLaserAmplifier extends TileEntityContainerBlock implement
     @Override
     protected IEnergyContainerHolder getInitialEnergyContainers(IContentsListener listener) {
         return ProxiedEnergyContainerHolder.create(
-              side -> false,
-              side -> side != null && canOutputEnergy(side),
-              side -> side == null || canOutputEnergy(side) ? Collections.singletonList(this) : Collections.emptyList());
+                side -> false,
+                side -> side != null && canOutputEnergy(side),
+                side -> side == null || canOutputEnergy(side) ? Collections.singletonList(this) : Collections.emptyList());
     }
 
     @Override
@@ -247,9 +247,15 @@ public class TileEntityLaserAmplifier extends TileEntityContainerBlock implement
         return outputMode;
     }
 
+    @Override
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return type == mekanism.api.transmitters.TransmissionType.ENERGY;
+    }
+
+    @Override
     public int getRedstoneLevel() {
         if (outputMode != RedstoneOutput.ENERGY_CONTENTS) {
-            return 0;
+            return emittingRedstone ? 15 : 0;
         }
         return MekanismUtils.redstoneLevelFromContents(getEnergy(), getMaxEnergy());
     }

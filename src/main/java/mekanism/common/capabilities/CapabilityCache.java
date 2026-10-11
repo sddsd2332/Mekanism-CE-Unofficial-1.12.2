@@ -14,14 +14,24 @@ import java.util.List;
 public class CapabilityCache {
 
     private final List<ICapabilityResolver> resolvers = new ArrayList<>();
+    private volatile Object generation = new Object();
+
+    /**
+     * Identity token for consumers of managed handlers; never represents their contents.
+     */
+    public Object getGeneration() {
+        return generation;
+    }
 
     public void setCapabilityResolvers(@Nonnull Collection<? extends ICapabilityResolver> capabilityResolvers) {
         resolvers.clear();
         resolvers.addAll(capabilityResolvers);
+        generation = new Object();
     }
 
     public void addCapabilityResolver(@Nonnull ICapabilityResolver resolver) {
         resolvers.add(resolver);
+        generation = new Object();
     }
 
     @Nonnull
@@ -55,6 +65,7 @@ public class CapabilityCache {
         if (capability == null) {
             invalidateAll();
         } else {
+            generation = new Object();
             for (ICapabilityResolver resolver : resolvers) {
                 if (resolver.supports(capability)) {
                     resolver.invalidate(capability, side);
@@ -64,6 +75,7 @@ public class CapabilityCache {
     }
 
     public void invalidateAll() {
+        generation = new Object();
         for (ICapabilityResolver resolver : resolvers) {
             resolver.invalidateAll();
         }

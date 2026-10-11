@@ -63,13 +63,13 @@ public class TileEntityPRC extends TileEntityUpgradeableMachine<PressurizedInput
     public static final RecipeError NOT_ENOUGH_SPACE_ITEM_OUTPUT_ERROR = RecipeError.create();
     public static final RecipeError NOT_ENOUGH_SPACE_GAS_OUTPUT_ERROR = RecipeError.create();
     private static final List<RecipeError> TRACKED_ERROR_TYPES = Arrays.asList(
-          RecipeError.NOT_ENOUGH_ENERGY,
-          NOT_ENOUGH_ITEM_INPUT_ERROR,
-          NOT_ENOUGH_FLUID_INPUT_ERROR,
-          NOT_ENOUGH_GAS_INPUT_ERROR,
-          NOT_ENOUGH_SPACE_ITEM_OUTPUT_ERROR,
-          NOT_ENOUGH_SPACE_GAS_OUTPUT_ERROR,
-          RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
+            RecipeError.NOT_ENOUGH_ENERGY,
+            NOT_ENOUGH_ITEM_INPUT_ERROR,
+            NOT_ENOUGH_FLUID_INPUT_ERROR,
+            NOT_ENOUGH_GAS_INPUT_ERROR,
+            NOT_ENOUGH_SPACE_ITEM_OUTPUT_ERROR,
+            NOT_ENOUGH_SPACE_GAS_OUTPUT_ERROR,
+            RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
     );
     private static final String[] methods = new String[]{"getEnergy", "getProgress", "isActive", "facing", "canOperate", "getMaxEnergy", "getEnergyNeeded",
             "getFluidStored", "getGasStored"};
@@ -97,14 +97,14 @@ public class TileEntityPRC extends TileEntityUpgradeableMachine<PressurizedInput
         configComponent.setInputConfig(TransmissionType.ENERGY);
         ejectorComponent = new TileComponentEjector(this);
         ejectorComponent.setOutputData(configComponent, TransmissionType.ITEM, TransmissionType.GAS)
-              .setCanTankEject(tank -> tank != inputGasTank);
+                .setCanTankEject(tank -> tank != inputGasTank);
     }
 
     @Override
     protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
         InventorySlotHelper builder = createInventorySlotHelper();
         inputSlot = builder.addSlot(InputInventorySlot.at(RecipeHandler::isInPressurizedRecipe, getRecipeCacheListener(), 54, 40)
-              .setAutoPullValidator((stack, side) -> canAutoPullInput(stack)));
+                .setAutoPullValidator((stack, side) -> canAutoPullInput(stack)));
         inputSlot.tracksWarnings(slot -> slot.warning(WarningType.NO_MATCHING_RECIPE, getWarningCheck(NOT_ENOUGH_ITEM_INPUT_ERROR)));
         outputSlot = builder.addSlot(OutputInventorySlot.at(getRecipeCacheChangeListener(listener), 116, 40));
         outputSlot.tracksWarnings(slot -> slot.warning(WarningType.NO_SPACE_IN_OUTPUT, getWarningCheck(NOT_ENOUGH_SPACE_ITEM_OUTPUT_ERROR)));
@@ -147,7 +147,8 @@ public class TileEntityPRC extends TileEntityUpgradeableMachine<PressurizedInput
         }
         return outputGasTank;
     }
-@Override
+
+    @Override
     public void onAsyncUpdateServer() {
         super.onAsyncUpdateServer();
         energySlot.fillContainerOrConvert();
@@ -350,26 +351,26 @@ public class TileEntityPRC extends TileEntityUpgradeableMachine<PressurizedInput
     @Override
     public CachedRecipe<PressurizedRecipe> createNewCachedRecipe(PressurizedRecipe recipe, int cacheIndex) {
         return new PressurizedReactionCachedRecipe(recipe, this::shouldRecheckAllRecipeErrors,
-              InputHelper.getInputHandler(inputSlot, NOT_ENOUGH_ITEM_INPUT_ERROR),
-              InputHelper.getFluidInputHandler(inputFluidTank, NOT_ENOUGH_FLUID_INPUT_ERROR),
-              InputHelper.getGasInputHandler(inputGasTank, NOT_ENOUGH_GAS_INPUT_ERROR),
-              OutputHelper.getOutputHandler(outputSlot, NOT_ENOUGH_SPACE_ITEM_OUTPUT_ERROR, outputGasTank, NOT_ENOUGH_SPACE_GAS_OUTPUT_ERROR))
-              .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
-              .setActive(active -> {
-                  if (active || prevEnergy >= getEnergy()) {
-                      setActive(active);
-                  }
-              })
-              .setEnergyRequirements(this::getRecipeEnergyPerTick, getMainEnergyContainer())
-              .setRequiredTicks(() -> ticksRequired)
-              .setBaselineMaxOperations(() -> getBaselineMaxOperations(getRecipeEnergyPerTick(), true))
-              .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
-              .setErrorsChanged(errors -> {
-                  for (int i = 0; i < trackedErrors.length; i++) {
-                      trackedErrors[i] = errors.contains(TRACKED_ERROR_TYPES.get(i));
-                  }
-              })
-              .setOnFinish(this::onCachedRecipeFinish);
+                InputHelper.getInputHandler(inputSlot, NOT_ENOUGH_ITEM_INPUT_ERROR),
+                InputHelper.getFluidInputHandler(inputFluidTank, NOT_ENOUGH_FLUID_INPUT_ERROR),
+                InputHelper.getGasInputHandler(inputGasTank, NOT_ENOUGH_GAS_INPUT_ERROR),
+                OutputHelper.getOutputHandler(outputSlot, NOT_ENOUGH_SPACE_ITEM_OUTPUT_ERROR, outputGasTank, NOT_ENOUGH_SPACE_GAS_OUTPUT_ERROR))
+                .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
+                .setActive(active -> {
+                    if (active || prevEnergy >= getEnergy()) {
+                        setActive(active);
+                    }
+                })
+                .setEnergyRequirements(this::getRecipeEnergyPerTick, getMainEnergyContainer())
+                .setRequiredTicks(() -> ticksRequired)
+                .setBaselineMaxOperations(() -> getBaselineMaxOperations(getRecipeEnergyPerTick(), true))
+                .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
+                .setErrorsChanged(errors -> {
+                    for (int i = 0; i < trackedErrors.length; i++) {
+                        trackedErrors[i] = errors.contains(TRACKED_ERROR_TYPES.get(i));
+                    }
+                })
+                .setOnFinish(this::onCachedRecipeFinish);
     }
 
     @Override
@@ -399,7 +400,7 @@ public class TileEntityPRC extends TileEntityUpgradeableMachine<PressurizedInput
     }
 
     private boolean canAutoPullInput(ItemStack stack) {
-        PressurizedRecipe recipe = RecipeHandler.getPRCRecipe(new PressurizedInput(getSimulatedStackWithInsert(0, stack), inputFluidTank.getFluid(), inputGasTank.getGas()));
+        PressurizedRecipe recipe = RecipeHandler.getPRCRecipe(new PressurizedInput(getSimulatedStackWithInsert(inputSlot, stack), inputFluidTank.getFluid(), inputGasTank.getGas()));
         return recipe != null && recipe.getOutput().applyOutputs(outputSlot, outputGasTank, false);
     }
 

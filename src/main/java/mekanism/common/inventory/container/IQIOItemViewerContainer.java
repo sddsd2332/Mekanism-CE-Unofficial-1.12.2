@@ -19,7 +19,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
-/** Shared contract used by crafting packets, GUI windows, and JEI. */
+/**
+ * Shared contract used by crafting packets, GUI windows, and JEI.
+ */
 public interface IQIOItemViewerContainer {
 
     List<QIOResourceEntry> getResourceEntries();
@@ -61,11 +63,13 @@ public interface IQIOItemViewerContainer {
             PacketQIOViewerData.sendBatch((EntityPlayerMP) player, windowId, Collections.emptyList(), 0, 0);
         } else {
             PacketQIOViewerData.sendBatch((EntityPlayerMP) player, windowId, frequency.getResourceEntries(),
-                  frequency.getCapacitySummary());
+                    frequency.getCapacitySummary());
         }
     }
 
-    /** Inserts into the player's visible inventory slots without dropping data. */
+    /**
+     * Inserts into the player's visible inventory slots without dropping data.
+     */
     default ItemStack insertIntoPlayerInventory(EntityPlayer player, ItemStack stack, boolean simulate) {
         if (!(this instanceof Container) || stack.isEmpty()) {
             return stack;

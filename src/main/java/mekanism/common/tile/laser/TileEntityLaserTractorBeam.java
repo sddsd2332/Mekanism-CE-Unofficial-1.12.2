@@ -22,7 +22,6 @@ import mekanism.common.tile.component.TileComponentSecurity;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
-import net.minecraft.inventory.Container;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
@@ -66,9 +65,9 @@ public class TileEntityLaserTractorBeam extends TileEntityContainerBlock impleme
     @Override
     protected IEnergyContainerHolder getInitialEnergyContainers(IContentsListener listener) {
         return ProxiedEnergyContainerHolder.create(
-              side -> false,
-              side -> false,
-              side -> side == null ? Collections.singletonList(this) : Collections.emptyList());
+                side -> false,
+                side -> false,
+                side -> side == null ? Collections.singletonList(this) : Collections.emptyList());
     }
 
     @Override
@@ -249,7 +248,12 @@ public class TileEntityLaserTractorBeam extends TileEntityContainerBlock impleme
     }
 
     @Override
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return type == mekanism.api.transmitters.TransmissionType.ITEM;
+    }
+
+    @Override
     public int getRedstoneLevel() {
-        return Container.calcRedstoneFromInventory(this);
+        return getInventoryComparatorLevel();
     }
 }

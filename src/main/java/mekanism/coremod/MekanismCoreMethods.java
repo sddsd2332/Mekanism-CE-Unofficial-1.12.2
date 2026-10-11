@@ -1,9 +1,8 @@
 package mekanism.coremod;
 
 
-
-import mekanism.common.Mekanism;
 import mekanism.client.render.OptifineRenderCompat;
+import mekanism.common.Mekanism;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.event.ItemGUIRenderEvent;
 import mekanism.common.interfaces.IOcclusionCulling;
@@ -27,7 +26,7 @@ public class MekanismCoreMethods {
             resetRenderState();
 
             if (stack.getItem() instanceof IOverlayRenderAware overlayRenderAware) {
-                if (overlayRenderAware.renderItemOverlayIntoGUI(stack, xPosition, yPosition)){
+                if (overlayRenderAware.renderItemOverlayIntoGUI(stack, xPosition, yPosition)) {
                     resetRenderState();
                 }
             }
@@ -36,7 +35,7 @@ public class MekanismCoreMethods {
         }
     }
 
-    private static void resetRenderState(){
+    private static void resetRenderState() {
         GlStateManager.enableDepth();
         GlStateManager.enableBlend();
         GlStateManager.tryBlendFuncSeparate(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA, GlStateManager.SourceFactor.ONE, GlStateManager.DestFactor.ZERO);
@@ -79,8 +78,8 @@ public class MekanismCoreMethods {
             }
             TileEntityRendererDispatcher dispatcher = TileEntityRendererDispatcher.instance;
             if (dispatcher != null && IOcclusionCulling.cullingIsBeyondRenderDistance(
-                  tileEntity.getDistanceSq(dispatcher.entityX, dispatcher.entityY, dispatcher.entityZ),
-                  tileEntity.getMaxRenderDistanceSquared())) {
+                    tileEntity.getDistanceSq(dispatcher.entityX, dispatcher.entityY, dispatcher.entityZ),
+                    tileEntity.getMaxRenderDistanceSquared())) {
                 // Vanilla will reject this tile later in the same dispatcher method. Avoid doing
                 // CPU rays before that distance check runs.
                 return false;

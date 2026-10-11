@@ -23,7 +23,6 @@ public interface IRadialDataHelper {
      * @param identifier  Identifier representing the radial data. Must be unique within the radial level if it will be used as a nested radial element.
      * @param defaultMode Default mode.
      * @param <MODE>      Radial Mode.
-     *
      * @return Enum based Radial Data implementation.
      */
     <MODE extends Enum<MODE> & IRadialMode> RadialData<MODE> dataForEnum(ResourceLocation identifier, MODE defaultMode);
@@ -34,7 +33,6 @@ public interface IRadialDataHelper {
      * @param identifier Identifier representing the radial data. Must be unique within the radial level if it will be used as a nested radial element.
      * @param enumClass  Class representing the enum type.
      * @param <MODE>     Radial Mode.
-     *
      * @return Enum based Radial Data implementation.
      */
     <MODE extends Enum<MODE> & IRadialMode> RadialData<MODE> dataForEnum(ResourceLocation identifier, Class<MODE> enumClass);
@@ -46,9 +44,7 @@ public interface IRadialDataHelper {
      * @param accessibleValues The number of accessible elements.
      * @param defaultMode      Default mode.
      * @param <MODE>           Radial Mode.
-     *
      * @return Truncated Enum based Radial Data implementation.
-     *
      * @apiNote Does not currently support {@link mekanism.api.IDisableableEnum}.
      */
     <MODE extends Enum<MODE> & IRadialMode> RadialData<MODE> dataForTruncated(ResourceLocation identifier, int accessibleValues, MODE defaultMode);
@@ -58,9 +54,7 @@ public interface IRadialDataHelper {
      *
      * @param identifier Identifier representing the radial data. Must be unique within the radial level if it will be used as a nested radial element.
      * @param modes      Boolean representation of the pairing of two radial modes.
-     *
      * @return Boolean based Radial Data implementation.
-     *
      * @see #booleanBasedData(ResourceLocation, BooleanRadialModes, boolean)
      */
     default RadialData<IRadialMode> booleanBasedData(ResourceLocation identifier, BooleanRadialModes modes) {
@@ -73,9 +67,7 @@ public interface IRadialDataHelper {
      * @param identifier   Identifier representing the radial data. Must be unique within the radial level if it will be used as a nested radial element.
      * @param modes        Boolean representation of the pairing of two radial modes.
      * @param defaultValue Default value of the created Radial Data.
-     *
      * @return Boolean based Radial Data implementation.
-     *
      * @see #booleanBasedData(ResourceLocation, BooleanRadialModes)
      */
     RadialData<IRadialMode> booleanBasedData(ResourceLocation identifier, BooleanRadialModes modes, boolean defaultValue);
@@ -98,7 +90,6 @@ public interface IRadialDataHelper {
          * Gets the radial mode corresponding to the given value.
          *
          * @param value boolean representation of the mode to lookup.
-         *
          * @return {@link #falseMode} if value is {@code false}, otherwise {@link #trueMode}
          */
         public IRadialMode get(boolean value) {

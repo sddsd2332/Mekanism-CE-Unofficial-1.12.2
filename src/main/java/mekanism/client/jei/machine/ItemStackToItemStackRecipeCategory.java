@@ -15,7 +15,7 @@ import mezz.jei.api.gui.IRecipeLayout;
 import mezz.jei.api.ingredients.IIngredients;
 
 public class ItemStackToItemStackRecipeCategory<RECIPE extends BasicMachineRecipe<RECIPE>, WRAPPER extends MachineRecipeWrapper<RECIPE>>
-      extends BaseRecipeCategory<WRAPPER> {
+        extends BaseRecipeCategory<WRAPPER> {
 
     private final GuiSlot input;
     private final GuiSlot output;

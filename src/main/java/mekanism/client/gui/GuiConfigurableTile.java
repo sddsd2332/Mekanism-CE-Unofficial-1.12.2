@@ -10,7 +10,7 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 
 @SideOnly(Side.CLIENT)
 public abstract class GuiConfigurableTile<TILE extends TileEntityContainerBlock & ISideConfiguration, CONTAINER extends Container>
-      extends GuiMekanismTile<TILE, CONTAINER> {
+        extends GuiMekanismTile<TILE, CONTAINER> {
 
     private GuiSideConfigurationTab<TILE> sideConfigTab;
     private GuiTransporterConfigTab<TILE> transporterConfigTab;

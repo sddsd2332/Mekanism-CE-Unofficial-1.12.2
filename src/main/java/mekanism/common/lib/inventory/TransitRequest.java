@@ -123,7 +123,7 @@ public abstract class TransitRequest implements Iterable<TransitRequest.ItemData
 
     @Nonnull
     public TransitResponse eject(TileEntity outputter, @Nullable IItemHandler target, int min,
-          Function<Object, mekanism.api.EnumColor> outputColor) {
+                                 Function<Object, mekanism.api.EnumColor> outputColor) {
         if (isEmpty()) {
             return getEmptyResponse();
         } else if (target instanceof CursedTransporterItemHandler cursed) {
@@ -210,10 +210,16 @@ public abstract class TransitRequest implements Iterable<TransitRequest.ItemData
 
         private final ItemStack inserted;
         private final ItemData slotData;
+        private final int plannedAmount;
+        /**
+         * The amount physically removed from the source after use().
+         */
+        private int usedAmount = -1;
 
         public TransitResponse(@Nonnull ItemStack inserted, @Nullable ItemData slotData) {
             this.inserted = inserted;
             this.slotData = slotData;
+            this.plannedAmount = inserted.getCount();
         }
 
         public int getSendingAmount() {
@@ -239,17 +245,33 @@ public abstract class TransitRequest implements Iterable<TransitRequest.ItemData
             if (isEmpty()) {
                 return ItemStack.EMPTY;
             }
-            return slotData.getItemType().createStack(slotData.getTotalCount() - getSendingAmount());
+            return slotData.getItemType().createStack(usedAmount < 0
+                    ? slotData.getTotalCount() - getSendingAmount() : slotData.getTotalCount());
         }
 
         @Nonnull
         public ItemStack getRejected(ItemStack orig) {
-            return isEmpty() ? orig : StackUtils.size(orig, orig.getCount() - getSendingAmount());
+            if (isEmpty()) return orig;
+            return usedAmount < 0 ? StackUtils.size(orig, orig.getCount() - plannedAmount)
+                    : StackUtils.size(orig, slotData.getTotalCount());
         }
 
         @Nonnull
         public ItemStack use(int amount) {
-            return slotData == null ? ItemStack.EMPTY : slotData.use(amount);
+            if (slotData == null || amount <= 0) {
+                usedAmount = 0;
+                return ItemStack.EMPTY;
+            }
+            ItemStack used = slotData.use(amount);
+            usedAmount = used.isEmpty() ? 0 : used.getCount();
+            // updateTransit stores the same ItemStack instance in the in-flight
+            // transporter stack before useAll() is called. Mutating it here makes
+            // the physical shortfall visible to the transport path, preventing a
+            // predicted 320-stack from surviving after only 64 were extracted.
+            if (slotData instanceof HandlerTransitRequest.HandlerItemData || !used.isEmpty()) {
+                inserted.setCount(usedAmount);
+            }
+            return used;
         }
 
         @Nonnull

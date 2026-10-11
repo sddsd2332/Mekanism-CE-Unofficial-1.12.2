@@ -1,7 +1,6 @@
 package mekanism.client.jei.machine.other;
 
 import mekanism.api.gas.GasStack;
-import mekanism.client.gui.element.bar.GuiBar.IBarInfoHandler;
 import mekanism.client.gui.element.bar.GuiVerticalPowerBar;
 import mekanism.client.gui.element.gauge.GuiFluidGauge;
 import mekanism.client.gui.element.gauge.GuiGasGauge;
@@ -49,6 +48,7 @@ public class PRCRecipeCategory<WRAPPER extends PRCRecipeWrapper<PressurizedRecip
             public double getProgress() {
                 return (double) timer.getValue() / 20F;
             }
+
             @Override
             public boolean isGuiInJei() {
                 return true;

@@ -1,15 +1,13 @@
 package mekanism.common.recipe.lookup;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
-/** Closed execution data shared by built-in and explicitly projected third-party entries. */
+/**
+ * Closed execution data shared by built-in and explicitly projected third-party entries.
+ */
 public final class RecipeDefinition {
-    public enum Model { STANDARD, CONSTANT_SECONDARY, CHEMICAL_PAIR, ROTARY, AMBIENT, TEMPLATE, GAS_FUEL, EVAPORATION }
+    public enum Model {STANDARD, CONSTANT_SECONDARY, CHEMICAL_PAIR, ROTARY, AMBIENT, TEMPLATE, GAS_FUEL, EVAPORATION}
+
     private final Model model;
     private final List<RecipeFlow> inputs;
     private final List<RecipeFlow> outputs;
@@ -19,12 +17,12 @@ public final class RecipeDefinition {
     private final String unsupportedReason;
 
     public RecipeDefinition(Model model, List<RecipeFlow> inputs, List<RecipeFlow> outputs,
-          int duration, double extraEnergy, double fuelEnergy) {
+                            int duration, double extraEnergy, double fuelEnergy) {
         this(model, inputs, outputs, duration, extraEnergy, fuelEnergy, "");
     }
 
     private RecipeDefinition(Model model, List<RecipeFlow> inputs, List<RecipeFlow> outputs,
-          int duration, double extraEnergy, double fuelEnergy, String unsupportedReason) {
+                             int duration, double extraEnergy, double fuelEnergy, String unsupportedReason) {
         this.model = Objects.requireNonNull(model, "Recipe execution model");
         this.inputs = freeze(inputs, false);
         this.outputs = freeze(outputs, true);
@@ -51,16 +49,40 @@ public final class RecipeDefinition {
     }
 
     public static RecipeDefinition unsupported(String reason) {
-        if (Objects.requireNonNull(reason, "Unsupported reason").isEmpty()) throw new IllegalArgumentException("Missing unsupported reason");
+        if (Objects.requireNonNull(reason, "Unsupported reason").isEmpty())
+            throw new IllegalArgumentException("Missing unsupported reason");
         return new RecipeDefinition(Model.STANDARD, Collections.emptyList(), Collections.emptyList(), 0, 0, 0, reason);
     }
 
-    public Model getModel() { return model; }
-    public List<RecipeFlow> getInputs() { return inputs; }
-    public List<RecipeFlow> getOutputs() { return outputs; }
-    public int getDuration() { return duration; }
-    public double getExtraEnergy() { return extraEnergy; }
-    public double getFuelEnergy() { return fuelEnergy; }
-    public boolean isSupported() { return unsupportedReason.isEmpty(); }
-    public String getUnsupportedReason() { return unsupportedReason; }
+    public Model getModel() {
+        return model;
+    }
+
+    public List<RecipeFlow> getInputs() {
+        return inputs;
+    }
+
+    public List<RecipeFlow> getOutputs() {
+        return outputs;
+    }
+
+    public int getDuration() {
+        return duration;
+    }
+
+    public double getExtraEnergy() {
+        return extraEnergy;
+    }
+
+    public double getFuelEnergy() {
+        return fuelEnergy;
+    }
+
+    public boolean isSupported() {
+        return unsupportedReason.isEmpty();
+    }
+
+    public String getUnsupportedReason() {
+        return unsupportedReason;
+    }
 }

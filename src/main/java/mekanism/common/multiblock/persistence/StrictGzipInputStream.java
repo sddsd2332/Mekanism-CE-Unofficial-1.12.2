@@ -8,7 +8,9 @@ import java.util.zip.CRC32;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 
-/** A single gzip member, including its trailer. Extra members and compressed garbage are errors. */
+/**
+ * A single gzip member, including its trailer. Extra members and compressed garbage are errors.
+ */
 final class StrictGzipInputStream extends InputStream {
     private final PushbackInputStream input;
     private final Inflater inflater = new Inflater(true);
@@ -94,7 +96,8 @@ final class StrictGzipInputStream extends InputStream {
                     int remaining = inflater.getRemaining();
                     if (remaining > 0) input.unread(compressed, lastInputLength - remaining, remaining);
                     if (readLittleInt() != crc.getValue()) throw new IOException("Invalid gzip payload CRC");
-                    if (readLittleInt() != (expanded & 0xffffffffL)) throw new IOException("Invalid gzip expanded length");
+                    if (readLittleInt() != (expanded & 0xffffffffL))
+                        throw new IOException("Invalid gzip expanded length");
                     if (input.read() != -1) throw new IOException("Trailing compressed data after gzip member");
                     finished = true;
                     return -1;
@@ -118,7 +121,7 @@ final class StrictGzipInputStream extends InputStream {
 
     private long readLittleInt() throws IOException {
         return (long) requiredByte() | (long) requiredByte() << 8 |
-              (long) requiredByte() << 16 | (long) requiredByte() << 24;
+                (long) requiredByte() << 16 | (long) requiredByte() << 24;
     }
 
     long expandedBytes() {

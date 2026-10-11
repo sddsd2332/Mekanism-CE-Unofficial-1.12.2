@@ -21,11 +21,11 @@ public class TileEntityThermalEvaporationValve extends TileEntityThermalEvaporat
     @Override
     protected IFluidTankHolder getInitialFluidTanks(IContentsListener listener) {
         return ProxiedFluidTankHolder.create(
-              side -> getController() != null,
-              side -> getController() != null,
-              this::getValveFluidTanks,
-              this::getValveFluidTanksForInsert,
-              this::getValveFluidTanksForExtract
+                side -> getController() != null,
+                side -> getController() != null,
+                this::getValveFluidTanks,
+                this::getValveFluidTanksForInsert,
+                this::getValveFluidTanksForExtract
         );
     }
 
@@ -56,19 +56,32 @@ public class TileEntityThermalEvaporationValve extends TileEntityThermalEvaporat
             }
         }
         prevMaster = master != null;
+        TileEntityThermalEvaporationController controller = getController();
+        if (controller != null) controller.refreshStructureComparatorLevel(world.getTotalWorldTime());
         int newRedstoneLevel = getRedstoneLevel();
-        if (newRedstoneLevel != currentRedstoneLevel) {
+        boolean changed = currentRedstoneLevel != newRedstoneLevel;
+        if (changed) {
             updateComparatorOutputLevelSync();
             currentRedstoneLevel = newRedstoneLevel;
         }
     }
 
     @Override
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return type == mekanism.api.transmitters.TransmissionType.FLUID;
+    }
+
+    @Override
     public int getRedstoneLevel() {
         TileEntityThermalEvaporationController controller = getController();
         if (controller != null) {
-            return MekanismUtils.redstoneLevelFromContents(controller.inputTank.getFluidAmount(), controller.inputTank.getCapacity());
+            return controller.getStructureComparatorLevel();
         }
         return 0;
+    }
+
+    @Override
+    public int getCurrentRedstoneLevel() {
+        return supportsComparator() ? getRedstoneLevel() : 0;
     }
 }

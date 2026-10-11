@@ -5,7 +5,10 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Server-owned capability token for one open block or portable terminal container. */
+/**
+ * Server-owned capability token for one open block or portable terminal container.
+ */
+
 /**
  * QIO 处理模块中的 QIOProcessingTerminalSession 类型。
  *
@@ -45,17 +48,17 @@ public final class QIOProcessingTerminalSession {
 
     /** 创建一个绑定玩家和终端目标的会话。 */
     public QIOProcessingTerminalSession(@Nonnull UUID playerUUID,
-          @Nonnull TargetKind targetKind, @Nonnull QIOProcessingTerminalType terminalType,
-          @Nonnull UUID terminalUUID, long targetRevision, @Nullable UUID frequencyUUID,
-          long accessRevision) {
+                                        @Nonnull TargetKind targetKind, @Nonnull QIOProcessingTerminalType terminalType,
+                                        @Nonnull UUID terminalUUID, long targetRevision, @Nullable UUID frequencyUUID,
+                                        long accessRevision) {
         this(UUID.randomUUID(), playerUUID, targetKind, terminalType, terminalUUID,
-              targetRevision, frequencyUUID, accessRevision);
+                targetRevision, frequencyUUID, accessRevision);
     }
 
     QIOProcessingTerminalSession(@Nonnull UUID sessionNonce, @Nonnull UUID playerUUID,
-          @Nonnull TargetKind targetKind, @Nonnull QIOProcessingTerminalType terminalType,
-          @Nonnull UUID terminalUUID, long targetRevision, @Nullable UUID frequencyUUID,
-          long accessRevision) {
+                                 @Nonnull TargetKind targetKind, @Nonnull QIOProcessingTerminalType terminalType,
+                                 @Nonnull UUID terminalUUID, long targetRevision, @Nullable UUID frequencyUUID,
+                                 long accessRevision) {
         this.sessionNonce = Objects.requireNonNull(sessionNonce, "sessionNonce");
         this.playerUUID = Objects.requireNonNull(playerUUID, "playerUUID");
         this.targetKind = Objects.requireNonNull(targetKind, "targetKind");
@@ -121,10 +124,10 @@ public final class QIOProcessingTerminalSession {
     @Nonnull
     /** 校验请求 nonce、玩家身份、目标版本和访问版本。 */
     public Validation validate(@Nonnull UUID requestNonce, @Nonnull UUID requestPlayerUUID,
-          @Nonnull TargetKind requestTargetKind,
-          @Nonnull QIOProcessingTerminalType requestTerminalType,
-          @Nonnull UUID requestTerminalUUID, long requestTargetRevision,
-          @Nullable UUID requestFrequencyUUID, long currentAccessRevision) {
+                               @Nonnull TargetKind requestTargetKind,
+                               @Nonnull QIOProcessingTerminalType requestTerminalType,
+                               @Nonnull UUID requestTerminalUUID, long requestTargetRevision,
+                               @Nullable UUID requestFrequencyUUID, long currentAccessRevision) {
         if (!open) {
             return Validation.CLOSED;
         } else if (!sessionNonce.equals(requestNonce)) {
@@ -160,7 +163,7 @@ public final class QIOProcessingTerminalSession {
 
     /** 在目标版本匹配时切换频率绑定并推进访问版本。 */
     public void rebind(long expectedTargetRevision, long updatedTargetRevision,
-          @Nullable UUID updatedFrequencyUUID, long updatedAccessRevision) {
+                       @Nullable UUID updatedFrequencyUUID, long updatedAccessRevision) {
         validateFrequencyRevision(updatedFrequencyUUID, updatedAccessRevision);
         advanceTargetRevision(expectedTargetRevision, updatedTargetRevision);
         frequencyUUID = updatedFrequencyUUID;
@@ -180,7 +183,7 @@ public final class QIOProcessingTerminalSession {
     }
 
     private static void validateFrequencyRevision(@Nullable UUID frequencyUUID,
-          long accessRevision) {
+                                                  long accessRevision) {
         if (frequencyUUID == null ? accessRevision != -1 : accessRevision < 0) {
             throw new IllegalArgumentException("Frequency and access revision do not match");
         }

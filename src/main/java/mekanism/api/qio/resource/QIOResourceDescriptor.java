@@ -1,5 +1,6 @@
 package mekanism.api.qio.resource;
 
+import mekanism.api.gas.GasStack;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTBase;
@@ -7,7 +8,6 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.common.util.Constants.NBT;
-import mekanism.api.gas.GasStack;
 import net.minecraftforge.fluids.FluidStack;
 
 import javax.annotation.Nonnull;
@@ -17,7 +17,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-/** Immutable, amount-free and world-independent QIO resource identity. */
+/**
+ * Immutable, amount-free and world-independent QIO resource identity.
+ */
 public final class QIOResourceDescriptor implements Comparable<QIOResourceDescriptor> {
 
     private static final ClassValue<Boolean> PLAIN_ITEM_LIMIT = new ClassValue<Boolean>() {
@@ -44,25 +46,33 @@ public final class QIOResourceDescriptor implements Comparable<QIOResourceDescri
     private final long storageUnitsPerUnit;
     private final NBTTagCompound payload;
     private final boolean semanticIdentity;
-    /** The registry is append-only: a registered id can never be replaced or removed. */
+    /**
+     * The registry is append-only: a registered id can never be replaced or removed.
+     */
     @Nullable
     private final QIOResourceCodec<?> resolvedCodec;
     private final boolean fixedBuiltinMetadata;
     private final int semanticTypeHash;
     private final String stableKey;
     private final int hashCode;
-    /** Lazily decoded immutable-by-convention template for the hot item transfer path. */
+    /**
+     * Lazily decoded immutable-by-convention template for the hot item transfer path.
+     */
     @Nullable
     private transient volatile ItemStack itemStackTemplate;
-    /** Lazily decoded amount-free template for built-in fluid transfers. */
+    /**
+     * Lazily decoded amount-free template for built-in fluid transfers.
+     */
     @Nullable
     private transient volatile FluidStack fluidStackTemplate;
-    /** Lazily decoded amount-free template for built-in gas transfers. */
+    /**
+     * Lazily decoded amount-free template for built-in gas transfers.
+     */
     @Nullable
     private transient volatile GasStack gasStackTemplate;
 
     private QIOResourceDescriptor(ResourceLocation codecId, String family, int codecVersion,
-          long storageUnitsPerUnit, NBTTagCompound payload) {
+                                  long storageUnitsPerUnit, NBTTagCompound payload) {
         this.codecId = Objects.requireNonNull(codecId, "QIO codec id cannot be null");
         this.family = QIOResourceFamily.requireValid(family);
         if (codecVersion <= 0) {
@@ -74,12 +84,12 @@ public final class QIOResourceDescriptor implements Comparable<QIOResourceDescri
         this.codecVersion = codecVersion;
         this.storageUnitsPerUnit = storageUnitsPerUnit;
         NBTTagCompound canonicalPayload = canonicalCopy(Objects.requireNonNull(payload,
-              "QIO resource payload cannot be null"));
+                "QIO resource payload cannot be null"));
         QIOResourceCodec<?> registered = QIOResourceCodecRegistry.INSTANCE.get(codecId);
         SemanticIdentity identity = createSemanticIdentity(registered, canonicalPayload);
         resolvedCodec = identity == null ? null : registered;
         fixedBuiltinMetadata = resolvedCodec != null && (resolvedCodec == QIOResourceCodecs.ITEM_STACK ||
-              resolvedCodec == QIOResourceCodecs.FLUID_STACK || resolvedCodec == QIOResourceCodecs.GAS_STACK);
+                resolvedCodec == QIOResourceCodecs.FLUID_STACK || resolvedCodec == QIOResourceCodecs.GAS_STACK);
         if (identity == null) {
             this.payload = canonicalPayload;
             semanticIdentity = false;
@@ -106,19 +116,21 @@ public final class QIOResourceDescriptor implements Comparable<QIOResourceDescri
         T normalized = codec.normalize(Objects.requireNonNull(value, "QIO resource cannot be null"));
         NBTTagCompound payload = codec.writeTemplate(normalized);
         QIOResourceDescriptor descriptor = new QIOResourceDescriptor(codec.getCodecId(), family, version,
-              storageUnits, payload);
+                storageUnits, payload);
         if (!descriptor.semanticIdentity) {
             throw new IllegalArgumentException("QIO codec failed its normalize/identity round trip: " +
-                  codec.getCodecId());
+                    codec.getCodecId());
         }
         return descriptor;
     }
 
-    /** Creates a descriptor from trusted persistent metadata without requiring the codec to be installed. */
+    /**
+     * Creates a descriptor from trusted persistent metadata without requiring the codec to be installed.
+     */
     @Nonnull
     public static QIOResourceDescriptor persisted(@Nonnull ResourceLocation codecId,
-          @Nonnull String family, int codecVersion, long storageUnitsPerUnit,
-          @Nonnull NBTTagCompound payload) {
+                                                  @Nonnull String family, int codecVersion, long storageUnitsPerUnit,
+                                                  @Nonnull NBTTagCompound payload) {
         return new QIOResourceDescriptor(codecId, family, codecVersion, storageUnitsPerUnit, payload);
     }
 
@@ -145,7 +157,16 @@ public final class QIOResourceDescriptor implements Comparable<QIOResourceDescri
         return payload.copy();
     }
 
-    /** Whether the currently registered codec can safely decode this exact persisted descriptor. */
+    /**
+     * Persisted built-in item id only; never resolves a registry delegate or capability.
+     */
+    public String getPersistedItemId() {
+        return QIOResourceCodecs.ITEM_STACK_ID.equals(codecId) ? payload.getString("id") : "";
+    }
+
+    /**
+     * Whether the currently registered codec can safely decode this exact persisted descriptor.
+     */
     public boolean isResolved() {
         // Built-in codec metadata is final and was validated at construction. Extension codecs retain live checks.
         return fixedBuiltinMetadata || semanticIdentity && matchesMetadata(resolvedCodec);
@@ -176,6 +197,17 @@ public final class QIOResourceDescriptor implements Comparable<QIOResourceDescri
     public ItemStack resolveItemStackTemplate() {
         ItemStack template = getItemStackTemplate();
         return template == null ? null : template.copy();
+    }
+
+    /**
+     * Exact stored identity, including ForgeCaps, without constructing a temporary ItemStack.
+     */
+    public boolean matchesStoredItem(@Nonnull ItemStack stored) {
+        if (stored.isEmpty() || !semanticIdentity || !QIOResourceCodecs.ITEM_STACK_ID.equals(codecId))
+            return false;
+        NBTTagCompound identity = stored.writeToNBT(new NBTTagCompound());
+        identity.setByte("Count", (byte) 1);
+        return payload.equals(identity);
     }
 
     @Nullable
@@ -212,14 +244,16 @@ public final class QIOResourceDescriptor implements Comparable<QIOResourceDescri
             return -1;
         }
         if (!stored.isEmpty() && (!ItemStack.areItemsEqual(stored, template) ||
-              !ItemStack.areItemStackTagsEqual(stored, template))) {
+                !ItemStack.areItemStackTagsEqual(stored, template))) {
             return 0;
         }
         int maximum = obeyStackLimit ? Math.min(slotLimit, template.getMaxStackSize()) : slotLimit;
         return Math.max(0, maximum - stored.getCount());
     }
 
-    /** Resolves the fluid codec once per descriptor and returns a caller-owned copy. */
+    /**
+     * Resolves the fluid codec once per descriptor and returns a caller-owned copy.
+     */
     @Nullable
     public FluidStack resolveFluidStackTemplate() {
         if (!semanticIdentity || !QIOResourceCodecs.FLUID_STACK_ID.equals(codecId)) {
@@ -238,7 +272,9 @@ public final class QIOResourceDescriptor implements Comparable<QIOResourceDescri
         return new FluidStack(template, 1);
     }
 
-    /** Resolves the gas codec once per descriptor and returns a caller-owned copy. */
+    /**
+     * Resolves the gas codec once per descriptor and returns a caller-owned copy.
+     */
     @Nullable
     public GasStack resolveGasStackTemplate() {
         if (!semanticIdentity || !QIOResourceCodecs.GAS_STACK_ID.equals(codecId)) {
@@ -285,8 +321,8 @@ public final class QIOResourceDescriptor implements Comparable<QIOResourceDescri
     public static QIOResourceDescriptor read(@Nonnull NBTTagCompound data) {
         Objects.requireNonNull(data, "QIO resource descriptor cannot be null");
         if (!data.hasKey(CODEC, NBT.TAG_STRING) || !data.hasKey(FAMILY, NBT.TAG_STRING) ||
-              !data.hasKey(CODEC_VERSION, NBT.TAG_INT) || !data.hasKey(STORAGE_UNITS, NBT.TAG_LONG) ||
-              !data.hasKey(PAYLOAD, NBT.TAG_COMPOUND)) {
+                !data.hasKey(CODEC_VERSION, NBT.TAG_INT) || !data.hasKey(STORAGE_UNITS, NBT.TAG_LONG) ||
+                !data.hasKey(PAYLOAD, NBT.TAG_COMPOUND)) {
             throw new IllegalArgumentException("Incomplete QIO resource descriptor");
         }
         ResourceLocation codecId;
@@ -296,7 +332,7 @@ public final class QIOResourceDescriptor implements Comparable<QIOResourceDescri
             throw new IllegalArgumentException("Invalid QIO resource codec id: " + data.getString(CODEC), e);
         }
         return persisted(codecId, data.getString(FAMILY), data.getInteger(CODEC_VERSION),
-              data.getLong(STORAGE_UNITS), data.getCompoundTag(PAYLOAD));
+                data.getLong(STORAGE_UNITS), data.getCompoundTag(PAYLOAD));
     }
 
     @Override
@@ -316,7 +352,7 @@ public final class QIOResourceDescriptor implements Comparable<QIOResourceDescri
             return false;
         }
         if (storageUnitsPerUnit != other.storageUnitsPerUnit || !codecId.equals(other.codecId) ||
-              !family.equals(other.family)) {
+                !family.equals(other.family)) {
             return false;
         }
         if (semanticIdentity != other.semanticIdentity) {
@@ -351,7 +387,7 @@ public final class QIOResourceDescriptor implements Comparable<QIOResourceDescri
 
     private boolean matchesMetadata(@Nullable QIOResourceCodec<?> codec) {
         return codec != null && codecId.equals(codec.getCodecId()) && family.equals(codec.getFamily()) &&
-              storageUnitsPerUnit == codec.getStorageUnitsPerUnit();
+                storageUnitsPerUnit == codec.getStorageUnitsPerUnit();
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -362,7 +398,7 @@ public final class QIOResourceDescriptor implements Comparable<QIOResourceDescri
 
     @Nullable
     private SemanticIdentity createSemanticIdentity(@Nullable QIOResourceCodec<?> codec,
-          NBTTagCompound sourcePayload) {
+                                                    NBTTagCompound sourcePayload) {
         if (!matchesMetadata(codec)) {
             return null;
         }
@@ -372,7 +408,7 @@ public final class QIOResourceDescriptor implements Comparable<QIOResourceDescri
             NBTTagCompound rewritten = canonicalCopy(writeTemplateUnchecked(codec, normalized));
             Object roundTripped = decodeUnchecked(codec, rewritten);
             if (!sameTypeUnchecked(codec, normalized, roundTripped) ||
-                  typeHash != typeHashUnchecked(codec, roundTripped)) {
+                    typeHash != typeHashUnchecked(codec, roundTripped)) {
                 throw new IllegalArgumentException("QIO codec identity contract failed for " + codecId);
             }
             return new SemanticIdentity(rewritten, typeHash);

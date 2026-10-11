@@ -6,21 +6,17 @@ import mekanism.api.gas.GasStack;
 import mekanism.client.MekKeyHandler;
 import mekanism.client.MekanismClient;
 import mekanism.client.MekanismKeyHandler;
-import mekanism.client.render.MekanismRenderer;
 import mekanism.common.Mekanism;
-import mekanism.common.base.ISideConfiguration;
-import mekanism.common.base.ISustainedInventory;
 import mekanism.common.base.ITierItem;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.capabilities.ItemCapabilityWrapper;
 import mekanism.common.capabilities.gas.item.RateLimitGasHandler;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.inventory.slot.gas.GasInventorySlot;
-import mekanism.common.item.interfaces.IItemSustainedInventory;
 import mekanism.common.item.interfaces.IItemBlockPlacementData;
+import mekanism.common.item.interfaces.IItemSustainedInventory;
 import mekanism.common.item.interfaces.ILegacyGasItem;
 import mekanism.common.security.ISecurityItem;
-import mekanism.common.security.ISecurityTile;
 import mekanism.common.security.ISecurityTile.SecurityMode;
 import mekanism.common.tier.BaseTier;
 import mekanism.common.tier.GasTankTier;
@@ -30,12 +26,10 @@ import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismPlacementData;
 import mekanism.common.util.SecurityUtils;
 import net.minecraft.block.Block;
-import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.settings.GameSettings;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.creativetab.CreativeTabs;
-import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
@@ -95,7 +89,7 @@ public class ItemBlockGasTank extends ItemBlock implements ILegacyGasItem, IItem
 
     @Override
     public void restorePlacementData(@Nonnull ItemStack stack, @Nonnull EntityLivingBase placer, @Nonnull World world, @Nonnull BlockPos pos,
-          @Nonnull TileEntity tileEntity) {
+                                     @Nonnull TileEntity tileEntity) {
         if (!(tileEntity instanceof TileEntityGasTank gasTank)) {
             return;
         }

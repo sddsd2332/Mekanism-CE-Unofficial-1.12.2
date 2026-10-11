@@ -107,12 +107,12 @@ public final class InputHelper {
     }
 
     public static IInputHandler<GasStack, GasStack> getConstantGasInputHandler(IExtendedGasTank tank, RecipeError notEnoughError,
-          boolean resetOnNotEnough) {
+                                                                               boolean resetOnNotEnough) {
         return getConstantGasInputHandler(tank, notEnoughError, resetOnNotEnough, () -> true);
     }
 
     public static IInputHandler<GasStack, GasStack> getConstantGasInputHandler(IExtendedGasTank tank, RecipeError notEnoughError,
-          boolean resetOnNotEnough, BooleanSupplier deplete) {
+                                                                               boolean resetOnNotEnough, BooleanSupplier deplete) {
         return new IInputHandler<>() {
 
             @Override
@@ -160,12 +160,12 @@ public final class InputHelper {
     }
 
     public static IInputHandler<GasStack, GasStack> getGasInputHandler(IExtendedGasTank tank, IntSupplier perOperationUsage, RecipeError notEnoughError,
-          boolean resetOnNotEnough) {
+                                                                       boolean resetOnNotEnough) {
         return getGasInputHandler(tank, perOperationUsage, notEnoughError, resetOnNotEnough, () -> true);
     }
 
     public static IInputHandler<GasStack, GasStack> getGasInputHandler(IExtendedGasTank tank, IntSupplier perOperationUsage, RecipeError notEnoughError,
-          boolean resetOnNotEnough, BooleanSupplier deplete) {
+                                                                       boolean resetOnNotEnough, BooleanSupplier deplete) {
         return new IInputHandler<>() {
 
             @Override
@@ -251,12 +251,12 @@ public final class InputHelper {
     }
 
     public static IInputHandler<FluidStack, FluidStack> getConstantFluidInputHandler(IExtendedFluidTank tank, RecipeError notEnoughError,
-          boolean resetOnNotEnough) {
+                                                                                     boolean resetOnNotEnough) {
         return getConstantFluidInputHandler(tank, notEnoughError, resetOnNotEnough, () -> true);
     }
 
     public static IInputHandler<FluidStack, FluidStack> getConstantFluidInputHandler(IExtendedFluidTank tank, RecipeError notEnoughError,
-          boolean resetOnNotEnough, BooleanSupplier deplete) {
+                                                                                     boolean resetOnNotEnough, BooleanSupplier deplete) {
         return new IInputHandler<>() {
 
             @Override
@@ -307,7 +307,7 @@ public final class InputHelper {
     }
 
     public static IInputHandler<InfuseStorage, InfuseStorage> getInfuseInputHandler(InfuseStorage storage, RecipeError notEnoughError,
-          BooleanSupplier deplete) {
+                                                                                    BooleanSupplier deplete) {
         return new IInputHandler<>() {
 
             @Override

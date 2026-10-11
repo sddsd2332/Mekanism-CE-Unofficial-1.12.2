@@ -55,18 +55,18 @@ public class GuiUpgradeWindow extends GuiWindow {
         this.upgradeTile = upgradeTile;
         interactionStrategy = InteractionStrategy.ALL;
         scrollList = addChild(new GuiUpgradeScrollList(gui, relativeX + 6, relativeY + 18, 50, upgradeTile.getComponent(), () -> {
-              updateEnabledButtons();
-              msSelected = GuiElement.getMillis();
+            updateEnabledButtons();
+            msSelected = GuiElement.getMillis();
         }));
         addChild(new GuiSupportedUpgrades(gui, relativeX + 6, relativeY + 68, upgradeTile.getComponent()));
         rightScreen = addChild(new GuiInnerScreen(gui, scrollList.getRelativeRight(), relativeY + 18, 59, 50));
         addChild(new GuiProgress(() -> this.upgradeTile.getScaledUpgradeProgress(), ProgressType.INSTALLING, gui, rightScreen.getRelativeRight() + 3, relativeY + 37));
         addChild(new GuiProgress(() -> 0, ProgressType.UNINSTALLING, gui, rightScreen.getRelativeRight() + 3, relativeY + 58));
         removeButton = addChild(new DigitalButton(gui, scrollList.getRelativeRight() + 1, relativeY + 54, 56, 12, MekanismLang.UPGRADE_UNINSTALL,
-              (element, mouseX, mouseY) -> {
-                  removeSelectedUpgrade();
-                  return true;
-              }).setTooltip(MekanismLang.UPGRADE_UNINSTALL_TOOLTIP.translate()));
+                (element, mouseX, mouseY) -> {
+                    removeSelectedUpgrade();
+                    return true;
+                }).setTooltip(MekanismLang.UPGRADE_UNINSTALL_TOOLTIP.translate()));
         if (gui instanceof GuiMekanism<?> mekanismGui && mekanismGui.inventorySlots instanceof MekanismTileContainer<?> container) {
             addChild(new GuiVirtualSlot(this, SlotType.NORMAL, gui, rightScreen.getRelativeRight() + 2, relativeY + 18, container.getUpgradeSlot()));
             addChild(new GuiVirtualSlot(this, SlotType.NORMAL, gui, rightScreen.getRelativeRight() + 2, relativeY + 72, container.getUpgradeOutputSlot()));
@@ -125,16 +125,16 @@ public class GuiUpgradeWindow extends GuiWindow {
             }
             int amount = upgradeTile.getInstalledUpgrades(selectedType);
             WrappedTextRenderer textRenderer = upgradeTypeData.computeIfAbsent(selectedType,
-                  type -> new WrappedTextRenderer(this, LangUtils.localize("gui.upgrade") + ": " + type.getName()));
+                    type -> new WrappedTextRenderer(this, LangUtils.localize("gui.upgrade") + ": " + type.getName()));
             int screenWidth = rightScreen.getWidth() - 2;
             int lines = textRenderer.renderWithScale(rightScreen.getRelativeX() + 2, rightScreen.getRelativeY() + 2, screenTextColor(), screenWidth - 2, 0.6F);
             int textY = 4 + 6 * lines;
             rightScreen.drawScaledScrollingString(new TextComponentString(LangUtils.localize("gui.upgrades.amount") + ": " + amount + "/" + selectedType.getMaxInstalled()),
-                  0, textY, TextAlignment.LEFT, screenTextColor(), screenWidth, 2, false, 0.6F, msSelected);
+                    0, textY, TextAlignment.LEFT, screenTextColor(), screenWidth, 2, false, 0.6F, msSelected);
             for (String component : UpgradeUtils.getInfo(tile, selectedType)) {
                 textY += 6;
                 rightScreen.drawScaledScrollingString(new TextComponentString(component), 0, textY, TextAlignment.LEFT, screenTextColor(),
-                      screenWidth, 2, false, 0.6F, msSelected);
+                        screenWidth, 2, false, 0.6F, msSelected);
             }
         } else {
             noSelection.renderWithScale(rightScreen.getRelativeX() + 2, rightScreen.getRelativeY() + 2, screenTextColor(), 56, 0.8F);

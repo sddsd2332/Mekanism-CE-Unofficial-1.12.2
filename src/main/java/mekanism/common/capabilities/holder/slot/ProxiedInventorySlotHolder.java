@@ -15,12 +15,12 @@ public class ProxiedInventorySlotHolder extends ProxiedHolder implements IInvent
     private final Function<EnumFacing, List<IInventorySlot>> slotFunction;
 
     public static ProxiedInventorySlotHolder create(Predicate<EnumFacing> insertPredicate, Predicate<EnumFacing> extractPredicate,
-          Function<EnumFacing, List<IInventorySlot>> slotFunction) {
+                                                    Function<EnumFacing, List<IInventorySlot>> slotFunction) {
         return new ProxiedInventorySlotHolder(insertPredicate, extractPredicate, slotFunction);
     }
 
     private ProxiedInventorySlotHolder(Predicate<EnumFacing> insertPredicate, Predicate<EnumFacing> extractPredicate,
-          Function<EnumFacing, List<IInventorySlot>> slotFunction) {
+                                       Function<EnumFacing, List<IInventorySlot>> slotFunction) {
         super(insertPredicate, extractPredicate);
         this.slotFunction = slotFunction;
     }

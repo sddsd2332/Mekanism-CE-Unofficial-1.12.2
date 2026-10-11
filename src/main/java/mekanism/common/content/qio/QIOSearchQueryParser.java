@@ -4,18 +4,12 @@ import net.minecraft.item.ItemStack;
 import net.minecraftforge.oredict.OreDictionary;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.EnumMap;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.BiPredicate;
 
-/** Parser for the QIO viewer's name, mod, tooltip and ore-dictionary queries. */
+/**
+ * Parser for the QIO viewer's name, mod, tooltip and ore-dictionary queries.
+ */
 public final class QIOSearchQueryParser {
 
     private static final ISearchQuery INVALID = entry -> false;

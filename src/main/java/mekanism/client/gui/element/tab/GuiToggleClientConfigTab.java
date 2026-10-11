@@ -9,7 +9,9 @@ import mekanism.common.config.options.BooleanOption;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.text.ITextComponent;
 
-/** Side tab backed by a persistent client boolean option. */
+/**
+ * Side tab backed by a persistent client boolean option.
+ */
 public class GuiToggleClientConfigTab extends GuiInsetElement<BooleanOption> {
 
     private final ResourceLocation falseIcon;
@@ -18,7 +20,7 @@ public class GuiToggleClientConfigTab extends GuiInsetElement<BooleanOption> {
     private final ITextComponent falseTooltip;
 
     public GuiToggleClientConfigTab(IGuiWrapper gui, int y, boolean left, ResourceLocation falseIcon, ResourceLocation trueIcon,
-          BooleanOption option, ITextComponent trueTooltip, ITextComponent falseTooltip) {
+                                    BooleanOption option, ITextComponent trueTooltip, ITextComponent falseTooltip) {
         super(falseIcon, gui, option, left ? -26 : gui.getWidth(), y, 26, 18, left);
         this.falseIcon = falseIcon;
         this.trueIcon = trueIcon;

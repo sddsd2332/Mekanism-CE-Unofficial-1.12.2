@@ -20,7 +20,10 @@ import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
-/** Item-backed three-window holder used only by the portable smart processing terminal. */
+/**
+ * Item-backed three-window holder used only by the portable smart processing terminal.
+ */
+
 /**
  * QIO 处理模块中的 PortableQIOProcessingTerminalInventory 类型。
  *
@@ -28,23 +31,23 @@ import java.util.function.Supplier;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class PortableQIOProcessingTerminalInventory
-      implements IQIOCraftingWindowHolder {
+        implements IQIOCraftingWindowHolder {
 
     private final Supplier<ItemStack> stackSupplier;
     private final World world;
     private final BiConsumer<Long, Long> generationListener;
     private final QIOCraftingWindow[] craftingWindows =
-          new QIOCraftingWindow[MAX_CRAFTING_WINDOWS];
+            new QIOCraftingWindow[MAX_CRAFTING_WINDOWS];
     private boolean writing;
     private boolean dirty;
 
     public PortableQIOProcessingTerminalInventory(
-          @Nonnull Supplier<ItemStack> stackSupplier, @Nonnull World world,
-          @Nonnull BiConsumer<Long, Long> generationListener) {
+            @Nonnull Supplier<ItemStack> stackSupplier, @Nonnull World world,
+            @Nonnull BiConsumer<Long, Long> generationListener) {
         this.stackSupplier = Objects.requireNonNull(stackSupplier, "stackSupplier");
         this.world = Objects.requireNonNull(world, "world");
         this.generationListener = Objects.requireNonNull(generationListener,
-              "generationListener");
+                "generationListener");
         for (byte index = 0; index < craftingWindows.length; index++) {
             craftingWindows[index] = new QIOCraftingWindow(this, index);
         }
@@ -72,7 +75,7 @@ public final class PortableQIOProcessingTerminalInventory
             return null;
         }
         ItemPortableQIOProcessingTerminal item =
-              (ItemPortableQIOProcessingTerminal) stack.getItem();
+                (ItemPortableQIOProcessingTerminal) stack.getItem();
         return QIOProcessingFrequencyAccess.resolve(item.getFrequencyReference(stack));
     }
 
@@ -101,7 +104,7 @@ public final class PortableQIOProcessingTerminalInventory
                 return;
             }
             PortableQIOProcessingTerminalData data =
-                  PortableQIOProcessingTerminalData.read(stack);
+                    PortableQIOProcessingTerminalData.read(stack);
             if (data == null) {
                 return;
             }
@@ -113,7 +116,7 @@ public final class PortableQIOProcessingTerminalInventory
                 windows.appendTag(window);
             }
             NBTTagCompound root = stack.getTagCompound().getCompoundTag(
-                  PortableQIOProcessingTerminalData.ROOT_KEY);
+                    PortableQIOProcessingTerminalData.ROOT_KEY);
             root.setTag("craftingWindows", windows);
             PortableQIOProcessingTerminalData updated = data.advanceGeneration();
             updated.writeTo(stack);
@@ -131,11 +134,11 @@ public final class PortableQIOProcessingTerminalInventory
             return;
         }
         NBTTagCompound root = stack.getTagCompound().getCompoundTag(
-              PortableQIOProcessingTerminalData.ROOT_KEY);
+                PortableQIOProcessingTerminalData.ROOT_KEY);
         NBTTagList windows = root.getTagList("craftingWindows", NBT.TAG_COMPOUND);
         boolean[] seen = new boolean[craftingWindows.length];
         for (int index = 0; index < windows.tagCount() &&
-             index < craftingWindows.length; index++) {
+                index < craftingWindows.length; index++) {
             NBTTagCompound window = windows.getCompoundTagAt(index);
             int windowIndex = window.getByte("Window") & 0xFF;
             if (windowIndex < craftingWindows.length && !seen[windowIndex]) {
@@ -147,7 +150,7 @@ public final class PortableQIOProcessingTerminalInventory
 
     private static boolean isSmartTerminal(@Nullable ItemStack stack) {
         return stack != null && !stack.isEmpty() &&
-              stack.getItem() instanceof ItemPortableQIOProcessingTerminal item &&
-              item.getTerminalType() == QIOProcessingTerminalType.SMART_PROCESSING;
+                stack.getItem() instanceof ItemPortableQIOProcessingTerminal item &&
+                item.getTerminalType() == QIOProcessingTerminalType.SMART_PROCESSING;
     }
 }

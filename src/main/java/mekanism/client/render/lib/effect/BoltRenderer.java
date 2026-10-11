@@ -115,7 +115,7 @@ public class BoltRenderer {
         private final int blendDstAlpha;
 
         private GLState(boolean texture2D, boolean lighting, boolean blend, boolean cull, boolean depthMask, int blendSrcRgb, int blendDstRgb,
-              int blendSrcAlpha, int blendDstAlpha) {
+                        int blendSrcAlpha, int blendDstAlpha) {
             this.texture2D = texture2D;
             this.lighting = lighting;
             this.blend = blend;
@@ -129,8 +129,8 @@ public class BoltRenderer {
 
         private static GLState capture() {
             return new GLState(GL11.glIsEnabled(GL11.GL_TEXTURE_2D), GL11.glIsEnabled(GL11.GL_LIGHTING), GL11.glIsEnabled(GL11.GL_BLEND),
-                  GL11.glIsEnabled(GL11.GL_CULL_FACE), GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK), GL11.glGetInteger(GL14.GL_BLEND_SRC_RGB),
-                  GL11.glGetInteger(GL14.GL_BLEND_DST_RGB), GL11.glGetInteger(GL14.GL_BLEND_SRC_ALPHA), GL11.glGetInteger(GL14.GL_BLEND_DST_ALPHA));
+                    GL11.glIsEnabled(GL11.GL_CULL_FACE), GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK), GL11.glGetInteger(GL14.GL_BLEND_SRC_RGB),
+                    GL11.glGetInteger(GL14.GL_BLEND_DST_RGB), GL11.glGetInteger(GL14.GL_BLEND_SRC_ALPHA), GL11.glGetInteger(GL14.GL_BLEND_DST_ALPHA));
         }
 
         private void restore() {
@@ -249,8 +249,8 @@ public class BoltRenderer {
             Pair<Integer, Integer> bounds = bolt.getFadeFunction().getRenderBounds(renderQuads.size(), lifeScale);
             for (int i = bounds.getLeft(); i < bounds.getRight(); i++) {
                 renderQuads.get(i).getVecs().forEach(v -> buffer.pos(v.x, v.y, v.z)
-                      .color(bolt.getColor().r(), bolt.getColor().g(), bolt.getColor().b(), bolt.getColor().a())
-                      .endVertex());
+                        .color(bolt.getColor().r(), bolt.getColor().g(), bolt.getColor().b(), bolt.getColor().a())
+                        .endVertex());
             }
         }
 

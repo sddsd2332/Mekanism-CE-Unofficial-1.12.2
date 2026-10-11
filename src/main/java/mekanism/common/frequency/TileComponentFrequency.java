@@ -19,42 +19,45 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.EnumMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 public class TileComponentFrequency implements ITileComponent {
 
     private static final AtomicInteger OFFSET = new AtomicInteger();
+    private static final FrequencyData[] NO_FREQUENCIES = new FrequencyData[0];
 
     private final TileEntityContainerBlock tile;
     private final Map<FrequencyType<?>, FrequencyData> nonSecurityFrequencies = new LinkedHashMap<>();
+    // Registration changes rarely; server ticks must not allocate map iterators.
+    private FrequencyData[] tickingFrequencies = NO_FREQUENCIES;
     @Nullable
     private FrequencyData securityFrequency;
     private final Map<SecurityMode, Map<FrequencyType<?>, List<? extends Frequency>>> frequencyCache = new EnumMap<>(SecurityMode.class);
     private final int tickOffset;
     private boolean needsSave;
     private boolean needsNotify;
+    @Nullable
+    private mekanism.common.tile.component.TileComponentSecurity pendingSecurityRestore;
+
+    public void requestSecurityRestore(mekanism.common.tile.component.TileComponentSecurity security) {
+        pendingSecurityRestore = security;
+    }
 
     public TileComponentFrequency(TileEntityContainerBlock tile) {
         this.tile = tile;
         tickOffset = OFFSET.getAndIncrement() % 5;
-        tile.components.add(this);
+        tile.addComponent(this);
     }
 
     public void track(FrequencyType<?> type, boolean needsSync, boolean needsListCache, boolean notifyNeighbors) {
-        FrequencyData data = new FrequencyData(needsSync, needsListCache, notifyNeighbors);
+        FrequencyData data = new FrequencyData(type, needsSync, needsListCache, notifyNeighbors);
         if (type == FrequencyType.SECURITY) {
             securityFrequency = data;
         } else {
             nonSecurityFrequencies.put(type, data);
+            tickingFrequencies = nonSecurityFrequencies.values().toArray(NO_FREQUENCIES);
         }
     }
 
@@ -171,17 +174,17 @@ public class TileComponentFrequency implements ITileComponent {
         }
     }
 
-    @Override
-    public void tick() {
-        if (tile.getWorld() == null || tile.getWorld().isRemote) {
-            return;
+    public void tickServer() {
+        if (pendingSecurityRestore != null && pendingSecurityRestore.restoreOwnerFrequency()) {
+            pendingSecurityRestore = null;
         }
-        if (tile.getWorld().getTotalWorldTime() % 5 == tickOffset) {
+        if (((securityFrequency != null && securityFrequency.frequency != null) || tickingFrequencies.length != 0)
+                && tile.getWorld().getTotalWorldTime() % 5 == tickOffset) {
             if (securityFrequency != null) {
                 updateFrequency(FrequencyType.SECURITY, securityFrequency);
             }
-            for (Map.Entry<FrequencyType<?>, FrequencyData> entry : nonSecurityFrequencies.entrySet()) {
-                updateFrequency((FrequencyType<Frequency>) entry.getKey(), entry.getValue());
+            for (FrequencyData data : tickingFrequencies) {
+                updateFrequency(data.type, data);
             }
         }
         if (needsNotify) {
@@ -396,24 +399,26 @@ public class TileComponentFrequency implements ITileComponent {
                 container.track(SyncableFrequencyList.create(type, () -> getTrustedCache(type), trustedSetter));
             } else {
                 container.track(SyncableFrequencyList.create(type, () -> type.getManager(null, SecurityMode.PUBLIC).getFrequencies(),
-                      publicSetter));
+                        publicSetter));
                 container.track(SyncableFrequencyList.create(type, () -> type.getManager(container.getPlayerUUID(), SecurityMode.PRIVATE).getFrequencies(),
-                      privateSetter));
+                        privateSetter));
                 container.track(SyncableFrequencyList.create(type, () -> type.getManager(container.getPlayerUUID(), SecurityMode.TRUSTED).getFrequencies(),
-                      trustedSetter));
+                        trustedSetter));
             }
         }
     }
 
     private static class FrequencyData {
 
+        private final FrequencyType<?> type;
         private final boolean needsSync;
         private final boolean needsListCache;
         private final boolean notifyNeighbors;
         @Nullable
         private Frequency frequency;
 
-        private FrequencyData(boolean needsSync, boolean needsListCache, boolean notifyNeighbors) {
+        private FrequencyData(FrequencyType<?> type, boolean needsSync, boolean needsListCache, boolean notifyNeighbors) {
+            this.type = type;
             this.needsSync = needsSync;
             this.needsListCache = needsListCache;
             this.notifyNeighbors = notifyNeighbors;

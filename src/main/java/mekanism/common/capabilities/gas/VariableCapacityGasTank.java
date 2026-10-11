@@ -17,19 +17,19 @@ import java.util.function.Predicate;
 public class VariableCapacityGasTank extends BasicGasTank {
 
     public static VariableCapacityGasTank create(SynchronizedData<?> multiblock, IntSupplier capacity, Predicate<Gas> validator,
-          @Nullable IContentsListener listener) {
+                                                 @Nullable IContentsListener listener) {
         Objects.requireNonNull(multiblock, "Multiblock cannot be null");
         return createModern(multiblock, capacity, wrapValidatorToModern(validator), listener);
     }
 
     public static VariableCapacityGasTank input(SynchronizedData<?> multiblock, IntSupplier capacity, Predicate<Gas> validator,
-          @Nullable IContentsListener listener) {
+                                                @Nullable IContentsListener listener) {
         Objects.requireNonNull(multiblock, "Multiblock cannot be null");
         return inputModern(multiblock, capacity, wrapValidatorToModern(validator), listener);
     }
 
     public static VariableCapacityGasTank output(SynchronizedData<?> multiblock, IntSupplier capacity, Predicate<Gas> validator,
-          @Nullable IContentsListener listener) {
+                                                 @Nullable IContentsListener listener) {
         Objects.requireNonNull(multiblock, "Multiblock cannot be null");
         return outputModern(multiblock, capacity, wrapValidatorToModern(validator), listener);
     }
@@ -43,7 +43,7 @@ public class VariableCapacityGasTank extends BasicGasTank {
     }
 
     public static VariableCapacityGasTank create(IntSupplier capacity, BiPredicate<Gas, AutomationType> canExtract,
-          BiPredicate<Gas, AutomationType> canInsert, Predicate<Gas> validator, @Nullable IContentsListener listener) {
+                                                 BiPredicate<Gas, AutomationType> canInsert, Predicate<Gas> validator, @Nullable IContentsListener listener) {
         Objects.requireNonNull(capacity, "Capacity supplier cannot be null");
         Objects.requireNonNull(canExtract, "Extraction validity check cannot be null");
         Objects.requireNonNull(canInsert, "Insertion validity check cannot be null");
@@ -52,19 +52,19 @@ public class VariableCapacityGasTank extends BasicGasTank {
     }
 
     public static VariableCapacityGasTank createModern(SynchronizedData<?> multiblock, IntSupplier capacity, Predicate<GasStack> validator,
-          @Nullable IContentsListener listener) {
+                                                       @Nullable IContentsListener listener) {
         Objects.requireNonNull(multiblock, "Multiblock cannot be null");
         return createModern(capacity, multiblock.formedBiPred(), multiblock.formedBiPred(), validator, listener);
     }
 
     public static VariableCapacityGasTank inputModern(SynchronizedData<?> multiblock, IntSupplier capacity, Predicate<GasStack> validator,
-          @Nullable IContentsListener listener) {
+                                                      @Nullable IContentsListener listener) {
         Objects.requireNonNull(multiblock, "Multiblock cannot be null");
         return createModern(capacity, multiblock.notExternalFormedBiPred(), multiblock.formedBiPred(), validator, listener);
     }
 
     public static VariableCapacityGasTank outputModern(SynchronizedData<?> multiblock, IntSupplier capacity, Predicate<GasStack> validator,
-          @Nullable IContentsListener listener) {
+                                                       @Nullable IContentsListener listener) {
         Objects.requireNonNull(multiblock, "Multiblock cannot be null");
         return createModern(capacity, multiblock.formedBiPred(), multiblock.notExternalFormedBiPred(), validator, listener);
     }
@@ -78,7 +78,7 @@ public class VariableCapacityGasTank extends BasicGasTank {
     }
 
     public static VariableCapacityGasTank createModern(IntSupplier capacity, BiPredicate<GasStack, AutomationType> canExtract,
-          BiPredicate<GasStack, AutomationType> canInsert, Predicate<GasStack> validator, @Nullable IContentsListener listener) {
+                                                       BiPredicate<GasStack, AutomationType> canInsert, Predicate<GasStack> validator, @Nullable IContentsListener listener) {
         Objects.requireNonNull(capacity, "Capacity supplier cannot be null");
         Objects.requireNonNull(canExtract, "Extraction validity check cannot be null");
         Objects.requireNonNull(canInsert, "Insertion validity check cannot be null");
@@ -89,13 +89,13 @@ public class VariableCapacityGasTank extends BasicGasTank {
     private final IntSupplier capacity;
 
     protected VariableCapacityGasTank(IntSupplier capacity, BiPredicate<Gas, AutomationType> canExtract,
-          BiPredicate<Gas, AutomationType> canInsert, Predicate<Gas> validator, @Nullable IContentsListener listener) {
+                                      BiPredicate<Gas, AutomationType> canInsert, Predicate<Gas> validator, @Nullable IContentsListener listener) {
         super(capacity.getAsInt(), canExtract, canInsert, validator, listener);
         this.capacity = capacity;
     }
 
     protected VariableCapacityGasTank(IntSupplier capacity, BiPredicate<GasStack, AutomationType> canExtract,
-          BiPredicate<GasStack, AutomationType> canInsert, Predicate<GasStack> validator, @Nullable IContentsListener listener, @Nullable Void ignored) {
+                                      BiPredicate<GasStack, AutomationType> canInsert, Predicate<GasStack> validator, @Nullable IContentsListener listener, @Nullable Void ignored) {
         super(capacity.getAsInt(), canExtract, canInsert, validator, listener, null);
         this.capacity = capacity;
     }

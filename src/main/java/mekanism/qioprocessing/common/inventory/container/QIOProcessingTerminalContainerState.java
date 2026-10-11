@@ -2,8 +2,8 @@ package mekanism.qioprocessing.common.inventory.container;
 
 import mekanism.common.inventory.container.MekanismContainer;
 import mekanism.common.inventory.container.sync.SyncableNBT;
-import mekanism.qioprocessing.common.content.QIOProcessingNbt;
 import mekanism.qioprocessing.common.content.QIOProcessingDataException;
+import mekanism.qioprocessing.common.content.QIOProcessingNbt;
 import mekanism.qioprocessing.common.content.QIOProcessingNetworkData;
 import mekanism.qioprocessing.common.content.QIOProcessingNetworkManager;
 import mekanism.qioprocessing.common.terminal.QIOProcessingTerminalSession;
@@ -17,7 +17,10 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Supplier;
 
-/** Bounded client mirror of the capability header for one open terminal container. */
+/**
+ * Bounded client mirror of the capability header for one open terminal container.
+ */
+
 /**
  * QIO 处理模块中的 QIOProcessingTerminalContainerState 类型。
  *
@@ -43,9 +46,9 @@ public final class QIOProcessingTerminalContainerState {
     private long automationRecipeProfileRevision = -1;
 
     public QIOProcessingTerminalContainerState(@Nonnull MekanismContainer container,
-          @Nonnull Supplier<QIOProcessingTerminalSession> sessionSupplier) {
+                                               @Nonnull Supplier<QIOProcessingTerminalSession> sessionSupplier) {
         container.track(SyncableNBT.create(() -> write(sessionSupplier.get()),
-              this::read));
+                this::read));
     }
 
     public boolean isValid() {
@@ -94,13 +97,13 @@ public final class QIOProcessingTerminalContainerState {
     }
 
     public boolean matches(@Nonnull UUID expectedSessionNonce,
-          @Nonnull UUID expectedTerminalUUID, long expectedTargetRevision,
-          @Nonnull UUID expectedFrequencyUUID, long expectedAccessRevision) {
+                           @Nonnull UUID expectedTerminalUUID, long expectedTargetRevision,
+                           @Nonnull UUID expectedFrequencyUUID, long expectedAccessRevision) {
         return valid && expectedSessionNonce.equals(sessionNonce) &&
-              expectedTerminalUUID.equals(terminalUUID) &&
-              targetRevision == expectedTargetRevision &&
-              Objects.equals(frequencyUUID, expectedFrequencyUUID) &&
-              accessRevision == expectedAccessRevision;
+                expectedTerminalUUID.equals(terminalUUID) &&
+                targetRevision == expectedTargetRevision &&
+                Objects.equals(frequencyUUID, expectedFrequencyUUID) &&
+                accessRevision == expectedAccessRevision;
     }
 
     @Nonnull
@@ -122,7 +125,7 @@ public final class QIOProcessingTerminalContainerState {
         long recipeProfileRevision = -1;
         if (session.getFrequencyUUID() != null) {
             QIOProcessingNetworkData network = QIOProcessingNetworkManager.INSTANCE.get(
-                  session.getFrequencyUUID());
+                    session.getFrequencyUUID());
             if (network != null) {
                 directoryRevision = network.getAutomationDevices().getRevision();
                 recipeProfileRevision = network.getAutomationRecipeProfiles().getRevision();
@@ -137,36 +140,36 @@ public final class QIOProcessingTerminalContainerState {
         clear();
         try {
             if (!data.hasKey("sessionNonce", NBT.TAG_STRING) ||
-                !data.hasKey("targetKind", NBT.TAG_STRING) ||
-                !data.hasKey("terminalType", NBT.TAG_STRING) ||
-                !data.hasKey("terminalUUID", NBT.TAG_STRING) ||
-                !data.hasKey("targetRevision", NBT.TAG_LONG) ||
-                !data.hasKey("accessRevision", NBT.TAG_LONG)) {
+                    !data.hasKey("targetKind", NBT.TAG_STRING) ||
+                    !data.hasKey("terminalType", NBT.TAG_STRING) ||
+                    !data.hasKey("terminalUUID", NBT.TAG_STRING) ||
+                    !data.hasKey("targetRevision", NBT.TAG_LONG) ||
+                    !data.hasKey("accessRevision", NBT.TAG_LONG)) {
                 return;
             }
             UUID parsedNonce = QIOProcessingNbt.readUUID(data, "sessionNonce");
             QIOProcessingTerminalSession.TargetKind parsedKind =
-                  QIOProcessingTerminalSession.TargetKind.valueOf(
-                        data.getString("targetKind"));
+                    QIOProcessingTerminalSession.TargetKind.valueOf(
+                            data.getString("targetKind"));
             QIOProcessingTerminalType parsedType =
-                  QIOProcessingTerminalType.bySerializedName(
-                        data.getString("terminalType"));
+                    QIOProcessingTerminalType.bySerializedName(
+                            data.getString("terminalType"));
             if (parsedType == null) {
                 return;
             }
             UUID parsedTerminalUUID = QIOProcessingNbt.readUUID(data, "terminalUUID");
             long parsedTargetRevision = data.getLong("targetRevision");
             UUID parsedFrequencyUUID = data.hasKey("frequencyUUID", NBT.TAG_STRING) ?
-                  QIOProcessingNbt.readUUID(data, "frequencyUUID") : null;
+                    QIOProcessingNbt.readUUID(data, "frequencyUUID") : null;
             long parsedAccessRevision = data.getLong("accessRevision");
             long parsedDirectoryRevision = data.hasKey("deviceDirectoryRevision", NBT.TAG_LONG) ?
-                  data.getLong("deviceDirectoryRevision") : -1;
+                    data.getLong("deviceDirectoryRevision") : -1;
             long parsedRecipeProfileRevision = data.hasKey(
-                  "automationRecipeProfileRevision", NBT.TAG_LONG) ?
-                  data.getLong("automationRecipeProfileRevision") : -1;
+                    "automationRecipeProfileRevision", NBT.TAG_LONG) ?
+                    data.getLong("automationRecipeProfileRevision") : -1;
             if (parsedTargetRevision < 0 ||
-                (parsedFrequencyUUID == null ? parsedAccessRevision != -1 :
-                      parsedAccessRevision < 0) || parsedDirectoryRevision < -1) {
+                    (parsedFrequencyUUID == null ? parsedAccessRevision != -1 :
+                            parsedAccessRevision < 0) || parsedDirectoryRevision < -1) {
                 return;
             }
             if (parsedRecipeProfileRevision < -1) {

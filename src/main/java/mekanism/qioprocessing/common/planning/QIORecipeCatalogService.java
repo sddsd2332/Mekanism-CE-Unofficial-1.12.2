@@ -2,967 +2,421 @@ package mekanism.qioprocessing.common.planning;
 
 import mekanism.common.Mekanism;
 import mekanism.common.config.MekanismConfig;
-import mekanism.common.config.QIOProcessingConfig;
 import mekanism.common.config.QIORecipeCatalogScanMode;
+import mekanism.qioprocessing.common.content.workbench.QIOVerifiedWorkbenchPattern;
 import mekanism.qioprocessing.common.content.workbench.QIOWorkbenchConfiguration;
+import mekanism.qioprocessing.common.content.workbench.QIOWorkbenchConfiguration.EncodedPattern;
 import mekanism.qioprocessing.common.util.QIOHashing;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.crafting.IRecipe;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.world.World;
-import net.minecraftforge.fml.common.registry.ForgeRegistries;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.File;
-import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.*;
 
-/** Server-lifecycle cache of frequency-local, manually encoded workbench snapshots. */
 /**
- * QIO 处理模块中的 QIORecipeCatalogService 类型。
- *
- * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
- * 实现负责保持状态与持久化表示的一致。</p>
+ * Server validation knowledge and per-configuration projections of the process declaration
+ * directory. No global recipe execution, item/ore capture, disk catalog or server-world snapshot.
  */
 public final class QIORecipeCatalogService {
-
     public static final QIORecipeCatalogService INSTANCE = new QIORecipeCatalogService();
-    private static final double SERVER_TICKS_PER_SECOND = 20D;
-    @Nullable
-    private QIOWorkbenchRecipeCatalog.Snapshot snapshot;
-    @Nullable
-    private World world;
-    @Nullable
-    private QIOWorkbenchRecipeCatalog.RecipeOutputIndex recipeOutputIndex;
-    @Nullable
-    private QIOWorkbenchRecipeCatalog.RecipeOutputIndex.Capture capture;
-    @Nullable
-    private ExecutorService catalogWorkers;
-    @Nullable
-    private CompletableFuture<CacheLoadResult> cacheLoadFuture;
-    private List<QIORecipeCatalogPersistence.Candidate> cacheCandidates =
-          Collections.emptyList();
-    private int cacheCandidateIndex;
-    @Nullable
-    private QIORecipeCatalogPersistence.Candidate activeCacheCandidate;
-    @Nullable
-    private QIOWorkbenchRecipeCatalog.RecipeOutputIndex.CacheRestore cacheRestore;
-    @Nullable
-    private CompletableFuture<CacheSaveResult> cacheSaveFuture;
-    @Nullable
-    private QIOWorkbenchRecipeCatalog.RecipeOutputIndex deferredCacheSave;
-    private boolean deferredCacheSaveForced;
-    private long deferredCacheSaveClearEpoch;
-    @Nullable
-    private QIORecipeCatalogPersistence.SaveToken cacheSaveToken;
-    private long captureActiveTicks;
-    private int catalogWorkerCount;
-    private boolean generationTrusted;
-    private QIORecipeCatalogScanMode activeScanMode =
-          QIORecipeCatalogScanMode.DISABLED;
-    private String environmentSignature = "";
-    private long requestedRescanEpoch;
-    private long completedRescanEpoch;
-    @Nullable
-    private List<IRecipe> stableRecipeSnapshot;
-    /** Rescan epoch represented by the currently running capture, or zero when idle. */
-    private long captureRescanEpoch;
-    @Nullable
-    private String loadedCacheGenerationId;
-    @Nullable
-    private String loadedForgeSignature;
-    @Nullable
-    private UUID loadedDiskGeneration;
-    private boolean loadedCacheRequiresRepair;
+    private final QIOWeightedCache<String, QIOVerifiedWorkbenchPattern> verified = new QIOWeightedCache<>(
+            131_072, 128 * QIOWorkbenchMemory.MIB, (key, value) -> QIOWorkbenchMemory.text(key) + value.getRetainedBytes());
+    private final QIOWeightedCache<String, String> failures = new QIOWeightedCache<>(
+            131_072, 8 * QIOWorkbenchMemory.MIB, (key, value) -> 128 + QIOWorkbenchMemory.text(key) + QIOWorkbenchMemory.text(value));
+    private final Map<String, UUID> pending = new LinkedHashMap<>();
+    private final QIOWeightedCache<SnapshotKey, QIOWorkbenchRecipeCatalog.Snapshot> snapshots =
+            new QIOWeightedCache<>(64, 128 * QIOWorkbenchMemory.MIB, (key, value) -> 192 + value.getRetainedBytes());
+    private long epoch = -1;
+    private long serverEpoch;
     private long revision;
-    private final QIORecipeTargetedLookupGuard targetedLookupGuard =
-          new QIORecipeTargetedLookupGuard();
-    private final Map<SnapshotKey, QIOWorkbenchRecipeCatalog.Snapshot> frequencySnapshots =
-          new LinkedHashMap<>(64, 0.75F, true) {
-              @Override
-              protected boolean removeEldestEntry(
-                    Map.Entry<SnapshotKey, QIOWorkbenchRecipeCatalog.Snapshot> eldest) {
-                  return size() > 64;
-              }
-          };
+    private int defaultDimension;
+    private boolean started;
+    private boolean knowledgeSaturated;
+    @Nullable
+    private QIOWorkbenchDeclarations boundDirectory;
+    @Nullable
+    private QIOWorkbenchDiscovery.Bindings bindings;
 
     private QIORecipeCatalogService() {
     }
 
-    /**
-     * Starts a non-blocking server-lifecycle rebuild. Forge calls are captured in bounded server
-     * ticks; only frozen symbol and index data is handed to the configured catalog workers.
-     */
-    public synchronized void beginRefresh(@Nonnull World world) {
-        cancelBuild();
-        this.world = Objects.requireNonNull(world, "world");
-        snapshot = null;
-        // Do not publish an empty provisional index.  Callers use the presence of an index as
-        // the initialized signal, and binding that index used to clear every frequency's
-        // product-order table while the real capture was still running.
-        recipeOutputIndex = null;
-        generationTrusted = false;
-        loadedCacheGenerationId = null;
-        loadedForgeSignature = null;
-        loadedDiskGeneration = null;
-        loadedCacheRequiresRepair = false;
-        requestedRescanEpoch = 0;
-        completedRescanEpoch = 0;
-        stableRecipeSnapshot = null;
-        targetedLookupGuard.clear();
-        frequencySnapshots.clear();
-        incrementRevision();
-        QIOProcessingConfig config = MekanismConfig.local().qioProcessing;
-        activeScanMode = config.recipeCatalogScanMode.val();
-        if (!activeScanMode.usesPersistentCatalog()) {
-            environmentSignature = "";
-            recipeOutputIndex = QIOWorkbenchRecipeCatalog.RecipeOutputIndex.empty();
-            generationTrusted = true;
-            Mekanism.logger.info(
-                  "[QIO Recipe Catalog] Scan mode DISABLED: published an empty global directory; direct nine-slot encoding and UUID configuration copies remain available without a catalog scan");
-            return;
-        }
-        List<IRecipe> recipes = getStableRecipeSnapshot();
-        environmentSignature = environmentSignature(recipes);
-        Mekanism.logger.info(
-              "[QIO Recipe Catalog] Environment signature for this startup = {}",
-              environmentSignature);
-        ensureWorkers();
-        cacheSaveToken = new QIORecipeCatalogPersistence.SaveToken();
-        File worldDirectory = worldDirectory(world);
-        String currentEnvironmentSignature = environmentSignature;
-        cacheLoadFuture = worldDirectory == null ? CompletableFuture.completedFuture(
-              new CacheLoadResult(Collections.emptyList(),
-                    QIORecipeCatalogPersistence.ScanState.empty())) :
-              CompletableFuture.supplyAsync(() -> new CacheLoadResult(
-                    QIORecipeCatalogPersistence.loadCandidates(worldDirectory,
-                          currentEnvironmentSignature),
-                    QIORecipeCatalogPersistence.readScanState(worldDirectory)),
-                    Objects.requireNonNull(catalogWorkers));
-        if (activeScanMode.scansEveryStartup()) {
-            startFullCapture(recipes, "FULL mode startup validation");
-        } else {
-            Mekanism.logger.info(
-                  "[QIO Recipe Catalog] {} mode: loading a compatible cached directory before deciding whether a scan is required",
-                  activeScanMode);
-        }
+    public synchronized void beginRefresh(World world) {
+        QIOWorkbenchDirectoryService.requireServerThread(world);
+        defaultDimension = world.provider.getDimension();
+        started = true;
+        synchronizeEpoch();
     }
 
-    public synchronized void refresh(@Nonnull World world) {
-        cancelBuild();
-        this.world = Objects.requireNonNull(world, "world");
-        snapshot = null;
-        recipeOutputIndex = null;
-        stableRecipeSnapshot = null;
-        targetedLookupGuard.clear();
-        frequencySnapshots.clear();
-        incrementRevision();
-        List<IRecipe> recipes = getStableRecipeSnapshot();
-        environmentSignature = environmentSignature(recipes);
-        long startedNanos = System.nanoTime();
-        Mekanism.logger.info(
-              "[QIO Recipe Catalog] Synchronous build started: preparing {} registered workbench recipes",
-              recipes.size());
-        recipeOutputIndex = QIOWorkbenchRecipeCatalog.RecipeOutputIndex.build(world,
-              recipes, loggingListener());
-        generationTrusted = true;
-        String elapsedSeconds = String.format(Locale.ROOT, "%.3f",
-              (System.nanoTime() - startedNanos) / 1_000_000_000D);
-        Mekanism.logger.info(
-              "[QIO Recipe Catalog] Synchronous build completed: published {} workbench recipes in {} seconds",
-              recipeOutputIndex.getRecipeCount(), elapsedSeconds);
+    public synchronized void refresh(World world) {
+        QIOWorkbenchDirectoryService.requireServerThread(world);
+        QIOWorkbenchDirectoryService.INSTANCE.rebuild(world);
+        synchronizeEpoch();
     }
 
     @SubscribeEvent
     public void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase == TickEvent.Phase.START) {
-            synchronized (this) {
-                targetedLookupGuard.beginTick();
-            }
-            return;
-        }
-        if (event.phase == TickEvent.Phase.END) {
-            advanceCapture();
+        if (event.phase == TickEvent.Phase.END) synchronized (this) {
+            if (started) synchronizeEpoch();
         }
     }
 
-    /** Advances one bounded capture slice; package-visible for lifecycle tests. */
-    synchronized boolean advanceCapture() {
-        pollCacheLoad();
-        pollCacheSave();
-        QIOProcessingConfig config = MekanismConfig.local().qioProcessing;
-        int maximumCaptures = config.recipeCatalogCapturesPerTick.val();
-        long maximumNanos = TimeUnit.MILLISECONDS.toNanos(
-              config.recipeCatalogCaptureTimePerTick.val());
-        // Cache decoding touches registries and ItemStack capabilities, so it stays on the
-        // server thread and owns this tick's bounded capture slice when active.
-        if (advanceCacheRestore(maximumCaptures, maximumNanos)) {
-            return false;
-        }
-        if (capture == null) {
-            shutdownWorkersWhenIdle();
-            return false;
-        }
-        captureActiveTicks++;
-        try {
-            if (!capture.process(maximumCaptures, maximumNanos, catalogWorkers,
-                  catalogWorkerCount)) {
-                return false;
-            }
-            QIOWorkbenchRecipeCatalog.RecipeOutputIndex next = capture.finish();
-            long finishedCaptureEpoch = captureRescanEpoch;
-            String previousGeneration = recipeOutputIndex == null ? null :
-                  recipeOutputIndex.getGenerationId();
-            capture = null;
-            captureRescanEpoch = 0;
-
-            // A player (or a recipe loader) may request another scan while this snapshot is
-            // being processed. Publishing this stale generation and clearing the marker would
-            // lose the newly registered recipe, so queue a fresh stable registry snapshot.
-            if (requestedRescanEpoch > finishedCaptureEpoch) {
-                List<IRecipe> refreshed = refreshStableRecipeSnapshot();
-                environmentSignature = environmentSignature(refreshed);
-                targetedLookupGuard.clear();
-                startFullCapture(refreshed,
-                      "a newer rescan request arrived while the previous build was running");
-                Mekanism.logger.info(
-                      "[QIO Recipe Catalog] Deferred publication of a stale generation; restarting capture for rescan epoch {}",
-                      requestedRescanEpoch);
-                return true;
-            }
-
-            recipeOutputIndex = next;
-            generationTrusted = true;
-            frequencySnapshots.clear();
-            targetedLookupGuard.clear();
-            if (!next.getGenerationId().equals(previousGeneration)) {
-                incrementRevision();
-            }
-            long clearEpochAfterSave = requestedRescanEpoch;
-            scheduleCacheSave(next,
-                  clearEpochAfterSave > completedRescanEpoch || loadedCacheRequiresRepair,
-                  clearEpochAfterSave);
-                Mekanism.logger.info(
-                      "[QIO Recipe Catalog] Build completed: published {} workbench recipes in {} active server seconds",
-                      next.getRecipeCount(), activeCaptureSeconds());
-            Mekanism.logger.info(
-                  "[QIO Recipe Catalog] Build signatures: environment={} forge={}",
-                  environmentSignature, next.getForgeSignature());
-            return true;
-        } catch (RuntimeException error) {
-            Mekanism.logger.error(
-                  "[QIO Recipe Catalog] Build failed after {} active server seconds",
-                  activeCaptureSeconds(), error);
-            if (capture != null) capture.cancel();
-            capture = null;
-            captureRescanEpoch = 0;
-            if (recipeOutputIndex == null) generationTrusted = false;
-            frequencySnapshots.clear();
-            shutdownWorkersWhenIdle();
-            return false;
-        }
-    }
-
-    public synchronized boolean isBuilding() {
-        return capture != null || cacheLoadFuture != null || cacheRestore != null;
-    }
-
-    synchronized void observe(@Nonnull QIOWorkbenchRecipeCatalog.Snapshot next) {
-        Objects.requireNonNull(next, "next");
-        if (snapshot == null || !snapshot.getStructuralSignature().equals(
-              next.getStructuralSignature())) {
-            incrementRevision();
-        }
-        snapshot = next;
-        generationTrusted = true;
-    }
-
-    @Nonnull
-    public synchronized QIOWorkbenchRecipeCatalog.Snapshot getSnapshot() {
-        if (snapshot == null) {
-            throw new IllegalStateException("QIO workbench recipe catalog is not initialized");
-        }
-        return snapshot;
-    }
-
-    /** Returns the bounded catalog containing only this frequency's encoded patterns. */
-    @Nonnull
-    public synchronized QIOWorkbenchRecipeCatalog.Snapshot getSnapshot(
-          @Nonnull QIOWorkbenchConfiguration configuration) {
-        Objects.requireNonNull(configuration, "configuration");
-        // observe() remains a package-private test hook for deterministic catalog tests.
-        if (snapshot != null) {
-            return snapshot;
-        }
-        if (!generationTrusted) {
-            throw new IllegalStateException("QIO workbench recipe catalog is still loading");
-        }
-        if (recipeOutputIndex == null) {
-            if (world == null) {
-                throw new IllegalStateException("QIO workbench recipe catalog has no server world");
-            }
-            recipeOutputIndex = activeScanMode == QIORecipeCatalogScanMode.DISABLED ?
-                  QIOWorkbenchRecipeCatalog.RecipeOutputIndex.empty() :
-                  QIOWorkbenchRecipeCatalog.RecipeOutputIndex.build(world,
-                        getStableRecipeSnapshot());
-            generationTrusted = true;
-        }
-        String previousCatalogGeneration = configuration.getCatalogGenerationId();
-        configuration.bindCatalogGeneration(recipeOutputIndex.getGenerationId());
-        if (!previousCatalogGeneration.equals(recipeOutputIndex.getGenerationId())) {
-            frequencySnapshots.keySet().removeIf(existing ->
-                  existing.configUUID.equals(configuration.getConfigUUID()));
-        }
-        // A recipe can keep the same registry ID while its ingredients/signature change (for
-        // example through CRT/GRS). Move such entries out of the active planner immediately so
-        // they cannot leave this frequency in a permanently invalid state. The immutable copy is
-        // retained in recovery for an explicit player decision.
-        boolean targetedSnapshot = activeScanMode == QIORecipeCatalogScanMode.DISABLED ||
-              activeScanMode.scansAfterCatalogMiss() &&
-                    !recipeOutputIndex.arePatternsValid(configuration);
-        if (!targetedSnapshot) {
-            List<String> invalidPatterns = recipeOutputIndex.invalidPatternIds(configuration);
-            if (!invalidPatterns.isEmpty()) {
-                int quarantined = configuration.quarantineEncodedPatterns(invalidPatterns);
-                if (quarantined > 0) {
-                    Mekanism.logger.warn(
-                          "[QIO Recipe Catalog] Moved {} changed workbench patterns to recovery for frequency configuration {}",
-                          quarantined, configuration.getConfigUUID());
-                    frequencySnapshots.keySet().removeIf(existing ->
-                          existing.configUUID.equals(configuration.getConfigUUID()));
-                }
-            }
-        }
-        SnapshotKey key = new SnapshotKey(configuration.getConfigUUID(),
-              configuration.getPatternRevision());
-        QIOWorkbenchRecipeCatalog.Snapshot cached = frequencySnapshots.get(key);
-        if (cached != null) {
-            return cached;
-        }
-        frequencySnapshots.keySet().removeIf(existing ->
-              existing.configUUID.equals(configuration.getConfigUUID()));
-        QIOWorkbenchRecipeCatalog.Snapshot next = targetedSnapshot ?
-              QIOWorkbenchRecipeCatalog.capturePatterns(world,
-                    configuration.getEncodedPatterns(), ignored -> 0) :
-              recipeOutputIndex.snapshotFor(configuration);
-        frequencySnapshots.put(key, next);
-        return next;
-    }
-
-    @Nonnull
-    public synchronized State getState(@Nonnull QIOWorkbenchConfiguration configuration) {
-        return new State(getSnapshot(configuration), getRevision(configuration));
-    }
-
-    public synchronized long getRevision() {
-        return revision;
-    }
-
-    public synchronized long getRevision(@Nonnull QIOWorkbenchConfiguration configuration) {
-        Objects.requireNonNull(configuration, "configuration");
-        long mixed = revision ^ Long.rotateLeft(configuration.getPatternRevision(), 23);
-        return mixed & Long.MAX_VALUE;
-    }
-
-    /** Restores only recovery patterns which still match the currently published catalog. */
-    public synchronized int restoreRecoveryPatterns(@Nonnull QIOWorkbenchConfiguration configuration) {
-        Objects.requireNonNull(configuration, "configuration");
-        QIOWorkbenchRecipeCatalog.RecipeOutputIndex index = recipeOutputIndex;
-        if (!generationTrusted) {
-            return 0;
-        }
-        if (index == null) {
-            if (world == null) return 0;
-            index = QIOWorkbenchRecipeCatalog.RecipeOutputIndex.build(
-                  world, getStableRecipeSnapshot());
-            recipeOutputIndex = index;
-        }
-        int restored = configuration.restoreRecoveryPatterns(index::isPatternValid);
-        if (restored > 0) {
-            frequencySnapshots.keySet().removeIf(existing ->
-                  existing.configUUID.equals(configuration.getConfigUUID()));
-        }
-        return restored;
-    }
-
-    public synchronized boolean isInitialized() {
-        // A capture/cache restore is an initialized lifecycle as well.  This prevents callers
-        // from restarting the build every tick, while isReady() remains the publication gate.
-        return snapshot != null || recipeOutputIndex != null || capture != null ||
-              cacheLoadFuture != null || cacheRestore != null;
-    }
-
-    /** True only after the active generation has been atomically published. */
-    public synchronized boolean isReady() {
-        return generationTrusted && recipeOutputIndex != null;
-    }
-
-    @Nonnull
-    public synchronized QIORecipeCatalogScanMode getActiveScanMode() {
-        return activeScanMode;
-    }
-
-    public synchronized boolean allowsTargetedEncoding() {
-        return activeScanMode.allowsTargetedEncoding();
-    }
-
-    public synchronized boolean allowsBatchEncoding() {
-        return activeScanMode.allowsBatchEncoding();
-    }
-
-    public synchronized boolean allowsRecursiveImport() {
-        return activeScanMode.allowsRecursiveImport();
-    }
-
-    QIORecipeTargetedLookupGuard.Lookup lookupTargetedRecipe(int dimension,
-          @Nonnull List<ItemStack> grid) {
-        synchronized (this) {
-            return targetedLookupGuard.lookup(dimension, grid);
-        }
-    }
-
-    void rememberTargetedRecipe(int dimension, @Nonnull List<ItemStack> grid,
-          @Nullable ResourceLocation recipeId) {
-        synchronized (this) {
-            targetedLookupGuard.remember(dimension, grid, recipeId);
-        }
-    }
-
-    void forgetTargetedRecipe(int dimension, @Nonnull List<ItemStack> grid) {
-        synchronized (this) {
-            targetedLookupGuard.forget(dimension, grid);
-        }
-    }
-
-    boolean tryAcquireTargetedRecipeSearch() {
-        synchronized (this) {
-            return targetedLookupGuard.tryAcquireFullSearch();
-        }
-    }
-
-    /** Marks an on-demand catalog miss durably before starting its background rebuild. */
-    public synchronized void encodedPatternsAdded(
-          @Nonnull Collection<QIOWorkbenchConfiguration.EncodedPattern> patterns) {
-        Objects.requireNonNull(patterns, "patterns");
-        if (!activeScanMode.scansAfterCatalogMiss() || patterns.isEmpty()) return;
-        QIOWorkbenchRecipeCatalog.RecipeOutputIndex index = recipeOutputIndex;
-        QIOWorkbenchConfiguration.EncodedPattern missing = null;
-        for (QIOWorkbenchConfiguration.EncodedPattern pattern : patterns) {
-            if (pattern != null && (index == null || !index.isPatternValid(pattern))) {
-                missing = pattern;
-                break;
-            }
-        }
-        if (missing == null) return;
-        File directory = world == null ? null : worldDirectory(world);
-        // One epoch may cover every miss observed before its capture starts. Once that capture
-        // is running, the first later miss must allocate a newer epoch so an unexpected shutdown
-        // cannot make the old generation clear work it never captured. Further misses share the
-        // already queued follow-up epoch and do not cause an unbounded restart loop.
-        boolean followUpAlreadyQueued = hasQueuedFollowUpEpoch(capture != null,
-              captureRescanEpoch, requestedRescanEpoch);
-        if (!followUpAlreadyQueued) {
-            if (directory != null) {
-                try {
-                    observeScanState(QIORecipeCatalogPersistence.markRescanRequired(directory,
-                          missing.getRecipeId().toString()));
-                } catch (IOException error) {
-                    Mekanism.logger.error(
-                          "Unable to persist the QIO recipe catalog rescan marker for {}",
-                          missing.getRecipeId(), error);
-                    requestRescanLocally();
-                }
-            } else {
-                requestRescanLocally();
-            }
-        }
-        if (capture == null) {
-            // CHANGED mode may be reached after a runtime recipe loader has modified Forge's
-            // registry. Re-capture the registry now instead of reusing the startup snapshot.
-            List<IRecipe> refreshed = refreshStableRecipeSnapshot();
-            environmentSignature = environmentSignature(refreshed);
-            targetedLookupGuard.clear();
-            startFullCapture(refreshed,
-                  "an uncached player-encoded recipe");
-        }
-    }
-
-    /** Returns the parsed immutable directory built for the active server lifecycle. */
-    @Nonnull
-    synchronized QIOWorkbenchRecipeCatalog.RecipeOutputIndex getRecipeOutputIndex(
-          @Nonnull World world) {
-        Objects.requireNonNull(world, "world");
-        if (this.world == null) {
-            this.world = world;
-        }
-        if (recipeOutputIndex == null) {
-            // Direct recipe-selection calls can happen while the lifecycle capture is still in
-            // progress.  Give those callers a temporary immutable view without publishing it or
-            // touching any frequency configuration.
-            if (!generationTrusted) {
-                return QIOWorkbenchRecipeCatalog.RecipeOutputIndex.empty();
-            }
-            recipeOutputIndex = activeScanMode == QIORecipeCatalogScanMode.DISABLED ?
-                  QIOWorkbenchRecipeCatalog.RecipeOutputIndex.empty() :
-                  QIOWorkbenchRecipeCatalog.RecipeOutputIndex.build(world,
-                        getStableRecipeSnapshot());
-            generationTrusted = true;
-        }
-        return recipeOutputIndex;
-    }
-
-    @Nonnull
-    public synchronized State getState() {
-        if (snapshot == null) {
-            throw new IllegalStateException("QIO workbench recipe catalog is not initialized");
-        }
-        return new State(snapshot, revision);
-    }
-
-    public synchronized void clear() {
-        cancelBuild();
-        snapshot = null;
-        world = null;
-        recipeOutputIndex = null;
-        frequencySnapshots.clear();
-        revision = 0;
-        catalogWorkerCount = 0;
-        generationTrusted = false;
-        activeScanMode = QIORecipeCatalogScanMode.DISABLED;
-        environmentSignature = "";
-        requestedRescanEpoch = 0;
-        completedRescanEpoch = 0;
-        stableRecipeSnapshot = null;
-        targetedLookupGuard.clear();
-        loadedCacheGenerationId = null;
-        loadedForgeSignature = null;
-        loadedDiskGeneration = null;
-        loadedCacheRequiresRepair = false;
-        cacheSaveToken = null;
-    }
-
-    private QIOWorkbenchRecipeCatalog.RecipeOutputIndex.BuildListener loggingListener() {
-        return new QIOWorkbenchRecipeCatalog.RecipeOutputIndex.BuildListener() {
-            @Override
-            public void scanComplete(int recipeCount) {
-                Mekanism.logger.info(
-                      "Global QIO workbench recipe scan found {} recipes; preparing numeric tables",
-                      recipeCount);
-            }
-
-            @Override
-            public void cacheStarted(int recipeCount) {
-                Mekanism.logger.info("Caching {} global QIO workbench recipes",
-                      recipeCount);
-            }
-
-            @Override
-            public void stageComplete(String stage, long elapsedNanos, int processed) {
-                Mekanism.logger.info(
-                      "[QIO Recipe Catalog] Stage {} completed in {} ms (processed {})",
-                      stage, String.format(Locale.ROOT, "%.3f", elapsedNanos / 1_000_000D),
-                      processed);
-            }
-        };
-    }
-
-    private void incrementRevision() {
-        if (revision == Long.MAX_VALUE) {
-            throw new IllegalStateException("QIO recipe catalog revision exhausted");
-        }
+    private void synchronizeEpoch() {
+        long next = QIOWorkbenchDirectoryService.INSTANCE.getEpoch();
+        if (epoch == next) return;
+        for (UUID request : pending.values()) QIOWorkbenchValidationService.INSTANCE.cancel(request);
+        pending.clear();
+        verified.clear();
+        knowledgeSaturated = false;
+        failures.clear();
+        snapshots.clear();
+        bindings = null;
+        boundDirectory = null;
+        QIOWorkbenchKnowledge.clear();
+        epoch = next;
         revision++;
     }
 
-    private String activeCaptureSeconds() {
-        return String.format(Locale.ROOT, "%.3f",
-              captureActiveTicks / SERVER_TICKS_PER_SECOND);
+    public synchronized boolean isInitialized() {
+        return started;
     }
 
-    private void cancelBuild() {
-        if (cacheSaveToken != null) {
-            cacheSaveToken.invalidate();
-            cacheSaveToken = null;
-        }
-        if (cacheLoadFuture != null) {
-            cacheLoadFuture.cancel(true);
-            cacheLoadFuture = null;
-        }
-        if (cacheSaveFuture != null) {
-            cacheSaveFuture.cancel(true);
-            cacheSaveFuture = null;
-        }
-        deferredCacheSave = null;
-        deferredCacheSaveForced = false;
-        deferredCacheSaveClearEpoch = 0;
-        if (cacheRestore != null) {
-            cacheRestore.cancel();
-            cacheRestore = null;
-        }
-        activeCacheCandidate = null;
-        cacheCandidates = Collections.emptyList();
-        cacheCandidateIndex = 0;
-        if (capture != null) {
-            capture.cancel();
-            capture = null;
-        }
-        captureRescanEpoch = 0;
-        shutdownWorkers();
+    public synchronized boolean isReady() {
+        QIOWorkbenchDirectoryService.State state = QIOWorkbenchDirectoryService.INSTANCE.getState();
+        return started && (state == QIOWorkbenchDirectoryService.State.READY ||
+                state == QIOWorkbenchDirectoryService.State.MANUAL_ONLY);
     }
 
-    private void pollCacheLoad() {
-        CompletableFuture<CacheLoadResult> pending = cacheLoadFuture;
-        if (pending == null || !pending.isDone()) return;
-        cacheLoadFuture = null;
-        CacheLoadResult loaded;
-        try {
-            loaded = pending.join();
-        } catch (RuntimeException error) {
-            Mekanism.logger.warn("Unable to load the QIO recipe catalog cache", error);
-            loaded = new CacheLoadResult(Collections.emptyList(),
-                  QIORecipeCatalogPersistence.ScanState.conservative());
+    public synchronized boolean isBuilding() {
+        return started && !isReady();
+    }
+
+    public synchronized QIOWorkbenchRecipeCatalog.Snapshot getSnapshot() {
+        requireReady();
+        return QIOWorkbenchRecipeCatalog.emptyPublished(directory().getGeneration());
+    }
+
+    public synchronized QIOWorkbenchRecipeCatalog.Snapshot getSnapshot(QIOWorkbenchConfiguration configuration) {
+        return getSnapshot(configuration, defaultDimension);
+    }
+
+    public synchronized QIOWorkbenchRecipeCatalog.Snapshot getSnapshot(QIOWorkbenchConfiguration configuration, int dimension) {
+        requireReady();
+        synchronizeEpoch();
+        QIOWorkbenchDeclarations directory = directory();
+        if (configuration.getRuntimeBook() != null) {
+            SnapshotKey key = new SnapshotKey(configuration.getConfigUUID(), configuration.getPatternRevision(),
+                    configuration.getRevision(), dimension, revision, configuration.getCatalogGenerationId(),
+                    configuration.getRuntimeBook());
+            QIOWorkbenchRecipeCatalog.Snapshot cached = snapshots.get(key);
+            if (cached != null) return cached;
+            QIOWorkbenchRecipeCatalog.Snapshot result = QIOWorkbenchRecipeCatalog.projectBook(
+                    configuration.getRuntimeBook(), configuration.getRuntimeCatalog(), dimension, epoch);
+            snapshots.put(key, result);
+            return result;
         }
-        observeScanState(loaded.scanState);
-        // A FULL scan may finish before asynchronous cache I/O. Never replace its freshly
-        // published result with the older disk generation.
-        if (capture == null && generationTrusted && recipeOutputIndex != null) {
-            if (isRescanRequired()) {
-                scheduleCacheSave(recipeOutputIndex, true, requestedRescanEpoch);
+        configuration.bindCatalogGeneration(directory.getGeneration());
+        SnapshotKey key = new SnapshotKey(configuration.getConfigUUID(), configuration.getPatternRevision(), configuration.getRevision(), dimension, revision);
+        QIOWorkbenchRecipeCatalog.Snapshot cached = snapshots.get(key);
+        if (cached != null) return cached;
+        List<EncodedPattern> ready = new ArrayList<>();
+        List<String> diagnostics = new ArrayList<>();
+        boolean settled = true;
+        for (EncodedPattern pattern : configuration.getEncodedPatterns()) {
+            String identity = key(pattern, dimension);
+            QIOVerifiedWorkbenchPattern current = verified.get(identity);
+            if (current != null) {
+                current = current.withId(pattern.getPatternUUID());
+                try {
+                    migrateConfiguration(configuration, pattern, current);
+                    ready.add(EncodedPattern.fromVerified(current));
+                } catch (IllegalArgumentException | IllegalStateException conflict) {
+                    // Preference failures belong to this configuration, not to the shared
+                    // physical grid. Keep another frequency's identical recipe usable.
+                    diagnostics.add(pattern.getRecipeId() + ": PREFERENCE_MIGRATION_CONFLICT: " + conflict.getMessage());
+                }
+            } else {
+                String failure = failures.get(identity);
+                if (failure == null && knowledgeSaturated)
+                    failure = "WORKBENCH_SERVER_KNOWLEDGE_LIMIT: rebuild directory or restart to release validation knowledge";
+                if (failure == null) {
+                    settled = false;
+                    requestValidation(configuration, pattern, dimension, identity);
+                }
+                diagnostics.add(pattern.getRecipeId() + ": " + (failure == null ? "AWAITING_SERVER_VALIDATION" : failure));
             }
+        }
+        QIOWorkbenchRecipeCatalog.Snapshot result = QIOWorkbenchRecipeCatalog.projectVerified(
+                QIOWorkbenchRecipeCatalog.emptyPublished(directory.getGeneration()), ready, directory, dimension, epoch);
+        result = QIOWorkbenchRecipeCatalog.withDiagnostics(result, diagnostics);
+        if (settled)
+            snapshots.put(new SnapshotKey(configuration.getConfigUUID(), configuration.getPatternRevision(), configuration.getRevision(), dimension, revision), result);
+        return result;
+    }
+
+    public synchronized State getState(QIOWorkbenchConfiguration configuration) {
+        return getState(configuration, defaultDimension);
+    }
+
+    public synchronized State getState(QIOWorkbenchConfiguration configuration, int dimension) {
+        QIOWorkbenchRecipeCatalog.Snapshot snapshot = getSnapshot(configuration, dimension);
+        return new State(snapshot, getRevision(configuration));
+    }
+
+    public synchronized boolean isValidating(QIOWorkbenchConfiguration configuration, int dimension) {
+        // Book candidates are validated on demand by the selected-plan continuation.
+        if (configuration.getRuntimeBook() != null) return false;
+        if (knowledgeSaturated) return false;
+        if (snapshots.containsKey(new SnapshotKey(configuration.getConfigUUID(), configuration.getPatternRevision(), configuration.getRevision(), dimension, revision)))
+            return false;
+        for (EncodedPattern pattern : configuration.getEncodedPatterns()) {
+            String identity = key(pattern, dimension);
+            if (!verified.containsKey(identity) && !failures.containsKey(identity)) return true;
+        }
+        return false;
+    }
+
+    public synchronized boolean isValidating(QIOWorkbenchConfiguration configuration) {
+        return isValidating(configuration, defaultDimension);
+    }
+
+    public synchronized State getState() {
+        return new State(getSnapshot(), getRevision());
+    }
+
+    public synchronized long getRevision() {
+        synchronizeEpoch();
+        return revision;
+    }
+
+    public synchronized long getRevision(QIOWorkbenchConfiguration configuration) {
+        long value = getRevision() ^ Long.rotateLeft(configuration.getPatternRevision(), 23);
+        if (configuration.getRuntimeBook() != null) {
+            value ^= Long.parseUnsignedLong(configuration.getCatalogGenerationId().substring(0, 16), 16);
+        }
+        return value & Long.MAX_VALUE;
+    }
+
+    public synchronized void recordVerified(QIOVerifiedWorkbenchPattern pattern, int dimension) {
+        synchronizeEpoch();
+        EncodedPattern encoded = EncodedPattern.fromVerified(pattern);
+        if (!verified.admit(Collections.singletonMap(key(encoded, dimension), pattern))) {
+            saturateKnowledge();
             return;
         }
-        List<QIORecipeCatalogPersistence.Candidate> compatible = new ArrayList<>();
-        for (QIORecipeCatalogPersistence.Candidate candidate : loaded.candidates) {
-            if (environmentSignature.equals(candidate.environmentSignature)) {
-                compatible.add(candidate);
-            }
-        }
-        if (!loaded.candidates.isEmpty() && compatible.isEmpty()) {
-            Mekanism.logger.info(
-                  "[QIO Recipe Catalog] Cached directory belongs to a different Forge environment; scheduling a rebuild");
-        }
-        cacheCandidates = Collections.unmodifiableList(compatible);
-        cacheCandidateIndex = 0;
-        beginNextCacheRestore();
+        failures.remove(key(encoded, dimension));
+        snapshots.clear();
     }
 
-    private boolean advanceCacheRestore(int maximumRecords, long maximumNanos) {
-        QIOWorkbenchRecipeCatalog.RecipeOutputIndex.CacheRestore active = cacheRestore;
-            if (active == null) return false;
-        try {
-            if (!active.process(maximumRecords, maximumNanos, catalogWorkers,
-                  catalogWorkerCount)) {
-                return true;
-            }
-            QIOWorkbenchRecipeCatalog.RecipeOutputIndex restored = active.finish();
-            QIORecipeCatalogPersistence.Candidate candidate =
-                  Objects.requireNonNull(activeCacheCandidate, "active cache candidate");
-            recipeOutputIndex = restored;
-            loadedCacheGenerationId = restored.getGenerationId();
-            loadedForgeSignature = candidate.cache.forgeData.structuralSignature;
-            loadedDiskGeneration = candidate.diskGeneration;
-            loadedCacheRequiresRepair = candidate.manifestRepairRequired;
-            generationTrusted = true;
-            frequencySnapshots.clear();
-            targetedLookupGuard.clear();
-            incrementRevision();
-            cacheRestore = null;
-            activeCacheCandidate = null;
-            cacheCandidates = Collections.emptyList();
-            cacheCandidateIndex = 0;
-            if (activeScanMode.scansEveryStartup()) {
-                Mekanism.logger.info(
-                      "Incrementally loaded {} cached QIO workbench recipes for immediate use; validating Forge data in the background",
-                      restored.getRecipeCount());
-            } else {
-                Mekanism.logger.info(
-                      "Incrementally loaded {} cached QIO workbench recipes in {} mode{}",
-                      restored.getRecipeCount(), activeScanMode,
-                      activeScanMode.scansAfterCatalogMiss() && isRescanRequired() ?
-                            "; a persisted rescan is required" :
-                      "; full scan skipped");
-                Mekanism.logger.info(
-                      "[QIO Recipe Catalog] Cache restore signatures: environment={} forge={} generation={}",
-                      environmentSignature, restored.getForgeSignature(), candidate.diskGeneration);
-                if (activeScanMode.scansAfterCatalogMiss() && isRescanRequired()) {
-                    startFullCapture(getStableRecipeSnapshot(),
-                          "the persisted CHANGED-mode rescan marker");
-                } else if (loadedCacheRequiresRepair) {
-                    scheduleCacheSave(restored, true, 0);
+    public synchronized void recordVerified(QIOVerifiedWorkbenchPattern pattern) {
+        recordVerified(pattern, defaultDimension);
+    }
+
+    private void requestValidation(QIOWorkbenchConfiguration configuration, EncodedPattern pattern, int dimension, String identity) {
+        if (knowledgeSaturated || pending.containsKey(identity) || pending.size() >= 4096) return;
+        UUID owner = UUID.randomUUID();
+        pending.put(identity, owner);
+        long capturedEpoch = epoch;
+        long capturedServer = serverEpoch;
+        QIOWorkbenchValidationService.Admission admission = QIOWorkbenchValidationService.INSTANCE.submit(
+                QIOWorkbenchValidationService.request(owner, dimension, epoch, pattern), result -> {
+                    synchronized (QIORecipeCatalogService.this) {
+                        if (capturedServer != serverEpoch || capturedEpoch != QIOWorkbenchDirectoryService.INSTANCE.getEpoch() ||
+                                !owner.equals(pending.get(identity))) return;
+                        pending.remove(identity);
+                        if (!result.isValid()) {
+                            if (result.getStatus() == QIOWorkbenchValidationService.Status.WORLD_UNAVAILABLE ||
+                                    result.getStatus() == QIOWorkbenchValidationService.Status.STALE_GENERATION) return;
+                            failure(identity, pattern, result.getStatus() + ": " + result.getDiagnostic());
+                            return;
+                        }
+                        try {
+                            QIOVerifiedWorkbenchPattern migrated = migrate(pattern, result);
+                            if (pattern.getVerified() != null && !pattern.getVerified().getOutputs().equals(migrated.getOutputs())) {
+                                failure(identity, pattern, "Verified physical outputs changed");
+                                return;
+                            }
+                            Map<String, QIOVerifiedWorkbenchPattern> aliases = new LinkedHashMap<>();
+                            aliases.put(identity, migrated);
+                            aliases.put(key(EncodedPattern.fromVerified(migrated), dimension), migrated);
+                            if (!verified.admit(aliases)) {
+                                saturateKnowledge();
+                                return;
+                            }
+                            snapshots.clear();
+                            revision++;
+                        } catch (RuntimeException error) {
+                            failure(identity, pattern, error.getClass().getSimpleName() + ": " + error.getMessage());
+                        }
+                    }
+                });
+        if (admission != QIOWorkbenchValidationService.Admission.ACCEPTED) pending.remove(identity);
+    }
+
+    private QIOVerifiedWorkbenchPattern migrate(EncodedPattern pattern, QIOWorkbenchValidationService.Result result) {
+        QIOWorkbenchDeclarations directory = directory();
+        QIOWorkbenchDeclarations.Recipe declaration = directory.get(pattern.getRecipeId());
+        if (pattern.getVerified() != null) {
+            QIOVerifiedWorkbenchPattern previous = pattern.getVerified();
+            for (int slot = 0; slot < 9; slot++) {
+                if (!previous.getRemainders().get(slot).getKey().equals(result.getRemainders().get(slot).getKey())) {
+                    throw new IllegalArgumentException("Physical remainder changed at slot " + slot);
                 }
             }
-            return true;
-            } catch (RuntimeException error) {
-            Mekanism.logger.warn(
-                  "Ignoring incompatible QIO recipe catalog generation {} during restore",
-                  activeCacheCandidate == null ? "<unknown>" : activeCacheCandidate.diskGeneration,
-                  error);
-            Mekanism.logger.info(
-                  "[QIO Recipe Catalog] Cache miss: compatible generation restore failed; rebuilding the catalog");
-            active.cancel();
-            cacheRestore = null;
-            activeCacheCandidate = null;
-            beginNextCacheRestore();
-            return true;
+            QIOVerifiedWorkbenchPattern refreshed = previous.revalidated(directory.getGeneration(), result);
+            return declaration == null ? refreshed : refreshed.withDeclaration(declaration.getSignature(), refreshed.getLayout());
         }
+        String signature = declaration == null ? QIOHashing.sha256("manual|" + pattern.getRecipeId()) : declaration.getSignature();
+        QIOWorkbenchDeclarations.Layout layout = QIOWorkbenchDeclarations.Layout.ORDERED_UNKNOWN;
+        // Upgrade to the declared layout only when every physical slot is represented there.
+        // Otherwise preserve the old concrete physical layout; never shift a persisted grid.
+        if (declaration != null) {
+            boolean aligned = true;
+            for (int slot = 0; slot < 9; slot++) {
+                String stack = result.getInputs().get(slot).getKey();
+                boolean matches = false;
+                for (QIOWorkbenchDeclarations.Choice choice : declaration.getSlots().get(slot)) {
+                    if (!choice.isVirtualFluid() && choice.getStack().getKey().equals(stack)) matches = true;
+                }
+                if (!matches) aligned = false;
+            }
+            if (aligned) layout = declaration.getLayout();
+        }
+        return QIOVerifiedWorkbenchPattern.concrete(pattern.getPatternUUID(), pattern.getRecipeId(), signature,
+                directory.getGeneration(), layout, result);
     }
 
-    private void beginNextCacheRestore() {
-        while (cacheCandidateIndex < cacheCandidates.size()) {
-            QIORecipeCatalogPersistence.Candidate candidate =
-                  cacheCandidates.get(cacheCandidateIndex++);
-            try {
-                activeCacheCandidate = candidate;
-                cacheRestore = QIOWorkbenchRecipeCatalog.RecipeOutputIndex
-                      .beginCacheRestore(candidate.cache);
-                return;
-            } catch (RuntimeException error) {
-                Mekanism.logger.warn(
-                      "Ignoring incompatible QIO recipe catalog generation {} before restore",
-                      candidate.diskGeneration, error);
+    private void failure(String identity, EncodedPattern pattern, String diagnostic) {
+        if (!failures.admit(Collections.singletonMap(identity, diagnostic))) saturateKnowledge();
+        snapshots.clear();
+        revision++;
+        Mekanism.logger.warn("[QIO Workbench] Retained incompatible pattern {}: {}", pattern.getRecipeId(), diagnostic);
+    }
+
+    private void saturateKnowledge() {
+        knowledgeSaturated = true;
+        for (UUID owner : pending.values()) QIOWorkbenchValidationService.INSTANCE.cancel(owner);
+        pending.clear();
+        snapshots.clear();
+        revision++;
+        Mekanism.logger.warn("[QIO Workbench] WORKBENCH_SERVER_KNOWLEDGE_LIMIT; retained credentials remain valid, new validation paused until rebuild/restart");
+    }
+
+    private void migrateConfiguration(QIOWorkbenchConfiguration configuration, EncodedPattern previous,
+                                      QIOVerifiedWorkbenchPattern current) {
+        Map<Integer, Map<String, List<String>>> aliases = new LinkedHashMap<>();
+        // Old schemas hashed capability-neutral candidate identities. Preserve their order and
+        // exclusions when a neutral identity expands to several complete capability states.
+        if (previous.getVerified() == null) {
+            QIOWorkbenchDeclarations.Recipe recipe = directory().get(previous.getRecipeId());
+            List<List<QIOWorkbenchDeclarations.Choice>> aligned = recipe == null ? null : recipe.slotsForGrid(current.getGrid());
+            for (int slot = 0; slot < 9; slot++) {
+                Map<String, List<String>> mapping = new LinkedHashMap<>();
+                if (aligned != null) for (QIOWorkbenchDeclarations.Choice choice : aligned.get(slot)) {
+                    if (choice.getStack().isEmpty()) continue;
+                    addAlias(mapping, choice.getResource(), choice.getAmount(), choice.isVirtualFluid(), choice.getStack());
+                }
+                if (!current.getGrid().get(slot).isEmpty()) addAlias(mapping, current.getConsumedResource(slot),
+                        current.getConsumedAmount(slot), current.getVirtualSlots()[slot], current.getGrid().get(slot));
+                aliases.put(slot, mapping);
             }
         }
-        activeCacheCandidate = null;
-        cacheRestore = null;
-        cacheCandidates = Collections.emptyList();
-        cacheCandidateIndex = 0;
-        if (capture == null && (!generationTrusted || recipeOutputIndex == null)) {
-            Mekanism.logger.info(
-                  "[QIO Recipe Catalog] Cache lookup exhausted: no compatible generation could be restored");
-            startFullCapture(getStableRecipeSnapshot(),
-                  "no compatible cached directory");
-        }
+        configuration.migrateVerified(previous, current, aliases);
     }
 
-    private void scheduleCacheSave(QIOWorkbenchRecipeCatalog.RecipeOutputIndex next,
-          boolean force, long clearRescanEpoch) {
-        if (cacheSaveFuture != null) {
-            deferredCacheSave = next;
-            deferredCacheSaveForced |= force;
-            deferredCacheSaveClearEpoch = Math.max(deferredCacheSaveClearEpoch,
-                  clearRescanEpoch);
-            return;
-        }
-        ExecutorService workers = catalogWorkers;
-        World activeWorld = world;
-        if (workers == null || activeWorld == null) return;
-        boolean unchanged = next.getGenerationId().equals(loadedCacheGenerationId) &&
-              next.getForgeSignature().equals(loadedForgeSignature) &&
-              !loadedCacheRequiresRepair;
-        if (unchanged && !force) return;
-        File worldDirectory = worldDirectory(activeWorld);
-        if (worldDirectory == null) return;
-        QIORecipeCatalogPersistence.SaveToken token = cacheSaveToken;
-        if (token == null) return;
-        UUID retainedGeneration = loadedDiskGeneration;
-        String savedGenerationId = next.getGenerationId();
-        String savedForgeSignature = next.getForgeSignature();
-        String savedEnvironmentSignature = environmentSignature;
-        cacheSaveFuture = CompletableFuture.supplyAsync(() -> {
-            try {
-                UUID diskGeneration = QIORecipeCatalogPersistence.save(worldDirectory,
-                      next.writeCache(), savedEnvironmentSignature, retainedGeneration, token);
-                QIORecipeCatalogPersistence.ScanState scanState =
-                      diskGeneration != null && clearRescanEpoch > 0 ?
-                            QIORecipeCatalogPersistence.clearRescanRequired(worldDirectory,
-                                  clearRescanEpoch) : null;
-                return new CacheSaveResult(diskGeneration, savedGenerationId,
-                      savedForgeSignature, scanState);
-            } catch (IOException error) {
-                throw new java.util.concurrent.CompletionException(error);
-            }
-        }, workers);
+    private static void addAlias(Map<String, List<String>> aliases,
+                                 mekanism.qioprocessing.api.resource.PortableResourceDescriptor resource, long amount,
+                                 boolean virtual, QIOWorkbenchDeclarations.Stack stack) {
+        String oldKey = virtual ? "F|" + resource + '|' + amount + '|' + stack.getResource().withoutCapabilities() :
+                "I|" + resource.withoutCapabilities();
+        String newKey = virtual ? "F|" + resource + '|' + amount + '|' + stack.getResource() : "I|" + resource;
+        List<String> replacements = aliases.computeIfAbsent(QIOHashing.sha256(oldKey), ignored -> new ArrayList<>());
+        String candidate = QIOHashing.sha256(newKey);
+        if (!replacements.contains(candidate)) replacements.add(candidate);
     }
 
-    private void pollCacheSave() {
-        CompletableFuture<CacheSaveResult> pending = cacheSaveFuture;
-        if (pending == null || !pending.isDone()) return;
-        cacheSaveFuture = null;
-        try {
-            CacheSaveResult saved = pending.join();
-            if (saved.diskGeneration != null) {
-                loadedDiskGeneration = saved.diskGeneration;
-                loadedCacheGenerationId = saved.catalogGenerationId;
-                loadedForgeSignature = saved.forgeSignature;
-                loadedCacheRequiresRepair = false;
-                if (saved.scanState != null) observeScanState(saved.scanState);
-                Mekanism.logger.info("Persisted the validated QIO recipe catalog generation");
-            }
-        } catch (RuntimeException error) {
-            Mekanism.logger.warn("Unable to persist the QIO recipe catalog generation", error);
-        }
-        QIOWorkbenchRecipeCatalog.RecipeOutputIndex deferred = deferredCacheSave;
-        boolean force = deferredCacheSaveForced;
-        long clearEpoch = deferredCacheSaveClearEpoch;
-        deferredCacheSave = null;
-        deferredCacheSaveForced = false;
-        deferredCacheSaveClearEpoch = 0;
-        if (deferred != null) {
-            scheduleCacheSave(deferred, force, clearEpoch);
-        }
+    private static String key(EncodedPattern pattern, int dimension) {
+        StringBuilder identity = new StringBuilder().append(dimension).append('|').append(pattern.getRecipeId())
+                .append('|').append(pattern.getOutput()).append('@').append(pattern.getOutputAmount());
+        for (QIOWorkbenchDeclarations.Stack stack : pattern.getFrozenGrid())
+            identity.append('|').append(stack.getKey());
+        if (pattern.getVerified() != null) identity.append('|').append(pattern.getVerified().getContentSignature());
+        return QIOHashing.sha256(identity);
     }
 
-    private void startFullCapture(List<? extends IRecipe> recipes, String reason) {
-        if (capture != null) return;
-        ensureWorkers();
-        if (cacheSaveToken == null) {
-            cacheSaveToken = new QIORecipeCatalogPersistence.SaveToken();
-        }
-        captureActiveTicks = 0;
-        captureRescanEpoch = requestedRescanEpoch;
-        targetedLookupGuard.clear();
-        Mekanism.logger.info(
-              "[QIO Recipe Catalog] Build started in {} mode ({}): preparing {} registered workbench recipes; players may join while it builds",
-              activeScanMode, reason, recipes.size());
-        capture = QIOWorkbenchRecipeCatalog.RecipeOutputIndex.beginGlobalCaptureStable(
-              Objects.requireNonNull(world, "world"), recipes, loggingListener());
+    public synchronized QIOWorkbenchRecipeCatalog.Snapshot getEncodedSelectionSnapshot(EncodedPattern pattern, int dimension) {
+        if (!isReady() || pattern.getVerified() == null || !verified.containsKey(key(pattern, dimension))) return null;
+        return QIOWorkbenchRecipeCatalog.projectVerified(QIOWorkbenchRecipeCatalog.emptyPublished(directory().getGeneration()),
+                Collections.singletonList(pattern), directory(), dimension, epoch);
     }
 
-    private void ensureWorkers() {
-        if (catalogWorkers != null && !catalogWorkers.isShutdown()) return;
-        catalogWorkerCount = MekanismConfig.local().qioProcessing
-              .recipeCatalogWorkerThreads.val();
-        AtomicInteger workerNumber = new AtomicInteger();
-        catalogWorkers = Executors.newFixedThreadPool(catalogWorkerCount, runnable -> {
-            Thread thread = new Thread(runnable,
-                  "Mekanism-QIO-Recipe-Catalog-" + workerNumber.incrementAndGet());
-            thread.setDaemon(true);
-            return thread;
+    public synchronized QIOWorkbenchDiscovery.Bindings capturePlannerBindings(QIOWorkbenchDeclarations declarations) {
+        if (bindings == null || boundDirectory != declarations) {
+            Map<ResourceLocation, String> signatures = new LinkedHashMap<>();
+            for (QIOWorkbenchDeclarations.Recipe recipe : declarations.getRecipes())
+                signatures.put(recipe.getId(), recipe.getSignature());
+            bindings = new QIOWorkbenchDiscovery.Bindings(signatures);
+            boundDirectory = declarations;
+        }
+        return bindings;
+    }
+
+    public synchronized int restoreRecoveryPatterns(QIOWorkbenchConfiguration configuration) {
+        requireReady();
+        return configuration.restoreRecoveryPatterns(pattern -> {
+            String identity = key(pattern, defaultDimension);
+            if (verified.containsKey(identity)) return true;
+            if (!failures.containsKey(identity)) requestValidation(configuration, pattern, defaultDimension, identity);
+            return false;
         });
     }
 
-    @Nonnull
-    synchronized List<IRecipe> getStableRecipeSnapshot() {
-        if (stableRecipeSnapshot != null) return stableRecipeSnapshot;
-        stableRecipeSnapshot = captureStableRecipeSnapshot();
-        return stableRecipeSnapshot;
+    public synchronized void encodedPatternsAdded(Collection<EncodedPattern> patterns) {
+        if (!patterns.isEmpty()) snapshots.clear();
     }
 
-    /** Re-captures the live Forge registry for a deliberate CHANGED-mode rescan. */
-    private synchronized List<IRecipe> refreshStableRecipeSnapshot() {
-        stableRecipeSnapshot = captureStableRecipeSnapshot();
-        return stableRecipeSnapshot;
+    public synchronized QIORecipeCatalogScanMode getActiveScanMode() {
+        return MekanismConfig.local().qioProcessing.recipeCatalogScanMode.val();
     }
 
-    @Nonnull
-    private static List<IRecipe> captureStableRecipeSnapshot() {
-        List<IRecipe> recipes = new ArrayList<>(ForgeRegistries.RECIPES.getValuesCollection());
-        recipes.removeIf(recipe -> recipe == null || recipe.getRegistryName() == null);
-        recipes.sort(java.util.Comparator.comparing(recipe ->
-              recipe.getRegistryName().toString()));
-        return Collections.unmodifiableList(recipes);
+    public boolean allowsTargetedEncoding() {
+        return true;
     }
 
-    private static String environmentSignature(List<? extends IRecipe> recipes) {
-        try {
-            return QIORecipeCatalogEnvironment.fingerprint(recipes);
-        } catch (RuntimeException | LinkageError error) {
-            Mekanism.logger.warn(
-                  "Unable to fingerprint the Forge recipe environment; this cache generation will be rebuilt on the next startup",
-                  error);
-            return QIOHashing.sha256("untrusted-environment|" + UUID.randomUUID());
-        }
+    public boolean allowsBatchEncoding() {
+        return getActiveScanMode().allowsBatchEncoding();
     }
 
-    private boolean isRescanRequired() {
-        return requestedRescanEpoch > completedRescanEpoch;
+    public boolean allowsRecursiveImport() {
+        return getActiveScanMode().allowsRecursiveImport();
     }
 
-    /** Package-visible state-machine predicate used by focused rescan lifecycle tests. */
-    static boolean hasQueuedFollowUpEpoch(boolean captureActive, long captureEpoch,
-          long requestedEpoch) {
-        if (captureEpoch < 0 || requestedEpoch < 0) {
-            throw new IllegalArgumentException("QIO recipe rescan epochs cannot be negative");
-        }
-        return captureActive && requestedEpoch > captureEpoch;
+    private void requireReady() {
+        if (!isReady()) throw new IllegalStateException("Workbench declaration directory is not ready");
     }
 
-    private void observeScanState(QIORecipeCatalogPersistence.ScanState state) {
-        requestedRescanEpoch = Math.max(requestedRescanEpoch, state.requestedEpoch);
-        completedRescanEpoch = Math.max(completedRescanEpoch, state.completedEpoch);
-        completedRescanEpoch = Math.min(completedRescanEpoch, requestedRescanEpoch);
+    private QIOWorkbenchDeclarations directory() {
+        return QIOWorkbenchDirectoryService.INSTANCE.getDirectory();
     }
 
-    private void requestRescanLocally() {
-        if (requestedRescanEpoch == Long.MAX_VALUE) {
-            throw new IllegalStateException("QIO recipe rescan epoch exhausted");
-        }
-        requestedRescanEpoch++;
+    public synchronized void clear() {
+        knowledgeSaturated = false;
+        serverEpoch++;
+        QIOWorkbenchKnowledge.clear();
+        for (UUID owner : pending.values()) QIOWorkbenchValidationService.INSTANCE.cancel(owner);
+        pending.clear();
+        verified.clear();
+        failures.clear();
+        snapshots.clear();
+        bindings = null;
+        boundDirectory = null;
+        started = false;
+        epoch = -1;
+        revision++;
     }
 
-    private void shutdownWorkersWhenIdle() {
-        if (capture == null && cacheLoadFuture == null && cacheRestore == null &&
-            cacheSaveFuture == null && deferredCacheSave == null) {
-            shutdownWorkers();
-        }
-    }
-
-    @Nullable
-    private static File worldDirectory(World world) {
-        try {
-            return world.getSaveHandler().getWorldDirectory();
-        } catch (RuntimeException error) {
-            Mekanism.logger.debug(
-                  "QIO recipe catalog persistence is unavailable for this server world", error);
-            return null;
-        }
-    }
-
-    private void shutdownWorkers() {
-        if (catalogWorkers != null) {
-            catalogWorkers.shutdownNow();
-            catalogWorkers = null;
-        }
-        catalogWorkerCount = 0;
-    }
-
-    private static final class CacheLoadResult {
-
-        private final List<QIORecipeCatalogPersistence.Candidate> candidates;
-        private final QIORecipeCatalogPersistence.ScanState scanState;
-
-        private CacheLoadResult(List<QIORecipeCatalogPersistence.Candidate> candidates,
-              QIORecipeCatalogPersistence.ScanState scanState) {
-            this.candidates = Collections.unmodifiableList(new ArrayList<>(candidates));
-            this.scanState = Objects.requireNonNull(scanState, "scanState");
-        }
-    }
-
-    private static final class CacheSaveResult {
-
-        @Nullable private final UUID diskGeneration;
-        private final String catalogGenerationId;
-        private final String forgeSignature;
-        @Nullable private final QIORecipeCatalogPersistence.ScanState scanState;
-
-        private CacheSaveResult(@Nullable UUID diskGeneration,
-              String catalogGenerationId, String forgeSignature,
-              @Nullable QIORecipeCatalogPersistence.ScanState scanState) {
-            this.diskGeneration = diskGeneration;
-            this.catalogGenerationId = catalogGenerationId;
-            this.forgeSignature = forgeSignature;
-            this.scanState = scanState;
-        }
-    }
-
-    /** Atomically pairs a catalog snapshot with the revision that describes it. */
     public static final class State {
-
         private final QIOWorkbenchRecipeCatalog.Snapshot snapshot;
         private final long revision;
 
@@ -971,7 +425,6 @@ public final class QIORecipeCatalogService {
             this.revision = revision;
         }
 
-        @Nonnull
         public QIOWorkbenchRecipeCatalog.Snapshot getSnapshot() {
             return snapshot;
         }
@@ -982,25 +435,39 @@ public final class QIORecipeCatalogService {
     }
 
     private static final class SnapshotKey {
+        final UUID config;
+        final long patterns;
+        final long configuration;
+        final int dimension;
+        final long revision;
+        final String catalogGeneration;
+        final Object book;
 
-        private final UUID configUUID;
-        private final long patternRevision;
+        SnapshotKey(UUID config, long patterns, long configuration, int dimension, long revision) {
+            this(config, patterns, configuration, dimension, revision, "", null);
+        }
 
-        private SnapshotKey(UUID configUUID, long patternRevision) {
-            this.configUUID = Objects.requireNonNull(configUUID, "configUUID");
-            this.patternRevision = patternRevision;
+        SnapshotKey(UUID config, long patterns, long configuration, int dimension, long revision,
+                    String catalogGeneration, Object book) {
+            this.config = config;
+            this.patterns = patterns;
+            this.configuration = configuration;
+            this.dimension = dimension;
+            this.revision = revision;
+            this.catalogGeneration = catalogGeneration;
+            this.book = book;
         }
 
         @Override
-        public boolean equals(Object other) {
-            if (!(other instanceof SnapshotKey key)) return false;
-            return patternRevision == key.patternRevision &&
-                  configUUID.equals(key.configUUID);
+        public boolean equals(Object value) {
+            if (!(value instanceof SnapshotKey key)) return false;
+            return config.equals(key.config) && patterns == key.patterns && configuration == key.configuration &&
+                    dimension == key.dimension && revision == key.revision && book == key.book && catalogGeneration.equals(key.catalogGeneration);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(configUUID, patternRevision);
+            return Objects.hash(config, patterns, configuration, dimension, revision, catalogGeneration, System.identityHashCode(book));
         }
     }
 }

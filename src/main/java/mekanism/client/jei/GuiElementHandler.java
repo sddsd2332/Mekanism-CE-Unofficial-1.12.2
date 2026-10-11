@@ -36,7 +36,7 @@ public class GuiElementHandler implements IAdvancedGuiHandler {
             if (child instanceof GuiElement element) {
                 for (Rectangle grandChildArea : getAreasFor(x, y, width, height, element.children())) {
                     if (areaSticksOut(grandChildArea.x, grandChildArea.y, grandChildArea.width, grandChildArea.height,
-                          parentX, parentY, parentWidth, parentHeight)) {
+                            parentX, parentY, parentWidth, parentHeight)) {
                         areas.add(grandChildArea);
                     }
                 }

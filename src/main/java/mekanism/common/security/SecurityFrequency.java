@@ -6,7 +6,6 @@ import mekanism.common.HashList;
 import mekanism.common.PacketHandler;
 import mekanism.common.frequency.Frequency;
 import mekanism.common.frequency.FrequencyType;
-import mekanism.common.frequency.Frequency.FrequencyIdentity;
 import mekanism.common.security.ISecurityTile.SecurityMode;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.nbt.NBTTagCompound;

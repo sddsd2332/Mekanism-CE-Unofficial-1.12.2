@@ -8,26 +8,13 @@ import mekanism.qioprocessing.common.planning.QIOPlanningExecutor.CancellationTo
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.PriorityQueue;
-import java.util.Set;
-import java.util.TreeMap;
+import java.util.*;
 
 /**
  * Optional acyclic fast path that aggregates shared demands in topological order.
  * Structure is cached independently from per-request storage and claim state.
  */
+
 /**
  * QIO 处理模块中的 QIOTopologicalPlanner 类型。
  *
@@ -43,30 +30,78 @@ final class QIOTopologicalPlanner {
     private static final long ROOT_CONSUMER = -1;
 
     private final Map<TopologyKey, CompiledTopology> cache =
-          new LinkedHashMap<>(32, 0.75F, true);
+            new LinkedHashMap<>(32, 0.75F, true);
     private int cacheWeight;
+    private long cacheEpoch;
 
     private QIOTopologicalPlanner() {
     }
 
-    /** Returns null when the exact request should use the compatibility planner. */
+    /**
+     * Returns null when the exact request should use the compatibility planner.
+     */
     @Nullable
     QIOPlanningResult tryPlan(@Nonnull QIOPlanningRequest request,
-          @Nonnull CancellationToken cancellationToken) {
+                              @Nonnull CancellationToken cancellationToken) {
+        return tryPlan(request, cancellationToken, ignored -> {
+        });
+    }
+
+    /**
+     * A complete material ledger can seed the demand search even when it needs optimization.
+     */
+    @Nullable
+    QIOPlanningResult tryPlan(@Nonnull QIOPlanningRequest request,
+                              @Nonnull CancellationToken cancellationToken,
+                              @Nonnull java.util.function.Consumer<QIOPlanningResult> incumbent) {
         Objects.requireNonNull(request, "request");
         Objects.requireNonNull(cancellationToken, "cancellationToken");
+        Session slot = QIOPlanningExecutor.taskLocal(QIOTopologicalPlanner.class, Session::new);
+        if (slot.request != null && (!slot.request.getPlanId().equals(request.getPlanId()) ||
+                slot.request.getPlanRevision() != request.getPlanRevision() || slot.request.getRootAmount() != request.getRootAmount() ||
+                !slot.request.getRootResource().equals(request.getRootResource()) ||
+                slot.request.getSnapshot().getSourceRevisions() != request.getSnapshot().getSourceRevisions())) {
+            slot.request = null;
+            slot.topology = null;
+            slot.state = null;
+            slot.declined = false;
+        }
+        if (slot.declined) return null;
         try {
-            CompiledTopology topology = topology(request.getSnapshot(),
-                  request.getRootResource(), cancellationToken);
-            if (topology == null) return null;
-            PlanningState state = new PlanningState(request, cancellationToken);
-            return state.plan(topology);
+            if (slot.state == null) {
+                slot.request = request;
+                slot.topology = topology(request.getSnapshot(), request.getRootResource(), cancellationToken);
+                if (slot.topology == null || !slot.topology.acyclic) {
+                    slot.declined = true;
+                    return null;
+                }
+                slot.state = new PlanningState(request, cancellationToken);
+            }
+            QIOPlanningResult result = slot.state.plan(slot.topology);
+            if (slot.state.needsOptimization) {
+                checkpoint(cancellationToken);
+                incumbent.accept(result);
+                slot.declined = true;
+                slot.state = null;
+                return null;
+            }
+            return result;
         } catch (FastPathDeclined | ArithmeticException ignored) {
+            slot.declined = true;
+            slot.state = null;
             return null;
         }
     }
 
+    private static final class Session {
+        private QIOPlanningRequest request;
+        private CompiledTopology topology;
+        private PlanningState state;
+        private boolean declined;
+    }
+
     synchronized void clearCache() {
+        cacheEpoch++;
         cache.clear();
         cacheWeight = 0;
     }
@@ -77,20 +112,27 @@ final class QIOTopologicalPlanner {
 
     @Nullable
     private CompiledTopology topology(QIOPlanningSnapshot snapshot,
-          PortableResourceDescriptor root, CancellationToken cancellationToken) {
+                                      PortableResourceDescriptor root, CancellationToken cancellationToken) {
         TopologyKey key = TopologyKey.create(snapshot, root);
+        long capturedEpoch;
         synchronized (this) {
+            capturedEpoch = cacheEpoch;
             CompiledTopology cached = cache.get(key);
             if (cached != null) {
-                if (cached.matches(snapshot)) return cached;
+                if (cached.matches(snapshot)) {
+                    QIOPlanningMetrics.current().add(QIOPlanningMetrics.Metric.TOPOLOGY_CACHE_HITS, 1);
+                    return cached;
+                }
                 cache.remove(key);
                 cacheWeight -= cached.weight;
             }
         }
+        QIOPlanningMetrics.current().add(QIOPlanningMetrics.Metric.TOPOLOGY_CACHE_MISSES, 1);
         CompiledTopology compiled = CompiledTopology.compile(snapshot, root,
-              cancellationToken);
+                cancellationToken);
         if (compiled == null || compiled.weight > MAX_CACHE_WEIGHT) return compiled;
         synchronized (this) {
+            if (capturedEpoch != cacheEpoch || cancellationToken.isCancelled()) return compiled;
             CompiledTopology previous = cache.put(key, compiled);
             if (previous != null) cacheWeight -= previous.weight;
             cacheWeight += compiled.weight;
@@ -102,14 +144,14 @@ final class QIOTopologicalPlanner {
     private void trimCache() {
         while (cache.size() > MAX_CACHE_ENTRIES || cacheWeight > MAX_CACHE_WEIGHT) {
             Map.Entry<TopologyKey, CompiledTopology> eldest =
-                  cache.entrySet().iterator().next();
+                    cache.entrySet().iterator().next();
             cacheWeight -= eldest.getValue().weight;
             cache.remove(eldest.getKey());
         }
     }
 
     private static List<QIOPlanningRoute> preferredRoutes(QIOPlanningSnapshot snapshot,
-          PortableResourceDescriptor resource) {
+                                                          PortableResourceDescriptor resource) {
         List<QIOPlanningRoute> candidates = snapshot.getRoutesProducing(resource);
         if (candidates.isEmpty()) return Collections.emptyList();
         QIOPlanningRoute first = candidates.get(0);
@@ -118,7 +160,7 @@ final class QIOTopologicalPlanner {
         for (int index = 1; index < candidates.size(); index++) {
             QIOPlanningRoute candidate = candidates.get(index);
             if (candidate.getRoutePriority() != first.getRoutePriority() ||
-                  !candidate.getLogicalId().equals(first.getLogicalId())) {
+                    !candidate.getLogicalId().equals(first.getLogicalId())) {
                 break;
             }
             preferred.add(candidate);
@@ -127,14 +169,14 @@ final class QIOTopologicalPlanner {
     }
 
     private static boolean sameRoute(QIOPlanningRoute left, QIOPlanningRoute right) {
-        return left.getStableId().equals(right.getStableId()) &&
-              left.getSignature().equals(right.getSignature()) &&
-              left.getRoutePriority() == right.getRoutePriority() &&
-              left.getVariantPriority() == right.getVariantPriority();
+        return left.sameDomain(right) && left.getStableId().equals(right.getStableId()) &&
+                left.getSignature().equals(right.getSignature()) &&
+                left.getRoutePriority() == right.getRoutePriority() &&
+                left.getVariantPriority() == right.getVariantPriority();
     }
 
     private static boolean sameRouteFamily(List<QIOPlanningRoute> left,
-          List<QIOPlanningRoute> right) {
+                                           List<QIOPlanningRoute> right) {
         if (left.size() != right.size()) return false;
         for (int index = 0; index < left.size(); index++) {
             if (!sameRoute(left.get(index), right.get(index))) return false;
@@ -155,19 +197,22 @@ final class QIOTopologicalPlanner {
         private final CancellationToken cancellationToken;
         private final Map<PortableResourceDescriptor, Long> stock = new TreeMap<>();
         private final Map<PortableResourceDescriptor, Deque<DemandLot>> demands =
-              new TreeMap<>();
+                new TreeMap<>();
         private final Map<PortableResourceDescriptor, Deque<GeneratedLot>> generated =
-              new TreeMap<>();
+                new TreeMap<>();
         private final Map<PortableResourceDescriptor, Long> externalRequirements =
-              new TreeMap<>();
+                new TreeMap<>();
         private final Map<String, RouteExecution> executions = new LinkedHashMap<>();
         private final Map<Long, RouteExecution> executionsByNode = new HashMap<>();
         private long nextNodeId;
         private long plannedOperations;
         private int exploredNodes;
+        private int nextTopologyNode;
+        private boolean initialized;
+        private boolean needsOptimization;
 
         private PlanningState(QIOPlanningRequest request,
-              CancellationToken cancellationToken) {
+                              CancellationToken cancellationToken) {
             this.request = request;
             snapshot = request.getSnapshot();
             this.cancellationToken = cancellationToken;
@@ -175,25 +220,36 @@ final class QIOTopologicalPlanner {
         }
 
         private QIOPlanningResult plan(CompiledTopology topology) {
-            addDemand(request.getRootResource(), request.getRootAmount(), ROOT_CONSUMER, 0);
-            for (TopologyNode node : topology.order) {
+            if (!initialized) {
+                addDemand(request.getRootResource(), request.getRootAmount(), ROOT_CONSUMER, 0);
+                initialized = true;
+            }
+            while (nextTopologyNode < topology.order.size()) {
                 checkpoint(cancellationToken);
+                TopologyNode node = topology.order.get(nextTopologyNode);
                 process(node, node.resource.equals(request.getRootResource()));
+                nextTopologyNode++;
             }
             for (Deque<DemandLot> pending : demands.values()) {
                 if (!pending.isEmpty()) throw FastPathDeclined.INSTANCE;
             }
+            boolean missing = externalRequirements.entrySet().stream().anyMatch(entry ->
+                    entry.getValue() > snapshot.getAvailableResources().getOrDefault(entry.getKey(), 0L));
+            needsOptimization = missing && executions.values().stream().anyMatch(execution -> execution.route.hasAlternatives() ||
+                    execution.route.getGuaranteedOutputs().keySet().stream().anyMatch(output -> snapshot.getRoutesProducing(output).size() > 1));
+            // Keep the completed graph as an incumbent, but still let the demand walk compare
+            // alternatives. Partial, cyclic and stateful declines never reach this handoff.
             List<RouteExecution> orderedExecutions = new ArrayList<>(executions.values());
             orderedExecutions.sort(Comparator.comparingLong(
-                  (RouteExecution execution) -> execution.nodeId).reversed());
+                    (RouteExecution execution) -> execution.nodeId).reversed());
             List<QIOPlanStep> steps = new ArrayList<>(orderedExecutions.size());
             for (RouteExecution execution : orderedExecutions) {
                 steps.add(execution.toStep());
             }
             QIOCraftPlan plan = new QIOCraftPlan(request.getPlanId(),
-                  request.getPlanRevision(), snapshot.getSourceRevisions(),
-                  request.getRootResource(), request.getRootAmount(),
-                  externalRequirements, steps);
+                    request.getPlanRevision(), snapshot.getSourceRevisions(),
+                    request.getRootResource(), request.getRootAmount(),
+                    externalRequirements, steps);
             return QIOPlanningResult.success(plan, exploredNodes, plannedOperations);
         }
 
@@ -213,31 +269,60 @@ final class QIOTopologicalPlanner {
                 return;
             }
 
-            QIOPlanningRoute route = chooseVariant(node.routes);
-            long required = totalDemand(pending);
-            long outputPerOperation = route.getGuaranteedOutputAmount(node.resource);
-            if (required <= 0 || outputPerOperation <= 0) throw FastPathDeclined.INSTANCE;
-            int requiredDepth = maximumDepth(pending);
-            if (requiredDepth > snapshot.getMaximumDepth()) throw FastPathDeclined.INSTANCE;
-
-            RouteExecution execution = execution(route);
-            long operations = ceilDivide(required, outputPerOperation);
-            addOperations(operations);
-            execution.operations = Math.addExact(execution.operations, operations);
-
-            for (Map.Entry<PortableResourceDescriptor, Long> output :
-                  route.getGuaranteedOutputs().entrySet()) {
-                addGenerated(output.getKey(), Math.multiplyExact(output.getValue(), operations),
-                      execution.nodeId);
+            while (!pending.isEmpty()) {
+                checkpoint(cancellationToken);
+                long required = totalDemand(pending);
+                int requiredDepth = maximumDepth(pending);
+                if (requiredDepth > snapshot.getMaximumDepth()) throw FastPathDeclined.INSTANCE;
+                Map<PortableResourceDescriptor, Long> available = uncommittedStock();
+                QIOPlanningRoute preferred = chooseVariant(node.routes);
+                long outputPerOperation = preferred.getGuaranteedOutputAmount(node.resource);
+                if (required <= 0 || outputPerOperation <= 0) throw FastPathDeclined.INSTANCE;
+                long requestedOperations = ceilDivide(required, outputPerOperation);
+                // Yield before creating this execution or reserving its inputs. Earlier committed
+                // demands, stock and dependencies survive a validation callback unchanged.
+                QIOPlanningRoute route = preferred.selectWorkbench(available, requestedOperations, cancellationToken::isCancelled,
+                        Collections.emptySet(), node.resource);
+                if (route == null) throw FastPathDeclined.INSTANCE;
+                // Aggregate output-first demand expansion cannot reuse a tool produced by the
+                // preceding craft. The explicit-frame planner tracks that exact dependency.
+                if (route.requiresSequentialWorkbench()) throw FastPathDeclined.INSTANCE;
+                outputPerOperation = route.getGuaranteedOutputAmount(node.resource);
+                if (outputPerOperation <= 0) throw FastPathDeclined.INSTANCE;
+                long operations = ceilDivide(required, outputPerOperation);
+                if (route.verification() != null) {
+                    long stocked = operations;
+                    for (Map.Entry<PortableResourceDescriptor, Long> input : route.getExactInputs().entrySet()) {
+                        stocked = Math.min(stocked, available.getOrDefault(input.getKey(), 0L) / input.getValue());
+                    }
+                    if (stocked > 0) operations = stocked;
+                }
+                RouteExecution execution = execution(route);
+                addOperations(operations);
+                execution.operations = Math.addExact(execution.operations, operations);
+                for (Map.Entry<PortableResourceDescriptor, Long> output : route.getGuaranteedOutputs().entrySet()) {
+                    addGenerated(output.getKey(), Math.multiplyExact(output.getValue(), operations), execution.nodeId);
+                }
+                for (Map.Entry<PortableResourceDescriptor, Long> input : route.getExactInputs().entrySet()) {
+                    addDemand(input.getKey(), Math.multiplyExact(input.getValue(), operations), execution.nodeId, Math.addExact(requiredDepth, 1));
+                }
+                consumeGenerated(node.resource, pending);
             }
-            for (Map.Entry<PortableResourceDescriptor, Long> input :
-                  route.getExactInputs().entrySet()) {
-                addDemand(input.getKey(), Math.multiplyExact(input.getValue(), operations),
-                      execution.nodeId, Math.addExact(requiredDepth, 1));
-            }
-            consumeGenerated(node.resource, pending);
-            if (!pending.isEmpty()) throw FastPathDeclined.INSTANCE;
             demands.remove(node.resource);
+        }
+
+        private Map<PortableResourceDescriptor, Long> uncommittedStock() {
+            Map<PortableResourceDescriptor, Long> available = new LinkedHashMap<>(stock);
+            generated.forEach((resource, lots) -> {
+                for (GeneratedLot lot : lots) available.merge(resource, lot.amount, PlanningState::saturatedAdd);
+            });
+            demands.forEach((resource, lots) -> {
+                long reserved = totalDemand(lots);
+                long remaining = Math.max(0, available.getOrDefault(resource, 0L) - reserved);
+                if (remaining == 0) available.remove(resource);
+                else available.put(resource, remaining);
+            });
+            return available;
         }
 
         private QIOPlanningRoute chooseVariant(List<QIOPlanningRoute> candidates) {
@@ -247,9 +332,9 @@ final class QIOTopologicalPlanner {
                 QIOPlanningRoute candidate = candidates.get(index);
                 long deficit = routeDeficit(candidate);
                 if (deficit < selectedDeficit || deficit == selectedDeficit &&
-                      (candidate.getVariantPriority() > selected.getVariantPriority() ||
-                       candidate.getVariantPriority() == selected.getVariantPriority() &&
-                       candidate.getStableId().compareTo(selected.getStableId()) < 0)) {
+                        (candidate.getVariantPriority() > selected.getVariantPriority() ||
+                                candidate.getVariantPriority() == selected.getVariantPriority() &&
+                                        candidate.getStableId().compareTo(selected.getStableId()) < 0)) {
                     selected = candidate;
                     selectedDeficit = deficit;
                 }
@@ -260,7 +345,7 @@ final class QIOTopologicalPlanner {
         private long routeDeficit(QIOPlanningRoute route) {
             long deficit = 0;
             for (Map.Entry<PortableResourceDescriptor, Long> input :
-                  route.getExactInputs().entrySet()) {
+                    route.getExactInputs().entrySet()) {
                 long available = stock.getOrDefault(input.getKey(), 0L);
                 Deque<GeneratedLot> lots = generated.get(input.getKey());
                 if (lots != null) {
@@ -279,7 +364,7 @@ final class QIOTopologicalPlanner {
             RouteExecution existing = executions.get(route.getStableId());
             if (existing != null) return existing;
             if (nextNodeId == Long.MAX_VALUE) throw new ArithmeticException(
-                  "QIO plan node identity overflow");
+                    "QIO plan node identity overflow");
             if (++exploredNodes > snapshot.getMaximumNodes()) {
                 throw FastPathDeclined.INSTANCE;
             }
@@ -297,10 +382,10 @@ final class QIOTopologicalPlanner {
         }
 
         private void addDemand(PortableResourceDescriptor resource, long amount,
-              long consumerNodeId, int depth) {
+                               long consumerNodeId, int depth) {
             if (amount <= 0 || depth < 0) throw FastPathDeclined.INSTANCE;
             Deque<DemandLot> queue = demands.computeIfAbsent(resource,
-                  ignored -> new ArrayDeque<>());
+                    ignored -> new ArrayDeque<>());
             DemandLot tail = queue.peekLast();
             if (tail != null && tail.consumerNodeId == consumerNodeId && tail.depth == depth) {
                 tail.amount = Math.addExact(tail.amount, amount);
@@ -310,10 +395,10 @@ final class QIOTopologicalPlanner {
         }
 
         private void addGenerated(PortableResourceDescriptor resource, long amount,
-              long sourceNodeId) {
+                                  long sourceNodeId) {
             if (amount <= 0) throw FastPathDeclined.INSTANCE;
             Deque<GeneratedLot> queue = generated.computeIfAbsent(resource,
-                  ignored -> new ArrayDeque<>());
+                    ignored -> new ArrayDeque<>());
             GeneratedLot tail = queue.peekLast();
             if (tail != null && tail.sourceNodeId == sourceNodeId) {
                 tail.amount = Math.addExact(tail.amount, amount);
@@ -323,7 +408,7 @@ final class QIOTopologicalPlanner {
         }
 
         private void consumeGenerated(PortableResourceDescriptor resource,
-              Deque<DemandLot> pending) {
+                                      Deque<DemandLot> pending) {
             Deque<GeneratedLot> supply = generated.get(resource);
             while (!pending.isEmpty() && supply != null && !supply.isEmpty()) {
                 DemandLot demand = pending.peekFirst();
@@ -332,7 +417,7 @@ final class QIOTopologicalPlanner {
                 demand.amount -= consumed;
                 lot.amount -= consumed;
                 if (demand.consumerNodeId != ROOT_CONSUMER &&
-                      demand.consumerNodeId != lot.sourceNodeId) {
+                        demand.consumerNodeId != lot.sourceNodeId) {
                     RouteExecution consumer = executionsByNode.get(demand.consumerNodeId);
                     if (consumer == null) throw FastPathDeclined.INSTANCE;
                     consumer.dependencies.add(lot.sourceNodeId);
@@ -344,7 +429,7 @@ final class QIOTopologicalPlanner {
         }
 
         private void consumeStock(PortableResourceDescriptor resource,
-              Deque<DemandLot> pending) {
+                                  Deque<DemandLot> pending) {
             long stored = stock.getOrDefault(resource, 0L);
             while (stored > 0 && !pending.isEmpty()) {
                 DemandLot demand = pending.peekFirst();
@@ -359,7 +444,7 @@ final class QIOTopologicalPlanner {
         }
 
         private void consumeExternal(PortableResourceDescriptor resource,
-              Deque<DemandLot> pending) {
+                                     Deque<DemandLot> pending) {
             long amount = totalDemand(pending);
             externalRequirements.merge(resource, amount, Math::addExact);
             pending.clear();
@@ -385,21 +470,27 @@ final class QIOTopologicalPlanner {
     private static final class CompiledTopology {
 
         private static final Comparator<MutableNode> READY_ORDER = Comparator
-              .comparingInt((MutableNode node) -> node.routes.isEmpty() ? 0 :
-                    node.routes.get(0).getGuaranteedOutputs().size()).reversed()
-              .thenComparing(node -> node.resource);
+                .comparingInt((MutableNode node) -> node.routes.isEmpty() ? 0 :
+                        node.routes.get(0).getGuaranteedOutputs().size()).reversed()
+                .thenComparing(node -> node.resource);
 
         private final List<TopologyNode> order;
         private final int weight;
+        private final boolean acyclic;
 
         private CompiledTopology(List<TopologyNode> order, int weight) {
+            this(order, weight, true);
+        }
+
+        private CompiledTopology(List<TopologyNode> order, int weight, boolean acyclic) {
             this.order = Collections.unmodifiableList(order);
             this.weight = weight;
+            this.acyclic = acyclic;
         }
 
         @Nullable
         private static CompiledTopology compile(QIOPlanningSnapshot snapshot,
-              PortableResourceDescriptor root, CancellationToken cancellationToken) {
+                                                PortableResourceDescriptor root, CancellationToken cancellationToken) {
             Map<PortableResourceDescriptor, MutableNode> nodes = new TreeMap<>();
             Deque<PortableResourceDescriptor> pending = new ArrayDeque<>();
             Set<PortableResourceDescriptor> expanded = new HashSet<>();
@@ -415,12 +506,14 @@ final class QIOTopologicalPlanner {
                 if (node.routes.isEmpty()) continue;
                 for (QIOPlanningRoute route : node.routes) {
                     if (route.getGuaranteedOutputAmount(resource) <= 0) return null;
-                    for (PortableResourceDescriptor input : route.getExactInputs().keySet()) {
+                    for (PortableResourceDescriptor input : route.possibleInputs()) {
                         MutableNode child = nodes.computeIfAbsent(input, MutableNode::new);
                         if (node.children.add(child)) {
                             child.inDegree++;
                             edges++;
                         }
+                        if (nodes.size() > snapshot.getMaximumNodes())
+                            throw new QIOPlanningLimitException("Workbench dependency domain exceeds node budget");
                         pending.addLast(input);
                     }
                 }
@@ -440,14 +533,21 @@ final class QIOTopologicalPlanner {
                     if (--child.inDegree == 0) ready.add(child);
                 }
             }
-            if (order.size() != nodes.size()) return null;
+            if (order.size() != nodes.size()) {
+                // A structural cycle only declines this accelerator. Cache the exact route
+                // families so repeated requests need not rediscover it. Inventory-dependent
+                // success/failure is never cached here; the demand simulator still runs.
+                List<TopologyNode> cyclic = new ArrayList<>(nodes.size());
+                for (MutableNode node : nodes.values()) cyclic.add(new TopologyNode(node.resource, node.routes));
+                return new CompiledTopology(cyclic, Math.addExact(nodes.size(), edges), false);
+            }
             return new CompiledTopology(order, Math.addExact(nodes.size(), edges));
         }
 
         private boolean matches(QIOPlanningSnapshot snapshot) {
             for (TopologyNode node : order) {
                 if (!sameRouteFamily(node.routes,
-                      preferredRoutes(snapshot, node.resource))) {
+                        preferredRoutes(snapshot, node.resource))) {
                     return false;
                 }
             }
@@ -473,7 +573,7 @@ final class QIOTopologicalPlanner {
         private final List<QIOPlanningRoute> routes;
 
         private TopologyNode(PortableResourceDescriptor resource,
-              List<QIOPlanningRoute> routes) {
+                             List<QIOPlanningRoute> routes) {
             this.resource = resource;
             this.routes = routes;
         }
@@ -495,11 +595,11 @@ final class QIOTopologicalPlanner {
             List<Long> orderedDependencies = new ArrayList<>(dependencies);
             Collections.sort(orderedDependencies);
             return new QIOPlanStep(nodeId, route.getProviderKind(), route.getProviderId(),
-                  route.getRouteId(), route.getRecipeKey(), route.getVariantId(),
-                  route.getSignature(), operations, route.getExactInputs(),
-                  route.getGuaranteedOutputs(), route.getOptionalOutputs(),
-                  orderedDependencies, route.getCandidateInputs(),
-                  route.getConfigurationInputs());
+                    route.getRouteId(), route.getRecipeKey(), route.getVariantId(),
+                    route.getSignature(), operations, route.getExactInputs(),
+                    route.getGuaranteedOutputs(), route.getOptionalOutputs(),
+                    orderedDependencies, route.getCandidateInputs(),
+                    route.getConfigurationInputs());
         }
     }
 
@@ -538,8 +638,8 @@ final class QIOTopologicalPlanner {
         private final long routeHashB;
 
         private TopologyKey(PortableResourceDescriptor root, long recipeRevision,
-              long providerRevision, long policyRevision, int routeCount,
-              long routeHashA, long routeHashB) {
+                            long providerRevision, long policyRevision, int routeCount,
+                            long routeHashA, long routeHashB) {
             this.root = root;
             this.recipeRevision = recipeRevision;
             this.providerRevision = providerRevision;
@@ -550,7 +650,7 @@ final class QIOTopologicalPlanner {
         }
 
         private static TopologyKey create(QIOPlanningSnapshot snapshot,
-              PortableResourceDescriptor root) {
+                                          PortableResourceDescriptor root) {
             long hashA = 0xCBF29CE484222325L;
             long hashB = 0x9E3779B97F4A7C15L;
             for (QIOPlanningRoute route : snapshot.getRoutes()) {
@@ -565,8 +665,8 @@ final class QIOTopologicalPlanner {
             }
             QIOPlanSourceRevisions revisions = snapshot.getSourceRevisions();
             return new TopologyKey(root, revisions.getRecipeCatalogRevision(),
-                  revisions.getProviderCatalogRevision(), revisions.getPolicyRevision(),
-                  snapshot.getRoutes().size(), hashA, hashB);
+                    revisions.getProviderCatalogRevision(), revisions.getPolicyRevision(),
+                    snapshot.getRoutes().size(), hashA, hashB);
         }
 
         private static long mix(long current, long value) {
@@ -579,16 +679,16 @@ final class QIOTopologicalPlanner {
         public boolean equals(Object other) {
             if (!(other instanceof TopologyKey key)) return false;
             return recipeRevision == key.recipeRevision &&
-                  providerRevision == key.providerRevision &&
-                  policyRevision == key.policyRevision && routeCount == key.routeCount &&
-                  routeHashA == key.routeHashA && routeHashB == key.routeHashB &&
-                  root.equals(key.root);
+                    providerRevision == key.providerRevision &&
+                    policyRevision == key.policyRevision && routeCount == key.routeCount &&
+                    routeHashA == key.routeHashA && routeHashB == key.routeHashB &&
+                    root.equals(key.root);
         }
 
         @Override
         public int hashCode() {
             return Objects.hash(root, recipeRevision, providerRevision, policyRevision,
-                  routeCount, routeHashA, routeHashB);
+                    routeCount, routeHashA, routeHashB);
         }
     }
 

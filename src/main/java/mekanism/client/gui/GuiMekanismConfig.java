@@ -32,7 +32,7 @@ public class GuiMekanismConfig extends GuiConfig {
         list.add(new DummyCategoryElement(LangUtils.localize("mekanism.configgui.ctgy.usage"), "mekanism.configgui.ctgy.usage", UsageEntry.class));
         list.add(new DummyCategoryElement(LangUtils.localize("mekanism.configgui.ctgy.storage"), "mekanism.configgui.ctgy.storage", StorageEntry.class));
         list.add(new DummyCategoryElement(LangUtils.localize("mekanism.configgui.ctgy.client"), "mekanism.configgui.ctgy.client", ClientEntry.class));
-        list.add(new DummyCategoryElement(LangUtils.localize("mekanism.configgui.ctgy.meka"),"mekanism.configgui.ctgy.meka",MekaEntry.class));
+        list.add(new DummyCategoryElement(LangUtils.localize("mekanism.configgui.ctgy.meka"), "mekanism.configgui.ctgy.meka", MekaEntry.class));
         return list;
     }
 

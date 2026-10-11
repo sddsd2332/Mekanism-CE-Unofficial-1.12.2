@@ -36,7 +36,7 @@ public abstract class GuiFusionReactorInfo extends GuiMekanismTile<TileEntityRea
     protected void addGuiElements() {
         super.addGuiElements();
         addButton(new MekanismImageButton(this, 6, 6, 14, getButtonLocation("back"), this::sendBack,
-              getOnHover(() -> new TextComponentString(LangUtils.localize("gui.back")))));
+                getOnHover(() -> new TextComponentString(LangUtils.localize("gui.back")))));
         addButton(new GuiEnergyTab(this, this::getEnergyTabText));
         addButton(new GuiHeatTab(this, this::getHeatTabText));
     }
@@ -52,8 +52,8 @@ public abstract class GuiFusionReactorInfo extends GuiMekanismTile<TileEntityRea
             return new ArrayList<>();
         }
         return Arrays.asList(
-              new TextComponentString(LangUtils.localize("gui.storing") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getEnergy(), tileEntity.getMaxEnergy())),
-              new TextComponentString(LangUtils.localize("gui.producing") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getReactor().getPassiveGeneration(false, true)) + "/t")
+                new TextComponentString(LangUtils.localize("gui.storing") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getEnergy(), tileEntity.getMaxEnergy())),
+                new TextComponentString(LangUtils.localize("gui.producing") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getReactor().getPassiveGeneration(false, true)) + "/t")
         );
     }
 
@@ -64,8 +64,8 @@ public abstract class GuiFusionReactorInfo extends GuiMekanismTile<TileEntityRea
         String transfer = MekanismUtils.getTemperatureDisplay(tileEntity.getReactor().lastTransferLoss, TemperatureUnit.KELVIN, false);
         String environment = MekanismUtils.getTemperatureDisplay(tileEntity.getReactor().lastEnvironmentLoss, TemperatureUnit.KELVIN, false);
         return Arrays.asList(
-              new TextComponentString(LangUtils.localize("gui.transferred") + ": " + transfer + "/t"),
-              new TextComponentString(LangUtils.localize("gui.dissipated") + ": " + environment + "/t")
+                new TextComponentString(LangUtils.localize("gui.transferred") + ": " + transfer + "/t"),
+                new TextComponentString(LangUtils.localize("gui.dissipated") + ": " + environment + "/t")
         );
     }
 

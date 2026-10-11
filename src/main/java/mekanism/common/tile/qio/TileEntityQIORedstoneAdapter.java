@@ -18,7 +18,9 @@ import net.minecraft.nbt.NBTTagCompound;
 import javax.annotation.Nullable;
 import java.util.List;
 
-/** Outputs redstone when one selected QIO resource reaches the configured amount. */
+/**
+ * Outputs redstone when one selected QIO resource reaches the configured amount.
+ */
 public class TileEntityQIORedstoneAdapter extends TileEntityQIOFilterHandler {
 
     private long threshold = 1;

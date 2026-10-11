@@ -5,17 +5,12 @@ import mekanism.api.IContentsListener;
 import mekanism.api.NBTConstants;
 import mekanism.api.TileNetworkList;
 import mekanism.common.Mekanism;
-import mekanism.common.content.qio.IQIODriveHolder;
-import mekanism.common.content.qio.QIODriveData;
-import mekanism.common.content.qio.QIODriveMount;
-import mekanism.common.content.qio.QIODriveSlotState;
-import mekanism.common.content.qio.QIOAmount;
-import mekanism.common.content.qio.QIOFrequency;
-import mekanism.common.inventory.slot.QIODriveSlot;
 import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
 import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
-import mekanism.common.util.MekanismUtils;
+import mekanism.common.content.qio.*;
+import mekanism.common.inventory.slot.QIODriveSlot;
 import mekanism.common.util.LangUtils;
+import mekanism.common.util.MekanismUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.ResourceLocation;
@@ -25,7 +20,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** The physical twelve-slot QIO drive holder. */
+/**
+ * The physical twelve-slot QIO drive holder.
+ */
 public class TileEntityQIODriveArray extends TileEntityQIOComponent implements IQIODriveHolder {
 
     public static final int DRIVE_SLOTS = 12;
@@ -49,7 +46,7 @@ public class TileEntityQIODriveArray extends TileEntityQIOComponent implements I
             for (int x = 0; x < 6; x++) {
                 int slot = y * 6 + x;
                 driveSlots.add(new QIODriveSlot(this, slot, listener,
-                      xSize / 2 - (6 * 18 / 2) + x * 18, 70 + y * 18));
+                        xSize / 2 - (6 * 18 / 2) + x * 18, 70 + y * 18));
                 builder.addSlot(driveSlots.get(slot));
             }
         }
@@ -97,12 +94,12 @@ public class TileEntityQIODriveArray extends TileEntityQIOComponent implements I
                     status = DriveStatus.OVER_CAPACITY;
                 } else if (state == QIODriveSlotState.ACTIVE && data != null) {
                     boolean countFull = data.getRecord().getExactTotalStorageUnits().compareTo(
-                          data.getRecord().getExactStorageCapacity()) >= 0;
+                            data.getRecord().getExactStorageCapacity()) >= 0;
                     boolean typesFull = data.getRecord().getTotalTypes() >= data.getRecord().getTypeCapacity();
                     if (countFull || typesFull) {
                         status = DriveStatus.FULL;
                     } else if (isNearFull(data.getRecord().getExactTotalStorageUnits(),
-                          data.getRecord().getExactStorageCapacity())) {
+                            data.getRecord().getExactStorageCapacity())) {
                         status = DriveStatus.NEAR_FULL;
                     } else {
                         status = DriveStatus.READY;
@@ -144,7 +141,7 @@ public class TileEntityQIODriveArray extends TileEntityQIOComponent implements I
 
     public static boolean isNearFull(QIOAmount stored, QIOAmount capacity) {
         return stored != null && capacity != null && !capacity.isZero() &&
-              stored.multiply(4).compareTo(capacity.multiply(3)) >= 0;
+                stored.multiply(4).compareTo(capacity.multiply(3)) >= 0;
     }
 
     public static int getStatusOrdinal(int slot, long status) {

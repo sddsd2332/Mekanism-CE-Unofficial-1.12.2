@@ -6,9 +6,9 @@ import mekanism.qioprocessing.common.content.QIOProcessingDataException;
 import mekanism.qioprocessing.common.content.policy.QIOPolicyEntrySnapshot;
 import mekanism.qioprocessing.common.inventory.container.QIOManagementPolicyPageContainer;
 import mekanism.qioprocessing.common.inventory.container.QIOProcessingTerminalContainerState;
+import mekanism.qioprocessing.common.terminal.QIOManagementPolicyService.PageMode;
 import mekanism.qioprocessing.common.terminal.QIOPage;
 import mekanism.qioprocessing.common.terminal.QIOPageCursor;
-import mekanism.qioprocessing.common.terminal.QIOManagementPolicyService.PageMode;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
@@ -22,7 +22,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
-/** One bounded server-authoritative management policy page. */
+/**
+ * One bounded server-authoritative management policy page.
+ */
+
 /**
  * QIO 处理模块中的 PacketQIOManagementPolicyPageData 类型。
  *
@@ -30,7 +33,7 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class PacketQIOManagementPolicyPageData implements
-      IMessageHandler<PacketQIOManagementPolicyPageData.Message, IMessage> {
+        IMessageHandler<PacketQIOManagementPolicyPageData.Message, IMessage> {
 
     public static final int MAX_WIRE_PAGE_SIZE = 1_024;
 
@@ -42,21 +45,21 @@ public final class PacketQIOManagementPolicyPageData implements
         }
         PacketHandler.handlePacket(() -> {
             if (!message.valid ||
-                !(player.openContainer instanceof QIOManagementPolicyPageContainer container) ||
-                player.openContainer.windowId != message.windowId) {
+                    !(player.openContainer instanceof QIOManagementPolicyPageContainer container) ||
+                    player.openContainer.windowId != message.windowId) {
                 return;
             }
             QIOProcessingTerminalContainerState state = container.getTerminalState();
             if (!state.matches(message.sessionNonce, message.terminalUUID,
-                  message.targetRevision, message.frequencyUUID,
-                  message.accessRevision)) {
+                    message.targetRevision, message.frequencyUUID,
+                    message.accessRevision)) {
                 return;
             }
             container.getPolicyClientCache().applyPage(message.sessionNonce,
-                  message.requestId, message.pageMode,
-                  message.recipeCatalogRevision,
-                  message.sourceRevision, message.offset, message.totalSize,
-                  message.entries, message.nextCursor);
+                    message.requestId, message.pageMode,
+                    message.recipeCatalogRevision,
+                    message.sourceRevision, message.offset, message.totalSize,
+                    message.entries, message.nextCursor);
         }, player);
         return null;
     }
@@ -84,11 +87,11 @@ public final class PacketQIOManagementPolicyPageData implements
         }
 
         private Message(int windowId, UUID sessionNonce, UUID terminalUUID,
-              long targetRevision, UUID frequencyUUID, long accessRevision,
-              UUID requestId, PageMode pageMode, long recipeCatalogRevision,
-              long sourceRevision,
-              int offset, int totalSize, List<QIOPolicyEntrySnapshot> entries,
-              @Nullable QIOPageCursor nextCursor) {
+                        long targetRevision, UUID frequencyUUID, long accessRevision,
+                        UUID requestId, PageMode pageMode, long recipeCatalogRevision,
+                        long sourceRevision,
+                        int offset, int totalSize, List<QIOPolicyEntrySnapshot> entries,
+                        @Nullable QIOPageCursor nextCursor) {
             this.windowId = windowId;
             this.sessionNonce = sessionNonce;
             this.terminalUUID = terminalUUID;
@@ -107,27 +110,27 @@ public final class PacketQIOManagementPolicyPageData implements
         }
 
         public static Message create(int windowId,
-              @Nonnull mekanism.qioprocessing.common.terminal.QIOProcessingTerminalSession session,
-              @Nonnull QIOPage<QIOPolicyEntrySnapshot> page) {
+                                     @Nonnull mekanism.qioprocessing.common.terminal.QIOProcessingTerminalSession session,
+                                     @Nonnull QIOPage<QIOPolicyEntrySnapshot> page) {
             return create(windowId, session, UUID.randomUUID(), PageMode.CONFIGURED,
-                  -1, page);
+                    -1, page);
         }
 
         public static Message create(int windowId,
-              @Nonnull mekanism.qioprocessing.common.terminal.QIOProcessingTerminalSession session,
-              @Nonnull UUID requestId, @Nonnull PageMode pageMode,
-              long recipeCatalogRevision,
-              @Nonnull QIOPage<QIOPolicyEntrySnapshot> page) {
+                                     @Nonnull mekanism.qioprocessing.common.terminal.QIOProcessingTerminalSession session,
+                                     @Nonnull UUID requestId, @Nonnull PageMode pageMode,
+                                     long recipeCatalogRevision,
+                                     @Nonnull QIOPage<QIOPolicyEntrySnapshot> page) {
             if (session.getFrequencyUUID() == null) {
                 return new Message();
             }
             return new Message(windowId, session.getSessionNonce(),
-                  session.getTerminalUUID(), session.getTargetRevision(),
-                  session.getFrequencyUUID(), session.getAccessRevision(),
-                  requestId, pageMode, recipeCatalogRevision,
-                  page.getSourceRevision(),
-                  page.getOffset(), page.getTotalSize(), page.getEntries(),
-                  page.getNextCursor());
+                    session.getTerminalUUID(), session.getTargetRevision(),
+                    session.getFrequencyUUID(), session.getAccessRevision(),
+                    requestId, pageMode, recipeCatalogRevision,
+                    page.getSourceRevision(),
+                    page.getOffset(), page.getTotalSize(), page.getEntries(),
+                    page.getNextCursor());
         }
 
         @Override
@@ -177,7 +180,7 @@ public final class PacketQIOManagementPolicyPageData implements
                 nextCursor = buffer.readBoolean() ? QIOPageCursor.read(buffer) : null;
                 int count = buffer.readInt();
                 if (count < 0 || count > MAX_WIRE_PAGE_SIZE || totalSize < 0 ||
-                    offset < 0 || offset > totalSize || count > totalSize - offset) {
+                        offset < 0 || offset > totalSize || count > totalSize - offset) {
                     return;
                 }
                 List<QIOPolicyEntrySnapshot> decoded = new ArrayList<>(count);
@@ -207,24 +210,24 @@ public final class PacketQIOManagementPolicyPageData implements
 
         private boolean structurallyValid() {
             if (windowId < 0 || sessionNonce == null || terminalUUID == null ||
-                targetRevision < 0 || frequencyUUID == null || accessRevision < 0 ||
-                requestId == null || pageMode == null || recipeCatalogRevision < -1 ||
-                (pageMode == PageMode.CONFIGURED ? recipeCatalogRevision != -1 :
-                      recipeCatalogRevision < 0) ||
-                sourceRevision < 0 ||
-                offset < 0 || totalSize < 0 || offset > totalSize ||
-                entries.size() > MAX_WIRE_PAGE_SIZE ||
-                entries.size() > totalSize - offset || entries.stream().anyMatch(
-                      entry -> entry.getPolicyRevision() != sourceRevision)) {
+                    targetRevision < 0 || frequencyUUID == null || accessRevision < 0 ||
+                    requestId == null || pageMode == null || recipeCatalogRevision < -1 ||
+                    (pageMode == PageMode.CONFIGURED ? recipeCatalogRevision != -1 :
+                            recipeCatalogRevision < 0) ||
+                    sourceRevision < 0 ||
+                    offset < 0 || totalSize < 0 || offset > totalSize ||
+                    entries.size() > MAX_WIRE_PAGE_SIZE ||
+                    entries.size() > totalSize - offset || entries.stream().anyMatch(
+                    entry -> entry.getPolicyRevision() != sourceRevision)) {
                 return false;
             }
             if (nextCursor == null) {
                 return offset + entries.size() == totalSize;
             }
             return sessionNonce.equals(nextCursor.getSessionNonce()) &&
-                  sourceRevision == nextCursor.getSourceRevision() &&
-                  nextCursor.getOffset() == offset + entries.size() &&
-                  nextCursor.getOffset() < totalSize;
+                    sourceRevision == nextCursor.getSourceRevision() &&
+                    nextCursor.getOffset() == offset + entries.size() &&
+                    nextCursor.getOffset() < totalSize;
         }
 
         private static void writeUUID(ByteBuf buffer, UUID uuid) {

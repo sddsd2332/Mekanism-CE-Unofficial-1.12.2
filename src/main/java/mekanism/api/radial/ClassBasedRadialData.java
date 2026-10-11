@@ -12,7 +12,6 @@ import java.util.Objects;
  * Base implementation for radial data that knows the type of modes it can handle.
  *
  * @param <MODE> Radial Mode.
- *
  * @since 10.3.2
  */
 @NothingNullByDefault

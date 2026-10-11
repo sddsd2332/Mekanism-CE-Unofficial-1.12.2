@@ -6,14 +6,12 @@ import net.minecraft.nbt.NBTTagList;
 import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
-/** External logical ingredient units that may be claimed from any enabled candidate. */
+/**
+ * External logical ingredient units that may be claimed from any enabled candidate.
+ */
+
 /**
  * QIO 处理模块中的 QIOCandidateRequirement 类型。
  *
@@ -27,10 +25,10 @@ public final class QIOCandidateRequirement {
     private final List<QIOCandidateOption> options;
 
     public QIOCandidateRequirement(@Nonnull String requirementId, long requiredUnits,
-          @Nonnull List<QIOCandidateOption> options) {
+                                   @Nonnull List<QIOCandidateOption> options) {
         String checkedId = Objects.requireNonNull(requirementId, "requirementId").trim();
         if (checkedId.isEmpty() || checkedId.length() > 160 || requiredUnits <= 0 ||
-            options.isEmpty() || options.size() > 64) {
+                options.isEmpty() || options.size() > 64) {
             throw new IllegalArgumentException("Invalid QIO candidate requirement");
         }
         this.requirementId = checkedId;
@@ -47,9 +45,19 @@ public final class QIOCandidateRequirement {
         this.options = Collections.unmodifiableList(checked);
     }
 
-    @Nonnull public String getRequirementId() { return requirementId; }
-    public long getRequiredUnits() { return requiredUnits; }
-    @Nonnull public List<QIOCandidateOption> getOptions() { return options; }
+    @Nonnull
+    public String getRequirementId() {
+        return requirementId;
+    }
+
+    public long getRequiredUnits() {
+        return requiredUnits;
+    }
+
+    @Nonnull
+    public List<QIOCandidateOption> getOptions() {
+        return options;
+    }
 
     @Nonnull
     public NBTTagCompound write() {
@@ -64,10 +72,10 @@ public final class QIOCandidateRequirement {
 
     @Nonnull
     public static QIOCandidateRequirement read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         if (!data.hasKey("requirementId", NBT.TAG_STRING) ||
-            !data.hasKey("requiredUnits", NBT.TAG_LONG) ||
-            !data.hasKey("options", NBT.TAG_LIST)) {
+                !data.hasKey("requiredUnits", NBT.TAG_LONG) ||
+                !data.hasKey("options", NBT.TAG_LIST)) {
             throw new QIOProcessingDataException("Incomplete QIO candidate requirement");
         }
         NBTTagList stored = data.getTagList("options", NBT.TAG_COMPOUND);
@@ -80,7 +88,7 @@ public final class QIOCandidateRequirement {
         }
         try {
             return new QIOCandidateRequirement(data.getString("requirementId"),
-                  data.getLong("requiredUnits"), options);
+                    data.getLong("requiredUnits"), options);
         } catch (RuntimeException e) {
             throw new QIOProcessingDataException("Invalid QIO candidate requirement", e);
         }

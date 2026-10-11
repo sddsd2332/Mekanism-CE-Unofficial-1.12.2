@@ -10,7 +10,7 @@ public enum GaugeOverlay {
     STANDARD(16, 58, "standard.png"),
     MEDIUM(32, 58, "medium.png"),
     WIDE(64, 48, "wide.png"),
-    SLOT(16,16, "slot.png");
+    SLOT(16, 16, "slot.png");
 
     private final int width;
     private final int height;

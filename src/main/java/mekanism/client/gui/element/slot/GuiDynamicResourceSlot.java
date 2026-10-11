@@ -42,13 +42,17 @@ public class GuiDynamicResourceSlot extends GuiElement implements IJEIIngredient
     public static final int RESOURCE_SIZE = GuiDynamicResourceSlotLayout.RESOURCE_SIZE;
     public static final int DEFAULT_RESOURCE_GAP = GuiDynamicResourceSlotLayout.DEFAULT_RESOURCE_GAP;
     public static final int DEFAULT_RESOURCE_STEP = GuiDynamicResourceSlotLayout.DEFAULT_RESOURCE_STEP;
-    /** @deprecated Use {@link #DEFAULT_RESOURCE_STEP}. */
+    /**
+     * @deprecated Use {@link #DEFAULT_RESOURCE_STEP}.
+     */
     @Deprecated
     public static final int RESOURCE_STEP = DEFAULT_RESOURCE_STEP;
     public static final int DEFAULT_BORDER_COLOR = 0xFF6A6A6A;
     public static final int SLOT_BACKGROUND_COLOR = 0xFF8B8B8B;
 
-    /** Border colors matching the bright and shaded edges of {@link SlotType}. */
+    /**
+     * Border colors matching the bright and shaded edges of {@link SlotType}.
+     */
     public enum BorderColor {
         NORMAL(0xFFFFFFFF, 0xFF373737),
         DIGITAL(0xFFFFFFFF, 0xFFFFFFFF),
@@ -71,7 +75,9 @@ public class GuiDynamicResourceSlot extends GuiElement implements IJEIIngredient
             this.shadowColor = shadowColor;
         }
 
-        /** Returns the bright edge color for compatibility with the old API. */
+        /**
+         * Returns the bright edge color for compatibility with the old API.
+         */
         public int getColor() {
             return highlightColor;
         }
@@ -107,17 +113,17 @@ public class GuiDynamicResourceSlot extends GuiElement implements IJEIIngredient
     private ResourceView renderedView;
 
     public GuiDynamicResourceSlot(IGuiWrapper gui, int x, int y, int visibleColumns, int visibleRows,
-          @Nonnull NonNullSupplier<List<MachineResourceStack>> resourceSupplier) {
+                                  @Nonnull NonNullSupplier<List<MachineResourceStack>> resourceSupplier) {
         this(gui, x, y, visibleColumns, visibleRows, resourceSupplier, false,
-              GuiDynamicResourceSlotLayout.viewportDimension(visibleColumns));
+                GuiDynamicResourceSlotLayout.viewportDimension(visibleColumns));
     }
 
     private GuiDynamicResourceSlot(IGuiWrapper gui, int x, int y, int visibleColumns, int visibleRows,
-          @Nonnull NonNullSupplier<List<MachineResourceStack>> resourceSupplier, boolean explicitFrameWidth,
-          int frameWidth) {
+                                   @Nonnull NonNullSupplier<List<MachineResourceStack>> resourceSupplier, boolean explicitFrameWidth,
+                                   int frameWidth) {
         super(gui, x, y, explicitFrameWidth ? GuiDynamicResourceSlotLayout.validateFrameWidth(frameWidth) :
-                    GuiDynamicResourceSlotLayout.viewportDimension(visibleColumns),
-              GuiDynamicResourceSlotLayout.viewportDimension(visibleRows));
+                        GuiDynamicResourceSlotLayout.viewportDimension(visibleColumns),
+                GuiDynamicResourceSlotLayout.viewportDimension(visibleRows));
         this.configuredVisibleColumns = GuiDynamicResourceSlotLayout.normalizeVisibleCount(visibleColumns);
         this.visibleRows = GuiDynamicResourceSlotLayout.normalizeVisibleCount(visibleRows);
         this.explicitFrameWidth = explicitFrameWidth;
@@ -125,8 +131,8 @@ public class GuiDynamicResourceSlot extends GuiElement implements IJEIIngredient
     }
 
     public GuiDynamicResourceSlot(IGuiWrapper gui, int x, int y, int visibleColumns, int visibleRows,
-          @Nonnull NonNullSupplier<List<MachineResourceStack>> resourceSupplier,
-          @Nonnull IntSupplier borderColorSupplier) {
+                                  @Nonnull NonNullSupplier<List<MachineResourceStack>> resourceSupplier,
+                                  @Nonnull IntSupplier borderColorSupplier) {
         this(gui, x, y, visibleColumns, visibleRows, resourceSupplier);
         borderColor(borderColorSupplier);
     }
@@ -136,7 +142,7 @@ public class GuiDynamicResourceSlot extends GuiElement implements IJEIIngredient
      * resize this frame horizontally.
      */
     public static GuiDynamicResourceSlot withFrameWidth(IGuiWrapper gui, int x, int y, int frameWidth,
-          int visibleRows, @Nonnull NonNullSupplier<List<MachineResourceStack>> resourceSupplier) {
+                                                        int visibleRows, @Nonnull NonNullSupplier<List<MachineResourceStack>> resourceSupplier) {
         return new GuiDynamicResourceSlot(gui, x, y, 1, visibleRows, resourceSupplier, true, frameWidth);
     }
 
@@ -156,12 +162,16 @@ public class GuiDynamicResourceSlot extends GuiElement implements IJEIIngredient
         return autoFit;
     }
 
-    /** Uses a fixed number of pixels between all resources. */
+    /**
+     * Uses a fixed number of pixels between all resources.
+     */
     public GuiDynamicResourceSlot resourceGap(int pixels) {
         return configureSpacing(pixels, false);
     }
 
-    /** Distributes spare horizontal pixels while preserving the requested minimum gap. */
+    /**
+     * Distributes spare horizontal pixels while preserving the requested minimum gap.
+     */
     public GuiDynamicResourceSlot autoFitSpacing(int minimumGap) {
         return configureSpacing(minimumGap, true);
     }
@@ -170,7 +180,7 @@ public class GuiDynamicResourceSlot extends GuiElement implements IJEIIngredient
         int checkedGap = GuiDynamicResourceSlotLayout.validateGap(gap);
         int newHeight = GuiDynamicResourceSlotLayout.frameDimension(visibleRows, checkedGap);
         int newWidth = explicitFrameWidth ? width :
-              GuiDynamicResourceSlotLayout.frameDimension(configuredVisibleColumns, checkedGap);
+                GuiDynamicResourceSlotLayout.frameDimension(configuredVisibleColumns, checkedGap);
         resourceGap = checkedGap;
         autoFit = useAutoFit;
         if (!explicitFrameWidth) {
@@ -192,14 +202,18 @@ public class GuiDynamicResourceSlot extends GuiElement implements IJEIIngredient
         renderedView = null;
     }
 
-    /** Sets the dynamically evaluated ARGB color used only for the outer frame. */
+    /**
+     * Sets the dynamically evaluated ARGB color used only for the outer frame.
+     */
     public GuiDynamicResourceSlot borderColor(@Nonnull IntSupplier borderColorSupplier) {
         this.borderColorSupplier = Objects.requireNonNull(borderColorSupplier, "Border color supplier cannot be null");
         this.borderShadowColorSupplier = this.borderColorSupplier;
         return this;
     }
 
-    /** Uses the bright and shaded edge colors of a standard GUI slot variant. */
+    /**
+     * Uses the bright and shaded edge colors of a standard GUI slot variant.
+     */
     public GuiDynamicResourceSlot borderColor(@Nonnull BorderColor borderColor) {
         BorderColor checkedColor = Objects.requireNonNull(borderColor, "Border color cannot be null");
         this.borderColorSupplier = checkedColor::getHighlightColor;
@@ -221,7 +235,7 @@ public class GuiDynamicResourceSlot extends GuiElement implements IJEIIngredient
     public void drawBackground(int mouseX, int mouseY, float partialTicks) {
         super.drawBackground(mouseX, mouseY, partialTicks);
         GuiUtils.fill(relativeX + 1, relativeY + 1, relativeX + width - 1,
-              relativeY + height - 1, SLOT_BACKGROUND_COLOR);
+                relativeY + height - 1, SLOT_BACKGROUND_COLOR);
         MekanismRenderer.resetColor();
         drawBorder();
         MekanismRenderer.resetColor();
@@ -249,7 +263,9 @@ public class GuiDynamicResourceSlot extends GuiElement implements IJEIIngredient
         }
     }
 
-    /** Draws the GuiSlot-style frame: shaded top/left edges and bright bottom/right edges. */
+    /**
+     * Draws the GuiSlot-style frame: shaded top/left edges and bright bottom/right edges.
+     */
     private void drawBorder() {
         int highlight = borderColorSupplier.getAsInt();
         int shadow = borderShadowColorSupplier.getAsInt();
@@ -258,7 +274,7 @@ public class GuiDynamicResourceSlot extends GuiElement implements IJEIIngredient
         GuiUtils.fill(relativeX, relativeY + height - 1, relativeX + width, relativeY + height, highlight);
         if (height > 2) {
             GuiUtils.fill(relativeX + width - 1, relativeY + 1, relativeX + width,
-                  relativeY + height - 1, highlight);
+                    relativeY + height - 1, highlight);
         }
     }
 
@@ -302,7 +318,7 @@ public class GuiDynamicResourceSlot extends GuiElement implements IJEIIngredient
                 }
                 if (resource.amount() > 1) {
                     gui().renderItemTooltipWithExtra(item, mouseX, mouseY,
-                          Collections.singletonList(getAmountTooltip(resource.amount())));
+                            Collections.singletonList(getAmountTooltip(resource.amount())));
                 } else {
                     gui().renderItemTooltip(item, mouseX, mouseY);
                 }
@@ -325,8 +341,8 @@ public class GuiDynamicResourceSlot extends GuiElement implements IJEIIngredient
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (clickHandler != null && button == 0 && visible && active &&
-              mouseX >= getX() && mouseY >= getY() && mouseX < getRight() && mouseY < getBottom() &&
-              checkWindows(mouseX, mouseY)) {
+                mouseX >= getX() && mouseY >= getY() && mouseX < getRight() && mouseY < getBottom() &&
+                checkWindows(mouseX, mouseY)) {
             if (clickHandler.onClick(this, mouseX, mouseY)) {
                 playClickSound();
                 return true;
@@ -382,7 +398,7 @@ public class GuiDynamicResourceSlot extends GuiElement implements IJEIIngredient
         boolean useAutoFit = autoFit;
         long now = GuiElement.getMillis();
         if (!scrollClockInitialized || contentColumns != lastContentColumns || frameWidth != lastFrameWidth ||
-              gap != lastResourceGap || useAutoFit != lastAutoFit) {
+                gap != lastResourceGap || useAutoFit != lastAutoFit) {
             scrollClockInitialized = true;
             scrollStartMillis = now;
             lastContentColumns = contentColumns;
@@ -392,9 +408,9 @@ public class GuiDynamicResourceSlot extends GuiElement implements IJEIIngredient
         }
         long elapsed = now >= scrollStartMillis ? now - scrollStartMillis : 0;
         double contentWidth = GuiDynamicResourceSlotLayout.contentWidthForColumns(contentColumns, frameWidth,
-              gap, useAutoFit);
+                gap, useAutoFit);
         double offset = GuiDynamicResourceSlotLayout.scrollingOffset(contentWidth,
-              GuiDynamicResourceSlotLayout.innerWidth(frameWidth), elapsed);
+                GuiDynamicResourceSlotLayout.innerWidth(frameWidth), elapsed);
         return new ResourceView(resources, frameWidth, gap, useAutoFit, offset);
     }
 
@@ -405,7 +421,7 @@ public class GuiDynamicResourceSlot extends GuiElement implements IJEIIngredient
         }
         ResourceView view = getInteractionView();
         int index = GuiDynamicResourceSlotLayout.hitIndex(view.resources.size(), view.frameWidth, visibleRows,
-              view.resourceGap, view.autoFit, mouseX - getX(), mouseY - getY(), view.offset);
+                view.resourceGap, view.autoFit, mouseX - getX(), mouseY - getY(), view.offset);
         return index < 0 ? null : new HoveredResource(view, index, view.resources.get(index));
     }
 
@@ -419,13 +435,13 @@ public class GuiDynamicResourceSlot extends GuiElement implements IJEIIngredient
     private float resourceX(ResourceView view, int index) {
         int column = GuiDynamicResourceSlotLayout.columnForIndex(index, visibleRows);
         return relativeX + 1 + GuiDynamicResourceSlotLayout.resourceStart(column, view.frameWidth,
-              view.resourceGap, view.autoFit) - (float) view.offset;
+                view.resourceGap, view.autoFit) - (float) view.offset;
     }
 
     private float resourceY(ResourceView view, int index) {
         return relativeY + 1 +
-              GuiDynamicResourceSlotLayout.rowForIndex(index, visibleRows) *
-                    (float) (RESOURCE_SIZE + view.resourceGap);
+                GuiDynamicResourceSlotLayout.rowForIndex(index, visibleRows) *
+                        (float) (RESOURCE_SIZE + view.resourceGap);
     }
 
     private void drawResource(MachineResourceStack resource, float x, float y) {
@@ -514,7 +530,7 @@ public class GuiDynamicResourceSlot extends GuiElement implements IJEIIngredient
     @Nonnull
     private static String getAmountTooltip(long amount) {
         return MekanismLang.QIO_STORED_COUNT.translateColored(EnumColor.GREY, EnumColor.INDIGO,
-              TextUtils.format(amount)).getFormattedText();
+                TextUtils.format(amount)).getFormattedText();
     }
 
     @Nonnull
@@ -530,7 +546,7 @@ public class GuiDynamicResourceSlot extends GuiElement implements IJEIIngredient
             case GAS:
                 GasStack gas = display.gasStack();
                 return gas == null || gas.getGas() == null ? "gas" :
-                      gas.getGas().getLocalizedName();
+                        gas.getGas().getLocalizedName();
             default:
                 return "";
         }
@@ -567,7 +583,7 @@ public class GuiDynamicResourceSlot extends GuiElement implements IJEIIngredient
         double scaleY = client.displayHeight / (double) client.currentScreen.height;
         int minX = (int) Math.floor((getGuiLeft() + relativeX + 1) * scaleX);
         int minY = (int) Math.floor(client.displayHeight -
-              (getGuiTop() + relativeY + height - 1) * scaleY);
+                (getGuiTop() + relativeY + height - 1) * scaleY);
         int scissorWidth = Math.max(0, (int) Math.ceil((width - 2) * scaleX));
         int scissorHeight = Math.max(0, (int) Math.ceil((height - 2) * scaleY));
         if (wasEnabled) {
@@ -592,7 +608,7 @@ public class GuiDynamicResourceSlot extends GuiElement implements IJEIIngredient
         private final double offset;
 
         private ResourceView(List<MachineResourceStack> resources, int frameWidth, int resourceGap,
-              boolean autoFit, double offset) {
+                             boolean autoFit, double offset) {
             this.resources = resources;
             this.frameWidth = frameWidth;
             this.resourceGap = resourceGap;
@@ -624,7 +640,7 @@ public class GuiDynamicResourceSlot extends GuiElement implements IJEIIngredient
         private final boolean applied;
 
         private ScissorState(boolean wasEnabled, int previousX, int previousY, int previousWidth,
-              int previousHeight, boolean applied) {
+                             int previousHeight, boolean applied) {
             this.wasEnabled = wasEnabled;
             this.previousX = previousX;
             this.previousY = previousY;

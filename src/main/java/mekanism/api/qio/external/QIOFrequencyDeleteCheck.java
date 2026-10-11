@@ -1,17 +1,15 @@
 package mekanism.api.qio.external;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
-/** Immutable result returned before a QIO frequency is removed. */
+/**
+ * Immutable result returned before a QIO frequency is removed.
+ */
 public final class QIOFrequencyDeleteCheck {
 
     private static final QIOFrequencyDeleteCheck ALLOWED =
-          new QIOFrequencyDeleteCheck(Collections.emptyList());
+            new QIOFrequencyDeleteCheck(Collections.emptyList());
 
     private final List<String> blockers;
 

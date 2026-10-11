@@ -10,13 +10,12 @@ import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Objects;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
-/** Immutable contents snapshot used to detect changes outside an active machine lease. */
+/**
+ * Immutable contents snapshot used to detect changes outside an active machine lease.
+ */
+
 /**
  * QIO 处理模块中的 MachinePortBaseline 类型。
  *
@@ -49,22 +48,22 @@ public final class MachinePortBaseline implements Comparable<MachinePortBaseline
      * @param contents 捕获时的资源内容，可为 null
      */
     public MachinePortBaseline(@Nonnull String portId, @Nonnull String portGroupId,
-          @Nonnull MachineResourceKind kind, @Nullable MachineResourceStack contents) {
+                               @Nonnull MachineResourceKind kind, @Nullable MachineResourceStack contents) {
         this(portId, portGroupId, matcherFor(kind, contents, null), contents,
-              contents == null ? Collections.emptyList() : Collections.singletonList(contents));
+                contents == null ? Collections.emptyList() : Collections.singletonList(contents));
     }
 
     /** Creates a baseline with all resource identities held by a grouped port. */
     public MachinePortBaseline(@Nonnull String portId, @Nonnull String portGroupId,
-          @Nonnull MachineResourceKind kind, @Nullable MachineResourceStack contents,
-          @Nullable Collection<? extends MachineResourceStack> allContents) {
+                               @Nonnull MachineResourceKind kind, @Nullable MachineResourceStack contents,
+                               @Nullable Collection<? extends MachineResourceStack> allContents) {
         this(portId, portGroupId, matcherFor(kind, contents, allContents), contents, allContents);
     }
 
     /** Creates a codec/family-aware baseline, including for an empty custom-resource port. */
     public MachinePortBaseline(@Nonnull String portId, @Nonnull String portGroupId,
-          @Nonnull QIOResourceFamilyMatcher resourceMatcher, @Nullable MachineResourceStack contents,
-          @Nullable Collection<? extends MachineResourceStack> allContents) {
+                               @Nonnull QIOResourceFamilyMatcher resourceMatcher, @Nullable MachineResourceStack contents,
+                               @Nullable Collection<? extends MachineResourceStack> allContents) {
         this.portId = requireId(portId, "Port id");
         this.portGroupId = requireId(portGroupId, "Port group id");
         this.resourceMatcher = Objects.requireNonNull(resourceMatcher, "Resource matcher cannot be null");
@@ -73,7 +72,7 @@ public final class MachinePortBaseline implements Comparable<MachinePortBaseline
         if (allContents != null) {
             for (MachineResourceStack current : allContents) {
                 if (current == null || !resourceMatcher.accepts(current.descriptor()) || !current.portId().equals(portId) ||
-                      checked.stream().anyMatch(existing -> existing.sameResource(current))) {
+                        checked.stream().anyMatch(existing -> existing.sameResource(current))) {
                     throw new IllegalArgumentException("Baseline contents do not match their port identity");
                 }
                 checked.add(current);
@@ -106,7 +105,7 @@ public final class MachinePortBaseline implements Comparable<MachinePortBaseline
             }
         }
         return new MachinePortBaseline(port.portId(), port.portGroupId(), port.resourceMatcher(),
-              contents.isEmpty() ? null : contents.get(0), contents);
+                contents.isEmpty() ? null : contents.get(0), contents);
     }
 
     /** 返回端口标识。 */
@@ -167,7 +166,7 @@ public final class MachinePortBaseline implements Comparable<MachinePortBaseline
     public boolean matches(@Nonnull MachinePort port) {
         Objects.requireNonNull(port, "Port cannot be null");
         if (!portId.equals(port.portId()) || !portGroupId.equals(port.portGroupId()) ||
-              !resourceMatcher.equals(port.resourceMatcher())) {
+                !resourceMatcher.equals(port.resourceMatcher())) {
             return false;
         }
         return sameContents(allContents, port.peekAll(), portId);
@@ -175,12 +174,12 @@ public final class MachinePortBaseline implements Comparable<MachinePortBaseline
 
     /** 判断端口是否处于按指定数量抽取后的精确状态。 */
     public boolean matchesAfterExtraction(@Nonnull MachinePort port,
-          @Nonnull MachineResourceStack extraction) {
+                                          @Nonnull MachineResourceStack extraction) {
         Objects.requireNonNull(port, "Port cannot be null");
         Objects.requireNonNull(extraction, "Extraction cannot be null");
         if (!portId.equals(port.portId()) || !portGroupId.equals(port.portGroupId()) ||
-            !resourceMatcher.equals(port.resourceMatcher()) || !acceptsResource(extraction) ||
-            !portId.equals(extraction.portId()) || extraction.amount() > amountOf(extraction)) {
+                !resourceMatcher.equals(port.resourceMatcher()) || !acceptsResource(extraction) ||
+                !portId.equals(extraction.portId()) || extraction.amount() > amountOf(extraction)) {
             return false;
         }
         List<MachineResourceStack> expected = adjusted(extraction, -extraction.amount());
@@ -189,12 +188,12 @@ public final class MachinePortBaseline implements Comparable<MachinePortBaseline
 
     /** 判断端口是否处于按指定数量插入后的精确状态。 */
     public boolean matchesAfterInsertion(@Nonnull MachinePort port,
-          @Nonnull MachineResourceStack insertion) {
+                                         @Nonnull MachineResourceStack insertion) {
         Objects.requireNonNull(port, "Port cannot be null");
         Objects.requireNonNull(insertion, "Insertion cannot be null");
         if (!portId.equals(port.portId()) || !portGroupId.equals(port.portGroupId()) ||
-              !resourceMatcher.equals(port.resourceMatcher()) || !acceptsResource(insertion) ||
-              !portId.equals(insertion.portId())) {
+                !resourceMatcher.equals(port.resourceMatcher()) || !acceptsResource(insertion) ||
+                !portId.equals(insertion.portId())) {
             return false;
         }
         long previousAmount = amountOf(insertion);
@@ -232,7 +231,7 @@ public final class MachinePortBaseline implements Comparable<MachinePortBaseline
         Objects.requireNonNull(data, "Baseline data cannot be null");
         try {
             MachineResourceStack contents = data.hasKey(CONTENTS, NBT.TAG_COMPOUND) ?
-                  MachineResourceStack.read(data.getCompoundTag(CONTENTS)) : null;
+                    MachineResourceStack.read(data.getCompoundTag(CONTENTS)) : null;
             if (data.hasKey(CONTENTS, NBT.TAG_COMPOUND) && contents == null) {
                 throw new IllegalArgumentException("Invalid baseline contents");
             }
@@ -258,7 +257,7 @@ public final class MachinePortBaseline implements Comparable<MachinePortBaseline
                 matcher = matcherFor(kind, contents, allContents);
             }
             return new MachinePortBaseline(data.getString(PORT_ID), data.getString(PORT_GROUP_ID), matcher,
-                  contents, allContents);
+                    contents, allContents);
         } catch (RuntimeException e) {
             throw new IllegalArgumentException("Invalid machine port baseline", e);
         }
@@ -279,8 +278,8 @@ public final class MachinePortBaseline implements Comparable<MachinePortBaseline
             return false;
         }
         return portId.equals(other.portId) && portGroupId.equals(other.portGroupId) &&
-              resourceMatcher.equals(other.resourceMatcher) &&
-              allContents.equals(other.allContents);
+                resourceMatcher.equals(other.resourceMatcher) &&
+                allContents.equals(other.allContents);
     }
 
     @Override
@@ -312,7 +311,7 @@ public final class MachinePortBaseline implements Comparable<MachinePortBaseline
     }
 
     private static boolean sameContents(List<MachineResourceStack> expected,
-          List<MachineResourceStack> actual, String portId) {
+                                        List<MachineResourceStack> actual, String portId) {
         if (expected.size() != actual.size()) {
             return false;
         }
@@ -342,8 +341,8 @@ public final class MachinePortBaseline implements Comparable<MachinePortBaseline
     }
 
     private static QIOResourceFamilyMatcher matcherFor(MachineResourceKind kind,
-          @Nullable MachineResourceStack contents,
-          @Nullable Collection<? extends MachineResourceStack> allContents) {
+                                                       @Nullable MachineResourceStack contents,
+                                                       @Nullable Collection<? extends MachineResourceStack> allContents) {
         Objects.requireNonNull(kind, "Resource kind cannot be null");
         if (kind.getCodecId() != null) {
             return QIOResourceFamilyMatcher.codec(kind.getCodecId());

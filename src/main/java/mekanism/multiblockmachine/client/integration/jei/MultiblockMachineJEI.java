@@ -17,10 +17,10 @@ public class MultiblockMachineJEI implements IModPlugin {
     public void registerItemSubtypes(ISubtypeRegistry registry) {
         registry(registry, MultiblockMachineBlocks.LargeElectrolyticSeparator);
         registry(registry, MultiblockMachineBlocks.LargeChemicalInfuser);
-        registry(registry,MultiblockMachineBlocks.LargeChemicalWasher);
-        registry(registry,MultiblockMachineBlocks.LargeWindGenerator);
-        registry(registry,MultiblockMachineBlocks.LargeGasGenerator);
-        registry(registry,MultiblockMachineBlocks.LargeSolarNeutronActivator);
+        registry(registry, MultiblockMachineBlocks.LargeChemicalWasher);
+        registry(registry, MultiblockMachineBlocks.LargeWindGenerator);
+        registry(registry, MultiblockMachineBlocks.LargeGasGenerator);
+        registry(registry, MultiblockMachineBlocks.LargeSolarNeutronActivator);
     }
 
     public void registry(ISubtypeRegistry registry, Block block) {

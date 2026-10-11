@@ -36,6 +36,7 @@ public class NutritionalLiquifierRecipeCategory<WRAPPER extends NutritionalLiqui
             public double getProgress() {
                 return (double) timer.getValue() / 20F;
             }
+
             @Override
             public boolean isGuiInJei() {
                 return true;

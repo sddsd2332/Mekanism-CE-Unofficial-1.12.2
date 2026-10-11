@@ -322,7 +322,9 @@ public abstract class GuiElement extends Widget implements IFancyFontRenderer {
                 .forEach(child -> child.renderToolTip(mouseX, mouseY));
     }
 
-    /** Whether this element rendered the tooltip for the real container slot beneath it. */
+    /**
+     * Whether this element rendered the tooltip for the real container slot beneath it.
+     */
     public boolean rendersSlotTooltip() {
         return false;
     }
@@ -365,15 +367,15 @@ public abstract class GuiElement extends Widget implements IFancyFontRenderer {
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         return focusedChild != null && focusedChild.keyPressed(keyCode, scanCode, modifiers) ||
-              GuiUtils.checkChildren(children, child -> child != focusedChild && child.keyPressed(keyCode, scanCode, modifiers)) ||
-              super.keyPressed(keyCode, scanCode, modifiers);
+                GuiUtils.checkChildren(children, child -> child != focusedChild && child.keyPressed(keyCode, scanCode, modifiers)) ||
+                super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     @Override
     public boolean charTyped(char c, int keyCode) {
         return focusedChild != null && focusedChild.charTyped(c, keyCode) ||
-              GuiUtils.checkChildren(children, child -> child != focusedChild && child.charTyped(c, keyCode)) ||
-              super.charTyped(c, keyCode);
+                GuiUtils.checkChildren(children, child -> child != focusedChild && child.charTyped(c, keyCode)) ||
+                super.charTyped(c, keyCode);
     }
 
     @Override
@@ -397,8 +399,8 @@ public abstract class GuiElement extends Widget implements IFancyFontRenderer {
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
         return focusedChild != null && focusedChild.mouseScrolled(mouseX, mouseY, delta) ||
-              GuiUtils.checkChildren(children, child -> child != focusedChild && child.mouseScrolled(mouseX, mouseY, delta)) ||
-              super.mouseScrolled(mouseX, mouseY, delta);
+                GuiUtils.checkChildren(children, child -> child != focusedChild && child.mouseScrolled(mouseX, mouseY, delta)) ||
+                super.mouseScrolled(mouseX, mouseY, delta);
     }
 
     @Override
@@ -536,7 +538,7 @@ public abstract class GuiElement extends Widget implements IFancyFontRenderer {
         if (!text.getFormattedText().isEmpty()) {
             int color = getButtonTextColor(mouseX, mouseY) | MathHelper.ceil(alpha * 255.0F) << 24;
             IFancyFontRenderer.super.drawScaledScrollingString(text, getButtonX(), getButtonY(), TextAlignment.CENTER, color, getButtonWidth(),
-                  getButtonHeight() + 1, 2, displayButtonTextShadow(), 1, getTimeOpened());
+                    getButtonHeight() + 1, 2, displayButtonTextShadow(), 1, getTimeOpened());
         }
     }
 
@@ -628,27 +630,27 @@ public abstract class GuiElement extends Widget implements IFancyFontRenderer {
 
     @Override
     public void drawScrollingString(ITextComponent text, float x, float y, TextAlignment alignment, int color, float width, float maxLengthPad, boolean shadow,
-          long msVisible) {
+                                    long msVisible) {
         IFancyFontRenderer.super.drawScrollingString(text, relativeX + x, relativeY + y, alignment, color, width, getFont().FONT_HEIGHT, maxLengthPad, shadow,
-              msVisible);
+                msVisible);
     }
 
     @Override
     public void drawScrollingString(ITextComponent text, float x, float y, TextAlignment alignment, int color, float width, float height, float maxLengthPad,
-          boolean shadow, long msVisible) {
+                                    boolean shadow, long msVisible) {
         IFancyFontRenderer.super.drawScrollingString(text, relativeX + x, relativeY + y, alignment, color, width, height, maxLengthPad, shadow, msVisible);
     }
 
     @Override
     public void drawScaledScrollingString(ITextComponent text, float x, float y, TextAlignment alignment, int color, float width, float maxLengthPad,
-          boolean shadow, float textScale, long msVisible) {
+                                          boolean shadow, float textScale, long msVisible) {
         IFancyFontRenderer.super.drawScaledScrollingString(text, relativeX + x, relativeY + y, alignment, color, width, getFont().FONT_HEIGHT, maxLengthPad, shadow,
-              textScale, msVisible);
+                textScale, msVisible);
     }
 
     @Override
     public void drawScaledScrollingString(ITextComponent text, float x, float y, TextAlignment alignment, int color, float width, float height, float maxLengthPad,
-          boolean shadow, float textScale, long msVisible) {
+                                          boolean shadow, float textScale, long msVisible) {
         IFancyFontRenderer.super.drawScaledScrollingString(text, relativeX + x, relativeY + y, alignment, color, width, height, maxLengthPad, shadow, textScale, msVisible);
     }
 

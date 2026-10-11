@@ -99,7 +99,7 @@ public class MekanismOreDict {
         OreDictionary.registerOre("YellowCakeUranium", new ItemStack(MekanismItems.YellowCakeUranium, 1));
         OreDictionary.registerOre("ingotLead", new ItemStack(MekanismItems.Ingot, 1, 7));
         OreDictionary.registerOre("ingotUranium", new ItemStack(MekanismItems.Ingot, 1, 8));
-        OreDictionary.registerOre("gemFluorite", new ItemStack(MekanismItems.FluoriteClump, 1,0));
+        OreDictionary.registerOre("gemFluorite", new ItemStack(MekanismItems.FluoriteClump, 1, 0));
         OreDictionary.registerOre("dustFluorite", new ItemStack(MekanismItems.OtherDust, 1, 7));
         OreDictionary.registerOre("dustCharcoal", new ItemStack(MekanismItems.OtherDust, 1, 8));
         OreDictionary.registerOre("PlutoniumPellet", new ItemStack(MekanismItems.PlutoniumPellet, 1));

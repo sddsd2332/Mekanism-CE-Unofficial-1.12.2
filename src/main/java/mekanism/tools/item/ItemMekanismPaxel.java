@@ -44,7 +44,7 @@ public class ItemMekanismPaxel extends ItemTool implements IHasRepairType {
         boolean pickaxeShortcut = material == Material.IRON || material == Material.ANVIL || material == Material.ROCK;
         boolean axeShortcut = material == Material.WOOD || material == Material.PLANTS || material == Material.VINE;
         boolean shovelShortcut = material == Material.GROUND || material == Material.GRASS || material == Material.SAND || material == Material.SNOW
-                                 || material == Material.CRAFTED_SNOW || material == Material.CLAY;
+                || material == Material.CRAFTED_SNOW || material == Material.CLAY;
         return pickaxeShortcut || axeShortcut || shovelShortcut ? this.efficiency : super.getDestroySpeed(stack, state);
     }
 

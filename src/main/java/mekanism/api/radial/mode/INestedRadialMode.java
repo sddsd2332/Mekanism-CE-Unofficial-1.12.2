@@ -12,7 +12,6 @@ public interface INestedRadialMode extends IRadialMode {
 
     /**
      * @return Nested Radial Data or {@code null} if this radial mode doesn't actually support nested data.
-     *
      * @apiNote {@link #hasNestedData()} can be used to determine whether there is nested data present or not.
      */
     @Nullable

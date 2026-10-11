@@ -50,7 +50,7 @@ public abstract class ItemStackMekanismEnergyHandler extends ItemCapability impl
     @Override
     public boolean canProcess(Capability<?> capability) {
         return capability == Capabilities.STRICT_ENERGY_CAPABILITY || capability == Capabilities.ENERGY_STORAGE_CAPABILITY ||
-               capability == Capabilities.ENERGY_ACCEPTOR_CAPABILITY || capability == Capabilities.ENERGY_OUTPUTTER_CAPABILITY;
+                capability == Capabilities.ENERGY_ACCEPTOR_CAPABILITY || capability == Capabilities.ENERGY_OUTPUTTER_CAPABILITY;
     }
 
     @SuppressWarnings("unchecked")

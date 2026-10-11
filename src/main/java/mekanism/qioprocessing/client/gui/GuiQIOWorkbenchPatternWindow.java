@@ -7,18 +7,17 @@ import mekanism.client.gui.element.slot.GuiSlot;
 import mekanism.client.gui.element.slot.SlotType;
 import mekanism.client.gui.element.window.GuiWindow;
 import mekanism.client.recipe_viewer.interfaces.IRecipeViewerGhostTarget.IGhostItemConsumer;
-import mekanism.common.inventory.container.SelectedWindowData;
 import mekanism.common.config.MekanismConfig;
+import mekanism.common.inventory.container.SelectedWindowData;
 import mekanism.common.util.MekanismUtils;
 import mekanism.qioprocessing.common.QIOProcessingWindowTypes;
-import mekanism.qioprocessing.common.inventory.container.QIOWorkbenchConfigurationClientCache;
 import mekanism.qioprocessing.common.content.workbench.QIOWorkbenchClosureMode;
+import mekanism.qioprocessing.common.inventory.container.QIOWorkbenchConfigurationClientCache;
 import mekanism.qioprocessing.common.util.QIORecipeStackUtils;
 import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.crafting.CraftingManager;
 import net.minecraft.item.crafting.IRecipe;
-import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.text.TextComponentTranslation;
 
 import java.util.ArrayList;
@@ -26,7 +25,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-/** Fixed 3x3 ghost-grid editor with a calculated output and real player inventory access. */
+/**
+ * Fixed 3x3 ghost-grid editor with a calculated output and real player inventory access.
+ */
+
 /**
  * QIO 处理模块中的 GuiQIOWorkbenchPatternWindow 类型。
  *
@@ -56,11 +58,11 @@ public final class GuiQIOWorkbenchPatternWindow extends GuiWindow {
     private ItemStack output = ItemStack.EMPTY;
 
     public GuiQIOWorkbenchPatternWindow(IGuiWrapper gui,
-          QIOWorkbenchConfigurationClientCache cache,
-          TriPredicate<List<ItemStack>, QIOWorkbenchClosureMode, Boolean> encoder,
-          Runnable focusHandler, Runnable closeHandler) {
+                                        QIOWorkbenchConfigurationClientCache cache,
+                                        TriPredicate<List<ItemStack>, QIOWorkbenchClosureMode, Boolean> encoder,
+                                        Runnable focusHandler, Runnable closeHandler) {
         super(gui, (gui.getWidth() - WIDTH) / 2, WINDOW_Y, WIDTH, HEIGHT,
-              new SelectedWindowData(QIOProcessingWindowTypes.MANAGEMENT_WORKBENCH_PATTERN));
+                new SelectedWindowData(QIOProcessingWindowTypes.MANAGEMENT_WORKBENCH_PATTERN));
         this.cache = Objects.requireNonNull(cache, "cache");
         this.encoder = Objects.requireNonNull(encoder, "encoder");
         this.focusHandler = Objects.requireNonNull(focusHandler, "focusHandler");
@@ -69,19 +71,19 @@ public final class GuiQIOWorkbenchPatternWindow extends GuiWindow {
         for (int slot = 0; slot < 9; slot++) {
             final int index = slot;
             GuiSlot guiSlot = new GuiSlot(SlotType.NORMAL, gui,
-                  relativeX + GRID_X + slot % 3 * 18,
-                  relativeY + GRID_Y + slot / 3 * 18) {
+                    relativeX + GRID_X + slot % 3 * 18,
+                    relativeY + GRID_Y + slot / 3 * 18) {
                 @Override
                 public void renderToolTip(int mouseX, int mouseY) {
                     super.renderToolTip(mouseX, mouseY);
                     ItemStack stack = GuiQIOWorkbenchPatternWindow.this.cache
-                          .getEncodingSlot(index);
+                            .getEncodingSlot(index);
                     if (!stack.isEmpty() && isMouseOverTooltip(mouseX, mouseY)) {
                         gui.renderItemTooltip(stack, mouseX, mouseY);
                     }
                 }
             }.stored(() -> this.cache.getEncodingSlot(index)).setRenderHover(true)
-                  .click((element, mouseX, mouseY) -> setFromCarried(index));
+                    .click((element, mouseX, mouseY) -> setFromCarried(index));
             guiSlot.setGhostHandler(new IGhostItemConsumer() {
                 @Override
                 public void accept(Object ingredient) {
@@ -94,7 +96,7 @@ public final class GuiQIOWorkbenchPatternWindow extends GuiWindow {
             addChild(guiSlot);
         }
         addChild(new GuiSlot(SlotType.NORMAL, gui, relativeX + OUTPUT_X,
-              relativeY + OUTPUT_Y) {
+                relativeY + OUTPUT_Y) {
             @Override
             public void renderToolTip(int mouseX, int mouseY) {
                 super.renderToolTip(mouseX, mouseY);
@@ -104,17 +106,17 @@ public final class GuiQIOWorkbenchPatternWindow extends GuiWindow {
             }
         }.stored(() -> output).setRenderHover(true));
         closureModeButton = addChild(new MekanismButton(gui, relativeX + 10,
-              relativeY + 86, 87, 20, closureModeText(), this::cycleClosureMode, null));
+                relativeY + 86, 87, 20, closureModeText(), this::cycleClosureMode, null));
         cycleFilterButton = addChild(new MekanismButton(gui, relativeX + 101,
-              relativeY + 86, 87, 20, cycleFilterText(), this::toggleCycleFilter,
-              getOnHover(() -> new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.workbench_cycle_filter_tooltip"))));
+                relativeY + 86, 87, 20, cycleFilterText(), this::toggleCycleFilter,
+                getOnHover(() -> new TextComponentTranslation(
+                        "gui.mekanismqioprocessing.workbench_cycle_filter_tooltip"))));
         addChild(new MekanismButton(gui, relativeX + 10, relativeY + 110, 82, 20,
-              new TextComponentTranslation("gui.mekanismqioprocessing.workbench_pattern_clear"),
-              cache::clearEncodingGrid, null));
+                new TextComponentTranslation("gui.mekanismqioprocessing.workbench_pattern_clear"),
+                cache::clearEncodingGrid, null));
         encodeButton = addChild(new MekanismButton(gui, relativeX + 96, relativeY + 110,
-              92, 20, new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.workbench_pattern_encode"), this::encode, null));
+                92, 20, new TextComponentTranslation(
+                "gui.mekanismqioprocessing.workbench_pattern_encode"), this::encode, null));
         refreshOutput();
         updateButton();
     }
@@ -136,20 +138,20 @@ public final class GuiQIOWorkbenchPatternWindow extends GuiWindow {
     public void renderForeground(int mouseX, int mouseY) {
         super.renderForeground(mouseX, mouseY);
         drawTitleText(new TextComponentTranslation(
-              "gui.mekanismqioprocessing.workbench_pattern_title"), 5);
+                "gui.mekanismqioprocessing.workbench_pattern_title"), 5);
         getFont().drawString(">", relativeX + 108, relativeY + 48, titleTextColor());
     }
 
     private boolean setFromCarried(int slot) {
         ItemStack carried = minecraft.player == null ? ItemStack.EMPTY :
-              minecraft.player.inventory.getItemStack();
+                minecraft.player.inventory.getItemStack();
         cache.setEncodingSlot(slot, carried);
         return true;
     }
 
     private void encode() {
         if (cache.hasEncodingInput() && !output.isEmpty() &&
-            encoder.test(cache.getEncodingGrid(), closureMode, skipCyclicRecipes)) {
+                encoder.test(cache.getEncodingGrid(), closureMode, skipCyclicRecipes)) {
             close();
         }
     }
@@ -176,13 +178,13 @@ public final class GuiQIOWorkbenchPatternWindow extends GuiWindow {
 
     private TextComponentTranslation cycleFilterText() {
         return new TextComponentTranslation(skipCyclicRecipes ?
-              "gui.mekanismqioprocessing.workbench_cycle_filter_on" :
-              "gui.mekanismqioprocessing.workbench_cycle_filter_off");
+                "gui.mekanismqioprocessing.workbench_cycle_filter_on" :
+                "gui.mekanismqioprocessing.workbench_cycle_filter_off");
     }
 
     private void updateButton() {
         boolean recursive = MekanismConfig.current().qioProcessing.recipeCatalogScanMode
-              .val().allowsRecursiveImport();
+                .val().allowsRecursiveImport();
         if (!recursive) {
             closureMode = QIOWorkbenchClosureMode.NONE;
             skipCyclicRecipes = false;
@@ -191,7 +193,7 @@ public final class GuiQIOWorkbenchPatternWindow extends GuiWindow {
         cycleFilterButton.visible = recursive;
         encodeButton.active = cache.hasEncodingInput() && !output.isEmpty();
         cycleFilterButton.active = recursive &&
-              closureMode != QIOWorkbenchClosureMode.NONE;
+                closureMode != QIOWorkbenchClosureMode.NONE;
     }
 
     @Override
@@ -206,14 +208,14 @@ public final class GuiQIOWorkbenchPatternWindow extends GuiWindow {
         List<ItemStack> grid = cache.getEncodingGrid();
         if (sameGrid(lastOutputGrid, grid)) return;
         List<ItemStack> copy = new ArrayList<>(grid.size());
-        grid.forEach(stack -> copy.add(QIORecipeStackUtils.copyForRecipeSelection(stack)));
+        grid.forEach(stack -> copy.add(QIORecipeStackUtils.copyComplete(stack)));
         lastOutputGrid = Collections.unmodifiableList(copy);
         output = calculateOutput(grid);
     }
 
     private ItemStack calculateOutput(List<ItemStack> grid) {
         if (minecraft.world == null || grid.size() != 9 ||
-            grid.stream().allMatch(ItemStack::isEmpty)) return ItemStack.EMPTY;
+                grid.stream().allMatch(ItemStack::isEmpty)) return ItemStack.EMPTY;
         ItemStack exact = calculateOutputForGrid(grid);
         if (!exact.isEmpty()) return exact;
         // Some integrations attach a context-only ForgeCaps payload while an item is held. Try
@@ -232,20 +234,20 @@ public final class GuiQIOWorkbenchPatternWindow extends GuiWindow {
             InventoryCrafting inventory = MekanismUtils.getDummyCraftingInv();
             for (int slot = 0; slot < 9; slot++) {
                 inventory.setInventorySlotContents(slot,
-                      QIORecipeStackUtils.copyForRecipeSelection(grid.get(slot)));
+                        QIORecipeStackUtils.copyComplete(grid.get(slot)));
             }
             IRecipe recipe = CraftingManager.findMatchingRecipe(inventory, minecraft.world);
             if (recipe == null) return ItemStack.EMPTY;
             ItemStack result = recipe.getCraftingResult(inventory);
             return result == null ? ItemStack.EMPTY :
-                  QIORecipeStackUtils.copyForRecipeSelection(result);
+                    QIORecipeStackUtils.copyComplete(result);
         } catch (RuntimeException | LinkageError ignored) {
             return ItemStack.EMPTY;
         }
     }
 
     private static ItemStack withoutSerializedCapabilities(ItemStack stack) {
-        return QIORecipeStackUtils.copyForRecipeSelection(stack);
+        return QIORecipeStackUtils.copyComplete(stack);
     }
 
     private static boolean sameGrid(List<ItemStack> first, List<ItemStack> second) {

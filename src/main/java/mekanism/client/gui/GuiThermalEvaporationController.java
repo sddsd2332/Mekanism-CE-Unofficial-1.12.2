@@ -42,9 +42,9 @@ public class GuiThermalEvaporationController extends GuiMekanismTile<TileEntityT
     protected void addGuiElements() {
         super.addGuiElements();
         inputGauge = addButton(new GuiFluidGauge(this, tileEntity.inputTank, GuiFluidGauge.Type.STANDARD, 6, 13))
-              .warning(WarningType.NO_MATCHING_RECIPE, tileEntity::hasWarningNoMatchingRecipe);
+                .warning(WarningType.NO_MATCHING_RECIPE, tileEntity::hasWarningNoMatchingRecipe);
         outputGauge = addButton(new GuiFluidGauge(this, tileEntity.outputTank, GuiFluidGauge.Type.STANDARD, 172, 13))
-              .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity::hasWarningNoSpaceInOutput);
+                .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity::hasWarningNoSpaceInOutput);
         addButton(new GuiHeatTab(this, () -> {
             String environment = MekanismUtils.getTemperatureDisplay(tileEntity.totalLoss, TemperatureUnit.KELVIN, false);
             return Collections.singletonList(new TextComponentString(LangUtils.localize("gui.dissipated") + ": " + environment + "/t"));

@@ -25,7 +25,7 @@ public class AmbientGasCategory<WRAPPER extends AmbientGasRecipeWrapper<AmbientG
     @Override
     protected void addGuiElements() {
         guiElements.add(new GuiInnerScreen(this, 7, 13, 80, 65).clearFormat().padding(2).spacing(1).textScale(0.8F));
-        output = addElement(dummyGasGauge(GuiGasGauge.Type.STANDARD, GuiGasGauge.GaugeColor.ORANGE, 103,18));
+        output = addElement(dummyGasGauge(GuiGasGauge.Type.STANDARD, GuiGasGauge.GaugeColor.ORANGE, 103, 18));
     }
 
     @Override

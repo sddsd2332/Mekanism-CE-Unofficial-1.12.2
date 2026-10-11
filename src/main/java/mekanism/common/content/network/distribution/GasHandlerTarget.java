@@ -28,8 +28,16 @@ public class GasHandlerTarget extends Target<GasHandlerTarget.SideHandler, Integ
     }
 
     @Override
+    public Integer sendToSingle(Integer amount, GasStack resource) {
+        if (resource == null || resource.getGas() == null || amount <= 0) return 0;
+        SideHandler target = handlers.iterator().next();
+        return GasInventorySlot.insertGas(target.handler, target.side, new GasStack(resource.getGas(), amount), true);
+    }
+
+    @Override
     protected void acceptAmount(SideHandler handler, SplitInfo<Integer> splitInfo, Integer amount) {
         if (extra == null || extra.getGas() == null || amount == null || amount <= 0) {
+            splitInfo.send(0);
             return;
         }
         splitInfo.send(GasInventorySlot.insertGas(handler.handler, handler.side, new GasStack(extra.getGas(), amount), true));

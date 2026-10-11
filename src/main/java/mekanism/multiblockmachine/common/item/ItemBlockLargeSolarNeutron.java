@@ -15,7 +15,7 @@ import net.minecraft.world.World;
 
 import javax.annotation.Nonnull;
 
-public class ItemBlockLargeSolarNeutron extends ItemBlockLargeBase{
+public class ItemBlockLargeSolarNeutron extends ItemBlockLargeBase {
 
     public ItemBlockLargeSolarNeutron(Block block) {
         super(block, "LargeSolarNeutronActivator");

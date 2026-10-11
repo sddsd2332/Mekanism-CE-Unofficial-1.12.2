@@ -121,8 +121,8 @@ public class ItemHohlraum extends ItemMekanismGenerators implements ILegacyGasIt
     @Override
     public ICapabilityProvider initCapabilities(ItemStack stack, NBTTagCompound nbt) {
         return new ItemCapabilityWrapper(stack, RateLimitGasHandler.create(() -> getGasTransferRate(stack), () -> getGasCapacity(stack),
-              ConstantPredicates.alwaysFalseBi(), ConstantPredicates.alwaysTrueBi(),
-              gasStack -> gasStack != null && gasStack.getGas() == MekanismFluids.FusionFuel, "stored"));
+                ConstantPredicates.alwaysFalseBi(), ConstantPredicates.alwaysTrueBi(),
+                gasStack -> gasStack != null && gasStack.getGas() == MekanismFluids.FusionFuel, "stored"));
     }
 
     public ItemStack getEmptyItem() {

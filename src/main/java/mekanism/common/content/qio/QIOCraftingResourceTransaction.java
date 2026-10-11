@@ -3,12 +3,7 @@ package mekanism.common.content.qio;
 import mekanism.api.Action;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * Atomic resource reservation primitive for crafting integrations.
@@ -29,7 +24,7 @@ public final class QIOCraftingResourceTransaction {
     private boolean committed;
 
     public QIOCraftingResourceTransaction(@Nonnull QIOFrequency frequency,
-          @Nonnull List<QIOCraftingTransferHelper.ResourceRequest> requests) {
+                                          @Nonnull List<QIOCraftingTransferHelper.ResourceRequest> requests) {
         this.frequency = frequency;
         this.requests = new ArrayList<>(requests);
     }
@@ -59,7 +54,9 @@ public final class QIOCraftingResourceTransaction {
         return true;
     }
 
-    /** Executes all requests or restores every already extracted amount. */
+    /**
+     * Executes all requests or restores every already extracted amount.
+     */
     public boolean execute() {
         if (executed || rolledBack || !simulate()) {
             return false;
@@ -80,7 +77,9 @@ public final class QIOCraftingResourceTransaction {
         return true;
     }
 
-    /** Returns all reserved resources to QIO; incomplete restores remain retryable. */
+    /**
+     * Returns all reserved resources to QIO; incomplete restores remain retryable.
+     */
     public void rollback() {
         if (rolledBack || committed) {
             return;
@@ -106,7 +105,9 @@ public final class QIOCraftingResourceTransaction {
         return rolledBack && !committed && extracted.isEmpty();
     }
 
-    /** Marks the transaction consumed by the caller without reinserting it. */
+    /**
+     * Marks the transaction consumed by the caller without reinserting it.
+     */
     public void commit() {
         if (!extractionComplete || rolledBack || committed) {
             return;

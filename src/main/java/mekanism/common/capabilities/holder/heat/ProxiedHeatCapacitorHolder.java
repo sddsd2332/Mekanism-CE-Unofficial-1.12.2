@@ -15,12 +15,12 @@ public class ProxiedHeatCapacitorHolder extends ProxiedHolder implements IHeatCa
     private final Function<EnumFacing, List<IHeatCapacitor>> capacitorFunction;
 
     public static ProxiedHeatCapacitorHolder create(Predicate<EnumFacing> insertPredicate, Predicate<EnumFacing> extractPredicate,
-          Function<EnumFacing, List<IHeatCapacitor>> capacitorFunction) {
+                                                    Function<EnumFacing, List<IHeatCapacitor>> capacitorFunction) {
         return new ProxiedHeatCapacitorHolder(insertPredicate, extractPredicate, capacitorFunction);
     }
 
     private ProxiedHeatCapacitorHolder(Predicate<EnumFacing> insertPredicate, Predicate<EnumFacing> extractPredicate,
-          Function<EnumFacing, List<IHeatCapacitor>> capacitorFunction) {
+                                       Function<EnumFacing, List<IHeatCapacitor>> capacitorFunction) {
         super(insertPredicate, extractPredicate);
         this.capacitorFunction = capacitorFunction;
     }

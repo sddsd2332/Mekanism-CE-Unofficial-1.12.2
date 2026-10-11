@@ -33,7 +33,7 @@ public class RateLimitEnergyHandler extends ItemStackMekanismEnergyHandler {
     }
 
     public static RateLimitEnergyHandler create(DoubleSupplier rate, DoubleSupplier capacity, Predicate<AutomationType> canExtract,
-          Predicate<AutomationType> canInsert) {
+                                                Predicate<AutomationType> canInsert) {
         Objects.requireNonNull(rate, "Rate supplier cannot be null");
         Objects.requireNonNull(capacity, "Capacity supplier cannot be null");
         Objects.requireNonNull(canExtract, "Extraction validity check cannot be null");
@@ -57,7 +57,7 @@ public class RateLimitEnergyHandler extends ItemStackMekanismEnergyHandler {
         private final DoubleSupplier rate;
 
         public RateLimitEnergyContainer(DoubleSupplier rate, DoubleSupplier capacity, Predicate<AutomationType> canExtract,
-              Predicate<AutomationType> canInsert, @Nullable IContentsListener listener) {
+                                        Predicate<AutomationType> canInsert, @Nullable IContentsListener listener) {
             super(capacity, canExtract, canInsert, listener);
             this.rate = rate;
         }

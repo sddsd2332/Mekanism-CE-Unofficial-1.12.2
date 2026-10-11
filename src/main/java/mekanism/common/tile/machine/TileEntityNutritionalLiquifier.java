@@ -53,10 +53,10 @@ import java.util.Map;
 public class TileEntityNutritionalLiquifier extends TileEntityBasicMachine<ItemStackInput, GasOutput, NutritionalRecipe> implements ISustainedData, ITankManager, ISpecialSelectionWireframeTile {
 
     private static final List<RecipeError> TRACKED_ERROR_TYPES = Arrays.asList(
-          RecipeError.NOT_ENOUGH_ENERGY,
-          RecipeError.NOT_ENOUGH_INPUT,
-          RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
-          RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
+            RecipeError.NOT_ENOUGH_ENERGY,
+            RecipeError.NOT_ENOUGH_INPUT,
+            RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
+            RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
     );
     public static final int MAX_GAS = 10000;
     public BasicGasTank gasTank;
@@ -88,7 +88,7 @@ public class TileEntityNutritionalLiquifier extends TileEntityBasicMachine<ItemS
     protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
         InventorySlotHelper builder = createInventorySlotHelper();
         inputSlot = builder.addSlot(InputInventorySlot.at(stack -> RecipeHandler.getNutritionalRecipe(new ItemStackInput(stack)) != null, getRecipeCacheListener(), 26, 36)
-              .setAutoPullValidator((stack, side) -> canAutoPullInput(stack)));
+                .setAutoPullValidator((stack, side) -> canAutoPullInput(stack)));
         inputSlot.tracksWarnings(slot -> slot.warning(WarningType.NO_MATCHING_RECIPE, getWarningCheck(RecipeError.NOT_ENOUGH_INPUT)));
         energySlot = builder.addSlot(EnergyInventorySlot.fillOrConvert(getMainEnergyContainer(), this::getWorld, listener, 154, 14));
         gasSlot = builder.addSlot(GasInventorySlot.drain(gasTank, listener, 154, 55));
@@ -109,7 +109,8 @@ public class TileEntityNutritionalLiquifier extends TileEntityBasicMachine<ItemS
         }
         return gasTank;
     }
-@Override
+
+    @Override
     public void onUpdateClient() {
         super.onUpdateClient();
         if (updateDelay > 0) {
@@ -213,7 +214,7 @@ public class TileEntityNutritionalLiquifier extends TileEntityBasicMachine<ItemS
     }
 
     private boolean canAutoPullInput(ItemStack stack) {
-        NutritionalRecipe recipe = RecipeHandler.getNutritionalRecipe(new ItemStackInput(getSimulatedStackWithInsert(0, stack)));
+        NutritionalRecipe recipe = RecipeHandler.getNutritionalRecipe(new ItemStackInput(getSimulatedStackWithInsert(inputSlot, stack)));
         return recipe != null && recipe.getOutput().applyOutputs(gasTank, false, 1);
     }
 
@@ -228,22 +229,22 @@ public class TileEntityNutritionalLiquifier extends TileEntityBasicMachine<ItemS
     @Override
     public CachedRecipe<NutritionalRecipe> createNewCachedRecipe(NutritionalRecipe recipe, int cacheIndex) {
         return new OneInputCachedRecipe<>(recipe, this::shouldRecheckAllRecipeErrors,
-              InputHelper.getInputHandler(inputSlot, RecipeError.NOT_ENOUGH_INPUT),
-              OutputHelper.getGasOutputHandler(gasTank, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
-              () -> recipe.getInput().ingredient, input -> mekanism.common.recipe.inputs.MachineInput.inputContains(input, recipe.getInput().ingredient),
-              input -> recipe.getOutput().output.copy(), ItemStack::isEmpty, output -> output == null || output.amount <= 0)
-              .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
-              .setActive(active -> {
-                  if (active || prevEnergy >= getEnergy()) {
-                      setActive(active);
-                  }
-              })
-              .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
-              .setRequiredTicks(() -> ticksRequired)
-              .setBaselineMaxOperations(() -> getBaselineMaxOperations(energyPerTick, true))
-              .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
-              .setErrorsChanged(this::onRecipeErrorsChanged)
-              .setOnFinish(this::onCachedRecipeFinish);
+                InputHelper.getInputHandler(inputSlot, RecipeError.NOT_ENOUGH_INPUT),
+                OutputHelper.getGasOutputHandler(gasTank, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
+                () -> recipe.getInput().ingredient, input -> mekanism.common.recipe.inputs.MachineInput.inputContains(input, recipe.getInput().ingredient),
+                input -> recipe.getOutput().output.copy(), ItemStack::isEmpty, output -> output == null || output.amount <= 0)
+                .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
+                .setActive(active -> {
+                    if (active || prevEnergy >= getEnergy()) {
+                        setActive(active);
+                    }
+                })
+                .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
+                .setRequiredTicks(() -> ticksRequired)
+                .setBaselineMaxOperations(() -> getBaselineMaxOperations(energyPerTick, true))
+                .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
+                .setErrorsChanged(this::onRecipeErrorsChanged)
+                .setOnFinish(this::onCachedRecipeFinish);
     }
 
     @Override

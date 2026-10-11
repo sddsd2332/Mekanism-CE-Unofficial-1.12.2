@@ -2,8 +2,8 @@ package mekanism.common.integration.crafttweaker;
 
 import crafttweaker.CraftTweakerAPI;
 import crafttweaker.IAction;
-import crafttweaker.mc1120.commands.CTChatCommand;
 import crafttweaker.mc1120.brackets.BracketHandlerLiquid;
+import crafttweaker.mc1120.commands.CTChatCommand;
 import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasRegistry;
 import mekanism.common.Mekanism;

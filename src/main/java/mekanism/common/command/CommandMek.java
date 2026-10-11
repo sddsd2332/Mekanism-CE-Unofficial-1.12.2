@@ -47,8 +47,8 @@ public class CommandMek extends CommandTreeBase {
         addSubcommand(new Cmd("tpop", "cmd.mek.tpop", this::teleportPop));
         addSubcommand(new Cmd("performance_report", "cmd.mekceu.performance_report", CommandMek::performanceReport));
         addSubcommand(new Cmd("multiblock_retry_history", "/mek multiblock_retry_history", (server, sender, args) ->
-              sender.sendMessage(new TextComponentString("Retried multiblock history loads in this world: " +
-                    MultiblockManager.retryLegacyHistory(sender.getEntityWorld())))));
+                sender.sendMessage(new TextComponentString("Retried multiblock history loads in this world: " +
+                        MultiblockManager.retryLegacyHistory(sender.getEntityWorld())))));
         addSubcommand(new Cmd("multiblock_recover", "/mek multiblock_recover", (server, sender, args) -> {
             try {
                 sender.sendMessage(new TextComponentString("Recovering multiblock stores in this world: " + MultiblockManager.recoverStores(sender.getEntityWorld())));
@@ -58,7 +58,8 @@ public class CommandMek extends CommandTreeBase {
         }));
         addSubcommand(new CommandChunk());
         addSubcommand(new Cmd("multiblock_status", "/mek multiblock_status", (server, sender, args) -> {
-            for (String line : MultiblockManager.persistenceStatus(sender.getEntityWorld())) sender.sendMessage(new TextComponentString(line));
+            for (String line : MultiblockManager.persistenceStatus(sender.getEntityWorld()))
+                sender.sendMessage(new TextComponentString(line));
         }));
         addSubcommand(new RadiationCommand());
     }

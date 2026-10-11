@@ -44,7 +44,7 @@ public final class ChargeUtils {
     /**
      * Universally discharges an item, and updates the TileEntity's energy level.
      *
-     * @param stack - ItemStack to discharge
+     * @param stack  - ItemStack to discharge
      * @param storer - TileEntity the item is being discharged into
      */
     public static void discharge(ItemStack stack, IStrictEnergyStorage storer) {

@@ -8,17 +8,12 @@ import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.AbstractList;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
-/** Persistent four-level frequency, route, and machine policy overrides. */
+/**
+ * Persistent four-level frequency, route, and machine policy overrides.
+ */
+
 /**
  * QIO 处理模块中的 QIOPolicyCatalog 类型。
  *
@@ -51,12 +46,12 @@ public final class QIOPolicyCatalog {
     private long globalDefaultRoutePriority;
     private long globalDefaultPassivePriority;
     private final Map<RouteIdentity, RoutePolicy> globalRoutePolicies =
-          new LinkedHashMap<>();
+            new LinkedHashMap<>();
     private final List<RouteIdentity> globalRouteOrder = new ArrayList<>();
     private final Map<UUID, DevicePolicy> devicePolicies = new LinkedHashMap<>();
     private final List<UUID> deviceOrder = new ArrayList<>();
     private final Map<DeviceRouteKey, RoutePolicy> deviceRoutePolicies =
-          new LinkedHashMap<>();
+            new LinkedHashMap<>();
     private final List<DeviceRouteKey> deviceRouteOrder = new ArrayList<>();
 
     public long getRevision() {
@@ -100,7 +95,7 @@ public final class QIOPolicyCatalog {
 
     @Nullable
     public RoutePolicy getGlobalRoutePolicy(@Nonnull String providerId,
-          @Nonnull String routeId, @Nonnull String recipeKey) {
+                                            @Nonnull String routeId, @Nonnull String recipeKey) {
         return globalRoutePolicies.get(RouteIdentity.create(providerId, routeId, recipeKey));
     }
 
@@ -111,10 +106,10 @@ public final class QIOPolicyCatalog {
 
     @Nullable
     public RoutePolicy getDeviceRoutePolicy(@Nonnull UUID deviceUUID,
-          @Nonnull String providerId, @Nonnull String routeId,
-          @Nonnull String recipeKey) {
+                                            @Nonnull String providerId, @Nonnull String routeId,
+                                            @Nonnull String recipeKey) {
         return deviceRoutePolicies.get(DeviceRouteKey.create(deviceUUID, providerId,
-              routeId, recipeKey));
+                routeId, recipeKey));
     }
 
     public boolean hasPoliciesForDevice(@Nonnull UUID deviceUUID) {
@@ -132,48 +127,48 @@ public final class QIOPolicyCatalog {
 
     /** Resolves the frequency-global route layer over the frequency default layer. */
     public boolean isRouteEnabled(@Nonnull String providerId, @Nonnull String routeId,
-          @Nonnull String recipeKey) {
+                                  @Nonnull String recipeKey) {
         return resolveRoutePolicy(null, providerId, routeId, recipeKey).isEnabled();
     }
 
     /** Resolves device-route, device-default, global-route, then global-default. */
     public boolean isRouteEnabled(@Nonnull UUID deviceUUID, @Nonnull String providerId,
-          @Nonnull String routeId, @Nonnull String recipeKey) {
+                                  @Nonnull String routeId, @Nonnull String recipeKey) {
         return resolveRoutePolicy(deviceUUID, providerId, routeId, recipeKey).isEnabled();
     }
 
     public long routePriority(@Nonnull String providerId, @Nonnull String routeId,
-          @Nonnull String recipeKey) {
+                              @Nonnull String recipeKey) {
         return resolveRoutePolicy(null, providerId, routeId, recipeKey).getRoutePriority();
     }
 
     public long routePriority(@Nonnull UUID deviceUUID, @Nonnull String providerId,
-          @Nonnull String routeId, @Nonnull String recipeKey) {
+                              @Nonnull String routeId, @Nonnull String recipeKey) {
         return resolveRoutePolicy(deviceUUID, providerId, routeId, recipeKey)
-              .getRoutePriority();
+                .getRoutePriority();
     }
 
     public long passiveRoutePriority(@Nonnull String providerId, @Nonnull String routeId,
-          @Nonnull String recipeKey) {
+                                     @Nonnull String recipeKey) {
         return resolveRoutePolicy(null, providerId, routeId, recipeKey)
-              .getPassivePriority();
+                .getPassivePriority();
     }
 
     public long passiveRoutePriority(@Nonnull UUID deviceUUID, @Nonnull String providerId,
-          @Nonnull String routeId, @Nonnull String recipeKey) {
+                                     @Nonnull String routeId, @Nonnull String recipeKey) {
         return resolveRoutePolicy(deviceUUID, providerId, routeId, recipeKey)
-              .getPassivePriority();
+                .getPassivePriority();
     }
 
     @Nonnull
     public EffectiveRoutePolicy resolveRoutePolicy(@Nullable UUID deviceUUID,
-          @Nonnull String providerId, @Nonnull String routeId,
-          @Nonnull String recipeKey) {
+                                                   @Nonnull String providerId, @Nonnull String routeId,
+                                                   @Nonnull String recipeKey) {
         RouteIdentity route = RouteIdentity.create(providerId, routeId, recipeKey);
         RoutePolicy globalRoute = globalRoutePolicies.get(route);
         DevicePolicy device = deviceUUID == null ? null : devicePolicies.get(deviceUUID);
         RoutePolicy deviceRoute = deviceUUID == null ? null :
-              deviceRoutePolicies.get(new DeviceRouteKey(deviceUUID, route));
+                deviceRoutePolicies.get(new DeviceRouteKey(deviceUUID, route));
 
         Toggle resolvedToggle;
         Source toggleSource;
@@ -220,25 +215,25 @@ public final class QIOPolicyCatalog {
             passivePrioritySource = Source.GLOBAL_DEFAULT;
         }
         return new EffectiveRoutePolicy(resolvedToggle != Toggle.DISABLED, priority,
-              passivePriority, toggleSource, prioritySource, passivePrioritySource);
+                passivePriority, toggleSource, prioritySource, passivePrioritySource);
     }
 
     public boolean isDeviceEnabled(@Nonnull UUID deviceUUID) {
         DevicePolicy policy = devicePolicies.get(Objects.requireNonNull(deviceUUID,
-              "deviceUUID"));
+                "deviceUUID"));
         Toggle toggle = policy == null ? Toggle.INHERIT : policy.toggle;
         return (toggle == Toggle.INHERIT ? globalDefaultToggle : toggle) != Toggle.DISABLED;
     }
 
     public long machinePriority(@Nonnull UUID deviceUUID) {
         DevicePolicy policy = devicePolicies.get(Objects.requireNonNull(deviceUUID,
-              "deviceUUID"));
+                "deviceUUID"));
         return policy == null ? 0 : policy.machinePriority;
     }
 
     public long passivePriority(@Nonnull UUID deviceUUID) {
         DevicePolicy policy = devicePolicies.get(Objects.requireNonNull(deviceUUID,
-              "deviceUUID"));
+                "deviceUUID"));
         return policy == null ? 0 : policy.passivePriority;
     }
 
@@ -247,14 +242,14 @@ public final class QIOPolicyCatalog {
     }
 
     public void setGlobalDefaultPolicy(@Nonnull Toggle toggle, long routePriority,
-          long passivePriority) {
+                                       long passivePriority) {
         Toggle checked = Objects.requireNonNull(toggle, "toggle");
         if (checked == Toggle.INHERIT) {
             throw new IllegalArgumentException("The frequency default policy cannot inherit");
         }
         if (globalDefaultToggle != checked ||
-            globalDefaultRoutePriority != routePriority ||
-            globalDefaultPassivePriority != passivePriority) {
+                globalDefaultRoutePriority != routePriority ||
+                globalDefaultPassivePriority != passivePriority) {
             requireMutableRevision();
             globalDefaultToggle = checked;
             globalDefaultRoutePriority = routePriority;
@@ -264,30 +259,30 @@ public final class QIOPolicyCatalog {
     }
 
     public void setGlobalRoutePolicy(@Nonnull String providerId, @Nonnull String routeId,
-          @Nonnull String recipeKey, @Nonnull Toggle toggle, @Nullable Long priority) {
+                                     @Nonnull String recipeKey, @Nonnull Toggle toggle, @Nullable Long priority) {
         setGlobalRoutePolicy(providerId, routeId, recipeKey, toggle, priority, null);
     }
 
     public void setGlobalRoutePolicy(@Nonnull String providerId, @Nonnull String routeId,
-          @Nonnull String recipeKey, @Nonnull Toggle toggle, @Nullable Long priority,
-          @Nullable Long passivePriority) {
+                                     @Nonnull String recipeKey, @Nonnull Toggle toggle, @Nullable Long priority,
+                                     @Nullable Long passivePriority) {
         RouteIdentity key = RouteIdentity.create(providerId, routeId, recipeKey);
         putRoutePolicy(globalRoutePolicies, globalRouteOrder, key, toggle, priority,
-              passivePriority, MAX_ROUTE_POLICIES, "global route");
+                passivePriority, MAX_ROUTE_POLICIES, "global route");
     }
 
     public void setDeviceDefaultPolicy(@Nonnull UUID deviceUUID, @Nonnull Toggle toggle,
-          long machinePriority, long passivePriority) {
+                                       long machinePriority, long passivePriority) {
         UUID key = Objects.requireNonNull(deviceUUID, "deviceUUID");
         DevicePolicy next = new DevicePolicy(Objects.requireNonNull(toggle, "toggle"),
-              machinePriority, passivePriority);
+                machinePriority, passivePriority);
         DevicePolicy previous = devicePolicies.get(key);
         DevicePolicy stored = next.isDefault() ? null : next;
         if (Objects.equals(previous, stored)) {
             return;
         }
         if (stored != null && previous == null &&
-            devicePolicies.size() >= MAX_DEVICE_POLICIES) {
+                devicePolicies.size() >= MAX_DEVICE_POLICIES) {
             throw new IllegalStateException("QIO device policy limit reached");
         }
         requireMutableRevision();
@@ -304,21 +299,21 @@ public final class QIOPolicyCatalog {
     }
 
     public void setDeviceRoutePolicy(@Nonnull UUID deviceUUID,
-          @Nonnull String providerId, @Nonnull String routeId,
-          @Nonnull String recipeKey, @Nonnull Toggle toggle,
-          @Nullable Long priority) {
+                                     @Nonnull String providerId, @Nonnull String routeId,
+                                     @Nonnull String recipeKey, @Nonnull Toggle toggle,
+                                     @Nullable Long priority) {
         setDeviceRoutePolicy(deviceUUID, providerId, routeId, recipeKey, toggle,
-              priority, null);
+                priority, null);
     }
 
     public void setDeviceRoutePolicy(@Nonnull UUID deviceUUID,
-          @Nonnull String providerId, @Nonnull String routeId,
-          @Nonnull String recipeKey, @Nonnull Toggle toggle,
-          @Nullable Long priority, @Nullable Long passivePriority) {
+                                     @Nonnull String providerId, @Nonnull String routeId,
+                                     @Nonnull String recipeKey, @Nonnull Toggle toggle,
+                                     @Nullable Long priority, @Nullable Long passivePriority) {
         DeviceRouteKey key = DeviceRouteKey.create(deviceUUID, providerId, routeId,
-              recipeKey);
+                recipeKey);
         putRoutePolicy(deviceRoutePolicies, deviceRouteOrder, key, toggle, priority,
-              passivePriority, MAX_DEVICE_ROUTE_POLICIES, "device route");
+                passivePriority, MAX_DEVICE_ROUTE_POLICIES, "device route");
     }
 
     @Nonnull
@@ -353,7 +348,7 @@ public final class QIOPolicyCatalog {
             @Override
             public int size() {
                 return 1 + globalRouteOrder.size() + deviceOrder.size() +
-                      deviceRouteOrder.size();
+                        deviceRouteOrder.size();
             }
         });
     }
@@ -361,12 +356,12 @@ public final class QIOPolicyCatalog {
     @Nonnull
     public QIOPolicyEntrySnapshot snapshotGlobalDefault() {
         return QIOPolicyEntrySnapshot.globalDefault(revision, globalDefaultToggle,
-              globalDefaultRoutePriority, globalDefaultPassivePriority);
+                globalDefaultRoutePriority, globalDefaultPassivePriority);
     }
 
     @Nonnull
     public QIOPolicyEntrySnapshot snapshotGlobalRoute(@Nonnull String providerId,
-          @Nonnull String routeId, @Nonnull String recipeKey) {
+                                                      @Nonnull String routeId, @Nonnull String recipeKey) {
         return snapshotGlobalRoute(RouteIdentity.create(providerId, routeId, recipeKey));
     }
 
@@ -379,17 +374,17 @@ public final class QIOPolicyCatalog {
         long passivePriority = raw == null ? 0 : raw.passivePriority;
         Toggle effective = toggle == Toggle.INHERIT ? globalDefaultToggle : toggle;
         Source source = toggle == Toggle.INHERIT ? Source.GLOBAL_DEFAULT :
-              Source.DEVICE_DEFAULT;
+                Source.DEVICE_DEFAULT;
         return QIOPolicyEntrySnapshot.deviceDefault(revision, checked, toggle,
-              machinePriority, passivePriority, effective != Toggle.DISABLED, source);
+                machinePriority, passivePriority, effective != Toggle.DISABLED, source);
     }
 
     @Nonnull
     public QIOPolicyEntrySnapshot snapshotDeviceRoute(@Nonnull UUID deviceUUID,
-          @Nonnull String providerId, @Nonnull String routeId,
-          @Nonnull String recipeKey) {
+                                                      @Nonnull String providerId, @Nonnull String routeId,
+                                                      @Nonnull String recipeKey) {
         return snapshotDeviceRoute(DeviceRouteKey.create(deviceUUID, providerId,
-              routeId, recipeKey));
+                routeId, recipeKey));
     }
 
     @Nonnull
@@ -402,54 +397,54 @@ public final class QIOPolicyCatalog {
 
         NBTTagList routes = new NBTTagList();
         globalRoutePolicies.entrySet().stream().sorted(Map.Entry.comparingByKey())
-              .forEach(entry -> {
-                  NBTTagCompound stored = entry.getValue().write();
-                  entry.getKey().write(stored);
-                  routes.appendTag(stored);
-              });
+                .forEach(entry -> {
+                    NBTTagCompound stored = entry.getValue().write();
+                    entry.getKey().write(stored);
+                    routes.appendTag(stored);
+                });
         data.setTag("routes", routes);
 
         NBTTagList devices = new NBTTagList();
         devicePolicies.entrySet().stream().sorted(Comparator.comparing(entry ->
-              entry.getKey().toString())).forEach(entry -> {
-                  NBTTagCompound stored = entry.getValue().write();
-                  QIOProcessingNbt.writeUUID(stored, "deviceUUID", entry.getKey());
-                  devices.appendTag(stored);
-              });
+                entry.getKey().toString())).forEach(entry -> {
+            NBTTagCompound stored = entry.getValue().write();
+            QIOProcessingNbt.writeUUID(stored, "deviceUUID", entry.getKey());
+            devices.appendTag(stored);
+        });
         data.setTag("devices", devices);
 
         NBTTagList deviceRoutes = new NBTTagList();
         deviceRoutePolicies.entrySet().stream().sorted(Map.Entry.comparingByKey())
-              .forEach(entry -> {
-                  NBTTagCompound stored = entry.getValue().write();
-                  QIOProcessingNbt.writeUUID(stored, "deviceUUID",
-                        entry.getKey().deviceUUID);
-                  entry.getKey().route.write(stored);
-                  deviceRoutes.appendTag(stored);
-              });
+                .forEach(entry -> {
+                    NBTTagCompound stored = entry.getValue().write();
+                    QIOProcessingNbt.writeUUID(stored, "deviceUUID",
+                            entry.getKey().deviceUUID);
+                    entry.getKey().route.write(stored);
+                    deviceRoutes.appendTag(stored);
+                });
         data.setTag("deviceRoutes", deviceRoutes);
         return data;
     }
 
     @Nonnull
     public static QIOPolicyCatalog read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         try {
             if (!data.hasKey("revision", NBT.TAG_LONG) ||
-                  !data.hasKey("globalDefaultToggle", NBT.TAG_STRING) ||
-                  !data.hasKey("globalDefaultRoutePriority", NBT.TAG_LONG) ||
-                  !data.hasKey("globalDefaultPassivePriority", NBT.TAG_LONG) ||
-                  !data.hasKey("routes", NBT.TAG_LIST) ||
-                  !data.hasKey("devices", NBT.TAG_LIST) ||
-                  !data.hasKey("deviceRoutes", NBT.TAG_LIST)) {
+                    !data.hasKey("globalDefaultToggle", NBT.TAG_STRING) ||
+                    !data.hasKey("globalDefaultRoutePriority", NBT.TAG_LONG) ||
+                    !data.hasKey("globalDefaultPassivePriority", NBT.TAG_LONG) ||
+                    !data.hasKey("routes", NBT.TAG_LIST) ||
+                    !data.hasKey("devices", NBT.TAG_LIST) ||
+                    !data.hasKey("deviceRoutes", NBT.TAG_LIST)) {
                 throw new QIOProcessingDataException(
-                      "QIO policy catalog is missing current-schema fields");
+                        "QIO policy catalog is missing current-schema fields");
             }
             QIOPolicyCatalog catalog = new QIOPolicyCatalog();
             catalog.revision = QIOProcessingNbt.requireNonNegative(data.getLong("revision"),
-                  "policyRevision");
+                    "policyRevision");
             catalog.globalDefaultToggle = QIOProcessingNbt.readEnum(data,
-                  "globalDefaultToggle", Toggle.class);
+                    "globalDefaultToggle", Toggle.class);
             if (catalog.globalDefaultToggle == Toggle.INHERIT) {
                 throw new IllegalArgumentException("Global default policy cannot inherit");
             }
@@ -466,7 +461,7 @@ public final class QIOPolicyCatalog {
                 RoutePolicy policy = RoutePolicy.read(stored);
                 if (policy.isDefault() || catalog.globalRoutePolicies.put(key, policy) != null) {
                     throw new QIOProcessingDataException(
-                          "Invalid duplicate/default QIO global route policy");
+                            "Invalid duplicate/default QIO global route policy");
                 }
                 catalog.globalRouteOrder.add(key);
             }
@@ -481,7 +476,7 @@ public final class QIOPolicyCatalog {
                 DevicePolicy policy = DevicePolicy.read(stored);
                 if (policy.isDefault() || catalog.devicePolicies.put(uuid, policy) != null) {
                     throw new QIOProcessingDataException(
-                          "Invalid duplicate/default QIO device policy");
+                            "Invalid duplicate/default QIO device policy");
                 }
                 catalog.deviceOrder.add(uuid);
             }
@@ -489,18 +484,18 @@ public final class QIOPolicyCatalog {
             NBTTagList deviceRoutes = data.getTagList("deviceRoutes", NBT.TAG_COMPOUND);
             if (deviceRoutes.tagCount() > MAX_DEVICE_ROUTE_POLICIES) {
                 throw new QIOProcessingDataException(
-                      "QIO policy catalog has too many device routes");
+                        "QIO policy catalog has too many device routes");
             }
             for (int index = 0; index < deviceRoutes.tagCount(); index++) {
                 NBTTagCompound stored = deviceRoutes.getCompoundTagAt(index);
                 DeviceRouteKey key = new DeviceRouteKey(
-                      QIOProcessingNbt.readUUID(stored, "deviceUUID"),
-                      RouteIdentity.read(stored));
+                        QIOProcessingNbt.readUUID(stored, "deviceUUID"),
+                        RouteIdentity.read(stored));
                 RoutePolicy policy = RoutePolicy.read(stored);
                 if (policy.isDefault() ||
-                    catalog.deviceRoutePolicies.put(key, policy) != null) {
+                        catalog.deviceRoutePolicies.put(key, policy) != null) {
                     throw new QIOProcessingDataException(
-                          "Invalid duplicate/default QIO device route policy");
+                            "Invalid duplicate/default QIO device route policy");
                 }
                 catalog.deviceRouteOrder.add(key);
             }
@@ -514,7 +509,7 @@ public final class QIOPolicyCatalog {
 
     @Nonnull
     public static String routeKey(@Nonnull String providerId, @Nonnull String routeId,
-          @Nonnull String recipeKey) {
+                                  @Nonnull String recipeKey) {
         return RouteIdentity.create(providerId, routeId, recipeKey).asKey();
     }
 
@@ -523,14 +518,14 @@ public final class QIOPolicyCatalog {
         Toggle toggle = raw == null ? Toggle.INHERIT : raw.toggle;
         Long priority = raw == null || !raw.hasPriority ? null : raw.priority;
         Long passivePriority = raw == null || !raw.hasPassivePriority ? null :
-              raw.passivePriority;
+                raw.passivePriority;
         EffectiveRoutePolicy effective = resolveRoutePolicy(null, route.providerId,
-              route.routeId, route.recipeKey);
+                route.routeId, route.recipeKey);
         return QIOPolicyEntrySnapshot.globalRoute(revision, route.providerId,
-              route.routeId, route.recipeKey, toggle, priority,
-              passivePriority, effective.isEnabled(), effective.getRoutePriority(),
-              effective.getPassivePriority(), effective.getToggleSource(),
-              effective.getPrioritySource(), effective.getPassivePrioritySource());
+                route.routeId, route.recipeKey, toggle, priority,
+                passivePriority, effective.isEnabled(), effective.getRoutePriority(),
+                effective.getPassivePriority(), effective.getToggleSource(),
+                effective.getPrioritySource(), effective.getPassivePrioritySource());
     }
 
     private QIOPolicyEntrySnapshot snapshotDeviceRoute(DeviceRouteKey key) {
@@ -538,23 +533,23 @@ public final class QIOPolicyCatalog {
         Toggle toggle = raw == null ? Toggle.INHERIT : raw.toggle;
         Long priority = raw == null || !raw.hasPriority ? null : raw.priority;
         Long passivePriority = raw == null || !raw.hasPassivePriority ? null :
-              raw.passivePriority;
+                raw.passivePriority;
         EffectiveRoutePolicy effective = resolveRoutePolicy(key.deviceUUID,
-              key.route.providerId, key.route.routeId, key.route.recipeKey);
+                key.route.providerId, key.route.routeId, key.route.recipeKey);
         return QIOPolicyEntrySnapshot.deviceRoute(revision, key.deviceUUID,
-              key.route.providerId, key.route.routeId, key.route.recipeKey,
-              toggle, priority, passivePriority, effective.isEnabled(),
-              effective.getRoutePriority(), effective.getPassivePriority(),
-              effective.getToggleSource(), effective.getPrioritySource(),
-              effective.getPassivePrioritySource());
+                key.route.providerId, key.route.routeId, key.route.recipeKey,
+                toggle, priority, passivePriority, effective.isEnabled(),
+                effective.getRoutePriority(), effective.getPassivePriority(),
+                effective.getToggleSource(), effective.getPrioritySource(),
+                effective.getPassivePrioritySource());
     }
 
     private <K> void putRoutePolicy(Map<K, RoutePolicy> policies, List<K> order,
-          K key, Toggle toggle, @Nullable Long priority,
-          @Nullable Long passivePriority, int maximum, String name) {
+                                    K key, Toggle toggle, @Nullable Long priority,
+                                    @Nullable Long passivePriority, int maximum, String name) {
         RoutePolicy next = new RoutePolicy(Objects.requireNonNull(toggle, "toggle"),
-              priority != null, priority == null ? 0 : priority,
-              passivePriority != null, passivePriority == null ? 0 : passivePriority);
+                priority != null, priority == null ? 0 : priority,
+                passivePriority != null, passivePriority == null ? 0 : passivePriority);
         RoutePolicy previous = policies.get(key);
         RoutePolicy stored = next.isDefault() ? null : next;
         if (Objects.equals(previous, stored)) {
@@ -600,8 +595,8 @@ public final class QIOPolicyCatalog {
         private final Source passivePrioritySource;
 
         private EffectiveRoutePolicy(boolean enabled, long routePriority,
-              long passivePriority, Source toggleSource, Source prioritySource,
-              Source passivePrioritySource) {
+                                     long passivePriority, Source toggleSource, Source prioritySource,
+                                     Source passivePrioritySource) {
             this.enabled = enabled;
             this.routePriority = routePriority;
             this.passivePriority = passivePriority;
@@ -652,7 +647,7 @@ public final class QIOPolicyCatalog {
 
         @Nonnull
         public static RouteIdentity create(@Nonnull String providerId,
-              @Nonnull String routeId, @Nonnull String recipeKey) {
+                                           @Nonnull String routeId, @Nonnull String recipeKey) {
             String checkedProvider = checkedComponent(providerId, "providerId");
             String checkedRoute = checkedComponent(routeId, "routeId");
             String checkedRecipe = checkedComponent(recipeKey, "recipeKey");
@@ -691,12 +686,12 @@ public final class QIOPolicyCatalog {
 
         private static RouteIdentity read(NBTTagCompound data) {
             if (!data.hasKey("providerId", NBT.TAG_STRING) ||
-                !data.hasKey("routeId", NBT.TAG_STRING) ||
-                !data.hasKey("recipeKey", NBT.TAG_STRING)) {
+                    !data.hasKey("routeId", NBT.TAG_STRING) ||
+                    !data.hasKey("recipeKey", NBT.TAG_STRING)) {
                 throw new IllegalArgumentException("QIO route policy identity is incomplete");
             }
             return create(data.getString("providerId"), data.getString("routeId"),
-                  data.getString("recipeKey"));
+                    data.getString("recipeKey"));
         }
 
         @Override
@@ -711,7 +706,7 @@ public final class QIOPolicyCatalog {
         @Override
         public boolean equals(Object obj) {
             return obj instanceof RouteIdentity other && providerId.equals(other.providerId) &&
-                  routeId.equals(other.routeId) && recipeKey.equals(other.recipeKey);
+                    routeId.equals(other.routeId) && recipeKey.equals(other.recipeKey);
         }
 
         @Override
@@ -732,10 +727,10 @@ public final class QIOPolicyCatalog {
 
         @Nonnull
         public static DeviceRouteKey create(@Nonnull UUID deviceUUID,
-              @Nonnull String providerId, @Nonnull String routeId,
-              @Nonnull String recipeKey) {
+                                            @Nonnull String providerId, @Nonnull String routeId,
+                                            @Nonnull String recipeKey) {
             return new DeviceRouteKey(deviceUUID,
-                  RouteIdentity.create(providerId, routeId, recipeKey));
+                    RouteIdentity.create(providerId, routeId, recipeKey));
         }
 
         @Nonnull
@@ -757,7 +752,7 @@ public final class QIOPolicyCatalog {
         @Override
         public boolean equals(Object obj) {
             return obj instanceof DeviceRouteKey other && deviceUUID.equals(other.deviceUUID) &&
-                  route.equals(other.route);
+                    route.equals(other.route);
         }
 
         @Override
@@ -775,7 +770,7 @@ public final class QIOPolicyCatalog {
         private final long passivePriority;
 
         private RoutePolicy(Toggle toggle, boolean hasPriority, long priority,
-              boolean hasPassivePriority, long passivePriority) {
+                            boolean hasPassivePriority, long passivePriority) {
             this.toggle = toggle;
             this.hasPriority = hasPriority;
             this.priority = hasPriority ? priority : 0;
@@ -817,38 +812,38 @@ public final class QIOPolicyCatalog {
         }
 
         private static RoutePolicy read(NBTTagCompound data)
-              throws QIOProcessingDataException {
+                throws QIOProcessingDataException {
             if (!data.hasKey("toggle", NBT.TAG_STRING) ||
-                !data.hasKey("hasPriority", NBT.TAG_BYTE) ||
-                !data.hasKey("hasPassivePriority", NBT.TAG_BYTE)) {
+                    !data.hasKey("hasPriority", NBT.TAG_BYTE) ||
+                    !data.hasKey("hasPassivePriority", NBT.TAG_BYTE)) {
                 throw new QIOProcessingDataException(
-                      "QIO route policy is missing current-schema fields");
+                        "QIO route policy is missing current-schema fields");
             }
             boolean hasPriority = data.getBoolean("hasPriority");
             boolean hasPassivePriority = data.getBoolean("hasPassivePriority");
             if ((hasPriority && !data.hasKey("priority", NBT.TAG_LONG)) ||
-                (hasPassivePriority && !data.hasKey("passivePriority", NBT.TAG_LONG))) {
+                    (hasPassivePriority && !data.hasKey("passivePriority", NBT.TAG_LONG))) {
                 throw new QIOProcessingDataException(
-                      "QIO route policy priority is incomplete");
+                        "QIO route policy priority is incomplete");
             }
             return new RoutePolicy(QIOProcessingNbt.readEnum(data, "toggle", Toggle.class),
-                  hasPriority, hasPriority ? data.getLong("priority") : 0,
-                  hasPassivePriority,
-                  hasPassivePriority ? data.getLong("passivePriority") : 0);
+                    hasPriority, hasPriority ? data.getLong("priority") : 0,
+                    hasPassivePriority,
+                    hasPassivePriority ? data.getLong("passivePriority") : 0);
         }
 
         @Override
         public boolean equals(Object obj) {
             return obj instanceof RoutePolicy other && toggle == other.toggle &&
-                  hasPriority == other.hasPriority && priority == other.priority &&
-                  hasPassivePriority == other.hasPassivePriority &&
-                  passivePriority == other.passivePriority;
+                    hasPriority == other.hasPriority && priority == other.priority &&
+                    hasPassivePriority == other.hasPassivePriority &&
+                    passivePriority == other.passivePriority;
         }
 
         @Override
         public int hashCode() {
             return Objects.hash(toggle, hasPriority, priority, hasPassivePriority,
-                  passivePriority);
+                    passivePriority);
         }
     }
 
@@ -890,22 +885,22 @@ public final class QIOPolicyCatalog {
         }
 
         private static DevicePolicy read(NBTTagCompound data)
-              throws QIOProcessingDataException {
+                throws QIOProcessingDataException {
             if (!data.hasKey("toggle", NBT.TAG_STRING) ||
-                !data.hasKey("machinePriority", NBT.TAG_LONG) ||
-                !data.hasKey("passivePriority", NBT.TAG_LONG)) {
+                    !data.hasKey("machinePriority", NBT.TAG_LONG) ||
+                    !data.hasKey("passivePriority", NBT.TAG_LONG)) {
                 throw new QIOProcessingDataException(
-                      "QIO device policy is missing current-schema fields");
+                        "QIO device policy is missing current-schema fields");
             }
             return new DevicePolicy(QIOProcessingNbt.readEnum(data, "toggle", Toggle.class),
-                  data.getLong("machinePriority"), data.getLong("passivePriority"));
+                    data.getLong("machinePriority"), data.getLong("passivePriority"));
         }
 
         @Override
         public boolean equals(Object obj) {
             return obj instanceof DevicePolicy other && toggle == other.toggle &&
-                  machinePriority == other.machinePriority &&
-                  passivePriority == other.passivePriority;
+                    machinePriority == other.machinePriority &&
+                    passivePriority == other.passivePriority;
         }
 
         @Override

@@ -1,7 +1,6 @@
 package mekanism.common.integration.crafttweaker.handlers;
 
 import crafttweaker.annotations.ZenRegister;
-import mekanism.api.Coord4D;
 import mekanism.api.MekanismAPI;
 import mekanism.common.Mekanism;
 import mekanism.common.integration.crafttweaker.gas.IGasStack;

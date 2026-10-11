@@ -16,7 +16,8 @@ import java.util.Objects;
  * @since 10.3.2
  */
 @Desugar
-public record BasicRadialMode(@NotNull ITextComponent sliceName, @NotNull ResourceLocation icon, @Nullable EnumColor color) implements IRadialMode {
+public record BasicRadialMode(@NotNull ITextComponent sliceName, @NotNull ResourceLocation icon,
+                              @Nullable EnumColor color) implements IRadialMode {
 
     /**
      * @param sliceName Name to display in this mode's slice of the radial menu.
@@ -30,7 +31,6 @@ public record BasicRadialMode(@NotNull ITextComponent sliceName, @NotNull Resour
      * @param sliceName Lang entry for the name to display in this mode's slice of the radial menu.
      * @param icon      Asset location of the icon to draw in this mode's slice of the radial menu.
      * @param color     Selection color of this mode's slice.
-     *
      * @implNote {@code sliceName} is colored using the given color.
      */
     public BasicRadialMode(@NotNull ILangEntry sliceName, @NotNull ResourceLocation icon, @NotNull EnumColor color) {

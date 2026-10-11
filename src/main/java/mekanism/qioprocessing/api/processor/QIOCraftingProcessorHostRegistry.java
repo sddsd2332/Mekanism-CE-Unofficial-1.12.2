@@ -5,14 +5,12 @@ import net.minecraft.util.ResourceLocation;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
-/** Explicit, frozen registration boundary for built-in and addon processor TileEntity families. */
+/**
+ * Explicit, frozen registration boundary for built-in and addon processor TileEntity families.
+ */
+
 /**
  * QIO 处理模块中的 QIOCraftingProcessorHostRegistry 类型。
  *
@@ -27,7 +25,7 @@ public final class QIOCraftingProcessorHostRegistry {
         private final QIOCraftingProcessorDefinition definition;
 
         private ResolvedHost(QIOCraftingProcessorHostRegistration<?> registration,
-              QIOCraftingProcessorDefinition definition) {
+                             QIOCraftingProcessorDefinition definition) {
             this.registration = registration;
             this.definition = definition;
         }
@@ -58,9 +56,9 @@ public final class QIOCraftingProcessorHostRegistry {
     }
 
     private static final Map<ResourceLocation, QIOCraftingProcessorHostRegistration<?>> BY_ID =
-          new LinkedHashMap<>();
+            new LinkedHashMap<>();
     private static final Map<Class<? extends TileEntity>, QIOCraftingProcessorHostRegistration<?>> BY_TILE =
-          new LinkedHashMap<>();
+            new LinkedHashMap<>();
     private static boolean frozen;
 
     private QIOCraftingProcessorHostRegistry() {
@@ -69,18 +67,18 @@ public final class QIOCraftingProcessorHostRegistry {
     /** 注册一个主机描述；注册冻结后或重复标识会抛出异常。 */
     @Nonnull
     public static synchronized <T extends TileEntity> QIOCraftingProcessorHostRegistration<T> register(
-          @Nonnull QIOCraftingProcessorHostRegistration<T> registration) {
+            @Nonnull QIOCraftingProcessorHostRegistration<T> registration) {
         Objects.requireNonNull(registration, "registration");
         if (frozen) {
             throw new IllegalStateException("QIO crafting processor host registration is already frozen");
         }
         if (BY_ID.containsKey(registration.getHostId())) {
             throw new IllegalArgumentException("Duplicate QIO crafting processor host id: " +
-                  registration.getHostId());
+                    registration.getHostId());
         }
         if (BY_TILE.containsKey(registration.getTileClass())) {
             throw new IllegalArgumentException("Duplicate QIO crafting processor TileEntity registration: " +
-                  registration.getTileClass().getName());
+                    registration.getTileClass().getName());
         }
         BY_ID.put(registration.getHostId(), registration);
         BY_TILE.put(registration.getTileClass(), registration);
@@ -133,12 +131,12 @@ public final class QIOCraftingProcessorHostRegistry {
         QIOCraftingProcessorDefinition definition = QIOCraftingProcessorRegistry.get(definitionId);
         if (definition == null) {
             throw new IllegalStateException("QIO processor host " + selected.getHostId() +
-                  " resolved an unregistered definition " + definitionId);
+                    " resolved an unregistered definition " + definitionId);
         }
         return new ResolvedHost(selected, definition);
     }
 
-    static synchronized void resetForTests() {
+    public static synchronized void resetForTests() {
         BY_ID.clear();
         BY_TILE.clear();
         frozen = false;

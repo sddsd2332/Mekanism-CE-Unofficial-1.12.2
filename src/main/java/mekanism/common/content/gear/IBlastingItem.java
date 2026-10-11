@@ -72,7 +72,7 @@ public interface IBlastingItem {
      */
     @Nullable
     static EnumFacing getTargetSide(World world, BlockPos targetPos, EntityPlayer player) {
-        Pair<Vec3d, Vec3d>  rayTraceVectors = MultipartUtils.getRayTraceVectors(player);
+        Pair<Vec3d, Vec3d> rayTraceVectors = MultipartUtils.getRayTraceVectors(player);
         Vec3d start = rayTraceVectors.getLeft();
         Vec3d end = rayTraceVectors.getRight();
         Vec3d distance = end.subtract(start);
@@ -81,7 +81,7 @@ public interface IBlastingItem {
         }
         IBlockState targetState = world.getBlockState(targetPos);
         AxisAlignedBB shape = targetState.getBoundingBox(world, targetPos);
-        if (shape!=null) {
+        if (shape != null) {
             //todo
             double[] ignoredMinDistance = {1.0D};
             return getDirection(shape.offset(targetPos), start, ignoredMinDistance, null, end.x - start.x, end.y - start.y, end.z - start.z);
@@ -90,7 +90,7 @@ public interface IBlastingItem {
     }
 
     @Nullable
-     static EnumFacing getDirection(AxisAlignedBB pAabb, Vec3d pStart, double[] pMinDistance, @Nullable EnumFacing pFacing, double pDeltaX, double pDeltaY, double pDeltaZ) {
+    static EnumFacing getDirection(AxisAlignedBB pAabb, Vec3d pStart, double[] pMinDistance, @Nullable EnumFacing pFacing, double pDeltaX, double pDeltaY, double pDeltaZ) {
         if (pDeltaX > 1.0E-7D) {
             pFacing = clipPoint(pMinDistance, pFacing, pDeltaX, pDeltaY, pDeltaZ, pAabb.minX, pAabb.minY, pAabb.maxY, pAabb.minZ, pAabb.maxZ, EnumFacing.WEST, pStart.x, pStart.y, pStart.z);
         } else if (pDeltaX < -1.0E-7D) {
@@ -113,7 +113,7 @@ public interface IBlastingItem {
     }
 
     @Nullable
-     static EnumFacing clipPoint(double[] pMinDistance, @Nullable EnumFacing pPrevDirection, double pDistanceSide, double pDistanceOtherA, double pDistanceOtherB, double pMinSide, double pMinOtherA, double pMaxOtherA, double pMinOtherB, double pMaxOtherB, EnumFacing pHitSide, double pStartSide, double pStartOtherA, double pStartOtherB) {
+    static EnumFacing clipPoint(double[] pMinDistance, @Nullable EnumFacing pPrevDirection, double pDistanceSide, double pDistanceOtherA, double pDistanceOtherB, double pMinSide, double pMinOtherA, double pMaxOtherA, double pMinOtherB, double pMaxOtherB, EnumFacing pHitSide, double pStartSide, double pStartOtherA, double pStartOtherB) {
         double d0 = (pMinSide - pStartSide) / pDistanceSide;
         double d1 = pStartOtherA + d0 * pDistanceOtherA;
         double d2 = pStartOtherB + d0 * pDistanceOtherB;
@@ -126,7 +126,7 @@ public interface IBlastingItem {
     }
 
     static boolean canBlastBlock(World world, BlockPos pos, IBlockState state) {
-        return !state.getBlock().isAir(state,world,pos) && !state.getMaterial().isLiquid() && ModuleVeinMiningUnit.canVeinBlock(state) && state.getBlockHardness(world, pos) > 0;
+        return !state.getBlock().isAir(state, world, pos) && !state.getMaterial().isLiquid() && ModuleVeinMiningUnit.canVeinBlock(state) && state.getBlockHardness(world, pos) > 0;
     }
 
 

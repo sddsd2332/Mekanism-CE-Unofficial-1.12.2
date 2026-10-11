@@ -57,10 +57,10 @@ public class GuiFissionReactorStats extends GuiMekanismTile<TileEntityFissionRea
         }, 5, 114, xSize - 12));
         addButton(new GuiHeatTab(this, this::getHeatTabText));
         rateLimitField = addButton(new GuiTextField(this, 0, 77, 128, 54, 12)
-              .setMaxLength(getRateLimitMaxLength())
-              .setInputValidator(this::isRateInput)
-              .setEnterHandler(this::setRateLimit)
-              .addCheckmarkButton(this::setRateLimit));
+                .setMaxLength(getRateLimitMaxLength())
+                .setInputValidator(this::isRateInput)
+                .setEnterHandler(this::setRateLimit)
+                .addCheckmarkButton(this::setRateLimit));
     }
 
     @Override
@@ -68,7 +68,7 @@ public class GuiFissionReactorStats extends GuiMekanismTile<TileEntityFissionRea
         drawTitleText(new TextComponentString(LangUtils.localize("gui.fissionReactorStats")), 5);
         if (tileEntity.structure == null) {
             drawScrollingString(new TextComponentString(LangUtils.localize("gui.status") + ": " + LangUtils.localize("gui.incomplete")), 0, 25,
-                  TextAlignment.LEFT, titleTextColor(), 6, false);
+                    TextAlignment.LEFT, titleTextColor(), 6, false);
             super.drawForegroundText(mouseX, mouseY);
             return;
         }
@@ -76,20 +76,20 @@ public class GuiFissionReactorStats extends GuiMekanismTile<TileEntityFissionRea
         SynchronizedFissionData data = tileEntity.structure;
         drawScrollingString(new TextComponentString(LangUtils.localize("gui.fissionHeatStatistics")), 0, 20, TextAlignment.LEFT, headingTextColor(), 6, false);
         drawScrollingString(new TextComponentString(LangUtils.localize("tooltip.heatCapacity") + ": " + UnitDisplayUtils.roundDecimals(data.getHeatCapacitor().getHeatCapacity())), 0, 32,
-              TextAlignment.LEFT, titleTextColor(), 6, false);
+                TextAlignment.LEFT, titleTextColor(), 6, false);
         drawScrollingString(new TextComponentString(LangUtils.localize("gui.surfaceArea") + ": " + data.surfaceArea), 0, 42,
-              TextAlignment.LEFT, titleTextColor(), 6, false);
+                TextAlignment.LEFT, titleTextColor(), 6, false);
         drawScrollingString(new TextComponentString(LangUtils.localize("gui.boilEfficiency") + ": " + UnitDisplayUtils.roundDecimals(data.getBoilEfficiency() * 100) + "%"),
-              0, 52, TextAlignment.LEFT, titleTextColor(), 6, false);
+                0, 52, TextAlignment.LEFT, titleTextColor(), 6, false);
 
         drawScrollingString(new TextComponentString(LangUtils.localize("gui.fissionFuelStatistics")), 0, 68, TextAlignment.LEFT, headingTextColor(), 6, false);
         drawScrollingString(new TextComponentString(LangUtils.localize("gui.maxBurnRate") + ": " + UnitDisplayUtils.roundDecimals(data.getMaxBurnRate()) + " /t"), 0, 80,
-              TextAlignment.LEFT, titleTextColor(), 6, false);
+                TextAlignment.LEFT, titleTextColor(), 6, false);
         drawScrollingString(new TextComponentString(LangUtils.localize("gui.rateLimit") + ": " + UnitDisplayUtils.roundDecimals(data.rateLimit) + " /t"), 0, 90,
-              TextAlignment.LEFT, titleTextColor(), 6, false);
+                TextAlignment.LEFT, titleTextColor(), 6, false);
         drawScrollingString(new TextComponentString(LangUtils.localize("gui.currentBurnRate")), 0, 104, TextAlignment.LEFT, titleTextColor(), 6, false);
         drawScaledScrollingString(new TextComponentString(LangUtils.localize("gui.setRateLimit")), 3, 130, TextAlignment.RIGHT, titleTextColor(),
-              rateLimitField.getRelativeX() - 2, 3, false, 1, getTimeOpened());
+                rateLimitField.getRelativeX() - 2, 3, false, 1, getTimeOpened());
         super.drawForegroundText(mouseX, mouseY);
     }
 
@@ -108,8 +108,8 @@ public class GuiFissionReactorStats extends GuiMekanismTile<TileEntityFissionRea
 
     private boolean isRateInput(char c, int keyCode) {
         return Character.isDigit(c) || c == '.' && !rateLimitField.getText().contains(".") || keyCode == Keyboard.KEY_BACK ||
-              keyCode == Keyboard.KEY_DELETE || keyCode == Keyboard.KEY_LEFT || keyCode == Keyboard.KEY_RIGHT ||
-              keyCode == Keyboard.KEY_HOME || keyCode == Keyboard.KEY_END || keyCode == Keyboard.KEY_RETURN || keyCode == Keyboard.KEY_NUMPADENTER;
+                keyCode == Keyboard.KEY_DELETE || keyCode == Keyboard.KEY_LEFT || keyCode == Keyboard.KEY_RIGHT ||
+                keyCode == Keyboard.KEY_HOME || keyCode == Keyboard.KEY_END || keyCode == Keyboard.KEY_RETURN || keyCode == Keyboard.KEY_NUMPADENTER;
     }
 
     private int getRateLimitMaxLength() {

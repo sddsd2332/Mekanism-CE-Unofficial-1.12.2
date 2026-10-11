@@ -7,12 +7,7 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.NonNullList;
 import net.minecraftforge.oredict.OreDictionary;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Predicate;
 
 /**
@@ -22,6 +17,10 @@ public final class MachineRecipeItemInputs {
 
     private static final int BOUNDED_SCAN_MULTIPLIER = 8;
     private static final int MIN_BOUNDED_SCAN_LIMIT = 64;
+    /**
+     * Maximum concrete variants retained by one machine route collector for a logical input.
+     */
+    public static final int ROUTE_EXPANSION_MAX_RESULTS = 256;
 
     private MachineRecipeItemInputs() {
     }
@@ -35,7 +34,7 @@ public final class MachineRecipeItemInputs {
      * creative-tab and ore-dictionary variant.
      */
     public static List<ItemStack> expand(ItemStack input, Predicate<ItemStack> accepts,
-          int maxResults) {
+                                         int maxResults) {
         if (maxResults <= 0) {
             throw new IllegalArgumentException("Maximum expanded item candidates must be positive");
         }
@@ -44,7 +43,7 @@ public final class MachineRecipeItemInputs {
         }
         Predicate<ItemStack> filter = accepts == null ? stack -> true : accepts;
         ExpansionCollector collector = new ExpansionCollector(input, filter, maxResults,
-              boundedScanLimit(maxResults));
+                boundedScanLimit(maxResults));
         collectRawCandidates(input, collector);
         return collector.results;
     }
@@ -55,7 +54,7 @@ public final class MachineRecipeItemInputs {
         }
         List<List<ItemStack>> candidateGroups = new ArrayList<>(inputs.size());
         for (ItemStack input : inputs) {
-            List<ItemStack> candidates = expand(input, stack -> true);
+            List<ItemStack> candidates = expand(input, stack -> true, ROUTE_EXPANSION_MAX_RESULTS);
             if (candidates.isEmpty()) {
                 return Collections.emptyList();
             }
@@ -71,7 +70,7 @@ public final class MachineRecipeItemInputs {
     }
 
     private static void addCombinations(List<List<ItemStack>> groups, int index, List<ItemStack> current,
-          Predicate<List<ItemStack>> accepts, List<List<ItemStack>> output) {
+                                        Predicate<List<ItemStack>> accepts, List<List<ItemStack>> output) {
         if (index >= groups.size()) {
             List<ItemStack> copy = copyStacks(current);
             if (accepts.test(copy)) {
@@ -93,8 +92,8 @@ public final class MachineRecipeItemInputs {
         }
         List<ItemStack> firstPass = new ArrayList<>();
         if (!addCreativeSubItems(input, collector, firstPass) ||
-            !addFallbackMetaZero(input, collector, firstPass) ||
-            !addOreDictionaryCandidates(input, collector, firstPass)) {
+                !addFallbackMetaZero(input, collector, firstPass) ||
+                !addOreDictionaryCandidates(input, collector, firstPass)) {
             return;
         }
         int firstPassSize = firstPass.size();
@@ -106,7 +105,7 @@ public final class MachineRecipeItemInputs {
     }
 
     private static boolean addOreDictionaryCandidates(ItemStack input,
-          ExpansionCollector collector, List<ItemStack> firstPass) {
+                                                      ExpansionCollector collector, List<ItemStack> firstPass) {
         if (!collector.canContinue()) {
             return false;
         }
@@ -127,7 +126,7 @@ public final class MachineRecipeItemInputs {
                 }
                 if (oreStack.getMetadata() == OreDictionary.WILDCARD_VALUE) {
                     if (!addCreativeSubItems(oreStack, collector, firstPass) ||
-                        !addFallbackMetaZero(oreStack, collector, firstPass)) {
+                            !addFallbackMetaZero(oreStack, collector, firstPass)) {
                         return false;
                     }
                 } else {
@@ -141,7 +140,7 @@ public final class MachineRecipeItemInputs {
     }
 
     private static boolean addCreativeSubItems(ItemStack input,
-          ExpansionCollector collector, List<ItemStack> firstPass) {
+                                               ExpansionCollector collector, List<ItemStack> firstPass) {
         if (!collector.canContinue()) {
             return false;
         }
@@ -162,13 +161,13 @@ public final class MachineRecipeItemInputs {
     }
 
     private static boolean addFallbackMetaZero(ItemStack input,
-          ExpansionCollector collector, List<ItemStack> firstPass) {
+                                               ExpansionCollector collector, List<ItemStack> firstPass) {
         return collector.canContinue() && offerRawCandidate(
-              new ItemStack(input.getItem(), 1, 0), collector, firstPass);
+                new ItemStack(input.getItem(), 1, 0), collector, firstPass);
     }
 
     private static boolean offerRawCandidate(ItemStack candidate,
-          ExpansionCollector collector, List<ItemStack> firstPass) {
+                                             ExpansionCollector collector, List<ItemStack> firstPass) {
         if (firstPass != null) {
             firstPass.add(candidate);
         }
@@ -202,7 +201,7 @@ public final class MachineRecipeItemInputs {
         }
         long scaled = (long) maxResults * BOUNDED_SCAN_MULTIPLIER;
         return (int) Math.min(Integer.MAX_VALUE,
-              Math.max(MIN_BOUNDED_SCAN_LIMIT, scaled));
+                Math.max(MIN_BOUNDED_SCAN_LIMIT, scaled));
     }
 
     private static final class ExpansionCollector {
@@ -216,7 +215,7 @@ public final class MachineRecipeItemInputs {
         private int scanned;
 
         private ExpansionCollector(ItemStack recipeInput, Predicate<ItemStack> filter,
-              int maxResults, int maxScanned) {
+                                   int maxResults, int maxScanned) {
             this.recipeInput = recipeInput;
             this.filter = filter;
             this.maxResults = maxResults;
@@ -230,7 +229,7 @@ public final class MachineRecipeItemInputs {
             scanned++;
             ItemStack normalized = normalizeCandidate(recipeInput, candidate);
             if (isConcreteInput(normalized) && filter.test(normalized) &&
-                seen.add(new StackIdentity(normalized))) {
+                    seen.add(new StackIdentity(normalized))) {
                 results.add(normalized);
             }
             return canContinue();
@@ -269,7 +268,7 @@ public final class MachineRecipeItemInputs {
                 return false;
             }
             return item == other.item && metadata == other.metadata && count == other.count &&
-                  Objects.equals(tag, other.tag);
+                    Objects.equals(tag, other.tag);
         }
 
         @Override

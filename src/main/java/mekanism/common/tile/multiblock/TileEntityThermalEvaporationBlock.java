@@ -19,8 +19,8 @@ import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.items.CapabilityItemHandler;
 
 import javax.annotation.Nonnull;
-import java.util.Deque;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.LinkedList;
 import java.util.Set;
 
@@ -78,13 +78,13 @@ public class TileEntityThermalEvaporationBlock extends TileEntityContainerBlock 
     @Override
     protected IHeatCapacitorHolder getInitialHeatCapacitors(IContentsListener listener) {
         return ProxiedHeatCapacitorHolder.create(
-              side -> getController() != null,
-              side -> getController() != null,
-              side -> {
-                  TileEntityThermalEvaporationController controller = getController();
-                  IHeatCapacitor capacitor = controller == null ? null : controller.getStructureHeatCapacitor();
-                  return capacitor == null ? Collections.emptyList() : Collections.singletonList(capacitor);
-              }
+                side -> getController() != null,
+                side -> getController() != null,
+                side -> {
+                    TileEntityThermalEvaporationController controller = getController();
+                    IHeatCapacitor capacitor = controller == null ? null : controller.getStructureHeatCapacitor();
+                    return capacitor == null ? Collections.emptyList() : Collections.singletonList(capacitor);
+                }
         );
     }
 

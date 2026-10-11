@@ -39,9 +39,9 @@ public class GuiMinerItemStackFilter extends GuiItemStackFilter<MItemStackFilter
         super.init();
         addMinerDefaults(getSlotOffsetY());
         addChild(new TooltipToggleButton(gui(), relativeX + 15, relativeY + 45, 14, getButtonLocation("fuzzy"),
-              () -> filter.fuzzy,
-              () -> filter.fuzzy = !filter.fuzzy,
-              MekanismLang.FUZZY_MODE.translate(), MekanismLang.FUZZY_MODE.translate()));
+                () -> filter.fuzzy,
+                () -> filter.fuzzy = !filter.fuzzy,
+                MekanismLang.FUZZY_MODE.translate(), MekanismLang.FUZZY_MODE.translate()));
     }
 
     @Override

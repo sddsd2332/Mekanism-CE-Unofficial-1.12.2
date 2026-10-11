@@ -67,12 +67,12 @@ public class TileEntityLargeElectrolyticSeparator extends TileEntityBasicMachine
     public static final RecipeError NOT_ENOUGH_SPACE_LEFT_OUTPUT_ERROR = RecipeError.create();
     public static final RecipeError NOT_ENOUGH_SPACE_RIGHT_OUTPUT_ERROR = RecipeError.create();
     private static final List<RecipeError> TRACKED_ERROR_TYPES = Arrays.asList(
-          RecipeError.NOT_ENOUGH_ENERGY,
-          RecipeError.NOT_ENOUGH_ENERGY_REDUCED_RATE,
-          RecipeError.NOT_ENOUGH_INPUT,
-          NOT_ENOUGH_SPACE_LEFT_OUTPUT_ERROR,
-          NOT_ENOUGH_SPACE_RIGHT_OUTPUT_ERROR,
-          RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
+            RecipeError.NOT_ENOUGH_ENERGY,
+            RecipeError.NOT_ENOUGH_ENERGY_REDUCED_RATE,
+            RecipeError.NOT_ENOUGH_INPUT,
+            NOT_ENOUGH_SPACE_LEFT_OUTPUT_ERROR,
+            NOT_ENOUGH_SPACE_RIGHT_OUTPUT_ERROR,
+            RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
     );
     private static final String[] methods = new String[]{"getEnergy", "getOutput", "getMaxEnergy", "getEnergyNeeded", "getWater", "getWaterNeeded", "getHydrogen", "getHydrogenNeeded", "getOxygen", "getOxygenNeeded"};
     private final EjectSpeedController gasSpeedController = new EjectSpeedController();
@@ -123,9 +123,9 @@ public class TileEntityLargeElectrolyticSeparator extends TileEntityBasicMachine
     protected IFluidTankHolder getInitialFluidTanks(IContentsListener listener) {
         getOrCreateFluidTank();
         return ProxiedFluidTankHolder.create(
-              this::isFluidInputSide,
-              side -> false,
-              side -> side == null || isFluidInputSide(side) ? Collections.singletonList(fluidTank) : Collections.emptyList()
+                this::isFluidInputSide,
+                side -> false,
+                side -> side == null || isFluidInputSide(side) ? Collections.singletonList(fluidTank) : Collections.emptyList()
         );
     }
 
@@ -134,9 +134,9 @@ public class TileEntityLargeElectrolyticSeparator extends TileEntityBasicMachine
         getOrCreateLeftTank(listener);
         getOrCreateRightTank(listener);
         return ProxiedGasTankHolder.create(
-              side -> false,
-              this::isGasOutputSide,
-              side -> side == null || isGasOutputSide(side) ? Arrays.asList(leftTank, rightTank) : Collections.emptyList()
+                side -> false,
+                this::isGasOutputSide,
+                side -> side == null || isGasOutputSide(side) ? Arrays.asList(leftTank, rightTank) : Collections.emptyList()
         );
     }
 
@@ -237,7 +237,7 @@ public class TileEntityLargeElectrolyticSeparator extends TileEntityBasicMachine
             return;
         }
         gasSpeedController.ensureSize(2,
-              () -> Arrays.asList(new TankProvider.Gas(leftTank), new TankProvider.Gas(rightTank)));
+                () -> Arrays.asList(new TankProvider.Gas(leftTank), new TankProvider.Gas(rightTank)));
         handleTank(leftTank, dumpLeft, getLeftTankside(), dumpAmount, 0);
         handleTank(rightTank, dumpRight, getRightTankside(), dumpAmount, 1);
     }
@@ -250,8 +250,8 @@ public class TileEntityLargeElectrolyticSeparator extends TileEntityBasicMachine
     @Override
     protected boolean isAsyncUpdateIdle() {
         return fluidTank.isEmpty() && inputSlot.isEmpty() && leftSlot.isEmpty() && rightSlot.isEmpty() &&
-              energySlot.isEmpty() && clientEnergyUsed == 0 && currentRedstoneLevel == getRedstoneLevel() &&
-              isEmptyRecipeStateSettled();
+                energySlot.isEmpty() && clientEnergyUsed == 0 && currentRedstoneLevel == getRedstoneLevel() &&
+                isEmptyRecipeStateSettled();
     }
 
     @Override
@@ -259,15 +259,6 @@ public class TileEntityLargeElectrolyticSeparator extends TileEntityBasicMachine
         tickUpdateDelay();
         setActive(false);
         finishRecipeTick();
-    }
-
-    @Override
-    public void addTileSyncTask() {
-        int newRedstoneLevel = getRedstoneLevel();
-        if (newRedstoneLevel != currentRedstoneLevel) {
-            world.updateComparatorOutputLevel(pos, getBlockType());
-            currentRedstoneLevel = newRedstoneLevel;
-        }
     }
 
     private TileEntity getLeftTankside() {
@@ -391,27 +382,27 @@ public class TileEntityLargeElectrolyticSeparator extends TileEntityBasicMachine
     @Override
     public CachedRecipe<SeparatorRecipe> createNewCachedRecipe(SeparatorRecipe recipe, int cacheIndex) {
         return new OneInputCachedRecipe<>(recipe, this::shouldRecheckAllRecipeErrors,
-              InputHelper.getFluidInputHandler(fluidTank, RecipeError.NOT_ENOUGH_INPUT),
-              OutputHelper.getChemicalPairOutputHandler(leftTank, NOT_ENOUGH_SPACE_LEFT_OUTPUT_ERROR, rightTank, NOT_ENOUGH_SPACE_RIGHT_OUTPUT_ERROR),
-              () -> recipe.getInput().ingredient,
-              input -> input != null && input.isFluidEqual(recipe.getInput().ingredient),
-              input -> recipe.getOutput().copy(), input -> input == null || input.amount <= 0, output -> output == null || !output.isValid())
-              .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
-              .setActive(active -> {
-                  if (active || prevEnergy >= getEnergy()) {
-                      setActive(active);
-                  }
-              })
-              .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
-              .setRequiredTicks(() -> ticksRequired)
-              .setBaselineMaxOperations(() -> getUpgradedUsage(recipe))
-              .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
-              .setErrorsChanged(errors -> {
-                  for (int i = 0; i < trackedErrors.length; i++) {
-                      trackedErrors[i] = errors.contains(TRACKED_ERROR_TYPES.get(i));
-                  }
-              })
-              .setOnFinish(this::onCachedRecipeFinish);
+                InputHelper.getFluidInputHandler(fluidTank, RecipeError.NOT_ENOUGH_INPUT),
+                OutputHelper.getChemicalPairOutputHandler(leftTank, NOT_ENOUGH_SPACE_LEFT_OUTPUT_ERROR, rightTank, NOT_ENOUGH_SPACE_RIGHT_OUTPUT_ERROR),
+                () -> recipe.getInput().ingredient,
+                input -> input != null && input.isFluidEqual(recipe.getInput().ingredient),
+                input -> recipe.getOutput().copy(), input -> input == null || input.amount <= 0, output -> output == null || !output.isValid())
+                .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
+                .setActive(active -> {
+                    if (active || prevEnergy >= getEnergy()) {
+                        setActive(active);
+                    }
+                })
+                .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
+                .setRequiredTicks(() -> ticksRequired)
+                .setBaselineMaxOperations(() -> getUpgradedUsage(recipe))
+                .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
+                .setErrorsChanged(errors -> {
+                    for (int i = 0; i < trackedErrors.length; i++) {
+                        trackedErrors[i] = errors.contains(TRACKED_ERROR_TYPES.get(i));
+                    }
+                })
+                .setOnFinish(this::onCachedRecipeFinish);
     }
 
     @Override
@@ -656,6 +647,11 @@ public class TileEntityLargeElectrolyticSeparator extends TileEntityBasicMachine
     }
 
     @Override
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return type == mekanism.api.transmitters.TransmissionType.FLUID;
+    }
+
+    @Override
     public int getRedstoneLevel() {
         return MekanismUtils.redstoneLevelFromContents(fluidTank.getFluidAmount(), fluidTank.getCapacity());
     }
@@ -671,7 +667,8 @@ public class TileEntityLargeElectrolyticSeparator extends TileEntityBasicMachine
     public double getScaledFluidTankLevel() {
         return Math.max(Math.min((double) fluidTank.getFluidAmount() / fluidTank.getCapacity(), 1.0D), 0.0D);
     }
-@Override
+
+    @Override
     public int getBlockGuiID(Block block, int metadata) {
         return 0;
     }

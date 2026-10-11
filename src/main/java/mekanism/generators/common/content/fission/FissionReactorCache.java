@@ -39,11 +39,12 @@ public class FissionReactorCache extends MultiblockCache<SynchronizedFissionData
         if (fuel != null) validateAmount(fuel.amount, target.fuelTank.getMaxGas(), "fuel");
         if (waste != null) validateAmount(waste.amount, target.wasteTank.getMaxGas(), "waste");
         if (gasCoolant != null) validateAmount(gasCoolant.amount, target.gasCoolantTank.getMaxGas(), "gas coolant");
-        if (heatedCoolant != null) validateAmount(heatedCoolant.amount, target.heatedCoolantTank.getMaxGas(), "heated coolant");
+        if (heatedCoolant != null)
+            validateAmount(heatedCoolant.amount, target.heatedCoolantTank.getMaxGas(), "heated coolant");
         if (coolant != null) validateAmount(coolant.amount, target.coolantTank.getCapacity(), "coolant");
         if (steam != null) validateAmount(steam.amount, target.steamTank.getCapacity(), "steam");
         requireMerge((long) (coolant == null ? 0 : coolant.amount) + (gasCoolant == null ? 0 : gasCoolant.amount) <= target.coolantTank.getCapacity(),
-              "Combined coolant exceeds target capacity");
+                "Combined coolant exceeds target capacity");
     }
 
     public GasStack fuel;

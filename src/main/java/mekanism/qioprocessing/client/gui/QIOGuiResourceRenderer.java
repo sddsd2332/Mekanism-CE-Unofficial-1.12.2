@@ -20,7 +20,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Shared bounded client projection for built-in and codec-rendered QIO descriptors. */
+/**
+ * Shared bounded client projection for built-in and codec-rendered QIO descriptors.
+ */
+
 /**
  * QIO 处理模块中的 QIOGuiResourceRenderer 类型。
  *
@@ -31,19 +34,19 @@ final class QIOGuiResourceRenderer {
 
     private static final int MAX_CACHE_SIZE = 2_048;
     private static final Map<PortableResourceDescriptor, DisplayResource> CACHE =
-          new LinkedHashMap<>(256, 0.75F, true) {
-              @Override
-              protected boolean removeEldestEntry(
-                    Map.Entry<PortableResourceDescriptor, DisplayResource> eldest) {
-                  return size() > MAX_CACHE_SIZE;
-              }
-          };
+            new LinkedHashMap<>(256, 0.75F, true) {
+                @Override
+                protected boolean removeEldestEntry(
+                        Map.Entry<PortableResourceDescriptor, DisplayResource> eldest) {
+                    return size() > MAX_CACHE_SIZE;
+                }
+            };
 
     private QIOGuiResourceRenderer() {
     }
 
     static void renderIcon(IGuiWrapper gui, @Nullable PortableResourceDescriptor resource,
-          int x, int y, int size) {
+                           int x, int y, int size) {
         if (resource == null || size <= 0) return;
         if (renderRegistered(resource, x, y, size)) return;
         DisplayResource display = display(resource);
@@ -58,14 +61,14 @@ final class QIOGuiResourceRenderer {
             case FLUID -> {
                 if (display.fluid != null) {
                     GuiUtils.drawFluidBarSprite(x - 1, y - 1, size + 2, size + 2,
-                          size, display.fluid, true);
+                            size, display.fluid, true);
                     rendered = true;
                 }
             }
             case GAS -> {
                 if (display.gas != null) {
                     GuiUtils.drawGasBarSprite(x - 1, y - 1, size + 2, size + 2,
-                          size, display.gas, true);
+                            size, display.gas, true);
                     rendered = true;
                 }
             }
@@ -79,18 +82,18 @@ final class QIOGuiResourceRenderer {
     static String name(@Nullable PortableResourceDescriptor resource) {
         if (resource == null) {
             return new TextComponentTranslation(
-                  "gui.mekanismqioprocessing.unknown_output").getFormattedText();
+                    "gui.mekanismqioprocessing.unknown_output").getFormattedText();
         }
         String renderedName = renderedDisplayName(resource);
         if (renderedName != null) return renderedName;
         DisplayResource display = display(resource);
         return switch (resource.getKind()) {
             case ITEM -> display.item.isEmpty() ? resource.getRegistryName() :
-                  display.item.getDisplayName();
+                    display.item.getDisplayName();
             case FLUID -> display.fluid == null ? resource.getRegistryName() :
-                  display.fluid.getLocalizedName();
+                    display.fluid.getLocalizedName();
             case GAS -> display.gas == null || display.gas.getGas() == null ?
-                  resource.getRegistryName() : display.gas.getGas().getLocalizedName();
+                    resource.getRegistryName() : display.gas.getGas().getLocalizedName();
             case CUSTOM -> resource.getRegistryName();
         };
     }
@@ -104,7 +107,7 @@ final class QIOGuiResourceRenderer {
             return resource.getRegistryName();
         }
         return resource.getRegistryName() + '@' + resource.getMetadata() +
-              (resource.getTag() == null ? "" : " [NBT]");
+                (resource.getTag() == null ? "" : " [NBT]");
     }
 
     @Nonnull
@@ -115,11 +118,11 @@ final class QIOGuiResourceRenderer {
         tooltip.add(name(resource));
         if (resource != null && resource.getKind() == PortableResourceDescriptor.Kind.FLUID) {
             tooltip.add(new TextComponentTranslation(
-                  "gui.mekanismqioprocessing.order_unit_fluid").getFormattedText());
+                    "gui.mekanismqioprocessing.order_unit_fluid").getFormattedText());
         } else if (resource != null &&
-              resource.getKind() == PortableResourceDescriptor.Kind.GAS) {
+                resource.getKind() == PortableResourceDescriptor.Kind.GAS) {
             tooltip.add(new TextComponentTranslation(
-                  "gui.mekanismqioprocessing.order_unit_gas").getFormattedText());
+                    "gui.mekanismqioprocessing.order_unit_gas").getFormattedText());
         }
         return tooltip;
     }
@@ -165,7 +168,7 @@ final class QIOGuiResourceRenderer {
     }
 
     private static boolean renderRegistered(PortableResourceDescriptor resource,
-          int x, int y, int size) {
+                                            int x, int y, int size) {
         RendererResolution resolved = resolveRenderer(resource);
         if (resolved == null) return false;
         float scale = size / 16F;
@@ -187,10 +190,10 @@ final class QIOGuiResourceRenderer {
     }
 
     private static void renderUnknown(IGuiWrapper gui, PortableResourceDescriptor resource,
-          int x, int y, int size) {
+                                      int x, int y, int size) {
         int hash = resource.hashCode();
         int color = 0xFF000000 | (80 + (hash & 0x7F)) << 16 |
-              (80 + ((hash >>> 8) & 0x7F)) << 8 | 80 + ((hash >>> 16) & 0x7F);
+                (80 + ((hash >>> 8) & 0x7F)) << 8 | 80 + ((hash >>> 16) & 0x7F);
         int inset = Math.max(1, size / 8);
         GuiUtils.fill(x + inset, y + inset, x + size - inset, y + size - inset, color);
         FontRenderer font = gui.getFont();
@@ -199,7 +202,7 @@ final class QIOGuiResourceRenderer {
         int width = font.getStringWidth("?");
         GlStateManager.pushMatrix();
         GlStateManager.translate(x + (size - width * scale) / 2F,
-              y + (size - font.FONT_HEIGHT * scale) / 2F, 100);
+                y + (size - font.FONT_HEIGHT * scale) / 2F, 100);
         GlStateManager.scale(scale, scale, scale);
         font.drawString("?", 0, 0, 0xFFFFFFFF);
         GlStateManager.popMatrix();
@@ -283,11 +286,13 @@ final class QIOGuiResourceRenderer {
 
     private static final class DisplayResource {
         private final ItemStack item;
-        @Nullable private final FluidStack fluid;
-        @Nullable private final GasStack gas;
+        @Nullable
+        private final FluidStack fluid;
+        @Nullable
+        private final GasStack gas;
 
         private DisplayResource(ItemStack item, @Nullable FluidStack fluid,
-              @Nullable GasStack gas) {
+                                @Nullable GasStack gas) {
             this.item = item == null ? ItemStack.EMPTY : item;
             this.fluid = fluid;
             this.gas = gas;

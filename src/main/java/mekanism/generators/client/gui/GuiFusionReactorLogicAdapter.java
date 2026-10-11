@@ -33,13 +33,13 @@ public class GuiFusionReactorLogicAdapter extends GuiMekanismTile<TileEntityReac
         super.addGuiElements();
         addButton(new GuiElementHolder(this, 26, 31, 130, 90));
         addButton(new ToggleButton(this, 26, 19, 11, () -> tileEntity.activeCooled,
-              () -> Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(0))),
-              new TextComponentString(LangUtils.localize("gui.toggleCooling")), new TextComponentString(LangUtils.localize("gui.toggleCooling"))));
+                () -> Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(0))),
+                new TextComponentString(LangUtils.localize("gui.toggleCooling")), new TextComponentString(LangUtils.localize("gui.toggleCooling"))));
         scrollBar = addButton(new GuiScrollBar(this, 156, 31, 90, () -> ReactorLogic.values().length, () -> DISPLAY_COUNT));
         for (int i = 0; i < DISPLAY_COUNT; i++) {
             addButton(new ReactorLogicButton<>(this, 27, 32 + 22 * i, i, scrollBar::getCurrentSelection, ReactorLogic::values,
-                  () -> tileEntity.logicType, mode -> new TextComponentString(EnumColor.WHITE + mode.getLocalizedName()), ReactorLogic::getDescription, ReactorLogic::getRenderStack,
-                  mode -> EnumColor.RED, this::changeLogic));
+                    () -> tileEntity.logicType, mode -> new TextComponentString(EnumColor.WHITE + mode.getLocalizedName()), ReactorLogic::getDescription, ReactorLogic::getRenderStack,
+                    mode -> EnumColor.RED, this::changeLogic));
         }
     }
 
@@ -47,11 +47,11 @@ public class GuiFusionReactorLogicAdapter extends GuiMekanismTile<TileEntityReac
     protected void drawForegroundText(int mouseX, int mouseY) {
         drawTitleText(new TextComponentString(tileEntity.getName()), 6);
         drawTextScaledBound(new TextComponentString(LangUtils.localize("gui.coolingMeasurements") + ": " + EnumColor.RED + LangUtils.transOnOff(tileEntity.activeCooled)),
-              40, 20, titleTextColor(), xSize - 44);
+                40, 20, titleTextColor(), xSize - 44);
         drawCenteredTextScaledBound(new TextComponentString(LangUtils.localize("gui.redstoneOutputMode") + ": " + EnumColor.RED + tileEntity.logicType.getLocalizedName()),
-              xSize - 8, 123, titleTextColor());
+                xSize - 8, 123, titleTextColor());
         drawCenteredTextScaledBound(new TextComponentString(LangUtils.localize("gui.status") + ": " + EnumColor.RED +
-              LangUtils.localize("gui." + (tileEntity.checkMode() ? "outputting" : "idle"))), xSize - 8, 136, titleTextColor());
+                LangUtils.localize("gui." + (tileEntity.checkMode() ? "outputting" : "idle"))), xSize - 8, 136, titleTextColor());
         super.drawForegroundText(mouseX, mouseY);
     }
 

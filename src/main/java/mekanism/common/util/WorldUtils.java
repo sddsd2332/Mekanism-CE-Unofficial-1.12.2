@@ -103,7 +103,6 @@ public class WorldUtils {
      *
      * @param world world
      * @param pos   position
-     *
      * @return tile entity if found, null if either not found or not loaded
      */
     @Nullable

@@ -9,7 +9,10 @@ import mekanism.qioprocessing.common.inventory.container.QIOProcessingTerminalFr
 
 import java.util.function.Supplier;
 
-/** Frequency selector tab using the terminal session-bound binding protocol. */
+/**
+ * Frequency selector tab using the terminal session-bound binding protocol.
+ */
+
 /**
  * QIO 处理模块中的 GuiQIOProcessingTerminalFrequencyTab 类型。
  *
@@ -17,18 +20,18 @@ import java.util.function.Supplier;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class GuiQIOProcessingTerminalFrequencyTab extends
-      GuiQIOFrequencyTab<QIOProcessingTerminalFrequencyContainer> {
+        GuiQIOFrequencyTab<QIOProcessingTerminalFrequencyContainer> {
 
     public GuiQIOProcessingTerminalFrequencyTab(IGuiWrapper gui,
-          QIOProcessingTerminalFrequencyContainer container,
-          Supplier<? extends GuiQIOFrequencyTab<?>> tabSupplier) {
+                                                QIOProcessingTerminalFrequencyContainer container,
+                                                Supplier<? extends GuiQIOFrequencyTab<?>> tabSupplier) {
         super(gui, container, tabSupplier, new SelectedWindowData(
-              QIOProcessingWindowTypes.TERMINAL_FREQUENCY));
+                QIOProcessingWindowTypes.TERMINAL_FREQUENCY));
     }
 
     @Override
     protected GuiQIOFrequencySelectWindow createWindow(SelectedWindowData windowData) {
         return new GuiQIOProcessingTerminalFrequencyWindow(gui(), dataSource,
-              windowData);
+                windowData);
     }
 }

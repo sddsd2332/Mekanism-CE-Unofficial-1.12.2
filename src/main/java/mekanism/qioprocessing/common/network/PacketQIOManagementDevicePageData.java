@@ -21,7 +21,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
-/** One bounded server-authoritative management device page. */
+/**
+ * One bounded server-authoritative management device page.
+ */
+
 /**
  * QIO 处理模块中的 PacketQIOManagementDevicePageData 类型。
  *
@@ -29,7 +32,7 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class PacketQIOManagementDevicePageData implements
-      IMessageHandler<PacketQIOManagementDevicePageData.Message, IMessage> {
+        IMessageHandler<PacketQIOManagementDevicePageData.Message, IMessage> {
 
     public static final int MAX_WIRE_PAGE_SIZE = 1_024;
 
@@ -41,19 +44,19 @@ public final class PacketQIOManagementDevicePageData implements
         }
         PacketHandler.handlePacket(() -> {
             if (!message.valid ||
-                !(player.openContainer instanceof QIOManagementDevicePageContainer container) ||
-                player.openContainer.windowId != message.windowId) {
+                    !(player.openContainer instanceof QIOManagementDevicePageContainer container) ||
+                    player.openContainer.windowId != message.windowId) {
                 return;
             }
             QIOProcessingTerminalContainerState state = container.getTerminalState();
             if (!state.matches(message.sessionNonce, message.terminalUUID,
-                  message.targetRevision, message.frequencyUUID,
-                  message.accessRevision)) {
+                    message.targetRevision, message.frequencyUUID,
+                    message.accessRevision)) {
                 return;
             }
             container.getDeviceClientCache().apply(message.sessionNonce, message.typeKey,
-                  message.sourceRevision, message.offset, message.totalSize,
-                  message.devices, message.nextCursor);
+                    message.sourceRevision, message.offset, message.totalSize,
+                    message.devices, message.nextCursor);
         }, player);
         return null;
     }
@@ -79,10 +82,10 @@ public final class PacketQIOManagementDevicePageData implements
         }
 
         private Message(int windowId, UUID sessionNonce, UUID terminalUUID,
-              long targetRevision, UUID frequencyUUID, long accessRevision,
-              String typeKey, long sourceRevision,
-              int offset, int totalSize, List<QIOAutomationDeviceSnapshot> devices,
-              @Nullable QIOPageCursor nextCursor) {
+                        long targetRevision, UUID frequencyUUID, long accessRevision,
+                        String typeKey, long sourceRevision,
+                        int offset, int totalSize, List<QIOAutomationDeviceSnapshot> devices,
+                        @Nullable QIOPageCursor nextCursor) {
             this.windowId = windowId;
             this.sessionNonce = sessionNonce;
             this.terminalUUID = terminalUUID;
@@ -99,24 +102,24 @@ public final class PacketQIOManagementDevicePageData implements
         }
 
         public static Message create(int windowId,
-              @Nonnull mekanism.qioprocessing.common.terminal.QIOProcessingTerminalSession session,
-              @Nonnull QIOPage<QIOAutomationDeviceSnapshot> page) {
+                                     @Nonnull mekanism.qioprocessing.common.terminal.QIOProcessingTerminalSession session,
+                                     @Nonnull QIOPage<QIOAutomationDeviceSnapshot> page) {
             return create(windowId, session, page, "");
         }
 
         public static Message create(int windowId,
-              @Nonnull mekanism.qioprocessing.common.terminal.QIOProcessingTerminalSession session,
-              @Nonnull QIOPage<QIOAutomationDeviceSnapshot> page,
-              @Nonnull String typeKey) {
+                                     @Nonnull mekanism.qioprocessing.common.terminal.QIOProcessingTerminalSession session,
+                                     @Nonnull QIOPage<QIOAutomationDeviceSnapshot> page,
+                                     @Nonnull String typeKey) {
             if (session.getFrequencyUUID() == null) {
                 return new Message();
             }
             return new Message(windowId, session.getSessionNonce(),
-                  session.getTerminalUUID(), session.getTargetRevision(),
-                  session.getFrequencyUUID(), session.getAccessRevision(),
-                  typeKey, page.getSourceRevision(),
-                  page.getOffset(), page.getTotalSize(), page.getEntries(),
-                  page.getNextCursor());
+                    session.getTerminalUUID(), session.getTargetRevision(),
+                    session.getFrequencyUUID(), session.getAccessRevision(),
+                    typeKey, page.getSourceRevision(),
+                    page.getOffset(), page.getTotalSize(), page.getEntries(),
+                    page.getNextCursor());
         }
 
         @Override
@@ -158,7 +161,7 @@ public final class PacketQIOManagementDevicePageData implements
                 nextCursor = buffer.readBoolean() ? QIOPageCursor.read(buffer) : null;
                 int count = buffer.readInt();
                 if (count < 0 || count > MAX_WIRE_PAGE_SIZE || totalSize < 0 ||
-                    offset < 0 || offset > totalSize || count > totalSize - offset) {
+                        offset < 0 || offset > totalSize || count > totalSize - offset) {
                     return;
                 }
                 List<QIOAutomationDeviceSnapshot> decoded = new ArrayList<>(count);
@@ -188,20 +191,20 @@ public final class PacketQIOManagementDevicePageData implements
 
         private boolean structurallyValid() {
             if (windowId < 0 || sessionNonce == null || terminalUUID == null ||
-                targetRevision < 0 || frequencyUUID == null || accessRevision < 0 ||
-                typeKey == null || typeKey.length() > 2_048 || sourceRevision < 0 ||
-                offset < 0 || totalSize < 0 || offset > totalSize ||
-                devices.size() > MAX_WIRE_PAGE_SIZE ||
-                devices.size() > totalSize - offset) {
+                    targetRevision < 0 || frequencyUUID == null || accessRevision < 0 ||
+                    typeKey == null || typeKey.length() > 2_048 || sourceRevision < 0 ||
+                    offset < 0 || totalSize < 0 || offset > totalSize ||
+                    devices.size() > MAX_WIRE_PAGE_SIZE ||
+                    devices.size() > totalSize - offset) {
                 return false;
             }
             if (nextCursor == null) {
                 return offset + devices.size() == totalSize;
             }
             return sessionNonce.equals(nextCursor.getSessionNonce()) &&
-                  sourceRevision == nextCursor.getSourceRevision() &&
-                  nextCursor.getOffset() == offset + devices.size() &&
-                  nextCursor.getOffset() < totalSize;
+                    sourceRevision == nextCursor.getSourceRevision() &&
+                    nextCursor.getOffset() == offset + devices.size() &&
+                    nextCursor.getOffset() < totalSize;
         }
 
         private static void writeUUID(ByteBuf buffer, UUID uuid) {

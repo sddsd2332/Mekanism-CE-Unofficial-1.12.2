@@ -10,7 +10,6 @@ import mekanism.client.render.MekanismRenderer;
 import mekanism.common.inventory.container.MekanismTileContainer;
 import mekanism.common.inventory.container.SelectedWindowData;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
-import mekanism.common.util.MekanismUtils;
 import mekanism.qioprocessing.api.machine.QIOAutomationHost;
 import mekanism.qioprocessing.common.MekanismQIOProcessing;
 import mekanism.qioprocessing.common.config.QIOAutomationRecipeConfigType;
@@ -24,7 +23,10 @@ import javax.annotation.Nullable;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/** AE-style route-policy tab for one installed QIO automation mode. */
+/**
+ * AE-style route-policy tab for one installed QIO automation mode.
+ */
+
 /**
  * QIO 处理模块中的 GuiQIOAutomationRecipeConfigTab 类型。
  *
@@ -32,7 +34,7 @@ import java.util.function.Supplier;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class GuiQIOAutomationRecipeConfigTab extends
-      GuiWindowCreatorTab<QIOAutomationContainerState, GuiQIOAutomationRecipeConfigTab> {
+        GuiWindowCreatorTab<QIOAutomationContainerState, GuiQIOAutomationRecipeConfigTab> {
 
     private static final int TAB_ICON_SIZE = 14;
     private static final int ITEM_TEXTURE_SIZE = 16;
@@ -43,12 +45,12 @@ public final class GuiQIOAutomationRecipeConfigTab extends
     private boolean windowOpen;
 
     public GuiQIOAutomationRecipeConfigTab(IGuiWrapper gui, TileEntityContainerBlock tile,
-          MekanismTileContainer<?> container, QIOAutomationContainerState state,
-          QIOAutomationRecipeConfigType configType,
-          Supplier<GuiQIOAutomationRecipeConfigTab> elementSupplier) {
+                                           MekanismTileContainer<?> container, QIOAutomationContainerState state,
+                                           QIOAutomationRecipeConfigType configType,
+                                           Supplier<GuiQIOAutomationRecipeConfigTab> elementSupplier) {
         super(new ResourceLocation(MekanismQIOProcessing.MODID,
-                    "textures/items/" + configType.getItemTextureName() + ".png"),
-              gui, state, gui.getWidth() + 48, 6, 26, 18, false, elementSupplier);
+                        "textures/items/" + configType.getItemTextureName() + ".png"),
+                gui, state, gui.getWidth() + 48, 6, 26, 18, false, elementSupplier);
         this.tile = tile;
         this.container = container;
         this.configType = configType;
@@ -57,11 +59,11 @@ public final class GuiQIOAutomationRecipeConfigTab extends
     }
 
     public static boolean canOpen(@Nullable TileEntityContainerBlock tile,
-          @Nullable QIOAutomationContainerState state,
-          @Nonnull QIOAutomationRecipeConfigType type) {
+                                  @Nullable QIOAutomationContainerState state,
+                                  @Nonnull QIOAutomationRecipeConfigType type) {
         return type.isInstalledIn(tile) && state != null && state.getMode() == type.getMode() &&
-              state.getState() != QIOAutomationHost.State.DRAINING_CHANGE &&
-              state.getState() != QIOAutomationHost.State.IDENTITY_CONFLICT;
+                state.getState() != QIOAutomationHost.State.DRAINING_CHANGE &&
+                state.getState() != QIOAutomationHost.State.IDENTITY_CONFLICT;
     }
 
     @Override
@@ -70,7 +72,7 @@ public final class GuiQIOAutomationRecipeConfigTab extends
         int iconY = getButtonY() + (innerHeight - TAB_ICON_SIZE) / 2;
         MekanismRenderer.bindTexture(getOverlay());
         GuiUtils.blit(iconX, iconY, TAB_ICON_SIZE, TAB_ICON_SIZE, 0, 0,
-              ITEM_TEXTURE_SIZE, ITEM_TEXTURE_SIZE, ITEM_TEXTURE_SIZE, ITEM_TEXTURE_SIZE);
+                ITEM_TEXTURE_SIZE, ITEM_TEXTURE_SIZE, ITEM_TEXTURE_SIZE, ITEM_TEXTURE_SIZE);
         MekanismRenderer.resetColor();
     }
 
@@ -116,8 +118,8 @@ public final class GuiQIOAutomationRecipeConfigTab extends
     @Override
     protected GuiWindow createWindow(SelectedWindowData windowData) {
         return new GuiQIOAutomationRecipeConfigWindow(gui(),
-              (getGuiWidth() - GuiQIOAutomationRecipeConfigWindow.WIDTH) / 2, 18,
-              tile, container, dataSource, configType, windowData);
+                (getGuiWidth() - GuiQIOAutomationRecipeConfigWindow.WIDTH) / 2, 18,
+                tile, container, dataSource, configType, windowData);
     }
 
     @Override
@@ -139,7 +141,7 @@ public final class GuiQIOAutomationRecipeConfigTab extends
 
     private boolean hasOpenWindow() {
         return gui() instanceof GuiMekanism<?> mekanismGui && mekanismGui.getWindows().stream()
-              .anyMatch(window -> window instanceof GuiQIOAutomationRecipeConfigWindow configWindow &&
-                    configWindow.isFor(tile, configType));
+                .anyMatch(window -> window instanceof GuiQIOAutomationRecipeConfigWindow configWindow &&
+                        configWindow.isFor(tile, configType));
     }
 }

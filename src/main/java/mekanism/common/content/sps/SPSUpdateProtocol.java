@@ -21,13 +21,13 @@ public class SPSUpdateProtocol extends UpdateProtocol<SynchronizedSPSData> {
 
     private static final int STRUCTURE_SIZE = 7;
     private static final byte[][] ALLOWED_GRID = new byte[][]{
-          {0, 0, 1, 1, 1, 0, 0},
-          {0, 1, 2, 2, 2, 1, 0},
-          {1, 2, 2, 2, 2, 2, 1},
-          {1, 2, 2, 2, 2, 2, 1},
-          {1, 2, 2, 2, 2, 2, 1},
-          {0, 1, 2, 2, 2, 1, 0},
-          {0, 0, 1, 1, 1, 0, 0}
+            {0, 0, 1, 1, 1, 0, 0},
+            {0, 1, 2, 2, 2, 1, 0},
+            {1, 2, 2, 2, 2, 2, 1},
+            {1, 2, 2, 2, 2, 2, 1},
+            {1, 2, 2, 2, 2, 2, 1},
+            {0, 1, 2, 2, 2, 1, 0},
+            {0, 0, 1, 1, 1, 0, 0}
     };
 
     public SPSUpdateProtocol(TileEntitySPSCasing tileEntity) {

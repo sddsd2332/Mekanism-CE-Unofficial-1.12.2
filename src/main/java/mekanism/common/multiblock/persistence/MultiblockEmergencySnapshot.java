@@ -1,38 +1,33 @@
 package mekanism.common.multiblock.persistence;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
-/** Detached last runtime state, conditional on the exact authority observed before an IO failure. */
+/**
+ * Detached last runtime state, conditional on the exact authority observed before an IO failure.
+ */
 final class MultiblockEmergencySnapshot {
     static final int MAX_ENTRIES = 100_000;
     private static final int MAGIC = 0x4d424553;
     private static final int VERSION = 1;
     private final List<Item> items;
 
-    private MultiblockEmergencySnapshot(List<Item> items) { this.items = items; }
+    private MultiblockEmergencySnapshot(List<Item> items) {
+        this.items = items;
+    }
 
     static MultiblockEmergencySnapshot capture(ManagedCacheStore.View view, Map<UUID, byte[]> dirty,
-          Map<UUID, byte[]> saving, MultiblockPersistenceSession.Transfer transfer, Set<ManagedCacheStore.SourceKey> reserved) throws IOException {
+                                               Map<UUID, byte[]> saving, MultiblockPersistenceSession.Transfer transfer, Set<ManagedCacheStore.SourceKey> reserved) throws IOException {
         if (dirty.size() > MAX_ENTRIES) throw new IOException("Emergency snapshot count exceeds budget");
         List<Item> items = new ArrayList<>();
         long bytes = 0;
         for (Map.Entry<UUID, byte[]> entry : dirty.entrySet()) {
             ManagedCacheStore.Entry before = view == null ? null : view.entries.get(entry.getKey());
-            if (before == null) throw new IOException("Emergency snapshot has no observed authority: " + entry.getKey());
+            if (before == null)
+                throw new IOException("Emergency snapshot has no observed authority: " + entry.getKey());
             ManagedCacheNbt.validate(entry.getValue());
             Item item = new Item();
             item.id = before.id;
@@ -48,7 +43,8 @@ final class MultiblockEmergencySnapshot {
             }
             item.snapshot = entry.getValue().clone();
             bytes += item.snapshot.length + 256L;
-            if (bytes > MultiblockJournal.MAX_PAYLOAD_BYTES - 12) throw new IOException("Emergency snapshot exceeds byte budget");
+            if (bytes > MultiblockJournal.MAX_PAYLOAD_BYTES - 12)
+                throw new IOException("Emergency snapshot exceeds byte budget");
             items.add(item);
         }
         return new MultiblockEmergencySnapshot(items);
@@ -98,19 +94,19 @@ final class MultiblockEmergencySnapshot {
             if (receipt != null) {
                 ManagedCacheStore.Entry target = view.entries.get(receipt.target);
                 require(item.transfer != null && item.transfer.equals(receipt.transaction) && item.target.equals(receipt.target) &&
-                      target != null && target.createdBy.equals(item.transfer), "Unexpected source consumption");
+                        target != null && target.createdBy.equals(item.transfer), "Unexpected source consumption");
                 continue;
             }
             ManagedCacheStore.Entry current = view.entries.get(item.id);
             require(current != null && item.createdBy.equals(current.createdBy) &&
-                  Arrays.equals(item.bindingHash, bindingHash(current.positions())), "Missing or different authority");
+                    Arrays.equals(item.bindingHash, bindingHash(current.positions())), "Missing or different authority");
             long revision = current.revision;
             byte[] currentHash = digest(current.cache());
             boolean original = revision == item.revision && Arrays.equals(currentHash, item.beforeHash);
             boolean pendingSaved = item.savingHash != null && item.revision < Long.MAX_VALUE && revision == item.revision + 1 && Arrays.equals(currentHash, item.savingHash);
             boolean alreadyApplied = Arrays.equals(currentHash, digest(item.snapshot)) &&
-                  (item.revision < Long.MAX_VALUE && revision == item.revision + 1 ||
-                        item.savingHash != null && item.revision < Long.MAX_VALUE - 1 && revision == item.revision + 2);
+                    (item.revision < Long.MAX_VALUE && revision == item.revision + 1 ||
+                            item.savingHash != null && item.revision < Long.MAX_VALUE - 1 && revision == item.revision + 2);
             require(original || pendingSaved || alreadyApplied, "Revision/content does not match the failed write");
             if (!alreadyApplied) updates.add(new ManagedCacheStore.Update(item.id, revision, item.snapshot));
         }
@@ -131,23 +127,25 @@ final class MultiblockEmergencySnapshot {
         if (!batch.isEmpty()) store.save(UUID.randomUUID(), batch);
     }
 
-    /** Online recovery must prove that the retained runtime state was restored before publication. */
+    /**
+     * Online recovery must prove that the retained runtime state was restored before publication.
+     */
     void verifyRestored(ManagedCacheStore.View view) throws IOException {
         for (Item item : items) {
             ManagedCacheStore.Receipt receipt = view.consumed.get(ManagedCacheStore.SourceKey.managed(item.id));
             if (receipt != null) {
                 ManagedCacheStore.Entry target = view.entries.get(receipt.target);
                 require(item.transfer != null && item.transfer.equals(receipt.transaction) && item.target.equals(receipt.target) &&
-                      target != null && target.createdBy.equals(item.transfer), "Unexpected source consumption after recovery");
+                        target != null && target.createdBy.equals(item.transfer), "Unexpected source consumption after recovery");
                 continue;
             }
             ManagedCacheStore.Entry current = view.entries.get(item.id);
             require(current != null && item.createdBy.equals(current.createdBy) &&
-                  Arrays.equals(item.bindingHash, bindingHash(current.positions())), "Missing or different recovered authority");
+                    Arrays.equals(item.bindingHash, bindingHash(current.positions())), "Missing or different recovered authority");
             require(Arrays.equals(item.snapshot, current.cache()) &&
-                  (item.revision < Long.MAX_VALUE && current.revision == item.revision + 1 ||
-                        item.savingHash != null && item.revision < Long.MAX_VALUE - 1 && current.revision == item.revision + 2),
-                  "Emergency state was not restored");
+                            (item.revision < Long.MAX_VALUE && current.revision == item.revision + 1 ||
+                                    item.savingHash != null && item.revision < Long.MAX_VALUE - 1 && current.revision == item.revision + 2),
+                    "Emergency state was not restored");
         }
     }
 
@@ -166,7 +164,10 @@ final class MultiblockEmergencySnapshot {
                 out.writeBoolean(item.savingHash != null);
                 if (item.savingHash != null) out.write(item.savingHash);
                 out.writeBoolean(item.transfer != null);
-                if (item.transfer != null) { writeUuid(out, item.transfer); writeUuid(out, item.target); }
+                if (item.transfer != null) {
+                    writeUuid(out, item.transfer);
+                    writeUuid(out, item.target);
+                }
                 out.writeInt(item.snapshot.length);
                 out.write(item.snapshot);
             }
@@ -192,7 +193,10 @@ final class MultiblockEmergencySnapshot {
                 item.bindingHash = hash(in);
                 item.beforeHash = hash(in);
                 if (in.readBoolean()) item.savingHash = hash(in);
-                if (in.readBoolean()) { item.transfer = readUuid(in); item.target = readUuid(in); }
+                if (in.readBoolean()) {
+                    item.transfer = readUuid(in);
+                    item.target = readUuid(in);
+                }
                 int size = in.readInt();
                 require(size >= 0 && size <= ManagedCacheStore.MAX_CACHE_BYTES && size <= in.available(), "Snapshot size");
                 item.snapshot = new byte[size];
@@ -207,19 +211,38 @@ final class MultiblockEmergencySnapshot {
 
     private static byte[] bindingHash(long[] positions) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        try (DataOutputStream out = new DataOutputStream(bytes)) { for (long position : positions) out.writeLong(position); }
+        try (DataOutputStream out = new DataOutputStream(bytes)) {
+            for (long position : positions) out.writeLong(position);
+        }
         return digest(bytes.toByteArray());
     }
 
     private static byte[] digest(byte[] bytes) {
-        try { return MessageDigest.getInstance("SHA-256").digest(bytes); }
-        catch (NoSuchAlgorithmException impossible) { throw new AssertionError(impossible); }
+        try {
+            return MessageDigest.getInstance("SHA-256").digest(bytes);
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new AssertionError(impossible);
+        }
     }
 
-    private static byte[] hash(DataInputStream in) throws IOException { byte[] hash = new byte[32]; in.readFully(hash); return hash; }
-    private static UUID readUuid(DataInputStream in) throws IOException { return new UUID(in.readLong(), in.readLong()); }
-    private static void writeUuid(DataOutputStream out, UUID id) throws IOException { out.writeLong(id.getMostSignificantBits()); out.writeLong(id.getLeastSignificantBits()); }
-    private static void require(boolean valid, String reason) throws IOException { if (!valid) throw new IOException("Invalid multiblock emergency snapshot: " + reason); }
+    private static byte[] hash(DataInputStream in) throws IOException {
+        byte[] hash = new byte[32];
+        in.readFully(hash);
+        return hash;
+    }
+
+    private static UUID readUuid(DataInputStream in) throws IOException {
+        return new UUID(in.readLong(), in.readLong());
+    }
+
+    private static void writeUuid(DataOutputStream out, UUID id) throws IOException {
+        out.writeLong(id.getMostSignificantBits());
+        out.writeLong(id.getLeastSignificantBits());
+    }
+
+    private static void require(boolean valid, String reason) throws IOException {
+        if (!valid) throw new IOException("Invalid multiblock emergency snapshot: " + reason);
+    }
 
     private static final class Item {
         UUID id, createdBy, transfer, target;

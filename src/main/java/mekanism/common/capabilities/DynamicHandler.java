@@ -14,12 +14,12 @@ public abstract class DynamicHandler<TANK> extends SimpleDynamicHandler<TANK> {
     protected final InteractPredicate canInsert;
 
     protected DynamicHandler(Function<EnumFacing, List<TANK>> containerSupplier, Predicate<EnumFacing> canExtract, Predicate<EnumFacing> canInsert,
-          @Nullable IContentsListener listener) {
+                             @Nullable IContentsListener listener) {
         this(containerSupplier, (tank, side) -> canExtract.test(side), (tank, side) -> canInsert.test(side), listener);
     }
 
     protected DynamicHandler(Function<EnumFacing, List<TANK>> containerSupplier, InteractPredicate canExtract, InteractPredicate canInsert,
-          @Nullable IContentsListener listener) {
+                             @Nullable IContentsListener listener) {
         super(containerSupplier, listener);
         this.canExtract = canExtract;
         this.canInsert = canInsert;

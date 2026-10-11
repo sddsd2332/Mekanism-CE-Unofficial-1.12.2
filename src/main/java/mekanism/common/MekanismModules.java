@@ -33,7 +33,7 @@ public class MekanismModules {
     public static final ModuleData<ModuleBlastingUnit> BLASTING_UNIT = ModuleHelper.register("blasting_unit", ModuleBlastingUnit::new, builder -> builder.maxStackSize(4).rarity(EnumRarity.RARE).handlesModeChange().rendersHUD());
     public static final ModuleData<ModuleVeinMiningUnit> VEIN_MINING_UNIT = ModuleHelper.register("vein_mining_unit", ModuleVeinMiningUnit::new, builder -> builder.maxStackSize(4).rarity(EnumRarity.RARE).handlesModeChange().rendersHUD());
     public static final ModuleData<ModuleTeleportationUnit> TELEPORTATION_UNIT = ModuleHelper.register("teleportation_unit", ModuleTeleportationUnit::new, builder -> builder.rarity(EnumRarity.EPIC).exclusive(ModuleData.ExclusiveFlag.INTERACT_ANY));
-    public static final ModuleData<?> LASER_CUTTER_UNIT  = ModuleHelper.registerMarker("laser_cutter_unit",builder -> builder.rarity(EnumRarity.EPIC));
+    public static final ModuleData<?> LASER_CUTTER_UNIT = ModuleHelper.registerMarker("laser_cutter_unit", builder -> builder.rarity(EnumRarity.EPIC));
 
     //Helmet
     public static final ModuleData<ModuleElectrolyticBreathingUnit> ELECTROLYTIC_BREATHING_UNIT = ModuleHelper.register("electrolytic_breathing_unit", ModuleElectrolyticBreathingUnit::new, builder -> builder.maxStackSize(4).rarity(EnumRarity.UNCOMMON));

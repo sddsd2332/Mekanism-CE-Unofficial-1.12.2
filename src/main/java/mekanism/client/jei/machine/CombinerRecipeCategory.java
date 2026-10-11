@@ -15,7 +15,7 @@ import mezz.jei.api.gui.IRecipeLayout;
 import mezz.jei.api.ingredients.IIngredients;
 
 public class CombinerRecipeCategory<RECIPE extends DoubleMachineRecipe<RECIPE>, WRAPPER extends DoubleMachineRecipeWrapper<RECIPE>>
-      extends BaseRecipeCategory<WRAPPER> {
+        extends BaseRecipeCategory<WRAPPER> {
 
     private final GuiSlot input;
     private final GuiSlot extra;

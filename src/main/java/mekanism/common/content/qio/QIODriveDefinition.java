@@ -25,25 +25,25 @@ public final class QIODriveDefinition {
     private static final Map<ResourceLocation, QIODriveDefinition> REGISTRY_VIEW = Collections.unmodifiableMap(REGISTRY);
 
     public static final QIODriveDefinition BASE = builder("base")
-          .baseTier(BaseTier.BASIC)
-          .maxCount(16_000L)
-          .maxTypes(128)
-          .register();
+            .baseTier(BaseTier.BASIC)
+            .maxCount(16_000L)
+            .maxTypes(128)
+            .register();
     public static final QIODriveDefinition HYPER_DENSE = builder("hyper_dense")
-          .baseTier(BaseTier.ADVANCED)
-          .maxCount(128_000L)
-          .maxTypes(256)
-          .register();
+            .baseTier(BaseTier.ADVANCED)
+            .maxCount(128_000L)
+            .maxTypes(256)
+            .register();
     public static final QIODriveDefinition TIME_DILATING = builder("time_dilating")
-          .baseTier(BaseTier.ELITE)
-          .maxCount(1_048_000L)
-          .maxTypes(1_024)
-          .register();
+            .baseTier(BaseTier.ELITE)
+            .maxCount(1_048_000L)
+            .maxTypes(1_024)
+            .register();
     public static final QIODriveDefinition SUPERMASSIVE = builder("supermassive")
-          .baseTier(BaseTier.ULTIMATE)
-          .maxCount(16_000_000_000L)
-          .maxTypes(8_192)
-          .register();
+            .baseTier(BaseTier.ULTIMATE)
+            .maxCount(16_000_000_000L)
+            .maxTypes(8_192)
+            .register();
 
     private final ResourceLocation registryName;
     private final BaseTier baseTier;
@@ -87,7 +87,7 @@ public final class QIODriveDefinition {
 
     public static QIODriveDefinition register(Builder builder) {
         QIODriveDefinition definition = new QIODriveDefinition(
-              Objects.requireNonNull(builder, "QIO drive definition builder cannot be null"));
+                Objects.requireNonNull(builder, "QIO drive definition builder cannot be null"));
         QIODriveDefinition previous = REGISTRY.putIfAbsent(definition.registryName, definition);
         if (previous != null) {
             throw new IllegalArgumentException("Duplicate QIO drive definition registered: " + definition.registryName);
@@ -134,7 +134,9 @@ public final class QIODriveDefinition {
         return baseTier;
     }
 
-    /** Base capacity used by one specialized item, fluid, or gas drive. */
+    /**
+     * Base capacity used by one specialized item, fluid, or gas drive.
+     */
     public long getMaxCount() {
         return maxCount;
     }
@@ -184,7 +186,7 @@ public final class QIODriveDefinition {
             boolean unlimited = maxCount == Long.MAX_VALUE;
             if (countConfigured && countUnlimited != unlimited) {
                 throw new IllegalStateException("QIO drive count capacity is already configured as " +
-                      (countUnlimited ? "unlimited" : "finite"));
+                        (countUnlimited ? "unlimited" : "finite"));
             }
             countConfigured = true;
             countUnlimited = unlimited;
@@ -196,7 +198,7 @@ public final class QIODriveDefinition {
             boolean unlimited = maxTypes == Integer.MAX_VALUE;
             if (typesConfigured && typesUnlimited != unlimited) {
                 throw new IllegalStateException("QIO drive type capacity is already configured as " +
-                      (typesUnlimited ? "unlimited" : "finite"));
+                        (typesUnlimited ? "unlimited" : "finite"));
             }
             typesConfigured = true;
             typesUnlimited = unlimited;
@@ -204,17 +206,23 @@ public final class QIODriveDefinition {
             return this;
         }
 
-        /** Marks resource-count capacity as unlimited without changing type capacity. */
+        /**
+         * Marks resource-count capacity as unlimited without changing type capacity.
+         */
         public Builder unlimitedCount() {
             return maxCount(Long.MAX_VALUE);
         }
 
-        /** Marks type capacity as unlimited without changing resource-count capacity. */
+        /**
+         * Marks type capacity as unlimited without changing resource-count capacity.
+         */
         public Builder unlimitedTypes() {
             return maxTypes(Integer.MAX_VALUE);
         }
 
-        /** Convenience for a drive with both resource-count and type capacity unlimited. */
+        /**
+         * Convenience for a drive with both resource-count and type capacity unlimited.
+         */
         public Builder creativeCapacity() {
             return unlimitedCount().unlimitedTypes();
         }

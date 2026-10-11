@@ -38,6 +38,7 @@ public class IsotopicRecipeCategory<WRAPPER extends IsotopicRecipeWrapper<Isotop
             public double getProgress() {
                 return (float) timer.getValue() / 20F;
             }
+
             @Override
             public boolean isGuiInJei() {
                 return true;

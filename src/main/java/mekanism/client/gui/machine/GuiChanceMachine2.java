@@ -19,7 +19,7 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 
 @SideOnly(Side.CLIENT)
 public class GuiChanceMachine2<RECIPE extends Chance2MachineRecipe<RECIPE>, TILE extends TileEntityChanceMachine2<RECIPE>>
-      extends GuiConfigurableTile<TILE, ContainerChanceMachine2<RECIPE>> {
+        extends GuiConfigurableTile<TILE, ContainerChanceMachine2<RECIPE>> {
 
     public GuiChanceMachine2(InventoryPlayer inventory, TILE tile) {
         super(tile, new ContainerChanceMachine2<>(inventory, tile));
@@ -31,11 +31,11 @@ public class GuiChanceMachine2<RECIPE extends Chance2MachineRecipe<RECIPE>, TILE
         super.addGuiElements();
         addButton(new GuiUpArrow(this, 60, 38));
         addButton(new GuiVerticalPowerBar(this, tileEntity.getEnergyContainer(), 164, 15))
-              .warning(WarningType.NOT_ENOUGH_ENERGY, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY));
+                .warning(WarningType.NOT_ENOUGH_ENERGY, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY));
         addButton(new GuiEnergyTab(this, tileEntity.getEnergyContainer(), tileEntity::getActive));
         addButton(new GuiProgress(tileEntity::getScaledProgress, ProgressType.BAR, this, 78, 38))
-              .recipeViewerCategories(getRecipeViewerRecipeTypes())
-              .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity.getWarningCheck(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT));
+                .recipeViewerCategories(getRecipeViewerRecipeTypes())
+                .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity.getWarningCheck(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT));
     }
 
     protected IRecipeViewerRecipeType<?>[] getRecipeViewerRecipeTypes() {

@@ -1,12 +1,6 @@
 package mekanism.qioprocessing.common.content.material;
 
-import mekanism.api.qio.external.IQIOStorageView;
-import mekanism.api.qio.external.QIOClaimBacking;
-import mekanism.api.qio.external.QIOClaimRequest;
-import mekanism.api.qio.external.QIOClaimResult;
-import mekanism.api.qio.external.QIOResourceClaim;
-import mekanism.api.qio.external.QIOStorageEntry;
-import mekanism.api.qio.external.QIOStorageSnapshot;
+import mekanism.api.qio.external.*;
 import mekanism.qioprocessing.api.resource.PortableResourceDescriptor;
 import mekanism.qioprocessing.common.MekanismQIOProcessing;
 import mekanism.qioprocessing.common.content.QIOProcessingNetworkData;
@@ -16,13 +10,12 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.math.BigInteger;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
-/** Serial main-thread coordinator for durable, partial material claims. */
+/**
+ * Serial main-thread coordinator for durable, partial material claims.
+ */
+
 /**
  * QIO 处理模块中的 QIOMaterialClaimCoordinator 类型。
  *
@@ -77,8 +70,8 @@ public final class QIOMaterialClaimCoordinator {
 
     @Nonnull
     public static RefreshResult refresh(@Nonnull QIOProcessingNetworkData network,
-          @Nonnull UUID jobId, @Nonnull IQIOStorageView view,
-          @Nonnull PersistenceBarrier persistenceBarrier) throws IOException {
+                                        @Nonnull UUID jobId, @Nonnull IQIOStorageView view,
+                                        @Nonnull PersistenceBarrier persistenceBarrier) throws IOException {
         Objects.requireNonNull(network, "network");
         Objects.requireNonNull(jobId, "jobId");
         Objects.requireNonNull(view, "view");
@@ -91,9 +84,9 @@ public final class QIOMaterialClaimCoordinator {
         QIOCraftingJob job = requireJob(network, jobId);
         QIOMaterialCommitment commitment = requireCommitment(network, jobId);
         if (commitment.getState() != QIOMaterialCommitment.State.ACTIVE &&
-              commitment.getState() != QIOMaterialCommitment.State.NEEDS_RECONCILIATION) {
+                commitment.getState() != QIOMaterialCommitment.State.NEEDS_RECONCILIATION) {
             throw new IllegalStateException("Cannot refresh material commitment in state " +
-                  commitment.getState());
+                    commitment.getState());
         }
 
         QIOStorageSnapshot snapshot = view.getSnapshot();
@@ -108,11 +101,11 @@ public final class QIOMaterialClaimCoordinator {
         QIOPendingClaimMutation pending = commitment.getPendingMutation();
         if (pending == null) {
             Map<PortableResourceDescriptor, Long> desiredClaim = calculateTarget(commitment,
-                  observation.claimed, observation.backed, index);
+                    observation.claimed, observation.backed, index);
             if (desiredClaim.equals(observation.claimed) &&
-                observation.priority == commitment.getPriority()) {
+                    observation.priority == commitment.getPriority()) {
                 if (commitment.getState() == QIOMaterialCommitment.State.ACTIVE &&
-                      commitment.getCommittedAmounts().equals(observation.backed)) {
+                        commitment.getCommittedAmounts().equals(observation.backed)) {
                     return resultFor(commitment, null);
                 }
                 network.applyActiveClaim(jobId, observation.backed, snapshot.getClaimRevision());
@@ -120,8 +113,8 @@ public final class QIOMaterialClaimCoordinator {
                 return resultFor(network.getCommitment(jobId), null);
             }
             pending = new QIOPendingClaimMutation(UUID.randomUUID(),
-                  QIOPendingClaimMutation.Mode.CREATE_OR_ADJUST, snapshot.getContentsRevision(),
-                  snapshot.getClaimRevision(), desiredClaim);
+                    QIOPendingClaimMutation.Mode.CREATE_OR_ADJUST, snapshot.getContentsRevision(),
+                    snapshot.getClaimRevision(), desiredClaim);
             network.prepareClaimMutation(jobId, pending);
             // This save is the durable intent boundary. The core mutation must never precede it.
             persistenceBarrier.persist(network);
@@ -129,19 +122,19 @@ public final class QIOMaterialClaimCoordinator {
 
         Map<UUID, Long> resourceAmounts = index.resolve(pending.getAmounts());
         if (resourceAmounts == null || pending.getMode() == QIOPendingClaimMutation.Mode.CREATE_OR_ADJUST &&
-              resourceAmounts.isEmpty()) {
+                resourceAmounts.isEmpty()) {
             network.markClaimNeedsReconciliation(jobId);
             persistenceBarrier.persist(network);
             return new RefreshResult(Outcome.WAITING_ACCESS, null);
         }
         QIOClaimRequest request = switch (pending.getMode()) {
             case CREATE_OR_ADJUST -> QIOClaimRequest.createOrAdjust(pending.getRequestId(),
-                  commitment.getClaimId(), MekanismQIOProcessing.MODID, job.getClaimOwnerId(),
-                  commitment.getPriority(), commitment.getEnqueueSequence(),
-                  pending.getExpectedContentsRevision(), pending.getExpectedClaimRevision(), resourceAmounts);
+                    commitment.getClaimId(), MekanismQIOProcessing.MODID, job.getClaimOwnerId(),
+                    commitment.getPriority(), commitment.getEnqueueSequence(),
+                    pending.getExpectedContentsRevision(), pending.getExpectedClaimRevision(), resourceAmounts);
             case RELEASE -> QIOClaimRequest.release(pending.getRequestId(), commitment.getClaimId(),
-                  MekanismQIOProcessing.MODID, job.getClaimOwnerId(),
-                  pending.getExpectedClaimRevision(), resourceAmounts);
+                    MekanismQIOProcessing.MODID, job.getClaimOwnerId(),
+                    pending.getExpectedClaimRevision(), resourceAmounts);
         };
         QIOClaimResult claimResult;
         try {
@@ -166,11 +159,11 @@ public final class QIOMaterialClaimCoordinator {
         }
 
         if (claimResult.getStatus() == QIOClaimResult.Status.STALE_CONTENTS ||
-              claimResult.getStatus() == QIOClaimResult.Status.STALE_CLAIMS) {
+                claimResult.getStatus() == QIOClaimResult.Status.STALE_CLAIMS) {
             QIOStorageSnapshot currentSnapshot = view.getSnapshot();
             SnapshotIndex currentIndex = SnapshotIndex.create(currentSnapshot);
             ClaimObservation current = readOwnedClaim(view, commitment,
-                  job, currentIndex);
+                    job, currentIndex);
             if (current == null) {
                 network.markClaimNeedsReconciliation(jobId);
                 persistenceBarrier.persist(network);
@@ -188,8 +181,8 @@ public final class QIOMaterialClaimCoordinator {
 
     @Nonnull
     public static CancellationOutcome cancelUnreserved(@Nonnull QIOProcessingNetworkData network,
-          @Nonnull UUID jobId, @Nonnull IQIOStorageView view,
-          @Nonnull PersistenceBarrier persistenceBarrier) throws IOException {
+                                                       @Nonnull UUID jobId, @Nonnull IQIOStorageView view,
+                                                       @Nonnull PersistenceBarrier persistenceBarrier) throws IOException {
         Objects.requireNonNull(network, "network");
         Objects.requireNonNull(jobId, "jobId");
         Objects.requireNonNull(view, "view");
@@ -197,7 +190,7 @@ public final class QIOMaterialClaimCoordinator {
         QIOCraftingJob job = requireJob(network, jobId);
         QIOMaterialCommitment commitment = requireCommitment(network, jobId);
         if (job.getExecutionSlotToken() != null || network.getJobBuffer(jobId) == null ||
-              !network.getJobBuffer(jobId).isEmpty()) {
+                !network.getJobBuffer(jobId).isEmpty()) {
             throw new IllegalStateException("cancelUnreserved only accepts jobs without physical assets");
         }
         if (!view.isValid() || !network.getFrequencyUUID().equals(view.getFrequencyUUID())) {
@@ -212,7 +205,7 @@ public final class QIOMaterialClaimCoordinator {
             return CancellationOutcome.CANCELLED;
         }
         if (!MekanismQIOProcessing.MODID.equals(existing.getOwnerNamespace()) ||
-              !job.getClaimOwnerId().equals(existing.getOwnerId())) {
+                !job.getClaimOwnerId().equals(existing.getOwnerId())) {
             network.markClaimNeedsReconciliation(jobId);
             persistenceBarrier.persist(network);
             return CancellationOutcome.WAITING_ACCESS;
@@ -222,8 +215,8 @@ public final class QIOMaterialClaimCoordinator {
         if (pending == null) {
             QIOStorageSnapshot snapshot = view.getSnapshot();
             pending = new QIOPendingClaimMutation(UUID.randomUUID(),
-                  QIOPendingClaimMutation.Mode.RELEASE, snapshot.getContentsRevision(),
-                  snapshot.getClaimRevision(), Collections.emptyMap());
+                    QIOPendingClaimMutation.Mode.RELEASE, snapshot.getContentsRevision(),
+                    snapshot.getClaimRevision(), Collections.emptyMap());
             network.prepareClaimRelease(jobId, pending);
             persistenceBarrier.persist(network);
         } else if (pending.getMode() != QIOPendingClaimMutation.Mode.RELEASE) {
@@ -231,20 +224,20 @@ public final class QIOMaterialClaimCoordinator {
         }
 
         QIOClaimResult result = view.submitClaim(QIOClaimRequest.release(pending.getRequestId(),
-              commitment.getClaimId(), MekanismQIOProcessing.MODID, job.getClaimOwnerId(),
-              pending.getExpectedClaimRevision(), Collections.emptyMap()));
+                commitment.getClaimId(), MekanismQIOProcessing.MODID, job.getClaimOwnerId(),
+                pending.getExpectedClaimRevision(), Collections.emptyMap()));
         if (result.isSuccess() || result.getStatus() == QIOClaimResult.Status.NOT_FOUND &&
-              view.getClaim(commitment.getClaimId()) == null) {
+                view.getClaim(commitment.getClaimId()) == null) {
             network.completeClaimRelease(jobId, result.getClaimRevision());
             persistenceBarrier.persist(network);
             return CancellationOutcome.CANCELLED;
         }
         if (result.getStatus() == QIOClaimResult.Status.STALE_CLAIMS ||
-              result.getStatus() == QIOClaimResult.Status.STALE_CONTENTS) {
+                result.getStatus() == QIOClaimResult.Status.STALE_CONTENTS) {
             QIOStorageSnapshot currentSnapshot = view.getSnapshot();
             SnapshotIndex currentIndex = SnapshotIndex.create(currentSnapshot);
             ClaimObservation current = readOwnedClaim(view, commitment,
-                  job, currentIndex);
+                    job, currentIndex);
             if (current != null) {
                 network.applyActiveClaim(jobId, current.backed, currentSnapshot.getClaimRevision());
                 persistenceBarrier.persist(network);
@@ -258,17 +251,17 @@ public final class QIOMaterialClaimCoordinator {
 
     @Nonnull
     private static RefreshResult resultFor(@Nullable QIOMaterialCommitment commitment,
-          @Nullable QIOClaimResult result) {
+                                           @Nullable QIOClaimResult result) {
         if (commitment == null) {
             throw new IllegalStateException("Material commitment disappeared during claim refresh");
         }
         return new RefreshResult(commitment.isFullyCommitted() ? Outcome.FULLY_COMMITTED :
-              Outcome.PARTIALLY_COMMITTED, result);
+                Outcome.PARTIALLY_COMMITTED, result);
     }
 
     @Nullable
     private static ClaimObservation readOwnedClaim(IQIOStorageView view,
-          QIOMaterialCommitment commitment, QIOCraftingJob job, SnapshotIndex index) {
+                                                   QIOMaterialCommitment commitment, QIOCraftingJob job, SnapshotIndex index) {
         QIOResourceClaim claim = view.getClaim(commitment.getClaimId());
         if (claim == null) {
             // A missing claim has no meaningful priority. Treat it as matching this job so an
@@ -276,24 +269,24 @@ public final class QIOMaterialClaimCoordinator {
             return ClaimObservation.empty(commitment.getPriority());
         }
         if (!MekanismQIOProcessing.MODID.equals(claim.getOwnerNamespace()) ||
-              !job.getClaimOwnerId().equals(claim.getOwnerId())) {
+                !job.getClaimOwnerId().equals(claim.getOwnerId())) {
             return null;
         }
         QIOClaimBacking backing = view.getClaimBacking(commitment.getClaimId());
         if (backing == null || backing.getContentsRevision() != index.contentsRevision ||
-              backing.getClaimRevision() != index.claimRevision ||
-              !sameClaim(claim, backing.getClaim())) {
+                backing.getClaimRevision() != index.claimRevision ||
+                !sameClaim(claim, backing.getClaim())) {
             return null;
         }
         Map<PortableResourceDescriptor, Long> claimed = index.translate(claim.getResourceAmounts(),
-              view);
+                view);
         Map<PortableResourceDescriptor, Long> backed = index.translate(backing.getBackedAmounts(),
-              view);
+                view);
         if (claimed == null || backed == null) {
             return null;
         }
         if (!commitment.acceptsCommittedAmounts(claimed) ||
-            !commitment.acceptsCommittedAmounts(backed)) {
+                !commitment.acceptsCommittedAmounts(backed)) {
             return null;
         }
         return new ClaimObservation(claimed, backed, claim.getPriority());
@@ -301,21 +294,21 @@ public final class QIOMaterialClaimCoordinator {
 
     private static boolean sameClaim(QIOResourceClaim left, QIOResourceClaim right) {
         return left.getClaimId().equals(right.getClaimId()) &&
-              left.getOwnerNamespace().equals(right.getOwnerNamespace()) &&
-              left.getOwnerId().equals(right.getOwnerId()) &&
-              left.getPriority() == right.getPriority() &&
-              left.getEnqueueSequence() == right.getEnqueueSequence() &&
-              left.getRevision() == right.getRevision() &&
-              left.getState() == right.getState() &&
-              left.getResourceAmounts().equals(right.getResourceAmounts());
+                left.getOwnerNamespace().equals(right.getOwnerNamespace()) &&
+                left.getOwnerId().equals(right.getOwnerId()) &&
+                left.getPriority() == right.getPriority() &&
+                left.getEnqueueSequence() == right.getEnqueueSequence() &&
+                left.getRevision() == right.getRevision() &&
+                left.getState() == right.getState() &&
+                left.getResourceAmounts().equals(right.getResourceAmounts());
     }
 
     @Nonnull
     private static Map<PortableResourceDescriptor, Long> calculateTarget(
-          QIOMaterialCommitment commitment, Map<PortableResourceDescriptor, Long> claimed,
-          Map<PortableResourceDescriptor, Long> backed, SnapshotIndex index) {
+            QIOMaterialCommitment commitment, Map<PortableResourceDescriptor, Long> claimed,
+            Map<PortableResourceDescriptor, Long> backed, SnapshotIndex index) {
         return QIOCandidateClaimResolver.resolve(commitment.getMaterialRequirements(), claimed,
-              backed, index.availableAmounts());
+                backed, index.availableAmounts());
     }
 
     private static QIOCraftingJob requireJob(QIOProcessingNetworkData network, UUID jobId) {
@@ -327,7 +320,7 @@ public final class QIOMaterialClaimCoordinator {
     }
 
     private static QIOMaterialCommitment requireCommitment(QIOProcessingNetworkData network,
-          UUID jobId) {
+                                                           UUID jobId) {
         QIOMaterialCommitment commitment = network.getCommitment(jobId);
         if (commitment == null) {
             throw new IllegalArgumentException("Unknown material commitment for QIO job " + jobId);
@@ -349,7 +342,7 @@ public final class QIOMaterialClaimCoordinator {
 
         private static SnapshotIndex create(QIOStorageSnapshot snapshot) {
             SnapshotIndex index = new SnapshotIndex(snapshot.getContentsRevision(),
-                  snapshot.getClaimRevision());
+                    snapshot.getClaimRevision());
             for (QIOStorageEntry entry : snapshot.getEntries()) {
                 PortableResourceDescriptor descriptor = PortableResourceDescriptor.fromStorageEntry(entry);
                 QIOStorageEntry previous = index.byDescriptor.put(descriptor, entry);
@@ -371,13 +364,13 @@ public final class QIOMaterialClaimCoordinator {
             }
             BigInteger available = entry.getExactAvailableAmount();
             return available.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) >= 0 ?
-                  Long.MAX_VALUE : available.longValue();
+                    Long.MAX_VALUE : available.longValue();
         }
 
         private Map<PortableResourceDescriptor, Long> availableAmounts() {
             Map<PortableResourceDescriptor, Long> amounts = new LinkedHashMap<>();
             for (Map.Entry<PortableResourceDescriptor, QIOStorageEntry> entry :
-                  byDescriptor.entrySet()) {
+                    byDescriptor.entrySet()) {
                 long available = getAvailable(entry.getKey());
                 if (available > 0) amounts.put(entry.getKey(), available);
             }
@@ -399,7 +392,7 @@ public final class QIOMaterialClaimCoordinator {
 
         @Nullable
         private Map<PortableResourceDescriptor, Long> translate(Map<UUID, Long> amounts,
-              IQIOStorageView view) {
+                                                                IQIOStorageView view) {
             Map<PortableResourceDescriptor, Long> translated = new LinkedHashMap<>();
             for (Map.Entry<UUID, Long> entry : amounts.entrySet()) {
                 PortableResourceDescriptor descriptor = byUUID.get(entry.getKey());
@@ -412,7 +405,7 @@ public final class QIOMaterialClaimCoordinator {
                     PortableResourceDescriptor previous = byUUID.put(entry.getKey(), descriptor);
                     QIOStorageEntry old = byDescriptor.put(descriptor, storageEntry);
                     if (previous != null && !previous.equals(descriptor) || old != null &&
-                          !old.getResourceUUID().equals(entry.getKey())) {
+                            !old.getResourceUUID().equals(entry.getKey())) {
                         return null;
                     }
                 }
@@ -431,7 +424,7 @@ public final class QIOMaterialClaimCoordinator {
         private final long priority;
 
         private ClaimObservation(Map<PortableResourceDescriptor, Long> claimed,
-              Map<PortableResourceDescriptor, Long> backed, long priority) {
+                                 Map<PortableResourceDescriptor, Long> backed, long priority) {
             this.claimed = claimed;
             this.backed = backed;
             this.priority = priority;

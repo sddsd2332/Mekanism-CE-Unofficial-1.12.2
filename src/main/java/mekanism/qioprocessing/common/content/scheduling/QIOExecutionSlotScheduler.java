@@ -9,7 +9,10 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
-/** Deterministic, bounded selector for frequency-level execution slots. */
+/**
+ * Deterministic, bounded selector for frequency-level execution slots.
+ */
+
 /**
  * QIO 处理模块中的 QIOExecutionSlotScheduler 类型。
  *
@@ -23,7 +26,7 @@ public final class QIOExecutionSlotScheduler {
 
     /** 按优先级和老化策略为等待任务授予有限执行槽。 */
     public static int grantAvailableSlots(@Nonnull QIOProcessingNetworkData network,
-          int configuredLimit, int maximumGrants, long agingInterval, long agingCap) {
+                                          int configuredLimit, int maximumGrants, long agingInterval, long agingCap) {
         Objects.requireNonNull(network, "network");
         if (configuredLimit <= 0) {
             throw new IllegalArgumentException("configuredLimit must be positive");
@@ -61,10 +64,10 @@ public final class QIOExecutionSlotScheduler {
 
     @Nonnull
     static Comparator<QIOCraftingJob> candidateComparator(long schedulerClock,
-          long agingInterval, long agingCap) {
+                                                          long agingInterval, long agingCap) {
         return (left, right) -> {
             int priority = Long.compare(effectivePriority(right, schedulerClock, agingInterval,
-                  agingCap), effectivePriority(left, schedulerClock, agingInterval, agingCap));
+                    agingCap), effectivePriority(left, schedulerClock, agingInterval, agingCap));
             if (priority != 0) {
                 return priority;
             }
@@ -74,19 +77,19 @@ public final class QIOExecutionSlotScheduler {
                 return leftNeverDispatched ? -1 : 1;
             }
             int stableOrder = leftNeverDispatched ?
-                  Long.compare(left.getEnqueueSequence(), right.getEnqueueSequence()) :
-                  Long.compare(left.getLastDispatchSequence(), right.getLastDispatchSequence());
+                    Long.compare(left.getEnqueueSequence(), right.getEnqueueSequence()) :
+                    Long.compare(left.getLastDispatchSequence(), right.getLastDispatchSequence());
             if (stableOrder != 0) {
                 return stableOrder;
             }
             int enqueue = Long.compare(left.getEnqueueSequence(), right.getEnqueueSequence());
             return enqueue != 0 ? enqueue :
-                  left.getJobId().toString().compareTo(right.getJobId().toString());
+                    left.getJobId().toString().compareTo(right.getJobId().toString());
         };
     }
 
     static long effectivePriority(QIOCraftingJob job, long schedulerClock,
-          long agingInterval, long agingCap) {
+                                  long agingInterval, long agingCap) {
         long readySince = job.getReadySinceSchedulerClock();
         if (readySince < 0 || readySince > schedulerClock) {
             throw new IllegalArgumentException("QIO scheduling candidate has an invalid readySince");

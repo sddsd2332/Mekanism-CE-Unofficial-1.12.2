@@ -8,11 +8,7 @@ import net.minecraftforge.common.util.Constants.NBT;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.math.BigInteger;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * QIO 处理模块中的 QIOProcessingNbt 类型。
@@ -50,7 +46,7 @@ public final class QIOProcessingNbt {
 
     @Nonnull
     public static <E extends Enum<E>> E readEnum(NBTTagCompound data, String key, Class<E> type)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         String value = data.getString(key);
         try {
             return Enum.valueOf(type, value);
@@ -73,7 +69,7 @@ public final class QIOProcessingNbt {
 
     @Nonnull
     public static Map<PortableResourceDescriptor, Long> readAmounts(NBTTagCompound parent, String key,
-          int maximumEntries) throws QIOProcessingDataException {
+                                                                    int maximumEntries) throws QIOProcessingDataException {
         if (maximumEntries < 0) {
             throw new IllegalArgumentException("maximumEntries cannot be negative");
         }
@@ -83,15 +79,15 @@ public final class QIOProcessingNbt {
         NBTTagList list = parent.getTagList(key, NBT.TAG_COMPOUND);
         if (list.tagCount() > maximumEntries) {
             throw new QIOProcessingDataException(key + " contains " + list.tagCount() +
-                  " entries, above the limit " + maximumEntries);
+                    " entries, above the limit " + maximumEntries);
         }
         Map<PortableResourceDescriptor, Long> amounts = new LinkedHashMap<>();
         for (int i = 0; i < list.tagCount(); i++) {
             NBTTagCompound entry = list.getCompoundTagAt(i);
             if (!entry.hasKey("resource", NBT.TAG_COMPOUND) ||
-                  !entry.hasKey("amount", NBT.TAG_LONG)) {
+                    !entry.hasKey("amount", NBT.TAG_LONG)) {
                 throw new QIOProcessingDataException(
-                      "Incomplete amount entry in " + key + '[' + i + ']');
+                        "Incomplete amount entry in " + key + '[' + i + ']');
             }
             PortableResourceDescriptor resource;
             try {
@@ -112,7 +108,7 @@ public final class QIOProcessingNbt {
 
     @Nonnull
     public static Map<PortableResourceDescriptor, Long> copyAmounts(
-          Map<PortableResourceDescriptor, Long> amounts, boolean allowEmpty, String name) {
+            Map<PortableResourceDescriptor, Long> amounts, boolean allowEmpty, String name) {
         Objects.requireNonNull(amounts, name);
         Map<PortableResourceDescriptor, Long> copy = new LinkedHashMap<>();
         amounts.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
@@ -131,7 +127,7 @@ public final class QIOProcessingNbt {
 
     @Nonnull
     public static NBTTagList writeExactAmounts(
-          Map<PortableResourceDescriptor, BigInteger> amounts) {
+            Map<PortableResourceDescriptor, BigInteger> amounts) {
         NBTTagList list = new NBTTagList();
         amounts.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
             NBTTagCompound data = new NBTTagCompound();
@@ -144,7 +140,7 @@ public final class QIOProcessingNbt {
 
     @Nonnull
     public static Map<PortableResourceDescriptor, BigInteger> readExactAmounts(
-          NBTTagCompound parent, String key, int maximumEntries) throws QIOProcessingDataException {
+            NBTTagCompound parent, String key, int maximumEntries) throws QIOProcessingDataException {
         if (maximumEntries < 0) {
             throw new IllegalArgumentException("maximumEntries cannot be negative");
         }
@@ -154,15 +150,15 @@ public final class QIOProcessingNbt {
         NBTTagList list = parent.getTagList(key, NBT.TAG_COMPOUND);
         if (list.tagCount() > maximumEntries) {
             throw new QIOProcessingDataException(key + " contains " + list.tagCount() +
-                  " entries, above the limit " + maximumEntries);
+                    " entries, above the limit " + maximumEntries);
         }
         Map<PortableResourceDescriptor, BigInteger> amounts = new LinkedHashMap<>();
         for (int i = 0; i < list.tagCount(); i++) {
             NBTTagCompound entry = list.getCompoundTagAt(i);
             if (!entry.hasKey("resource", NBT.TAG_COMPOUND) ||
-                  !entry.hasKey("amount", NBT.TAG_STRING)) {
+                    !entry.hasKey("amount", NBT.TAG_STRING)) {
                 throw new QIOProcessingDataException(
-                      "Incomplete exact amount entry in " + key + '[' + i + ']');
+                        "Incomplete exact amount entry in " + key + '[' + i + ']');
             }
             PortableResourceDescriptor resource;
             BigInteger amount;
@@ -184,7 +180,7 @@ public final class QIOProcessingNbt {
 
     @Nonnull
     public static Map<PortableResourceDescriptor, BigInteger> copyExactAmounts(
-          Map<PortableResourceDescriptor, BigInteger> amounts, boolean allowEmpty, String name) {
+            Map<PortableResourceDescriptor, BigInteger> amounts, boolean allowEmpty, String name) {
         Objects.requireNonNull(amounts, name);
         Map<PortableResourceDescriptor, BigInteger> copy = new LinkedHashMap<>();
         amounts.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {

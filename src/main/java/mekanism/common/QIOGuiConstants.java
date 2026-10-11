@@ -1,6 +1,8 @@
 package mekanism.common;
 
-/** Stable GUI ids for the QIO component family. */
+/**
+ * Stable GUI ids for the QIO component family.
+ */
 public final class QIOGuiConstants {
 
     public static final int DRIVE_ARRAY = 80;

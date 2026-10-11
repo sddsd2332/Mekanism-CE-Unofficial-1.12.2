@@ -14,15 +14,12 @@ import net.minecraft.block.Block;
 import net.minecraft.util.ResourceLocation;
 
 import javax.annotation.Nonnull;
-import java.util.Collections;
-import java.util.IdentityHashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
-/** Online identity and persistent directory bridge for the four terminal block types. */
+/**
+ * Online identity and persistent directory bridge for the four terminal block types.
+ */
+
 /**
  * QIO 处理模块中的 QIOProcessingTerminalDeviceRegistry 类型。
  *
@@ -32,14 +29,14 @@ import java.util.UUID;
 public final class QIOProcessingTerminalDeviceRegistry {
 
     public static final QIOProcessingTerminalDeviceRegistry INSTANCE =
-          new QIOProcessingTerminalDeviceRegistry();
+            new QIOProcessingTerminalDeviceRegistry();
 
     private final Map<UUID, Set<QIOProcessingTerminal>> terminals =
-          new LinkedHashMap<>();
+            new LinkedHashMap<>();
     private final Map<QIOProcessingTerminal, UUID> identities =
-          new IdentityHashMap<>();
+            new IdentityHashMap<>();
     private final Map<QIOProcessingTerminal, PublishedEndpoint> published =
-          new IdentityHashMap<>();
+            new IdentityHashMap<>();
     private final Set<UUID> quarantinedUUIDs = new LinkedHashSet<>();
     private final Set<UUID> directoryRejectedDevices = new LinkedHashSet<>();
 
@@ -55,7 +52,7 @@ public final class QIOProcessingTerminalDeviceRegistry {
         }
         identities.put(terminal, uuid);
         terminals.computeIfAbsent(uuid,
-              ignored -> Collections.newSetFromMap(new IdentityHashMap<>())).add(terminal);
+                ignored -> Collections.newSetFromMap(new IdentityHashMap<>())).add(terminal);
         Set<QIOProcessingTerminal> matches = terminals.get(uuid);
         if (matches.size() > 1) {
             quarantinedUUIDs.add(uuid);
@@ -130,14 +127,14 @@ public final class QIOProcessingTerminalDeviceRegistry {
 
     private void publish(QIOProcessingTerminal terminal) {
         if (terminal == null || terminal.isInvalid() || terminal.getWorld() == null ||
-            terminal.getWorld().isRemote ||
-            !terminal.getWorld().isBlockLoaded(terminal.getPos(), false) ||
-            terminal.getWorld().getTileEntity(terminal.getPos()) != terminal) {
+                terminal.getWorld().isRemote ||
+                !terminal.getWorld().isBlockLoaded(terminal.getPos(), false) ||
+                terminal.getWorld().getTileEntity(terminal.getPos()) != terminal) {
             publishOffline(terminal);
             return;
         }
         mekanism.api.qio.external.QIOFrequencyReference reference =
-              terminal.getFrequencyReference();
+                terminal.getFrequencyReference();
         QIOFrequency frequency = QIOProcessingFrequencyAccess.resolve(reference);
         if (reference == null || frequency == null) {
             forgetPublished(terminal);
@@ -149,51 +146,51 @@ public final class QIOProcessingTerminalDeviceRegistry {
         }
         UUID terminalUUID = terminal.getPersistentTerminalUUID();
         QIOAutomationDeviceLocation location = QIOAutomationDeviceLocation.of(
-              terminal.getWorld(), terminal.getPos());
+                terminal.getWorld(), terminal.getPos());
         PublishedEndpoint previous = published.get(terminal);
         if (previous != null && (!previous.frequencyUUID.equals(reference.getFrequencyUUID()) ||
-            !previous.location.equals(location) || !previous.deviceUUID.equals(terminalUUID))) {
+                !previous.location.equals(location) || !previous.deviceUUID.equals(terminalUUID))) {
             forgetPublished(previous);
         }
         PublishedEndpoint endpoint = new PublishedEndpoint(terminalUUID,
-              reference.getFrequencyUUID(), location);
+                reference.getFrequencyUUID(), location);
         published.put(terminal, endpoint);
         boolean accessible = QIOProcessingFrequencyAccess.resolveAccessible(reference,
-              reference.getBindingPlayerUUID()) != null;
+                reference.getBindingPlayerUUID()) != null;
         String state = terminal.hasIdentityConflict() ? "IDENTITY_CONFLICT" :
-              terminal.hasDataError() ? "DATA_ERROR" : accessible ? "ACTIVE" :
-                    "WAITING_ACCESS";
+                terminal.hasDataError() ? "DATA_ERROR" : accessible ? "ACTIVE" :
+                        "WAITING_ACCESS";
         Block block = terminal.getBlockType();
         ResourceLocation blockId = block == null ? null : block.getRegistryName();
         if (QIOProcessingNetworkManager.INSTANCE.getIsolationStatus(
-              reference.getFrequencyUUID()) != null) {
+                reference.getFrequencyUUID()) != null) {
             directoryRejectedDevices.add(terminalUUID);
             return;
         }
         try {
             QIOProcessingNetworkData network = QIOProcessingNetworkManager.INSTANCE.getOrCreate(
-                  reference.getFrequencyUUID(), new QIOFrequencyIdentitySnapshot(
-                        reference.getFrequencyName(), reference.getOwnerUUID(),
-                        reference.getSecurityMode()));
+                    reference.getFrequencyUUID(), new QIOFrequencyIdentitySnapshot(
+                            reference.getFrequencyName(), reference.getOwnerUUID(),
+                            reference.getSecurityMode()));
             QIOAutomationDeviceSnapshot snapshot = new QIOAutomationDeviceSnapshot(
-                  terminalUUID, location, QIOAutomationDeviceSnapshot.Kind.TERMINAL,
-                  blockId == null ? "minecraft:air" : blockId.toString(),
-                  Math.max(0, terminal.getBlockMetadata()),
-                  "mekanismqioprocessing:" + terminal.getTerminalType().getSerializedName(),
-                  terminal.getTerminalType().getSerializedName(), state, true,
-                  Math.max(0, terminal.getWorld().getTotalWorldTime()),
-                  terminal.getConfigurationRevision(), 0,
-                  terminal.getTerminalType().hasCraftingWindows() ? 3 : 0, 0,
-                  terminal.getDataError());
+                    terminalUUID, location, QIOAutomationDeviceSnapshot.Kind.TERMINAL,
+                    blockId == null ? "minecraft:air" : blockId.toString(),
+                    Math.max(0, terminal.getBlockMetadata()),
+                    "mekanismqioprocessing:" + terminal.getTerminalType().getSerializedName(),
+                    terminal.getTerminalType().getSerializedName(), state, true,
+                    Math.max(0, terminal.getWorld().getTotalWorldTime()),
+                    terminal.getConfigurationRevision(), 0,
+                    terminal.getTerminalType().hasCraftingWindows() ? 3 : 0, 0,
+                    terminal.getDataError());
             network.observeAutomationDevice(snapshot,
-                  MekanismConfig.current().qioProcessing.deviceRecordsPerFrequency.val());
+                    MekanismConfig.current().qioProcessing.deviceRecordsPerFrequency.val());
             directoryRejectedDevices.remove(terminalUUID);
         } catch (IsolatedNetworkException e) {
             directoryRejectedDevices.add(terminalUUID);
         } catch (RuntimeException e) {
             if (directoryRejectedDevices.add(terminalUUID)) {
                 Mekanism.logger.warn("Unable to publish QIO processing terminal {} to frequency {}",
-                      terminalUUID, reference.getFrequencyUUID(), e);
+                        terminalUUID, reference.getFrequencyUUID(), e);
             }
         }
     }
@@ -204,16 +201,16 @@ public final class QIOProcessingTerminalDeviceRegistry {
             return;
         }
         long currentTick = terminal != null && terminal.getWorld() != null ?
-              Math.max(0, terminal.getWorld().getTotalWorldTime()) : 0;
+                Math.max(0, terminal.getWorld().getTotalWorldTime()) : 0;
         publishOffline(endpoint, currentTick);
     }
 
     private static void publishOffline(PublishedEndpoint endpoint, long currentTick) {
         QIOProcessingNetworkData network = QIOProcessingNetworkManager.INSTANCE.get(
-              endpoint.frequencyUUID);
+                endpoint.frequencyUUID);
         if (network != null) {
             network.markAutomationDeviceOffline(endpoint.deviceUUID, endpoint.location,
-                  currentTick);
+                    currentTick);
         }
     }
 
@@ -226,18 +223,18 @@ public final class QIOProcessingTerminalDeviceRegistry {
 
     private static void forgetPublished(PublishedEndpoint endpoint) {
         QIOProcessingNetworkData network = QIOProcessingNetworkManager.INSTANCE.get(
-              endpoint.frequencyUUID);
+                endpoint.frequencyUUID);
         if (network != null) {
             network.forgetAutomationDeviceMembership(endpoint.deviceUUID,
-                  endpoint.location);
+                    endpoint.location);
         }
     }
 
     private static boolean isLoadedInvalidation(QIOProcessingTerminal terminal) {
         return terminal.getWorld() != null && !terminal.getWorld().isRemote &&
-              terminal.getWorld().isBlockLoaded(terminal.getPos(), false) &&
-              (terminal.isInvalid() || terminal.getWorld().getTileEntity(
-                    terminal.getPos()) != terminal);
+                terminal.getWorld().isBlockLoaded(terminal.getPos(), false) &&
+                (terminal.isInvalid() || terminal.getWorld().getTileEntity(
+                        terminal.getPos()) != terminal);
     }
 
     private static final class PublishedEndpoint {
@@ -247,7 +244,7 @@ public final class QIOProcessingTerminalDeviceRegistry {
         private final QIOAutomationDeviceLocation location;
 
         private PublishedEndpoint(UUID deviceUUID, UUID frequencyUUID,
-              QIOAutomationDeviceLocation location) {
+                                  QIOAutomationDeviceLocation location) {
             this.deviceUUID = deviceUUID;
             this.frequencyUUID = frequencyUUID;
             this.location = location;

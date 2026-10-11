@@ -12,7 +12,9 @@ import java.math.BigInteger;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Immutable resource identity and exact amount in a QIO storage view. */
+/**
+ * Immutable resource identity and exact amount in a QIO storage view.
+ */
 public final class QIOStorageEntry {
 
     private final UUID resourceUUID;
@@ -22,7 +24,7 @@ public final class QIOStorageEntry {
     private final BigInteger availableAmount;
 
     private QIOStorageEntry(UUID resourceUUID, BigInteger storedAmount, BigInteger committedAmount,
-          QIOResourceDescriptor descriptor) {
+                            QIOResourceDescriptor descriptor) {
         this.resourceUUID = Objects.requireNonNull(resourceUUID, "resourceUUID");
         this.descriptor = Objects.requireNonNull(descriptor, "descriptor");
         this.storedAmount = requireAmount(storedAmount, "storedAmount");
@@ -32,13 +34,13 @@ public final class QIOStorageEntry {
 
     @Nonnull
     public static QIOStorageEntry resource(UUID resourceUUID, BigInteger amount,
-          QIOResourceDescriptor descriptor) {
+                                           QIOResourceDescriptor descriptor) {
         return resource(resourceUUID, amount, BigInteger.ZERO, descriptor);
     }
 
     @Nonnull
     public static QIOStorageEntry resource(UUID resourceUUID, BigInteger storedAmount,
-          BigInteger committedAmount, QIOResourceDescriptor descriptor) {
+                                           BigInteger committedAmount, QIOResourceDescriptor descriptor) {
         return new QIOStorageEntry(resourceUUID, storedAmount, committedAmount, descriptor);
     }
 
@@ -49,7 +51,7 @@ public final class QIOStorageEntry {
 
     @Nonnull
     public static QIOStorageEntry item(UUID resourceUUID, BigInteger storedAmount,
-          BigInteger committedAmount, ItemStack template) {
+                                       BigInteger committedAmount, ItemStack template) {
         if (template == null || template.isEmpty()) {
             throw new IllegalArgumentException("QIO item template cannot be empty");
         }
@@ -63,7 +65,7 @@ public final class QIOStorageEntry {
 
     @Nonnull
     public static QIOStorageEntry fluid(UUID resourceUUID, BigInteger storedAmount,
-          BigInteger committedAmount, FluidStack template) {
+                                        BigInteger committedAmount, FluidStack template) {
         if (template == null || template.getFluid() == null) {
             throw new IllegalArgumentException("QIO fluid template cannot be empty");
         }
@@ -77,7 +79,7 @@ public final class QIOStorageEntry {
 
     @Nonnull
     public static QIOStorageEntry gas(UUID resourceUUID, BigInteger storedAmount,
-          BigInteger committedAmount, GasStack template) {
+                                      BigInteger committedAmount, GasStack template) {
         if (template == null || template.getGas() == null) {
             throw new IllegalArgumentException("QIO gas template cannot be empty");
         }
@@ -94,7 +96,9 @@ public final class QIOStorageEntry {
         return descriptor;
     }
 
-    /** @deprecated Use {@link #getDescriptor()}; null means a custom codec. */
+    /**
+     * @deprecated Use {@link #getDescriptor()}; null means a custom codec.
+     */
     @Deprecated
     @Nullable
     public QIOStorageResourceKind getKind() {

@@ -26,7 +26,7 @@ public class GasSlotInfo extends BaseSlotInfo {
     }
 
     public GasSlotInfo(boolean canInput, boolean canOutput, List<IExtendedGasTank> tanks, List<IExtendedGasTank> inputTanks,
-          List<IExtendedGasTank> outputTanks) {
+                       List<IExtendedGasTank> outputTanks) {
         super(canInput, canOutput);
         this.tanks = Collections.unmodifiableList(new ArrayList<>(tanks));
         this.inputTanks = Collections.unmodifiableList(new ArrayList<>(inputTanks));
@@ -68,7 +68,7 @@ public class GasSlotInfo extends BaseSlotInfo {
     }
 
     private static List<IExtendedGasTank> getInputTanks(boolean canInput, boolean canOutput, List<IExtendedGasTank> tanks,
-          List<IExtendedGasTank> outputTanks) {
+                                                        List<IExtendedGasTank> outputTanks) {
         if (!canInput) {
             return Collections.emptyList();
         }

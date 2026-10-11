@@ -16,12 +16,12 @@ import java.util.function.Predicate;
 public class DynamicGasHandler extends DynamicHandler<IExtendedGasTank> implements IMekanismGasHandler {
 
     public DynamicGasHandler(Function<EnumFacing, List<IExtendedGasTank>> tankSupplier, Predicate<EnumFacing> canExtract, Predicate<EnumFacing> canInsert,
-          @Nullable IContentsListener listener) {
+                             @Nullable IContentsListener listener) {
         super(tankSupplier, canExtract, canInsert, listener);
     }
 
     public DynamicGasHandler(Function<EnumFacing, List<IExtendedGasTank>> tankSupplier, InteractPredicate canExtract, InteractPredicate canInsert,
-          @Nullable IContentsListener listener) {
+                             @Nullable IContentsListener listener) {
         super(tankSupplier, canExtract, canInsert, listener);
     }
 

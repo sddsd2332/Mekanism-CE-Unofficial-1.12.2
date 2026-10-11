@@ -47,12 +47,12 @@ public class GuiModuleScreen extends GuiScrollableElement {
     private int maxElements;
 
     public GuiModuleScreen(IGuiWrapper gui, int x, int y, Supplier<ItemStack> itemSupplier, BiConsumer<Integer, ModuleConfigData<?>> saveCallback,
-          @Nullable GuiModuleTweaker.ArmorPreview armorPreview) {
+                           @Nullable GuiModuleTweaker.ArmorPreview armorPreview) {
         this(gui, x, y, 108, 134, itemSupplier, saveCallback, armorPreview);
     }
 
     private GuiModuleScreen(IGuiWrapper gui, int x, int y, int width, int height, Supplier<ItemStack> itemSupplier,
-          BiConsumer<Integer, ModuleConfigData<?>> saveCallback, @Nullable GuiModuleTweaker.ArmorPreview armorPreview) {
+                            BiConsumer<Integer, ModuleConfigData<?>> saveCallback, @Nullable GuiModuleTweaker.ArmorPreview armorPreview) {
         super(GuiScrollList.SCROLL_LIST, gui, x, y, width, height, width - 6, 2, 4, 4, height - 4);
         this.itemSupplier = itemSupplier;
         this.saveCallback = saveCallback;
@@ -94,7 +94,7 @@ public class GuiModuleScreen extends GuiScrollableElement {
                 MiniElement element = null;
                 if (configData instanceof ModuleBooleanData && (!configItem.getName().equals(Module.ENABLED_KEY) || !module.getData().isNoDisable())) {
                     if (configItem instanceof ModuleConfigItem.DisableableModuleConfigItem &&
-                          !((ModuleConfigItem.DisableableModuleConfigItem) configItem).isConfigEnabled()) {
+                            !((ModuleConfigItem.DisableableModuleConfigItem) configItem).isConfigEnabled()) {
                         continue;
                     }
                     element = new BooleanToggle(this, (ModuleConfigItem<Boolean>) configItem, 2, startY, i);
@@ -107,7 +107,7 @@ public class GuiModuleScreen extends GuiScrollableElement {
                 } else if (configData instanceof ModuleColorData data) {
                     final int dataIndex = i;
                     SelectedColorConfig colorConfig = new SelectedColorConfig((ModuleConfigItem<Integer>) configItem, i, data.handlesAlpha(),
-                          () -> saveCallback.accept(dataIndex, configItem.getData()));
+                            () -> saveCallback.accept(dataIndex, configItem.getData()));
                     if (firstColor == null) {
                         firstColor = colorConfig;
                     }
@@ -224,15 +224,15 @@ public class GuiModuleScreen extends GuiScrollableElement {
                 if (module.getData().isExclusive(ExclusiveFlag.ANY)) {
                     if (startY + 13 > shift) {
                         drawScaledScrollingString(MekanismLang.MODULE_EXCLUSIVE.translate(), 2, startY, TextAlignment.LEFT, 0x635BD4,
-                              getScreenWidth() - GuiScrollList.TEXTURE_WIDTH, 2, false, 0.8F, GuiElement.getMillis());
+                                getScreenWidth() - GuiScrollList.TEXTURE_WIDTH, 2, false, 0.8F, GuiElement.getMillis());
                     }
                     startY += 13;
                 }
                 if (module.getData().getMaxStackSize() > 1) {
                     if (startY + 13 > shift) {
                         drawScaledScrollingString(new TextComponentGroup().translation(MekanismLang.MODULE_INSTALLED.getTranslationKey())
-                                      .translation(module.getInstalledCount() + ""), 2, startY, TextAlignment.LEFT, screenTextColor(),
-                              getScreenWidth() - GuiScrollList.TEXTURE_WIDTH, 2, false, 0.8F, GuiElement.getMillis());
+                                        .translation(module.getInstalledCount() + ""), 2, startY, TextAlignment.LEFT, screenTextColor(),
+                                getScreenWidth() - GuiScrollList.TEXTURE_WIDTH, 2, false, 0.8F, GuiElement.getMillis());
                     }
                     startY += 13;
                 }

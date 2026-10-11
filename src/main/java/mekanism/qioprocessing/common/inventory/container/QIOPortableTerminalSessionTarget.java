@@ -16,7 +16,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.UUID;
 
-/** Shared exact-stack, generation and duplicate identity checks for portable containers. */
+/**
+ * Shared exact-stack, generation and duplicate identity checks for portable containers.
+ */
+
 /**
  * QIO 处理模块中的 QIOPortableTerminalSessionTarget 类型。
  *
@@ -32,7 +35,7 @@ final class QIOPortableTerminalSessionTarget {
     private final QIOPortableTerminalIdentityRegistry.Lease identityLease;
 
     QIOPortableTerminalSessionTarget(@Nonnull InventoryPlayer inventory,
-          @Nonnull ItemStackSlotAccess itemAccess, boolean remote) {
+                                     @Nonnull ItemStackSlotAccess itemAccess, boolean remote) {
         this.itemAccess = itemAccess;
         QIOProcessingTerminalSession createdSession = null;
         QIOPortableTerminalIdentityRegistry.Lease acquiredLease = null;
@@ -40,23 +43,23 @@ final class QIOPortableTerminalSessionTarget {
         if (!remote && isTerminal(stack)) {
             try {
                 PortableQIOProcessingTerminalData data =
-                      PortableQIOProcessingTerminalData.read(stack);
+                        PortableQIOProcessingTerminalData.read(stack);
                 if (data != null) {
                     ItemPortableQIOProcessingTerminal item =
-                          (ItemPortableQIOProcessingTerminal) stack.getItem();
+                            (ItemPortableQIOProcessingTerminal) stack.getItem();
                     UUID playerUUID = inventory.player.getUniqueID();
                     QIOFrequencyReference reference = data.getFrequencyReference();
                     long accessRevision = QIOProcessingFrequencyAccess.getAccessibleRevision(
-                          reference, playerUUID);
+                            reference, playerUUID);
                     UUID frequencyUUID = accessRevision < 0 || reference == null ? null :
-                          reference.getFrequencyUUID();
+                            reference.getFrequencyUUID();
                     createdSession = new QIOProcessingTerminalSession(playerUUID,
-                          QIOProcessingTerminalSession.TargetKind.PORTABLE_ITEM,
-                          item.getTerminalType(), data.getTerminalUUID(), data.getGeneration(),
-                          frequencyUUID, accessRevision < 0 ? -1 : accessRevision);
+                            QIOProcessingTerminalSession.TargetKind.PORTABLE_ITEM,
+                            item.getTerminalType(), data.getTerminalUUID(), data.getGeneration(),
+                            frequencyUUID, accessRevision < 0 ? -1 : accessRevision);
                     acquiredLease = QIOPortableTerminalIdentityRegistry.INSTANCE.acquire(
-                          data.getTerminalUUID(), stack, playerUUID + "/" +
-                                itemAccess.getHand() + "/" + itemAccess.getSlot());
+                            data.getTerminalUUID(), stack, playerUUID + "/" +
+                                    itemAccess.getHand() + "/" + itemAccess.getSlot());
                 }
             } catch (QIOProcessingDataException ignored) {
             }
@@ -72,28 +75,28 @@ final class QIOPortableTerminalSessionTarget {
 
     boolean validate(@Nonnull EntityPlayer player) {
         if (session == null || identityLease == null || !identityLease.isUsable() ||
-            !itemAccess.isOriginalStackPresent() || !isTerminal(itemAccess.getStack())) {
+                !itemAccess.isOriginalStackPresent() || !isTerminal(itemAccess.getStack())) {
             return false;
         }
         try {
             ItemStack stack = itemAccess.getStack();
             PortableQIOProcessingTerminalData data =
-                  PortableQIOProcessingTerminalData.read(stack);
+                    PortableQIOProcessingTerminalData.read(stack);
             if (data == null) {
                 return false;
             }
             ItemPortableQIOProcessingTerminal item =
-                  (ItemPortableQIOProcessingTerminal) stack.getItem();
+                    (ItemPortableQIOProcessingTerminal) stack.getItem();
             QIOFrequencyReference reference = data.getFrequencyReference();
             long accessRevision = QIOProcessingFrequencyAccess.getAccessibleRevision(reference,
-                  player.getUniqueID());
+                    player.getUniqueID());
             UUID frequencyUUID = accessRevision < 0 || reference == null ? null :
-                  reference.getFrequencyUUID();
+                    reference.getFrequencyUUID();
             return session.validate(session.getSessionNonce(), player.getUniqueID(),
-                  QIOProcessingTerminalSession.TargetKind.PORTABLE_ITEM,
-                  item.getTerminalType(), data.getTerminalUUID(), data.getGeneration(),
-                  frequencyUUID, accessRevision < 0 ? -1 : accessRevision) ==
-                  QIOProcessingTerminalSession.Validation.ACCEPTED;
+                    QIOProcessingTerminalSession.TargetKind.PORTABLE_ITEM,
+                    item.getTerminalType(), data.getTerminalUUID(), data.getGeneration(),
+                    frequencyUUID, accessRevision < 0 ? -1 : accessRevision) ==
+                    QIOProcessingTerminalSession.Validation.ACCEPTED;
         } catch (QIOProcessingDataException e) {
             return false;
         }
@@ -105,18 +108,18 @@ final class QIOPortableTerminalSessionTarget {
         }
         try {
             PortableQIOProcessingTerminalData data =
-                  PortableQIOProcessingTerminalData.read(itemAccess.getStack());
+                    PortableQIOProcessingTerminalData.read(itemAccess.getStack());
             if (data == null || data.getGeneration() != updatedGeneration ||
-                !data.getTerminalUUID().equals(session.getTerminalUUID())) {
+                    !data.getTerminalUUID().equals(session.getTerminalUUID())) {
                 return false;
             }
             QIOFrequencyReference reference = data.getFrequencyReference();
             long accessRevision = QIOProcessingFrequencyAccess.getAccessibleRevision(reference,
-                  session.getPlayerUUID());
+                    session.getPlayerUUID());
             UUID frequencyUUID = accessRevision < 0 || reference == null ? null :
-                  reference.getFrequencyUUID();
+                    reference.getFrequencyUUID();
             session.rebind(expectedGeneration, updatedGeneration, frequencyUUID,
-                  accessRevision < 0 ? -1 : accessRevision);
+                    accessRevision < 0 ? -1 : accessRevision);
             return true;
         } catch (QIOProcessingDataException e) {
             return false;
@@ -134,6 +137,6 @@ final class QIOPortableTerminalSessionTarget {
 
     private static boolean isTerminal(ItemStack stack) {
         return stack != null && !stack.isEmpty() &&
-              stack.getItem() instanceof ItemPortableQIOProcessingTerminal;
+                stack.getItem() instanceof ItemPortableQIOProcessingTerminal;
     }
 }

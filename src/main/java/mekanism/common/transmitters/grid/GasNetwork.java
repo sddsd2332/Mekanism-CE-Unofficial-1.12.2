@@ -1,25 +1,19 @@
 package mekanism.common.transmitters.grid;
 
-import mekanism.api.Coord4D;
 import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasStack;
 import mekanism.api.gas.IGasHandler;
-import mekanism.api.transmitters.DynamicNetwork;
 import mekanism.api.transmitters.IGridTransmitter;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.content.network.distribution.GasHandlerTarget;
-import mekanism.common.inventory.slot.gas.GasInventorySlot;
-import mekanism.common.util.CapabilityUtils;
+import mekanism.common.content.network.distribution.ResourceAcceptorCache;
 import mekanism.common.util.EmitUtils;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.EnumFacing;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.common.eventhandler.Event;
 
 import javax.annotation.Nullable;
 import java.util.Collection;
-import java.util.EnumSet;
 
 /**
  * A DynamicNetwork extension created specifically for the transfer of Gasses. By default this is server-only, but if ticked on the client side and if it's posted events
@@ -27,7 +21,7 @@ import java.util.EnumSet;
  *
  * @author aidancbrady
  */
-public class GasNetwork extends DynamicNetwork<IGasHandler, GasNetwork, GasStack> {
+public class GasNetwork extends BufferedNetwork<IGasHandler, GasNetwork, GasStack> {
 
     public int transferDelay = 0;
 
@@ -40,11 +34,24 @@ public class GasNetwork extends DynamicNetwork<IGasHandler, GasNetwork, GasStack
 
     public GasStack buffer;
     public int prevStored;
+    private float lastSentScale;
+    private Gas lastSentGas;
 
     public int prevTransferAmount = 0;
 
+    private final ResourceAcceptorCache<IGasHandler> acceptorCache = new ResourceAcceptorCache<>();
     private GasHandlerTarget target;
     private GasHandlerTarget reusableTarget;
+
+    @Override
+    protected double getSaveAmount() {
+        return getBufferAmount();
+    }
+
+    @Override
+    protected boolean hasIntegerShares() {
+        return true;
+    }
 
     public GasNetwork() {
     }
@@ -62,6 +69,7 @@ public class GasNetwork extends DynamicNetwork<IGasHandler, GasNetwork, GasStack
 
     @Override
     public void adoptTransmittersAndAcceptorsFrom(GasNetwork net) {
+        super.adoptTransmittersAndAcceptorsFrom(net);
         if (FMLCommonHandler.instance().getEffectiveSide().isClient()) {
             if (net.refGas != null && net.gasScale > gasScale) {
                 gasScale = net.gasScale;
@@ -84,7 +92,6 @@ public class GasNetwork extends DynamicNetwork<IGasHandler, GasNetwork, GasStack
                 net.setBuffer(null);
             }
         }
-        super.adoptTransmittersAndAcceptorsFrom(net);
     }
 
     @Nullable
@@ -115,7 +122,7 @@ public class GasNetwork extends DynamicNetwork<IGasHandler, GasNetwork, GasStack
     @Override
     public void clampBuffer() {
         if (buffer != null && buffer.amount > getCapacity()) {
-            setBuffer(buffer);
+            setBuffer(getCapacity() <= 0 ? null : buffer);
         }
     }
 
@@ -143,12 +150,15 @@ public class GasNetwork extends DynamicNetwork<IGasHandler, GasNetwork, GasStack
     }
 
     public void setBuffer(@Nullable GasStack stack) {
+        GasStack previous = buffer;
         if (stack == null || stack.getGas() == null || stack.amount <= 0) {
             buffer = null;
         } else {
             int capacity = getCapacity();
             buffer = stack.copy().withAmount(capacity <= 0 ? stack.amount : Math.min(stack.amount, capacity));
         }
+        if (previous == null ? buffer != null : buffer == null || previous.amount != buffer.amount || !previous.isGasEqual(buffer))
+            bufferChanged();
     }
 
     public int growBuffer(int amount) {
@@ -157,7 +167,7 @@ public class GasNetwork extends DynamicNetwork<IGasHandler, GasNetwork, GasStack
         }
         int current = buffer.amount;
         int capacity = getCapacity();
-        int newAmount = capacity <= 0 ? current + amount : Math.min(capacity, current + amount);
+        int newAmount = (int) Math.min(capacity <= 0 ? Integer.MAX_VALUE : capacity, (long) current + amount);
         setBuffer(buffer.copy().withAmount(newAmount));
         return newAmount - current;
     }
@@ -183,14 +193,13 @@ public class GasNetwork extends DynamicNetwork<IGasHandler, GasNetwork, GasStack
                 transferDelay--;
             }
 
-            int stored = buffer != null ? buffer.amount : 0;
-            if (stored != prevStored) {
-                needsUpdate = true;
-            }
-
-            prevStored = stored;
-            if (didTransfer != prevTransfer || needsUpdate) {
+            float scale = getScale();
+            Gas type = buffer == null ? null : buffer.getGas();
+            prevStored = getBufferAmount();
+            if (didTransfer != prevTransfer || needsUpdate || type != lastSentGas || scaleChanged(scale, lastSentScale)) {
                 MinecraftForge.EVENT_BUS.post(new GasTransferEvent(this, buffer, didTransfer));
+                lastSentScale = scale;
+                lastSentGas = type;
                 needsUpdate = false;
             }
 
@@ -200,53 +209,46 @@ public class GasNetwork extends DynamicNetwork<IGasHandler, GasNetwork, GasStack
 
     @Override
     public void onParallelTick() {
-        if (buffer != null) {
-            collectTargets(buffer);
-        }
+        // Collect beside distribution: do not retain live targets across other networks' callbacks.
     }
 
     @Override
     public void onUpdate() {
-        if (FMLCommonHandler.instance().getEffectiveSide() != null && FMLCommonHandler.instance().getEffectiveSide().isServer()) {
-            if (buffer == null) {
-                return;
+        if (!isRemote()) {
+            try {
+                if (buffer == null) {
+                    acceptorCache.clear();
+                    return;
+                }
+                collectTargets(buffer);
+                prevTransferAmount = tickEmit(buffer);
+                if (prevTransferAmount > 0) {
+                    didTransfer = true;
+                    transferDelay = 2;
+                }
+                shrinkBuffer(prevTransferAmount);
+            } finally {
+                if (reusableTarget != null) reusableTarget.reset(null);
+                target = null;
             }
-            prevTransferAmount = tickEmit(buffer);
-            if (prevTransferAmount > 0) {
-                didTransfer = true;
-                transferDelay = 2;
-            }
-            shrinkBuffer(prevTransferAmount);
         }
+    }
 
+    @Override
+    public void deregister() {
+        acceptorCache.clear();
+        if (reusableTarget != null) reusableTarget.reset(null);
+        target = null;
+        super.deregister();
     }
 
     private void collectTargets(GasStack stack) {
         target = null;
+        if (reusableTarget == null) reusableTarget = new GasHandlerTarget(stack, possibleAcceptors.size() * 2);
+        else reusableTarget.reset(stack);
         GasHandlerTarget collectedTarget = reusableTarget;
-        if (collectedTarget == null) {
-            collectedTarget = reusableTarget = new GasHandlerTarget(stack, possibleAcceptors.size() * 2);
-        } else {
-            collectedTarget.reset(stack);
-        }
-        for (Coord4D coord : possibleAcceptors) {
-            EnumSet<EnumFacing> sides = acceptorDirections.get(coord);
-            if (sides == null || sides.isEmpty()) {
-                continue;
-            }
-            TileEntity tile = coord.getTileEntity(getWorld());
-            if (tile == null) {
-                continue;
-            }
-            for (EnumFacing side : sides) {
-                if (CapabilityUtils.hasCapability(tile, Capabilities.GAS_HANDLER_CAPABILITY, side)) {
-                    IGasHandler acceptor = CapabilityUtils.getCapability(tile, Capabilities.GAS_HANDLER_CAPABILITY, side);
-                    if (GasInventorySlot.canReceiveGas(acceptor, side, stack)) {
-                        collectedTarget.addHandler(side, acceptor);
-                    }
-                }
-            }
-        }
+        acceptorCache.collect(getWorld(), possibleAcceptors, acceptorDirections, acceptorRevision,
+                Capabilities.GAS_HANDLER_CAPABILITY, collectedTarget::addHandler);
         target = collectedTarget;
     }
 

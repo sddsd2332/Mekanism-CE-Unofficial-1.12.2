@@ -11,7 +11,10 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.UUID;
 
-/** One bounded create, update, or delete command for a frequency-owned rule. */
+/**
+ * One bounded create, update, or delete command for a frequency-owned rule.
+ */
+
 /**
  * QIO 处理模块中的 QIOMaintenanceRuleMutation 类型。
  *
@@ -40,9 +43,9 @@ public final class QIOMaintenanceRuleMutation {
     private final int retryIntervalTicks;
 
     private QIOMaintenanceRuleMutation(Kind kind, @Nullable UUID ruleId,
-          long expectedRuleRevision, @Nullable PortableResourceDescriptor resource,
-          boolean enabled, long triggerAmount, long targetAmount,
-          long maximumSingleRequest, long jobPriority, int retryIntervalTicks) {
+                                       long expectedRuleRevision, @Nullable PortableResourceDescriptor resource,
+                                       boolean enabled, long triggerAmount, long targetAmount,
+                                       long maximumSingleRequest, long jobPriority, int retryIntervalTicks) {
         this.kind = Objects.requireNonNull(kind, "kind");
         this.ruleId = ruleId;
         this.expectedRuleRevision = expectedRuleRevision;
@@ -58,29 +61,29 @@ public final class QIOMaintenanceRuleMutation {
 
     @Nonnull
     public static QIOMaintenanceRuleMutation create(
-          @Nonnull PortableResourceDescriptor resource, boolean enabled,
-          long triggerAmount, long targetAmount, long maximumSingleRequest,
-          long jobPriority, int retryIntervalTicks) {
+            @Nonnull PortableResourceDescriptor resource, boolean enabled,
+            long triggerAmount, long targetAmount, long maximumSingleRequest,
+            long jobPriority, int retryIntervalTicks) {
         return new QIOMaintenanceRuleMutation(Kind.CREATE, null, -1, resource,
-              enabled, triggerAmount, targetAmount, maximumSingleRequest,
-              jobPriority, retryIntervalTicks);
+                enabled, triggerAmount, targetAmount, maximumSingleRequest,
+                jobPriority, retryIntervalTicks);
     }
 
     @Nonnull
     public static QIOMaintenanceRuleMutation update(@Nonnull UUID ruleId,
-          long expectedRuleRevision, boolean enabled, long triggerAmount,
-          long targetAmount, long maximumSingleRequest, long jobPriority,
-          int retryIntervalTicks) {
+                                                    long expectedRuleRevision, boolean enabled, long triggerAmount,
+                                                    long targetAmount, long maximumSingleRequest, long jobPriority,
+                                                    int retryIntervalTicks) {
         return new QIOMaintenanceRuleMutation(Kind.UPDATE, ruleId,
-              expectedRuleRevision, null, enabled, triggerAmount, targetAmount,
-              maximumSingleRequest, jobPriority, retryIntervalTicks);
+                expectedRuleRevision, null, enabled, triggerAmount, targetAmount,
+                maximumSingleRequest, jobPriority, retryIntervalTicks);
     }
 
     @Nonnull
     public static QIOMaintenanceRuleMutation delete(@Nonnull UUID ruleId,
-          long expectedRuleRevision) {
+                                                    long expectedRuleRevision) {
         return new QIOMaintenanceRuleMutation(Kind.DELETE, ruleId,
-              expectedRuleRevision, null, false, 0, 1, 1, 0, 20);
+                expectedRuleRevision, null, false, 0, 1, 1, 0, 20);
     }
 
     @Nonnull
@@ -150,18 +153,18 @@ public final class QIOMaintenanceRuleMutation {
 
     @Nonnull
     public static QIOMaintenanceRuleMutation read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         try {
             Kind kind = QIOProcessingNbt.readEnum(data, "kind", Kind.class);
             UUID ruleId = data.hasKey("ruleId", NBT.TAG_STRING) ?
-                  QIOProcessingNbt.readUUID(data, "ruleId") : null;
+                    QIOProcessingNbt.readUUID(data, "ruleId") : null;
             PortableResourceDescriptor resource = data.hasKey("resource", NBT.TAG_COMPOUND) ?
-                  PortableResourceDescriptor.read(data.getCompoundTag("resource")) : null;
+                    PortableResourceDescriptor.read(data.getCompoundTag("resource")) : null;
             return new QIOMaintenanceRuleMutation(kind, ruleId,
-                  ruleId == null ? -1 : data.getLong("expectedRuleRevision"), resource,
-                  data.getBoolean("enabled"), data.getLong("triggerAmount"),
-                  data.getLong("targetAmount"), data.getLong("maximumSingleRequest"),
-                  data.getLong("jobPriority"), data.getInteger("retryIntervalTicks"));
+                    ruleId == null ? -1 : data.getLong("expectedRuleRevision"), resource,
+                    data.getBoolean("enabled"), data.getLong("triggerAmount"),
+                    data.getLong("targetAmount"), data.getLong("maximumSingleRequest"),
+                    data.getLong("jobPriority"), data.getInteger("retryIntervalTicks"));
         } catch (QIOProcessingDataException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -171,12 +174,12 @@ public final class QIOMaintenanceRuleMutation {
 
     private void validate() {
         if ((kind == Kind.CREATE) != (resource != null) ||
-            (kind == Kind.CREATE) == (ruleId != null) ||
-            (ruleId == null ? expectedRuleRevision != -1 : expectedRuleRevision < 0)) {
+                (kind == Kind.CREATE) == (ruleId != null) ||
+                (ruleId == null ? expectedRuleRevision != -1 : expectedRuleRevision < 0)) {
             throw new IllegalArgumentException("Maintenance rule mutation identity mismatch");
         }
         if (kind != Kind.DELETE && (triggerAmount < 0 || targetAmount < triggerAmount ||
-            maximumSingleRequest <= 0 || retryIntervalTicks < 20)) {
+                maximumSingleRequest <= 0 || retryIntervalTicks < 20)) {
             throw new IllegalArgumentException("Invalid maintenance rule limits");
         }
     }

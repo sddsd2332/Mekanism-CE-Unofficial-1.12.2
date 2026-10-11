@@ -10,8 +10,8 @@ import mekanism.api.gas.*;
 import mekanism.api.heat.IHeatCapacitor;
 import mekanism.api.heat.IHeatHandler;
 import mekanism.api.inventory.IInventorySlot;
+import mekanism.api.transmitters.TransmissionType;
 import mekanism.common.Upgrade;
-import mekanism.common.util.MachineStressDiagnostics;
 import mekanism.common.base.IEnergyWrapper;
 import mekanism.common.base.ISideConfiguration;
 import mekanism.common.base.ISustainedInventory;
@@ -37,10 +37,11 @@ import mekanism.common.capabilities.resolver.ICapabilityResolver;
 import mekanism.common.capabilities.resolver.manager.*;
 import mekanism.common.frequency.TileComponentFrequency;
 import mekanism.common.inventory.ISlotBackedInventory;
-import mekanism.common.inventory.slot.BasicInventorySlot;
+import mekanism.common.inventory.InventoryComparatorTracker;
 import mekanism.common.inventory.container.slot.InventoryContainerSlot;
-import mekanism.common.util.ItemDataUtils;
+import mekanism.common.inventory.slot.BasicInventorySlot;
 import mekanism.common.util.HeatCapabilityUtils;
+import mekanism.common.util.ItemDataUtils;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.entity.player.EntityPlayer;
@@ -60,14 +61,7 @@ import net.minecraftforge.items.IItemHandler;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 
@@ -87,7 +81,7 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
      * about QIO (or any other optional module); an unset hook is therefore completely inert.
      */
     private static volatile BiPredicate<TileEntityContainerBlock, Object> containerExtractionGuard =
-          (tile, container) -> false;
+            (tile, container) -> false;
 
     private IInventorySlotHolder inventorySlotHolder;
     private IFluidTankHolder fluidTankHolder;
@@ -104,24 +98,132 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
     private HeatHandlerManager heatHandlerManager;
     private final CachedAmbientTemperature ambientTemperature = new CachedAmbientTemperature(this::getWorld, this::getPos);
     private final List<IInventorySlot> noSlots = Collections.emptyList();
+    private IInventorySlotHolder comparatorSlotHolder;
+    private List<IInventorySlot> comparatorSlots;
+    private volatile InventoryComparatorTracker comparatorTracker;
+    private boolean comparatorTrackerResolved;
+    private long comparatorLayoutRevision = Long.MIN_VALUE;
+    private byte standardComparatorView;
+    private static final ClassValue<Boolean> STANDARD_COMPARATOR_VIEW = new ClassValue<Boolean>() {
+        @Override
+        protected Boolean computeValue(Class<?> type) {
+            try {
+                return type.getMethod("getInventorySlots", EnumFacing.class).getDeclaringClass() == TileEntityContainerBlock.class &&
+                        type.getMethod("hasInventory").getDeclaringClass() == TileEntityContainerBlock.class;
+            } catch (ReflectiveOperationException | SecurityException ignored) {
+                return false;
+            }
+        }
+    };
+
+    @Override
+    public int getInventoryComparatorLevel() {
+        // A vanilla/third-party read is live, including edits made through a leaked ItemStack.
+        invalidateComparatorSnapshot();
+        List<IInventorySlot> slots = getStandardComparatorSlots();
+        return slots == null ? ISlotBackedInventory.super.getInventoryComparatorLevel() :
+                ISlotBackedInventory.calculateComparatorLevel(slots, getInventoryStackLimit());
+    }
+
+    @Override
+    protected int getLocalComparatorLevelForNotification() {
+        List<IInventorySlot> slots = getStandardComparatorSlots();
+        if (slots == null) return super.getLocalComparatorLevelForNotification();
+        if (!(slots instanceof mekanism.common.util.RevisionedList<?> layout)) {
+            clearComparatorTracker();
+            return ISlotBackedInventory.calculateComparatorLevel(slots, getInventoryStackLimit());
+        }
+        if (comparatorLayoutRevision != layout.getRevision()) {
+            clearComparatorTracker();
+            comparatorLayoutRevision = layout.getRevision();
+        }
+        InventoryComparatorTracker tracker = comparatorTracker;
+        if (tracker != null && tracker.size() != slots.size()) {
+            clearComparatorTracker();
+            tracker = null;
+        }
+        if (!comparatorTrackerResolved) {
+            tracker = InventoryComparatorTracker.create(slots);
+            comparatorTracker = tracker;
+            comparatorTrackerResolved = true;
+        }
+        return tracker == null ? ISlotBackedInventory.calculateComparatorLevel(slots, getInventoryStackLimit()) :
+                tracker.getLevel(getInventoryStackLimit());
+    }
+
+    @Override
+    protected void invalidateComparatorSnapshot() {
+        if (!hasEnabledComparator()) {
+            return;
+        }
+        InventoryComparatorTracker tracker = comparatorTracker;
+        if (tracker != null) tracker.invalidate();
+    }
+
+    private void clearComparatorTracker() {
+        InventoryComparatorTracker tracker = comparatorTracker;
+        comparatorTracker = null;
+        comparatorTrackerResolved = false;
+        if (tracker != null) tracker.close();
+    }
+
+    @Override
+    public void invalidate() {
+        clearComparatorTracker();
+        super.invalidate();
+    }
+
+    @Override
+    public void onChunkUnload() {
+        clearComparatorTracker();
+        super.onChunkUnload();
+    }
+
+    @Nullable
+    private List<IInventorySlot> getStandardComparatorSlots() {
+        IInventorySlotHolder holder = inventorySlotHolder;
+        // Only these built-in holders return a stable internal list. Frequency-backed and
+        // extension inventories retain their live virtual accessor (even if their holder is unchanged).
+        if (standardComparatorView == 0)
+            standardComparatorView = (byte) (STANDARD_COMPARATOR_VIEW.get(getClass()) ? 2 : 1);
+        if (standardComparatorView != 2 || holder == null ||
+                !(holder.getClass() == mekanism.common.capabilities.holder.slot.ConfigInventorySlotHolder.class ||
+                        holder.getClass() == mekanism.common.capabilities.holder.slot.InventorySlotHolder.class ||
+                        holder.getClass() == mekanism.common.capabilities.holder.slot.ReadOnlyInventorySlotHolder.class)) {
+            clearComparatorTracker();
+            return null;
+        }
+        if (holder != comparatorSlotHolder) {
+            clearComparatorTracker();
+            comparatorSlots = holder.getInventorySlots(null);
+            comparatorSlotHolder = holder;
+        }
+        return comparatorSlots;
+    }
+
     private final List<IExtendedFluidTank> noFluidTanks = Collections.emptyList();
     private final List<IExtendedGasTank> noGasTanks = Collections.emptyList();
     private final List<IEnergyContainer> noEnergyContainers = Collections.emptyList();
     private final List<IHeatCapacitor> noHeatCapacitors = Collections.emptyList();
     private boolean recalculatingAllUpgradables;
+    private final IContentsListener saveOnlyContentsListener = this::onSaveOnlyContentsChanged;
 
     public static void setContentsChangedListener(Consumer<TileEntityContainerBlock> listener) {
         contentsChangedListener = Objects.requireNonNull(listener, "Contents changed listener cannot be null");
     }
 
-    /** Installs an optional predicate which returns true when extraction must be denied. */
+    /**
+     * Installs an optional predicate which returns true when extraction must be denied.
+     */
     public static void setContainerExtractionGuard(
-          BiPredicate<TileEntityContainerBlock, Object> guard) {
+            BiPredicate<TileEntityContainerBlock, Object> guard) {
         containerExtractionGuard = Objects.requireNonNull(guard,
-              "Container extraction guard cannot be null");
+                "Container extraction guard cannot be null");
     }
 
-    /** Returns whether the supplied physical slot/tank is currently protected. */
+    /**
+     * Returns whether the supplied physical slot/tank is currently protected.
+     */
     public final boolean isContainerExtractionGuarded(@Nullable Object container) {
         return container != null && containerExtractionGuard.test(this, container);
     }
@@ -154,6 +256,7 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
     }
 
     protected void setInventorySlotHolder(IInventorySlotHolder slotHolder) {
+        clearComparatorTracker();
         inventorySlotHolder = slotHolder;
         clearCapabilityCache();
         initializeCapabilityManagers();
@@ -169,7 +272,7 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
     protected FluidTankHelper createFluidTankHelper() {
         if (this instanceof ISideConfiguration) {
             ISideConfiguration sideConfiguration = (ISideConfiguration) this;
-            return FluidTankHelper.forSideWithConfig(sideConfiguration::getOrientation, sideConfiguration::getConfig);
+            return FluidTankHelper.forSideWithConfig(sideConfiguration);
         }
         return FluidTankHelper.forSide(() -> facing);
     }
@@ -228,9 +331,9 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
         if (this instanceof IEnergyWrapper energyWrapper) {
             if (!(this instanceof ISideConfiguration configurable) || configurable.getConfig() == null) {
                 return ProxiedEnergyContainerHolder.create(
-                      side -> side != null && energyWrapper.sideIsConsumer(side),
-                      side -> side != null && energyWrapper.sideIsOutput(side),
-                      side -> side == null || energyWrapper.sideIsConsumer(side) || energyWrapper.sideIsOutput(side) ? Collections.singletonList(energyWrapper) : Collections.emptyList());
+                        side -> side != null && energyWrapper.sideIsConsumer(side),
+                        side -> side != null && energyWrapper.sideIsOutput(side),
+                        side -> side == null || energyWrapper.sideIsConsumer(side) || energyWrapper.sideIsOutput(side) ? Collections.singletonList(energyWrapper) : Collections.emptyList());
             }
             EnergyContainerHelper builder = createEnergyContainerHelper();
             builder.addContainer(energyWrapper);
@@ -273,6 +376,81 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
         capabilityCache.invalidate(capability, side);
     }
 
+    // Certify only the audited native-capability forwarding chain. An addon override can
+    // redirect a capability without invalidating our manager, so it must keep resolving live.
+    private static final ClassValue<Boolean> MANAGED_ENERGY_LOOKUP = new ClassValue<Boolean>() {
+        @Override
+        protected Boolean computeValue(Class<?> type) {
+            for (Class<?> current = type; current != TileEntityContainerBlock.class; current = current.getSuperclass()) {
+                if (current == null) return false;
+                try {
+                    current.getDeclaredMethod("getCapability", Capability.class, EnumFacing.class);
+                    if (current != TileEntityElectricBlock.class && current != TileEntityBasicMachine.class &&
+                            current != mekanism.common.tile.factory.TileEntityFactory.class) return false;
+                } catch (NoSuchMethodException ignored) {
+                }
+                try {
+                    current.getDeclaredMethod("isStrictEnergy", Capability.class);
+                    if (current != TileEntityElectricBlock.class) return false;
+                } catch (NoSuchMethodException ignored) {
+                }
+                try {
+                    current.getDeclaredMethod("isTesla", Capability.class, EnumFacing.class);
+                    if (current != TileEntityElectricBlock.class) return false;
+                } catch (NoSuchMethodException ignored) {
+                }
+            }
+            return true;
+        }
+    };
+
+    // Class eligibility is immutable. Cache it per instance, not capability availability.
+    private byte managedEnergyLookupEligibility;
+
+    /**
+     * Only native, audited forwarding classes may retain resource handlers between ticks.
+     */
+    @Nullable
+    public final Object getManagedResourceAcceptorToken(Capability<?> capability, EnumFacing side) {
+        if (managedEnergyLookupEligibility == 0) {
+            managedEnergyLookupEligibility = (byte) (MANAGED_ENERGY_LOOKUP.get(getClass()) ? 1 : -1);
+        }
+        if (managedEnergyLookupEligibility < 0 || capability == null || isCapabilityDisabled(capability, side))
+            return null;
+        ICapabilityResolver manager;
+        if (capability == Capabilities.GAS_HANDLER_CAPABILITY) manager = gasHandlerManager;
+        else if (capability == CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY) manager = fluidHandlerManager;
+        else if (capability == Capabilities.HEAT_HANDLER_CAPABILITY) manager = heatHandlerManager;
+        else return null;
+        if (manager == null) return null;
+        // An earlier custom resolver must not inherit the native manager's credential.
+        for (ICapabilityResolver resolver : capabilityCache.getResolvers()) {
+            if (resolver.canResolve(capability, side))
+                return resolver == manager ? capabilityCache.getGeneration() : null;
+        }
+        return null;
+    }
+
+    /**
+     * A token is granted only for our managed native acceptor. On hits, eligibility is still
+     * evaluated live so side configuration or a dynamic holder cannot turn into a stale grant.
+     * Pass the resolved acceptor on admission, null on subsequent token checks.
+     */
+    @Nullable
+    public final Object getManagedEnergyAcceptorToken(EnumFacing side,
+                                                      @Nullable mekanism.api.energy.IStrictEnergyAcceptor resolved) {
+        if (managedEnergyLookupEligibility == 0) {
+            managedEnergyLookupEligibility = (byte) (MANAGED_ENERGY_LOOKUP.get(getClass()) ? 1 : -1);
+        }
+        if (managedEnergyLookupEligibility < 0 || energyHandlerManager == null ||
+                Capabilities.ENERGY_ACCEPTOR_CAPABILITY == null ||
+                isCapabilityDisabled(Capabilities.ENERGY_ACCEPTOR_CAPABILITY, side) ||
+                !energyHandlerManager.canResolveAcceptor(side)) return null;
+        if (resolved != null && energyHandlerManager.resolve(Capabilities.ENERGY_ACCEPTOR_CAPABILITY, side) != resolved)
+            return null;
+        return capabilityCache.getGeneration();
+    }
+
     protected void clearContainerHolderCache() {
         initializeContainerHolders(false);
     }
@@ -282,12 +460,13 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
     }
 
     protected void initializeContainerHolders(boolean initializeInventory) {
-        fluidTankHolder = getInitialFluidTanks(this);
-        gasTankHolder = getInitialGasTanks(this);
-        energyContainerHolder = getInitialEnergyContainers(this);
-        heatCapacitorHolder = getInitialHeatCapacitors(this);
+        fluidTankHolder = getInitialFluidTanks(contentsListener(TransmissionType.FLUID));
+        gasTankHolder = getInitialGasTanks(contentsListener(TransmissionType.GAS));
+        energyContainerHolder = getInitialEnergyContainers(contentsListener(TransmissionType.ENERGY));
+        heatCapacitorHolder = getInitialHeatCapacitors(contentsListener(TransmissionType.HEAT));
         if (initializeInventory) {
-            inventorySlotHolder = getInitialInventory(this);
+            clearComparatorTracker();
+            inventorySlotHolder = getInitialInventory(contentsListener(TransmissionType.ITEM));
         }
         initializeCapabilityManagers();
     }
@@ -334,6 +513,7 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
 
     @Override
     public void readCustomNBT(NBTTagCompound nbtTags) {
+        invalidateComparatorSnapshot();
         super.readCustomNBT(nbtTags);
         readCustomNBTBeforeInventory(nbtTags);
         if (persistInventory() && hasInventory()) {
@@ -406,7 +586,7 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
         return tryCallContainerTransaction(() -> {
             IInventorySlot slot = getInventorySlot(slotID);
             return slot != null && canInsertItem(slot, itemstack, side) &&
-                  slot.insertItem(itemstack, Action.SIMULATE, AutomationType.EXTERNAL).getCount() < itemstack.getCount();
+                    slot.insertItem(itemstack, Action.SIMULATE, AutomationType.EXTERNAL).getCount() < itemstack.getCount();
         }, () -> false);
     }
 
@@ -430,7 +610,7 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
         return tryCallContainerTransaction(() -> {
             IInventorySlot slot = getInventorySlot(slotID);
             return slot != null && canExtractItem(slot, itemstack, side) &&
-                  !slot.extractItem(itemstack.getCount(), Action.SIMULATE, AutomationType.EXTERNAL).isEmpty();
+                    !slot.extractItem(itemstack.getCount(), Action.SIMULATE, AutomationType.EXTERNAL).isEmpty();
         }, () -> false);
     }
 
@@ -446,7 +626,7 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
     @Override
     public NBTTagList getInventory(Object... data) {
         return callContainerTransaction(() -> hasInventory() && persistInventory() ?
-              DataHandlerUtils.writeContainers(getInventorySlots(null)) : new NBTTagList());
+                DataHandlerUtils.writeContainers(getInventorySlots(null)) : new NBTTagList());
     }
 
     public boolean persistInventory() {
@@ -520,6 +700,7 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
             recalculatingAllUpgradables = false;
         }
         onAllUpgradablesRecalculated(Collections.unmodifiableSet(snapshot));
+        notifyUpgradeParametersRecalculated();
     }
 
     protected final boolean isRecalculatingAllUpgradables() {
@@ -597,7 +778,7 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
 
     protected boolean canExtractItem(@Nonnull IInventorySlot slot, @Nonnull ItemStack stack, @Nullable EnumFacing side) {
         return !isContainerExtractionGuarded(slot) &&
-              (side == null || inventorySlotHolder == null || inventorySlotHolder.canExtract(side, slot));
+                (side == null || inventorySlotHolder == null || inventorySlotHolder.canExtract(side, slot));
     }
 
     @Nonnull
@@ -699,7 +880,7 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
 
     protected boolean canExtractFluid(@Nonnull IExtendedFluidTank tank, @Nullable EnumFacing side) {
         return !isContainerExtractionGuarded(tank) &&
-              (side == null || fluidTankHolder == null || fluidTankHolder.canExtract(side, tank));
+                (side == null || fluidTankHolder == null || fluidTankHolder.canExtract(side, tank));
     }
 
     @Override
@@ -816,7 +997,7 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
 
     protected boolean canExtractGas(@Nonnull IExtendedGasTank tank, @Nullable EnumFacing side) {
         return !isContainerExtractionGuarded(tank) &&
-              (side == null || gasTankHolder == null || gasTankHolder.canExtract(side, tank));
+                (side == null || gasTankHolder == null || gasTankHolder.canExtract(side, tank));
     }
 
     @Override
@@ -930,25 +1111,25 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
     @Override
     public double insertEnergy(int container, double amount, @Nullable EnumFacing side, Action action) {
         return tryCallContainerTransaction(() -> side != null && !canInsertEnergy(side) ? amount :
-              IMekanismStrictEnergyHandler.super.insertEnergy(container, amount, side, action), () -> amount);
+                IMekanismStrictEnergyHandler.super.insertEnergy(container, amount, side, action), () -> amount);
     }
 
     @Override
     public double insertEnergy(double amount, @Nullable EnumFacing side, Action action) {
         return tryCallContainerTransaction(() -> side != null && !canInsertEnergy(side) ? amount :
-              IMekanismStrictEnergyHandler.super.insertEnergy(amount, side, action), () -> amount);
+                IMekanismStrictEnergyHandler.super.insertEnergy(amount, side, action), () -> amount);
     }
 
     @Override
     public double extractEnergy(int container, double amount, @Nullable EnumFacing side, Action action) {
         return tryCallContainerTransaction(() -> side != null && !canExtractEnergy(side) ? 0 :
-              IMekanismStrictEnergyHandler.super.extractEnergy(container, amount, side, action), () -> 0D);
+                IMekanismStrictEnergyHandler.super.extractEnergy(container, amount, side, action), () -> 0D);
     }
 
     @Override
     public double extractEnergy(double amount, @Nullable EnumFacing side, Action action) {
         return tryCallContainerTransaction(() -> side != null && !canExtractEnergy(side) ? 0 :
-              IMekanismStrictEnergyHandler.super.extractEnergy(amount, side, action), () -> 0D);
+                IMekanismStrictEnergyHandler.super.extractEnergy(amount, side, action), () -> 0D);
     }
 
     @Override
@@ -1034,7 +1215,7 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
             if (slot != null) {
                 if (slot instanceof InventoryContainerSlot inventoryContainerSlot) {
                     inventoryContainerSlot.setExtractionGuard(() ->
-                          isContainerExtractionGuarded(inventorySlot));
+                            isContainerExtractionGuarded(inventorySlot));
                 }
                 slots.add(slot);
             }
@@ -1049,11 +1230,31 @@ public abstract class TileEntityContainerBlock extends TileEntityBasicBlock impl
 
     @Override
     public void onContentsChanged() {
-        if (MachineStressDiagnostics.ENABLED) MachineStressDiagnostics.recordTile(this);
-        markNoUpdateSync();
+        notifyUpgradeFeatureContentsChanged();
+        markTrackedContentsChangedSync();
         if (world != null && !world.isRemote) {
             contentsChangedListener.accept(this);
         }
+    }
+
+    /**
+     * Unknown comparator implementations conservatively invalidate on every content type.
+     */
+    protected final IContentsListener contentsListener(TransmissionType type) {
+        return !hasEnabledComparator() || !(this instanceof mekanism.common.base.IComparatorSupport comparator) || comparator.isComparatorInput(type) ?
+                this : saveOnlyContentsListener;
+    }
+
+    private void onSaveOnlyContentsChanged() {
+        notifyUpgradeFeatureContentsChanged();
+        markForSaveSync();
+        // Slot listeners are installed before upgrades are added. Re-check the
+        // opt-in at callback time so installing the comparator upgrade activates
+        // the existing listener chain without rebuilding every inventory holder.
+        if (hasEnabledComparator()) {
+            updateComparatorOutputLevelSync();
+        }
+        if (world != null && !world.isRemote) contentsChangedListener.accept(this);
     }
 
 }

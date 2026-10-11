@@ -2,13 +2,7 @@ package mekanism.common.item;
 
 import mekanism.api.EnumColor;
 import mekanism.common.MekanismLang;
-import mekanism.common.content.qio.QIODriveDefinition;
-import mekanism.common.content.qio.IQIODriveItem;
-import mekanism.common.content.qio.QIOAmount;
-import mekanism.common.content.qio.QIODriveType;
-import mekanism.common.content.qio.QIODriveSpecialization;
-import mekanism.common.content.qio.QIODriveSpecializationRegistry;
-import mekanism.common.content.qio.QIODriveSpecializations;
+import mekanism.common.content.qio.*;
 import mekanism.common.tier.QIODriveTier;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.text.TextUtils;
@@ -52,13 +46,13 @@ public class ItemQIODrive extends ItemMekanism implements IQIODriveItem {
         }
         this.definition = definition;
         this.specialization = java.util.Objects.requireNonNull(specialization,
-              "QIO drive specialization cannot be null");
+                "QIO drive specialization cannot be null");
         if (!QIODriveSpecializationRegistry.INSTANCE.isRegistered(specialization)) {
             throw new IllegalArgumentException("QIO drive specialization must be registered before creating its item");
         }
         if (!specialization.supports(definition)) {
             throw new IllegalArgumentException("QIO drive specialization " + specialization.getRegistryName() +
-                  " has no capacity for definition " + definition.getRegistryName());
+                    " has no capacity for definition " + definition.getRegistryName());
         }
         setMaxStackSize(1);
     }
@@ -96,20 +90,20 @@ public class ItemQIODrive extends ItemMekanism implements IQIODriveItem {
         DriveMetadata metadata = getDriveMetadata(stack);
         QIODriveType stackDriveType = QIODriveType.fromSpecialization(getDriveSpecialization(stack));
         MekanismLang countEntry = stackDriveType == QIODriveType.ITEM ? MekanismLang.QIO_ITEMS_DETAIL :
-              stackDriveType == QIODriveType.FLUID ? MekanismLang.QIO_FLUIDS_DETAIL :
-                    stackDriveType == QIODriveType.GAS ? MekanismLang.QIO_GASES_DETAIL :
-                          MekanismLang.QIO_RESOURCES_DETAIL;
+                stackDriveType == QIODriveType.FLUID ? MekanismLang.QIO_FLUIDS_DETAIL :
+                        stackDriveType == QIODriveType.GAS ? MekanismLang.QIO_GASES_DETAIL :
+                                MekanismLang.QIO_RESOURCES_DETAIL;
         boolean nativeUnitCapacity = stackDriveType == QIODriveType.FLUID || stackDriveType == QIODriveType.GAS;
         long stored = nativeUnitCapacity ? metadata.getStorageUnits() : metadata.getCount();
         QIOAmount capacity = nativeUnitCapacity ? getExactStorageCapacity(stack) : getExactCountCapacity(stack);
         ITextComponent itemDetails = countEntry.translateColored(EnumColor.GREY, EnumColor.INDIGO,
-              TextUtils.format(stored), hasUnlimitedCountCapacity(stack) ? LangUtils.localize("gui.infinite") :
-                    TextUtils.format(capacity.toBigInteger()));
+                TextUtils.format(stored), hasUnlimitedCountCapacity(stack) ? LangUtils.localize("gui.infinite") :
+                        TextUtils.format(capacity.toBigInteger()));
         ITextComponent typeDetails = MekanismLang.QIO_TYPES_DETAIL.translateColored(EnumColor.GREY, EnumColor.INDIGO,
-              TextUtils.format(metadata.getTypes()), hasUnlimitedTypeCapacity(stack) ? LangUtils.localize("gui.infinite") :
-                    TextUtils.format(getTypeCapacity(stack)));
+                TextUtils.format(metadata.getTypes()), hasUnlimitedTypeCapacity(stack) ? LangUtils.localize("gui.infinite") :
+                        TextUtils.format(getTypeCapacity(stack)));
         tooltip.add(MekanismLang.QIO_DRIVE_TYPE_DETAIL.translateColored(EnumColor.GREY, EnumColor.INDIGO,
-              LangUtils.localize(specialization.getTranslationKey())).getFormattedText());
+                LangUtils.localize(specialization.getTranslationKey())).getFormattedText());
         tooltip.add(itemDetails.getFormattedText());
         tooltip.add(typeDetails.getFormattedText());
     }

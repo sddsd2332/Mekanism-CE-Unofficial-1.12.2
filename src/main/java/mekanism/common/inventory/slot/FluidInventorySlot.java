@@ -106,7 +106,7 @@ public class FluidInventorySlot extends BasicInventorySlot implements IFluidHand
             for (int tank = 0, tanks = IFluidHandlerSlot.getTankCount(fluidHandlerItem); tank < tanks; tank++) {
                 FluidStack fluidInTank = IFluidHandlerSlot.getFluidInTank(fluidHandlerItem, tank);
                 if (!IFluidHandlerSlot.isFluidStackEmpty(fluidInTank) &&
-                      IFluidHandlerSlot.getFluidAmount(fluidTank.insert(fluidInTank, Action.SIMULATE, AutomationType.INTERNAL)) < fluidInTank.amount) {
+                        IFluidHandlerSlot.getFluidAmount(fluidTank.insert(fluidInTank, Action.SIMULATE, AutomationType.INTERNAL)) < fluidInTank.amount) {
                     return true;
                 }
             }
@@ -193,12 +193,12 @@ public class FluidInventorySlot extends BasicInventorySlot implements IFluidHand
     private boolean isFilling;
 
     protected FluidInventorySlot(IExtendedFluidTank fluidTank, Predicate<ItemStack> canExtract, Predicate<ItemStack> canInsert,
-          @Nullable IContentsListener listener, int x, int y) {
+                                 @Nullable IContentsListener listener, int x, int y) {
         this(fluidTank, canExtract, canInsert, alwaysTrue, listener, x, y);
     }
 
     protected FluidInventorySlot(IExtendedFluidTank fluidTank, Predicate<ItemStack> canExtract, Predicate<ItemStack> canInsert, Predicate<ItemStack> validator,
-          @Nullable IContentsListener listener, int x, int y) {
+                                 @Nullable IContentsListener listener, int x, int y) {
         super(canExtract, canInsert, validator, listener, x, y);
         setSlotType(ContainerSlotType.EXTRA);
         this.fluidTank = fluidTank;

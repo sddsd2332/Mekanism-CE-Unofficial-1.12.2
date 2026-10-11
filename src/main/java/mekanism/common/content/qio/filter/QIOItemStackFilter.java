@@ -1,9 +1,8 @@
 package mekanism.common.content.qio.filter;
 
-import mekanism.common.content.qio.QIOResourceEntry;
-import mekanism.common.content.qio.QIOResourceKind;
 import mekanism.api.qio.resource.QIOResourceCodecs;
 import mekanism.api.qio.resource.QIOResourceFamilyMatcher;
+import mekanism.common.content.qio.QIOResourceEntry;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.items.ItemHandlerHelper;
@@ -43,7 +42,8 @@ public class QIOItemStackFilter extends QIOFilter {
         fuzzyMode = !fuzzyMode;
     }
 
-    @Override public QIOResourceFamilyMatcher getMatcher() {
+    @Override
+    public QIOResourceFamilyMatcher getMatcher() {
         return QIOResourceFamilyMatcher.family(QIOResourceCodecs.ITEM_FAMILY);
     }
 
@@ -55,12 +55,18 @@ public class QIOItemStackFilter extends QIOFilter {
     @Override
     public boolean matches(ItemStack stack) {
         return stack != null && !stack.isEmpty() && !item.isEmpty() &&
-              (fuzzyMode ? item.getItem() == stack.getItem() : ItemHandlerHelper.canItemStacksStack(item, stack));
+                (fuzzyMode ? item.getItem() == stack.getItem() : ItemHandlerHelper.canItemStacksStack(item, stack));
     }
 
-    @Override public String getType() { return TYPE; }
+    @Override
+    public String getType() {
+        return TYPE;
+    }
 
-    @Override public boolean hasFilter() { return !item.isEmpty(); }
+    @Override
+    public boolean hasFilter() {
+        return !item.isEmpty();
+    }
 
     @Override
     public void writePayload(NBTTagCompound data) {

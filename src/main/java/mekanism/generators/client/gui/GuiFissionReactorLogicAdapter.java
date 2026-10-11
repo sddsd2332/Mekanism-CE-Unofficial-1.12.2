@@ -34,8 +34,8 @@ public class GuiFissionReactorLogicAdapter extends GuiMekanismTile<TileEntityFis
         scrollBar = addButton(new GuiScrollBar(this, 156, 31, 90, () -> LogicMode.values().length, () -> DISPLAY_COUNT));
         for (int i = 0; i < DISPLAY_COUNT; i++) {
             addButton(new ReactorLogicButton<>(this, 27, 32 + 22 * i, i, scrollBar::getCurrentSelection, LogicMode::values,
-                  tileEntity::getLogicMode, mode -> new TextComponentString(EnumColor.WHITE + mode.getLabel()), LogicMode::getDescription, LogicMode::getRenderStack,
-                  mode -> mode == LogicMode.DISABLED ? EnumColor.RED : EnumColor.DARK_GREEN, this::changeLogic));
+                    tileEntity::getLogicMode, mode -> new TextComponentString(EnumColor.WHITE + mode.getLabel()), LogicMode::getDescription, LogicMode::getRenderStack,
+                    mode -> mode == LogicMode.DISABLED ? EnumColor.RED : EnumColor.DARK_GREEN, this::changeLogic));
         }
     }
 
@@ -43,9 +43,9 @@ public class GuiFissionReactorLogicAdapter extends GuiMekanismTile<TileEntityFis
     protected void drawForegroundText(int mouseX, int mouseY) {
         drawTitleText(new TextComponentString(LangUtils.localize("gui.fissionLogicAdapter")), 6);
         drawCenteredTextScaledBound(new TextComponentString(LangUtils.localize("fission.logic.mode") + ": " + EnumColor.RED + tileEntity.getLogicMode().getLabel()),
-              xSize - 8, 123, titleTextColor());
+                xSize - 8, 123, titleTextColor());
         drawCenteredTextScaledBound(new TextComponentString(LangUtils.localize("gui.status") + ": " + EnumColor.RED + LangUtils.localize(tileEntity.getStatusTranslationKey())),
-              xSize - 8, 136, titleTextColor());
+                xSize - 8, 136, titleTextColor());
         super.drawForegroundText(mouseX, mouseY);
     }
 

@@ -48,9 +48,9 @@ public class GuiFuelwoodHeater extends GuiMekanismTile<TileEntityFuelwoodHeater,
             String transfer = MekanismUtils.getTemperatureDisplay(tileEntity.lastTransferLoss, TemperatureUnit.KELVIN, false);
             String environment = MekanismUtils.getTemperatureDisplay(tileEntity.lastEnvironmentLoss, TemperatureUnit.KELVIN, false);
             return Arrays.asList(
-                  new TextComponentString(LangUtils.localize("gui.temp") + ": " + temp),
-                  new TextComponentString(LangUtils.localize("gui.transferred") + ": " + transfer + "/t"),
-                  new TextComponentString(LangUtils.localize("gui.dissipated") + ": " + environment + "/t")
+                    new TextComponentString(LangUtils.localize("gui.temp") + ": " + temp),
+                    new TextComponentString(LangUtils.localize("gui.transferred") + ": " + transfer + "/t"),
+                    new TextComponentString(LangUtils.localize("gui.dissipated") + ": " + environment + "/t")
             );
         }));
     }
@@ -69,8 +69,8 @@ public class GuiFuelwoodHeater extends GuiMekanismTile<TileEntityFuelwoodHeater,
 
     private List<ITextComponent> getScreenText() {
         return Arrays.asList(
-              new TextComponentString(LangUtils.localize("gui.temp") + ": " + getTemp()),
-              new TextComponentString(LangUtils.localize("gui.fuel") + ": " + tileEntity.burnTime)
+                new TextComponentString(LangUtils.localize("gui.temp") + ": " + getTemp()),
+                new TextComponentString(LangUtils.localize("gui.fuel") + ": " + tileEntity.burnTime)
         );
     }
 

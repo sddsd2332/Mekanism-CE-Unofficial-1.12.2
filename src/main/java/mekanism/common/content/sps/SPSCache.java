@@ -15,7 +15,7 @@ public class SPSCache extends MultiblockCache<SynchronizedSPSData> {
         validateSum(progress, other.progress, Double.MAX_VALUE, "SPS progress");
         validateSum(receivedEnergy, other.receivedEnergy, Double.MAX_VALUE, "SPS energy");
         requireMerge(inputProcessed >= 0 && other.inputProcessed >= 0 && (long) inputProcessed + other.inputProcessed <= Integer.MAX_VALUE,
-              "Merged SPS processed input exceeds integer capacity");
+                "Merged SPS processed input exceeds integer capacity");
     }
 
     @Override

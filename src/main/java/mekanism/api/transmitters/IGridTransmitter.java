@@ -68,7 +68,8 @@ public interface IGridTransmitter<ACCEPTOR, NETWORK extends DynamicNetwork<ACCEP
     /**
      * @return The transmitter's buffer.
      */
-    @Nullable BUFFER getBuffer();
+    @Nullable
+    BUFFER getBuffer();
 
     /**
      * Clears this transmitter's local buffer after a network has absorbed it.
@@ -81,7 +82,8 @@ public interface IGridTransmitter<ACCEPTOR, NETWORK extends DynamicNetwork<ACCEP
      *
      * @return The transmitter's buffer, or if null the network's buffer.
      */
-    @Nullable default BUFFER getBufferWithFallback() {
+    @Nullable
+    default BUFFER getBufferWithFallback() {
         BUFFER buffer = getBuffer();
         //If we don't have a buffer try falling back to the network's buffer
         if (buffer == null && hasTransmitterNetwork()) {

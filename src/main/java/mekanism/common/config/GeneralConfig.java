@@ -346,9 +346,9 @@ public class GeneralConfig extends BaseConfig {
 
     public final DoubleOption dumpExcessKeepRatio = new DoubleOption(this, "dumpExcessKeepRatio", 0.9D, "The percentage of a tank's capacity to leave contents in when set to dumping excess.", 0.001D, 1D);
 
-    public final IntSetOption defaultAmbientDimBlacklist = new IntSetOption(this,"defaultAmbientDimBlacklist",new int[]{},"Default dimension gas collection recipe where the environmental collector does not work").setRequiresGameRestart();
+    public final IntSetOption defaultAmbientDimBlacklist = new IntSetOption(this, "defaultAmbientDimBlacklist", new int[]{}, "Default dimension gas collection recipe where the environmental collector does not work").setRequiresGameRestart();
 
-    public final BooleanOption EnableDefaultAllAddAmbientGas = new BooleanOption(this,"EnableDefaultAllAddAmbientGas",true,"Enable the recipe to register the default environment collector for all dimensions").setRequiresGameRestart();
+    public final BooleanOption EnableDefaultAllAddAmbientGas = new BooleanOption(this, "EnableDefaultAllAddAmbientGas", true, "Enable the recipe to register the default environment collector for all dimensions").setRequiresGameRestart();
 
     @Override
     public String getCategory() {

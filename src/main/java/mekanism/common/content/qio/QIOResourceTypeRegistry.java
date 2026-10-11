@@ -15,15 +15,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
-import java.util.Objects;
+import java.util.*;
 
 /**
  * World-scoped UUID registry for item, fluid, and gas templates.
@@ -55,7 +47,9 @@ public final class QIOResourceTypeRegistry {
         }
     }
 
-    /** Exposed for deterministic storage tests and tooling. */
+    /**
+     * Exposed for deterministic storage tests and tooling.
+     */
     public synchronized void createOrLoad(File worldDirectory) {
         if (worldDirectory == null) {
             return;
@@ -89,14 +83,16 @@ public final class QIOResourceTypeRegistry {
         return loaded;
     }
 
-    /** Tracks any resolved codec-backed resource in the world registry. */
+    /**
+     * Tracks any resolved codec-backed resource in the world registry.
+     */
     @Nonnull
     public synchronized UUID getOrTrack(@Nonnull QIOResourceDescriptor descriptor) {
         requireLoaded();
         Objects.requireNonNull(descriptor, "descriptor");
         if (!descriptor.isResolved()) {
             throw new IllegalArgumentException("Cannot track an unresolved QIO resource codec: " +
-                  descriptor.getCodecId());
+                    descriptor.getCodecId());
         }
         QIOResourceType key = QIOResourceType.descriptorLookup(descriptor);
         UUID uuid = byType.get(key);

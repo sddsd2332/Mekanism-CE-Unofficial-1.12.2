@@ -4,7 +4,9 @@ import net.minecraft.block.Block;
 import net.minecraft.block.properties.PropertyBool;
 import net.minecraft.block.state.BlockStateContainer;
 
-/** Listed render state shared by QIO components. */
+/**
+ * Listed render state shared by QIO components.
+ */
 public class BlockStateQIOComponent extends BlockStateContainer {
 
     public static final PropertyBool activeProperty = PropertyBool.create("active");

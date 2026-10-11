@@ -207,7 +207,7 @@ public abstract class BlockMachine extends BlockMekanismContainer {
     @Override
     @SideOnly(Side.CLIENT)
     public void randomDisplayTick(IBlockState state, World world, BlockPos pos, Random random) {
-        super.randomDisplayTick(state,world,pos,random);
+        super.randomDisplayTick(state, world, pos, random);
         TileEntityBasicBlock tileEntity = (TileEntityBasicBlock) world.getTileEntity(pos);
         if (tileEntity instanceof TileEntityFluidTank) {
             return;
@@ -448,15 +448,8 @@ public abstract class BlockMachine extends BlockMekanismContainer {
     @Deprecated
     public int getComparatorInputOverride(IBlockState state, World world, BlockPos pos) {
         TileEntity tileEntity = world.getTileEntity(pos);
-        if (tileEntity instanceof IComparatorSupport support) {
-            return support.getRedstoneLevel();
-        }
-        if (tileEntity instanceof TileEntityLaserAmplifier amplifier) {
-            //TODO: Move this over to using IComparatorSupport?
-            if (amplifier.outputMode == TileEntityLaserAmplifier.RedstoneOutput.ENERGY_CONTENTS) {
-                return amplifier.getRedstoneLevel();
-            }
-            return getWeakPower(state, world, pos, null);
+        if (tileEntity instanceof IComparatorSupport support && support.supportsComparator()) {
+            return support.getCurrentRedstoneLevel();
         }
         return 0;
     }
@@ -523,10 +516,10 @@ public abstract class BlockMachine extends BlockMekanismContainer {
             ISustainedInventory inventory = (ISustainedInventory) itemStack.getItem();
             inventory.setInventory(((ISustainedInventory) tileEntity).getInventory(), itemStack);
         }
-        if (((ISustainedTank) itemStack.getItem()).hasTank(itemStack)) {
-            if (tileEntity instanceof ISustainedTank tank) {
+        if (tileEntity instanceof ISustainedTank tank) {
+            if (itemStack.getItem() instanceof ISustainedTank item && item.hasTank(itemStack)) {
                 if (tank.getFluidStack() != null) {
-                    ((ISustainedTank) itemStack.getItem()).setFluidStack(tank.getFluidStack(), itemStack);
+                    item.setFluidStack(tank.getFluidStack(), itemStack);
                 }
             }
         }

@@ -177,7 +177,7 @@ public abstract class ItemBlockLargeBaseEnergy extends ItemBlockLargeBase implem
     @Override
     public ICapabilityProvider initCapabilities(ItemStack stack, NBTTagCompound nbt) {
         return new ItemCapabilityWrapper(stack, new TeslaItemWrapper(), new ForgeEnergyItemWrapper(),
-              RateLimitEnergyHandler.create(() -> getEnergyTransfer(stack), () -> getEnergyCapacity(stack), BasicEnergyContainer.manualOnly, ConstantPredicates.alwaysTrue()));
+                RateLimitEnergyHandler.create(() -> getEnergyTransfer(stack), () -> getEnergyCapacity(stack), BasicEnergyContainer.manualOnly, ConstantPredicates.alwaysTrue()));
     }
 
 }

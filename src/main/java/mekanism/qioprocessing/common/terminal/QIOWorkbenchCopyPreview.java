@@ -9,7 +9,10 @@ import javax.annotation.Nonnull;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Server-issued, revision-bound preview for one destructive workbench import. */
+/**
+ * Server-issued, revision-bound preview for one destructive workbench import.
+ */
+
 /**
  * QIO 处理模块中的 QIOWorkbenchCopyPreview 类型。
  *
@@ -33,27 +36,27 @@ public final class QIOWorkbenchCopyPreview {
     private final int ingredientOverrideCount;
 
     public QIOWorkbenchCopyPreview(UUID confirmationNonce, UUID sourceConfigUUID,
-          UUID sourceOriginUUID, UUID targetConfigUUID, long sourceRevision,
-          long targetRevision, String sourceDigest, String sourceFrequencyName,
-          int productOverrideCount, int encodedPatternCount,
-          int ingredientOverrideCount) {
+                                   UUID sourceOriginUUID, UUID targetConfigUUID, long sourceRevision,
+                                   long targetRevision, String sourceDigest, String sourceFrequencyName,
+                                   int productOverrideCount, int encodedPatternCount,
+                                   int ingredientOverrideCount) {
         this.confirmationNonce = Objects.requireNonNull(confirmationNonce,
-              "confirmationNonce");
+                "confirmationNonce");
         this.sourceConfigUUID = Objects.requireNonNull(sourceConfigUUID,
-              "sourceConfigUUID");
+                "sourceConfigUUID");
         this.sourceOriginUUID = Objects.requireNonNull(sourceOriginUUID,
-              "sourceOriginUUID");
+                "sourceOriginUUID");
         this.targetConfigUUID = Objects.requireNonNull(targetConfigUUID,
-              "targetConfigUUID");
+                "targetConfigUUID");
         if (sourceRevision < 0 || targetRevision < 0 || productOverrideCount < 0 ||
-            encodedPatternCount < 0 || ingredientOverrideCount < 0) {
+                encodedPatternCount < 0 || ingredientOverrideCount < 0) {
             throw new IllegalArgumentException("Invalid workbench copy preview counters");
         }
         this.sourceRevision = sourceRevision;
         this.targetRevision = targetRevision;
         this.sourceDigest = checkedDigest(sourceDigest);
         String checkedName = Objects.requireNonNull(sourceFrequencyName,
-              "sourceFrequencyName").trim();
+                "sourceFrequencyName").trim();
         if (checkedName.length() > 256) {
             throw new IllegalArgumentException("Workbench copy source name is too long");
         }
@@ -63,17 +66,55 @@ public final class QIOWorkbenchCopyPreview {
         this.ingredientOverrideCount = ingredientOverrideCount;
     }
 
-    @Nonnull public UUID getConfirmationNonce() { return confirmationNonce; }
-    @Nonnull public UUID getSourceConfigUUID() { return sourceConfigUUID; }
-    @Nonnull public UUID getSourceOriginUUID() { return sourceOriginUUID; }
-    @Nonnull public UUID getTargetConfigUUID() { return targetConfigUUID; }
-    public long getSourceRevision() { return sourceRevision; }
-    public long getTargetRevision() { return targetRevision; }
-    @Nonnull public String getSourceDigest() { return sourceDigest; }
-    @Nonnull public String getSourceFrequencyName() { return sourceFrequencyName; }
-    public int getProductOverrideCount() { return productOverrideCount; }
-    public int getEncodedPatternCount() { return encodedPatternCount; }
-    public int getIngredientOverrideCount() { return ingredientOverrideCount; }
+    @Nonnull
+    public UUID getConfirmationNonce() {
+        return confirmationNonce;
+    }
+
+    @Nonnull
+    public UUID getSourceConfigUUID() {
+        return sourceConfigUUID;
+    }
+
+    @Nonnull
+    public UUID getSourceOriginUUID() {
+        return sourceOriginUUID;
+    }
+
+    @Nonnull
+    public UUID getTargetConfigUUID() {
+        return targetConfigUUID;
+    }
+
+    public long getSourceRevision() {
+        return sourceRevision;
+    }
+
+    public long getTargetRevision() {
+        return targetRevision;
+    }
+
+    @Nonnull
+    public String getSourceDigest() {
+        return sourceDigest;
+    }
+
+    @Nonnull
+    public String getSourceFrequencyName() {
+        return sourceFrequencyName;
+    }
+
+    public int getProductOverrideCount() {
+        return productOverrideCount;
+    }
+
+    public int getEncodedPatternCount() {
+        return encodedPatternCount;
+    }
+
+    public int getIngredientOverrideCount() {
+        return ingredientOverrideCount;
+    }
 
     @Nonnull
     public NBTTagCompound write() {
@@ -95,32 +136,32 @@ public final class QIOWorkbenchCopyPreview {
 
     @Nonnull
     public static QIOWorkbenchCopyPreview read(NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         try {
             if (data.getInteger("schema") != SCHEMA_VERSION ||
-                !data.hasKey("confirmationNonce", NBT.TAG_STRING) ||
-                !data.hasKey("sourceConfigUUID", NBT.TAG_STRING) ||
-                !data.hasKey("sourceOriginUUID", NBT.TAG_STRING) ||
-                !data.hasKey("targetConfigUUID", NBT.TAG_STRING) ||
-                !data.hasKey("sourceRevision", NBT.TAG_LONG) ||
-                !data.hasKey("targetRevision", NBT.TAG_LONG) ||
-                !data.hasKey("sourceDigest", NBT.TAG_STRING) ||
-                !data.hasKey("sourceFrequencyName", NBT.TAG_STRING) ||
-                !data.hasKey("productOverrideCount", NBT.TAG_INT) ||
-                !data.hasKey("encodedPatternCount", NBT.TAG_INT) ||
-                !data.hasKey("ingredientOverrideCount", NBT.TAG_INT)) {
+                    !data.hasKey("confirmationNonce", NBT.TAG_STRING) ||
+                    !data.hasKey("sourceConfigUUID", NBT.TAG_STRING) ||
+                    !data.hasKey("sourceOriginUUID", NBT.TAG_STRING) ||
+                    !data.hasKey("targetConfigUUID", NBT.TAG_STRING) ||
+                    !data.hasKey("sourceRevision", NBT.TAG_LONG) ||
+                    !data.hasKey("targetRevision", NBT.TAG_LONG) ||
+                    !data.hasKey("sourceDigest", NBT.TAG_STRING) ||
+                    !data.hasKey("sourceFrequencyName", NBT.TAG_STRING) ||
+                    !data.hasKey("productOverrideCount", NBT.TAG_INT) ||
+                    !data.hasKey("encodedPatternCount", NBT.TAG_INT) ||
+                    !data.hasKey("ingredientOverrideCount", NBT.TAG_INT)) {
                 throw new QIOProcessingDataException("Incomplete workbench copy preview");
             }
             return new QIOWorkbenchCopyPreview(
-                  QIOProcessingNbt.readUUID(data, "confirmationNonce"),
-                  QIOProcessingNbt.readUUID(data, "sourceConfigUUID"),
-                  QIOProcessingNbt.readUUID(data, "sourceOriginUUID"),
-                  QIOProcessingNbt.readUUID(data, "targetConfigUUID"),
-                  data.getLong("sourceRevision"), data.getLong("targetRevision"),
-                  data.getString("sourceDigest"), data.getString("sourceFrequencyName"),
-                  data.getInteger("productOverrideCount"),
-                  data.getInteger("encodedPatternCount"),
-                  data.getInteger("ingredientOverrideCount"));
+                    QIOProcessingNbt.readUUID(data, "confirmationNonce"),
+                    QIOProcessingNbt.readUUID(data, "sourceConfigUUID"),
+                    QIOProcessingNbt.readUUID(data, "sourceOriginUUID"),
+                    QIOProcessingNbt.readUUID(data, "targetConfigUUID"),
+                    data.getLong("sourceRevision"), data.getLong("targetRevision"),
+                    data.getString("sourceDigest"), data.getString("sourceFrequencyName"),
+                    data.getInteger("productOverrideCount"),
+                    data.getInteger("encodedPatternCount"),
+                    data.getInteger("ingredientOverrideCount"));
         } catch (QIOProcessingDataException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -130,10 +171,10 @@ public final class QIOWorkbenchCopyPreview {
 
     private static String checkedDigest(String digest) {
         String checked = Objects.requireNonNull(digest, "sourceDigest").trim()
-              .toLowerCase(java.util.Locale.ROOT);
+                .toLowerCase(java.util.Locale.ROOT);
         if (checked.length() != 64 ||
-            !checked.chars().allMatch(character -> character >= '0' && character <= '9' ||
-                  character >= 'a' && character <= 'f')) {
+                !checked.chars().allMatch(character -> character >= '0' && character <= '9' ||
+                        character >= 'a' && character <= 'f')) {
             throw new IllegalArgumentException("Invalid workbench source digest");
         }
         return checked;

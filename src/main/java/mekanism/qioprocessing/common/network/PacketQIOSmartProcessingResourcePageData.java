@@ -28,7 +28,7 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class PacketQIOSmartProcessingResourcePageData implements
-      IMessageHandler<PacketQIOSmartProcessingResourcePageData.Message, IMessage> {
+        IMessageHandler<PacketQIOSmartProcessingResourcePageData.Message, IMessage> {
 
     public static final int MAX_WIRE_PAGE_SIZE = 256;
     private static final int MAX_QUERY_LENGTH = 64;
@@ -39,14 +39,14 @@ public final class PacketQIOSmartProcessingResourcePageData implements
         if (player == null || !player.world.isRemote) return null;
         PacketHandler.handlePacket(() -> {
             if (!message.valid ||
-                  !(player.openContainer instanceof QIOSmartProcessingPageContainer container) ||
-                  player.openContainer.windowId != message.windowId) return;
+                    !(player.openContainer instanceof QIOSmartProcessingPageContainer container) ||
+                    player.openContainer.windowId != message.windowId) return;
             QIOProcessingTerminalContainerState state = container.getTerminalState();
             if (state.matches(message.sessionNonce, message.terminalUUID,
-                  message.targetRevision, message.frequencyUUID, message.accessRevision)) {
+                    message.targetRevision, message.frequencyUUID, message.accessRevision)) {
                 container.getSmartProcessingClientCache().applyPage(message.sessionNonce,
-                      message.requestId, message.filter, message.query, message.sourceRevision,
-                      message.offset, message.totalSize, message.entries);
+                        message.requestId, message.filter, message.query, message.sourceRevision,
+                        message.offset, message.totalSize, message.entries);
             }
         }, player);
         return null;
@@ -73,8 +73,8 @@ public final class PacketQIOSmartProcessingResourcePageData implements
         }
 
         private Message(int windowId, QIOProcessingTerminalSession session, UUID requestId,
-              QIOSmartProcessingResourceFilter filter, String query,
-              QIOPage<QIOSmartProcessingResourceEntry> page) {
+                        QIOSmartProcessingResourceFilter filter, String query,
+                        QIOPage<QIOSmartProcessingResourceEntry> page) {
             this.windowId = windowId;
             sessionNonce = session.getSessionNonce();
             terminalUUID = session.getTerminalUUID();
@@ -93,10 +93,10 @@ public final class PacketQIOSmartProcessingResourcePageData implements
 
         @Nonnull
         public static Message create(int windowId, @Nonnull QIOProcessingTerminalSession session,
-              @Nonnull UUID requestId, @Nonnull QIOSmartProcessingResourceFilter filter,
-              @Nonnull String query, @Nonnull QIOPage<QIOSmartProcessingResourceEntry> page) {
+                                     @Nonnull UUID requestId, @Nonnull QIOSmartProcessingResourceFilter filter,
+                                     @Nonnull String query, @Nonnull QIOPage<QIOSmartProcessingResourceEntry> page) {
             return session.getFrequencyUUID() == null ? new Message() :
-                  new Message(windowId, session, requestId, filter, query, page);
+                    new Message(windowId, session, requestId, filter, query, page);
         }
 
         @Override
@@ -137,7 +137,7 @@ public final class PacketQIOSmartProcessingResourcePageData implements
                 totalSize = buffer.readInt();
                 int size = buffer.readInt();
                 if (size < 0 || size > MAX_WIRE_PAGE_SIZE || totalSize < 0 || offset < 0 ||
-                      offset > totalSize || size > totalSize - offset) return;
+                        offset > totalSize || size > totalSize - offset) return;
                 List<QIOSmartProcessingResourceEntry> decoded = new ArrayList<>(size);
                 for (int index = 0; index < size; index++) {
                     NBTTagCompound data = PacketHandler.readNBT(buffer);
@@ -157,11 +157,11 @@ public final class PacketQIOSmartProcessingResourcePageData implements
 
         private boolean structurallyValid() {
             return windowId >= 0 && sessionNonce != null && terminalUUID != null &&
-                  frequencyUUID != null && requestId != null && targetRevision >= 0 &&
-                  accessRevision >= 0 && sourceRevision >= 0 && filter != null && query != null &&
-                  query.length() <= MAX_QUERY_LENGTH && offset >= 0 && totalSize >= 0 &&
-                  offset <= totalSize && entries.size() <= MAX_WIRE_PAGE_SIZE &&
-                  entries.size() <= totalSize - offset;
+                    frequencyUUID != null && requestId != null && targetRevision >= 0 &&
+                    accessRevision >= 0 && sourceRevision >= 0 && filter != null && query != null &&
+                    query.length() <= MAX_QUERY_LENGTH && offset >= 0 && totalSize >= 0 &&
+                    offset <= totalSize && entries.size() <= MAX_WIRE_PAGE_SIZE &&
+                    entries.size() <= totalSize - offset;
         }
 
         private static void writeUUID(ByteBuf buffer, UUID value) {

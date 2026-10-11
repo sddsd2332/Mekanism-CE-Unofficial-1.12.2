@@ -10,7 +10,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Objects;
 
-/** Session-bound pagination and compare-and-set mutations for maintenance rules. */
+/**
+ * Session-bound pagination and compare-and-set mutations for maintenance rules.
+ */
+
 /**
  * QIO 处理模块中的 QIOMaintenanceRuleService 类型。
  *
@@ -30,69 +33,69 @@ public final class QIOMaintenanceRuleService {
 
     @Nonnull
     public static QIOPage<QIOMaintenanceRule> getPage(
-          @Nonnull QIOProcessingTerminalSession session,
-          @Nonnull QIOProcessingNetworkData network, long currentAccessRevision,
-          @Nullable QIOPageCursor cursor, int requestedPageSize) {
+            @Nonnull QIOProcessingTerminalSession session,
+            @Nonnull QIOProcessingNetworkData network, long currentAccessRevision,
+            @Nullable QIOPageCursor cursor, int requestedPageSize) {
         validateSession(session, network, currentAccessRevision);
         QIOMaintenanceRuleCatalog catalog = network.getMaintenanceRules();
         return QIOPagination.page(catalog.getRules(), catalog.getRulesRevision(),
-              session.getSessionNonce(), cursor, requestedPageSize,
-              MekanismConfig.current().qioProcessing.terminalPageSize.val());
+                session.getSessionNonce(), cursor, requestedPageSize,
+                MekanismConfig.current().qioProcessing.terminalPageSize.val());
     }
 
     @Nonnull
     public static MutationResult mutate(@Nonnull QIOProcessingTerminalSession session,
-          @Nonnull QIOProcessingNetworkData network, long currentAccessRevision,
-          long expectedRulesRevision, @Nonnull QIOMaintenanceRuleMutation mutation,
-          @Nonnull java.util.UUID editor, long currentTick) {
+                                        @Nonnull QIOProcessingNetworkData network, long currentAccessRevision,
+                                        long expectedRulesRevision, @Nonnull QIOMaintenanceRuleMutation mutation,
+                                        @Nonnull java.util.UUID editor, long currentTick) {
         validateSession(session, network, currentAccessRevision);
         Objects.requireNonNull(mutation, "mutation");
         Objects.requireNonNull(editor, "editor");
         QIOMaintenanceRuleCatalog catalog = network.getMaintenanceRules();
         if (expectedRulesRevision < 0 || catalog.getRulesRevision() != expectedRulesRevision) {
             return result(MutationStatus.REVISION_CONFLICT, catalog,
-                  mutation.getRuleId());
+                    mutation.getRuleId());
         }
         try {
             QIOMaintenanceRule authoritative;
             switch (mutation.getKind()) {
                 case CREATE -> {
                     java.util.List<QIOMaintenanceRule> existing = catalog.groupedRules().get(
-                          mutation.getResource());
+                            mutation.getResource());
                     if (existing == null || existing.isEmpty()) {
                         authoritative = network.createMaintenanceRule(
-                              mutation.getResource(), editor, mutation.isEnabled(),
-                              mutation.getTriggerAmount(), mutation.getTargetAmount(),
-                              mutation.getMaximumSingleRequest(), mutation.getJobPriority(),
-                              mutation.getRetryIntervalTicks(), currentTick,
-                              MekanismConfig.current().qioProcessing.
-                                    maintenanceRulesPerFrequency.val());
+                                mutation.getResource(), editor, mutation.isEnabled(),
+                                mutation.getTriggerAmount(), mutation.getTargetAmount(),
+                                mutation.getMaximumSingleRequest(), mutation.getJobPriority(),
+                                mutation.getRetryIntervalTicks(), currentTick,
+                                MekanismConfig.current().qioProcessing.
+                                        maintenanceRulesPerFrequency.val());
                     } else {
                         if (existing.size() != 1) {
                             throw new IllegalStateException(
-                                  "Maintenance resource has duplicate rules");
+                                    "Maintenance resource has duplicate rules");
                         }
                         QIOMaintenanceRule current = existing.get(0);
                         network.updateMaintenanceRule(current.getRuleId(),
-                              current.getRuleRevision(), editor, mutation.isEnabled(),
-                              mutation.getTriggerAmount(), mutation.getTargetAmount(),
-                              mutation.getMaximumSingleRequest(), mutation.getJobPriority(),
-                              mutation.getRetryIntervalTicks(), currentTick);
+                                current.getRuleRevision(), editor, mutation.isEnabled(),
+                                mutation.getTriggerAmount(), mutation.getTargetAmount(),
+                                mutation.getMaximumSingleRequest(), mutation.getJobPriority(),
+                                mutation.getRetryIntervalTicks(), currentTick);
                         authoritative = catalog.get(current.getRuleId());
                     }
                 }
                 case UPDATE -> {
                     network.updateMaintenanceRule(mutation.getRuleId(),
-                          mutation.getExpectedRuleRevision(), editor,
-                          mutation.isEnabled(), mutation.getTriggerAmount(),
-                          mutation.getTargetAmount(), mutation.getMaximumSingleRequest(),
-                          mutation.getJobPriority(), mutation.getRetryIntervalTicks(),
-                          currentTick);
+                            mutation.getExpectedRuleRevision(), editor,
+                            mutation.isEnabled(), mutation.getTriggerAmount(),
+                            mutation.getTargetAmount(), mutation.getMaximumSingleRequest(),
+                            mutation.getJobPriority(), mutation.getRetryIntervalTicks(),
+                            currentTick);
                     authoritative = catalog.get(mutation.getRuleId());
                 }
                 case DELETE -> {
                     network.removeMaintenanceRule(mutation.getRuleId(),
-                          mutation.getExpectedRuleRevision());
+                            mutation.getExpectedRuleRevision());
                     authoritative = null;
                 }
                 default -> throw new IllegalStateException("Unknown maintenance mutation");
@@ -100,19 +103,19 @@ public final class QIOMaintenanceRuleService {
             catalog.requestImmediateEvaluation();
             network.markMaintenanceRuntimeChanged();
             return new MutationResult(MutationStatus.APPLIED,
-                  catalog.getRulesRevision(), authoritative);
+                    catalog.getRulesRevision(), authoritative);
         } catch (IllegalArgumentException | IllegalStateException e) {
             return result(MutationStatus.INVALID_TARGET, catalog, mutation.getRuleId());
         }
     }
 
     private static MutationResult result(MutationStatus status,
-          QIOMaintenanceRuleCatalog catalog, @Nullable java.util.UUID ruleId) {
+                                         QIOMaintenanceRuleCatalog catalog, @Nullable java.util.UUID ruleId) {
         return new MutationResult(status, catalog.getRulesRevision(), catalog.get(ruleId));
     }
 
     private static void validateSession(QIOProcessingTerminalSession session,
-          QIOProcessingNetworkData network, long currentAccessRevision) {
+                                        QIOProcessingNetworkData network, long currentAccessRevision) {
         Objects.requireNonNull(session, "session");
         Objects.requireNonNull(network, "network");
         if (!session.isOpen()) {
@@ -122,11 +125,11 @@ public final class QIOMaintenanceRuleService {
             throw new SecurityException("This terminal session cannot manage maintenance rules");
         }
         if (session.getFrequencyUUID() == null ||
-            !session.getFrequencyUUID().equals(network.getFrequencyUUID())) {
+                !session.getFrequencyUUID().equals(network.getFrequencyUUID())) {
             throw new SecurityException("QIO terminal session targets another frequency");
         }
         if (currentAccessRevision < 0 ||
-            session.getAccessRevision() != currentAccessRevision) {
+                session.getAccessRevision() != currentAccessRevision) {
             throw new IllegalStateException("QIO frequency access changed during the session");
         }
     }
@@ -139,7 +142,7 @@ public final class QIOMaintenanceRuleService {
         private final QIOMaintenanceRule authoritativeRule;
 
         private MutationResult(MutationStatus status, long rulesRevision,
-              @Nullable QIOMaintenanceRule authoritativeRule) {
+                               @Nullable QIOMaintenanceRule authoritativeRule) {
             this.status = Objects.requireNonNull(status, "status");
             this.rulesRevision = rulesRevision;
             this.authoritativeRule = authoritativeRule;

@@ -5,7 +5,6 @@ import mekanism.api.IEvaporationSolar;
 import mekanism.common.base.IBoundingBlock;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.config.MekanismConfig;
-import mekanism.common.util.MekanismUtils;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;

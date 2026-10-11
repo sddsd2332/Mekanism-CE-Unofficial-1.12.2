@@ -80,7 +80,7 @@ public class TileEntityDimensionalStabilizer extends TileEntityMachine implement
     protected IEnergyContainerHolder getInitialEnergyContainers(IContentsListener listener) {
         EnergyContainerHelper builder = createEnergyContainerHelper();
         builder.addContainer(energyContainer = MachineEnergyContainer.input(this::getEnergy, this::setEnergy, this::getMaxEnergy, this::getEnergyUsage, listener),
-              RelativeSide.BACK);
+                RelativeSide.BACK);
         return builder.build();
     }
 
@@ -280,6 +280,20 @@ public class TileEntityDimensionalStabilizer extends TileEntityMachine implement
     @Override
     public int getRedstoneLevel() {
         return getActive() ? 15 : 0;
+    }
+
+    @Override
+    public int getCurrentRedstoneLevel() {
+        return getRedstoneLevel();
+    }
+
+    /**
+     * The stabilizer comparator reflects its active state, not any container contents.
+     * Energy and inventory changes are therefore save-only notifications.
+     */
+    @Override
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return false;
     }
 
     @Override

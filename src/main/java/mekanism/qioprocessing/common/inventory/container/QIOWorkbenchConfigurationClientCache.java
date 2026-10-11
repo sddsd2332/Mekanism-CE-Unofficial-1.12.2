@@ -2,25 +2,23 @@ package mekanism.qioprocessing.common.inventory.container;
 
 import mekanism.qioprocessing.api.resource.PortableResourceDescriptor;
 import mekanism.qioprocessing.common.content.workbench.QIOWorkbenchConfigurationMutation;
-import mekanism.qioprocessing.common.util.QIORecipeStackUtils;
 import mekanism.qioprocessing.common.network.PacketQIOWorkbenchConfigurationData.Status;
 import mekanism.qioprocessing.common.network.PacketQIOWorkbenchConfigurationRequest.Operation;
+import mekanism.qioprocessing.common.terminal.QIOWorkbenchClosurePreview;
 import mekanism.qioprocessing.common.terminal.QIOWorkbenchConfigurationSnapshot;
 import mekanism.qioprocessing.common.terminal.QIOWorkbenchConfigurationSnapshot.PageKind;
 import mekanism.qioprocessing.common.terminal.QIOWorkbenchCopyPreview;
-import mekanism.qioprocessing.common.terminal.QIOWorkbenchClosurePreview;
+import mekanism.qioprocessing.common.util.QIORecipeStackUtils;
 import net.minecraft.item.ItemStack;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
-/** Bounded sparse workbench pages plus copy and editor state for the active terminal. */
+/**
+ * Bounded sparse workbench pages plus copy and editor state for the active terminal.
+ */
+
 /**
  * QIO 处理模块中的 QIOWorkbenchConfigurationClientCache 类型。
  *
@@ -31,24 +29,35 @@ public final class QIOWorkbenchConfigurationClientCache {
 
     private static final int MAX_CACHED_PAGES = 8;
     public static final int MAX_BATCH_TARGETS =
-          QIOWorkbenchConfigurationMutation.MAX_BATCH_TARGETS;
+            QIOWorkbenchConfigurationMutation.MAX_BATCH_TARGETS;
 
     private final Map<Integer, QIOWorkbenchConfigurationSnapshot> productPages =
-          pageCache();
+            pageCache();
     private final Map<Integer, QIOWorkbenchConfigurationSnapshot> recipePages =
-          pageCache();
+            pageCache();
 
-    @Nullable private UUID expectedProductRequest;
-    @Nullable private UUID expectedRecipeRequest;
-    @Nullable private UUID expectedCandidateRequest;
-    @Nullable private UUID expectedMutationRequest;
-    @Nullable private UUID expectedCopyRequest;
-    @Nullable private UUID expectedClosureRequest;
-    @Nullable private QIOWorkbenchConfigurationSnapshot productPage;
-    @Nullable private QIOWorkbenchConfigurationSnapshot recipePage;
-    @Nullable private QIOWorkbenchConfigurationSnapshot candidatePage;
-    @Nullable private QIOWorkbenchCopyPreview copyPreview;
-    @Nullable private QIOWorkbenchClosurePreview closurePreview;
+    @Nullable
+    private UUID expectedProductRequest;
+    @Nullable
+    private UUID expectedRecipeRequest;
+    @Nullable
+    private UUID expectedCandidateRequest;
+    @Nullable
+    private UUID expectedMutationRequest;
+    @Nullable
+    private UUID expectedCopyRequest;
+    @Nullable
+    private UUID expectedClosureRequest;
+    @Nullable
+    private QIOWorkbenchConfigurationSnapshot productPage;
+    @Nullable
+    private QIOWorkbenchConfigurationSnapshot recipePage;
+    @Nullable
+    private QIOWorkbenchConfigurationSnapshot candidatePage;
+    @Nullable
+    private QIOWorkbenchCopyPreview copyPreview;
+    @Nullable
+    private QIOWorkbenchClosurePreview closurePreview;
     private Status productStatus = Status.UNAVAILABLE;
     private Status recipeStatus = Status.UNAVAILABLE;
     private Status candidateStatus = Status.UNAVAILABLE;
@@ -93,7 +102,7 @@ public final class QIOWorkbenchConfigurationClientCache {
     }
 
     public boolean applyPage(@Nonnull UUID requestId, @Nonnull Status status,
-          @Nonnull QIOWorkbenchConfigurationSnapshot snapshot) {
+                             @Nonnull QIOWorkbenchConfigurationSnapshot snapshot) {
         if (status != Status.OK) {
             return false;
         }
@@ -102,7 +111,7 @@ public final class QIOWorkbenchConfigurationClientCache {
                 if (!requestId.equals(expectedProductRequest)) yield false;
                 expectedProductRequest = null;
                 boolean changedDirectory = productPage == null ||
-                      !sameProductDirectory(productPage, snapshot);
+                        !sameProductDirectory(productPage, snapshot);
                 if (changedDirectory) {
                     productPages.clear();
                     productDirectoryGeneration = next(productDirectoryGeneration);
@@ -121,7 +130,7 @@ public final class QIOWorkbenchConfigurationClientCache {
                 if (!requestId.equals(expectedRecipeRequest)) yield false;
                 expectedRecipeRequest = null;
                 boolean changedDirectory = recipePage == null ||
-                      !sameRecipeDirectory(recipePage, snapshot);
+                        !sameRecipeDirectory(recipePage, snapshot);
                 if (changedDirectory) {
                     recipePages.clear();
                     recipeDirectoryGeneration = next(recipeDirectoryGeneration);
@@ -148,7 +157,7 @@ public final class QIOWorkbenchConfigurationClientCache {
     }
 
     public boolean applyUnavailable(@Nonnull Operation operation, @Nonnull UUID requestId,
-          @Nonnull Status status) {
+                                    @Nonnull Status status) {
         return switch (operation) {
             case PRODUCTS -> {
                 if (!requestId.equals(expectedProductRequest)) yield false;
@@ -191,7 +200,7 @@ public final class QIOWorkbenchConfigurationClientCache {
         expectedMutationRequest = null;
         mutationStatus = status;
         if (status == Status.APPLIED || status == Status.REVISION_CONFLICT ||
-            status == Status.CATALOG_CHANGED) {
+                status == Status.CATALOG_CHANGED) {
             clearPages();
         }
         mutationGeneration = next(mutationGeneration);
@@ -199,9 +208,9 @@ public final class QIOWorkbenchConfigurationClientCache {
     }
 
     public boolean applyCopy(@Nonnull UUID requestId, @Nonnull Status status,
-          @Nullable QIOWorkbenchCopyPreview preview) {
+                             @Nullable QIOWorkbenchCopyPreview preview) {
         if (!requestId.equals(expectedCopyRequest) ||
-            status == Status.READY != (preview != null)) {
+                status == Status.READY != (preview != null)) {
             return false;
         }
         expectedCopyRequest = null;
@@ -215,9 +224,9 @@ public final class QIOWorkbenchConfigurationClientCache {
     }
 
     public boolean applyClosure(@Nonnull UUID requestId, @Nonnull Status status,
-          @Nullable QIOWorkbenchClosurePreview preview) {
+                                @Nullable QIOWorkbenchClosurePreview preview) {
         if (!requestId.equals(expectedClosureRequest) ||
-            (status == Status.READY) != (preview != null)) {
+                status == Status.READY && preview == null) {
             return false;
         }
         expectedClosureRequest = null;
@@ -281,14 +290,14 @@ public final class QIOWorkbenchConfigurationClientCache {
     @Nonnull
     public ItemStack getEncodingSlot(int slot) {
         if (slot < 0 || slot >= 9) return ItemStack.EMPTY;
-        return QIORecipeStackUtils.copyForRecipeSelection(encodingGrid.get(slot));
+        return QIORecipeStackUtils.copyComplete(encodingGrid.get(slot));
     }
 
     public void setEncodingSlot(int slot, @Nullable ItemStack stack) {
         if (slot < 0 || slot >= 9) {
             throw new IllegalArgumentException("Workbench encoding slot is outside the 3x3 grid");
         }
-        ItemStack copy = QIORecipeStackUtils.copyForRecipeSelection(stack, 1);
+        ItemStack copy = QIORecipeStackUtils.copyComplete(stack, 1);
         encodingGrid.set(slot, copy);
     }
 
@@ -304,7 +313,7 @@ public final class QIOWorkbenchConfigurationClientCache {
     @Nonnull
     public List<ItemStack> getEncodingGrid() {
         List<ItemStack> copy = new ArrayList<>(9);
-        encodingGrid.forEach(stack -> copy.add(QIORecipeStackUtils.copyForRecipeSelection(stack)));
+        encodingGrid.forEach(stack -> copy.add(QIORecipeStackUtils.copyComplete(stack)));
         return Collections.unmodifiableList(copy);
     }
 
@@ -320,7 +329,7 @@ public final class QIOWorkbenchConfigurationClientCache {
         if (stack == null || stack.isEmpty() || batchTargets.size() >= MAX_BATCH_TARGETS) {
             return false;
         }
-        ItemStack copy = QIORecipeStackUtils.copyForRecipeSelection(stack, 1);
+        ItemStack copy = QIORecipeStackUtils.copyComplete(stack, 1);
         if (copy.isEmpty()) return false;
         PortableResourceDescriptor descriptor;
         try {
@@ -351,13 +360,13 @@ public final class QIOWorkbenchConfigurationClientCache {
     @Nonnull
     public ItemStack getBatchTarget(int index) {
         return index < 0 || index >= batchTargets.size() ? ItemStack.EMPTY :
-              QIORecipeStackUtils.copyForRecipeSelection(batchTargets.get(index));
+                QIORecipeStackUtils.copyComplete(batchTargets.get(index));
     }
 
     @Nonnull
     public List<ItemStack> getBatchTargets() {
         List<ItemStack> copy = new ArrayList<>(batchTargets.size());
-        batchTargets.forEach(stack -> copy.add(QIORecipeStackUtils.copyForRecipeSelection(stack)));
+        batchTargets.forEach(stack -> copy.add(QIORecipeStackUtils.copyComplete(stack)));
         return Collections.unmodifiableList(copy);
     }
 
@@ -379,25 +388,92 @@ public final class QIOWorkbenchConfigurationClientCache {
         batchTargets.clear();
     }
 
-    @Nullable public QIOWorkbenchConfigurationSnapshot getProductPage() { return productPage; }
-    @Nullable public QIOWorkbenchConfigurationSnapshot getRecipePage() { return recipePage; }
-    @Nullable public QIOWorkbenchConfigurationSnapshot getCandidatePage() { return candidatePage; }
-    @Nullable public QIOWorkbenchCopyPreview getCopyPreview() { return copyPreview; }
-    @Nullable public QIOWorkbenchClosurePreview getClosurePreview() { return closurePreview; }
-    @Nonnull public Status getProductStatus() { return productStatus; }
-    @Nonnull public Status getRecipeStatus() { return recipeStatus; }
-    @Nonnull public Status getCandidateStatus() { return candidateStatus; }
-    @Nonnull public Status getMutationStatus() { return mutationStatus; }
-    @Nonnull public Status getCopyStatus() { return copyStatus; }
-    @Nonnull public Status getClosureStatus() { return closureStatus; }
-    public long getProductGeneration() { return productGeneration; }
-    public long getRecipeGeneration() { return recipeGeneration; }
-    public long getCandidateGeneration() { return candidateGeneration; }
-    public long getMutationGeneration() { return mutationGeneration; }
-    public long getCopyGeneration() { return copyGeneration; }
-    public long getClosureGeneration() { return closureGeneration; }
-    public long getProductDirectoryGeneration() { return productDirectoryGeneration; }
-    public long getRecipeDirectoryGeneration() { return recipeDirectoryGeneration; }
+    @Nullable
+    public QIOWorkbenchConfigurationSnapshot getProductPage() {
+        return productPage;
+    }
+
+    @Nullable
+    public QIOWorkbenchConfigurationSnapshot getRecipePage() {
+        return recipePage;
+    }
+
+    @Nullable
+    public QIOWorkbenchConfigurationSnapshot getCandidatePage() {
+        return candidatePage;
+    }
+
+    @Nullable
+    public QIOWorkbenchCopyPreview getCopyPreview() {
+        return copyPreview;
+    }
+
+    @Nullable
+    public QIOWorkbenchClosurePreview getClosurePreview() {
+        return closurePreview;
+    }
+
+    @Nonnull
+    public Status getProductStatus() {
+        return productStatus;
+    }
+
+    @Nonnull
+    public Status getRecipeStatus() {
+        return recipeStatus;
+    }
+
+    @Nonnull
+    public Status getCandidateStatus() {
+        return candidateStatus;
+    }
+
+    @Nonnull
+    public Status getMutationStatus() {
+        return mutationStatus;
+    }
+
+    @Nonnull
+    public Status getCopyStatus() {
+        return copyStatus;
+    }
+
+    @Nonnull
+    public Status getClosureStatus() {
+        return closureStatus;
+    }
+
+    public long getProductGeneration() {
+        return productGeneration;
+    }
+
+    public long getRecipeGeneration() {
+        return recipeGeneration;
+    }
+
+    public long getCandidateGeneration() {
+        return candidateGeneration;
+    }
+
+    public long getMutationGeneration() {
+        return mutationGeneration;
+    }
+
+    public long getCopyGeneration() {
+        return copyGeneration;
+    }
+
+    public long getClosureGeneration() {
+        return closureGeneration;
+    }
+
+    public long getProductDirectoryGeneration() {
+        return productDirectoryGeneration;
+    }
+
+    public long getRecipeDirectoryGeneration() {
+        return recipeDirectoryGeneration;
+    }
 
     public int getProductTotalSize() {
         return productPage == null ? 0 : productPage.getTotalSize();
@@ -411,7 +487,7 @@ public final class QIOWorkbenchConfigurationClientCache {
     public QIOWorkbenchConfigurationSnapshot.Product getProduct(int index) {
         if (index < 0 || index >= getProductTotalSize()) return null;
         for (QIOWorkbenchConfigurationSnapshot page :
-              new ArrayList<>(productPages.values())) {
+                new ArrayList<>(productPages.values())) {
             int local = index - page.getOffset();
             if (local >= 0 && local < page.getProducts().size()) {
                 productPages.get(page.getOffset());
@@ -425,7 +501,7 @@ public final class QIOWorkbenchConfigurationClientCache {
     public QIOWorkbenchConfigurationSnapshot.Recipe getRecipe(int index) {
         if (index < 0 || index >= getRecipeTotalSize()) return null;
         for (QIOWorkbenchConfigurationSnapshot page :
-              new ArrayList<>(recipePages.values())) {
+                new ArrayList<>(recipePages.values())) {
             int local = index - page.getOffset();
             if (local >= 0 && local < page.getRecipes().size()) {
                 recipePages.get(page.getOffset());
@@ -446,7 +522,7 @@ public final class QIOWorkbenchConfigurationClientCache {
     @Nullable
     public QIOWorkbenchConfigurationSnapshot.Product findProduct(String productKey) {
         for (QIOWorkbenchConfigurationSnapshot page :
-              new ArrayList<>(productPages.values())) {
+                new ArrayList<>(productPages.values())) {
             for (QIOWorkbenchConfigurationSnapshot.Product product : page.getProducts()) {
                 if (product.getProductKey().equals(productKey)) {
                     productPages.get(page.getOffset());
@@ -457,9 +533,26 @@ public final class QIOWorkbenchConfigurationClientCache {
         return null;
     }
 
+    /** Dependent pages may only be requested after the current parent page arrives. */
+    public boolean canRequestRecipes(@Nullable String productKey) {
+        return productKey != null && findProduct(productKey) != null;
+    }
+
+    public boolean canRequestCandidates(@Nullable String productKey, @Nullable String recipeId,
+                                        @Nullable String recipeSignature, int ingredientSlot) {
+        if (!canRequestRecipes(productKey) || recipePage == null || recipeId == null ||
+                recipeSignature == null || !productKey.equals(recipePage.getProductKey())) return false;
+        QIOWorkbenchConfigurationSnapshot.Recipe recipe = findRecipe(recipeId);
+        if (recipe == null || !recipeSignature.equals(recipe.getSignature())) return false;
+        for (QIOWorkbenchConfigurationSnapshot.Ingredient ingredient : recipe.getIngredients()) {
+            if (ingredient.getSlot() == ingredientSlot) return !ingredient.isEmpty();
+        }
+        return false;
+    }
+
     public int findProductIndex(String productKey) {
         for (QIOWorkbenchConfigurationSnapshot page :
-              new ArrayList<>(productPages.values())) {
+                new ArrayList<>(productPages.values())) {
             for (int index = 0; index < page.getProducts().size(); index++) {
                 if (page.getProducts().get(index).getProductKey().equals(productKey)) {
                     productPages.get(page.getOffset());
@@ -473,7 +566,7 @@ public final class QIOWorkbenchConfigurationClientCache {
     @Nullable
     public QIOWorkbenchConfigurationSnapshot.Recipe findRecipe(String recipeId) {
         for (QIOWorkbenchConfigurationSnapshot page :
-              new ArrayList<>(recipePages.values())) {
+                new ArrayList<>(recipePages.values())) {
             for (QIOWorkbenchConfigurationSnapshot.Recipe recipe : page.getRecipes()) {
                 if (recipe.getRecipeId().equals(recipeId)) {
                     recipePages.get(page.getOffset());
@@ -488,40 +581,40 @@ public final class QIOWorkbenchConfigurationClientCache {
     public QIOWorkbenchConfigurationSnapshot.Product getFirstLoadedProduct() {
         QIOWorkbenchConfigurationSnapshot first = firstPage(productPages);
         return first == null || first.getProducts().isEmpty() ? null :
-              first.getProducts().get(0);
+                first.getProducts().get(0);
     }
 
     @Nullable
     public QIOWorkbenchConfigurationSnapshot.Recipe getFirstLoadedRecipe() {
         QIOWorkbenchConfigurationSnapshot first = firstPage(recipePages);
         return first == null || first.getRecipes().isEmpty() ? null :
-              first.getRecipes().get(0);
+                first.getRecipes().get(0);
     }
 
     private static boolean sameProductDirectory(QIOWorkbenchConfigurationSnapshot first,
-          QIOWorkbenchConfigurationSnapshot second) {
+                                                QIOWorkbenchConfigurationSnapshot second) {
         return sameSource(first, second) && first.getTotalSize() == second.getTotalSize() &&
-              first.getQuery().equals(second.getQuery());
+                first.getQuery().equals(second.getQuery());
     }
 
     private static boolean sameRecipeDirectory(QIOWorkbenchConfigurationSnapshot first,
-          QIOWorkbenchConfigurationSnapshot second) {
+                                               QIOWorkbenchConfigurationSnapshot second) {
         return sameSource(first, second) && first.getTotalSize() == second.getTotalSize() &&
-              first.getProductKey().equals(second.getProductKey());
+                first.getProductKey().equals(second.getProductKey());
     }
 
     private static boolean sameSource(QIOWorkbenchConfigurationSnapshot first,
-          QIOWorkbenchConfigurationSnapshot second) {
+                                      QIOWorkbenchConfigurationSnapshot second) {
         return first.getConfigUUID().equals(second.getConfigUUID()) &&
-              first.getConfigurationRevision() == second.getConfigurationRevision() &&
-              first.getCatalogRevision() == second.getCatalogRevision();
+                first.getConfigurationRevision() == second.getConfigurationRevision() &&
+                first.getCatalogRevision() == second.getCatalogRevision();
     }
 
     private static Map<Integer, QIOWorkbenchConfigurationSnapshot> pageCache() {
         return new LinkedHashMap<>(8, 0.75F, true) {
             @Override
             protected boolean removeEldestEntry(
-                  Map.Entry<Integer, QIOWorkbenchConfigurationSnapshot> eldest) {
+                    Map.Entry<Integer, QIOWorkbenchConfigurationSnapshot> eldest) {
                 return size() > MAX_CACHED_PAGES;
             }
         };
@@ -529,7 +622,7 @@ public final class QIOWorkbenchConfigurationClientCache {
 
     @Nullable
     private static QIOWorkbenchConfigurationSnapshot firstPage(
-          Map<Integer, QIOWorkbenchConfigurationSnapshot> pages) {
+            Map<Integer, QIOWorkbenchConfigurationSnapshot> pages) {
         QIOWorkbenchConfigurationSnapshot first = null;
         for (QIOWorkbenchConfigurationSnapshot page : pages.values()) {
             if (first == null || page.getOffset() < first.getOffset()) first = page;

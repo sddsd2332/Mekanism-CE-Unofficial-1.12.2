@@ -6,19 +6,12 @@ import mekanism.qioprocessing.common.content.plan.QIOCandidateOption;
 import mekanism.qioprocessing.common.content.plan.QIOPlanStep;
 import mekanism.qioprocessing.common.terminal.QIOCraftingMonitorPlanEntry;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Deque;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.PriorityQueue;
-import java.util.Set;
+import java.util.*;
 
-/** Iterative AE-style tree layout primitives kept independent from rendering and client state. */
+/**
+ * Iterative AE-style tree layout primitives kept independent from rendering and client state.
+ */
+
 /**
  * QIO 处理模块中的 QIOCraftingPlanLayout 类型。
  *
@@ -43,7 +36,7 @@ final class QIOCraftingPlanLayout {
     }
 
     static Map<Long, Integer> depths(Set<Long> nodeIds,
-          Map<Long, List<Long>> dependencies) {
+                                     Map<Long, List<Long>> dependencies) {
         Map<Long, Integer> indegrees = new LinkedHashMap<>();
         Map<Long, List<Long>> consumers = new LinkedHashMap<>();
         Map<Long, Integer> depths = new LinkedHashMap<>();
@@ -58,7 +51,9 @@ final class QIOCraftingPlanLayout {
             depths.put(nodeId, 0);
         }
         PriorityQueue<Long> ready = new PriorityQueue<>();
-        indegrees.forEach((nodeId, degree) -> { if (degree == 0) ready.add(nodeId); });
+        indegrees.forEach((nodeId, degree) -> {
+            if (degree == 0) ready.add(nodeId);
+        });
         int visited = 0;
         while (!ready.isEmpty()) {
             long dependency = ready.remove();
@@ -67,7 +62,7 @@ final class QIOCraftingPlanLayout {
             for (long consumer : consumers.getOrDefault(dependency, Collections.emptyList())) {
                 depths.put(consumer, Math.max(depths.getOrDefault(consumer, 0), nextDepth));
                 int degree = indegrees.computeIfPresent(consumer,
-                      (ignored, value) -> value - 1);
+                        (ignored, value) -> value - 1);
                 if (degree == 0) ready.add(consumer);
             }
         }
@@ -83,7 +78,7 @@ final class QIOCraftingPlanLayout {
      * A shared dependency intentionally gets a separate occurrence below every consumer.
      */
     static Tree tree(Set<Long> nodeIds, Map<Long, List<Long>> dependencies,
-          List<Long> rootDependencies) {
+                     List<Long> rootDependencies) {
         List<TreeNode> nodes = new ArrayList<>();
         TreeNode root = new TreeNode(Long.MIN_VALUE, true, 0);
         nodes.add(root);
@@ -108,8 +103,8 @@ final class QIOCraftingPlanLayout {
 
                 boolean addedToPath = activePath.add(dependency);
                 List<Long> children = addedToPath ? filteredDependencies(
-                      dependencies.getOrDefault(dependency, Collections.emptyList()), nodeIds) :
-                      Collections.emptyList();
+                        dependencies.getOrDefault(dependency, Collections.emptyList()), nodeIds) :
+                        Collections.emptyList();
                 stack.push(new ExpansionFrame(child, children, addedToPath));
             } else {
                 stack.pop();
@@ -145,14 +140,14 @@ final class QIOCraftingPlanLayout {
         }
         if (!nodes.isEmpty()) {
             totalHeight = ROOT_MARGIN_TOP + NODE_TOTAL_HEIGHT +
-                  maxDepth * NODE_TOTAL_HEIGHT;
+                    maxDepth * NODE_TOTAL_HEIGHT;
         }
         return new Tree(Collections.unmodifiableList(nodes), root.subtreeWidth, totalHeight,
-              truncated);
+                truncated);
     }
 
     private static List<Long> filteredDependencies(List<Long> dependencies,
-          Set<Long> nodeIds) {
+                                                   Set<Long> nodeIds) {
         if (dependencies.isEmpty()) return Collections.emptyList();
         LinkedHashSet<Long> filtered = new LinkedHashSet<>();
         for (Long dependency : dependencies) {
@@ -162,8 +157,8 @@ final class QIOCraftingPlanLayout {
     }
 
     static List<MaterialLeaf> externalInputLeaves(
-          QIOCraftingMonitorPlanEntry entry, Set<Long> dependencyIds,
-          Map<Long, QIOCraftingMonitorPlanEntry> entries) {
+            QIOCraftingMonitorPlanEntry entry, Set<Long> dependencyIds,
+            Map<Long, QIOCraftingMonitorPlanEntry> entries) {
         Set<PortableResourceDescriptor> produced = new LinkedHashSet<>();
         for (long dependencyId : dependencyIds) {
             QIOCraftingMonitorPlanEntry dependency = entries.get(dependencyId);
@@ -183,22 +178,22 @@ final class QIOCraftingPlanLayout {
             step.getFixedInputs().forEach((resource, amount) -> {
                 if (!produced.contains(resource)) {
                     required.add(MaterialLeaf.exact(resource,
-                          saturatedMultiply(amount, step.getOperations())));
+                            saturatedMultiply(amount, step.getOperations())));
                 }
             });
             for (QIOCandidateInputGroup group : step.getCandidateInputs()) {
                 long externalUnitsPerOperation = 0;
                 for (Map.Entry<PortableResourceDescriptor, Long> planned :
-                      group.getPlannedInputs().entrySet()) {
+                        group.getPlannedInputs().entrySet()) {
                     if (produced.contains(planned.getKey())) continue;
                     QIOCandidateOption option = optionFor(group, planned.getKey());
                     if (option != null) {
                         externalUnitsPerOperation = saturatedAdd(externalUnitsPerOperation,
-                              planned.getValue() / option.getAmountPerUnit());
+                                planned.getValue() / option.getAmountPerUnit());
                     }
                 }
                 long requiredUnits = saturatedMultiply(externalUnitsPerOperation,
-                      step.getOperations());
+                        step.getOperations());
                 if (requiredUnits > 0) {
                     mergeCandidateLeaf(required, group.getOptions(), requiredUnits);
                 }
@@ -206,20 +201,20 @@ final class QIOCraftingPlanLayout {
         } else {
             entry.getCycle().getSeedRequirements().forEach((resource, amount) -> {
                 if (!produced.contains(resource)) required.add(MaterialLeaf.exact(resource,
-                      amount));
+                        amount));
             });
         }
         return required.isEmpty() ? Collections.emptyList() :
-              Collections.unmodifiableList(required);
+                Collections.unmodifiableList(required);
     }
 
     private static void mergeCandidateLeaf(List<MaterialLeaf> required,
-          List<QIOCandidateOption> options, long requiredUnits) {
+                                           List<QIOCandidateOption> options, long requiredUnits) {
         for (int index = 0; index < required.size(); index++) {
             MaterialLeaf leaf = required.get(index);
             if (sameDisplayedOptions(leaf.getOptions(), options)) {
                 required.set(index, MaterialLeaf.candidate(options,
-                      saturatedAdd(leaf.getRequiredUnits(), requiredUnits)));
+                        saturatedAdd(leaf.getRequiredUnits(), requiredUnits)));
                 return;
             }
         }
@@ -227,14 +222,14 @@ final class QIOCraftingPlanLayout {
     }
 
     private static boolean sameDisplayedOptions(List<QIOCandidateOption> left,
-          List<QIOCandidateOption> right) {
+                                                List<QIOCandidateOption> right) {
         if (left.isEmpty() || left.size() != right.size()) return false;
         for (int index = 0; index < left.size(); index++) {
             QIOCandidateOption first = left.get(index);
             QIOCandidateOption second = right.get(index);
             if (!first.getResource().equals(second.getResource()) ||
-                first.getAmountPerUnit() != second.getAmountPerUnit() ||
-                first.isVirtualFluid() != second.isVirtualFluid()) {
+                    first.getAmountPerUnit() != second.getAmountPerUnit() ||
+                    first.isVirtualFluid() != second.isVirtualFluid()) {
                 return false;
             }
         }
@@ -242,7 +237,7 @@ final class QIOCraftingPlanLayout {
     }
 
     private static QIOCandidateOption optionFor(QIOCandidateInputGroup group,
-          PortableResourceDescriptor resource) {
+                                                PortableResourceDescriptor resource) {
         for (QIOCandidateOption option : group.getOptions()) {
             if (option.getResource().equals(resource)) return option;
         }
@@ -250,21 +245,21 @@ final class QIOCraftingPlanLayout {
     }
 
     static QIOCandidateOption cyclingOption(List<QIOCandidateOption> options,
-          long animationTick) {
+                                            long animationTick) {
         if (options.isEmpty()) return null;
         long phase = Math.max(0, animationTick) / CANDIDATE_CYCLE_TICKS;
         return options.get((int) (phase % options.size()));
     }
 
     static long displayedAmount(long exactAmount, long requiredUnits,
-          List<QIOCandidateOption> options, long animationTick) {
+                                List<QIOCandidateOption> options, long animationTick) {
         QIOCandidateOption option = cyclingOption(options, animationTick);
         return option == null ? exactAmount : saturatedMultiply(requiredUnits,
-              option.getAmountPerUnit());
+                option.getAmountPerUnit());
     }
 
     static long candidateMissingUnits(List<QIOCandidateOption> options,
-          Map<PortableResourceDescriptor, Long> missingAmounts) {
+                                      Map<PortableResourceDescriptor, Long> missingAmounts) {
         long missingUnits = 0;
         Set<PortableResourceDescriptor> counted = new LinkedHashSet<>();
         for (QIOCandidateOption option : options) {
@@ -272,7 +267,7 @@ final class QIOCraftingPlanLayout {
             long amount = missingAmounts.getOrDefault(option.getResource(), 0L);
             if (amount <= 0) continue;
             long units = amount / option.getAmountPerUnit() +
-                  (amount % option.getAmountPerUnit() == 0 ? 0 : 1);
+                    (amount % option.getAmountPerUnit() == 0 ? 0 : 1);
             missingUnits = saturatedAdd(missingUnits, units);
         }
         return missingUnits;
@@ -295,7 +290,7 @@ final class QIOCraftingPlanLayout {
 
     /** Keeps a panned content rectangle intersecting its viewport instead of losing the whole tree. */
     static float clampPanOffset(float offset, float contentStart, float contentEnd,
-          float zoom, int viewportSize, int margin) {
+                                float zoom, int viewportSize, int margin) {
         float lower = margin - contentEnd * zoom;
         float upper = viewportSize - margin - contentStart * zoom;
         if (lower > upper) {
@@ -345,7 +340,7 @@ final class QIOCraftingPlanLayout {
         private final List<QIOCandidateOption> options;
 
         private MaterialLeaf(PortableResourceDescriptor resource, long exactAmount,
-              long requiredUnits, List<QIOCandidateOption> options) {
+                             long requiredUnits, List<QIOCandidateOption> options) {
             this.resource = resource;
             this.exactAmount = exactAmount;
             this.requiredUnits = requiredUnits;
@@ -357,16 +352,27 @@ final class QIOCraftingPlanLayout {
         }
 
         private static MaterialLeaf candidate(List<QIOCandidateOption> options,
-              long requiredUnits) {
+                                              long requiredUnits) {
             List<QIOCandidateOption> checked = Collections.unmodifiableList(
-                  new ArrayList<>(options));
+                    new ArrayList<>(options));
             return new MaterialLeaf(checked.get(0).getResource(), 0, requiredUnits, checked);
         }
 
-        PortableResourceDescriptor getResource() { return resource; }
-        long getExactAmount() { return exactAmount; }
-        long getRequiredUnits() { return requiredUnits; }
-        List<QIOCandidateOption> getOptions() { return options; }
+        PortableResourceDescriptor getResource() {
+            return resource;
+        }
+
+        long getExactAmount() {
+            return exactAmount;
+        }
+
+        long getRequiredUnits() {
+            return requiredUnits;
+        }
+
+        List<QIOCandidateOption> getOptions() {
+            return options;
+        }
     }
 
     static final class TreeNode {
@@ -421,7 +427,7 @@ final class QIOCraftingPlanLayout {
         private int nextDependency;
 
         private ExpansionFrame(TreeNode node, List<Long> dependencies,
-              boolean addedToPath) {
+                               boolean addedToPath) {
             this.node = node;
             this.dependencies = dependencies;
             this.addedToPath = addedToPath;

@@ -16,7 +16,7 @@ public class BloomRendererLargeGasGenerator extends BloomEffect<TileEntityLargeG
     private final TileEntityLargeGasGenerator gasGenerator;
 
     public BloomRendererLargeGasGenerator(TileEntityLargeGasGenerator gasGenerator) {
-        super(gasGenerator,0, 180, 90, 270);
+        super(gasGenerator, 0, 180, 90, 270);
         this.gasGenerator = gasGenerator;
     }
 

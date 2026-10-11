@@ -37,7 +37,7 @@ public class GuiFluidicPlenisher extends GuiMekanismTile<TileEntityFluidicPlenis
         addButton(new GuiInnerScreen(this, 54, 23, 80, 42, this::getScreenText));
         addButton(new GuiDownArrow(this, 32, 39));
         addButton(new GuiVerticalPowerBar(this, tileEntity.getEnergyContainer(), 164, 15))
-              .warning(WarningType.NOT_ENOUGH_ENERGY, () -> tileEntity.getEnergy() < tileEntity.energyPerTick || tileEntity.getEnergy() == 0);
+                .warning(WarningType.NOT_ENOUGH_ENERGY, () -> tileEntity.getEnergy() < tileEntity.energyPerTick || tileEntity.getEnergy() == 0);
         addButton(new GuiFluidGauge(this, tileEntity.fluidTank, 6, 13));
         addButton(new GuiEnergyTab(this, tileEntity.getEnergyContainer(), tileEntity::usedEnergy));
     }

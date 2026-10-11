@@ -2,6 +2,7 @@ package mekanism.qioprocessing.common.order;
 
 import mekanism.api.qio.external.QIOFrequencyReference;
 import mekanism.qioprocessing.api.resource.PortableResourceDescriptor;
+import mekanism.qioprocessing.common.planning.QIOPlanningMetrics;
 import mekanism.qioprocessing.common.planning.QIOPlanningResult;
 
 import javax.annotation.Nonnull;
@@ -9,7 +10,10 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Server-authoritative unlocked planning preview. It owns no QIO material or execution slot. */
+/**
+ * Server-authoritative unlocked planning preview. It owns no QIO material or execution slot.
+ */
+
 /**
  * QIO 处理模块中的 QIOOrderPreview 类型。
  *
@@ -46,20 +50,37 @@ public final class QIOOrderPreview {
     private long mainThreadPreparationNanos;
     private long routePreparationNanos;
     private long schedulingNanos;
+    private long workerNanos;
+    private long validationWaitNanos;
+    private long completionWaitNanos;
     private long planningNanos;
     private long totalNanos;
     private int planningAttempt = 1;
+    private final QIOPlanningMetrics metrics = new QIOPlanningMetrics();
+
+    synchronized void recordMetrics(QIOPlanningMetrics.Snapshot snapshot) {
+        metrics.merge(snapshot);
+    }
+
+    public synchronized QIOPlanningMetrics.Snapshot getMetrics() {
+        metrics.maximum(QIOPlanningMetrics.Metric.MAIN_PREPARATION_NS, mainThreadPreparationNanos);
+        return metrics.snapshot();
+    }
+
+    synchronized void recordMainCpu(long started) {
+        metrics.cpu(QIOPlanningMetrics.Metric.MAIN_PREPARATION_CPU_NS, QIOPlanningMetrics.Metric.MAIN_PREPARATION_CPU_SAMPLES, started);
+    }
 
     QIOOrderPreview(UUID previewId, UUID requester, QIOFrequencyReference frequency,
-          PortableResourceDescriptor target, long amount, long priority, long createdAtTick,
-          long expiresAtTick, boolean mergeOrder, long requestStartedNanos,
-          long mainThreadPreparationNanos) {
+                    PortableResourceDescriptor target, long amount, long priority, long createdAtTick,
+                    long expiresAtTick, boolean mergeOrder, long requestStartedNanos,
+                    long mainThreadPreparationNanos) {
         this.previewId = Objects.requireNonNull(previewId, "previewId");
         this.requester = Objects.requireNonNull(requester, "requester");
         this.frequency = Objects.requireNonNull(frequency, "frequency");
         this.target = Objects.requireNonNull(target, "target");
         if (amount <= 0 || createdAtTick < 0 || expiresAtTick <= createdAtTick ||
-            mainThreadPreparationNanos < 0) {
+                mainThreadPreparationNanos < 0) {
             throw new IllegalArgumentException("Invalid QIO order preview bounds");
         }
         this.amount = amount;
@@ -142,6 +163,22 @@ public final class QIOOrderPreview {
         return schedulingNanos;
     }
 
+    synchronized void recordValidationWait(long nanos) {
+        validationWaitNanos = saturatedAdd(validationWaitNanos, Math.max(0, nanos));
+    }
+
+    public synchronized long getValidationWaitNanos() {
+        return validationWaitNanos;
+    }
+
+    public synchronized long getWorkerNanos() {
+        return workerNanos;
+    }
+
+    public synchronized long getCompletionWaitNanos() {
+        return completionWaitNanos;
+    }
+
     public synchronized long getTotalNanos() {
         return totalNanos;
     }
@@ -152,7 +189,7 @@ public final class QIOOrderPreview {
 
     synchronized void bindTask(UUID taskId) {
         if ((state != State.PREPARING && state != State.PLANNING) ||
-            planningTaskId != null) {
+                planningTaskId != null) {
             throw new IllegalStateException("QIO preview already has a planning task");
         }
         planningTaskId = Objects.requireNonNull(taskId, "taskId");
@@ -165,42 +202,50 @@ public final class QIOOrderPreview {
     }
 
     synchronized boolean retry(long additionalMainThreadPreparationNanos,
-          long routePreparationNanos, long planningNanos, long asynchronousNanos) {
+                               long routePreparationNanos, long planningNanos, long queueNanos,
+                               long workerNanos, long completionWaitNanos) {
         if (state != State.PREPARING && state != State.PLANNING) {
             return false;
         }
         recordTimings(additionalMainThreadPreparationNanos, routePreparationNanos,
-              planningNanos, asynchronousNanos);
+                planningNanos, queueNanos, workerNanos, completionWaitNanos);
         planningTaskId = null;
         result = null;
         state = State.PREPARING;
         planningAttempt = Math.addExact(planningAttempt, 1);
+        metrics.add(QIOPlanningMetrics.Metric.VERSION_RETRIES, 1);
         return true;
     }
 
     synchronized void complete(QIOPlanningResult result, long routePreparationNanos,
-          long planningNanos, long asynchronousNanos) {
+                               long planningNanos, long queueNanos, long workerNanos, long completionWaitNanos) {
         if (state != State.PREPARING && state != State.PLANNING) {
             return;
         }
         this.result = Objects.requireNonNull(result, "result");
-        recordTimings(0, routePreparationNanos, planningNanos, asynchronousNanos);
+        recordTimings(0, routePreparationNanos, planningNanos, queueNanos,
+                workerNanos, completionWaitNanos);
         totalNanos = Math.max(0, System.nanoTime() - requestStartedNanos);
+        metrics.maximum(QIOPlanningMetrics.Metric.TOTAL_NS, totalNanos);
         state = result.getStatus() == QIOPlanningResult.Status.SUCCESS ? State.READY : State.FAILED;
     }
 
     private void recordTimings(long additionalMainThreadPreparationNanos,
-          long routePreparationNanos, long planningNanos, long asynchronousNanos) {
+                               long routePreparationNanos, long planningNanos, long queueNanos,
+                               long workerNanos, long completionWaitNanos) {
         this.mainThreadPreparationNanos = saturatedAdd(this.mainThreadPreparationNanos,
-              Math.max(0, additionalMainThreadPreparationNanos));
+                Math.max(0, additionalMainThreadPreparationNanos));
         this.routePreparationNanos = saturatedAdd(this.routePreparationNanos,
-              Math.max(0, routePreparationNanos));
+                Math.max(0, routePreparationNanos));
         this.planningNanos = saturatedAdd(this.planningNanos, Math.max(0, planningNanos));
-        long accounted = saturatedAdd(Math.max(0, routePreparationNanos),
-              Math.max(0, planningNanos));
-        long scheduling = Math.max(0, asynchronousNanos -
-              Math.min(Math.max(0, asynchronousNanos), accounted));
-        schedulingNanos = saturatedAdd(schedulingNanos, scheduling);
+        // Queue and main-thread delivery are measured boundaries, not wall time minus CPU.
+        schedulingNanos = saturatedAdd(schedulingNanos, Math.max(0, queueNanos));
+        this.workerNanos = saturatedAdd(this.workerNanos, Math.max(0, workerNanos));
+        this.completionWaitNanos = saturatedAdd(this.completionWaitNanos,
+                Math.max(0, completionWaitNanos));
+        metrics.add(QIOPlanningMetrics.Metric.WORKER_QUEUE_NS, queueNanos);
+        metrics.add(QIOPlanningMetrics.Metric.WORKER_NS, workerNanos);
+        metrics.add(QIOPlanningMetrics.Metric.DELIVERY_WAIT_NS, completionWaitNanos);
     }
 
     private static long saturatedAdd(long left, long right) {
@@ -212,15 +257,19 @@ public final class QIOOrderPreview {
             return false;
         }
         state = State.CANCELLED;
+        totalNanos = Math.max(0, System.nanoTime() - requestStartedNanos);
+        metrics.maximum(QIOPlanningMetrics.Metric.TOTAL_NS, totalNanos);
         return true;
     }
 
     synchronized boolean expire(long currentTick) {
         if (currentTick < expiresAtTick || state == State.CONFIRMED ||
-              state == State.CANCELLED || state == State.EXPIRED) {
+                state == State.CANCELLED || state == State.EXPIRED) {
             return false;
         }
         state = State.EXPIRED;
+        totalNanos = Math.max(0, System.nanoTime() - requestStartedNanos);
+        metrics.maximum(QIOPlanningMetrics.Metric.TOTAL_NS, totalNanos);
         return true;
     }
 

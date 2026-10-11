@@ -1,11 +1,6 @@
 package mekanism.common.capabilities.fluid;
 
-import mekanism.api.Action;
-import mekanism.api.AutomationType;
-import mekanism.api.IContentsListener;
-import mekanism.api.IContentsListenerRegistry;
-import mekanism.api.IContentsSnapshot;
-import mekanism.api.NBTConstants;
+import mekanism.api.*;
 import mekanism.api.fluid.ExtendedFluidHandlerUtils;
 import mekanism.api.fluid.IExtendedFluidTank;
 import mekanism.api.functions.ConstantPredicates;
@@ -50,7 +45,7 @@ public class BasicFluidTank implements IExtendedFluidTank, IContentsListenerRegi
     }
 
     public static BasicFluidTank create(int capacity, Predicate<FluidStack> canExtract, Predicate<FluidStack> canInsert, Predicate<FluidStack> validator,
-          @Nullable IContentsListener listener) {
+                                        @Nullable IContentsListener listener) {
         if (capacity < 0) {
             throw new IllegalArgumentException("Capacity must be at least zero");
         }
@@ -61,7 +56,7 @@ public class BasicFluidTank implements IExtendedFluidTank, IContentsListenerRegi
     }
 
     public static BasicFluidTank create(int capacity, BiPredicate<FluidStack, AutomationType> canExtract, BiPredicate<FluidStack, AutomationType> canInsert,
-          Predicate<FluidStack> validator, @Nullable IContentsListener listener) {
+                                        Predicate<FluidStack> validator, @Nullable IContentsListener listener) {
         if (capacity < 0) {
             throw new IllegalArgumentException("Capacity must be at least zero");
         }
@@ -83,13 +78,13 @@ public class BasicFluidTank implements IExtendedFluidTank, IContentsListenerRegi
     private volatile IContentsListener[] additionalListeners;
 
     protected BasicFluidTank(int capacity, Predicate<FluidStack> canExtract, Predicate<FluidStack> canInsert, Predicate<FluidStack> validator,
-          @Nullable IContentsListener listener) {
+                             @Nullable IContentsListener listener) {
         this(capacity, (stack, automationType) -> automationType == AutomationType.MANUAL || canExtract.test(stack), (stack, automationType) -> canInsert.test(stack),
-              validator, listener);
+                validator, listener);
     }
 
     protected BasicFluidTank(int capacity, BiPredicate<FluidStack, AutomationType> canExtract, BiPredicate<FluidStack, AutomationType> canInsert,
-          Predicate<FluidStack> validator, @Nullable IContentsListener listener) {
+                             Predicate<FluidStack> validator, @Nullable IContentsListener listener) {
         this.capacity = capacity;
         this.canExtract = canExtract;
         this.canInsert = canInsert;
@@ -209,7 +204,7 @@ public class BasicFluidTank implements IExtendedFluidTank, IContentsListenerRegi
     @Override
     public void restoreContentsSnapshot(NBTTagCompound snapshot) {
         setStackUncheckedNoUpdate(snapshot.hasKey(NBTConstants.STORED) ?
-              FluidStack.loadFluidStackFromNBT(snapshot.getCompoundTag(NBTConstants.STORED)) : null);
+                FluidStack.loadFluidStackFromNBT(snapshot.getCompoundTag(NBTConstants.STORED)) : null);
     }
 
     @Override

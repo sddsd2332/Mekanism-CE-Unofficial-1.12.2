@@ -14,8 +14,7 @@ import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
 @SideOnly(Side.CLIENT)
-public class GuiLargeSolarNeutronActivator extends GuiMekanismTile<TileEntityLargeSolarNeutronActivator, ContainerLargeSolarNeutronActivator>
-{
+public class GuiLargeSolarNeutronActivator extends GuiMekanismTile<TileEntityLargeSolarNeutronActivator, ContainerLargeSolarNeutronActivator> {
 
     public GuiLargeSolarNeutronActivator(InventoryPlayer inventory, TileEntityLargeSolarNeutronActivator tile) {
         super(tile, new ContainerLargeSolarNeutronActivator(inventory, tile));
@@ -28,12 +27,12 @@ public class GuiLargeSolarNeutronActivator extends GuiMekanismTile<TileEntityLar
     protected void addGuiElements() {
         super.addGuiElements();
         addButton(new GuiGasGauge(this, tileEntity.inputTank, 25, 13)
-              .warning(WarningType.NO_MATCHING_RECIPE, tileEntity::hasWarningNoMatchingRecipe));
+                .warning(WarningType.NO_MATCHING_RECIPE, tileEntity::hasWarningNoMatchingRecipe));
         addButton(new GuiGasGauge(this, tileEntity.outputTank, 133, 13)
-              .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity::hasWarningNoSpaceInOutput));
+                .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity::hasWarningNoSpaceInOutput));
         addButton(new GuiProgress(tileEntity::getActive, ProgressType.LARGE_RIGHT, this, 64, 39))
-              .recipeViewerCategories(RecipeViewerRecipeType.ACTIVATING)
-              .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity::hasWarningInputDoesntProduceOutput);
+                .recipeViewerCategories(RecipeViewerRecipeType.ACTIVATING)
+                .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity::hasWarningInputDoesntProduceOutput);
     }
 
     @Override

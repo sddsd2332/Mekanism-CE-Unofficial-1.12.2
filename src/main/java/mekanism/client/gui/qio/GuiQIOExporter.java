@@ -22,14 +22,14 @@ public class GuiQIOExporter extends GuiQIOFilterHandler<TileEntityQIOExporter, C
         int gap = 1;
         int toggleWidth = (xSize - 18) / 2 - gap;
         addButton(new GuiScreenSwitch(this, 9, 122, toggleWidth, MekanismLang.QIO_EXPORT_WITHOUT_FILTER.translate(),
-              tileEntity::getExportWithoutFilter, (element, mouseX, mouseY) -> {
-                  PacketQIOComponentConfig.toggleFilterless(tileEntity);
-                  return true;
+                tileEntity::getExportWithoutFilter, (element, mouseX, mouseY) -> {
+            PacketQIOComponentConfig.toggleFilterless(tileEntity);
+            return true;
         }));
         addButton(new GuiScreenSwitch(this, 9 + toggleWidth + 2 * gap, 122, toggleWidth,
-              MekanismLang.QIO_EXPORTER_ROUND_ROBIN.translate(), tileEntity::getRoundRobin, (element, mouseX, mouseY) -> {
-                  PacketQIOComponentConfig.toggleRoundRobin(tileEntity);
-                  return true;
-              }).tooltip(() -> java.util.Collections.singletonList(MekanismLang.QIO_EXPORTER_ROUND_ROBIN_DESCRIPTION.translate())));
+                MekanismLang.QIO_EXPORTER_ROUND_ROBIN.translate(), tileEntity::getRoundRobin, (element, mouseX, mouseY) -> {
+            PacketQIOComponentConfig.toggleRoundRobin(tileEntity);
+            return true;
+        }).tooltip(() -> java.util.Collections.singletonList(MekanismLang.QIO_EXPORTER_ROUND_ROBIN_DESCRIPTION.translate())));
     }
 }

@@ -22,15 +22,15 @@ public class GuiHybridGauge extends GuiGauge<Void> {
     private ITextComponent label;
 
     public GuiHybridGauge(Supplier<IExtendedGasTank> gasTankSupplier, Supplier<List<IExtendedGasTank>> gasTanksSupplier,
-          Supplier<IExtendedFluidTank> fluidTankSupplier, Supplier<List<IExtendedFluidTank>> fluidTanksSupplier, GaugeType type,
-          IGuiWrapper gui, int x, int y) {
+                          Supplier<IExtendedFluidTank> fluidTankSupplier, Supplier<List<IExtendedFluidTank>> fluidTanksSupplier, GaugeType type,
+                          IGuiWrapper gui, int x, int y) {
         this(gasTankSupplier, gasTanksSupplier, fluidTankSupplier, fluidTanksSupplier, type, gui, x, y,
-              type.getGaugeOverlay().getWidth() + 2, type.getGaugeOverlay().getHeight() + 2);
+                type.getGaugeOverlay().getWidth() + 2, type.getGaugeOverlay().getHeight() + 2);
     }
 
     public GuiHybridGauge(Supplier<IExtendedGasTank> gasTankSupplier, Supplier<List<IExtendedGasTank>> gasTanksSupplier,
-          Supplier<IExtendedFluidTank> fluidTankSupplier, Supplier<List<IExtendedFluidTank>> fluidTanksSupplier, GaugeType type,
-          IGuiWrapper gui, int x, int y, int width, int height) {
+                          Supplier<IExtendedFluidTank> fluidTankSupplier, Supplier<List<IExtendedFluidTank>> fluidTanksSupplier, GaugeType type,
+                          IGuiWrapper gui, int x, int y, int width, int height) {
         super(type, gui, x, y, width, height);
         this.gasTankSupplier = gasTankSupplier;
         gasGauge = addPositionOnlyChild(new GuiGasGauge(gasTankSupplier, gasTanksSupplier, type, gui, x, y, width, height));

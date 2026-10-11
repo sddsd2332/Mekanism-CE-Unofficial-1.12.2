@@ -19,7 +19,7 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 
 @SideOnly(Side.CLIENT)
 public class GuiElectricMachine<RECIPE extends BasicMachineRecipe<RECIPE>, TILE extends TileEntityElectricMachine<RECIPE>>
-      extends GuiConfigurableTile<TILE, ContainerElectricMachine<RECIPE>> {
+        extends GuiConfigurableTile<TILE, ContainerElectricMachine<RECIPE>> {
 
     public GuiElectricMachine(InventoryPlayer inventory, TILE tile) {
         super(tile, new ContainerElectricMachine<>(inventory, tile));
@@ -31,11 +31,11 @@ public class GuiElectricMachine<RECIPE extends BasicMachineRecipe<RECIPE>, TILE 
         super.addGuiElements();
         addButton(new GuiUpArrow(this, 68, 38));
         addButton(new GuiVerticalPowerBar(this, tileEntity.getEnergyContainer(), 164, 16))
-              .warning(WarningType.NOT_ENOUGH_ENERGY, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY));
+                .warning(WarningType.NOT_ENOUGH_ENERGY, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY));
         addButton(new GuiEnergyTab(this, tileEntity.getEnergyContainer(), tileEntity::getActive));
         addButton(new GuiProgress(tileEntity::getScaledProgress, ProgressType.BAR, this, 86, 38))
-              .recipeViewerCategories(getRecipeViewerRecipeTypes())
-              .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity.getWarningCheck(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT));
+                .recipeViewerCategories(getRecipeViewerRecipeTypes())
+                .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity.getWarningCheck(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT));
     }
 
     protected IRecipeViewerRecipeType<?>[] getRecipeViewerRecipeTypes() {

@@ -9,7 +9,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.function.IntSupplier;
 
-/** A real container slot whose visual position is owned by a QIO window. */
+/**
+ * A real container slot whose visual position is owned by a QIO window.
+ */
 public class VirtualCraftingSlot extends Slot implements IVirtualSlot {
 
     private IntSupplier actualX = () -> xPos;

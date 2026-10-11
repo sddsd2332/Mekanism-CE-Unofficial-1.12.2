@@ -41,7 +41,7 @@ public class FilterButton extends MekanismButton {
     }
 
     public FilterButton(IGuiWrapper gui, int x, int y, int width, int height, int index, IntSupplier filterIndex, FilterManager<?> filterManager,
-          ObjIntConsumer<IFilter> onPress, IntConsumer toggleButtonPress, Function<IFilter, List<ItemStack>> renderStackSupplier) {
+                        ObjIntConsumer<IFilter> onPress, IntConsumer toggleButtonPress, Function<IFilter, List<ItemStack>> renderStackSupplier) {
         super(gui, x, y, width, height, new TextComponentString(""), () -> {
         }, null);
         this.index = index;
@@ -50,11 +50,11 @@ public class FilterButton extends MekanismButton {
         slot = addChild(new GuiSlot(SlotType.NORMAL, gui, relativeX + 2, relativeY + 2));
         slotDisplay = addChild(new GuiSequencedSlotDisplay(gui, relativeX + 3, relativeY + 3, () -> renderStackSupplier.apply(getFilter())));
         toggleButton = addChild(new RadioButton(gui, relativeX + this.width - RadioButton.RADIO_SIZE - getToggleXShift(),
-              relativeY + (this.height / 2) - (RadioButton.RADIO_SIZE / 2), this::isEnabled, (element, mouseX, mouseY) -> {
-                  toggleButtonPress.accept(getActualIndex());
-                  return true;
-              }, MekanismLang.FILTER_STATE.translate(EnumColor.BRIGHT_GREEN, MekanismLang.MODULE_ENABLED_LOWER),
-              MekanismLang.FILTER_STATE.translate(EnumColor.RED, MekanismLang.MODULE_DISABLED_LOWER)));
+                relativeY + (this.height / 2) - (RadioButton.RADIO_SIZE / 2), this::isEnabled, (element, mouseX, mouseY) -> {
+            toggleButtonPress.accept(getActualIndex());
+            return true;
+        }, MekanismLang.FILTER_STATE.translate(EnumColor.BRIGHT_GREEN, MekanismLang.MODULE_ENABLED_LOWER),
+                MekanismLang.FILTER_STATE.translate(EnumColor.RED, MekanismLang.MODULE_DISABLED_LOWER)));
         setButtonBackground(ButtonBackground.NONE);
         playClickSound = true;
         // Replace the dummy click action from MekanismButton with filter-aware handling in mouseClicked.
@@ -107,7 +107,7 @@ public class FilterButton extends MekanismButton {
         }
         minecraft.renderEngine.bindTexture(TEXTURE);
         GuiUtils.blit(getButtonX(), getButtonY(), 0, isMouseOverCheckWindows(mouseX, mouseY) ? 0 : TEXTURE_HEIGHT / 2, getButtonWidth(), getButtonHeight(),
-              TEXTURE_WIDTH, TEXTURE_HEIGHT);
+                TEXTURE_WIDTH, TEXTURE_HEIGHT);
     }
 
     @Override

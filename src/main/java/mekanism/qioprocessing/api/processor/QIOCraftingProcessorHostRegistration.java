@@ -12,6 +12,7 @@ import java.util.function.Function;
  * Immutable registration describing one concrete family of QIO crafting processor hosts.
  * The resolver may select between registered definitions, but cannot create definitions at runtime.
  */
+
 /**
  * QIO 处理模块中的 QIOCraftingProcessorHostRegistration 类型。
  *
@@ -28,14 +29,14 @@ public final class QIOCraftingProcessorHostRegistration<T extends TileEntity> {
     /**
      * 创建一个处理器主机注册描述。
      *
-     * @param hostId 主机注册标识
-     * @param ownerModId 所属模组 ID
-     * @param tileClass 主机方块类型
+     * @param hostId             主机注册标识
+     * @param ownerModId         所属模组 ID
+     * @param tileClass          主机方块类型
      * @param definitionResolver 根据方块解析处理器定义的函数
      */
     public QIOCraftingProcessorHostRegistration(@Nonnull ResourceLocation hostId,
-          @Nonnull String ownerModId, @Nonnull Class<T> tileClass,
-          @Nonnull Function<? super T, ResourceLocation> definitionResolver) {
+                                                @Nonnull String ownerModId, @Nonnull Class<T> tileClass,
+                                                @Nonnull Function<? super T, ResourceLocation> definitionResolver) {
         this.hostId = Objects.requireNonNull(hostId, "hostId");
         this.ownerModId = validateOwnerModId(ownerModId);
         if (!hostId.getNamespace().equals(this.ownerModId)) {
@@ -45,35 +46,45 @@ public final class QIOCraftingProcessorHostRegistration<T extends TileEntity> {
         this.definitionResolver = Objects.requireNonNull(definitionResolver, "definitionResolver");
     }
 
-    /** 为固定处理器定义创建注册描述。 */
+    /**
+     * 为固定处理器定义创建注册描述。
+     */
     @Nonnull
     public static <T extends TileEntity> QIOCraftingProcessorHostRegistration<T> fixed(
-          @Nonnull ResourceLocation hostId, @Nonnull String ownerModId,
-          @Nonnull Class<T> tileClass, @Nonnull ResourceLocation definitionId) {
+            @Nonnull ResourceLocation hostId, @Nonnull String ownerModId,
+            @Nonnull Class<T> tileClass, @Nonnull ResourceLocation definitionId) {
         Objects.requireNonNull(definitionId, "definitionId");
         return new QIOCraftingProcessorHostRegistration<>(hostId, ownerModId, tileClass,
-              ignored -> definitionId);
+                ignored -> definitionId);
     }
 
-    /** 返回主机注册标识。 */
+    /**
+     * 返回主机注册标识。
+     */
     @Nonnull
     public ResourceLocation getHostId() {
         return hostId;
     }
 
-    /** 返回所属模组 ID。 */
+    /**
+     * 返回所属模组 ID。
+     */
     @Nonnull
     public String getOwnerModId() {
         return ownerModId;
     }
 
-    /** 返回主机方块类型。 */
+    /**
+     * 返回主机方块类型。
+     */
     @Nonnull
     public Class<T> getTileClass() {
         return tileClass;
     }
 
-    /** 根据实际方块解析定义标识，并校验类型匹配。 */
+    /**
+     * 根据实际方块解析定义标识，并校验类型匹配。
+     */
     @Nonnull
     ResourceLocation resolveDefinitionId(@Nonnull TileEntity tile) {
         if (!tileClass.isInstance(tile)) {
@@ -81,7 +92,7 @@ public final class QIOCraftingProcessorHostRegistration<T extends TileEntity> {
         }
         ResourceLocation definitionId = definitionResolver.apply(tileClass.cast(tile));
         return Objects.requireNonNull(definitionId,
-              "QIO processor definition resolver returned null for " + hostId);
+                "QIO processor definition resolver returned null for " + hostId);
     }
 
     private static String validateOwnerModId(String ownerModId) {

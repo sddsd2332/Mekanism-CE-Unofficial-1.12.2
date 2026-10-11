@@ -25,6 +25,7 @@ public class CustomThreadFactory implements ThreadFactory {
 
     /**
      * 新建一个自定义线程工厂, 此工厂的线程名可自定义
+     *
      * @param threadName 线程名, 如 "Thread-%s"; "CustomThread-%s", %s 为线程编号.
      */
     public static CustomThreadFactory create(String threadName) {

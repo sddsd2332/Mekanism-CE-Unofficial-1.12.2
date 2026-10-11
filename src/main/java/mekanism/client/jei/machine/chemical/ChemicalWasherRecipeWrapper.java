@@ -14,7 +14,7 @@ public class ChemicalWasherRecipeWrapper<RECIPE extends WasherRecipe> extends Me
 
     @Override
     public void getIngredients(IIngredients ingredients) {
-        ingredients.setInput(VanillaTypes.FLUID,recipe.recipeInput.ingredientFluid);
+        ingredients.setInput(VanillaTypes.FLUID, recipe.recipeInput.ingredientFluid);
         ingredients.setInput(MekanismJEI.TYPE_GAS, recipe.recipeInput.ingredientGas);
         ingredients.setOutput(MekanismJEI.TYPE_GAS, recipe.recipeOutput.output);
     }

@@ -32,7 +32,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
-/** 26.2-style text editor for the 1.12 Ore Dictionary and Mod ID QIO filters. */
+/**
+ * 26.2-style text editor for the 1.12 Ore Dictionary and Mod ID QIO filters.
+ */
 public class GuiQIOTextFilterWindow extends GuiWindow {
 
     private final TileEntityQIOFilterHandler tile;
@@ -59,22 +61,22 @@ public class GuiQIOTextFilterWindow extends GuiWindow {
 
         addChild(new GuiInnerScreen(gui, relativeX + 29, relativeY + 18, 116, 42, this::getScreenText).clearFormat());
         GuiSlot slot = addChild(new GuiSlot(SlotType.NORMAL, gui, relativeX + 7, relativeY + 18)
-              .setRenderHover(true).click((element, mouseX, mouseY) -> updateFromCarried()));
+                .setRenderHover(true).click((element, mouseX, mouseY) -> updateFromCarried()));
         slot.setGhostHandler(createGhostHandler());
         slotDisplay = addChild(new GuiSequencedSlotDisplay(gui, relativeX + 8, relativeY + 19, () -> previewStacks));
         textField = addChild(new GuiTextField(gui, this, relativeX + 31, relativeY + 46, 112, 12)
-              .setMaxLength(TransporterFilter.MAX_LENGTH)
-              .setInputValidator(c -> Character.isLetterOrDigit(c) || TransporterFilter.SPECIAL_CHARS.contains(c))
-              .setInputTransformer(c -> c >= 'A' && c <= 'Z' ? Character.toLowerCase(c) : c)
-              .configureDigitalInput(this::applyText)
-              .setEditable(true));
+                .setMaxLength(TransporterFilter.MAX_LENGTH)
+                .setInputValidator(c -> Character.isLetterOrDigit(c) || TransporterFilter.SPECIAL_CHARS.contains(c))
+                .setInputTransformer(c -> c >= 'A' && c <= 'Z' ? Character.toLowerCase(c) : c)
+                .configureDigitalInput(this::applyText)
+                .setEditable(true));
         setFocusedChild(textField);
         addChild(new TranslationButton(gui, relativeX + 15, relativeY + 62, 60, 20,
-              index < 0 ? MekanismLang.BUTTON_CANCEL : MekanismLang.BUTTON_DELETE, this::cancelOrDelete));
+                index < 0 ? MekanismLang.BUTTON_CANCEL : MekanismLang.BUTTON_DELETE, this::cancelOrDelete));
         addChild(new TranslationButton(gui, relativeX + 77, relativeY + 62, 60, 20, MekanismLang.BUTTON_SAVE, this::save));
         if (index < 0) {
             addChild(new MekanismImageButton(gui, relativeX + 6, relativeY + 6, 11, 14, getButtonLocation("back"), this::goBack)
-                  .setTooltip(MekanismLang.BACK.translate()));
+                    .setTooltip(MekanismLang.BACK.translate()));
         } else {
             super.addCloseButton();
         }
@@ -114,7 +116,7 @@ public class GuiQIOTextFilterWindow extends GuiWindow {
         String value = textField.getText().trim();
         if (value.isEmpty()) {
             setInvalid(oreDictionary ? MekanismLang.TAG_FILTER_NO_TAG.translate().getFormattedText() :
-                  MekanismLang.MODID_FILTER_NO_ID.translate().getFormattedText());
+                    MekanismLang.MODID_FILTER_NO_ID.translate().getFormattedText());
             return false;
         }
         List<ItemStack> matches = oreDictionary ? OreDictCache.getOreDictStacks(value, false) : OreDictCache.getQIOModIDStacks(value);
@@ -146,7 +148,7 @@ public class GuiQIOTextFilterWindow extends GuiWindow {
     private void updatePreview() {
         String value = getFilterText();
         previewStacks = value.isEmpty() ? Collections.emptyList() : oreDictionary ?
-              OreDictCache.getOreDictStacks(value, false) : OreDictCache.getQIOModIDStacks(value);
+                OreDictCache.getOreDictStacks(value, false) : OreDictCache.getQIOModIDStacks(value);
         slotDisplay.updateStackList();
     }
 
@@ -231,6 +233,6 @@ public class GuiQIOTextFilterWindow extends GuiWindow {
     public void renderForeground(int mouseX, int mouseY) {
         super.renderForeground(mouseX, mouseY);
         drawTitleText(new TextComponentString((index < 0 ? MekanismLang.FILTER_NEW : MekanismLang.FILTER_EDIT)
-              .translate(oreDictionary ? MekanismLang.TAG_FILTER.translate() : MekanismLang.MODID_FILTER.translate()).getFormattedText()), 6);
+                .translate(oreDictionary ? MekanismLang.TAG_FILTER.translate() : MekanismLang.MODID_FILTER.translate()).getFormattedText()), 6);
     }
 }

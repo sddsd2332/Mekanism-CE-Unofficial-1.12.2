@@ -23,9 +23,9 @@ public class EnergyCubeUpgradeData extends TierUpgradeData {
     public final NBTTagCompound dischargeSlot;
 
     public EnergyCubeUpgradeData(@Nonnull BaseTier upgradeTier, @Nonnull EnumFacing facing, @Nonnull EnumFacing clientFacing, int ticker,
-          boolean redstone, boolean redstoneLastTick, boolean doAutoSync, double energy, int currentRedstoneLevel,
-          @Nonnull RedstoneControl controlType, @Nonnull NBTTagCompound componentData, @Nonnull NBTTagCompound chargeSlot,
-          @Nonnull NBTTagCompound dischargeSlot) {
+                                 boolean redstone, boolean redstoneLastTick, boolean doAutoSync, double energy, int currentRedstoneLevel,
+                                 @Nonnull RedstoneControl controlType, @Nonnull NBTTagCompound componentData, @Nonnull NBTTagCompound chargeSlot,
+                                 @Nonnull NBTTagCompound dischargeSlot) {
         super(upgradeTier);
         this.facing = facing;
         this.clientFacing = clientFacing;

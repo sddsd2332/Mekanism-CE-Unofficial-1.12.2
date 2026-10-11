@@ -11,7 +11,9 @@ final class GuiDynamicResourceSlotLayout {
     static final int RESOURCE_SIZE = 16;
     static final int DEFAULT_RESOURCE_GAP = 2;
     static final int DEFAULT_RESOURCE_STEP = RESOURCE_SIZE + DEFAULT_RESOURCE_GAP;
-    /** @deprecated Use {@link #DEFAULT_RESOURCE_STEP}. */
+    /**
+     * @deprecated Use {@link #DEFAULT_RESOURCE_STEP}.
+     */
     @Deprecated
     static final int RESOURCE_STEP = DEFAULT_RESOURCE_STEP;
     private static final int FRAME_BORDER_SIZE = 1;
@@ -37,7 +39,7 @@ final class GuiDynamicResourceSlotLayout {
     static int validateFrameWidth(int frameWidth) {
         if (frameWidth < MINIMUM_FRAME_WIDTH) {
             throw new IllegalArgumentException("Frame width must be at least " + MINIMUM_FRAME_WIDTH +
-                  ": " + frameWidth);
+                    ": " + frameWidth);
         }
         return frameWidth;
     }
@@ -46,14 +48,16 @@ final class GuiDynamicResourceSlotLayout {
         int count = normalizeVisibleCount(visibleCount);
         int checkedGap = validateGap(gap);
         long dimension = FRAME_BORDER_SIZE * 2L + count * (long) RESOURCE_SIZE +
-              (count - 1L) * checkedGap;
+                (count - 1L) * checkedGap;
         if (dimension > Integer.MAX_VALUE) {
             throw new IllegalArgumentException("Resource frame dimension is too large: " + dimension);
         }
         return (int) dimension;
     }
 
-    /** Preserves the original two-pixel-gap frame calculation. */
+    /**
+     * Preserves the original two-pixel-gap frame calculation.
+     */
     static int viewportDimension(int visibleCount) {
         return frameDimension(visibleCount, DEFAULT_RESOURCE_GAP);
     }
@@ -100,7 +104,7 @@ final class GuiDynamicResourceSlotLayout {
         }
         long totalGapPixels = innerWidth(frameWidth) - visibleColumns * (long) RESOURCE_SIZE;
         return column * (long) RESOURCE_SIZE +
-              column * totalGapPixels / (visibleColumns - 1L);
+                column * totalGapPixels / (visibleColumns - 1L);
     }
 
     static int contentWidth(int resourceCount, int visibleRows, int frameWidth, int gap, boolean autoFit) {
@@ -115,13 +119,17 @@ final class GuiDynamicResourceSlotLayout {
         return width > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) width;
     }
 
-    /** Preserves the original fixed two-pixel-gap content calculation. */
+    /**
+     * Preserves the original fixed two-pixel-gap content calculation.
+     */
     static int contentWidth(int resourceCount, int visibleRows) {
         int columns = contentColumns(resourceCount, visibleRows);
         return columns <= 0 ? 0 : (columns - 1) * DEFAULT_RESOURCE_STEP + RESOURCE_SIZE;
     }
 
-    /** Preserves the original fixed two-pixel-gap content calculation. */
+    /**
+     * Preserves the original fixed two-pixel-gap content calculation.
+     */
     static int contentWidthForColumns(int contentColumns) {
         if (contentColumns <= 0) {
             return 0;
@@ -130,20 +138,24 @@ final class GuiDynamicResourceSlotLayout {
         return width > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) width;
     }
 
-    /** Preserves the original visible-column viewport calculation. */
+    /**
+     * Preserves the original visible-column viewport calculation.
+     */
     static int viewportWidth(int visibleColumns) {
         return innerWidth(frameDimension(visibleColumns, DEFAULT_RESOURCE_GAP));
     }
 
     static double maxOffset(int resourceCount, int frameWidth, int visibleRows, int gap, boolean autoFit) {
         return Math.max(0D, contentWidth(resourceCount, visibleRows, frameWidth, gap, autoFit) -
-              innerWidth(frameWidth));
+                innerWidth(frameWidth));
     }
 
-    /** Preserves the original fixed two-pixel-gap maximum offset calculation. */
+    /**
+     * Preserves the original fixed two-pixel-gap maximum offset calculation.
+     */
     static double maxOffset(int resourceCount, int visibleColumns, int visibleRows) {
         return maxOffset(resourceCount, frameDimension(visibleColumns, DEFAULT_RESOURCE_GAP), visibleRows,
-              DEFAULT_RESOURCE_GAP, false);
+                DEFAULT_RESOURCE_GAP, false);
     }
 
     static int columnForIndex(int index, int visibleRows) {
@@ -196,14 +208,14 @@ final class GuiDynamicResourceSlotLayout {
      * both fixed and distributed gap pixels are rejected.
      */
     static int hitIndex(int resourceCount, int frameWidth, int visibleRows, int gap, boolean autoFit,
-          double localX, double localY, double offset) {
+                        double localX, double localY, double offset) {
         int checkedFrameWidth = validateFrameWidth(frameWidth);
         int rows = normalizeVisibleCount(visibleRows);
         int checkedGap = validateGap(gap);
         int frameHeight = frameDimension(rows, checkedGap);
         if (resourceCount <= 0 || !Double.isFinite(localX) || !Double.isFinite(localY) ||
-              !Double.isFinite(offset) || localX < FRAME_BORDER_SIZE || localY < FRAME_BORDER_SIZE ||
-              localX >= checkedFrameWidth - FRAME_BORDER_SIZE || localY >= frameHeight - FRAME_BORDER_SIZE) {
+                !Double.isFinite(offset) || localX < FRAME_BORDER_SIZE || localY < FRAME_BORDER_SIZE ||
+                localX >= checkedFrameWidth - FRAME_BORDER_SIZE || localY >= frameHeight - FRAME_BORDER_SIZE) {
             return -1;
         }
 
@@ -234,10 +246,12 @@ final class GuiDynamicResourceSlotLayout {
         return -1;
     }
 
-    /** Preserves the original fixed two-pixel-gap hit-test signature. */
+    /**
+     * Preserves the original fixed two-pixel-gap hit-test signature.
+     */
     static int hitIndex(int resourceCount, int visibleColumns, int visibleRows,
-          double localX, double localY, double offset) {
+                        double localX, double localY, double offset) {
         return hitIndex(resourceCount, frameDimension(visibleColumns, DEFAULT_RESOURCE_GAP), visibleRows,
-              DEFAULT_RESOURCE_GAP, false, localX, localY, offset);
+                DEFAULT_RESOURCE_GAP, false, localX, localY, offset);
     }
 }

@@ -1,14 +1,15 @@
 package mekanism.client.gui.element.custom;
 
-import mekanism.api.gas.GasStack;
 import mekanism.api.EnumColor;
+import mekanism.api.gas.GasStack;
 import mekanism.api.qio.client.QIOResourceRenderer;
 import mekanism.api.qio.client.QIOResourceRendererRegistry;
 import mekanism.client.gui.GuiUtils;
 import mekanism.client.gui.IGuiWrapper;
 import mekanism.client.gui.element.GuiElement;
-import mekanism.client.gui.element.slot.GuiSlot;
 import mekanism.client.gui.element.scroll.GuiScrollBar;
+import mekanism.client.gui.element.slot.GuiSlot;
+import mekanism.client.jei.interfaces.IJEIIngredientHelper;
 import mekanism.client.render.MekanismRenderer;
 import mekanism.common.Mekanism;
 import mekanism.common.MekanismLang;
@@ -23,7 +24,6 @@ import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.UnitDisplayUtils;
 import mekanism.common.util.text.TextUtils;
-import mekanism.client.jei.interfaces.IJEIIngredientHelper;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.item.ItemStack;
@@ -32,17 +32,12 @@ import net.minecraftforge.fluids.FluidStack;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.EnumSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.function.Supplier;
 
-/** Scrollable, kind-aware QIO resource grid shared by Dashboard screens. */
+/**
+ * Scrollable, kind-aware QIO resource grid shared by Dashboard screens.
+ */
 public class GuiQIOResourceGrid extends GuiElement implements IJEIIngredientHelper {
 
     private static final ResourceLocation SLOTS = MekanismUtils.getResource(MekanismUtils.ResourceType.GUI_SLOT, "slots.png");
@@ -61,13 +56,13 @@ public class GuiQIOResourceGrid extends GuiElement implements IJEIIngredientHelp
     private boolean sortingPaused;
 
     public GuiQIOResourceGrid(IGuiWrapper gui, int x, int y, int columns, int rows,
-          Supplier<QIOItemViewerContainer> containerSupplier) {
+                              Supplier<QIOItemViewerContainer> containerSupplier) {
         super(gui, x, y, columns * 18 + 18, rows * 18);
         this.columns = Math.max(1, columns);
         this.rows = Math.max(1, rows);
         this.containerSupplier = containerSupplier;
         scrollBar = addChild(new GuiScrollBar(gui, relativeX + this.columns * 18 + 4, relativeY, this.rows * 18,
-              this::getTotalRows, () -> this.rows));
+                this::getTotalRows, () -> this.rows));
         visibleKinds.addAll(EnumSet.allOf(QIOResourceKind.class));
         SortMode[] modes = SortMode.values();
         int configuredMode = MekanismConfig.current().client.qioItemViewerSortType.val();
@@ -156,7 +151,7 @@ public class GuiQIOResourceGrid extends GuiElement implements IJEIIngredientHelp
         for (int rowStart = 0; rowStart < rows; rowStart += 16) {
             int rowCount = Math.min(16, rows - rowStart);
             GuiUtils.blit(relativeX, relativeY + rowStart * 18, 0, 0,
-                  columns * 18, rowCount * 18, 288, 288);
+                    columns * 18, rowCount * 18, 288, 288);
         }
         for (int i = 0; i < columns * rows; i++) {
             int slotX = relativeX + (i % columns) * 18;
@@ -211,15 +206,15 @@ public class GuiQIOResourceGrid extends GuiElement implements IJEIIngredientHelp
         if (shift) {
             if (entry != null && hasUsableDisplayPayload(entry) && entry.getKind() != null) {
                 PacketQIOViewerAction.sendShiftTake(windowId, entry.getUUID(),
-                      PacketQIOViewerAction.getShiftTakeAmount(entry));
+                        PacketQIOViewerAction.getShiftTakeAmount(entry));
             }
         } else if (!held.isEmpty()) {
             if (entry != null && hasUsableDisplayPayload(entry) &&
-                  (entry.getKind() == QIOResourceKind.FLUID && PacketQIOViewerAction.canTakeFluidIntoHeldStack(entry, held) ||
-                  entry.getKind() == QIOResourceKind.GAS && PacketQIOViewerAction.canTakeGasIntoHeldStack(entry, held))) {
+                    (entry.getKind() == QIOResourceKind.FLUID && PacketQIOViewerAction.canTakeFluidIntoHeldStack(entry, held) ||
+                            entry.getKind() == QIOResourceKind.GAS && PacketQIOViewerAction.canTakeGasIntoHeldStack(entry, held))) {
                 PacketQIOViewerAction.sendTake(windowId, entry.getUUID(), entry.getAmount());
             } else if (entry != null && hasUsableDisplayPayload(entry) && button == 2 &&
-                  PacketQIOViewerAction.canTakeIntoHeldStack(entry, held)) {
+                    PacketQIOViewerAction.canTakeIntoHeldStack(entry, held)) {
                 // Middle-click tops up a matching item stack by one.
                 PacketQIOViewerAction.sendTake(windowId, entry.getUUID(), 1);
             } else {
@@ -230,7 +225,7 @@ public class GuiQIOResourceGrid extends GuiElement implements IJEIIngredientHelp
                 // Mixed resources are moved to a compatible inventory
                 // container when the cursor is empty.
                 PacketQIOViewerAction.sendShiftTake(windowId, entry.getUUID(),
-                      PacketQIOViewerAction.getShiftTakeAmount(entry));
+                        PacketQIOViewerAction.getShiftTakeAmount(entry));
             } else if (entry.getKind() == QIOResourceKind.ITEM && entry.getAmount() > 0) {
                 int maxStackSize = Math.min(Integer.MAX_VALUE, entry.getItem().getMaxStackSize());
                 long max = Math.min(entry.getAmount(), maxStackSize);
@@ -303,13 +298,13 @@ public class GuiQIOResourceGrid extends GuiElement implements IJEIIngredientHelp
             displayTooltips(tooltip, mouseX, mouseY);
         } else if (!hasUsableDisplayPayload(entry)) {
             displayTooltips(java.util.Arrays.asList(getResourceName(entry),
-                  getStoredTooltip(entry.getExactAmount())), mouseX, mouseY);
+                    getStoredTooltip(entry.getExactAmount())), mouseX, mouseY);
         } else if (entry.getKind() == QIOResourceKind.ITEM) {
             if (!entry.getExactAmount().isExpanded() && entry.getAmount() < 10_000) {
                 gui().renderItemTooltip(entry.getItem(), mouseX, mouseY);
             } else {
                 gui().renderItemTooltipWithExtra(entry.getItem(), mouseX, mouseY,
-                      java.util.Collections.singletonList(getStoredTooltip(entry.getExactAmount())));
+                        java.util.Collections.singletonList(getStoredTooltip(entry.getExactAmount())));
             }
         } else {
             List<String> tooltip = new ArrayList<>(2);
@@ -321,7 +316,7 @@ public class GuiQIOResourceGrid extends GuiElement implements IJEIIngredientHelp
 
     private String getStoredTooltip(QIOAmount amount) {
         return MekanismLang.QIO_STORED_COUNT.translateColored(EnumColor.GREY, EnumColor.INDIGO,
-              TextUtils.format(amount.toBigInteger())).getFormattedText();
+                TextUtils.format(amount.toBigInteger())).getFormattedText();
     }
 
     @Nonnull
@@ -377,18 +372,18 @@ public class GuiQIOResourceGrid extends GuiElement implements IJEIIngredientHelp
         switch (sortMode) {
             case SIZE:
                 comparator = descending ? Comparator.comparing(QIOResourceEntry::getExactAmount).reversed()
-                      .thenComparing(this::getResourceName) : Comparator.comparing(QIOResourceEntry::getExactAmount)
-                      .thenComparing(this::getResourceName);
+                        .thenComparing(this::getResourceName) : Comparator.comparing(QIOResourceEntry::getExactAmount)
+                        .thenComparing(this::getResourceName);
                 break;
             case MOD:
                 comparator = descending ? Comparator.comparing(this::getModId, Comparator.reverseOrder())
-                      .thenComparing(this::getResourceName) : Comparator.comparing(this::getModId)
-                      .thenComparing(this::getResourceName);
+                        .thenComparing(this::getResourceName) : Comparator.comparing(this::getModId)
+                        .thenComparing(this::getResourceName);
                 break;
             case REGISTRY_NAME:
                 comparator = descending ? Comparator.comparing(this::getRegistryName, Comparator.reverseOrder())
-                      .thenComparing(QIOResourceEntry::getExactAmount) : Comparator.comparing(this::getRegistryName)
-                      .thenComparing(QIOResourceEntry::getExactAmount);
+                        .thenComparing(QIOResourceEntry::getExactAmount) : Comparator.comparing(this::getRegistryName)
+                        .thenComparing(QIOResourceEntry::getExactAmount);
                 break;
             case NAME:
             default:
@@ -438,7 +433,7 @@ public class GuiQIOResourceGrid extends GuiElement implements IJEIIngredientHelp
         int slotStartX = getX() + slotX * 18 + 1;
         int slotStartY = getY() + slotY * 18 + 1;
         if (mouseX < slotStartX || mouseX >= slotStartX + 16 || mouseY < slotStartY || mouseY >= slotStartY + 16 ||
-              !checkWindows(mouseX, mouseY)) {
+                !checkWindows(mouseX, mouseY)) {
             return -1;
         }
         return slotY * columns + slotX;
@@ -698,7 +693,7 @@ public class GuiQIOResourceGrid extends GuiElement implements IJEIIngredientHelp
             return null;
         }
         QIOResourceRenderer<?> renderer = QIOResourceRendererRegistry.INSTANCE.get(
-              entry.getDescriptor().getCodecId());
+                entry.getDescriptor().getCodecId());
         if (renderer == null) {
             return null;
         }

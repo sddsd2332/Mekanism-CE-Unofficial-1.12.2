@@ -2,35 +2,22 @@ package mekanism.qioprocessing.common.planning;
 
 import mekanism.qioprocessing.api.resource.PortableResourceDescriptor;
 import mekanism.qioprocessing.common.content.plan.QIOCraftPlan;
-import mekanism.qioprocessing.common.content.plan.QIOPlanStep;
 import mekanism.qioprocessing.common.content.plan.QIOCyclePlanNode;
+import mekanism.qioprocessing.common.content.plan.QIOPlanStep;
 import mekanism.qioprocessing.common.planning.QIOPlanningExecutor.CancellationToken;
 import mekanism.qioprocessing.common.planning.QIOPlanningResult.Status;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Deque;
-import java.util.LinkedHashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Comparator;
 import java.math.BigInteger;
+import java.util.*;
 
 /**
  * Bounded second-stage planner that turns a seeded recipe cycle into an executable acyclic
  * operation schedule. Each emitted node is one real recipe operation and only depends on nodes
  * that have already produced an input consumed by that operation.
  */
+
 /**
  * QIO 处理模块中的 QIOSeededCyclePlanner 类型。
  *
@@ -38,7 +25,7 @@ import java.math.BigInteger;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class QIOSeededCyclePlanner implements
-      QIOPlanningExecutor.PlanningTask<QIOPlanningRequest, QIOPlanningResult> {
+        QIOPlanningExecutor.PlanningTask<QIOPlanningRequest, QIOPlanningResult> {
 
     public static final QIOSeededCyclePlanner INSTANCE = new QIOSeededCyclePlanner();
 
@@ -48,47 +35,58 @@ public final class QIOSeededCyclePlanner implements
     @Nonnull
     @Override
     public QIOPlanningResult plan(@Nonnull QIOPlanningRequest request,
-          @Nonnull CancellationToken cancellationToken) {
+                                  @Nonnull CancellationToken cancellationToken) {
         Objects.requireNonNull(request, "request");
         Objects.requireNonNull(cancellationToken, "cancellationToken");
-        PlannerState state = new PlannerState(request, cancellationToken);
+        Session session = QIOPlanningExecutor.taskLocal(QIOSeededCyclePlanner.class, Session::new);
+        if (session.state == null || !session.planId.equals(request.getPlanId()) ||
+                session.state.snapshot.getSourceRevisions() != request.getSnapshot().getSourceRevisions()) {
+            session.state = new PlannerState(request, cancellationToken);
+            session.planId = request.getPlanId();
+        }
+        PlannerState state = session.state;
         try {
             if (request.getSnapshot().getRoutesProducing(request.getRootResource()).isEmpty()) {
                 return QIOPlanningResult.failure(Status.NO_ROUTE,
-                      "No enabled route produces " + request.getRootResource(), 0, 0,
-                      QIOPlanningTrace.rootFailure(request.getRootResource()));
+                        "No enabled route produces " + request.getRootResource(), 0, 0,
+                        QIOPlanningTrace.rootFailure(request.getRootResource()));
             }
-            long target = Math.addExact(state.available(request.getRootResource()),
-                  request.getRootAmount());
-            state.ensure(request.getRootResource(), target, 0, true);
-            QIOCraftPlan plan = new QIOCraftPlan(request.getPlanId(), request.getPlanRevision(),
-                  request.getSnapshot().getSourceRevisions(), request.getRootResource(),
-                  request.getRootAmount(), state.externalRequirements, state.steps,
-                  state.cycleNodes);
-            return QIOPlanningResult.success(plan, state.exploredNodes, state.plannedOperations);
+            state.run(request.getRootAmount());
+            return QIOPlanningResult.success(state.bestPlan, state.exploredNodes, state.bestOperations);
         } catch (PlanningFailure failure) {
             return QIOPlanningResult.failure(failure.status, failure.getMessage(),
-                  state.exploredNodes, state.plannedOperations,
-                  state.failureTrace());
+                    state.exploredNodes, state.plannedOperations,
+                    state.failureTrace());
         } catch (ArithmeticException failure) {
             return QIOPlanningResult.failure(Status.AMOUNT_OVERFLOW,
-                  failure.getMessage() == null ? "QIO planning amount overflow" : failure.getMessage(),
-                  state.exploredNodes, state.plannedOperations, state.failureTrace());
+                    failure.getMessage() == null ? "QIO planning amount overflow" : failure.getMessage(),
+                    state.exploredNodes, state.plannedOperations, state.failureTrace());
+        } catch (QIOPlanningContinuation pending) {
+            throw pending;
+        } catch (QIOPlanningLimitException limit) {
+            return QIOPlanningResult.failure(Status.TOO_COMPLEX, limit.getMessage(), state.exploredNodes, state.plannedOperations);
         } catch (RuntimeException failure) {
             return QIOPlanningResult.failure(Status.INTERNAL_ERROR,
-                  failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage(),
-                  state.exploredNodes, state.plannedOperations, state.failureTrace());
+                    failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage(),
+                    state.exploredNodes, state.plannedOperations, state.failureTrace());
         }
+    }
+
+    private static final class Session {
+        private java.util.UUID planId;
+        private PlannerState state;
     }
 
     private static final class PlannerState {
 
+        private final QIOPlanningRequest request;
         private final QIOPlanningSnapshot snapshot;
         private final CancellationToken cancellationToken;
-        private final Map<PortableResourceDescriptor, Long> stock = new TreeMap<>();
-        private final Map<PortableResourceDescriptor, Deque<GeneratedLot>> generated = new TreeMap<>();
-        private final Map<PortableResourceDescriptor, Long> externalRequirements = new TreeMap<>();
-        private final Map<PortableResourceDescriptor, Long> seedRequirements = new TreeMap<>();
+        private final QIOPlanningJournal journal = new QIOPlanningJournal();
+        private final Map<PortableResourceDescriptor, Long> stock = journal.map();
+        private final Map<PortableResourceDescriptor, Deque<GeneratedLot>> generated = journal.map();
+        private final Map<PortableResourceDescriptor, Long> externalRequirements = journal.map();
+        private final Map<PortableResourceDescriptor, Long> seedRequirements = journal.map();
         private final List<QIOPlanStep> steps = new ArrayList<>();
         private final List<QIOCyclePlanNode> cycleNodes = new ArrayList<>();
         private final Deque<PortableResourceDescriptor> activeResources = new ArrayDeque<>();
@@ -96,8 +94,20 @@ public final class QIOSeededCyclePlanner implements
         private long nextNodeId;
         private long plannedOperations;
         private int exploredNodes;
+        private final Deque<Runnable> work = new ArrayDeque<>();
+        private boolean initialized;
+        private final Deque<ChoiceDecision> decisions = new ArrayDeque<>();
+        private final List<Chosen> commandChoices = new ArrayList<>();
+        private int choiceCursor, choiceAttempts, retainedWeight;
+        private Set<String> nextExcluded = Collections.emptySet();
+        private Runnable activeCommand;
+        private CommandSnapshot commandSnapshot;
+        private QIOCraftPlan bestPlan;
+        private long bestOperations;
+        private BigInteger bestMissing;
 
         private PlannerState(QIOPlanningRequest request, CancellationToken cancellationToken) {
+            this.request = request;
             snapshot = request.getSnapshot();
             this.cancellationToken = cancellationToken;
             rootResource = request.getRootResource();
@@ -106,23 +116,194 @@ public final class QIOSeededCyclePlanner implements
 
         private QIOPlanningTrace failureTrace() {
             return new QIOPlanningTrace(steps, cycleNodes, Collections.emptySet(),
-                  Collections.singleton(rootResource), true);
+                    Collections.singleton(rootResource), true);
+        }
+
+        private void run(long rootAmount) {
+            if (!initialized) {
+                long target = Math.addExact(available(rootResource), rootAmount);
+                work.addLast(() -> ensure(rootResource, target, 0, true));
+                initialized = true;
+            }
+            while (true) {
+                checkCancelled();
+                if (work.isEmpty()) {
+                    BigInteger missing = missingAmount();
+                    if (bestPlan == null || missing.compareTo(bestMissing) < 0) {
+                        bestPlan = new QIOCraftPlan(request.getPlanId(), request.getPlanRevision(), snapshot.getSourceRevisions(),
+                                rootResource, rootAmount, externalRequirements, steps, cycleNodes);
+                        bestOperations = plannedOperations;
+                        bestMissing = missing;
+                    }
+                    if (missing.signum() == 0 || !backtrack()) {
+                        releaseSearch();
+                        return;
+                    }
+                    continue;
+                }
+                Runnable command = work.peekFirst();
+                if (activeCommand != command) {
+                    releaseCommand();
+                    activeCommand = command;
+                    commandChoices.clear();
+                    nextExcluded = Collections.emptySet();
+                }
+                choiceCursor = 0;
+                try {
+                    command.run();
+                    work.removeFirstOccurrence(command);
+                    releaseCommand();
+                    activeCommand = null;
+                } catch (PlanningFailure failure) {
+                    if (failure.status != Status.UNRESOLVABLE_CYCLE && failure.status != Status.CYCLE_NO_SEED &&
+                            failure.status != Status.NO_ROUTE) throw failure;
+                    if (backtrack()) continue;
+                    if (bestPlan != null) {
+                        releaseSearch();
+                        return;
+                    }
+                    throw failure;
+                }
+            }
+        }
+
+        private BigInteger missingAmount() {
+            BigInteger amount = BigInteger.ZERO;
+            for (Map.Entry<PortableResourceDescriptor, Long> entry : externalRequirements.entrySet()) {
+                amount = amount.add(BigInteger.valueOf(Math.max(0, entry.getValue() - snapshot.getAvailableResources().getOrDefault(entry.getKey(), 0L))));
+            }
+            return amount;
+        }
+
+        private void releaseCommand() {
+            if (commandSnapshot != null) commandSnapshot.release();
+            commandSnapshot = null;
+        }
+
+        private void releaseSearch() {
+            releaseCommand();
+            while (!decisions.isEmpty()) decisions.removeLast().release();
+            commandChoices.clear();
+            nextExcluded = Collections.emptySet();
+            activeCommand = null;
+        }
+
+        private boolean backtrack() {
+            ChoiceDecision decision = decisions.pollLast();
+            if (decision == null) return false;
+            QIOPlanningMetrics.current().add(QIOPlanningMetrics.Metric.BACKTRACKS, 1);
+            releaseCommand();
+            decision.state.restore();
+            commandSnapshot = decision.state;
+            commandSnapshot.references++;
+            activeCommand = work.peekFirst();
+            commandChoices.clear();
+            commandChoices.addAll(decision.prefix);
+            nextExcluded = new LinkedHashSet<>(decision.excluded);
+            nextExcluded.add(decision.selected);
+            decision.release();
+            return true;
+        }
+
+        /**
+         * All recipe choices happen before their containing command commits resource changes.
+         */
+        private final class CommandSnapshot {
+            final int mark;
+            final List<Runnable> commands = new ArrayList<>(work);
+            final List<PortableResourceDescriptor> active = new ArrayList<>(activeResources);
+            final int stepCount = steps.size(), cycleCount = cycleNodes.size();
+            final long nextNode = nextNodeId, operations = plannedOperations;
+            final int weight;
+            int references = 1;
+
+            CommandSnapshot() {
+                long cells = (long) commands.size() + active.size();
+                if (cells + retainedWeight > 262_144)
+                    throw new QIOPlanningLimitException("QIO cycle checkpoint budget exceeded");
+                weight = (int) cells;
+                retainedWeight += weight;
+                mark = journal.retain();
+            }
+
+            void restore() {
+                journal.rollback(mark);
+                steps.subList(stepCount, steps.size()).clear();
+                cycleNodes.subList(cycleCount, cycleNodes.size()).clear();
+                nextNodeId = nextNode;
+                plannedOperations = operations;
+                work.clear();
+                work.addAll(commands);
+                activeResources.clear();
+                activeResources.addAll(active);
+            }
+
+            void release() {
+                if (--references == 0) {
+                    retainedWeight -= weight;
+                    journal.release();
+                }
+            }
+        }
+
+        private final class ChoiceDecision {
+            final CommandSnapshot state;
+            final List<Chosen> prefix;
+            final Set<String> excluded;
+            final String selected;
+            final int weight;
+
+            ChoiceDecision(QIOPlanningRoute selected) {
+                if (commandSnapshot == null) commandSnapshot = new CommandSnapshot();
+                state = commandSnapshot;
+                long cells = 1L + commandChoices.size() + nextExcluded.size();
+                if (cells + retainedWeight > 262_144)
+                    throw new QIOPlanningLimitException("QIO cycle choice stack budget exceeded");
+                weight = (int) cells;
+                retainedWeight += weight;
+                state.references++;
+                prefix = new ArrayList<>(commandChoices);
+                excluded = new LinkedHashSet<>(nextExcluded);
+                this.selected = selected.getStableId();
+            }
+
+            void release() {
+                state.release();
+                retainedWeight -= weight;
+            }
+        }
+
+        private static final class Chosen {
+            final List<QIOPlanningRoute> context;
+            final QIOPlanningRoute route;
+
+            Chosen(List<QIOPlanningRoute> context, QIOPlanningRoute route) {
+                this.context = context;
+                this.route = route;
+            }
+        }
+
+        private static Deque<GeneratedLot> copyLots(Deque<GeneratedLot> source) {
+            Deque<GeneratedLot> copy = new ArrayDeque<>();
+            if (source != null)
+                for (GeneratedLot lot : source) copy.addLast(new GeneratedLot(lot.sourceNodeId, lot.amount));
+            return copy;
         }
 
         private void ensure(PortableResourceDescriptor resource, long minimumAvailable,
-              int depth, boolean netDemand) {
+                            int depth, boolean netDemand) {
             checkCancelled();
             if (minimumAvailable <= 0) {
                 throw new IllegalArgumentException("QIO required availability must be positive");
             }
             if (depth > snapshot.getMaximumDepth()) {
                 throw new PlanningFailure(Status.TOO_COMPLEX,
-                      "QIO cycle planning depth exceeded " + snapshot.getMaximumDepth());
+                        "QIO cycle planning depth exceeded " + snapshot.getMaximumDepth());
             }
             exploredNodes = Math.addExact(exploredNodes, 1);
             if (exploredNodes > snapshot.getMaximumNodes()) {
                 throw new PlanningFailure(Status.TOO_COMPLEX,
-                      "QIO cycle planning node budget exceeded " + snapshot.getMaximumNodes());
+                        "QIO cycle planning node budget exceeded " + snapshot.getMaximumNodes());
             }
             if (available(resource) >= minimumAvailable) {
                 return;
@@ -135,7 +316,7 @@ public final class QIOSeededCyclePlanner implements
             if (cycle.circularPath != null) {
                 if (netDemand) {
                     throw new PlanningFailure(Status.UNRESOLVABLE_CYCLE,
-                          "Circular QIO recipe route: " + cycle.circularPath);
+                            "Circular QIO recipe route: " + cycle.circularPath);
                 }
                 // A conserved recursive input is a seed, not a producible output. Match AE2's
                 // seeded-recursion behavior by requesting it once from storage/external input.
@@ -149,43 +330,42 @@ public final class QIOSeededCyclePlanner implements
             }
             if (activeResources.contains(resource)) {
                 throw new PlanningFailure(Status.UNRESOLVABLE_CYCLE,
-                      "QIO recipe cycle cannot produce a net demand for " +
-                            cyclePath(resource));
+                        "QIO recipe cycle cannot produce a net demand for " +
+                                cyclePath(resource));
             }
 
-            QIOPlanningRoute route = chooseVariant(candidates);
+            // Candidate selection can yield before any command or ledger is committed.
+            QIOPlanningRoute route = chooseVariant(candidates, resource);
             activeResources.addLast(resource);
-            try {
-                while (available(resource) < minimumAvailable) {
-                    checkCancelled();
-                    long before = available(resource);
-                    executeOne(route, depth + 1);
-                    if (available(resource) <= before && plannedOperations >= snapshot.getMaximumOperations()) {
-                        throw new PlanningFailure(Status.TOO_COMPLEX,
-                              "QIO cycle made no progress within the operation budget");
-                    }
-                }
-            } finally {
-                PortableResourceDescriptor removed = activeResources.removeLast();
-                if (!removed.equals(resource)) {
-                    throw new IllegalStateException("QIO cycle planning recursion stack was corrupted");
-                }
-            }
+            work.addFirst(() -> {
+                if (!activeResources.removeLast().equals(resource))
+                    throw new IllegalStateException("QIO cycle command order changed");
+            });
+            work.addFirst(() -> produceUntil(resource, minimumAvailable, depth));
+            scheduleOne(route, depth + 1);
         }
 
-        private void executeOne(QIOPlanningRoute route, int depth) {
+        private void produceUntil(PortableResourceDescriptor resource, long minimumAvailable, int depth) {
+            if (available(resource) >= minimumAvailable) return;
+            QIOPlanningRoute route = chooseVariant(snapshot.getRoutesProducing(resource), resource);
+            work.addFirst(() -> produceUntil(resource, minimumAvailable, depth));
+            scheduleOne(route, depth + 1);
+        }
+
+        private void scheduleOne(QIOPlanningRoute route, int depth) {
             addOperation();
-            for (Map.Entry<PortableResourceDescriptor, Long> input :
-                  route.getExactInputs().entrySet()) {
-                ensure(input.getKey(), input.getValue(), depth, false);
+            work.addFirst(() -> executeResolved(route));
+            List<Map.Entry<PortableResourceDescriptor, Long>> inputs = new ArrayList<>(route.getExactInputs().entrySet());
+            for (int index = inputs.size() - 1; index >= 0; index--) {
+                Map.Entry<PortableResourceDescriptor, Long> input = inputs.get(index);
+                work.addFirst(() -> ensure(input.getKey(), input.getValue(), depth, false));
             }
-            executeResolved(route);
         }
 
         private void executeResolved(QIOPlanningRoute route) {
             Set<Long> dependencies = new LinkedHashSet<>();
             for (Map.Entry<PortableResourceDescriptor, Long> input :
-                  route.getExactInputs().entrySet()) {
+                    route.getExactInputs().entrySet()) {
                 dependencies.addAll(consume(input.getKey(), input.getValue()));
             }
             if (nextNodeId == Long.MAX_VALUE) {
@@ -193,20 +373,20 @@ public final class QIOSeededCyclePlanner implements
             }
             long nodeId = nextNodeId++;
             QIOPlanStep step = new QIOPlanStep(nodeId, route.getProviderKind(),
-                  route.getProviderId(), route.getRouteId(), route.getRecipeKey(),
-                  route.getVariantId(), route.getSignature(), 1, route.getExactInputs(),
-                  route.getGuaranteedOutputs(), route.getOptionalOutputs(),
-                  new ArrayList<>(dependencies), route.getCandidateInputs(),
-                  route.getConfigurationInputs());
+                    route.getProviderId(), route.getRouteId(), route.getRecipeKey(),
+                    route.getVariantId(), route.getSignature(), 1, route.getExactInputs(),
+                    route.getGuaranteedOutputs(), route.getOptionalOutputs(),
+                    new ArrayList<>(dependencies), route.getCandidateInputs(),
+                    route.getConfigurationInputs());
             steps.add(step);
             for (Map.Entry<PortableResourceDescriptor, Long> output :
-                  route.getGuaranteedOutputs().entrySet()) {
+                    route.getGuaranteedOutputs().entrySet()) {
                 addGenerated(output.getKey(), output.getValue(), nodeId);
             }
         }
 
         private void executeCompressedCycle(CycleSolution solution,
-              PortableResourceDescriptor demand, long minimumAvailable, int depth) {
+                                            PortableResourceDescriptor demand, long minimumAvailable, int depth) {
             Map<PortableResourceDescriptor, Long> simulated = new TreeMap<>();
             for (PortableResourceDescriptor resource : solution.internalResources) {
                 simulated.put(resource, available(resource));
@@ -222,10 +402,13 @@ public final class QIOSeededCyclePlanner implements
                 if (ready < 0) {
                     int blocked = -1;
                     for (int index = 0; index < remaining.length; index++) {
-                        if (remaining[index] > 0) { blocked = index; break; }
+                        if (remaining[index] > 0) {
+                            blocked = index;
+                            break;
+                        }
                     }
                     if (blocked < 0) throw new PlanningFailure(Status.UNRESOLVABLE_CYCLE,
-                          "QIO cycle has no schedulable member");
+                            "QIO cycle has no schedulable member");
                     QIOPlanningRoute route = solution.routes.get(blocked);
                     for (Map.Entry<PortableResourceDescriptor, Long> input : route.getExactInputs().entrySet()) {
                         if (!solution.internalResources.contains(input.getKey())) continue;
@@ -237,13 +420,13 @@ public final class QIOSeededCyclePlanner implements
                     }
                     ready = firstReadyInternal(solution, remaining, simulated);
                     if (ready < 0) throw new PlanningFailure(Status.UNRESOLVABLE_CYCLE,
-                          "QIO cycle could not establish a seed schedule");
+                            "QIO cycle could not establish a seed schedule");
                 }
                 QIOPlanningRoute route = solution.routes.get(ready);
                 for (Map.Entry<PortableResourceDescriptor, Long> input : route.getExactInputs().entrySet()) {
                     if (solution.internalResources.contains(input.getKey())) {
                         simulated.put(input.getKey(), Math.subtractExact(
-                              simulated.getOrDefault(input.getKey(), 0L), input.getValue()));
+                                simulated.getOrDefault(input.getKey(), 0L), input.getValue()));
                     }
                 }
                 for (Map.Entry<PortableResourceDescriptor, Long> output : route.getGuaranteedOutputs().entrySet()) {
@@ -260,7 +443,7 @@ public final class QIOSeededCyclePlanner implements
             for (int routeIndex : schedule) {
                 QIOPlanningRoute route = solution.routes.get(routeIndex);
                 for (Map.Entry<PortableResourceDescriptor, Long> input :
-                      route.getExactInputs().entrySet()) {
+                        route.getExactInputs().entrySet()) {
                     if (!solution.internalResources.contains(input.getKey())) continue;
                     long present = roundBalance.getOrDefault(input.getKey(), 0L);
                     long missing = Math.max(0, input.getValue() - present);
@@ -269,33 +452,65 @@ public final class QIOSeededCyclePlanner implements
                         present = Math.addExact(present, missing);
                     }
                     roundBalance.put(input.getKey(), Math.subtractExact(present,
-                          input.getValue()));
+                            input.getValue()));
                 }
                 for (Map.Entry<PortableResourceDescriptor, Long> output :
-                      route.getGuaranteedOutputs().entrySet()) {
+                        route.getGuaranteedOutputs().entrySet()) {
                     if (solution.internalResources.contains(output.getKey())) {
                         roundBalance.merge(output.getKey(), output.getValue(), Math::addExact);
                     }
                 }
             }
 
-            Set<Long> dependencies = new LinkedHashSet<>();
+            if (solution.routes.stream().anyMatch(QIOPlanningRoute::requiresSequentialWorkbench)) {
+                // A returned tool can change after every member execution. Preserve the solved
+                // internal schedule, but reselect and validate each physical grid in sequence.
+                // Never multiply a single tool state by the number of cycle rounds.
+                long addedDemandSeed = 0;
+                for (Map.Entry<PortableResourceDescriptor, Long> seed : cycleSeeds.entrySet()) {
+                    long missing = Math.max(0, seed.getValue() - available(seed.getKey()));
+                    if (missing > 0) {
+                        addExternalStock(seed.getKey(), missing);
+                        seedRequirements.merge(seed.getKey(), missing, Math::addExact);
+                        if (seed.getKey().equals(demand)) addedDemandSeed = Math.addExact(addedDemandSeed, missing);
+                    }
+                }
+                long target = Math.addExact(minimumAvailable, addedDemandSeed);
+                work.addFirst(() -> ensure(demand, target, Math.max(0, depth - 1), true));
+                for (int index = schedule.size() - 1; index >= 0; index--) {
+                    QIOPlanningRoute template = solution.routes.get(schedule.get(index));
+                    List<QIOPlanningRoute> member = Collections.singletonList(template);
+                    work.addFirst(() -> {
+                        QIOPlanningRoute selected = chooseVariant(member);
+                        for (PortableResourceDescriptor resource : solution.internalResources) {
+                            if (!Objects.equals(template.getExactInputs().get(resource), selected.getExactInputs().get(resource)) ||
+                                    !Objects.equals(template.getGuaranteedOutputs().get(resource), selected.getGuaranteedOutputs().get(resource))) {
+                                throw new PlanningFailure(Status.NO_ROUTE, "State candidate changes the solved internal cycle contract");
+                            }
+                        }
+                        scheduleOne(selected, depth + 1);
+                    });
+                }
+                return;
+            }
+
+            Set<Long> seedDependencies = new LinkedHashSet<>();
             for (Map.Entry<PortableResourceDescriptor, Long> seed : cycleSeeds.entrySet()) {
                 long missing = Math.max(0, seed.getValue() - available(seed.getKey()));
                 if (missing > 0) {
                     addExternalStock(seed.getKey(), missing);
                     seedRequirements.merge(seed.getKey(), missing, Math::addExact);
                 }
-                dependencies.addAll(consume(seed.getKey(), seed.getValue()));
+                seedDependencies.addAll(consume(seed.getKey(), seed.getValue()));
                 // A seed is transient cycle inventory and is available again after the cycle.
                 addExternalStock(seed.getKey(), seed.getValue());
             }
 
             long netDemand = net(solution.routes, solution.operations, demand).longValueExact();
             if (netDemand <= 0) throw new PlanningFailure(Status.UNRESOLVABLE_CYCLE,
-                  "QIO cycle does not produce its demanded resource");
+                    "QIO cycle does not produce its demanded resource");
             long required = Math.addExact(minimumAvailable,
-                  seedRequirements.getOrDefault(demand, 0L));
+                    seedRequirements.getOrDefault(demand, 0L));
             long deficit = Math.max(0, required - available(demand));
             long rounds = Math.max(1, Math.floorDiv(Math.addExact(deficit, netDemand - 1), netDemand));
 
@@ -308,157 +523,89 @@ public final class QIOSeededCyclePlanner implements
                     }
                 }
             }
-            for (Map.Entry<PortableResourceDescriptor, Long> input : externalInputs.entrySet()) {
-                ensure(input.getKey(), input.getValue(), depth, false);
-            }
-            for (Map.Entry<PortableResourceDescriptor, Long> input : externalInputs.entrySet()) {
-                dependencies.addAll(consume(input.getKey(), input.getValue()));
-            }
-
-            if (steps.size() + solution.routes.size() + cycleNodes.size() + 1 > snapshot.getMaximumNodes()) {
-                throw new PlanningFailure(Status.TOO_COMPLEX, "QIO condensed cycle exceeds the node budget");
-            }
-            if (nextNodeId == Long.MAX_VALUE) throw new ArithmeticException("QIO cycle node identity overflow");
-            long cycleNodeId = nextNodeId++;
-            List<Long> memberIds = new ArrayList<>(solution.routes.size());
-            Map<Long, Long> quotas = new LinkedHashMap<>();
-            for (int index = 0; index < solution.routes.size(); index++) {
-                if (nextNodeId == Long.MAX_VALUE) throw new ArithmeticException("QIO cycle member identity overflow");
-                long memberId = nextNodeId++;
-                long totalOperations = Math.multiplyExact(solution.operations[index], rounds);
-                plannedOperations = Math.addExact(plannedOperations, totalOperations);
-                if (plannedOperations > snapshot.getMaximumOperations()) {
-                    throw new PlanningFailure(Status.TOO_COMPLEX,
-                          "QIO cycle operation budget exceeded " + snapshot.getMaximumOperations());
+            work.addFirst(() -> {
+                Set<Long> dependencies = new LinkedHashSet<>(seedDependencies);
+                for (Map.Entry<PortableResourceDescriptor, Long> input : externalInputs.entrySet()) {
+                    dependencies.addAll(consume(input.getKey(), input.getValue()));
                 }
-                QIOPlanningRoute route = solution.routes.get(index);
-                steps.add(new QIOPlanStep(memberId, route.getProviderKind(), route.getProviderId(),
-                      route.getRouteId(), route.getRecipeKey(), route.getVariantId(),
-                      route.getSignature(), totalOperations, route.getExactInputs(),
-                      route.getGuaranteedOutputs(), route.getOptionalOutputs(),
-                      new ArrayList<>(dependencies), route.getCandidateInputs(),
-                      route.getConfigurationInputs()));
-                memberIds.add(memberId);
-                quotas.put(memberId, solution.operations[index]);
-            }
-            List<Long> memberSchedule = new ArrayList<>(schedule.size());
-            for (int routeIndex : schedule) memberSchedule.add(memberIds.get(routeIndex));
-            long outputSource = memberSchedule.get(memberSchedule.size() - 1);
-            Map<PortableResourceDescriptor, Long> netPerRound = new TreeMap<>();
-            Set<PortableResourceDescriptor> all = new java.util.TreeSet<>();
-            for (QIOPlanningRoute route : solution.routes) {
-                all.addAll(route.getExactInputs().keySet());
-                all.addAll(route.getGuaranteedOutputs().keySet());
-            }
-            for (PortableResourceDescriptor resource : all) {
-                long delta = net(solution.routes, solution.operations, resource).longValueExact();
-                if (delta > 0) netPerRound.put(resource, delta);
-            }
-            for (PortableResourceDescriptor resource : solution.internalResources) {
-                long delta = net(solution.routes, solution.operations, resource).longValueExact();
-                if (delta > 0) addGenerated(resource, Math.multiplyExact(delta, rounds), outputSource);
-            }
-            for (int index = 0; index < solution.routes.size(); index++) {
-                long operations = Math.multiplyExact(solution.operations[index], rounds);
-                for (Map.Entry<PortableResourceDescriptor, Long> output : solution.routes.get(index).getGuaranteedOutputs().entrySet()) {
-                    if (!solution.internalResources.contains(output.getKey())) {
-                        addGenerated(output.getKey(), Math.multiplyExact(output.getValue(), operations), outputSource);
+
+                if (steps.size() + solution.routes.size() + cycleNodes.size() + 1 > snapshot.getMaximumNodes()) {
+                    throw new PlanningFailure(Status.TOO_COMPLEX, "QIO condensed cycle exceeds the node budget");
+                }
+                if (nextNodeId == Long.MAX_VALUE) throw new ArithmeticException("QIO cycle node identity overflow");
+                long cycleNodeId = nextNodeId++;
+                List<Long> memberIds = new ArrayList<>(solution.routes.size());
+                Map<Long, Long> quotas = new LinkedHashMap<>();
+                for (int index = 0; index < solution.routes.size(); index++) {
+                    if (nextNodeId == Long.MAX_VALUE)
+                        throw new ArithmeticException("QIO cycle member identity overflow");
+                    long memberId = nextNodeId++;
+                    long totalOperations = Math.multiplyExact(solution.operations[index], rounds);
+                    plannedOperations = Math.addExact(plannedOperations, totalOperations);
+                    if (plannedOperations > snapshot.getMaximumOperations()) {
+                        throw new PlanningFailure(Status.TOO_COMPLEX,
+                                "QIO cycle operation budget exceeded " + snapshot.getMaximumOperations());
+                    }
+                    QIOPlanningRoute route = solution.routes.get(index);
+                    steps.add(new QIOPlanStep(memberId, route.getProviderKind(), route.getProviderId(),
+                            route.getRouteId(), route.getRecipeKey(), route.getVariantId(),
+                            route.getSignature(), totalOperations, route.getExactInputs(),
+                            route.getGuaranteedOutputs(), route.getOptionalOutputs(),
+                            new ArrayList<>(dependencies), route.getCandidateInputs(),
+                            route.getConfigurationInputs()));
+                    memberIds.add(memberId);
+                    quotas.put(memberId, solution.operations[index]);
+                }
+                List<Long> memberSchedule = new ArrayList<>(schedule.size());
+                for (int routeIndex : schedule) memberSchedule.add(memberIds.get(routeIndex));
+                long outputSource = memberSchedule.get(memberSchedule.size() - 1);
+                Map<PortableResourceDescriptor, Long> netPerRound = new TreeMap<>();
+                Set<PortableResourceDescriptor> all = new java.util.TreeSet<>();
+                for (QIOPlanningRoute route : solution.routes) {
+                    all.addAll(route.getExactInputs().keySet());
+                    all.addAll(route.getGuaranteedOutputs().keySet());
+                }
+                for (PortableResourceDescriptor resource : all) {
+                    long delta = net(solution.routes, solution.operations, resource).longValueExact();
+                    if (delta > 0) netPerRound.put(resource, delta);
+                }
+                for (PortableResourceDescriptor resource : solution.internalResources) {
+                    long delta = net(solution.routes, solution.operations, resource).longValueExact();
+                    if (delta > 0) addGenerated(resource, Math.multiplyExact(delta, rounds), outputSource);
+                }
+                for (int index = 0; index < solution.routes.size(); index++) {
+                    long operations = Math.multiplyExact(solution.operations[index], rounds);
+                    for (Map.Entry<PortableResourceDescriptor, Long> output : solution.routes.get(index).getGuaranteedOutputs().entrySet()) {
+                        if (!solution.internalResources.contains(output.getKey())) {
+                            addGenerated(output.getKey(), Math.multiplyExact(output.getValue(), operations), outputSource);
+                        }
                     }
                 }
+                cycleNodes.add(new QIOCyclePlanNode(cycleNodeId, rounds, quotas, memberSchedule,
+                        cycleSeeds, netPerRound));
+            });
+            List<Map.Entry<PortableResourceDescriptor, Long>> prerequisites = new ArrayList<>(externalInputs.entrySet());
+            for (int index = prerequisites.size() - 1; index >= 0; index--) {
+                Map.Entry<PortableResourceDescriptor, Long> input = prerequisites.get(index);
+                work.addFirst(() -> ensure(input.getKey(), input.getValue(), depth, false));
             }
-            cycleNodes.add(new QIOCyclePlanNode(cycleNodeId, rounds, quotas, memberSchedule,
-                  cycleSeeds, netPerRound));
         }
 
         private int firstReadyInternal(CycleSolution solution, long[] remaining,
-              Map<PortableResourceDescriptor, Long> simulated) {
+                                       Map<PortableResourceDescriptor, Long> simulated) {
             for (int index = 0; index < solution.routes.size(); index++) {
                 if (remaining[index] <= 0) continue;
                 boolean ready = true;
                 for (Map.Entry<PortableResourceDescriptor, Long> input : solution.routes.get(index).getExactInputs().entrySet()) {
                     if (solution.internalResources.contains(input.getKey()) &&
-                          simulated.getOrDefault(input.getKey(), 0L) < input.getValue()) {
-                        ready = false; break;
+                            simulated.getOrDefault(input.getKey(), 0L) < input.getValue()) {
+                        ready = false;
+                        break;
                     }
                 }
                 if (ready) return index;
             }
             return -1;
-        }
-
-        private void executeCycleRound(CycleSolution solution, int depth) {
-            for (int routeIndex = 0; routeIndex < solution.routes.size(); routeIndex++) {
-                QIOPlanningRoute route = solution.routes.get(routeIndex);
-                long operations = solution.operations[routeIndex];
-                for (Map.Entry<PortableResourceDescriptor, Long> input :
-                      route.getExactInputs().entrySet()) {
-                    if (!solution.internalResources.contains(input.getKey())) {
-                        ensure(input.getKey(), Math.multiplyExact(input.getValue(), operations),
-                              depth, false);
-                    }
-                }
-            }
-            long[] remaining = solution.operations.clone();
-            long unfinished = 0;
-            for (long operations : remaining) {
-                unfinished = Math.addExact(unfinished, operations);
-            }
-            while (unfinished > 0) {
-                checkCancelled();
-                int ready = firstReadyRoute(solution.routes, remaining);
-                if (ready < 0) {
-                    seedFirstBlockedRoute(solution, remaining);
-                    ready = firstReadyRoute(solution.routes, remaining);
-                    if (ready < 0) {
-                        throw new PlanningFailure(Status.UNRESOLVABLE_CYCLE,
-                              "QIO cycle could not establish an executable seed schedule");
-                    }
-                }
-                addOperation();
-                executeResolved(solution.routes.get(ready));
-                remaining[ready]--;
-                unfinished--;
-            }
-        }
-
-        private int firstReadyRoute(List<QIOPlanningRoute> routes, long[] remaining) {
-            for (int index = 0; index < routes.size(); index++) {
-                if (remaining[index] > 0 && hasInputs(routes.get(index))) {
-                    return index;
-                }
-            }
-            return -1;
-        }
-
-        private boolean hasInputs(QIOPlanningRoute route) {
-            for (Map.Entry<PortableResourceDescriptor, Long> input :
-                  route.getExactInputs().entrySet()) {
-                if (available(input.getKey()) < input.getValue()) {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        private void seedFirstBlockedRoute(CycleSolution solution, long[] remaining) {
-            for (int routeIndex = 0; routeIndex < solution.routes.size(); routeIndex++) {
-                if (remaining[routeIndex] <= 0) {
-                    continue;
-                }
-                QIOPlanningRoute route = solution.routes.get(routeIndex);
-                for (Map.Entry<PortableResourceDescriptor, Long> input :
-                      route.getExactInputs().entrySet()) {
-                    if (!solution.internalResources.contains(input.getKey())) {
-                        continue;
-                    }
-                    long missing = input.getValue() - available(input.getKey());
-                    if (missing > 0) {
-                        addExternalStock(input.getKey(), missing);
-                        seedRequirements.merge(input.getKey(), missing, Math::addExact);
-                    }
-                }
-                return;
-            }
         }
 
         private CycleAnalysis findCycleForDemand(PortableResourceDescriptor demand) {
@@ -468,12 +615,12 @@ public final class QIOSeededCyclePlanner implements
                 return CycleAnalysis.none();
             }
             Map<PortableResourceDescriptor, List<PortableResourceDescriptor>> graph =
-                  new TreeMap<>();
+                    new TreeMap<>();
             for (Map.Entry<PortableResourceDescriptor, QIOPlanningRoute> entry :
-                  selected.entrySet()) {
+                    selected.entrySet()) {
                 List<PortableResourceDescriptor> edges = new ArrayList<>();
                 for (PortableResourceDescriptor input :
-                      entry.getValue().getExactInputs().keySet()) {
+                        entry.getValue().getExactInputs().keySet()) {
                     if (selected.containsKey(input)) {
                         edges.add(input);
                     }
@@ -496,7 +643,7 @@ public final class QIOSeededCyclePlanner implements
             // demand (for example a conserved catalyst loop that produces a side output).
             for (Set<PortableResourceDescriptor> component : components) {
                 if (!isCycle(component, graph) ||
-                    !canProduceDemand(component, selected, demand)) continue;
+                        !canProduceDemand(component, selected, demand)) continue;
                 CycleSolution solution = solveCycle(component, selected, demand);
                 if (solution != null) return CycleAnalysis.solved(solution);
             }
@@ -504,20 +651,20 @@ public final class QIOSeededCyclePlanner implements
         }
 
         private void collectSelectedRoutes(PortableResourceDescriptor resource,
-              Map<PortableResourceDescriptor, QIOPlanningRoute> selected,
-              Set<PortableResourceDescriptor> visiting, int depth) {
+                                           Map<PortableResourceDescriptor, QIOPlanningRoute> selected,
+                                           Set<PortableResourceDescriptor> visiting, int depth) {
             checkCancelled();
             if (selected.containsKey(resource) || !visiting.add(resource)) {
                 return;
             }
             if (depth > snapshot.getMaximumDepth() ||
-                selected.size() >= snapshot.getMaximumNodes()) {
+                    selected.size() >= snapshot.getMaximumNodes()) {
                 throw new PlanningFailure(Status.TOO_COMPLEX,
-                      "QIO cycle graph exceeded its planning budget");
+                        "QIO cycle graph exceeded its planning budget");
             }
             List<QIOPlanningRoute> candidates = snapshot.getRoutesProducing(resource);
             if (!candidates.isEmpty()) {
-                QIOPlanningRoute route = chooseVariant(candidates);
+                QIOPlanningRoute route = chooseVariant(candidates, resource);
                 selected.put(resource, route);
                 for (PortableResourceDescriptor input : route.getExactInputs().keySet()) {
                     collectSelectedRoutes(input, selected, visiting, depth + 1);
@@ -528,8 +675,8 @@ public final class QIOSeededCyclePlanner implements
 
         @Nullable
         private CycleSolution solveCycle(Set<PortableResourceDescriptor> resources,
-              Map<PortableResourceDescriptor, QIOPlanningRoute> selected,
-              PortableResourceDescriptor demand) {
+                                         Map<PortableResourceDescriptor, QIOPlanningRoute> selected,
+                                         PortableResourceDescriptor demand) {
             Map<String, QIOPlanningRoute> uniqueRoutes = new TreeMap<>();
             for (PortableResourceDescriptor resource : resources) {
                 QIOPlanningRoute route = selected.get(resource);
@@ -556,7 +703,7 @@ public final class QIOSeededCyclePlanner implements
             QIOPlanningRoute demandProducer = null;
             for (QIOPlanningRoute route : routes) {
                 if (routeNet(route, demand).signum() > 0 && (demandProducer == null ||
-                    route.getStableId().compareTo(demandProducer.getStableId()) < 0)) {
+                        route.getStableId().compareTo(demandProducer.getStableId()) < 0)) {
                     demandProducer = route;
                 }
             }
@@ -565,7 +712,7 @@ public final class QIOSeededCyclePlanner implements
             long bounded = Math.min(remainingBudget, snapshot.getMaximumNodes());
             if (bounded <= 0) {
                 throw new PlanningFailure(Status.TOO_COMPLEX,
-                      "QIO cycle cannot fit within the operation budget");
+                        "QIO cycle cannot fit within the operation budget");
             }
             long[] vector = new long[routes.size()];
             Map<String, Integer> routeIndices = new LinkedHashMap<>();
@@ -574,7 +721,7 @@ public final class QIOSeededCyclePlanner implements
             }
             Set<String> observedNets = new HashSet<>();
             int maximumIterations = (int) Math.min(128L, Math.max(1L,
-                  snapshot.getMaximumNodes()));
+                    snapshot.getMaximumNodes()));
             addToVector(vector, routeIndices.get(demandProducer.getStableId()), 1, bounded);
             for (int iteration = 0; iteration < maximumIterations; iteration++) {
                 checkCancelled();
@@ -588,8 +735,8 @@ public final class QIOSeededCyclePlanner implements
                 for (PortableResourceDescriptor resource : resources) {
                     BigInteger current = net(routes, vector, resource);
                     if (current.signum() < 0 && (deficitResource == null ||
-                        current.compareTo(deficit) < 0 || current.equals(deficit) &&
-                              resource.compareTo(deficitResource) < 0)) {
+                            current.compareTo(deficit) < 0 || current.equals(deficit) &&
+                            resource.compareTo(deficitResource) < 0)) {
                         deficitResource = resource;
                         deficit = current;
                     }
@@ -599,17 +746,17 @@ public final class QIOSeededCyclePlanner implements
                         return usedSolution(resources, routes, vector);
                     }
                     addToVector(vector, routeIndices.get(demandProducer.getStableId()), 1,
-                          bounded);
+                            bounded);
                     continue;
                 }
                 QIOPlanningRoute producer = selected.get(deficitResource);
                 if (producer == null) return null;
                 Integer producerIndex = routeIndices.get(producer.getStableId());
                 long grossOutput = producer.getGuaranteedOutputs().getOrDefault(
-                      deficitResource, 0L);
+                        deficitResource, 0L);
                 if (producerIndex == null || grossOutput <= 0) return null;
                 BigInteger amount = deficit.negate().add(BigInteger.valueOf(grossOutput - 1))
-                      .divide(BigInteger.valueOf(grossOutput));
+                        .divide(BigInteger.valueOf(grossOutput));
                 if (amount.signum() <= 0 || amount.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0) {
                     return null;
                 }
@@ -619,7 +766,7 @@ public final class QIOSeededCyclePlanner implements
         }
 
         private CycleSolution usedSolution(Set<PortableResourceDescriptor> resources,
-              List<QIOPlanningRoute> routes, long[] vector) {
+                                           List<QIOPlanningRoute> routes, long[] vector) {
             List<QIOPlanningRoute> usedRoutes = new ArrayList<>();
             List<Long> usedCounts = new ArrayList<>();
             for (int index = 0; index < vector.length; index++) {
@@ -639,13 +786,13 @@ public final class QIOSeededCyclePlanner implements
             for (long coefficient : vector) total = Math.addExact(total, coefficient);
             if (total > bounded) {
                 throw new PlanningFailure(Status.TOO_COMPLEX,
-                      "QIO cycle cannot fit within the operation budget");
+                        "QIO cycle cannot fit within the operation budget");
             }
         }
 
         private static boolean canProduceDemand(Set<PortableResourceDescriptor> resources,
-              Map<PortableResourceDescriptor, QIOPlanningRoute> selected,
-              PortableResourceDescriptor demand) {
+                                                Map<PortableResourceDescriptor, QIOPlanningRoute> selected,
+                                                PortableResourceDescriptor demand) {
             for (PortableResourceDescriptor resource : resources) {
                 QIOPlanningRoute route = selected.get(resource);
                 if (route != null && routeNet(route, demand).signum() > 0) return true;
@@ -654,14 +801,14 @@ public final class QIOSeededCyclePlanner implements
         }
 
         private static BigInteger routeNet(QIOPlanningRoute route,
-              PortableResourceDescriptor resource) {
+                                           PortableResourceDescriptor resource) {
             return BigInteger.valueOf(route.getGuaranteedOutputs().getOrDefault(resource, 0L))
-                  .subtract(BigInteger.valueOf(route.getExactInputs().getOrDefault(resource, 0L)));
+                    .subtract(BigInteger.valueOf(route.getExactInputs().getOrDefault(resource, 0L)));
         }
 
         private static String netState(List<QIOPlanningRoute> routes,
-              Set<PortableResourceDescriptor> resources, PortableResourceDescriptor demand,
-              long[] vector) {
+                                       Set<PortableResourceDescriptor> resources, PortableResourceDescriptor demand,
+                                       long[] vector) {
             StringBuilder state = new StringBuilder();
             for (PortableResourceDescriptor resource : resources) {
                 state.append(resource).append('=').append(net(routes, vector, resource)).append(';');
@@ -673,20 +820,20 @@ public final class QIOSeededCyclePlanner implements
         }
 
         private static BigInteger net(List<QIOPlanningRoute> routes, long[] vector,
-              PortableResourceDescriptor resource) {
+                                      PortableResourceDescriptor resource) {
             BigInteger result = BigInteger.ZERO;
             for (int index = 0; index < routes.size(); index++) {
                 QIOPlanningRoute route = routes.get(index);
                 BigInteger delta = BigInteger.valueOf(
-                      route.getGuaranteedOutputs().getOrDefault(resource, 0L)).subtract(
-                      BigInteger.valueOf(route.getExactInputs().getOrDefault(resource, 0L)));
+                        route.getGuaranteedOutputs().getOrDefault(resource, 0L)).subtract(
+                        BigInteger.valueOf(route.getExactInputs().getOrDefault(resource, 0L)));
                 result = result.add(delta.multiply(BigInteger.valueOf(vector[index])));
             }
             return result;
         }
 
         private static boolean isCycle(Set<PortableResourceDescriptor> component,
-              Map<PortableResourceDescriptor, List<PortableResourceDescriptor>> graph) {
+                                       Map<PortableResourceDescriptor, List<PortableResourceDescriptor>> graph) {
             if (component.size() > 1) {
                 return true;
             }
@@ -695,10 +842,10 @@ public final class QIOSeededCyclePlanner implements
         }
 
         private static String cyclePath(Set<PortableResourceDescriptor> component,
-              Map<PortableResourceDescriptor, List<PortableResourceDescriptor>> graph,
-              PortableResourceDescriptor preferredStart) {
+                                        Map<PortableResourceDescriptor, List<PortableResourceDescriptor>> graph,
+                                        PortableResourceDescriptor preferredStart) {
             PortableResourceDescriptor current = component.contains(preferredStart) ?
-                  preferredStart : component.iterator().next();
+                    preferredStart : component.iterator().next();
             List<PortableResourceDescriptor> walked = new ArrayList<>();
             Map<PortableResourceDescriptor, Integer> positions = new LinkedHashMap<>();
             while (true) {
@@ -715,9 +862,9 @@ public final class QIOSeededCyclePlanner implements
                 walked.add(current);
                 PortableResourceDescriptor next = null;
                 for (PortableResourceDescriptor candidate : graph.getOrDefault(current,
-                      Collections.emptyList())) {
+                        Collections.emptyList())) {
                     if (component.contains(candidate) && (next == null ||
-                        candidate.compareTo(next) < 0)) next = candidate;
+                            candidate.compareTo(next) < 0)) next = candidate;
                 }
                 if (next == null) {
                     return displayResource(current) + " -> " + displayResource(current);
@@ -730,7 +877,7 @@ public final class QIOSeededCyclePlanner implements
             StringBuilder display = new StringBuilder();
             if (resource.getKind() != PortableResourceDescriptor.Kind.ITEM) {
                 display.append(resource.getKind().name().toLowerCase(java.util.Locale.ROOT))
-                      .append(':');
+                        .append(':');
             }
             display.append(resource.getRegistryName());
             if (resource.getMetadata() != 0) display.append('@').append(resource.getMetadata());
@@ -738,7 +885,7 @@ public final class QIOSeededCyclePlanner implements
         }
 
         private static List<Set<PortableResourceDescriptor>> tarjan(
-              Map<PortableResourceDescriptor, List<PortableResourceDescriptor>> graph) {
+                Map<PortableResourceDescriptor, List<PortableResourceDescriptor>> graph) {
             TarjanState state = new TarjanState(graph);
             for (PortableResourceDescriptor resource : graph.keySet()) {
                 if (!state.indices.containsKey(resource)) {
@@ -751,7 +898,7 @@ public final class QIOSeededCyclePlanner implements
         private Set<Long> consume(PortableResourceDescriptor resource, long amount) {
             long remaining = amount;
             Set<Long> dependencies = new LinkedHashSet<>();
-            Deque<GeneratedLot> lots = generated.get(resource);
+            Deque<GeneratedLot> lots = copyLots(generated.get(resource));
             while (remaining > 0 && lots != null && !lots.isEmpty()) {
                 GeneratedLot lot = lots.peekFirst();
                 long consumed = Math.min(remaining, lot.amount);
@@ -762,9 +909,8 @@ public final class QIOSeededCyclePlanner implements
                     lots.removeFirst();
                 }
             }
-            if (lots != null && lots.isEmpty()) {
-                generated.remove(resource);
-            }
+            if (lots.isEmpty()) generated.remove(resource);
+            else generated.put(resource, lots);
             if (remaining > 0) {
                 long stored = stock.getOrDefault(resource, 0L);
                 if (stored < remaining) {
@@ -792,8 +938,9 @@ public final class QIOSeededCyclePlanner implements
             if (amount <= 0) {
                 throw new IllegalArgumentException("QIO generated amount must be positive");
             }
-            generated.computeIfAbsent(resource, ignored -> new ArrayDeque<>())
-                  .addLast(new GeneratedLot(nodeId, amount));
+            Deque<GeneratedLot> lots = copyLots(generated.get(resource));
+            lots.addLast(new GeneratedLot(nodeId, amount));
+            generated.put(resource, lots);
         }
 
         private long available(PortableResourceDescriptor resource) {
@@ -808,31 +955,54 @@ public final class QIOSeededCyclePlanner implements
         }
 
         private QIOPlanningRoute chooseVariant(List<QIOPlanningRoute> candidates) {
-            QIOPlanningRoute first = candidates.get(0);
-            QIOPlanningRoute selected = first;
-            long selectedDeficit = routeDeficit(first);
-            for (int index = 1; index < candidates.size(); index++) {
-                QIOPlanningRoute candidate = candidates.get(index);
-                if (candidate.getRoutePriority() != first.getRoutePriority() ||
-                      !candidate.getLogicalId().equals(first.getLogicalId())) {
+            return chooseVariant(candidates, null);
+        }
+
+        private QIOPlanningRoute chooseVariant(List<QIOPlanningRoute> candidates, @Nullable PortableResourceDescriptor requiredOutput) {
+            if (choiceCursor < commandChoices.size()) {
+                Chosen chosen = commandChoices.get(choiceCursor++);
+                if (chosen.context != candidates)
+                    throw new IllegalStateException("Cycle replay recipe context changed");
+                return chosen.route;
+            }
+            QIOPlanningRoute first = candidates.get(0), preferred = first;
+            long deficit = routeDeficit(first);
+            for (QIOPlanningRoute candidate : candidates) {
+                if (candidate.getRoutePriority() != first.getRoutePriority() || !candidate.getLogicalId().equals(first.getLogicalId()))
                     break;
-                }
-                long deficit = routeDeficit(candidate);
-                if (deficit < selectedDeficit || deficit == selectedDeficit &&
-                      (candidate.getVariantPriority() > selected.getVariantPriority() ||
-                       candidate.getVariantPriority() == selected.getVariantPriority() &&
-                       candidate.getStableId().compareTo(selected.getStableId()) < 0)) {
-                    selected = candidate;
-                    selectedDeficit = deficit;
+                long next = routeDeficit(candidate);
+                if (next < deficit) {
+                    preferred = candidate;
+                    deficit = next;
                 }
             }
+            List<QIOPlanningRoute> ordered = new ArrayList<>(candidates);
+            ordered.remove(preferred);
+            ordered.add(0, preferred);
+            Map<PortableResourceDescriptor, Long> available = new TreeMap<>(stock);
+            generated.forEach((resource, lots) -> {
+                for (GeneratedLot lot : lots) available.merge(resource, lot.amount, PlannerState::saturatedAdd);
+            });
+            QIOPlanningRoute selected = null;
+            for (QIOPlanningRoute candidate : ordered) {
+                selected = candidate.selectWorkbench(available, 1, cancellationToken::isCancelled, nextExcluded, requiredOutput);
+                if (selected != null) break;
+            }
+            if (selected == null) throw new PlanningFailure(Status.NO_ROUTE, "Cycle recipe candidates exhausted");
+            QIOPlanningMetrics.current().add(QIOPlanningMetrics.Metric.BRANCH_ATTEMPTS, 1);
+            if (++choiceAttempts > snapshot.getMaximumNodes())
+                throw new QIOPlanningLimitException("QIO cycle choice attempt budget exceeded");
+            if (selected.hasAlternatives() || candidates.size() > 1) decisions.addLast(new ChoiceDecision(selected));
+            commandChoices.add(new Chosen(candidates, selected));
+            nextExcluded = Collections.emptySet();
+            choiceCursor++;
             return selected;
         }
 
         private long routeDeficit(QIOPlanningRoute route) {
             long deficit = 0;
             for (Map.Entry<PortableResourceDescriptor, Long> input :
-                  route.getExactInputs().entrySet()) {
+                    route.getExactInputs().entrySet()) {
                 long present;
                 try {
                     present = available(input.getKey());
@@ -849,10 +1019,10 @@ public final class QIOSeededCyclePlanner implements
         private void addOperation() {
             plannedOperations = Math.addExact(plannedOperations, 1);
             if (plannedOperations > snapshot.getMaximumOperations() ||
-                  plannedOperations > snapshot.getMaximumNodes()) {
+                    plannedOperations > snapshot.getMaximumNodes()) {
                 throw new PlanningFailure(Status.TOO_COMPLEX,
-                      "QIO cycle planning operation budget exceeded " +
-                            snapshot.getMaximumOperations());
+                        "QIO cycle planning operation budget exceeded " +
+                                snapshot.getMaximumOperations());
             }
         }
 
@@ -899,9 +1069,9 @@ public final class QIOSeededCyclePlanner implements
         private final long[] operations;
 
         private CycleSolution(Set<PortableResourceDescriptor> internalResources,
-              List<QIOPlanningRoute> routes, long[] operations) {
+                              List<QIOPlanningRoute> routes, long[] operations) {
             this.internalResources = Collections.unmodifiableSet(
-                  new LinkedHashSet<>(internalResources));
+                    new LinkedHashSet<>(internalResources));
             this.routes = Collections.unmodifiableList(new ArrayList<>(routes));
             this.operations = operations.clone();
         }
@@ -909,8 +1079,10 @@ public final class QIOSeededCyclePlanner implements
 
     private static final class CycleAnalysis {
 
-        @Nullable private final CycleSolution solution;
-        @Nullable private final String circularPath;
+        @Nullable
+        private final CycleSolution solution;
+        @Nullable
+        private final String circularPath;
 
         private CycleAnalysis(@Nullable CycleSolution solution, @Nullable String circularPath) {
             this.solution = solution;
@@ -941,7 +1113,7 @@ public final class QIOSeededCyclePlanner implements
         private int nextIndex;
 
         private TarjanState(
-              Map<PortableResourceDescriptor, List<PortableResourceDescriptor>> graph) {
+                Map<PortableResourceDescriptor, List<PortableResourceDescriptor>> graph) {
             this.graph = graph;
         }
 
@@ -952,14 +1124,14 @@ public final class QIOSeededCyclePlanner implements
             stack.push(resource);
             onStack.add(resource);
             for (PortableResourceDescriptor neighbor :
-                  graph.getOrDefault(resource, Collections.emptyList())) {
+                    graph.getOrDefault(resource, Collections.emptyList())) {
                 if (!indices.containsKey(neighbor)) {
                     visit(neighbor);
                     lowLinks.put(resource, Math.min(lowLinks.get(resource),
-                          lowLinks.get(neighbor)));
+                            lowLinks.get(neighbor)));
                 } else if (onStack.contains(neighbor)) {
                     lowLinks.put(resource, Math.min(lowLinks.get(resource),
-                          indices.get(neighbor)));
+                            indices.get(neighbor)));
                 }
             }
             if (!lowLinks.get(resource).equals(indices.get(resource))) {

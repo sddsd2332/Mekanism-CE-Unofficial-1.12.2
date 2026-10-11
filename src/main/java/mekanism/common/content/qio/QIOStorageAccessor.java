@@ -6,18 +6,16 @@ import mekanism.common.tile.qio.TileEntityQIODashboard;
 import mekanism.common.util.SecurityUtils;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.IdentityHashMap;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
-/** Stable dashboard-owned implementation behind the public QIO storage capability. */
+/**
+ * Stable dashboard-owned implementation behind the public QIO storage capability.
+ */
 public final class QIOStorageAccessor implements IQIOStorageAccessor {
 
     private final TileEntityQIODashboard dashboard;
     private final Set<QIOStorageViewImpl> listeningViews =
-          Collections.newSetFromMap(new IdentityHashMap<>());
+            Collections.newSetFromMap(new IdentityHashMap<>());
 
     public QIOStorageAccessor(TileEntityQIODashboard dashboard) {
         this.dashboard = dashboard;
@@ -32,8 +30,8 @@ public final class QIOStorageAccessor implements IQIOStorageAccessor {
         }
         net.minecraft.util.EnumFacing dashboardFacing = dashboard.facing;
         return new QIOStorageViewImpl(frequency,
-              () -> isAccessibleFrequency(frequency, requester, dashboardFacing),
-              listeningViews::add, listeningViews::remove);
+                () -> isAccessibleFrequency(frequency, requester, dashboardFacing),
+                listeningViews::add, listeningViews::remove);
     }
 
     public void tick() {
@@ -58,22 +56,22 @@ public final class QIOStorageAccessor implements IQIOStorageAccessor {
         }
         QIOFrequency frequency = dashboard.getQIOFrequency();
         if (frequency == null || !frequency.isValid() || frequency.isRemoved() ||
-              !QIOStorageManager.isLoaded()) {
+                !QIOStorageManager.isLoaded()) {
             return null;
         }
         if (!SecurityUtils.canAccess(requester, dashboard) ||
-              !SecurityUtils.canAccess(frequency.getSecurity(), requester, frequency.getOwner())) {
+                !SecurityUtils.canAccess(frequency.getSecurity(), requester, frequency.getOwner())) {
             return null;
         }
         return frequency;
     }
 
     private boolean isAccessibleFrequency(QIOFrequency frequency, @Nullable UUID requester,
-          net.minecraft.util.EnumFacing dashboardFacing) {
+                                          net.minecraft.util.EnumFacing dashboardFacing) {
         return isDashboardLoaded() && dashboard.facing == dashboardFacing &&
-              dashboard.getQIOFrequency() == frequency &&
-              SecurityUtils.canAccess(requester, dashboard) &&
-              SecurityUtils.canAccess(frequency.getSecurity(), requester, frequency.getOwner());
+                dashboard.getQIOFrequency() == frequency &&
+                SecurityUtils.canAccess(requester, dashboard) &&
+                SecurityUtils.canAccess(frequency.getSecurity(), requester, frequency.getOwner());
     }
 
     private boolean isDashboardLoaded() {
@@ -81,7 +79,7 @@ public final class QIOStorageAccessor implements IQIOStorageAccessor {
             return false;
         }
         return dashboard.getWorld().isBlockLoaded(dashboard.getPos()) &&
-              dashboard.getWorld().getTileEntity(dashboard.getPos()) == dashboard;
+                dashboard.getWorld().getTileEntity(dashboard.getPos()) == dashboard;
     }
 
 }

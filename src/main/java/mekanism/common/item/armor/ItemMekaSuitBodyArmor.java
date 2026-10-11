@@ -143,8 +143,8 @@ public class ItemMekaSuitBodyArmor extends ItemMekaSuitArmor implements ILegacyG
     public boolean canUseJetpack(ItemStack stack) {
         int stored = getStored(stack);
         return armorType == EntityEquipmentSlot.CHEST && isModuleEnabled(stack, MekanismModules.JETPACK_UNIT) ?
-              stored > 0 :
-              getModules(stack).stream().allMatch(module -> module.isEnabled() && module.getData().isExclusive(ModuleData.ExclusiveFlag.OVERRIDE_JUMP.getMask()));
+                stored > 0 :
+                getModules(stack).stream().allMatch(module -> module.isEnabled() && module.getData().isExclusive(ModuleData.ExclusiveFlag.OVERRIDE_JUMP.getMask()));
     }
 
     @Override
@@ -201,7 +201,7 @@ public class ItemMekaSuitBodyArmor extends ItemMekaSuitArmor implements ILegacyG
                 // only mark that we can use the elytra if the jetpack is not set to hover or if it is if it has no hydrogen stored
                 IModule<ModuleJetpackUnit> jetpack = getModule(stack, MekanismModules.JETPACK_UNIT);
                 return jetpack == null || !jetpack.isEnabled() || jetpack.getCustomInstance().getMode() != JetpackMode.HOVER ||
-                       getContainedGas(stack, MekanismFluids.Hydrogen) == null;
+                        getContainedGas(stack, MekanismFluids.Hydrogen) == null;
             }
         }
         return false;

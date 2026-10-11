@@ -9,32 +9,14 @@ import mekanism.api.gas.GasStack;
 import mekanism.api.gear.ModuleData;
 import mekanism.client.gui.GuiMekanism;
 import mekanism.client.gui.element.progress.ProgressType;
-import mekanism.client.recipe_viewer.RecipeViewerUtils;
-import mekanism.client.recipe_viewer.jei.JeiRecipeViewerRuntime;
-import mekanism.client.recipe_viewer.type.IRecipeViewerRecipeType;
-import mekanism.client.recipe_viewer.type.RecipeViewerRecipeType;
 import mekanism.client.jei.machine.FarmMachineRecipeCategory;
 import mekanism.client.jei.machine.RecyclerRecipeCategory;
-import mekanism.client.recipe_viewer.jei.machine.ChemicalChemicalToChemicalRecipeCategory;
-import mekanism.client.recipe_viewer.jei.machine.ChemicalCrystallizerRecipeCategory;
-import mekanism.client.recipe_viewer.jei.machine.ChemicalDissolutionRecipeCategory;
-import mekanism.client.recipe_viewer.jei.machine.ChemicalToChemicalRecipeCategory;
-import mekanism.client.recipe_viewer.jei.machine.CombinerRecipeCategory;
-import mekanism.client.recipe_viewer.jei.machine.ElectrolysisRecipeCategory;
-import mekanism.client.recipe_viewer.jei.machine.FluidChemicalToChemicalRecipeCategory;
-import mekanism.client.recipe_viewer.jei.machine.FluidToFluidRecipeCategory;
-import mekanism.client.recipe_viewer.jei.machine.ItemStackChemicalToItemStackRecipeCategory;
-import mekanism.client.recipe_viewer.jei.machine.ItemStackToChemicalRecipeCategory;
-import mekanism.client.recipe_viewer.jei.machine.ItemStackToEnergyRecipeCategory;
-import mekanism.client.recipe_viewer.jei.machine.ItemStackToFluidOptionalItemRecipeCategory;
-import mekanism.client.recipe_viewer.jei.machine.ItemStackToItemStackRecipeCategory;
-import mekanism.client.recipe_viewer.jei.machine.MetallurgicInfuserRecipeCategory;
-import mekanism.client.recipe_viewer.jei.machine.NucleosynthesizingRecipeCategory;
-import mekanism.client.recipe_viewer.jei.machine.PressurizedReactionRecipeCategory;
-import mekanism.client.recipe_viewer.jei.machine.RotaryCondensentratorRecipeCategory;
-import mekanism.client.recipe_viewer.jei.machine.SPSRecipeCategory;
-import mekanism.client.recipe_viewer.jei.machine.SawmillRecipeCategory;
 import mekanism.client.jei.machine.other.AmbientGasCategory;
+import mekanism.client.recipe_viewer.RecipeViewerUtils;
+import mekanism.client.recipe_viewer.jei.JeiRecipeViewerRuntime;
+import mekanism.client.recipe_viewer.jei.machine.*;
+import mekanism.client.recipe_viewer.type.IRecipeViewerRecipeType;
+import mekanism.client.recipe_viewer.type.RecipeViewerRecipeType;
 import mekanism.common.Mekanism;
 import mekanism.common.MekanismBlocks;
 import mekanism.common.MekanismItems;
@@ -44,9 +26,9 @@ import mekanism.common.base.ITierItem;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.content.gear.ModuleHelper;
-import mekanism.common.inventory.container.robit.ContainerRobitInventory;
 import mekanism.common.inventory.container.ContainerQIODashboard;
 import mekanism.common.inventory.container.PortableQIODashboardContainer;
+import mekanism.common.inventory.container.robit.ContainerRobitInventory;
 import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.recipe.RecipeHandler.Recipe;
 import mekanism.common.util.LangUtils;
@@ -60,18 +42,18 @@ import mezz.jei.api.recipe.IIngredientType;
 import mezz.jei.api.recipe.IRecipeCategoryRegistration;
 import mezz.jei.api.recipe.IVanillaRecipeFactory;
 import mezz.jei.api.recipe.VanillaRecipeCategoryUid;
+import net.minecraft.client.Minecraft;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.crafting.IRecipe;
 import net.minecraft.item.crafting.Ingredient;
-import net.minecraft.client.Minecraft;
 import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.fluids.Fluid;
 import net.minecraftforge.fml.common.registry.ForgeRegistries;
 import net.minecraftforge.registries.IForgeRegistryModifiable;
 
-import java.util.*;
 import java.lang.reflect.Method;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @JEIPlugin
@@ -258,9 +240,9 @@ public class MekanismJEI implements IModPlugin {
         mekanism.client.recipe_viewer.jei.RecipeRegistryHelper.registerFormulaicAssemblicator(registry);
         registry.getRecipeTransferRegistry().addRecipeTransferHandler(ContainerRobitInventory.class, VanillaRecipeCategoryUid.CRAFTING, 1, 9, 10, 36);
         registry.getRecipeTransferRegistry().addRecipeTransferHandler(new QIOCraftingTransferHandler<>(ContainerQIODashboard.class,
-              registry.getJeiHelpers().recipeTransferHandlerHelper(), registry.getJeiHelpers().getStackHelper()), VanillaRecipeCategoryUid.CRAFTING);
+                registry.getJeiHelpers().recipeTransferHandlerHelper(), registry.getJeiHelpers().getStackHelper()), VanillaRecipeCategoryUid.CRAFTING);
         registry.getRecipeTransferRegistry().addRecipeTransferHandler(new QIOCraftingTransferHandler<>(PortableQIODashboardContainer.class,
-              registry.getJeiHelpers().recipeTransferHandlerHelper(), registry.getJeiHelpers().getStackHelper()), VanillaRecipeCategoryUid.CRAFTING);
+                registry.getJeiHelpers().recipeTransferHandlerHelper(), registry.getJeiHelpers().getStackHelper()), VanillaRecipeCategoryUid.CRAFTING);
 
         /**
          *  ADD START
@@ -336,7 +318,9 @@ public class MekanismJEI implements IModPlugin {
         NC_SHIELDING_RECIPES_FOR_JEI.clear();
     }
 
-    /** Rebuilds transfer buttons after the non-slot QIO inventory snapshot changes. */
+    /**
+     * Rebuilds transfer buttons after the non-slot QIO inventory snapshot changes.
+     */
     public static void refreshRecipeTransferButtons() {
         IJeiRuntime runtime = jeiRuntime;
         if (runtime == null || recipeGuiRefreshUnavailable) {
@@ -356,7 +340,7 @@ public class MekanismJEI implements IModPlugin {
         } catch (ReflectiveOperationException | SecurityException ex) {
             recipeGuiRefreshUnavailable = true;
             Mekanism.logger.warn("Unable to refresh QIO recipe transfer availability for {}",
-                  recipesGui.getClass().getName(), ex);
+                    recipesGui.getClass().getName(), ex);
         }
     }
 

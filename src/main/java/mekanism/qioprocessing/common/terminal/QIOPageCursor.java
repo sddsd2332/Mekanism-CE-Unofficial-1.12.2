@@ -6,7 +6,10 @@ import javax.annotation.Nonnull;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Opaque continuation cursor bound to one terminal session and source revision. */
+/**
+ * Opaque continuation cursor bound to one terminal session and source revision.
+ */
+
 /**
  * QIO 处理模块中的 QIOPageCursor 类型。
  *

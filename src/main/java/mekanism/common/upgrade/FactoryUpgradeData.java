@@ -45,11 +45,11 @@ public class FactoryUpgradeData extends TierUpgradeData {
     public final FluidStack inputFluid;
 
     public FactoryUpgradeData(@Nonnull BaseTier upgradeTier, @Nonnull EnumFacing facing, @Nonnull EnumFacing clientFacing, int ticker,
-          boolean redstone, boolean redstoneLastTick, boolean doAutoSync, double energy, boolean active, double previousEnergy,
-          @Nonnull RedstoneControl controlType, @Nonnull NBTTagCompound componentData, @Nonnull RecipeType recipeType,
-          boolean sorting, @Nonnull int[] progress, @Nonnull long[] usedSoFar, @Nonnull InfuseStorage infuseStored,
-          @Nonnull ItemStack energySlot, @Nonnull ItemStack extraSlot, @Nonnull ItemStack[] inputSlots, @Nonnull ItemStack[] outputSlots,
-          @Nonnull ItemStack[] secondaryOutputSlots, @Nullable GasStack inputGas, @Nullable GasStack outputGas, @Nullable FluidStack inputFluid) {
+                              boolean redstone, boolean redstoneLastTick, boolean doAutoSync, double energy, boolean active, double previousEnergy,
+                              @Nonnull RedstoneControl controlType, @Nonnull NBTTagCompound componentData, @Nonnull RecipeType recipeType,
+                              boolean sorting, @Nonnull int[] progress, @Nonnull long[] usedSoFar, @Nonnull InfuseStorage infuseStored,
+                              @Nonnull ItemStack energySlot, @Nonnull ItemStack extraSlot, @Nonnull ItemStack[] inputSlots, @Nonnull ItemStack[] outputSlots,
+                              @Nonnull ItemStack[] secondaryOutputSlots, @Nullable GasStack inputGas, @Nullable GasStack outputGas, @Nullable FluidStack inputFluid) {
         super(upgradeTier);
         this.facing = facing;
         this.clientFacing = clientFacing;

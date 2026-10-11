@@ -20,6 +20,7 @@ import mekanism.common.recipe.cache.TwoInputCachedRecipe;
 import mekanism.common.recipe.cache.inputs.InputHelper;
 import mekanism.common.recipe.cache.outputs.OutputHelper;
 import mekanism.common.recipe.inputs.DoubleMachineInput;
+import mekanism.common.recipe.inputs.MachineInput;
 import mekanism.common.recipe.machines.DoubleMachineRecipe;
 import mekanism.common.recipe.outputs.ItemStackOutput;
 import mekanism.common.tile.component.TileComponentConfig;
@@ -40,11 +41,11 @@ import java.util.List;
 public abstract class TileEntityDoubleElectricMachine<RECIPE extends DoubleMachineRecipe<RECIPE>> extends TileEntityUpgradeableMachine<DoubleMachineInput, ItemStackOutput, RECIPE> {
 
     private static final List<RecipeError> TRACKED_ERROR_TYPES = Arrays.asList(
-          RecipeError.NOT_ENOUGH_ENERGY,
-          RecipeError.NOT_ENOUGH_INPUT,
-          RecipeError.NOT_ENOUGH_SECONDARY_INPUT,
-          RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
-          RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
+            RecipeError.NOT_ENOUGH_ENERGY,
+            RecipeError.NOT_ENOUGH_INPUT,
+            RecipeError.NOT_ENOUGH_SECONDARY_INPUT,
+            RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
+            RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
     );
     private static final String[] methods = new String[]{"getEnergy", "getProgress", "isActive", "facing", "canOperate", "getMaxEnergy", "getEnergyNeeded"};
     protected InputInventorySlot inputSlot;
@@ -78,10 +79,10 @@ public abstract class TileEntityDoubleElectricMachine<RECIPE extends DoubleMachi
         IContentsListener recipeCacheListener = getRecipeCacheListener();
         IContentsListener recipeCacheChangeListener = getRecipeCacheChangeListener(listener);
         inputSlot = builder.addSlot(InputInventorySlot.at(stack -> getRecipes().keySet().stream().anyMatch(input -> ItemHandlerHelper.canItemStacksStack(input.itemStack, stack)), recipeCacheListener, 64, 17)
-              .setAutoPullValidator((stack, side) -> canAutoPullInput(stack)));
+                .setAutoPullValidator((stack, side) -> canAutoPullInput(stack)));
         inputSlot.tracksWarnings(slot -> slot.warning(WarningType.NO_MATCHING_RECIPE, getWarningCheck(RecipeError.NOT_ENOUGH_INPUT)));
         extraSlot = builder.addSlot(InputInventorySlot.at(stack -> getRecipes().keySet().stream().anyMatch(input -> ItemHandlerHelper.canItemStacksStack(input.extraStack, stack)), recipeCacheListener, 64, 53)
-              .setAutoPullValidator((stack, side) -> canAutoPullExtra(stack)));
+                .setAutoPullValidator((stack, side) -> canAutoPullExtra(stack)));
         extraSlot.setSlotType(ContainerSlotType.EXTRA);
         extraSlot.tracksWarnings(slot -> slot.warning(WarningType.NO_MATCHING_RECIPE, getWarningCheck(RecipeError.NOT_ENOUGH_SECONDARY_INPUT)));
         outputSlot = builder.addSlot(OutputInventorySlot.at(recipeCacheChangeListener, 116, 35));
@@ -217,40 +218,55 @@ public abstract class TileEntityDoubleElectricMachine<RECIPE extends DoubleMachi
     }
 
     private boolean canAutoPullInput(ItemStack stack) {
-        return canAutoPull(getSimulatedStackWithInsert(0, stack), extraSlot.getStack());
+        return canAutoPull(getSimulatedStackWithInsert(inputSlot, stack), extraSlot.getStack());
     }
 
     private boolean canAutoPullExtra(ItemStack stack) {
-        return canAutoPull(inputSlot.getStack(), getSimulatedStackWithInsert(1, stack));
+        return canAutoPull(inputSlot.getStack(), getSimulatedStackWithInsert(extraSlot, stack));
     }
 
     private boolean canAutoPull(ItemStack input, ItemStack extra) {
+        if (input.isEmpty() && extra.isEmpty()) {
+            return false;
+        }
+        if (input.isEmpty() || extra.isEmpty()) {
+            // Allow the first ingredient to arrive without requiring the other slot to be filled first.
+            for (RECIPE recipe : getRecipes().values()) {
+                DoubleMachineInput recipeInput = recipe.getInput();
+                if ((input.isEmpty() || MachineInput.inputItemMatches(recipeInput.itemStack, input)) &&
+                        (extra.isEmpty() || MachineInput.inputItemMatches(recipeInput.extraStack, extra)) &&
+                        canOutputToSlot(outputSlot, recipe.getOutput().output)) {
+                    return true;
+                }
+            }
+            return false;
+        }
         RECIPE recipe = RecipeHandler.getRecipe(new DoubleMachineInput(input, extra), getRecipes());
-        return recipe != null && canOutputToSlot(2, recipe.getOutput().output);
+        return recipe != null && canOutputToSlot(outputSlot, recipe.getOutput().output);
     }
 
     @Override
     public CachedRecipe<RECIPE> createNewCachedRecipe(RECIPE recipe, int cacheIndex) {
         return new TwoInputCachedRecipe<>(recipe, this::shouldRecheckAllRecipeErrors,
-              InputHelper.getInputHandler(inputSlot, RecipeError.NOT_ENOUGH_INPUT),
-              InputHelper.getInputHandler(extraSlot, RecipeError.NOT_ENOUGH_SECONDARY_INPUT),
-              OutputHelper.getOutputHandler(outputSlot, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
-              () -> recipe.getInput().itemStack, () -> recipe.getInput().extraStack,
-              (input, extra) -> mekanism.common.recipe.inputs.MachineInput.inputContains(input, recipe.getInput().itemStack)
-                    && mekanism.common.recipe.inputs.MachineInput.inputContains(extra, recipe.getInput().extraStack),
-              (input, extra) -> recipe.getOutput().output.copy(), ItemStack::isEmpty, ItemStack::isEmpty, ItemStack::isEmpty)
-              .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
-              .setActive(active -> {
-                  if (active || prevEnergy >= getEnergy()) {
-                      setActive(active);
-                  }
-              })
-              .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
-              .setRequiredTicks(() -> ticksRequired)
-              .setBaselineMaxOperations(() -> getBaselineMaxOperations(energyPerTick, true))
-              .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
-              .setErrorsChanged(this::onRecipeErrorsChanged)
-              .setOnFinish(this::onCachedRecipeFinish);
+                InputHelper.getInputHandler(inputSlot, RecipeError.NOT_ENOUGH_INPUT),
+                InputHelper.getInputHandler(extraSlot, RecipeError.NOT_ENOUGH_SECONDARY_INPUT),
+                OutputHelper.getOutputHandler(outputSlot, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
+                () -> recipe.getInput().itemStack, () -> recipe.getInput().extraStack,
+                (input, extra) -> mekanism.common.recipe.inputs.MachineInput.inputContains(input, recipe.getInput().itemStack)
+                        && mekanism.common.recipe.inputs.MachineInput.inputContains(extra, recipe.getInput().extraStack),
+                (input, extra) -> recipe.getOutput().output.copy(), ItemStack::isEmpty, ItemStack::isEmpty, ItemStack::isEmpty)
+                .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
+                .setActive(active -> {
+                    if (active || prevEnergy >= getEnergy()) {
+                        setActive(active);
+                    }
+                })
+                .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
+                .setRequiredTicks(() -> ticksRequired)
+                .setBaselineMaxOperations(() -> getBaselineMaxOperations(energyPerTick, true))
+                .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
+                .setErrorsChanged(this::onRecipeErrorsChanged)
+                .setOnFinish(this::onCachedRecipeFinish);
     }
 
     @Override
@@ -271,6 +287,7 @@ public abstract class TileEntityDoubleElectricMachine<RECIPE extends DoubleMachi
             default -> throw new NoSuchMethodException();
         };
     }
+
     @Override
     protected boolean shouldDumpRadiation() {
         return false;

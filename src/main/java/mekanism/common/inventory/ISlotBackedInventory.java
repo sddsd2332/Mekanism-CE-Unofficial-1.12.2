@@ -18,6 +18,34 @@ import javax.annotation.Nonnull;
  */
 public interface ISlotBackedInventory extends IInventory, IMekanismInventory {
 
+    /**
+     * Vanilla 1.12 fullness calculation over one internal slot view. Going through
+     * Container.calcRedstoneFromInventory repeatedly resolves this same view via
+     * getSizeInventory/getStackInSlot. Keep vanilla float arithmetic, inventory-wide
+     * stack limit and all slots (including empty and energy slots) for signal parity.
+     * No cached contents: slot replacements, stack NBT and factory layout changes
+     * are observed on every query.
+     */
+    default int getInventoryComparatorLevel() {
+        java.util.List<IInventorySlot> slots = getInventorySlots(null);
+        return calculateComparatorLevel(slots, getInventoryStackLimit());
+    }
+
+    static int calculateComparatorLevel(java.util.List<IInventorySlot> slots, int inventoryLimit) {
+        int size = slots.size();
+        if (size == 0) return 0;
+        float fullness = 0;
+        boolean occupied = false;
+        for (int i = 0; i < size; i++) {
+            ItemStack stack = slots.get(i).getStack();
+            if (!stack.isEmpty()) {
+                fullness += (float) stack.getCount() / (float) Math.min(inventoryLimit, stack.getMaxStackSize());
+                occupied = true;
+            }
+        }
+        return net.minecraft.util.math.MathHelper.floor(fullness / (float) size * 14.0F) + (occupied ? 1 : 0);
+    }
+
     @Override
     default int getSizeInventory() {
         return getInventorySlots(null).size();

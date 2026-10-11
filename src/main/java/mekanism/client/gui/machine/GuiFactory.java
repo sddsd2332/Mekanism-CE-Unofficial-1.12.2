@@ -54,8 +54,8 @@ public class GuiFactory extends GuiConfigurableTile<TileEntityFactory, Container
         super.addGuiElements();
         addButton(new GuiSortingTab(this, tileEntity));
         addButton(new GuiVerticalPowerBar(this, tileEntity.getMainEnergyContainer(), getXSize() - 12, 16,
-              tileEntity.showsLongPowerBar() ? 73 : 52))
-              .warning(WarningType.NOT_ENOUGH_ENERGY, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY, 0));
+                tileEntity.showsLongPowerBar() ? 73 : 52))
+                .warning(WarningType.NOT_ENOUGH_ENERGY, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY, 0));
         addButton(new GuiEnergyTab(this, tileEntity.getMainEnergyContainer(), tileEntity::getLastUsage));
 
         addSecondaryResourceElements();
@@ -68,8 +68,8 @@ public class GuiFactory extends GuiConfigurableTile<TileEntityFactory, Container
         for (int process = 0; process < tileEntity.getProcessCount(); process++) {
             int cacheIndex = process;
             addButton(new GuiProgress(() -> tileEntity.getScaledProgress(cacheIndex), ProgressType.DOWN, this, tileEntity.getProcessProgressX(process), 33))
-                  .recipeViewerCategories(getRecipeViewerRecipeTypes())
-                  .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity.getWarningCheck(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT, cacheIndex));
+                    .recipeViewerCategories(getRecipeViewerRecipeTypes())
+                    .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity.getWarningCheck(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT, cacheIndex));
         }
     }
 
@@ -80,38 +80,38 @@ public class GuiFactory extends GuiConfigurableTile<TileEntityFactory, Container
         int width = tileEntity.getSecondaryResourceBarWidth();
         if (tileEntity.usesPressurizedTankBars()) {
             addButton(new GuiGasBar(this, tileEntity.getOutputGasTank(), tileEntity.getSecondaryResourceBarX(), tileEntity.getSecondaryResourceBarY(), width, 4, false,
-                  Collections::emptyList))
-                  .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_OUTPUT_SPACE, 0));
+                    Collections::emptyList))
+                    .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_OUTPUT_SPACE, 0));
             addButton(new GuiFluidBar(this, tileEntity.getInputFluidTank(), tileEntity.getSecondaryResourceBarX(), tileEntity.getSecondaryResourceBarY() + 8, width, 4, false))
-                  .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_SECONDARY_INPUT, 0));
+                    .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_SECONDARY_INPUT, 0));
         } else if (tileEntity.usesGasSecondaryResourceBar()) {
             addButton(new GuiGasBar(this, tileEntity.getInputGasTank(), tileEntity.getSecondaryResourceBarX(), tileEntity.getSecondaryResourceBarY(), width, 4, false,
-                  tileEntity::getSecondaryGasTooltip))
-                  .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_SECONDARY_INPUT, 0));
+                    tileEntity::getSecondaryGasTooltip))
+                    .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_SECONDARY_INPUT, 0));
         } else {
             addButton(new GuiInfuseBar(this, tileEntity.getInfuseStorage(), () -> tileEntity.getScaledInfuseLevel(width - 2) / (double) (width - 2),
-                  tileEntity::getInfuseTooltip, tileEntity.getSecondaryResourceBarX(), tileEntity.getSecondaryResourceBarY(), width, 4, false))
-                  .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_SECONDARY_INPUT, 0));
+                    tileEntity::getInfuseTooltip, tileEntity.getSecondaryResourceBarX(), tileEntity.getSecondaryResourceBarY(), width, 4, false))
+                    .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_SECONDARY_INPUT, 0));
         }
     }
 
     private void addTankElements() {
         if (tileEntity.showsInputGasGauge()) {
             addButton(createGasGauge(tileEntity.getInputGasTank(), tileEntity.usesSlotInputGasGauge(), false, getInputGasGaugeType(), tileEntity.getInputGasGaugeX(),
-                  tileEntity.getInputGasGaugeY())
-                  .withColor(getInputGasGaugeColor())
-                  .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_SECONDARY_INPUT, 0)));
+                    tileEntity.getInputGasGaugeY())
+                    .withColor(getInputGasGaugeColor())
+                    .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_SECONDARY_INPUT, 0)));
         }
         if (tileEntity.showsOutputGasGauge()) {
             addButton(createGasGauge(tileEntity.getOutputGasTank(), tileEntity.usesSlotOutputGasGauge(), tileEntity.usesHorizontalOutputGasGauge(),
-                  getOutputGasGaugeType(), tileEntity.getOutputGasGaugeX(), tileEntity.getOutputGasGaugeY()).withColor(GuiGasGauge.GaugeColor.BLUE)
-                  .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_OUTPUT_SPACE, 0)));
+                    getOutputGasGaugeType(), tileEntity.getOutputGasGaugeX(), tileEntity.getOutputGasGaugeY()).withColor(GuiGasGauge.GaugeColor.BLUE)
+                    .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_OUTPUT_SPACE, 0)));
         }
         if (tileEntity.showsInputFluidGauge()) {
             addButton(createFluidGauge(tileEntity.getInputFluidTank(), tileEntity.usesSlotInputFluidGauge(), tileEntity.usesHorizontalInputFluidGauge(),
-                  GuiFluidGauge.Type.STANDARD, tileEntity.getInputFluidGaugeX(), tileEntity.getInputFluidGaugeY())
-                  .withColor(getInputFluidGaugeColor())
-                  .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_SECONDARY_INPUT, 0)));
+                    GuiFluidGauge.Type.STANDARD, tileEntity.getInputFluidGaugeX(), tileEntity.getInputFluidGaugeY())
+                    .withColor(getInputFluidGaugeColor())
+                    .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_SECONDARY_INPUT, 0)));
         }
     }
 
@@ -165,7 +165,7 @@ public class GuiFactory extends GuiConfigurableTile<TileEntityFactory, Container
             return;
         }
         dumpButton = addButton(new GuiDumpButton<>(this, (TileEntityFactory & IHasDumpButton) tileEntity, tileEntity.getSecondaryResourceDumpButtonX(),
-              tileEntity.getSecondaryResourceDumpButtonY()));
+                tileEntity.getSecondaryResourceDumpButtonY()));
     }
 
     private void rebuildFactoryGui() {

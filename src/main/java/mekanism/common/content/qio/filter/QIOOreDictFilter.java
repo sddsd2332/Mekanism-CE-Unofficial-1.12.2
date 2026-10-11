@@ -1,16 +1,17 @@
 package mekanism.common.content.qio.filter;
 
-import mekanism.common.content.filter.IOreDictFilter;
-import mekanism.common.content.qio.QIOResourceEntry;
-import mekanism.common.content.qio.QIOResourceKind;
 import mekanism.api.qio.resource.QIOResourceCodecs;
 import mekanism.api.qio.resource.QIOResourceFamilyMatcher;
+import mekanism.common.content.filter.IOreDictFilter;
+import mekanism.common.content.qio.QIOResourceEntry;
 import mekanism.common.content.transporter.TransporterFilter;
 import mekanism.common.lib.inventory.Finder;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 
-/** Item filter using the 1.12 Ore Dictionary as the tag-system adapter. */
+/**
+ * Item filter using the 1.12 Ore Dictionary as the tag-system adapter.
+ */
 public class QIOOreDictFilter extends QIOFilter implements IOreDictFilter {
 
     public static final String TYPE = "oredict";

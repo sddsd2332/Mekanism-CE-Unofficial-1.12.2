@@ -30,7 +30,7 @@ public class PacketBaublesModeChange implements IMessageHandler<BaublesModeChang
                 }
                 ItemStack stack = baubles.getStackInSlot(message.slot);
                 if (!stack.isEmpty() && stack.getItem() instanceof IModeItem modeItem) {
-                    modeItem.changeMode(player, stack, message.shift, message.displayChangeMessage? DisplayChange.OTHER : DisplayChange.NONE);
+                    modeItem.changeMode(player, stack, message.shift, message.displayChangeMessage ? DisplayChange.OTHER : DisplayChange.NONE);
                 }
             }
         }, player);

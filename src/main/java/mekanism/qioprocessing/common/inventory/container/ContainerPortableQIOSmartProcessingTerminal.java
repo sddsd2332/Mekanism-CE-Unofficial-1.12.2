@@ -2,22 +2,22 @@ package mekanism.qioprocessing.common.inventory.container;
 
 import mekanism.api.qio.external.QIOFrequencyReference;
 import mekanism.common.content.qio.QIOFrequency;
+import mekanism.common.frequency.FrequencyType;
 import mekanism.common.inventory.container.QIOItemViewerContainer;
-import mekanism.common.inventory.container.item.ItemStackSlotAccess;
 import mekanism.common.inventory.container.item.IItemStackBackedContainer;
+import mekanism.common.inventory.container.item.ItemStackSlotAccess;
 import mekanism.common.inventory.container.slot.HotBarSlot;
 import mekanism.common.inventory.container.sync.FrequencyContainerSync;
-import mekanism.common.frequency.FrequencyType;
 import mekanism.common.util.SecurityUtils;
 import mekanism.qioprocessing.common.content.QIOProcessingDataException;
 import mekanism.qioprocessing.common.inventory.PortableQIOProcessingTerminalInventory;
 import mekanism.qioprocessing.common.item.ItemPortableQIOProcessingTerminal;
+import mekanism.qioprocessing.common.network.PacketQIOProcessingTerminalPreference;
+import mekanism.qioprocessing.common.network.QIOProcessingPacketHandler;
 import mekanism.qioprocessing.common.terminal.PortableQIOProcessingTerminalData;
 import mekanism.qioprocessing.common.terminal.QIOProcessingFrequencyAccess;
 import mekanism.qioprocessing.common.terminal.QIOProcessingTerminalSession;
 import mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType;
-import mekanism.qioprocessing.common.network.PacketQIOProcessingTerminalPreference;
-import mekanism.qioprocessing.common.network.QIOProcessingPacketHandler;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.entity.player.InventoryPlayer;
@@ -30,7 +30,10 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.UUID;
 
-/** Portable smart-processing viewer with item-owned native QIO crafting windows. */
+/**
+ * Portable smart-processing viewer with item-owned native QIO crafting windows.
+ */
+
 /**
  * QIO 处理模块中的 ContainerPortableQIOSmartProcessingTerminal 类型。
  *
@@ -38,36 +41,36 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class ContainerPortableQIOSmartProcessingTerminal extends QIOItemViewerContainer
-      implements QIOPortableTerminalContainer, IItemStackBackedContainer,
-      QIOProcessingTerminalFrequencyContainer, QIOSmartProcessingPageContainer {
+        implements QIOPortableTerminalContainer, IItemStackBackedContainer,
+        QIOProcessingTerminalFrequencyContainer, QIOSmartProcessingPageContainer {
 
     private final ItemStackSlotAccess itemAccess;
     private final QIOPortableTerminalSessionTarget sessionTarget;
     private final QIOProcessingTerminalContainerState terminalState;
     private final PortableQIOProcessingTerminalInventory craftingInventory;
     private final FrequencyContainerSync<QIOFrequency> frequencySync =
-          new FrequencyContainerSync<>();
+            new FrequencyContainerSync<>();
     private final QIOSmartProcessingClientCache smartProcessingClientCache =
-          new QIOSmartProcessingClientCache();
+            new QIOSmartProcessingClientCache();
     private final QIOSmartProcessingRequestLedger smartProcessingRequestLedger =
-          new QIOSmartProcessingRequestLedger();
+            new QIOSmartProcessingRequestLedger();
     private long lastSmartProcessingRequestTick = Long.MIN_VALUE;
     private long lastSmartProcessingPollTick = Long.MIN_VALUE;
 
     public ContainerPortableQIOSmartProcessingTerminal(InventoryPlayer inventory,
-          EnumHand hand, int itemSlot, ItemStack openingStack) {
+                                                       EnumHand hand, int itemSlot, ItemStack openingStack) {
         super(inventory, resolveFrequency(inventory, openingStack), false);
         itemAccess = new ItemStackSlotAccess(inventory, hand, itemSlot, openingStack);
         sessionTarget = new QIOPortableTerminalSessionTarget(inventory, itemAccess,
-              isRemote());
+                isRemote());
         terminalState = new QIOProcessingTerminalContainerState(this,
-              this::getTerminalSession);
+                this::getTerminalSession);
         craftingInventory = new PortableQIOProcessingTerminalInventory(
-              () -> itemAccess.isOriginalStackPresent() ? itemAccess.getStack() :
-                    ItemStack.EMPTY, inventory.player.world,
-              sessionTarget::acceptMutation);
+                () -> itemAccess.isOriginalStackPresent() ? itemAccess.getStack() :
+                        ItemStack.EMPTY, inventory.player.world,
+                sessionTarget::acceptMutation);
         frequencySync.addTrackers(this, FrequencyType.QIO,
-              this::currentFrequency);
+                this::currentFrequency);
         setCraftingWindowHolder(craftingInventory);
         addSlotsAndOpen();
         openViewer();
@@ -142,7 +145,7 @@ public final class ContainerPortableQIOSmartProcessingTerminal extends QIOItemVi
     public UUID getTerminalOwnerUUID() {
         ItemStack stack = getPortableStack();
         return stack.getItem() instanceof ItemPortableQIOProcessingTerminal item ?
-              item.getOwnerUUID(stack) : null;
+                item.getOwnerUUID(stack) : null;
     }
 
     @Override
@@ -182,7 +185,7 @@ public final class ContainerPortableQIOSmartProcessingTerminal extends QIOItemVi
 
     @Override
     public boolean acceptAuthorizedMutation(long expectedGeneration,
-          long updatedGeneration) {
+                                            long updatedGeneration) {
         return sessionTarget.acceptMutation(expectedGeneration, updatedGeneration);
     }
 
@@ -195,7 +198,7 @@ public final class ContainerPortableQIOSmartProcessingTerminal extends QIOItemVi
         }
         QIOFrequency resolved = currentFrequency();
         if (!isRemote() && resolved != frequency &&
-            inv.player instanceof EntityPlayerMP player) {
+                inv.player instanceof EntityPlayerMP player) {
             if (frequency != null) {
                 frequency.closeViewer(player);
             }
@@ -222,7 +225,7 @@ public final class ContainerPortableQIOSmartProcessingTerminal extends QIOItemVi
     public boolean shiftClickIntoFrequency() {
         try {
             PortableQIOProcessingTerminalData data =
-                  PortableQIOProcessingTerminalData.read(getPortableStack());
+                    PortableQIOProcessingTerminalData.read(getPortableStack());
             return data == null || data.shiftClickIntoFrequency();
         } catch (QIOProcessingDataException e) {
             return true;
@@ -233,8 +236,8 @@ public final class ContainerPortableQIOSmartProcessingTerminal extends QIOItemVi
     public void toggleTargetDirection() {
         if (isRemote() && terminalState.isValid()) {
             QIOProcessingPacketHandler.INSTANCE.sendToServer(
-                  PacketQIOProcessingTerminalPreference.Message.create(windowId,
-                        terminalState));
+                    PacketQIOProcessingTerminalPreference.Message.create(windowId,
+                            terminalState));
         }
     }
 
@@ -245,14 +248,14 @@ public final class ContainerPortableQIOSmartProcessingTerminal extends QIOItemVi
         }
         ItemStack stack = getPortableStack();
         return !isKilled() && itemAccess.isOriginalStackPresent() && isSmartTerminal(stack) &&
-              SecurityUtils.canAccess(player, stack) && sessionTarget.validate(player);
+                SecurityUtils.canAccess(player, stack) && sessionTarget.validate(player);
     }
 
     @Override
     protected HotBarSlot createHotBarSlot(@Nonnull InventoryPlayer inventory, int index,
-          int x, int y) {
+                                          int x, int y) {
         if (itemAccess.getHand() == EnumHand.MAIN_HAND &&
-            index == itemAccess.getSlot()) {
+                index == itemAccess.getSlot()) {
             return new HotBarSlot(inventory, index, x, y) {
                 @Override
                 public boolean canTakeStack(@Nonnull EntityPlayer player) {
@@ -266,18 +269,18 @@ public final class ContainerPortableQIOSmartProcessingTerminal extends QIOItemVi
     @Nonnull
     @Override
     public ItemStack slotClick(int slotId, int dragType, ClickType clickType,
-          EntityPlayer player) {
+                               EntityPlayer player) {
         if (!player.world.isRemote && !canInteractWith(player)) {
             return ItemStack.EMPTY;
         }
         if (clickType == ClickType.SWAP) {
             if (itemAccess.getHand() == EnumHand.OFF_HAND &&
-                dragType == ItemStackSlotAccess.OFFHAND_SLOT) {
+                    dragType == ItemStackSlotAccess.OFFHAND_SLOT) {
                 return ItemStack.EMPTY;
             }
             if (itemAccess.getHand() == EnumHand.MAIN_HAND && dragType >= 0 &&
-                dragType < hotBarSlots.size() &&
-                !hotBarSlots.get(dragType).canTakeStack(player)) {
+                    dragType < hotBarSlots.size() &&
+                    !hotBarSlots.get(dragType).canTakeStack(player)) {
                 return ItemStack.EMPTY;
             }
         }
@@ -296,31 +299,31 @@ public final class ContainerPortableQIOSmartProcessingTerminal extends QIOItemVi
     @Nullable
     private QIOFrequency currentFrequency() {
         if (!itemAccess.isOriginalStackPresent() ||
-            !isSmartTerminal(getPortableStack())) {
+                !isSmartTerminal(getPortableStack())) {
             return null;
         }
         ItemPortableQIOProcessingTerminal item =
-              (ItemPortableQIOProcessingTerminal) getPortableStack().getItem();
+                (ItemPortableQIOProcessingTerminal) getPortableStack().getItem();
         return QIOProcessingFrequencyAccess.resolveAccessible(
-              item.getFrequencyReference(getPortableStack()), inv.player.getUniqueID());
+                item.getFrequencyReference(getPortableStack()), inv.player.getUniqueID());
     }
 
     @Nullable
     private static QIOFrequency resolveFrequency(InventoryPlayer inventory,
-          ItemStack stack) {
+                                                 ItemStack stack) {
         if (!isSmartTerminal(stack)) {
             return null;
         }
         ItemPortableQIOProcessingTerminal item =
-              (ItemPortableQIOProcessingTerminal) stack.getItem();
+                (ItemPortableQIOProcessingTerminal) stack.getItem();
         QIOFrequencyReference reference = item.getFrequencyReference(stack);
         return QIOProcessingFrequencyAccess.resolveAccessible(reference,
-              inventory.player.getUniqueID());
+                inventory.player.getUniqueID());
     }
 
     private static boolean isSmartTerminal(@Nullable ItemStack stack) {
         return stack != null && !stack.isEmpty() &&
-              stack.getItem() instanceof ItemPortableQIOProcessingTerminal item &&
-              item.getTerminalType() == QIOProcessingTerminalType.SMART_PROCESSING;
+                stack.getItem() instanceof ItemPortableQIOProcessingTerminal item &&
+                item.getTerminalType() == QIOProcessingTerminalType.SMART_PROCESSING;
     }
 }

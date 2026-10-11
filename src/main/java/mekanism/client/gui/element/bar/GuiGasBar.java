@@ -29,7 +29,7 @@ public class GuiGasBar extends GuiTankBar<GasStack, IExtendedGasTank> {
     }
 
     public GuiGasBar(IGuiWrapper gui, TankInfoProvider<GasStack, IExtendedGasTank> infoProvider, int x, int y, int width, int height, boolean horizontal,
-          Supplier<List<String>> tooltipSupplier) {
+                     Supplier<List<String>> tooltipSupplier) {
         super(gui, infoProvider, x, y, width, height, horizontal);
         this.tooltipSupplier = tooltipSupplier;
     }

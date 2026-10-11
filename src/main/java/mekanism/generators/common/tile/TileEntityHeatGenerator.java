@@ -23,7 +23,9 @@ import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.inventory.container.slot.SlotOverlay;
 import mekanism.common.inventory.slot.EnergyInventorySlot;
-import mekanism.common.util.*;
+import mekanism.common.util.ItemDataUtils;
+import mekanism.common.util.MekanismUtils;
+import mekanism.common.util.TileUtils;
 import mekanism.generators.client.render.bloom.BloomRenderHeatGenerator;
 import mekanism.generators.common.slot.FluidFuelInventorySlot;
 import net.minecraft.block.Block;
@@ -95,7 +97,7 @@ public class TileEntityHeatGenerator extends TileEntityGenerator implements ISus
     protected IFluidTankHolder getInitialFluidTanks(IContentsListener listener) {
         FluidTankHelper builder = createFluidTankHelper();
         lavaTank = VariableCapacityFluidTank.input(TileEntityHeatGenerator::getHeatTankCapacity,
-              fluid -> fluid.getFluid() == FluidRegistry.LAVA, listener);
+                fluid -> fluid.getFluid() == FluidRegistry.LAVA, listener);
         builder.addTank(lavaTank, RelativeSide.LEFT, RelativeSide.RIGHT, RelativeSide.BACK, RelativeSide.TOP, RelativeSide.BOTTOM);
         return builder.build();
     }
@@ -104,7 +106,7 @@ public class TileEntityHeatGenerator extends TileEntityGenerator implements ISus
     protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
         InventorySlotHelper builder = createInventorySlotHelper();
         fuelSlot = builder.addSlot(FluidFuelInventorySlot.forFuel(lavaTank, this::getFuel, fuel -> new FluidStack(FluidRegistry.LAVA, fuel), listener, 17, 35),
-              RelativeSide.FRONT, RelativeSide.LEFT, RelativeSide.BACK, RelativeSide.TOP, RelativeSide.BOTTOM);
+                RelativeSide.FRONT, RelativeSide.LEFT, RelativeSide.BACK, RelativeSide.TOP, RelativeSide.BOTTOM);
         fuelSlot.setSlotOverlay(SlotOverlay.MINUS);
         energySlot = builder.addSlot(EnergyInventorySlot.drain(this, listener, 143, 35), RelativeSide.RIGHT);
         return builder.build();
@@ -113,7 +115,7 @@ public class TileEntityHeatGenerator extends TileEntityGenerator implements ISus
     @Override
     protected IHeatCapacitorHolder getInitialHeatCapacitors(IContentsListener listener) {
         heatCapacitor = BasicHeatCapacitor.create(HEAT_CAPACITY, INVERSE_CONDUCTION_COEFFICIENT, INVERSE_INSULATION_COEFFICIENT,
-              () -> getAmbientTemperature(null), listener);
+                () -> getAmbientTemperature(null), listener);
         bottomHeatCapacitor = new DefaultInsulationCapacitor(heatCapacitor);
         return ProxiedHeatCapacitorHolder.create(side -> true, side -> true, side -> {
             if (side == null) {
@@ -221,7 +223,7 @@ public class TileEntityHeatGenerator extends TileEntityGenerator implements ISus
     public int getScaledFuelLevel(int i) {
         int capacity = lavaTank.getCapacity();
         return capacity <= 0 ? 0 : (int) Math.min(Integer.MAX_VALUE,
-              (long) Math.max(0, lavaTank.getFluidAmount()) * Math.max(0, i) / capacity);
+                (long) Math.max(0, lavaTank.getFluidAmount()) * Math.max(0, i) / capacity);
     }
 
     @Override
@@ -380,6 +382,11 @@ public class TileEntityHeatGenerator extends TileEntityGenerator implements ISus
     }
 
     @Override
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return type == mekanism.api.transmitters.TransmissionType.FLUID;
+    }
+
+    @Override
     public int getRedstoneLevel() {
         return MekanismUtils.redstoneLevelFromContents(lavaTank.getFluidAmount(), lavaTank.getCapacity());
     }
@@ -402,7 +409,8 @@ public class TileEntityHeatGenerator extends TileEntityGenerator implements ISus
     public boolean supportsAsync() {
         return false;
     }
-@Override
+
+    @Override
     @SideOnly(Side.CLIENT)
     public Class<?> getSelectionWireframeModelClass() {
         return mekanism.generators.client.model.ModelHeatGenerator.class;

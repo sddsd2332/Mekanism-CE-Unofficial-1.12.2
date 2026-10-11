@@ -45,16 +45,16 @@ public class GuiTransporterConfig<TILE extends TileEntityContainerBlock & ISideC
         this.tile = tile;
         interactionStrategy = InteractionStrategy.ALL;
         addChild(new GuiInnerScreen(gui, relativeX + 38, relativeY + 15, 80, 12,
-              () -> Collections.singletonList(new TextComponentString(LangUtils.localize("gui.strictInput") + ": " +
-                    LangUtils.transOnOff(tile.getEjector().hasStrictInput())))));
+                () -> Collections.singletonList(new TextComponentString(LangUtils.localize("gui.strictInput") + ": " +
+                        LangUtils.transOnOff(tile.getEjector().hasStrictInput())))));
         addChild(new MekanismImageButton(gui, relativeX + 136, relativeY + 6, 14, 16, getButtonLocation("exclamation"),
-              () -> Mekanism.packetHandler.sendToServer(new ConfigurationUpdateMessage(ConfigurationPacket.STRICT_INPUT, Coord4D.get(tile), 0, 0, null)),
-              getOnHover(() -> new TextComponentString(LangUtils.localize("gui.configuration.strictInput")))));
+                () -> Mekanism.packetHandler.sendToServer(new ConfigurationUpdateMessage(ConfigurationPacket.STRICT_INPUT, Coord4D.get(tile), 0, 0, null)),
+                getOnHover(() -> new TextComponentString(LangUtils.localize("gui.configuration.strictInput")))));
         addChild(new GuiSlot(SlotType.NORMAL, gui, relativeX + 111, relativeY + 48));
         addChild(new ColorButton(gui, relativeX + 112, relativeY + 49, 16, 16, () -> tile.getEjector().getOutputColor(),
-              () -> Mekanism.packetHandler.sendToServer(new ConfigurationUpdateMessage(ConfigurationPacket.EJECT_COLOR, Coord4D.get(tile),
-                    Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) ? 2 : 0, 0, null)),
-              () -> Mekanism.packetHandler.sendToServer(new ConfigurationUpdateMessage(ConfigurationPacket.EJECT_COLOR, Coord4D.get(tile), 1, 0, null))));
+                () -> Mekanism.packetHandler.sendToServer(new ConfigurationUpdateMessage(ConfigurationPacket.EJECT_COLOR, Coord4D.get(tile),
+                        Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) ? 2 : 0, 0, null)),
+                () -> Mekanism.packetHandler.sendToServer(new ConfigurationUpdateMessage(ConfigurationPacket.EJECT_COLOR, Coord4D.get(tile), 1, 0, null))));
         addSideDataButton(RelativeSide.BOTTOM, 41, 80);
         addSideDataButton(RelativeSide.TOP, 41, 34);
         addSideDataButton(RelativeSide.FRONT, 41, 57);
@@ -71,12 +71,12 @@ public class GuiTransporterConfig<TILE extends TileEntityContainerBlock & ISideC
     private void addSideDataButton(RelativeSide side, int xPos, int yPos) {
         EnumFacing globalSide = side.getDirection(tile.facing);
         SideDataButton button = addChild(new SideDataButton(gui(), relativeX + xPos, relativeY + yPos, side.ordinal(), side,
-              () -> tile.getConfig().getDataType(TransmissionType.ITEM, globalSide, tile.facing),
-              () -> tile.getEjector().getInputColor(globalSide), tile,
-              () -> Mekanism.packetHandler.sendToServer(new ConfigurationUpdateMessage(ConfigurationPacket.INPUT_COLOR, Coord4D.get(tile),
-                    Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) ? 2 : 0, globalSide.ordinal(), null)),
-              () -> Mekanism.packetHandler.sendToServer(new ConfigurationUpdateMessage(ConfigurationPacket.INPUT_COLOR, Coord4D.get(tile),
-                    1, globalSide.ordinal(), null)), false));
+                () -> tile.getConfig().getDataType(TransmissionType.ITEM, globalSide, tile.facing),
+                () -> tile.getEjector().getInputColor(globalSide), tile,
+                () -> Mekanism.packetHandler.sendToServer(new ConfigurationUpdateMessage(ConfigurationPacket.INPUT_COLOR, Coord4D.get(tile),
+                        Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) ? 2 : 0, globalSide.ordinal(), null)),
+                () -> Mekanism.packetHandler.sendToServer(new ConfigurationUpdateMessage(ConfigurationPacket.INPUT_COLOR, Coord4D.get(tile),
+                        1, globalSide.ordinal(), null)), false));
         sideDataButtons.add(button);
     }
 
@@ -116,9 +116,9 @@ public class GuiTransporterConfig<TILE extends TileEntityContainerBlock & ISideC
         super.renderForeground(mouseX, mouseY);
         drawTitleText(new TextComponentString(LangUtils.localize("gui.configuration.transporter")), 5);
         drawScrollingString(new TextComponentString(LangUtils.localize("gui.input")), 18, 105, TextAlignment.CENTER,
-              subheadingTextColor(), 68, 0, false);
+                subheadingTextColor(), 68, 0, false);
         drawScrollingString(new TextComponentString(LangUtils.localize("gui.output")), 86, 68, TextAlignment.CENTER,
-              subheadingTextColor(), width - 86, 4, false);
+                subheadingTextColor(), width - 86, 4, false);
     }
 
     @Override

@@ -7,7 +7,10 @@ import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nonnull;
 
-/** Revisions captured by an immutable planning input snapshot. */
+/**
+ * Revisions captured by an immutable planning input snapshot.
+ */
+
 /**
  * QIO 处理模块中的 QIOPlanSourceRevisions 类型。
  *
@@ -26,19 +29,19 @@ public final class QIOPlanSourceRevisions {
     private final long taskCommitmentRevision;
 
     public QIOPlanSourceRevisions(long contentRevision, long capacityRevision, long claimRevision,
-          long accessRevision, long recipeCatalogRevision, long providerCatalogRevision,
-          long policyRevision, long taskCommitmentRevision) {
+                                  long accessRevision, long recipeCatalogRevision, long providerCatalogRevision,
+                                  long policyRevision, long taskCommitmentRevision) {
         this.contentRevision = QIOProcessingNbt.requireNonNegative(contentRevision, "contentRevision");
         this.capacityRevision = QIOProcessingNbt.requireNonNegative(capacityRevision, "capacityRevision");
         this.claimRevision = QIOProcessingNbt.requireNonNegative(claimRevision, "claimRevision");
         this.accessRevision = QIOProcessingNbt.requireNonNegative(accessRevision, "accessRevision");
         this.recipeCatalogRevision = QIOProcessingNbt.requireNonNegative(recipeCatalogRevision,
-              "recipeCatalogRevision");
+                "recipeCatalogRevision");
         this.providerCatalogRevision = QIOProcessingNbt.requireNonNegative(providerCatalogRevision,
-              "providerCatalogRevision");
+                "providerCatalogRevision");
         this.policyRevision = QIOProcessingNbt.requireNonNegative(policyRevision, "policyRevision");
         this.taskCommitmentRevision = QIOProcessingNbt.requireNonNegative(taskCommitmentRevision,
-              "taskCommitmentRevision");
+                "taskCommitmentRevision");
     }
 
     public long getContentRevision() {
@@ -89,23 +92,23 @@ public final class QIOPlanSourceRevisions {
 
     @Nonnull
     public static QIOPlanSourceRevisions read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         try {
             if (!data.hasKey("content", NBT.TAG_LONG) ||
-                  !data.hasKey("capacity", NBT.TAG_LONG) ||
-                  !data.hasKey("claim", NBT.TAG_LONG) ||
-                  !data.hasKey("access", NBT.TAG_LONG) ||
-                  !data.hasKey("recipeCatalog", NBT.TAG_LONG) ||
-                  !data.hasKey("providerCatalog", NBT.TAG_LONG) ||
-                  !data.hasKey("policy", NBT.TAG_LONG) ||
-                  !data.hasKey("taskCommitment", NBT.TAG_LONG)) {
+                    !data.hasKey("capacity", NBT.TAG_LONG) ||
+                    !data.hasKey("claim", NBT.TAG_LONG) ||
+                    !data.hasKey("access", NBT.TAG_LONG) ||
+                    !data.hasKey("recipeCatalog", NBT.TAG_LONG) ||
+                    !data.hasKey("providerCatalog", NBT.TAG_LONG) ||
+                    !data.hasKey("policy", NBT.TAG_LONG) ||
+                    !data.hasKey("taskCommitment", NBT.TAG_LONG)) {
                 throw new QIOProcessingDataException(
-                      "QIO plan source revisions are missing current-schema fields");
+                        "QIO plan source revisions are missing current-schema fields");
             }
             return new QIOPlanSourceRevisions(data.getLong("content"), data.getLong("capacity"),
-                  data.getLong("claim"), data.getLong("access"), data.getLong("recipeCatalog"),
-                  data.getLong("providerCatalog"), data.getLong("policy"),
-                  data.getLong("taskCommitment"));
+                    data.getLong("claim"), data.getLong("access"), data.getLong("recipeCatalog"),
+                    data.getLong("providerCatalog"), data.getLong("policy"),
+                    data.getLong("taskCommitment"));
         } catch (RuntimeException e) {
             throw new QIOProcessingDataException("Invalid QIO plan source revisions", e);
         }

@@ -11,13 +11,12 @@ import mekanism.qioprocessing.common.planning.QIORecipeCatalogService;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
-/** Two-phase, server-side workbench configuration copy coordinator. */
+/**
+ * Two-phase, server-side workbench configuration copy coordinator.
+ */
+
 /**
  * QIO 处理模块中的 QIOWorkbenchCopyService 类型。
  *
@@ -50,23 +49,23 @@ public final class QIOWorkbenchCopyService {
     @Nonnull
     /** 预览工作台配置复制并生成短期 token。 */
     public static synchronized PreviewResult preview(
-          @Nonnull QIOWorkbenchConfigurationService.Context context,
-          @Nonnull QIOProcessingTerminalSession session, @Nonnull UUID playerUUID,
-          @Nonnull UUID sourceConfigUUID, long currentTick) {
+            @Nonnull QIOWorkbenchConfigurationService.Context context,
+            @Nonnull QIOProcessingTerminalSession session, @Nonnull UUID playerUUID,
+            @Nonnull UUID sourceConfigUUID, long currentTick) {
         Objects.requireNonNull(context, "context");
         if (!QIORecipeCatalogService.INSTANCE.isReady()) {
             return new PreviewResult(Status.UNAVAILABLE, null);
         }
         return preview(context.getNetwork(), context.isEditable(), session, playerUUID,
-              sourceConfigUUID, currentTick,
-              QIOProcessingNetworkManager.INSTANCE::getByWorkbenchConfigUUID,
-              QIOWorkbenchCopyService::canRead);
+                sourceConfigUUID, currentTick,
+                QIOProcessingNetworkManager.INSTANCE::getByWorkbenchConfigUUID,
+                QIOWorkbenchCopyService::canRead);
     }
 
     static synchronized PreviewResult preview(@Nonnull QIOProcessingNetworkData target,
-          boolean editable, @Nonnull QIOProcessingTerminalSession session,
-          @Nonnull UUID playerUUID, @Nonnull UUID sourceConfigUUID, long currentTick,
-          @Nonnull NetworkResolver resolver, @Nonnull AccessChecker accessChecker) {
+                                              boolean editable, @Nonnull QIOProcessingTerminalSession session,
+                                              @Nonnull UUID playerUUID, @Nonnull UUID sourceConfigUUID, long currentTick,
+                                              @Nonnull NetworkResolver resolver, @Nonnull AccessChecker accessChecker) {
         Objects.requireNonNull(target, "target");
         Objects.requireNonNull(session, "session");
         Objects.requireNonNull(playerUUID, "playerUUID");
@@ -96,14 +95,14 @@ public final class QIOWorkbenchCopyService {
         QIOWorkbenchConfiguration sourceConfiguration = source.getWorkbenchConfiguration();
         String digest = sourceConfiguration.contentDigest();
         if (targetConfiguration.importedFrom(sourceConfiguration.getConfigUUID(),
-              sourceConfiguration.getRevision(), digest)) {
+                sourceConfiguration.getRevision(), digest)) {
             return new PreviewResult(Status.ALREADY_IMPORTED, null);
         }
         UUID confirmationNonce = UUID.randomUUID();
         PendingCopy pending = new PendingCopy(confirmationNonce, session.getSessionNonce(),
-              playerUUID, target.getFrequencyUUID(), targetConfiguration.getConfigUUID(),
-              targetConfiguration.getRevision(), sourceConfiguration.getConfigUUID(),
-              sourceConfiguration.getRevision(), digest, expiresAt(currentTick));
+                playerUUID, target.getFrequencyUUID(), targetConfiguration.getConfigUUID(),
+                targetConfiguration.getRevision(), sourceConfiguration.getConfigUUID(),
+                sourceConfiguration.getRevision(), digest, expiresAt(currentTick));
         if (PENDING.size() >= MAX_PENDING_PREVIEWS) {
             Iterator<UUID> iterator = PENDING.keySet().iterator();
             if (iterator.hasNext()) {
@@ -113,37 +112,37 @@ public final class QIOWorkbenchCopyService {
         }
         PENDING.put(confirmationNonce, pending);
         QIOWorkbenchCopyPreview preview = new QIOWorkbenchCopyPreview(confirmationNonce,
-              sourceConfiguration.getConfigUUID(), sourceConfiguration.getOriginUUID(),
-              targetConfiguration.getConfigUUID(), sourceConfiguration.getRevision(),
-              targetConfiguration.getRevision(), digest,
-              source.getLastKnownFrequencyIdentity().getName(),
-              sourceConfiguration.getProductOverrideCount(),
-              sourceConfiguration.getEncodedPatternCount(),
-              sourceConfiguration.getIngredientOverrideCount());
+                sourceConfiguration.getConfigUUID(), sourceConfiguration.getOriginUUID(),
+                targetConfiguration.getConfigUUID(), sourceConfiguration.getRevision(),
+                targetConfiguration.getRevision(), digest,
+                source.getLastKnownFrequencyIdentity().getName(),
+                sourceConfiguration.getProductOverrideCount(),
+                sourceConfiguration.getEncodedPatternCount(),
+                sourceConfiguration.getIngredientOverrideCount());
         return new PreviewResult(Status.READY, preview);
     }
 
     @Nonnull
     /** 确认带 token 的工作台配置复制。 */
     public static synchronized ConfirmResult confirm(
-          @Nonnull QIOWorkbenchConfigurationService.Context context,
-          @Nonnull QIOProcessingTerminalSession session, @Nonnull UUID playerUUID,
-          @Nonnull UUID confirmationNonce, long currentTick) {
+            @Nonnull QIOWorkbenchConfigurationService.Context context,
+            @Nonnull QIOProcessingTerminalSession session, @Nonnull UUID playerUUID,
+            @Nonnull UUID confirmationNonce, long currentTick) {
         Objects.requireNonNull(context, "context");
         if (!QIORecipeCatalogService.INSTANCE.isReady()) {
             return new ConfirmResult(Status.UNAVAILABLE,
-                  context.getNetwork().getWorkbenchConfiguration().getRevision());
+                    context.getNetwork().getWorkbenchConfiguration().getRevision());
         }
         return confirm(context.getNetwork(), context.isEditable(), session, playerUUID,
-              confirmationNonce, currentTick,
-              QIOProcessingNetworkManager.INSTANCE::getByWorkbenchConfigUUID,
-              QIOWorkbenchCopyService::canRead);
+                confirmationNonce, currentTick,
+                QIOProcessingNetworkManager.INSTANCE::getByWorkbenchConfigUUID,
+                QIOWorkbenchCopyService::canRead);
     }
 
     static synchronized ConfirmResult confirm(@Nonnull QIOProcessingNetworkData target,
-          boolean editable, @Nonnull QIOProcessingTerminalSession session,
-          @Nonnull UUID playerUUID, @Nonnull UUID confirmationNonce, long currentTick,
-          @Nonnull NetworkResolver resolver, @Nonnull AccessChecker accessChecker) {
+                                              boolean editable, @Nonnull QIOProcessingTerminalSession session,
+                                              @Nonnull UUID playerUUID, @Nonnull UUID confirmationNonce, long currentTick,
+                                              @Nonnull NetworkResolver resolver, @Nonnull AccessChecker accessChecker) {
         Objects.requireNonNull(target, "target");
         Objects.requireNonNull(session, "session");
         Objects.requireNonNull(playerUUID, "playerUUID");
@@ -156,13 +155,13 @@ public final class QIOWorkbenchCopyService {
             return result(Status.EXPIRED, target);
         }
         if (!editable || !pending.playerUUID.equals(playerUUID) ||
-            !pending.sessionNonce.equals(session.getSessionNonce())) {
+                !pending.sessionNonce.equals(session.getSessionNonce())) {
             return result(Status.ACCESS_DENIED, target);
         }
         QIOWorkbenchConfiguration targetConfiguration = target.getWorkbenchConfiguration();
         if (!pending.targetFrequencyUUID.equals(target.getFrequencyUUID()) ||
-            !pending.targetConfigUUID.equals(targetConfiguration.getConfigUUID()) ||
-            pending.targetRevision != targetConfiguration.getRevision()) {
+                !pending.targetConfigUUID.equals(targetConfiguration.getConfigUUID()) ||
+                pending.targetRevision != targetConfiguration.getRevision()) {
             return result(Status.TARGET_CHANGED, target);
         }
         QIOProcessingNetworkData source;
@@ -179,7 +178,7 @@ public final class QIOWorkbenchCopyService {
         }
         QIOWorkbenchConfiguration sourceConfiguration = source.getWorkbenchConfiguration();
         if (pending.sourceRevision != sourceConfiguration.getRevision() ||
-            !pending.sourceDigest.equals(sourceConfiguration.contentDigest())) {
+                !pending.sourceDigest.equals(sourceConfiguration.contentDigest())) {
             return result(Status.SOURCE_CHANGED, target);
         }
         long before = targetConfiguration.getRevision();
@@ -188,19 +187,19 @@ public final class QIOWorkbenchCopyService {
         boolean changed = targetConfiguration.replaceFrom(sourceConfiguration);
         target.markWorkbenchConfigurationChanged(before);
         return new ConfirmResult(changed ? Status.APPLIED : Status.UNCHANGED,
-              targetConfiguration.getRevision());
+                targetConfiguration.getRevision());
     }
 
     private static ConfirmResult result(Status status, QIOProcessingNetworkData target) {
         return new ConfirmResult(status,
-              target.getWorkbenchConfiguration().getRevision());
+                target.getWorkbenchConfiguration().getRevision());
     }
 
     private static boolean canRead(QIOProcessingNetworkData source, UUID playerUUID) {
         QIOFrequencyIdentitySnapshot identity = source.getLastKnownFrequencyIdentity();
         QIOFrequencyReference reference = new QIOFrequencyReference(source.getFrequencyUUID(),
-              identity.getName(), identity.getOwnerUUID(), identity.getSecurityMode(),
-              playerUUID);
+                identity.getName(), identity.getOwnerUUID(), identity.getSecurityMode(),
+                playerUUID);
         return QIOFrequencyStorageAccess.INSTANCE.canAccess(reference, playerUUID);
     }
 
@@ -210,7 +209,7 @@ public final class QIOWorkbenchCopyService {
 
     private static long expiresAt(long currentTick) {
         return currentTick > Long.MAX_VALUE - PREVIEW_LIFETIME_TICKS ? Long.MAX_VALUE :
-              currentTick + PREVIEW_LIFETIME_TICKS;
+                currentTick + PREVIEW_LIFETIME_TICKS;
     }
 
     @FunctionalInterface
@@ -229,15 +228,23 @@ public final class QIOWorkbenchCopyService {
     public static final class PreviewResult {
 
         private final Status status;
-        @Nullable private final QIOWorkbenchCopyPreview preview;
+        @Nullable
+        private final QIOWorkbenchCopyPreview preview;
 
         private PreviewResult(Status status, @Nullable QIOWorkbenchCopyPreview preview) {
             this.status = status;
             this.preview = preview;
         }
 
-        @Nonnull public Status getStatus() { return status; }
-        @Nullable public QIOWorkbenchCopyPreview getPreview() { return preview; }
+        @Nonnull
+        public Status getStatus() {
+            return status;
+        }
+
+        @Nullable
+        public QIOWorkbenchCopyPreview getPreview() {
+            return preview;
+        }
     }
 
     public static final class ConfirmResult {
@@ -250,8 +257,14 @@ public final class QIOWorkbenchCopyService {
             this.targetRevision = targetRevision;
         }
 
-        @Nonnull public Status getStatus() { return status; }
-        public long getTargetRevision() { return targetRevision; }
+        @Nonnull
+        public Status getStatus() {
+            return status;
+        }
+
+        public long getTargetRevision() {
+            return targetRevision;
+        }
     }
 
     private static final class PendingCopy {
@@ -268,9 +281,9 @@ public final class QIOWorkbenchCopyService {
         private final long expiresAt;
 
         private PendingCopy(UUID confirmationNonce, UUID sessionNonce, UUID playerUUID,
-              UUID targetFrequencyUUID, UUID targetConfigUUID, long targetRevision,
-              UUID sourceConfigUUID, long sourceRevision, String sourceDigest,
-              long expiresAt) {
+                            UUID targetFrequencyUUID, UUID targetConfigUUID, long targetRevision,
+                            UUID sourceConfigUUID, long sourceRevision, String sourceDigest,
+                            long expiresAt) {
             this.confirmationNonce = confirmationNonce;
             this.sessionNonce = sessionNonce;
             this.playerUUID = playerUUID;

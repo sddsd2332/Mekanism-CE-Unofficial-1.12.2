@@ -79,7 +79,7 @@ public class IntOption extends Option<IntOption> implements IntSupplier {
     @SuppressWarnings("Duplicates")//types are different
     @Override
     public void load(Configuration config) {
-        if (category.isEmpty()){
+        if (category.isEmpty()) {
             return;
         }
         Property prop;

@@ -10,18 +10,12 @@ import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nonnull;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
-/** Durable claim for one resource-group evaluation while its plan is built asynchronously. */
+/**
+ * Durable claim for one resource-group evaluation while its plan is built asynchronously.
+ */
+
 /**
  * QIO 处理模块中的 QIOMaintenanceEvaluation 类型。
  *
@@ -45,20 +39,20 @@ public final class QIOMaintenanceEvaluation {
     private final long createdAtTick;
 
     private QIOMaintenanceEvaluation(@Nonnull UUID evaluationId, @Nonnull UUID jobId,
-          long generation, @Nonnull PortableResourceDescriptor resource,
-          @Nonnull Map<UUID, Long> groupRuleRevisions, @Nonnull List<UUID> triggeredRuleIds,
-          long rulesRevision, @Nonnull QIOPlanSourceRevisions sourceRevisions,
-          long requestAmount, long jobPriority, long createdAtTick) {
+                                     long generation, @Nonnull PortableResourceDescriptor resource,
+                                     @Nonnull Map<UUID, Long> groupRuleRevisions, @Nonnull List<UUID> triggeredRuleIds,
+                                     long rulesRevision, @Nonnull QIOPlanSourceRevisions sourceRevisions,
+                                     long requestAmount, long jobPriority, long createdAtTick) {
         this.evaluationId = Objects.requireNonNull(evaluationId, "evaluationId");
         this.jobId = Objects.requireNonNull(jobId, "jobId");
         this.generation = QIOProcessingNbt.requireNonNegative(generation,
-              "maintenanceEvaluationGeneration");
+                "maintenanceEvaluationGeneration");
         this.resource = Objects.requireNonNull(resource, "resource");
         this.groupRuleRevisions = checkedRuleRevisions(groupRuleRevisions);
         this.triggeredRuleIds = checkedTriggeredRules(triggeredRuleIds,
-              this.groupRuleRevisions.keySet());
+                this.groupRuleRevisions.keySet());
         this.rulesRevision = QIOProcessingNbt.requireNonNegative(rulesRevision,
-              "maintenanceRulesRevision");
+                "maintenanceRulesRevision");
         this.sourceRevisions = Objects.requireNonNull(sourceRevisions, "sourceRevisions");
         if (requestAmount <= 0) {
             throw new IllegalArgumentException("Maintenance request amount must be positive");
@@ -70,16 +64,16 @@ public final class QIOMaintenanceEvaluation {
 
     @Nonnull
     public static QIOMaintenanceEvaluation create(@Nonnull UUID frequencyUUID, long generation,
-          @Nonnull PortableResourceDescriptor resource, @Nonnull List<QIOMaintenanceRule> group,
-          @Nonnull List<QIOMaintenanceRule> triggeredRules, long rulesRevision,
-          @Nonnull QIOPlanSourceRevisions sourceRevisions, long requestAmount,
-          long jobPriority, long createdAtTick) {
+                                                  @Nonnull PortableResourceDescriptor resource, @Nonnull List<QIOMaintenanceRule> group,
+                                                  @Nonnull List<QIOMaintenanceRule> triggeredRules, long rulesRevision,
+                                                  @Nonnull QIOPlanSourceRevisions sourceRevisions, long requestAmount,
+                                                  long jobPriority, long createdAtTick) {
         Objects.requireNonNull(frequencyUUID, "frequencyUUID");
         Objects.requireNonNull(resource, "resource");
         Map<UUID, Long> revisions = new LinkedHashMap<>();
         for (QIOMaintenanceRule rule : sortedRules(group)) {
             if (!resource.equals(rule.getResource()) ||
-                  revisions.put(rule.getRuleId(), rule.getRuleRevision()) != null) {
+                    revisions.put(rule.getRuleId(), rule.getRuleRevision()) != null) {
                 throw new IllegalArgumentException("Invalid maintenance resource rule group");
             }
         }
@@ -91,10 +85,10 @@ public final class QIOMaintenanceEvaluation {
             triggered.add(rule.getRuleId());
         }
         UUID evaluationId = stableEvaluationId(frequencyUUID, generation, resource, revisions,
-              triggered);
+                triggered);
         UUID jobId = stableJobId(evaluationId);
         return new QIOMaintenanceEvaluation(evaluationId, jobId, generation, resource, revisions,
-              triggered, rulesRevision, sourceRevisions, requestAmount, jobPriority, createdAtTick);
+                triggered, rulesRevision, sourceRevisions, requestAmount, jobPriority, createdAtTick);
     }
 
     @Nonnull
@@ -149,10 +143,10 @@ public final class QIOMaintenanceEvaluation {
 
     @Nonnull
     public QIOMaintenanceEvaluation withSourceRevisions(
-          @Nonnull QIOPlanSourceRevisions revisions) {
+            @Nonnull QIOPlanSourceRevisions revisions) {
         return new QIOMaintenanceEvaluation(evaluationId, jobId, generation, resource,
-              groupRuleRevisions, triggeredRuleIds, rulesRevision, revisions, requestAmount,
-              jobPriority, createdAtTick);
+                groupRuleRevisions, triggeredRuleIds, rulesRevision, revisions, requestAmount,
+                jobPriority, createdAtTick);
     }
 
     @Nonnull
@@ -187,7 +181,7 @@ public final class QIOMaintenanceEvaluation {
 
     @Nonnull
     public static QIOMaintenanceEvaluation read(@Nonnull UUID frequencyUUID,
-          @Nonnull NBTTagCompound data) throws QIOProcessingDataException {
+                                                @Nonnull NBTTagCompound data) throws QIOProcessingDataException {
         try {
             NBTTagList storedRules = data.getTagList("groupRuleRevisions", NBT.TAG_COMPOUND);
             if (storedRules.tagCount() <= 0 || storedRules.tagCount() > MAX_RULES) {
@@ -198,7 +192,7 @@ public final class QIOMaintenanceEvaluation {
                 NBTTagCompound stored = storedRules.getCompoundTagAt(index);
                 UUID ruleId = QIOProcessingNbt.readUUID(stored, "ruleId");
                 long revision = QIOProcessingNbt.requireNonNegative(
-                      stored.getLong("ruleRevision"), "ruleRevision");
+                        stored.getLong("ruleRevision"), "ruleRevision");
                 if (revisions.put(ruleId, revision) != null) {
                     throw new QIOProcessingDataException("Duplicate maintenance evaluation rule");
                 }
@@ -210,23 +204,23 @@ public final class QIOMaintenanceEvaluation {
             List<UUID> triggered = new ArrayList<>();
             for (int index = 0; index < storedTriggered.tagCount(); index++) {
                 triggered.add(QIOProcessingNbt.readUUID(
-                      storedTriggered.getCompoundTagAt(index), "ruleId"));
+                        storedTriggered.getCompoundTagAt(index), "ruleId"));
             }
             QIOMaintenanceEvaluation evaluation = new QIOMaintenanceEvaluation(
-                  QIOProcessingNbt.readUUID(data, "evaluationId"),
-                  QIOProcessingNbt.readUUID(data, "jobId"), data.getLong("generation"),
-                  PortableResourceDescriptor.read(data.getCompoundTag("resource")), revisions,
-                  triggered, data.getLong("rulesRevision"),
-                  QIOPlanSourceRevisions.read(data.getCompoundTag("sourceRevisions")),
-                  data.getLong("requestAmount"), data.getLong("jobPriority"),
-                  data.getLong("createdAtTick"));
+                    QIOProcessingNbt.readUUID(data, "evaluationId"),
+                    QIOProcessingNbt.readUUID(data, "jobId"), data.getLong("generation"),
+                    PortableResourceDescriptor.read(data.getCompoundTag("resource")), revisions,
+                    triggered, data.getLong("rulesRevision"),
+                    QIOPlanSourceRevisions.read(data.getCompoundTag("sourceRevisions")),
+                    data.getLong("requestAmount"), data.getLong("jobPriority"),
+                    data.getLong("createdAtTick"));
             UUID expectedEvaluationId = stableEvaluationId(frequencyUUID,
-                  evaluation.generation, evaluation.resource, evaluation.groupRuleRevisions,
-                  evaluation.triggeredRuleIds);
+                    evaluation.generation, evaluation.resource, evaluation.groupRuleRevisions,
+                    evaluation.triggeredRuleIds);
             if (!expectedEvaluationId.equals(evaluation.evaluationId) ||
-                  !stableJobId(evaluation.evaluationId).equals(evaluation.jobId)) {
+                    !stableJobId(evaluation.evaluationId).equals(evaluation.jobId)) {
                 throw new QIOProcessingDataException(
-                      "Maintenance evaluation stable identity does not match its contents");
+                        "Maintenance evaluation stable identity does not match its contents");
             }
             return evaluation;
         } catch (QIOProcessingDataException e) {
@@ -248,7 +242,7 @@ public final class QIOMaintenanceEvaluation {
         for (Map.Entry<UUID, Long> entry : entries) {
             UUID ruleId = Objects.requireNonNull(entry.getKey(), "ruleId");
             long revision = QIOProcessingNbt.requireNonNegative(
-                  Objects.requireNonNull(entry.getValue(), "ruleRevision"), "ruleRevision");
+                    Objects.requireNonNull(entry.getValue(), "ruleRevision"), "ruleRevision");
             checked.put(ruleId, revision);
         }
         return Collections.unmodifiableMap(checked);
@@ -281,19 +275,19 @@ public final class QIOMaintenanceEvaluation {
     }
 
     private static UUID stableEvaluationId(UUID frequencyUUID, long generation,
-          PortableResourceDescriptor resource, Map<UUID, Long> groupRuleRevisions,
-          List<UUID> triggeredRuleIds) {
+                                           PortableResourceDescriptor resource, Map<UUID, Long> groupRuleRevisions,
+                                           List<UUID> triggeredRuleIds) {
         StringBuilder key = new StringBuilder("qio-maintenance-evaluation-v1|")
-              .append(frequencyUUID).append('|').append(generation).append('|').append(resource);
+                .append(frequencyUUID).append('|').append(generation).append('|').append(resource);
         groupRuleRevisions.forEach((ruleId, revision) -> key.append("|rule=")
-              .append(ruleId).append('@').append(revision));
+                .append(ruleId).append('@').append(revision));
         triggeredRuleIds.stream().sorted(Comparator.comparing(UUID::toString)).forEach(ruleId ->
-              key.append("|triggered=").append(ruleId));
+                key.append("|triggered=").append(ruleId));
         return UUID.nameUUIDFromBytes(key.toString().getBytes(StandardCharsets.UTF_8));
     }
 
     private static UUID stableJobId(UUID evaluationId) {
         return UUID.nameUUIDFromBytes(("qio-maintenance-job-v1|" + evaluationId)
-              .getBytes(StandardCharsets.UTF_8));
+                .getBytes(StandardCharsets.UTF_8));
     }
 }

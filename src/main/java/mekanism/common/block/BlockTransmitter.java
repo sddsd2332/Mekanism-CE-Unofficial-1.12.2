@@ -14,8 +14,8 @@ import mekanism.common.integration.wrenches.Wrenches;
 import mekanism.common.tier.BaseTier;
 import mekanism.common.tile.transmitter.*;
 import mekanism.common.tile.transmitter.TileEntitySidedPipe.ConnectionType;
-import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.MekanismPlacementData;
+import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.MultipartUtils;
 import mekanism.common.util.MultipartUtils.AdvancedRayTraceResult;
 import net.minecraft.block.Block;
@@ -51,7 +51,7 @@ import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.List;
 
-public class    BlockTransmitter extends BlockTileDrops implements ITileEntityProvider {
+public class BlockTransmitter extends BlockTileDrops implements ITileEntityProvider {
 
     public static AxisAlignedBB[] smallSides = new AxisAlignedBB[7];
     public static AxisAlignedBB[] largeSides = new AxisAlignedBB[7];

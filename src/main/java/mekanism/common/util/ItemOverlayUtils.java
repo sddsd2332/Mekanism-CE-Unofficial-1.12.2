@@ -24,7 +24,7 @@ public final class ItemOverlayUtils {
     @SideOnly(Side.CLIENT)
     public static boolean renderItemBarOverlayIntoGUI(int xPosition, int yPosition, List<BarSegment> segments) {
         return renderBarOverlay(xPosition + DEFAULT_BAR_X_OFFSET, yPosition + DEFAULT_BAR_Y_OFFSET,
-              DEFAULT_BAR_WIDTH, DEFAULT_BAR_HEIGHT, segments);
+                DEFAULT_BAR_WIDTH, DEFAULT_BAR_HEIGHT, segments);
     }
 
     @SideOnly(Side.CLIENT)
@@ -49,7 +49,7 @@ public final class ItemOverlayUtils {
             if (fillWidth > 0) {
                 int color = segment.color;
                 GuiUtils.draw(bufferbuilder, x + segmentStart, y, fillWidth, height,
-                      color >> 16 & 255, color >> 8 & 255, color & 255, 255);
+                        color >> 16 & 255, color >> 8 & 255, color & 255, 255);
             }
         }
         MekanismRenderer.resetColor();

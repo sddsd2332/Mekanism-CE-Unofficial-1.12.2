@@ -8,18 +8,12 @@ import net.minecraft.nbt.NBTTagList;
 import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
-/** Persistent reverse index used to wake only jobs affected by a resource change. */
+/**
+ * Persistent reverse index used to wake only jobs affected by a resource change.
+ */
+
 /**
  * QIO 处理模块中的 QIOWaitingMaterialIndex 类型。
  *
@@ -34,7 +28,7 @@ public final class QIOWaitingMaterialIndex {
     private final Map<PortableResourceDescriptor, Set<UUID>> jobsByResource = new LinkedHashMap<>();
 
     public void update(UUID jobId, Collection<PortableResourceDescriptor> previousMissing,
-          Collection<PortableResourceDescriptor> currentMissing) {
+                       Collection<PortableResourceDescriptor> currentMissing) {
         Objects.requireNonNull(jobId, "jobId");
         for (PortableResourceDescriptor resource : previousMissing) {
             Set<UUID> jobs = jobsByResource.get(resource);
@@ -80,7 +74,7 @@ public final class QIOWaitingMaterialIndex {
 
     @Nonnull
     public static QIOWaitingMaterialIndex read(@Nonnull NBTTagList list)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         if (list.tagCount() > MAX_RESOURCES) {
             throw new QIOProcessingDataException("Waiting material index exceeds its resource limit");
         }
@@ -120,7 +114,7 @@ public final class QIOWaitingMaterialIndex {
         for (QIOMaterialCommitment commitment : ordered) {
             if (commitment.getState() == QIOMaterialCommitment.State.ACTIVE) {
                 index.update(commitment.getJobId(), Collections.emptySet(),
-                      commitment.getMissingResourceKeys());
+                        commitment.getMissingResourceKeys());
             }
         }
         return index;

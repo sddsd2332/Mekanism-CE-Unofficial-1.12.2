@@ -1,10 +1,6 @@
 package mekanism.qioprocessing.common.content.material;
 
-import mekanism.api.qio.external.IQIOFrequencyStorageAccess;
-import mekanism.api.qio.external.IQIOStorageView;
-import mekanism.api.qio.external.QIOFrequencyReference;
-import mekanism.api.qio.external.QIOStorageChange;
-import mekanism.api.qio.external.QIOStorageChangeBatch;
+import mekanism.api.qio.external.*;
 import mekanism.common.Mekanism;
 import mekanism.qioprocessing.api.resource.PortableResourceDescriptor;
 import mekanism.qioprocessing.common.content.QIOFrequencyIdentitySnapshot;
@@ -14,21 +10,12 @@ import mekanism.qioprocessing.common.content.job.QIOCraftingJob;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Deque;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
-/** Main-thread, event-driven material-claim wakeups shared by all processing frequencies. */
+/**
+ * Main-thread, event-driven material-claim wakeups shared by all processing frequencies.
+ */
+
 /**
  * QIO 处理模块中的 QIOClaimWakeService 类型。
  *
@@ -47,8 +34,8 @@ public final class QIOClaimWakeService {
     }
 
     public synchronized int tick(@Nonnull Collection<QIOProcessingNetworkData> networks,
-          int maximumRefreshes, @Nonnull IQIOFrequencyStorageAccess storageAccess,
-          @Nonnull QIOMaterialClaimCoordinator.PersistenceBarrier persistenceBarrier) {
+                                 int maximumRefreshes, @Nonnull IQIOFrequencyStorageAccess storageAccess,
+                                 @Nonnull QIOMaterialClaimCoordinator.PersistenceBarrier persistenceBarrier) {
         Objects.requireNonNull(networks, "networks");
         Objects.requireNonNull(storageAccess, "storageAccess");
         Objects.requireNonNull(persistenceBarrier, "persistenceBarrier");
@@ -85,8 +72,8 @@ public final class QIOClaimWakeService {
                 if (network.isClaimWakeCandidate(jobId)) {
                     try {
                         QIOMaterialClaimCoordinator.RefreshResult result =
-                              QIOMaterialClaimCoordinator.refresh(network, jobId, session.view,
-                                    persistenceBarrier);
+                                QIOMaterialClaimCoordinator.refresh(network, jobId, session.view,
+                                        persistenceBarrier);
                         refreshed++;
                         if (result.getOutcome() == QIOMaterialClaimCoordinator.Outcome.RETRY_REQUIRED) {
                             session.defer(jobId);
@@ -97,7 +84,7 @@ public final class QIOClaimWakeService {
                     } catch (IOException e) {
                         session.defer(jobId);
                         Mekanism.logger.error("Unable to persist a QIO material-claim wakeup for job {}",
-                              jobId, e);
+                                jobId, e);
                     } catch (RuntimeException e) {
                         session.defer(jobId);
                         session.invalidated = true;
@@ -141,7 +128,7 @@ public final class QIOClaimWakeService {
         Objects.requireNonNull(frequencyUUID, "frequencyUUID");
         Objects.requireNonNull(failure, "failure");
         Set<String> reported = reportedRefreshFailures.computeIfAbsent(frequencyUUID,
-              ignored -> new LinkedHashSet<>());
+                ignored -> new LinkedHashSet<>());
         return reported.add(failureSignature(failure));
     }
 
@@ -154,7 +141,7 @@ public final class QIOClaimWakeService {
                 signature.append('\n');
             }
             signature.append(current.getClass().getName()).append(':')
-                  .append(String.valueOf(current.getMessage()));
+                    .append(String.valueOf(current.getMessage()));
             Throwable cause = current.getCause();
             current = cause == current ? null : cause;
         }
@@ -162,17 +149,17 @@ public final class QIOClaimWakeService {
     }
 
     private void synchronizeSessions(Map<UUID, QIOProcessingNetworkData> networks,
-          IQIOFrequencyStorageAccess storageAccess,
-          QIOMaterialClaimCoordinator.PersistenceBarrier persistenceBarrier) {
+                                     IQIOFrequencyStorageAccess storageAccess,
+                                     QIOMaterialClaimCoordinator.PersistenceBarrier persistenceBarrier) {
         Iterator<Map.Entry<UUID, Session>> iterator = sessions.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<UUID, Session> entry = iterator.next();
             QIOProcessingNetworkData network = networks.get(entry.getKey());
             if (network == null || network.getLifecycle() != QIOProcessingNetworkLifecycle.ACTIVE ||
-                  entry.getValue().invalidated || !entry.getValue().view.isValid() ||
-                  !entry.getValue().hasQueuedSignals() && !network.hasClaimWakeCandidates()) {
+                    entry.getValue().invalidated || !entry.getValue().view.isValid() ||
+                    !entry.getValue().hasQueuedSignals() && !network.hasClaimWakeCandidates()) {
                 if (network != null && network.getLifecycle() == QIOProcessingNetworkLifecycle.ACTIVE &&
-                      (entry.getValue().invalidated || !entry.getValue().view.isValid())) {
+                        (entry.getValue().invalidated || !entry.getValue().view.isValid())) {
                     persistAccessLoss(network, persistenceBarrier);
                 }
                 entry.getValue().view.close();
@@ -181,14 +168,14 @@ public final class QIOClaimWakeService {
         }
         for (QIOProcessingNetworkData network : networks.values()) {
             if (network.getLifecycle() != QIOProcessingNetworkLifecycle.ACTIVE ||
-                  sessions.containsKey(network.getFrequencyUUID()) ||
-                  !network.hasClaimWakeCandidates()) {
+                    sessions.containsKey(network.getFrequencyUUID()) ||
+                    !network.hasClaimWakeCandidates()) {
                 continue;
             }
             QIOFrequencyIdentitySnapshot identity = network.getLastKnownFrequencyIdentity();
             UUID principal = identity.getOwnerUUID();
             QIOFrequencyReference reference = new QIOFrequencyReference(network.getFrequencyUUID(),
-                  identity.getName(), identity.getOwnerUUID(), identity.getSecurityMode(), principal);
+                    identity.getName(), identity.getOwnerUUID(), identity.getSecurityMode(), principal);
             IQIOStorageView view = storageAccess.open(reference, principal);
             if (view == null || !view.isValid()) {
                 if (view != null) {
@@ -255,7 +242,7 @@ public final class QIOClaimWakeService {
             }
             try {
                 current.changedResources.add(
-                      PortableResourceDescriptor.fromStorageEntry(change.getResource()));
+                        PortableResourceDescriptor.fromStorageEntry(change.getResource()));
             } catch (RuntimeException e) {
                 current.fullScanRequested = true;
                 Mekanism.logger.error("Unable to identify a changed QIO resource; requesting a full claim scan", e);
@@ -264,7 +251,7 @@ public final class QIOClaimWakeService {
     }
 
     private void removeInvalidatedSessions(Map<UUID, QIOProcessingNetworkData> networks,
-          QIOMaterialClaimCoordinator.PersistenceBarrier persistenceBarrier) {
+                                           QIOMaterialClaimCoordinator.PersistenceBarrier persistenceBarrier) {
         Iterator<Session> iterator = sessions.values().iterator();
         while (iterator.hasNext()) {
             Session session = iterator.next();
@@ -280,7 +267,7 @@ public final class QIOClaimWakeService {
     }
 
     private void persistAccessLoss(QIOProcessingNetworkData network,
-          QIOMaterialClaimCoordinator.PersistenceBarrier persistenceBarrier) {
+                                   QIOMaterialClaimCoordinator.PersistenceBarrier persistenceBarrier) {
         if (!network.markClaimStorageAccessUnavailable()) {
             return;
         }
@@ -288,7 +275,7 @@ public final class QIOClaimWakeService {
             persistenceBarrier.persist(network);
         } catch (IOException e) {
             Mekanism.logger.error("Unable to persist QIO claim access loss for frequency {}",
-                  network.getFrequencyUUID(), e);
+                    network.getFrequencyUUID(), e);
         }
     }
 

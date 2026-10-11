@@ -2,13 +2,11 @@ package mekanism.api.qio.external;
 
 import javax.annotation.Nonnull;
 import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
-/** One internally consistent, immutable QIO storage snapshot. */
+/**
+ * One internally consistent, immutable QIO storage snapshot.
+ */
 public final class QIOStorageSnapshot {
 
     private final UUID frequencyUUID;
@@ -24,17 +22,17 @@ public final class QIOStorageSnapshot {
     private final int unlimitedTypeDrives;
 
     public QIOStorageSnapshot(UUID frequencyUUID, String frequencyName, long contentsRevision,
-          long capacityRevision, long accessRevision, List<QIOStorageEntry> entries,
-          BigInteger finiteCountCapacity, BigInteger finiteTypeCapacity, int unlimitedCountDrives,
-          int unlimitedTypeDrives) {
+                              long capacityRevision, long accessRevision, List<QIOStorageEntry> entries,
+                              BigInteger finiteCountCapacity, BigInteger finiteTypeCapacity, int unlimitedCountDrives,
+                              int unlimitedTypeDrives) {
         this(frequencyUUID, frequencyName, contentsRevision, capacityRevision, 0, accessRevision,
-              entries, finiteCountCapacity, finiteTypeCapacity, unlimitedCountDrives, unlimitedTypeDrives);
+                entries, finiteCountCapacity, finiteTypeCapacity, unlimitedCountDrives, unlimitedTypeDrives);
     }
 
     public QIOStorageSnapshot(UUID frequencyUUID, String frequencyName, long contentsRevision,
-          long capacityRevision, long claimRevision, long accessRevision, List<QIOStorageEntry> entries,
-          BigInteger finiteCountCapacity, BigInteger finiteTypeCapacity, int unlimitedCountDrives,
-          int unlimitedTypeDrives) {
+                              long capacityRevision, long claimRevision, long accessRevision, List<QIOStorageEntry> entries,
+                              BigInteger finiteCountCapacity, BigInteger finiteTypeCapacity, int unlimitedCountDrives,
+                              int unlimitedTypeDrives) {
         this.frequencyUUID = Objects.requireNonNull(frequencyUUID, "frequencyUUID");
         this.frequencyName = frequencyName == null ? "" : frequencyName;
         this.contentsRevision = contentsRevision;

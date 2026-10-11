@@ -5,8 +5,8 @@ import mekanism.api.AutomationType;
 import mekanism.api.IContentsListener;
 import mekanism.api.NBTConstants;
 import mekanism.api.energy.IEnergyContainer;
-import mekanism.api.heat.HeatAPI;
 import mekanism.api.functions.ConstantPredicates;
+import mekanism.api.heat.HeatAPI;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.EnumFacing;
 import net.minecraftforge.common.util.INBTSerializable;
@@ -37,7 +37,7 @@ public class BasicEnergyContainer implements IEnergyContainer, IContentsListener
     }
 
     public static BasicEnergyContainer create(double maxEnergy, Predicate<AutomationType> canExtract, Predicate<AutomationType> canInsert,
-          @Nullable IContentsListener listener) {
+                                              @Nullable IContentsListener listener) {
         Objects.requireNonNull(canExtract, "Extraction validity check cannot be null");
         Objects.requireNonNull(canInsert, "Insertion validity check cannot be null");
         return new BasicEnergyContainer(maxEnergy, canExtract, canInsert, listener);
@@ -51,7 +51,7 @@ public class BasicEnergyContainer implements IEnergyContainer, IContentsListener
     private final IContentsListener listener;
 
     protected BasicEnergyContainer(double maxEnergy, Predicate<AutomationType> canExtract, Predicate<AutomationType> canInsert,
-          @Nullable IContentsListener listener) {
+                                   @Nullable IContentsListener listener) {
         if (!HeatAPI.isFinite(maxEnergy) || maxEnergy < 0) {
             throw new IllegalArgumentException("Max energy cannot be negative");
         }

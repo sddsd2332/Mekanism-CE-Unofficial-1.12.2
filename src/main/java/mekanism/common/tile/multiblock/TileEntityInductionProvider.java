@@ -97,7 +97,7 @@ public class TileEntityInductionProvider extends TileEntityBasicBlock {
     }
 
     @Override
-   public void writeCustomNBT(NBTTagCompound nbtTags) {
+    public void writeCustomNBT(NBTTagCompound nbtTags) {
         super.writeCustomNBT(nbtTags);
         nbtTags.setInteger("tier", tier.ordinal());
     }

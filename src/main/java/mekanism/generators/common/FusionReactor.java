@@ -6,7 +6,6 @@ import mekanism.api.Coord4D;
 import mekanism.api.fluid.IExtendedFluidTank;
 import mekanism.api.gas.GasStack;
 import mekanism.api.heat.HeatAPI;
-import mekanism.api.heat.IHeatCapacitor;
 import mekanism.api.inventory.IInventorySlot;
 import mekanism.common.LaserManager;
 import mekanism.common.Mekanism;
@@ -71,7 +70,9 @@ public class FusionReactor {
     public double lastTransferLoss;
     public double lastEnvironmentLoss;
     public int injectionRate = 2;
-    /** Amount of fuel consumed during the most recent simulation tick. */
+    /**
+     * Amount of fuel consumed during the most recent simulation tick.
+     */
     private int lastBurned;
     public boolean burning = false;
     public boolean activelyCooled = true;
@@ -93,7 +94,7 @@ public class FusionReactor {
         lastCaseTemperature = biomeAmbientTemp;
         double casingCapacity = HeatAPI.isFinite(caseHeatCapacity) ? Math.max(1, Math.min(HeatAPI.MAX_HEAT, caseHeatCapacity)) : 1;
         heatCapacitor = VariableHeatCapacitor.create(casingCapacity, FusionReactor::getCaseInverseConduction,
-              () -> CASE_INVERSE_INSULATION, () -> biomeAmbientTemp, null);
+                () -> CASE_INVERSE_INSULATION, () -> biomeAmbientTemp, null);
     }
 
     private static double getPlasmaHeatCapacity() {
@@ -102,19 +103,19 @@ public class FusionReactor {
 
     private static double getThermocoupleEfficiency() {
         double value = MekanismConfig.current().generators == null ? thermocoupleEfficiency :
-              MekanismConfig.current().generators.fusionThermocoupleEfficiency.val();
+                MekanismConfig.current().generators.fusionThermocoupleEfficiency.val();
         return sanitizeUnitConfig(value, 0.05, 0);
     }
 
     private static double getCaseWaterConductivity() {
         double value = MekanismConfig.current().generators == null ? caseWaterConductivity :
-              MekanismConfig.current().generators.fusionWaterHeatingRatio.val();
+                MekanismConfig.current().generators.fusionWaterHeatingRatio.val();
         return sanitizeUnitConfig(value, 0.3, 0);
     }
 
     private static double getCaseAirConductivity() {
         double value = MekanismConfig.current().generators == null ? caseAirConductivity :
-              MekanismConfig.current().generators.fusionCasingThermalConductivity.val();
+                MekanismConfig.current().generators.fusionCasingThermalConductivity.val();
         return sanitizeUnitConfig(value, 0.1, 0.001);
     }
 
@@ -273,7 +274,7 @@ public class FusionReactor {
     public void transferHeat() {
         //Transfer from plasma to casing
         double plasmaCaseHeat = signedProduct(finiteNonNegative(plasmaCaseConductivity, 0),
-              HeatAPI.sanitizeTemperature(plasmaTemperature) - heatCapacitor.getTemperature());
+                HeatAPI.sanitizeTemperature(plasmaTemperature) - heatCapacitor.getTemperature());
         transferPlasmaAndCasing(plasmaCaseHeat);
 
         FusionCoolingRecipe recipe = getRecipe();
@@ -369,7 +370,7 @@ public class FusionReactor {
             temp = 0;
         }
         plasmaTemperature = HeatAPI.isFinite(temp) ? Math.max(0, Math.min(maxTemperature, temp)) :
-              (temp == Double.POSITIVE_INFINITY ? maxTemperature : biomeAmbientTemp);
+                (temp == Double.POSITIVE_INFINITY ? maxTemperature : biomeAmbientTemp);
     }
 
     public double getCaseTemp() {
@@ -481,7 +482,7 @@ public class FusionReactor {
             }
             boolean controllerPosition = isControllerPosition(coords[0], coords[1], coords[2]);
             if (tile instanceof TileEntityReactorBlock block && canClaimReactorBlock(block) &&
-                  (controllerPosition ? block == controller : !(block instanceof TileEntityReactorController))) {
+                    (controllerPosition ? block == controller : !(block instanceof TileEntityReactorController))) {
                 reactorBlocks.add(block);
                 block.setReactor(this);
                 if (tile instanceof TileEntityReactorPort port) {
@@ -529,7 +530,7 @@ public class FusionReactor {
 
     public void setInjectionRate(int rate) {
         int configuredMaximum = MekanismConfig.current().generators == null ? 98 :
-              Math.max(2, MekanismConfig.current().generators.reactorGeneratorInjectionRate.val());
+                Math.max(2, MekanismConfig.current().generators.reactorGeneratorInjectionRate.val());
         int bounded = Math.max(0, Math.min(configuredMaximum, rate));
         injectionRate = bounded - Math.floorMod(bounded, 2);
         if (controller != null) {
@@ -607,7 +608,7 @@ public class FusionReactor {
     public double getPassiveGeneration(boolean active, boolean current) {
         double temperature = current ? heatCapacitor.getTemperature() : getMaxCasingTemperature(active);
         return saturatingProduct(getThermocoupleEfficiency(), getCaseAirConductivity(),
-              Math.max(0, HeatAPI.sanitizeTemperature(temperature)));
+                Math.max(0, HeatAPI.sanitizeTemperature(temperature)));
     }
 
     public int getSteamPerTick(boolean current) {
@@ -634,7 +635,9 @@ public class FusionReactor {
         return 1 / getCaseAirConductivity();
     }
 
-    /** Applies a plasma/casing transfer and returns the amount actually accepted by the casing. */
+    /**
+     * Applies a plasma/casing transfer and returns the amount actually accepted by the casing.
+     */
     private double transferPlasmaAndCasing(double requested) {
         if (!HeatAPI.isFinite(requested) || Math.abs(requested) <= HeatAPI.EPSILON) {
             return 0;
@@ -661,7 +664,9 @@ public class FusionReactor {
         return 0;
     }
 
-    /** Converts casing heat into the configured cooling fluid, bounded by available heat and tank space. */
+    /**
+     * Converts casing heat into the configured cooling fluid, bounded by available heat and tank space.
+     */
     private double transferCasingToWater(FusionCoolingRecipe recipe) {
         IExtendedFluidTank waterTank = getWaterTank();
         IExtendedFluidTank steamTank = getSteamTank();
@@ -694,7 +699,7 @@ public class FusionReactor {
         int outputPerInput = Math.max(1, recipeOutput.amount);
         long outputSpace = Math.max(0, steamTank.getNeeded()) / outputPerInput;
         int waterToVaporize = (int) Math.min(Integer.MAX_VALUE,
-              Math.min(waterTank.getFluidAmount(), Math.min(outputSpace, Math.floor(possible))));
+                Math.min(waterTank.getFluidAmount(), Math.min(outputSpace, Math.floor(possible))));
         if (waterToVaporize <= 0) {
             return 0;
         }
@@ -776,14 +781,14 @@ public class FusionReactor {
         BlockPos min = centre.translate(-2, -2, -2).getPos();
         BlockPos max = centre.translate(2, 2, 2).getPos();
         BlockPos[] corners = {
-              min,
-              new BlockPos(max.getX(), min.getY(), min.getZ()),
-              new BlockPos(min.getX(), min.getY(), max.getZ()),
-              new BlockPos(max.getX(), min.getY(), max.getZ()),
-              new BlockPos(min.getX(), max.getY(), min.getZ()),
-              new BlockPos(max.getX(), max.getY(), min.getZ()),
-              new BlockPos(min.getX(), max.getY(), max.getZ()),
-              max
+                min,
+                new BlockPos(max.getX(), min.getY(), min.getZ()),
+                new BlockPos(min.getX(), min.getY(), max.getZ()),
+                new BlockPos(max.getX(), min.getY(), max.getZ()),
+                new BlockPos(min.getX(), max.getY(), min.getZ()),
+                new BlockPos(max.getX(), max.getY(), min.getZ()),
+                new BlockPos(min.getX(), max.getY(), max.getZ()),
+                max
         };
         double biomeTemperature = 0;
         for (BlockPos corner : corners) {

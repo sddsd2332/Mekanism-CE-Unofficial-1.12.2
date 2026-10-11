@@ -9,15 +9,12 @@ import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
-/** Durable progress for one immutable plan node. */
+/**
+ * Durable progress for one immutable plan node.
+ */
+
 /**
  * QIO 处理模块中的 QIOStepRuntime 类型。
  *
@@ -114,7 +111,7 @@ public final class QIOStepRuntime {
             throw new IllegalArgumentException("Maximum active operation snapshot is negative");
         }
         List<QIOOperationAssignment> operations = new ArrayList<>(
-              Math.min(maximum, activeOperations.size()));
+                Math.min(maximum, activeOperations.size()));
         for (QIOOperationAssignment assignment : activeOperations.values()) {
             if (operations.size() >= maximum) {
                 break;
@@ -135,7 +132,7 @@ public final class QIOStepRuntime {
         Objects.requireNonNull(assignment, "assignment");
         long nextActive = Math.addExact(activeOperationCount, assignment.getOperationCount());
         if (nextActive > requiredOperations - completedOperations ||
-              activeOperations.putIfAbsent(assignment.getOperationId(), assignment) != null) {
+                activeOperations.putIfAbsent(assignment.getOperationId(), assignment) != null) {
             throw new IllegalStateException("QIO step cannot accept another operation");
         }
         activeOperationCount = nextActive;
@@ -144,7 +141,7 @@ public final class QIOStepRuntime {
 
     /** 更新指定活动操作的状态和进度。 */
     public boolean update(@Nonnull UUID operationId, @Nonnull QIOOperationAssignment.State state,
-          long currentTick, long totalTicks, @Nullable String diagnostic) {
+                          long currentTick, long totalTicks, @Nullable String diagnostic) {
         QIOOperationAssignment assignment = requireOperation(operationId);
         if (!assignment.update(state, currentTick, totalTicks, diagnostic)) {
             return false;
@@ -162,7 +159,7 @@ public final class QIOStepRuntime {
         }
         activeOperations.remove(operationId);
         activeOperationCount = Math.subtractExact(activeOperationCount,
-              assignment.getOperationCount());
+                assignment.getOperationCount());
         completedOperations = nextCompleted;
         incrementRevision();
     }
@@ -171,10 +168,10 @@ public final class QIOStepRuntime {
     public void fail(@Nonnull UUID operationId, @Nonnull String diagnostic) {
         QIOOperationAssignment assignment = requireOperation(operationId);
         assignment.update(QIOOperationAssignment.State.FAILED, assignment.getCurrentTick(),
-              assignment.getTotalTicks(), diagnostic);
+                assignment.getTotalTicks(), diagnostic);
         activeOperations.remove(operationId);
         activeOperationCount = Math.subtractExact(activeOperationCount,
-              assignment.getOperationCount());
+                assignment.getOperationCount());
         failedAttempts = Math.addExact(failedAttempts, 1);
         incrementRevision();
     }
@@ -199,20 +196,20 @@ public final class QIOStepRuntime {
     @Nonnull
     /** 从 NBT 读取并校验步骤运行时。 */
     public static QIOStepRuntime read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         try {
             QIOStepRuntime runtime = new QIOStepRuntime(data.getLong("nodeId"),
-                  data.getLong("requiredOperations"));
+                    data.getLong("requiredOperations"));
             runtime.completedOperations = QIOProcessingNbt.requireNonNegative(
-                  data.getLong("completedOperations"), "completedOperations");
+                    data.getLong("completedOperations"), "completedOperations");
             runtime.failedAttempts = QIOProcessingNbt.requireNonNegative(
-                  data.getLong("failedAttempts"), "failedAttempts");
+                    data.getLong("failedAttempts"), "failedAttempts");
             runtime.runtimeRevision = QIOProcessingNbt.requireNonNegative(
-                  data.getLong("runtimeRevision"), "runtimeRevision");
+                    data.getLong("runtimeRevision"), "runtimeRevision");
             NBTTagList active = data.getTagList("activeOperations", NBT.TAG_COMPOUND);
             for (int index = 0; index < active.tagCount(); index++) {
                 QIOOperationAssignment assignment = QIOOperationAssignment.read(
-                      active.getCompoundTagAt(index));
+                        active.getCompoundTagAt(index));
                 if (runtime.activeOperations.put(assignment.getOperationId(), assignment) != null) {
                     throw new QIOProcessingDataException("Duplicate QIO step operation assignment");
                 }
@@ -220,10 +217,10 @@ public final class QIOStepRuntime {
             long activeOperations = 0;
             for (QIOOperationAssignment assignment : runtime.activeOperations.values()) {
                 activeOperations = Math.addExact(activeOperations,
-                      assignment.getOperationCount());
+                        assignment.getOperationCount());
             }
             if (runtime.completedOperations > runtime.requiredOperations ||
-                  activeOperations > runtime.requiredOperations - runtime.completedOperations) {
+                    activeOperations > runtime.requiredOperations - runtime.completedOperations) {
                 throw new QIOProcessingDataException("QIO step progress exceeds its plan");
             }
             runtime.activeOperationCount = activeOperations;
@@ -237,7 +234,7 @@ public final class QIOStepRuntime {
 
     private QIOOperationAssignment requireOperation(UUID operationId) {
         QIOOperationAssignment assignment = activeOperations.get(
-              Objects.requireNonNull(operationId, "operationId"));
+                Objects.requireNonNull(operationId, "operationId"));
         if (assignment == null) {
             throw new IllegalArgumentException("Unknown QIO step operation " + operationId);
         }

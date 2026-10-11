@@ -5,7 +5,9 @@ import io.netty.buffer.ByteBuf;
 import javax.annotation.Nonnull;
 import java.util.Objects;
 
-/** Exact finite capacity plus independently tracked unlimited-drive counts. */
+/**
+ * Exact finite capacity plus independently tracked unlimited-drive counts.
+ */
 public final class QIOCapacitySummary {
 
     public static final QIOCapacitySummary EMPTY = new QIOCapacitySummary(QIOAmount.ZERO, QIOAmount.ZERO, 0, 0);
@@ -16,7 +18,7 @@ public final class QIOCapacitySummary {
     private final int unlimitedTypeDrives;
 
     public QIOCapacitySummary(@Nonnull QIOAmount finiteCountCapacity, @Nonnull QIOAmount finiteTypeCapacity,
-          int unlimitedCountDrives, int unlimitedTypeDrives) {
+                              int unlimitedCountDrives, int unlimitedTypeDrives) {
         this.finiteCountCapacity = Objects.requireNonNull(finiteCountCapacity, "finiteCountCapacity");
         this.finiteTypeCapacity = Objects.requireNonNull(finiteTypeCapacity, "finiteTypeCapacity");
         this.unlimitedCountDrives = Math.max(0, unlimitedCountDrives);
@@ -94,7 +96,7 @@ public final class QIOCapacitySummary {
         }
         QIOCapacitySummary other = (QIOCapacitySummary) obj;
         return unlimitedCountDrives == other.unlimitedCountDrives && unlimitedTypeDrives == other.unlimitedTypeDrives &&
-              finiteCountCapacity.equals(other.finiteCountCapacity) && finiteTypeCapacity.equals(other.finiteTypeCapacity);
+                finiteCountCapacity.equals(other.finiteCountCapacity) && finiteTypeCapacity.equals(other.finiteTypeCapacity);
     }
 
     @Override

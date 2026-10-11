@@ -9,7 +9,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Client-only request correlation for machine route configuration windows. */
+/**
+ * Client-only request correlation for machine route configuration windows.
+ */
+
 /**
  * QIO 处理模块中的 QIOAutomationRecipeConfigClientCache 类型。
  *
@@ -31,7 +34,7 @@ public final class QIOAutomationRecipeConfigClientCache {
     }
 
     public static synchronized void expect(@Nonnull Coord4D coord,
-          @Nonnull QIOAutomationRecipeConfigType type, @Nonnull UUID requestId) {
+                                           @Nonnull QIOAutomationRecipeConfigType type, @Nonnull UUID requestId) {
         Entry entry = ENTRIES.computeIfAbsent(Key.of(coord, type), ignored -> new Entry());
         entry.expectedRequestId = Objects.requireNonNull(requestId, "requestId");
         // The caller is explicitly starting a new read and takes ownership of any
@@ -40,12 +43,12 @@ public final class QIOAutomationRecipeConfigClientCache {
     }
 
     public static synchronized boolean apply(@Nonnull Coord4D coord,
-          @Nonnull QIOAutomationRecipeConfigType type, @Nullable UUID requestId,
-          @Nonnull Status status, @Nullable QIOAutomationRecipeConfigSnapshot snapshot) {
+                                             @Nonnull QIOAutomationRecipeConfigType type, @Nullable UUID requestId,
+                                             @Nonnull Status status, @Nullable QIOAutomationRecipeConfigSnapshot snapshot) {
         Entry entry = ENTRIES.computeIfAbsent(Key.of(coord, type), ignored -> new Entry());
         boolean correlatedResponse = requestId != null;
         if (correlatedResponse && !requestId.equals(entry.expectedRequestId) ||
-            status == Status.UNAVAILABLE != (snapshot == null)) {
+                status == Status.UNAVAILABLE != (snapshot == null)) {
             return false;
         }
         if (snapshot != null && snapshot.getType() != type) {
@@ -55,22 +58,22 @@ public final class QIOAutomationRecipeConfigClientCache {
         // the same revisions is not a data change and must not interrupt a local page
         // accumulator; a revision change still marks the view stale below.
         if (requestId == null && entry.snapshot != null && snapshot != null &&
-            (snapshot.getOffset() != entry.snapshot.getOffset() ||
-                  !snapshot.getQuery().equals(entry.snapshot.getQuery())) &&
-            snapshot.getProfileRevision() == entry.snapshot.getProfileRevision() &&
-            snapshot.getPolicyRevision() == entry.snapshot.getPolicyRevision()) {
+                (snapshot.getOffset() != entry.snapshot.getOffset() ||
+                        !snapshot.getQuery().equals(entry.snapshot.getQuery())) &&
+                snapshot.getProfileRevision() == entry.snapshot.getProfileRevision() &&
+                snapshot.getPolicyRevision() == entry.snapshot.getPolicyRevision()) {
             return false;
         }
         if (snapshot != null && entry.snapshot != null &&
-            (snapshot.getProfileRevision() < entry.snapshot.getProfileRevision() ||
-             snapshot.getProfileRevision() == entry.snapshot.getProfileRevision() &&
-             snapshot.getPolicyRevision() < entry.snapshot.getPolicyRevision())) {
+                (snapshot.getProfileRevision() < entry.snapshot.getProfileRevision() ||
+                        snapshot.getProfileRevision() == entry.snapshot.getProfileRevision() &&
+                                snapshot.getPolicyRevision() < entry.snapshot.getPolicyRevision())) {
             return false;
         }
         boolean staleBeforeResponse = entry.stale;
         if (requestId == null && snapshot != null && entry.snapshot != null &&
-            (snapshot.getOffset() != entry.snapshot.getOffset() ||
-                  !snapshot.getQuery().equals(entry.snapshot.getQuery()))) {
+                (snapshot.getOffset() != entry.snapshot.getOffset() ||
+                        !snapshot.getQuery().equals(entry.snapshot.getQuery()))) {
             entry.stale = true;
             entry.generation = entry.generation == Long.MAX_VALUE ? 0 : entry.generation + 1;
             return true;
@@ -87,14 +90,14 @@ public final class QIOAutomationRecipeConfigClientCache {
 
     @Nullable
     public static synchronized View get(@Nonnull Coord4D coord,
-          @Nonnull QIOAutomationRecipeConfigType type) {
+                                        @Nonnull QIOAutomationRecipeConfigType type) {
         Entry entry = ENTRIES.get(Key.of(coord, type));
         return entry == null ? null : new View(entry.status, entry.snapshot, entry.generation,
-              entry.expectedRequestId != null, entry.stale);
+                entry.expectedRequestId != null, entry.stale);
     }
 
     public static synchronized void clear(@Nonnull Coord4D coord,
-          @Nonnull QIOAutomationRecipeConfigType type) {
+                                          @Nonnull QIOAutomationRecipeConfigType type) {
         ENTRIES.remove(Key.of(coord, type));
     }
 
@@ -107,7 +110,7 @@ public final class QIOAutomationRecipeConfigClientCache {
         private final boolean stale;
 
         private View(Status status, QIOAutomationRecipeConfigSnapshot snapshot,
-              long generation, boolean pending, boolean stale) {
+                     long generation, boolean pending, boolean stale) {
             this.status = status;
             this.snapshot = snapshot;
             this.generation = generation;
@@ -156,7 +159,7 @@ public final class QIOAutomationRecipeConfigClientCache {
         private final QIOAutomationRecipeConfigType type;
 
         private Key(int x, int y, int z, int dimension,
-              QIOAutomationRecipeConfigType type) {
+                    QIOAutomationRecipeConfigType type) {
             this.x = x;
             this.y = y;
             this.z = z;
@@ -167,13 +170,13 @@ public final class QIOAutomationRecipeConfigClientCache {
         private static Key of(Coord4D coord, QIOAutomationRecipeConfigType type) {
             Objects.requireNonNull(coord, "coord");
             return new Key(coord.x, coord.y, coord.z, coord.dimensionId,
-                  Objects.requireNonNull(type, "type"));
+                    Objects.requireNonNull(type, "type"));
         }
 
         @Override
         public boolean equals(Object obj) {
             return obj instanceof Key other && x == other.x && y == other.y && z == other.z &&
-                  dimension == other.dimension && type == other.type;
+                    dimension == other.dimension && type == other.type;
         }
 
         @Override

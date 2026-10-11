@@ -1,8 +1,8 @@
 package mekanism.client.gui.machine;
 
-import mekanism.client.gui.GuiMekanismTile;
 import mekanism.api.Coord4D;
 import mekanism.api.TileNetworkList;
+import mekanism.client.gui.GuiMekanismTile;
 import mekanism.client.gui.element.GuiDigitalSwitch;
 import mekanism.client.gui.element.GuiDigitalSwitch.SwitchType;
 import mekanism.client.gui.element.GuiInnerScreen;
@@ -71,27 +71,27 @@ public class GuiDigitalMiner extends GuiMekanismTile<TileEntityDigitalMiner, Con
             sendToggle(0);
             return true;
         }, SwitchType.LOWER_ICON))
-              .setTooltip(MekanismLang.AUTO_EJECT.translate());
+                .setTooltip(MekanismLang.AUTO_EJECT.translate());
         addButton(new GuiDigitalSwitch(this, 38, 56, INPUT, () -> tileEntity.doPull, (element, mouseX, mouseY) -> {
             sendToggle(1);
             return true;
         }, SwitchType.LOWER_ICON))
-              .setTooltip(MekanismLang.AUTO_PULL.translate());
+                .setTooltip(MekanismLang.AUTO_PULL.translate());
         addButton(new GuiDigitalSwitch(this, 57, 56, SILK, () -> tileEntity.silkTouch, (element, mouseX, mouseY) -> {
             sendToggle(9);
             return true;
         }, SwitchType.LOWER_ICON))
-              .setTooltip(MekanismLang.MINER_SILK.translate());
+                .setTooltip(MekanismLang.MINER_SILK.translate());
         addButton(new GuiVerticalPowerBar(this, tileEntity.getMainEnergyContainer(), 157, 39, 47))
-              .warning(WarningType.NOT_ENOUGH_ENERGY, () -> tileEntity.getPerTick() > tileEntity.getEnergy());
+                .warning(WarningType.NOT_ENOUGH_ENERGY, () -> tileEntity.getPerTick() > tileEntity.getEnergy());
         addButton(new GuiVisualsTab<>(this, tileEntity));
         addButton(new GuiSlot(SlotType.DIGITAL, this, missingStackX, 21).setRenderAboveSlots()
-              .validity(() -> tileEntity.missingStack)
-              .with(() -> tileEntity.missingStack.isEmpty() ? SlotOverlay.CHECK : null)
-              .hover((element, xAxis, yAxis) -> {
-                  ITextComponent tooltip = tileEntity.missingStack.isEmpty() ? MekanismLang.MINER_WELL.translate() : MekanismLang.MINER_MISSING_BLOCK.translate();
-                  element.displayTooltip(tooltip, xAxis, yAxis);
-              }));
+                .validity(() -> tileEntity.missingStack)
+                .with(() -> tileEntity.missingStack.isEmpty() ? SlotOverlay.CHECK : null)
+                .hover((element, xAxis, yAxis) -> {
+                    ITextComponent tooltip = tileEntity.missingStack.isEmpty() ? MekanismLang.MINER_WELL.translate() : MekanismLang.MINER_MISSING_BLOCK.translate();
+                    element.displayTooltip(tooltip, xAxis, yAxis);
+                }));
         addButton(new GuiEnergyTab(this, () -> {
             List<ITextComponent> info = new ArrayList<>();
             info.add(MekanismLang.MINER_ENERGY_CAPACITY.translate(MekanismUtils.getEnergyDisplay(tileEntity.getMaxEnergy())));
@@ -102,13 +102,13 @@ public class GuiDigitalMiner extends GuiMekanismTile<TileEntityDigitalMiner, Con
 
         int buttonStart = 19;
         startButton = addButton(new TranslationButton(this, 87, buttonStart, 61, 18, MekanismLang.BUTTON_START,
-              () -> Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(3)))));
+                () -> Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(3)))));
         stopButton = addButton(new TranslationButton(this, 87, buttonStart + 17, 61, 18, MekanismLang.BUTTON_STOP,
-              () -> Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(4)))));
+                () -> Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(4)))));
         configButton = addButton(new TranslationButton(this, 87, buttonStart + 34, 61, 18, MekanismLang.BUTTON_CONFIG,
-              () -> Mekanism.packetHandler.sendToServer(new DigitalMinerGuiMessage(MinerGuiPacket.SERVER, Coord4D.get(tileEntity), 0, 0, 0))));
+                () -> Mekanism.packetHandler.sendToServer(new DigitalMinerGuiMessage(MinerGuiPacket.SERVER, Coord4D.get(tileEntity), 0, 0, 0))));
         addButton(new TranslationButton(this, 87, buttonStart + 51, 61, 18, MekanismLang.MINER_RESET,
-              () -> Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(5)))));
+                () -> Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(5)))));
         trackWarning(WarningType.FILTER_HAS_BLACKLISTED_ELEMENT, () -> tileEntity.getFilterManager().anyEnabledMatch(MinerFilter::hasBlacklistedElement));
         updateEnabledButtons();
     }

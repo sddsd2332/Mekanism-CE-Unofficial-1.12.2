@@ -46,18 +46,18 @@ public class GuiRobitMain extends GuiMekanism<ContainerRobitMain> {
         addButton(new GuiInnerScreen(this, 27, 16, 122, 56, this::getInfoText).clearFormat().clearSpacing().clearScale().padding(2));
         addButton(new GuiHorizontalPowerBar(this, robit, 27, 74, 120));
         addButton(new MekanismImageButton(this, 6, 16, 18, getButtonLocation("home"),
-              () -> {
-                  Mekanism.packetHandler.sendToServer(new RobitMessage(RobitPacketType.GO_HOME, robit.getEntityId()));
-                  mc.displayGuiScreen(null);
-              }, getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.teleport")))));
+                () -> {
+                    Mekanism.packetHandler.sendToServer(new RobitMessage(RobitPacketType.GO_HOME, robit.getEntityId()));
+                    mc.displayGuiScreen(null);
+                }, getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.teleport")))));
         renameButton = addButton(new MekanismImageButton(this, 6, 35, 18, getButtonLocation("rename"),
-              this::openRenameWindow, getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.rename")))));
+                this::openRenameWindow, getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.rename")))));
         addButton(new MekanismImageButton(this, 152, 35, 18, getButtonLocation("drop"),
-              () -> Mekanism.packetHandler.sendToServer(new RobitMessage(RobitPacketType.DROP_PICKUP, robit.getEntityId())),
-              getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.togglePickup")))));
+                () -> Mekanism.packetHandler.sendToServer(new RobitMessage(RobitPacketType.DROP_PICKUP, robit.getEntityId())),
+                getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.togglePickup")))));
         addButton(new MekanismImageButton(this, 152, 54, 18, getButtonLocation("follow"),
-              () -> Mekanism.packetHandler.sendToServer(new RobitMessage(RobitPacketType.FOLLOW, robit.getEntityId())),
-              getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.toggleFollow")))));
+                () -> Mekanism.packetHandler.sendToServer(new RobitMessage(RobitPacketType.FOLLOW, robit.getEntityId())),
+                getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.toggleFollow")))));
         addRobitNavigation();
     }
 
@@ -70,15 +70,16 @@ public class GuiRobitMain extends GuiMekanism<ContainerRobitMain> {
 
     private void addRobitNavigation() {
         addButton(new MekanismImageButton(this, xSize + 3, 10, 18, getButtonLocation("main"),
-              () -> { }, getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit")))));
+                () -> {
+                }, getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit")))));
         addButton(new MekanismImageButton(this, xSize + 3, 30, 18, getButtonLocation("crafting"),
-              () -> openGui(GuiRobit.GUI_CRAFTING), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.crafting")))));
+                () -> openGui(GuiRobit.GUI_CRAFTING), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.crafting")))));
         addButton(new MekanismImageButton(this, xSize + 3, 50, 18, getButtonLocation("inventory"),
-              () -> openGui(GuiRobit.GUI_INVENTORY), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.inventory")))));
+                () -> openGui(GuiRobit.GUI_INVENTORY), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.inventory")))));
         addButton(new MekanismImageButton(this, xSize + 3, 70, 18, getButtonLocation("smelting"),
-              () -> openGui(GuiRobit.GUI_SMELTING), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.smelting")))));
+                () -> openGui(GuiRobit.GUI_SMELTING), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.smelting")))));
         addButton(new MekanismImageButton(this, xSize + 3, 90, 18, getButtonLocation("repair"),
-              () -> openGui(GuiRobit.GUI_REPAIR), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.repair")))));
+                () -> openGui(GuiRobit.GUI_REPAIR), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.repair")))));
     }
 
     private void openGui(int guiId) {

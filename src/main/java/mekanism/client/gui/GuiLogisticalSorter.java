@@ -39,19 +39,19 @@ public class GuiLogisticalSorter extends GuiFilterHolder<TransporterFilter, Tile
         super.addGuiElements();
         addButton(new GuiSlot(SlotType.NORMAL, this, 12, 136).setRenderAboveSlots());
         addButton(new TranslationButton(this, 96, 136, 156, 20, MekanismLang.BUTTON_NEW_FILTER,
-              () -> addWindow(new GuiSorterFilterSelect(this, tileEntity))));
+                () -> addWindow(new GuiSorterFilterSelect(this, tileEntity))));
         addButton(new MekanismImageButton(this, 12, 46, 14, getButtonLocation("single"),
-              () -> Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(5))))
-              .setTooltip(MekanismLang.SORTER_SINGLE_ITEM_DESCRIPTION.translate()));
+                () -> Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(5))))
+                .setTooltip(MekanismLang.SORTER_SINGLE_ITEM_DESCRIPTION.translate()));
         addButton(new MekanismImageButton(this, 12, 76, 14, getButtonLocation("round_robin"),
-              () -> Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(2))))
-              .setTooltip(MekanismLang.SORTER_ROUND_ROBIN_DESCRIPTION.translate()));
+                () -> Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(2))))
+                .setTooltip(MekanismLang.SORTER_ROUND_ROBIN_DESCRIPTION.translate()));
         addButton(new MekanismImageButton(this, 12, 106, 14, getButtonLocation("auto_eject"),
-              () -> Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(1))))
-              .setTooltip(MekanismLang.SORTER_AUTO_EJECT_DESCRIPTION.translate()));
+                () -> Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(1))))
+                .setTooltip(MekanismLang.SORTER_AUTO_EJECT_DESCRIPTION.translate()));
         addButton(new ColorButton(this, 13, 137, 16, 16, () -> tileEntity.color,
-              () -> Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(0, Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) ? 2 : 0))),
-              () -> Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(0, 1)))));
+                () -> Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(0, Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) ? 2 : 0))),
+                () -> Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(0, 1)))));
     }
 
     @Override

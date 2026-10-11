@@ -51,8 +51,9 @@ public abstract class ConfigHolder<TYPE> implements IHolder {
 
     private final Supplier<TileComponentConfig> configSupplier;
     private final Supplier<EnumFacing> facingSupplier;
+    private final ISideConfiguration sideConfiguration;
     private final Map<EnumFacing, ISlotInfo> cachedSlotInfo = new EnumMap<>(EnumFacing.class);
-    protected final List<TYPE> slots = new ArrayList<>();
+    protected final List<TYPE> slots = new mekanism.common.util.RevisionedList<>();
     @Nullable
     private EnumFacing lastDirection;
     @Nullable
@@ -64,10 +65,13 @@ public abstract class ConfigHolder<TYPE> implements IHolder {
     protected ConfigHolder(Supplier<EnumFacing> facingSupplier, Supplier<TileComponentConfig> configSupplier) {
         this.facingSupplier = facingSupplier;
         this.configSupplier = configSupplier;
+        this.sideConfiguration = null;
     }
 
     protected ConfigHolder(ISideConfiguration sideConfiguration) {
-        this(sideConfiguration::getOrientation, sideConfiguration::getConfig);
+        this.sideConfiguration = Objects.requireNonNull(sideConfiguration);
+        this.facingSupplier = null;
+        this.configSupplier = null;
     }
 
     protected abstract mekanism.api.transmitters.TransmissionType getTransmissionType();
@@ -113,7 +117,7 @@ public abstract class ConfigHolder<TYPE> implements IHolder {
 
     @Nullable
     protected ISlotInfo getSlotInfo(EnumFacing side) {
-        EnumFacing direction = facingSupplier.get();
+        EnumFacing direction = sideConfiguration == null ? facingSupplier.get() : sideConfiguration.getOrientation();
         if (direction != lastDirection) {
             cachedSlotInfo.clear();
             lastDirection = direction;
@@ -137,7 +141,7 @@ public abstract class ConfigHolder<TYPE> implements IHolder {
     @Nullable
     private ConfigInfo getConfigInfo() {
         if (!retrievedConfig) {
-            TileComponentConfig config = configSupplier.get();
+            TileComponentConfig config = sideConfiguration == null ? configSupplier.get() : sideConfiguration.getConfig();
             if (config == null) {
                 return null;
             }

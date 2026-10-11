@@ -9,7 +9,9 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/** Synchronizes one bounded compound value through the normal container property channel. */
+/**
+ * Synchronizes one bounded compound value through the normal container property channel.
+ */
 public final class SyncableNBT implements ISyncableData {
 
     private final Supplier<NBTTagCompound> getter;
@@ -22,7 +24,7 @@ public final class SyncableNBT implements ISyncableData {
     }
 
     public static SyncableNBT create(@Nonnull Supplier<NBTTagCompound> getter,
-          @Nonnull Consumer<NBTTagCompound> setter) {
+                                     @Nonnull Consumer<NBTTagCompound> setter) {
         return new SyncableNBT(getter, setter);
     }
 

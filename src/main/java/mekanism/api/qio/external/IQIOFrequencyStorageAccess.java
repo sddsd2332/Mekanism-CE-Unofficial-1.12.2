@@ -4,7 +4,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.UUID;
 
-/** Opens a lifecycle-bound QIO view for an exact persisted frequency reference. */
+/**
+ * Opens a lifecycle-bound QIO view for an exact persisted frequency reference.
+ */
 @FunctionalInterface
 public interface IQIOFrequencyStorageAccess {
 

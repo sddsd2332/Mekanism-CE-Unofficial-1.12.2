@@ -17,7 +17,10 @@ import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
 import javax.annotation.Nonnull;
 import java.util.UUID;
 
-/** Authoritative applied/conflict policy row returned to the editing session. */
+/**
+ * Authoritative applied/conflict policy row returned to the editing session.
+ */
+
 /**
  * QIO 处理模块中的 PacketQIOManagementPolicyMutationResult 类型。
  *
@@ -25,7 +28,7 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class PacketQIOManagementPolicyMutationResult implements
-      IMessageHandler<PacketQIOManagementPolicyMutationResult.Message, IMessage> {
+        IMessageHandler<PacketQIOManagementPolicyMutationResult.Message, IMessage> {
 
     @Override
     public IMessage onMessage(Message message, MessageContext context) {
@@ -35,19 +38,19 @@ public final class PacketQIOManagementPolicyMutationResult implements
         }
         PacketHandler.handlePacket(() -> {
             if (!message.valid ||
-                !(player.openContainer instanceof QIOManagementPolicyPageContainer container) ||
-                player.openContainer.windowId != message.windowId) {
+                    !(player.openContainer instanceof QIOManagementPolicyPageContainer container) ||
+                    player.openContainer.windowId != message.windowId) {
                 return;
             }
             QIOProcessingTerminalContainerState state = container.getTerminalState();
             if (!state.matches(message.sessionNonce, message.terminalUUID,
-                  message.targetRevision, message.frequencyUUID,
-                  message.accessRevision)) {
+                    message.targetRevision, message.frequencyUUID,
+                    message.accessRevision)) {
                 return;
             }
             container.getPolicyClientCache().applyMutation(message.sessionNonce,
-                  message.requestId, message.status, message.policyRevision,
-                  message.authoritativeEntry);
+                    message.requestId, message.status, message.policyRevision,
+                    message.authoritativeEntry);
         }, player);
         return null;
     }
@@ -70,9 +73,9 @@ public final class PacketQIOManagementPolicyMutationResult implements
         }
 
         private Message(int windowId, UUID sessionNonce, UUID terminalUUID,
-              long targetRevision, UUID frequencyUUID, long accessRevision,
-              UUID requestId, MutationStatus status,
-              long policyRevision, QIOPolicyEntrySnapshot authoritativeEntry) {
+                        long targetRevision, UUID frequencyUUID, long accessRevision,
+                        UUID requestId, MutationStatus status,
+                        long policyRevision, QIOPolicyEntrySnapshot authoritativeEntry) {
             this.windowId = windowId;
             this.sessionNonce = sessionNonce;
             this.terminalUUID = terminalUUID;
@@ -87,16 +90,16 @@ public final class PacketQIOManagementPolicyMutationResult implements
         }
 
         public static Message create(int windowId,
-              @Nonnull mekanism.qioprocessing.common.terminal.QIOProcessingTerminalSession session,
-              @Nonnull UUID requestId, @Nonnull MutationResult result) {
+                                     @Nonnull mekanism.qioprocessing.common.terminal.QIOProcessingTerminalSession session,
+                                     @Nonnull UUID requestId, @Nonnull MutationResult result) {
             if (session.getFrequencyUUID() == null) {
                 return new Message();
             }
             return new Message(windowId, session.getSessionNonce(),
-                  session.getTerminalUUID(), session.getTargetRevision(),
-                  session.getFrequencyUUID(), session.getAccessRevision(),
-                  requestId, result.getStatus(),
-                  result.getPolicyRevision(), result.getAuthoritativeEntry());
+                    session.getTerminalUUID(), session.getTargetRevision(),
+                    session.getFrequencyUUID(), session.getAccessRevision(),
+                    requestId, result.getStatus(),
+                    result.getPolicyRevision(), result.getAuthoritativeEntry());
         }
 
         @Override
@@ -151,10 +154,10 @@ public final class PacketQIOManagementPolicyMutationResult implements
 
         private boolean structurallyValid() {
             return windowId >= 0 && sessionNonce != null && terminalUUID != null &&
-                  targetRevision >= 0 && frequencyUUID != null && accessRevision >= 0 &&
-                  requestId != null && status != null &&
-                  policyRevision >= 0 && authoritativeEntry != null &&
-                  authoritativeEntry.getPolicyRevision() == policyRevision;
+                    targetRevision >= 0 && frequencyUUID != null && accessRevision >= 0 &&
+                    requestId != null && status != null &&
+                    policyRevision >= 0 && authoritativeEntry != null &&
+                    authoritativeEntry.getPolicyRevision() == policyRevision;
         }
 
         private static void writeUUID(ByteBuf buffer, UUID uuid) {

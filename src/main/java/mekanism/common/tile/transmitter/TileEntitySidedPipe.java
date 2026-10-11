@@ -1,11 +1,7 @@
 package mekanism.common.tile.transmitter;
 
 import io.netty.buffer.ByteBuf;
-import mekanism.api.Coord4D;
-import mekanism.api.EnumColor;
-import mekanism.api.IConfigurable;
-import mekanism.api.NBTConstants;
-import mekanism.api.TileNetworkList;
+import mekanism.api.*;
 import mekanism.api.transmitters.IBlockableConnection;
 import mekanism.api.transmitters.ITransmitter;
 import mekanism.api.transmitters.TransmissionType;
@@ -135,6 +131,10 @@ public abstract class TileEntitySidedPipe extends TileEntityRestrictedTick imple
 
     protected void invalidateCapabilities() {
         capabilityCache.invalidateAll();
+    }
+
+    protected final Object getCapabilityGeneration() {
+        return capabilityCache.getGeneration();
     }
 
     public final boolean isRedstoneActivated() {
@@ -556,7 +556,19 @@ public abstract class TileEntitySidedPipe extends TileEntityRestrictedTick imple
     }
 
     public void onNeighborBlockChange(EnumFacing side) {
-        refreshConnections();
+        if (side == null || handlesRedstone() && redstoneReactive) refreshConnections();
+        else refreshConnections(side);
+    }
+
+    /**
+     * Allocation-free view of the current effective PULL sides, including legacy public mode changes.
+     */
+    public final byte getPullConnectionMask() {
+        byte mask = 0;
+        for (EnumFacing side : EnumFacing.VALUES) {
+            if (getConnectionType(side) == ConnectionType.PULL) mask |= 1 << side.ordinal();
+        }
+        return mask;
     }
 
     public void onPartChanged() {

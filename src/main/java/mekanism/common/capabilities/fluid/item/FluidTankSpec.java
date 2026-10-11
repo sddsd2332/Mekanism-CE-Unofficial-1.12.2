@@ -20,7 +20,7 @@ public class FluidTankSpec extends GenericTankSpec<FluidStack> {
     final IntSupplier capacity;
 
     public FluidTankSpec(IntSupplier rate, IntSupplier capacity, BiPredicate<FluidStack, AutomationType> canExtract,
-          TriPredicate<FluidStack, AutomationType, ItemStack> canInsert, Predicate<FluidStack> isValid, Predicate<ItemStack> supportsStack) {
+                         TriPredicate<FluidStack, AutomationType, ItemStack> canInsert, Predicate<FluidStack> isValid, Predicate<ItemStack> supportsStack) {
         super(canExtract, canInsert, isValid, supportsStack);
         this.rate = rate;
         this.capacity = capacity;
@@ -36,7 +36,7 @@ public class FluidTankSpec extends GenericTankSpec<FluidStack> {
 
     public static FluidTankSpec create(IntSupplier rate, IntSupplier capacity) {
         return new FluidTankSpec(rate, capacity, ConstantPredicates.alwaysTrueBi(), ConstantPredicates.alwaysTrueTri(), ConstantPredicates.alwaysTrue(),
-              ConstantPredicates.alwaysTrue());
+                ConstantPredicates.alwaysTrue());
     }
 
     public static FluidTankSpec createFillOnly(IntSupplier rate, IntSupplier capacity, Predicate<FluidStack> isValid) {
@@ -51,10 +51,10 @@ public class FluidTankSpec extends GenericTankSpec<FluidStack> {
     public interface TankFromSpecCreator<TANK extends IExtendedFluidTank> {
 
         TANK create(IntSupplier rate, IntSupplier capacity, BiPredicate<FluidStack, AutomationType> canExtract,
-              BiPredicate<FluidStack, AutomationType> canInsert, Predicate<FluidStack> isValid, @Nullable IContentsListener listener);
+                    BiPredicate<FluidStack, AutomationType> canInsert, Predicate<FluidStack> isValid, @Nullable IContentsListener listener);
 
         default TANK create(IntSupplier rate, IntSupplier capacity, BiPredicate<FluidStack, AutomationType> canExtract,
-              BiPredicate<FluidStack, AutomationType> canInsert, Predicate<FluidStack> isValid) {
+                            BiPredicate<FluidStack, AutomationType> canInsert, Predicate<FluidStack> isValid) {
             return create(rate, capacity, canExtract, canInsert, isValid, null);
         }
     }

@@ -7,16 +7,12 @@ import mekanism.qioprocessing.common.terminal.QIOSmartProcessingResourceFilter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
-/** Session-aware bounded page cache for the smart-processing order window. */
+/**
+ * Session-aware bounded page cache for the smart-processing order window.
+ */
+
 /**
  * QIO 处理模块中的 QIOSmartProcessingClientCache 类型。
  *
@@ -33,24 +29,31 @@ public final class QIOSmartProcessingClientCache {
             return size() > MAX_CACHED_PAGES;
         }
     };
-    @Nullable private UUID sessionNonce;
+    @Nullable
+    private UUID sessionNonce;
     private long sourceRevision = -1;
     private int totalSize;
     private QIOSmartProcessingResourceFilter filter = QIOSmartProcessingResourceFilter.ALL;
     private String query = "";
     private long pageGeneration;
     private long previewGeneration;
-    @Nullable private QIOSmartProcessingPreviewSnapshot preview;
-    @Nullable private UUID lastRequestId;
-    @Nullable private String lastActionStatus;
-    @Nullable private UUID expectedPageRequestId;
+    @Nullable
+    private QIOSmartProcessingPreviewSnapshot preview;
+    @Nullable
+    private UUID lastRequestId;
+    @Nullable
+    private String lastActionStatus;
+    @Nullable
+    private UUID expectedPageRequestId;
     private QIOSmartProcessingResourceFilter expectedPageFilter =
-          QIOSmartProcessingResourceFilter.ALL;
+            QIOSmartProcessingResourceFilter.ALL;
     private String expectedPageQuery = "";
     private int expectedPageOffset;
-    @Nullable private UUID expectedPreviewRequestId;
+    @Nullable
+    private UUID expectedPreviewRequestId;
     private long recipeViewerTargetGeneration;
-    @Nullable private PortableResourceDescriptor recipeViewerTarget;
+    @Nullable
+    private PortableResourceDescriptor recipeViewerTarget;
 
     public void beginSession(@Nonnull UUID nonce) {
         Objects.requireNonNull(nonce, "nonce");
@@ -61,8 +64,8 @@ public final class QIOSmartProcessingClientCache {
     }
 
     public boolean expectPageRequest(@Nonnull UUID requestId,
-          @Nonnull QIOSmartProcessingResourceFilter requestedFilter,
-          @Nonnull String requestedQuery, int requestedOffset) {
+                                     @Nonnull QIOSmartProcessingResourceFilter requestedFilter,
+                                     @Nonnull String requestedQuery, int requestedOffset) {
         Objects.requireNonNull(requestId, "requestId");
         Objects.requireNonNull(requestedFilter, "requestedFilter");
         Objects.requireNonNull(requestedQuery, "requestedQuery");
@@ -81,15 +84,15 @@ public final class QIOSmartProcessingClientCache {
     }
 
     public boolean applyPage(@Nonnull UUID responseNonce, @Nonnull UUID requestId,
-          @Nonnull QIOSmartProcessingResourceFilter responseFilter, @Nonnull String responseQuery,
-          long revision, int offset, int total,
-          @Nonnull List<QIOSmartProcessingResourceEntry> page) {
+                             @Nonnull QIOSmartProcessingResourceFilter responseFilter, @Nonnull String responseQuery,
+                             long revision, int offset, int total,
+                             @Nonnull List<QIOSmartProcessingResourceEntry> page) {
         if (!responseNonce.equals(sessionNonce) || !requestId.equals(expectedPageRequestId) ||
-              responseFilter != expectedPageFilter || !responseQuery.equals(expectedPageQuery) ||
-              revision < 0 || offset < 0 || total < 0 || offset > total ||
-              page.size() > total - offset) return false;
+                responseFilter != expectedPageFilter || !responseQuery.equals(expectedPageQuery) ||
+                revision < 0 || offset < 0 || total < 0 || offset > total ||
+                page.size() > total - offset) return false;
         boolean changedRevision = revision != sourceRevision || responseFilter != filter ||
-              !responseQuery.equals(query);
+                !responseQuery.equals(query);
         if (offset != expectedPageOffset && !(changedRevision && offset == 0)) return false;
         expectedPageRequestId = null;
         if (changedRevision) {
@@ -108,7 +111,7 @@ public final class QIOSmartProcessingClientCache {
     }
 
     public void resetDirectory(@Nonnull QIOSmartProcessingResourceFilter nextFilter,
-          @Nonnull String nextQuery) {
+                               @Nonnull String nextQuery) {
         pages.clear();
         sourceRevision = -1;
         totalSize = 0;
@@ -136,7 +139,7 @@ public final class QIOSmartProcessingClientCache {
     }
 
     public boolean applyPreview(@Nonnull UUID responseNonce, @Nonnull UUID requestId,
-          @Nullable String actionStatus, @Nullable QIOSmartProcessingPreviewSnapshot response) {
+                                @Nullable String actionStatus, @Nullable QIOSmartProcessingPreviewSnapshot response) {
         if (!responseNonce.equals(sessionNonce) || !requestId.equals(expectedPreviewRequestId)) {
             return false;
         }
@@ -187,12 +190,12 @@ public final class QIOSmartProcessingClientCache {
     }
 
     public boolean canSelectRecipeViewerTarget(@Nonnull UUID nonce,
-          @Nonnull PortableResourceDescriptor target) {
+                                               @Nonnull PortableResourceDescriptor target) {
         return resolveRecipeViewerTarget(nonce, target) != null;
     }
 
     public boolean selectRecipeViewerTarget(@Nonnull UUID nonce,
-          @Nonnull PortableResourceDescriptor target) {
+                                            @Nonnull PortableResourceDescriptor target) {
         PortableResourceDescriptor resolved = resolveRecipeViewerTarget(nonce, target);
         if (resolved == null) return false;
         recipeViewerTarget = resolved;
@@ -210,7 +213,7 @@ public final class QIOSmartProcessingClientCache {
      */
     @Nullable
     public PortableResourceDescriptor resolveRecipeViewerTarget(@Nonnull UUID nonce,
-          @Nonnull PortableResourceDescriptor target) {
+                                                                @Nonnull PortableResourceDescriptor target) {
         Objects.requireNonNull(nonce, "nonce");
         Objects.requireNonNull(target, "target");
         if (!nonce.equals(sessionNonce)) return null;
@@ -245,19 +248,65 @@ public final class QIOSmartProcessingClientCache {
         return Collections.unmodifiableList(resources);
     }
 
-    public long getSourceRevision() { return sourceRevision; }
-    public int getTotalSize() { return totalSize; }
-    @Nonnull public QIOSmartProcessingResourceFilter getFilter() { return filter; }
-    @Nonnull public String getQuery() { return query; }
-    public long getPageGeneration() { return pageGeneration; }
-    public long getPreviewGeneration() { return previewGeneration; }
-    @Nullable public QIOSmartProcessingPreviewSnapshot getPreview() { return preview; }
-    @Nullable public UUID getLastRequestId() { return lastRequestId; }
-    @Nullable public String getLastActionStatus() { return lastActionStatus; }
-    @Nullable public UUID getExpectedPageRequestId() { return expectedPageRequestId; }
-    @Nullable public UUID getExpectedPreviewRequestId() { return expectedPreviewRequestId; }
-    public long getRecipeViewerTargetGeneration() { return recipeViewerTargetGeneration; }
-    @Nullable public PortableResourceDescriptor getRecipeViewerTarget() { return recipeViewerTarget; }
+    public long getSourceRevision() {
+        return sourceRevision;
+    }
+
+    public int getTotalSize() {
+        return totalSize;
+    }
+
+    @Nonnull
+    public QIOSmartProcessingResourceFilter getFilter() {
+        return filter;
+    }
+
+    @Nonnull
+    public String getQuery() {
+        return query;
+    }
+
+    public long getPageGeneration() {
+        return pageGeneration;
+    }
+
+    public long getPreviewGeneration() {
+        return previewGeneration;
+    }
+
+    @Nullable
+    public QIOSmartProcessingPreviewSnapshot getPreview() {
+        return preview;
+    }
+
+    @Nullable
+    public UUID getLastRequestId() {
+        return lastRequestId;
+    }
+
+    @Nullable
+    public String getLastActionStatus() {
+        return lastActionStatus;
+    }
+
+    @Nullable
+    public UUID getExpectedPageRequestId() {
+        return expectedPageRequestId;
+    }
+
+    @Nullable
+    public UUID getExpectedPreviewRequestId() {
+        return expectedPreviewRequestId;
+    }
+
+    public long getRecipeViewerTargetGeneration() {
+        return recipeViewerTargetGeneration;
+    }
+
+    @Nullable
+    public PortableResourceDescriptor getRecipeViewerTarget() {
+        return recipeViewerTarget;
+    }
 
     private static long next(long value) {
         return value == Long.MAX_VALUE ? 0 : value + 1;

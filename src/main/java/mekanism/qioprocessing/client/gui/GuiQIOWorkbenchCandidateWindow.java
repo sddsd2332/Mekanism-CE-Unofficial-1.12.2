@@ -26,7 +26,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Recipe-level workbench editor with a 3x3 ingredient grid and draggable alternatives. */
+/**
+ * Recipe-level workbench editor with a 3x3 ingredient grid and draggable alternatives.
+ */
+
 /**
  * QIO 处理模块中的 GuiQIOWorkbenchCandidateWindow 类型。
  *
@@ -50,31 +53,31 @@ public final class GuiQIOWorkbenchCandidateWindow extends GuiWindow {
     private boolean closed;
 
     GuiQIOWorkbenchCandidateWindow(IGuiWrapper gui,
-          GuiQIOWorkbenchConfigurationWindow owner) {
+                                   GuiQIOWorkbenchConfigurationWindow owner) {
         super(gui, (gui.getWidth() - WIDTH) / 2, 42, WIDTH, HEIGHT,
-              new SelectedWindowData(QIOProcessingWindowTypes.MANAGEMENT_WORKBENCH_CANDIDATES));
+                new SelectedWindowData(QIOProcessingWindowTypes.MANAGEMENT_WORKBENCH_CANDIDATES));
         this.owner = owner;
         interactionStrategy = InteractionStrategy.ALL;
         recipeGrid = addChild(new RecipeGrid(gui, relativeX + 12, relativeY + 30));
         grid = addChild(new CandidateGrid(gui, relativeX + 86, relativeY + 24));
         priorityField = addChild(new GuiTextField(gui, relativeX + 142, relativeY + 120,
-              34, 12).setMaxLength(2).setInputValidator(character ->
-                    character >= '0' && character <= '9').setEnterHandler(this::applyPriority));
+                34, 12).setMaxLength(2).setInputValidator(character ->
+                character >= '0' && character <= '9').setEnterHandler(this::applyPriority));
         applyPriorityButton = addChild(new MekanismButton(gui, relativeX + 180,
-              relativeY + 118, 68, 16, new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.workbench_candidate_priority_apply"),
-              this::applyPriority, getOnHover(() -> new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.workbench_candidate_priority_apply_tooltip"))));
+                relativeY + 118, 68, 16, new TextComponentTranslation(
+                "gui.mekanismqioprocessing.workbench_candidate_priority_apply"),
+                this::applyPriority, getOnHover(() -> new TextComponentTranslation(
+                "gui.mekanismqioprocessing.workbench_candidate_priority_apply_tooltip"))));
         toggleButton = addChild(new MekanismButton(gui, relativeX + 86,
-              relativeY + 142, 78, 18, new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.workbench_candidate_toggle"),
-              this::toggleSelected, getOnHover(() -> new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.workbench_candidate_toggle_tooltip"))));
+                relativeY + 142, 78, 18, new TextComponentTranslation(
+                "gui.mekanismqioprocessing.workbench_candidate_toggle"),
+                this::toggleSelected, getOnHover(() -> new TextComponentTranslation(
+                "gui.mekanismqioprocessing.workbench_candidate_toggle_tooltip"))));
         syncButton = addChild(new MekanismButton(gui, relativeX + 168,
-              relativeY + 142, 80, 18, new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.workbench_candidate_sync"),
-              owner::syncEquivalentCandidates, getOnHover(() -> new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.workbench_candidate_sync_tooltip"))));
+                relativeY + 142, 80, 18, new TextComponentTranslation(
+                "gui.mekanismqioprocessing.workbench_candidate_sync"),
+                owner::syncEquivalentCandidates, getOnHover(() -> new TextComponentTranslation(
+                "gui.mekanismqioprocessing.workbench_candidate_sync_tooltip"))));
         updateControls();
     }
 
@@ -89,18 +92,18 @@ public final class GuiQIOWorkbenchCandidateWindow extends GuiWindow {
     public void renderForeground(int mouseX, int mouseY) {
         super.renderForeground(mouseX, mouseY);
         drawTitleText(new TextComponentTranslation(
-              "gui.mekanismqioprocessing.workbench_recipe_configuration_title"), 5);
+                "gui.mekanismqioprocessing.workbench_recipe_configuration_title"), 5);
         drawScaledScrollingString(new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.workbench_recipe_grid"),
-              8, 19, mekanism.client.render.IFancyFontRenderer.TextAlignment.LEFT,
-              titleTextColor(), 66, 0, false, 0.72F, getTimeOpened());
+                        "gui.mekanismqioprocessing.workbench_recipe_grid"),
+                8, 19, mekanism.client.render.IFancyFontRenderer.TextAlignment.LEFT,
+                titleTextColor(), 66, 0, false, 0.72F, getTimeOpened());
         drawScaledScrollingString(new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.workbench_candidates"),
-              86, 15, mekanism.client.render.IFancyFontRenderer.TextAlignment.LEFT,
-              titleTextColor(), 162, 0, false, 0.72F, getTimeOpened());
+                        "gui.mekanismqioprocessing.workbench_candidates"),
+                86, 15, mekanism.client.render.IFancyFontRenderer.TextAlignment.LEFT,
+                titleTextColor(), 162, 0, false, 0.72F, getTimeOpened());
         getFont().drawString(new TextComponentTranslation(
-              "gui.mekanismqioprocessing.workbench_candidate_priority").getFormattedText(),
-              relativeX + 86, relativeY + 123, titleTextColor());
+                        "gui.mekanismqioprocessing.workbench_candidate_priority").getFormattedText(),
+                relativeX + 86, relativeY + 123, titleTextColor());
     }
 
     @Override
@@ -173,7 +176,7 @@ public final class GuiQIOWorkbenchCandidateWindow extends GuiWindow {
 
         private static final int SLOT_SIZE = 18;
         private static final ResourceLocation SLOTS = MekanismUtils.getResource(
-              MekanismUtils.ResourceType.GUI_SLOT, "slots.png");
+                MekanismUtils.ResourceType.GUI_SLOT, "slots.png");
 
         private RecipeGrid(IGuiWrapper gui, int x, int y) {
             super(gui, x, y, 3 * SLOT_SIZE, 3 * SLOT_SIZE);
@@ -195,13 +198,13 @@ public final class GuiQIOWorkbenchCandidateWindow extends GuiWindow {
                 int y = relativeY + slot / 3 * SLOT_SIZE;
                 if (ingredient.getCandidateCount() > 1) {
                     GuiUtils.fill(x + 1, y + 1, x + SLOT_SIZE - 1,
-                          y + SLOT_SIZE - 1, ALTERNATIVE_BACKGROUND);
+                            y + SLOT_SIZE - 1, ALTERNATIVE_BACKGROUND);
                 }
                 if (selected != null && slot == selected.getSlot()) {
                     QIOGuiSelectionRenderer.draw(x, y, SLOT_SIZE, SLOT_SIZE);
                 }
                 QIOWorkbenchGuiIngredientRenderer.render(gui(), ingredient,
-                      x + 1, y + 1, 16);
+                        x + 1, y + 1, 16);
             }
         }
 
@@ -224,18 +227,18 @@ public final class GuiQIOWorkbenchCandidateWindow extends GuiWindow {
             List<String> extra = new ArrayList<>();
             if (ingredient.getCandidateCount() > 1) {
                 extra.add(new TextComponentTranslation(
-                      "gui.mekanismqioprocessing.workbench_candidate_select",
-                      ingredient.getEnabledCandidateCount(),
-                      ingredient.getCandidateCount()).getFormattedText());
+                        "gui.mekanismqioprocessing.workbench_candidate_select",
+                        ingredient.getEnabledCandidateCount(),
+                        ingredient.getCandidateCount()).getFormattedText());
             }
             if (ingredient.isVirtualFluid()) {
                 List<String> tooltip = QIOWorkbenchGuiIngredientRenderer.fluidTooltip(
-                      ingredient);
+                        ingredient);
                 tooltip.addAll(extra);
                 displayTooltips(tooltip, mouseX, mouseY);
             } else if (!extra.isEmpty()) {
                 gui().renderItemTooltipWithExtra(ingredient.getRepresentative(), mouseX, mouseY,
-                      extra);
+                        extra);
             } else {
                 gui().renderItemTooltip(ingredient.getRepresentative(), mouseX, mouseY);
             }
@@ -257,7 +260,7 @@ public final class GuiQIOWorkbenchCandidateWindow extends GuiWindow {
             int inX = localX % SLOT_SIZE;
             int inY = localY % SLOT_SIZE;
             return inX >= 1 && inX < 17 && inY >= 1 && inY < 17 ?
-                  localY / SLOT_SIZE * 3 + localX / SLOT_SIZE : -1;
+                    localY / SLOT_SIZE * 3 + localX / SLOT_SIZE : -1;
         }
 
         @Nullable
@@ -280,11 +283,12 @@ public final class GuiQIOWorkbenchCandidateWindow extends GuiWindow {
         private static final int SLOT_SIZE = 18;
         private static final int DRAG_THRESHOLD_SQUARED = 9;
         private static final ResourceLocation SLOTS = MekanismUtils.getResource(
-              MekanismUtils.ResourceType.GUI_SLOT, "slots.png");
+                MekanismUtils.ResourceType.GUI_SLOT, "slots.png");
         private final GuiScrollBar scrollBar;
         private final List<Candidate> display = new ArrayList<>();
         private final Map<String, AnimatedPosition> positions = new HashMap<>();
-        @Nullable private String pressedCandidateId;
+        @Nullable
+        private String pressedCandidateId;
         private int pressedIndex = -1;
         private int targetIndex = -1;
         private double pressedX;
@@ -297,7 +301,7 @@ public final class GuiQIOWorkbenchCandidateWindow extends GuiWindow {
         private CandidateGrid(IGuiWrapper gui, int x, int y) {
             super(gui, x, y, COLUMNS * SLOT_SIZE + 18, ROWS * SLOT_SIZE);
             scrollBar = addChild(new GuiScrollBar(gui, relativeX + COLUMNS * SLOT_SIZE + 4,
-                  relativeY, ROWS * SLOT_SIZE, this::totalRows, () -> ROWS));
+                    relativeY, ROWS * SLOT_SIZE, this::totalRows, () -> ROWS));
             active = true;
             synchronizeCandidates();
         }
@@ -330,7 +334,7 @@ public final class GuiQIOWorkbenchCandidateWindow extends GuiWindow {
             display.clear();
             display.addAll(source);
             positions.keySet().removeIf(id -> display.stream().noneMatch(candidate ->
-                  id.equals(candidate.getCandidateId())));
+                    id.equals(candidate.getCandidateId())));
             if (owner.selectedCandidateId() == null && !display.isEmpty()) {
                 owner.selectCandidate(display.get(0).getCandidateId());
             }
@@ -341,7 +345,7 @@ public final class GuiQIOWorkbenchCandidateWindow extends GuiWindow {
             super.drawBackground(mouseX, mouseY, partialTicks);
             minecraft.renderEngine.bindTexture(SLOTS);
             GuiUtils.blit(relativeX, relativeY, 0, 0, COLUMNS * SLOT_SIZE,
-                  ROWS * SLOT_SIZE, 288, 288);
+                    ROWS * SLOT_SIZE, 288, 288);
             int first = firstVisibleIndex();
             int end = Math.min(display.size(), first + COLUMNS * ROWS);
             for (int index = first; index < end; index++) {
@@ -350,11 +354,11 @@ public final class GuiQIOWorkbenchCandidateWindow extends GuiWindow {
                 float targetX = relativeX + visible % COLUMNS * SLOT_SIZE;
                 float targetY = relativeY + visible / COLUMNS * SLOT_SIZE;
                 AnimatedPosition position = positions.computeIfAbsent(
-                      candidate.getCandidateId(), ignored ->
-                            new AnimatedPosition(targetX, targetY));
+                        candidate.getCandidateId(), ignored ->
+                                new AnimatedPosition(targetX, targetY));
                 position.approach(targetX, targetY);
                 if (draggingCandidate && candidate.getCandidateId().equals(
-                      pressedCandidateId)) {
+                        pressedCandidateId)) {
                     continue;
                 }
                 renderCandidate(candidate, Math.round(position.x), Math.round(position.y));
@@ -363,7 +367,7 @@ public final class GuiQIOWorkbenchCandidateWindow extends GuiWindow {
                 Candidate dragged = candidateById(pressedCandidateId);
                 if (dragged != null) {
                     renderCandidate(dragged, (int) dragMouseX - getGuiLeft() - 9,
-                          (int) dragMouseY - getGuiTop() - 9);
+                            (int) dragMouseY - getGuiTop() - 9);
                 }
             }
         }
@@ -373,7 +377,7 @@ public final class GuiQIOWorkbenchCandidateWindow extends GuiWindow {
             if (selected) QIOGuiSelectionRenderer.draw(x, y, SLOT_SIZE, SLOT_SIZE);
             QIOWorkbenchGuiIngredientRenderer.render(gui(), candidate, x + 1, y + 1, 16);
             GuiUtils.fill(x + 13, y + 2, x + 17, y + 6,
-                  candidate.isEnabled() ? ENABLED : DISABLED);
+                    candidate.isEnabled() ? ENABLED : DISABLED);
             MekanismRenderer.resetColor();
         }
 
@@ -396,21 +400,21 @@ public final class GuiQIOWorkbenchCandidateWindow extends GuiWindow {
             Candidate candidate = candidateAt(mouseX, mouseY);
             if (candidate != null) {
                 List<String> extra = java.util.Arrays.asList(
-                      new TextComponentTranslation(candidate.isEnabled() ?
-                                  "gui.mekanismqioprocessing.workbench_candidate_tooltip_enabled" :
-                                  "gui.mekanismqioprocessing.workbench_candidate_tooltip_disabled",
-                            candidate.getOrder() + 1).getFormattedText(),
-                      new TextComponentTranslation(
-                            "gui.mekanismqioprocessing.workbench_candidate_toggle_shortcut")
-                            .getFormattedText());
+                        new TextComponentTranslation(candidate.isEnabled() ?
+                                "gui.mekanismqioprocessing.workbench_candidate_tooltip_enabled" :
+                                "gui.mekanismqioprocessing.workbench_candidate_tooltip_disabled",
+                                candidate.getOrder() + 1).getFormattedText(),
+                        new TextComponentTranslation(
+                                "gui.mekanismqioprocessing.workbench_candidate_toggle_shortcut")
+                                .getFormattedText());
                 if (candidate.isVirtualFluid()) {
                     List<String> tooltip = QIOWorkbenchGuiIngredientRenderer.fluidTooltip(
-                          candidate);
+                            candidate);
                     tooltip.addAll(extra);
                     displayTooltips(tooltip, mouseX, mouseY);
                 } else {
                     gui().renderItemTooltipWithExtra(candidate.getDisplayStack(), mouseX,
-                          mouseY, extra);
+                            mouseY, extra);
                 }
             }
         }
@@ -418,7 +422,7 @@ public final class GuiQIOWorkbenchCandidateWindow extends GuiWindow {
         @Override
         public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
             return isMouseOverCheckWindows(mouseX, mouseY) && scrollBar.adjustScroll(delta) ||
-                  super.mouseScrolled(mouseX, mouseY, delta);
+                    super.mouseScrolled(mouseX, mouseY, delta);
         }
 
         @Override
@@ -459,7 +463,7 @@ public final class GuiQIOWorkbenchCandidateWindow extends GuiWindow {
 
         @Override
         public void onDrag(double mouseX, double mouseY, double mouseXOld,
-              double mouseYOld) {
+                           double mouseYOld) {
             super.onDrag(mouseX, mouseY, mouseXOld, mouseYOld);
             if (pressedCandidateId == null) return;
             dragMouseX = mouseX;
@@ -486,7 +490,7 @@ public final class GuiQIOWorkbenchCandidateWindow extends GuiWindow {
         @Override
         public void onRelease(double mouseX, double mouseY) {
             if (pressedCandidateId != null && draggingCandidate && targetIndex >= 0 &&
-                targetIndex != pressedIndex) {
+                    targetIndex != pressedIndex) {
                 if (!owner.moveCandidateToIndex(pressedCandidateId, targetIndex)) {
                     display.clear();
                     display.addAll(owner.candidateSnapshot());
@@ -509,9 +513,9 @@ public final class GuiQIOWorkbenchCandidateWindow extends GuiWindow {
         private int dropIndex(double mouseX, double mouseY) {
             if (display.isEmpty()) return -1;
             int column = Math.max(0, Math.min(COLUMNS - 1,
-                  (int) ((mouseX - getX()) / SLOT_SIZE)));
+                    (int) ((mouseX - getX()) / SLOT_SIZE)));
             int row = Math.max(0, Math.min(ROWS - 1,
-                  (int) ((mouseY - getY()) / SLOT_SIZE)));
+                    (int) ((mouseY - getY()) / SLOT_SIZE)));
             return Math.min(display.size() - 1, firstVisibleIndex() + row * COLUMNS + column);
         }
 
@@ -576,7 +580,7 @@ public final class GuiQIOWorkbenchCandidateWindow extends GuiWindow {
                 Candidate a = left.get(index);
                 Candidate b = right.get(index);
                 if (!a.getCandidateId().equals(b.getCandidateId()) ||
-                    a.isEnabled() != b.isEnabled() || a.getOrder() != b.getOrder()) {
+                        a.isEnabled() != b.isEnabled() || a.getOrder() != b.getOrder()) {
                     return false;
                 }
             }

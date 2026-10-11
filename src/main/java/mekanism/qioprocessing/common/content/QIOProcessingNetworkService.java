@@ -3,17 +3,20 @@ package mekanism.qioprocessing.common.content;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.content.qio.QIOFrequencyStorageAccess;
 import mekanism.qioprocessing.common.content.material.QIOClaimWakeService;
+import mekanism.qioprocessing.common.execution.QIOEndpointPersistenceService;
+import mekanism.qioprocessing.common.execution.QIOProcessingExecutionService;
+import mekanism.qioprocessing.common.maintenance.QIOMaintenanceService;
+import mekanism.qioprocessing.common.order.QIOOrderService;
+import mekanism.qioprocessing.common.planning.QIOPlanningService;
+import mekanism.qioprocessing.common.planning.QIOReplanningService;
 import net.minecraftforge.event.world.WorldEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
-import mekanism.qioprocessing.common.order.QIOOrderService;
-import mekanism.qioprocessing.common.execution.QIOEndpointPersistenceService;
-import mekanism.qioprocessing.common.execution.QIOProcessingExecutionService;
-import mekanism.qioprocessing.common.planning.QIOPlanningService;
-import mekanism.qioprocessing.common.planning.QIOReplanningService;
-import mekanism.qioprocessing.common.maintenance.QIOMaintenanceService;
 
-/** Connects the independent QIO Processing store to the overworld/server lifecycle. */
+/**
+ * Connects the independent QIO Processing store to the overworld/server lifecycle.
+ */
+
 /**
  * QIO 处理模块中的 QIOProcessingNetworkService 类型。
  *
@@ -37,17 +40,17 @@ public final class QIOProcessingNetworkService {
     /** 世界 tick 中推进网络调度。 */
     public void onWorldTick(TickEvent.WorldTickEvent event) {
         if (event.phase == TickEvent.Phase.END && !event.world.isRemote &&
-              event.world.provider.getDimension() == 0) {
+                event.world.provider.getDimension() == 0) {
             QIOProcessingNetworkManager.INSTANCE.tick(event.world);
             QIOPlanningService.INSTANCE.drainCompletedForCurrentTick();
             QIOOrderService.INSTANCE.tick(event.world.getTotalWorldTime());
             QIOReplanningService.INSTANCE.tick(event.world);
             QIOMaintenanceService.INSTANCE.tick(event.world);
             QIOClaimWakeService.INSTANCE.tick(
-                  QIOProcessingNetworkManager.INSTANCE.getNetworks(),
-                  MekanismConfig.current().qioProcessing.claimRefreshesPerTick.val(),
-                  QIOFrequencyStorageAccess.INSTANCE,
-                  QIOProcessingNetworkManager.INSTANCE.persistenceBarrier());
+                    QIOProcessingNetworkManager.INSTANCE.getNetworks(),
+                    MekanismConfig.current().qioProcessing.claimRefreshesPerTick.val(),
+                    QIOFrequencyStorageAccess.INSTANCE,
+                    QIOProcessingNetworkManager.INSTANCE.persistenceBarrier());
             QIOProcessingExecutionService.INSTANCE.tick(event.world);
             QIOEndpointPersistenceService.INSTANCE.flushPending();
         }

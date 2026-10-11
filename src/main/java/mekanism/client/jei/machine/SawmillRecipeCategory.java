@@ -16,7 +16,7 @@ import mezz.jei.api.gui.IRecipeLayout;
 import mezz.jei.api.ingredients.IIngredients;
 
 public class SawmillRecipeCategory<RECIPE extends ChanceMachineRecipe<RECIPE>, WRAPPER extends ChanceMachineRecipeWrapper<RECIPE>>
-      extends BaseRecipeCategory<WRAPPER> {
+        extends BaseRecipeCategory<WRAPPER> {
 
     private final GuiSlot input;
     private final GuiSlot output;

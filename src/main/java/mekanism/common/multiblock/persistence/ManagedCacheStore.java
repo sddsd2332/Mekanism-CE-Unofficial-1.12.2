@@ -1,23 +1,8 @@
 package mekanism.common.multiblock.persistence;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * Durable ownership for one resolved world/manager namespace. All calls belong to its serialized
@@ -60,7 +45,11 @@ public final class ManagedCacheStore implements AutoCloseable {
             });
             ready = true;
         } catch (IOException | RuntimeException error) {
-            try { journal.close(); } catch (IOException closeError) { error.addSuppressed(closeError); }
+            try {
+                journal.close();
+            } catch (IOException closeError) {
+                error.addSuppressed(closeError);
+            }
             throw error;
         }
     }
@@ -75,7 +64,9 @@ public final class ManagedCacheStore implements AutoCloseable {
         return consumed.get(source);
     }
 
-    /** Detached maps with immutable values; safe to publish after lifecycle validation. */
+    /**
+     * Detached maps with immutable values; safe to publish after lifecycle validation.
+     */
     public View view() {
         checkReady();
         return new View(entries, consumed);
@@ -102,11 +93,14 @@ public final class ManagedCacheStore implements AutoCloseable {
         return result;
     }
 
-    /** A batch is one commit; stale revisions reject the entire batch before anything is written. */
+    /**
+     * A batch is one commit; stale revisions reject the entire batch before anything is written.
+     */
     public List<Entry> save(UUID transaction, Collection<Update> updates) throws IOException {
         checkReady();
         Objects.requireNonNull(transaction, "transaction");
-        if (updates.isEmpty() || updates.size() > MAX_SOURCES) throw new IOException("Invalid multiblock save batch size");
+        if (updates.isEmpty() || updates.size() > MAX_SOURCES)
+            throw new IOException("Invalid multiblock save batch size");
         List<Entry> changed = new ArrayList<>();
         for (Update update : updates) {
             Entry existing = entries.get(update.id);
@@ -142,7 +136,7 @@ public final class ManagedCacheStore implements AutoCloseable {
         long size = 16L + consumed.size() * 49L;
         for (Entry entry : entries.values()) size += 48L + entry.positions.length * 8L + entry.cache.length;
         require(entries.size() <= MAX_CHECKPOINT_RECORDS && consumed.size() <= MAX_CHECKPOINT_RECORDS,
-              "checkpoint record count exceeds budget; no receipts were discarded");
+                "checkpoint record count exceeds budget; no receipts were discarded");
         if (size > MultiblockJournal.MAX_PAYLOAD_BYTES) {
             try {
                 journal.checkpointSegments(new CheckpointSegments());
@@ -181,7 +175,8 @@ public final class ManagedCacheStore implements AutoCloseable {
         private final java.util.Iterator<Map.Entry<SourceKey, Receipt>> remainingReceipts = consumed.entrySet().iterator();
         private Entry pendingEntry;
 
-        @Override public byte[] next() throws IOException {
+        @Override
+        public byte[] next() throws IOException {
             if (pendingEntry == null && !remainingEntries.hasNext() && !remainingReceipts.hasNext()) return null;
             List<Entry> batch = new ArrayList<>();
             long bytes = 16;
@@ -219,7 +214,8 @@ public final class ManagedCacheStore implements AutoCloseable {
     }
 
     private void restoreCheckpoint(byte[] bytes, int part, boolean last) throws IOException {
-        if (part == 0) require(entries.isEmpty() && consumed.isEmpty(), "checkpoint must precede all replay operations");
+        if (part == 0)
+            require(entries.isEmpty() && consumed.isEmpty(), "checkpoint must precede all replay operations");
         Map<UUID, Entry> restoredEntries = entries;
         Map<SourceKey, Receipt> restoredReceipts = consumed;
         try (DataInputStream input = new DataInputStream(new ByteArrayInputStream(bytes))) {
@@ -240,7 +236,7 @@ public final class ManagedCacheStore implements AutoCloseable {
                 SourceKey source = new SourceKey(readUuid(input), legacy == 1);
                 Receipt receipt = new Receipt(readUuid(input), readUuid(input));
                 require(sourceIds.add(source.id) && !restoredEntries.containsKey(source.id) &&
-                      !consumed.containsKey(SourceKey.legacy(source.id)) && !consumed.containsKey(SourceKey.managed(source.id)), "duplicate or still active consumed source");
+                        !consumed.containsKey(SourceKey.legacy(source.id)) && !consumed.containsKey(SourceKey.managed(source.id)), "duplicate or still active consumed source");
                 restoredReceipts.put(source, receipt);
             }
             require(input.read() == -1, "checkpoint trailing data");
@@ -275,7 +271,7 @@ public final class ManagedCacheStore implements AutoCloseable {
                 require(current == null && next.revision == 1 && next.createdBy.equals(operation.transaction), "target already exists or invalid creation");
             } else {
                 require(current != null && current.revision != Long.MAX_VALUE && next.revision == current.revision + 1 &&
-                      next.createdBy.equals(current.createdBy) && Arrays.equals(next.positions, current.positions), "stale save or changed binding");
+                        next.createdBy.equals(current.createdBy) && Arrays.equals(next.positions, current.positions), "stale save or changed binding");
             }
         }
         if (operation.transfer) {
@@ -285,7 +281,7 @@ public final class ManagedCacheStore implements AutoCloseable {
                 require(sourceIds.add(source.key.id), "duplicate source UUID");
                 require(!targets.contains(source.key.id), "source and target share a UUID");
                 require(!consumed.containsKey(SourceKey.legacy(source.key.id)) &&
-                      !consumed.containsKey(SourceKey.managed(source.key.id)), "source was already consumed");
+                        !consumed.containsKey(SourceKey.managed(source.key.id)), "source was already consumed");
                 Entry existing = entries.get(source.key.id);
                 if (source.key.legacy) {
                     require(existing == null && source.revision == 0, "legacy source collides with managed authority");
@@ -421,15 +417,24 @@ public final class ManagedCacheStore implements AutoCloseable {
             this.positions = positions.clone();
             Arrays.sort(this.positions);
             for (int i = 1; i < this.positions.length; i++) {
-                if (this.positions[i] == this.positions[i - 1]) throw new IllegalArgumentException("Duplicate binding coordinate");
+                if (this.positions[i] == this.positions[i - 1])
+                    throw new IllegalArgumentException("Duplicate binding coordinate");
             }
             bindingHash = Arrays.hashCode(this.positions);
             this.cache = cache.clone();
         }
 
-        public long[] positions() { return positions.clone(); }
-        long savePayloadBytes(int snapshotBytes) { return 48L + positions.length * 8L + snapshotBytes; }
-        public byte[] cache() { return cache.clone(); }
+        public long[] positions() {
+            return positions.clone();
+        }
+
+        long savePayloadBytes(int snapshotBytes) {
+            return 48L + positions.length * 8L + snapshotBytes;
+        }
+
+        public byte[] cache() {
+            return cache.clone();
+        }
 
         public boolean matchesBinding(long[] candidate) {
             long[] sorted = candidate.clone();
@@ -447,16 +452,25 @@ public final class ManagedCacheStore implements AutoCloseable {
             this.legacy = legacy;
         }
 
-        public static SourceKey legacy(UUID id) { return new SourceKey(id, true); }
-        public static SourceKey managed(UUID id) { return new SourceKey(id, false); }
+        public static SourceKey legacy(UUID id) {
+            return new SourceKey(id, true);
+        }
 
-        @Override public boolean equals(Object other) {
+        public static SourceKey managed(UUID id) {
+            return new SourceKey(id, false);
+        }
+
+        @Override
+        public boolean equals(Object other) {
             if (!(other instanceof SourceKey)) return false;
             SourceKey key = (SourceKey) other;
             return id.equals(key.id) && legacy == key.legacy;
         }
 
-        @Override public int hashCode() { return 31 * id.hashCode() + Boolean.hashCode(legacy); }
+        @Override
+        public int hashCode() {
+            return 31 * id.hashCode() + Boolean.hashCode(legacy);
+        }
     }
 
     public static final class Source {
@@ -464,13 +478,19 @@ public final class ManagedCacheStore implements AutoCloseable {
         public final long revision;
 
         private Source(SourceKey key, long revision) {
-            if (key.legacy ? revision != 0 : revision <= 0) throw new IllegalArgumentException("Invalid source revision");
+            if (key.legacy ? revision != 0 : revision <= 0)
+                throw new IllegalArgumentException("Invalid source revision");
             this.key = key;
             this.revision = revision;
         }
 
-        public static Source legacy(UUID id) { return new Source(SourceKey.legacy(id), 0); }
-        public static Source managed(UUID id, long revision) { return new Source(SourceKey.managed(id), revision); }
+        public static Source legacy(UUID id) {
+            return new Source(SourceKey.legacy(id), 0);
+        }
+
+        public static Source managed(UUID id, long revision) {
+            return new Source(SourceKey.managed(id), revision);
+        }
     }
 
     public static final class Update {
@@ -485,7 +505,9 @@ public final class ManagedCacheStore implements AutoCloseable {
             this.cache = cache.clone();
         }
 
-        public int payloadBytes() { return cache.length; }
+        public int payloadBytes() {
+            return cache.length;
+        }
     }
 
     public static final class Receipt {
@@ -511,7 +533,9 @@ public final class ManagedCacheStore implements AutoCloseable {
             }
         }
 
-        /** Missing casing references do not delete a committed binding's inventory. */
+        /**
+         * Missing casing references do not delete a committed binding's inventory.
+         */
         public Entry findByBinding(long[] positions) throws IOException {
             long[] sorted = positions.clone();
             Arrays.sort(sorted);
@@ -519,14 +543,17 @@ public final class ManagedCacheStore implements AutoCloseable {
             Entry found = null;
             if (candidates != null) for (Entry candidate : candidates) {
                 if (Arrays.equals(candidate.positions, sorted)) {
-                    if (found != null) throw new IOException("Multiple managed caches claim the same structure binding");
+                    if (found != null)
+                        throw new IOException("Multiple managed caches claim the same structure binding");
                     found = candidate;
                 }
             }
             return found;
         }
 
-        /** This resolves ownership only. Caller must still validate the live structure binding. */
+        /**
+         * This resolves ownership only. Caller must still validate the live structure binding.
+         */
         public Entry resolve(SourceKey source) throws IOException {
             Set<UUID> visited = new HashSet<>();
             SourceKey current = source;

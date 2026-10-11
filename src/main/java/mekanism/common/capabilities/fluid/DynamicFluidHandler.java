@@ -16,12 +16,12 @@ import java.util.function.Predicate;
 public class DynamicFluidHandler extends DynamicHandler<IExtendedFluidTank> implements IMekanismFluidHandler {
 
     public DynamicFluidHandler(Function<EnumFacing, List<IExtendedFluidTank>> tankSupplier, Predicate<EnumFacing> canExtract, Predicate<EnumFacing> canInsert,
-          @Nullable IContentsListener listener) {
+                               @Nullable IContentsListener listener) {
         super(tankSupplier, canExtract, canInsert, listener);
     }
 
     public DynamicFluidHandler(Function<EnumFacing, List<IExtendedFluidTank>> tankSupplier, InteractPredicate canExtract, InteractPredicate canInsert,
-          @Nullable IContentsListener listener) {
+                               @Nullable IContentsListener listener) {
         super(tankSupplier, canExtract, canInsert, listener);
     }
 

@@ -28,7 +28,7 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class PacketQIOCraftingMonitorRuntimeRequest implements
-      IMessageHandler<PacketQIOCraftingMonitorRuntimeRequest.Message, IMessage> {
+        IMessageHandler<PacketQIOCraftingMonitorRuntimeRequest.Message, IMessage> {
 
     public static final int MAX_REQUESTED_NODES = 1_024;
 
@@ -42,31 +42,31 @@ public final class PacketQIOCraftingMonitorRuntimeRequest implements
 
     private static void handle(Message message, EntityPlayer player) {
         if (!(player instanceof EntityPlayerMP playerMP) ||
-            !(player.openContainer instanceof QIOCraftingMonitorPageContainer container) ||
-            player.openContainer.windowId != message.windowId ||
-            !player.openContainer.canInteractWith(player)) return;
+                !(player.openContainer instanceof QIOCraftingMonitorPageContainer container) ||
+                player.openContainer.windowId != message.windowId ||
+                !player.openContainer.canInteractWith(player)) return;
         QIOProcessingTerminalSession session = container.getTerminalSession();
         if (session == null || session.getFrequencyUUID() == null ||
-            session.getTerminalType() != QIOProcessingTerminalType.CRAFTING_MONITOR ||
-            session.validate(message.nonce, player.getUniqueID(), session.getTargetKind(),
-                  QIOProcessingTerminalType.CRAFTING_MONITOR, message.terminalUUID,
-                  message.targetRevision, session.getFrequencyUUID(),
-                  session.getAccessRevision()) !=
-                  QIOProcessingTerminalSession.Validation.ACCEPTED ||
-            !container.tryRequestCraftingMonitorDetail(player.world.getTotalWorldTime())) return;
+                session.getTerminalType() != QIOProcessingTerminalType.CRAFTING_MONITOR ||
+                session.validate(message.nonce, player.getUniqueID(), session.getTargetKind(),
+                        QIOProcessingTerminalType.CRAFTING_MONITOR, message.terminalUUID,
+                        message.targetRevision, session.getFrequencyUUID(),
+                        session.getAccessRevision()) !=
+                        QIOProcessingTerminalSession.Validation.ACCEPTED ||
+                !container.tryRequestCraftingMonitorDetail(player.world.getTotalWorldTime())) return;
         QIOProcessingNetworkData network = QIOProcessingNetworkManager.INSTANCE.get(
-              session.getFrequencyUUID());
+                session.getFrequencyUUID());
         if (network == null) return;
         try {
             QIOCraftingMonitorRuntimeSnapshot snapshot =
-                  QIOCraftingMonitorService.getRuntimeSnapshot(session, network,
-                        session.getAccessRevision(), message.jobId, message.planRevision,
-                        message.knownRuntimeRevision, message.forceBaseline,
-                        message.nodeOffset, message.knownNodeRevisions,
-                        player.world.getTotalWorldTime());
+                    QIOCraftingMonitorService.getRuntimeSnapshot(session, network,
+                            session.getAccessRevision(), message.jobId, message.planRevision,
+                            message.knownRuntimeRevision, message.forceBaseline,
+                            message.nodeOffset, message.knownNodeRevisions,
+                            player.world.getTotalWorldTime());
             QIOProcessingPacketHandler.INSTANCE.sendTo(
-                  PacketQIOCraftingMonitorRuntimeData.Message.create(message.windowId,
-                        session, snapshot), playerMP);
+                    PacketQIOCraftingMonitorRuntimeData.Message.create(message.windowId,
+                            session, snapshot), playerMP);
         } catch (IllegalArgumentException | IllegalStateException | SecurityException ignored) {
         }
     }
@@ -88,8 +88,8 @@ public final class PacketQIOCraftingMonitorRuntimeRequest implements
         }
 
         private Message(int windowId, UUID nonce, UUID terminalUUID, long targetRevision,
-              UUID jobId, int planRevision, long knownRuntimeRevision, boolean forceBaseline,
-              int nodeOffset, Map<Long, Long> knownNodeRevisions) {
+                        UUID jobId, int planRevision, long knownRuntimeRevision, boolean forceBaseline,
+                        int nodeOffset, Map<Long, Long> knownNodeRevisions) {
             this.windowId = windowId;
             this.nonce = nonce;
             this.terminalUUID = terminalUUID;
@@ -100,26 +100,26 @@ public final class PacketQIOCraftingMonitorRuntimeRequest implements
             this.forceBaseline = forceBaseline;
             this.nodeOffset = nodeOffset;
             this.knownNodeRevisions = Collections.unmodifiableMap(
-                  new LinkedHashMap<>(knownNodeRevisions));
+                    new LinkedHashMap<>(knownNodeRevisions));
             valid = shape();
         }
 
         public static Message create(int windowId, QIOProcessingTerminalContainerState state,
-              UUID jobId, int planRevision, long knownRuntimeRevision,
-              boolean forceBaseline, int nodeOffset, Map<Long, Long> knownNodeRevisions) {
+                                     UUID jobId, int planRevision, long knownRuntimeRevision,
+                                     boolean forceBaseline, int nodeOffset, Map<Long, Long> knownNodeRevisions) {
             return state == null || !state.isValid() ? new Message() : new Message(windowId,
-                  state.getSessionNonce(), state.getTerminalUUID(), state.getTargetRevision(),
-                  jobId, planRevision, knownRuntimeRevision, forceBaseline,
-                  nodeOffset, knownNodeRevisions);
+                    state.getSessionNonce(), state.getTerminalUUID(), state.getTargetRevision(),
+                    jobId, planRevision, knownRuntimeRevision, forceBaseline,
+                    nodeOffset, knownNodeRevisions);
         }
 
         static Message create(int windowId, QIOProcessingTerminalSession session,
-              UUID jobId, int planRevision, long knownRuntimeRevision,
-              boolean forceBaseline, int nodeOffset, Map<Long, Long> knownNodeRevisions) {
+                              UUID jobId, int planRevision, long knownRuntimeRevision,
+                              boolean forceBaseline, int nodeOffset, Map<Long, Long> knownNodeRevisions) {
             return session == null ? new Message() : new Message(windowId,
-                  session.getSessionNonce(), session.getTerminalUUID(),
-                  session.getTargetRevision(), jobId, planRevision, knownRuntimeRevision,
-                  forceBaseline, nodeOffset, knownNodeRevisions);
+                    session.getSessionNonce(), session.getTerminalUUID(),
+                    session.getTargetRevision(), jobId, planRevision, knownRuntimeRevision,
+                    forceBaseline, nodeOffset, knownNodeRevisions);
         }
 
         @Override
@@ -166,14 +166,19 @@ public final class PacketQIOCraftingMonitorRuntimeRequest implements
             }
         }
 
-        public boolean isValid() { return valid; }
-        Map<Long, Long> getKnownNodeRevisions() { return knownNodeRevisions; }
+        public boolean isValid() {
+            return valid;
+        }
+
+        Map<Long, Long> getKnownNodeRevisions() {
+            return knownNodeRevisions;
+        }
 
         private boolean shape() {
             if (windowId < 0 || nonce == null || terminalUUID == null || targetRevision < 0 ||
-                jobId == null || planRevision <= 0 || knownRuntimeRevision < -1 ||
-                nodeOffset < 0 ||
-                knownNodeRevisions.size() > MAX_REQUESTED_NODES) return false;
+                    jobId == null || planRevision <= 0 || knownRuntimeRevision < -1 ||
+                    nodeOffset < 0 ||
+                    knownNodeRevisions.size() > MAX_REQUESTED_NODES) return false;
             for (Map.Entry<Long, Long> entry : knownNodeRevisions.entrySet()) {
                 if (entry.getKey() < 0 || entry.getValue() < -1) return false;
             }

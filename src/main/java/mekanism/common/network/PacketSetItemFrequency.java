@@ -2,12 +2,8 @@ package mekanism.common.network;
 
 import io.netty.buffer.ByteBuf;
 import mekanism.common.PacketHandler;
-import mekanism.common.frequency.Frequency;
-import mekanism.common.frequency.FrequencyAware;
+import mekanism.common.frequency.*;
 import mekanism.common.frequency.Frequency.FrequencyIdentity;
-import mekanism.common.frequency.FrequencyManager;
-import mekanism.common.frequency.FrequencyType;
-import mekanism.common.frequency.IFrequencyItem;
 import mekanism.common.inventory.container.PortableQIODashboardContainer;
 import mekanism.common.inventory.container.item.FrequencyItemContainer;
 import mekanism.common.network.PacketSetItemFrequency.SetItemFrequencyMessage;

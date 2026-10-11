@@ -12,7 +12,7 @@ import java.util.List;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public interface QIOWorkbenchConfigurationContainer
-      extends QIOProcessingTerminalSessionContainer {
+        extends QIOProcessingTerminalSessionContainer {
 
     enum RequestStream {
         PRODUCTS,
@@ -31,5 +31,5 @@ public interface QIOWorkbenchConfigurationContainer
     List<? extends IVirtualSlot> getWorkbenchEditorInventorySlots();
 
     boolean tryRequestWorkbenchConfiguration(long currentTick,
-          @Nonnull RequestStream requestStream);
+                                             @Nonnull RequestStream requestStream);
 }

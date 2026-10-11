@@ -1,7 +1,7 @@
 package mekanism.qioprocessing.client.gui;
 
-import mekanism.client.gui.IGuiWrapper;
 import mekanism.client.gui.GuiMekanism;
+import mekanism.client.gui.IGuiWrapper;
 import mekanism.client.gui.element.custom.GuiFrequencySelector.IGuiFrequencySelector;
 import mekanism.client.gui.element.window.GuiQIOFrequencySelectWindow;
 import mekanism.common.content.qio.QIOFrequency;
@@ -11,8 +11,8 @@ import mekanism.common.inventory.container.SelectedWindowData;
 import mekanism.common.security.ISecurityTile;
 import mekanism.common.security.ISecurityTile.SecurityMode;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
-import mekanism.qioprocessing.common.machine.QIOAutomationContainerState;
 import mekanism.qioprocessing.common.content.QIOAutomationUpgradeSupport;
+import mekanism.qioprocessing.common.machine.QIOAutomationContainerState;
 import mekanism.qioprocessing.common.network.PacketQIOAutomationBinding;
 import mekanism.qioprocessing.common.network.PacketQIOAutomationTracking;
 import mekanism.qioprocessing.common.network.QIOProcessingPacketHandler;
@@ -38,16 +38,16 @@ public final class GuiQIOAutomationFrequencyWindow extends GuiQIOFrequencySelect
     private boolean tracking = true;
 
     public GuiQIOAutomationFrequencyWindow(IGuiWrapper gui, TileEntityContainerBlock tile,
-          MekanismTileContainer<?> container, QIOAutomationContainerState state,
-          SelectedWindowData windowData) {
+                                           MekanismTileContainer<?> container, QIOAutomationContainerState state,
+                                           SelectedWindowData windowData) {
         super(gui, new Selector(tile, container, state),
-              new TextComponentTranslation("gui.mekanismqioprocessing.automation_frequency"), windowData);
+                new TextComponentTranslation("gui.mekanismqioprocessing.automation_frequency"), windowData);
         this.tile = tile;
         this.container = container;
         this.state = state;
         state.startClientTracking();
         QIOProcessingPacketHandler.INSTANCE.sendToServer(new PacketQIOAutomationTracking.Message(true,
-              container.windowId, tile));
+                container.windowId, tile));
     }
 
     @Override
@@ -60,8 +60,8 @@ public final class GuiQIOAutomationFrequencyWindow extends GuiQIOFrequencySelect
     public void tick() {
         super.tick();
         if ((state.getMode() == null || !isUpgradeStillInstalled() || state.getState() ==
-            mekanism.qioprocessing.api.machine.QIOAutomationHost.State.DRAINING_CHANGE) &&
-            gui() instanceof GuiMekanism<?> gui) {
+                mekanism.qioprocessing.api.machine.QIOAutomationHost.State.DRAINING_CHANGE) &&
+                gui() instanceof GuiMekanism<?> gui) {
             gui.queueWindowClose(this);
         }
     }
@@ -78,7 +78,7 @@ public final class GuiQIOAutomationFrequencyWindow extends GuiQIOFrequencySelect
         }
         tracking = false;
         QIOProcessingPacketHandler.INSTANCE.sendToServer(new PacketQIOAutomationTracking.Message(false,
-              container.windowId, tile));
+                container.windowId, tile));
         state.stopClientTracking();
     }
 
@@ -100,7 +100,7 @@ public final class GuiQIOAutomationFrequencyWindow extends GuiQIOFrequencySelect
         private final QIOAutomationContainerState state;
 
         private Selector(TileEntityContainerBlock tile, MekanismTileContainer<?> container,
-              QIOAutomationContainerState state) {
+                         QIOAutomationContainerState state) {
             this.tile = tile;
             this.container = container;
             this.state = state;
@@ -111,7 +111,7 @@ public final class GuiQIOAutomationFrequencyWindow extends GuiQIOFrequencySelect
             QIOFrequency frequency = findExact(identity);
             if (frequency != null) {
                 QIOProcessingPacketHandler.INSTANCE.sendToServer(PacketQIOAutomationBinding.Message.bind(
-                      container.windowId, tile, frequency.getIdentity(), frequency.getFrequencyUUID()));
+                        container.windowId, tile, frequency.getIdentity(), frequency.getFrequencyUUID()));
             }
         }
 
@@ -122,7 +122,7 @@ public final class GuiQIOAutomationFrequencyWindow extends GuiQIOFrequencySelect
         @Override
         public void sendUnbindFrequency() {
             QIOProcessingPacketHandler.INSTANCE.sendToServer(PacketQIOAutomationBinding.Message.unbind(
-                  container.windowId, tile));
+                    container.windowId, tile));
         }
 
         @Nullable
@@ -155,7 +155,7 @@ public final class GuiQIOAutomationFrequencyWindow extends GuiQIOFrequencySelect
         @Override
         public String getSelfOwnerName() {
             return tile instanceof ISecurityTile securityTile && securityTile.getSecurity().getClientOwner() != null ?
-                  securityTile.getSecurity().getClientOwner() : "";
+                    securityTile.getSecurity().getClientOwner() : "";
         }
 
         @Override

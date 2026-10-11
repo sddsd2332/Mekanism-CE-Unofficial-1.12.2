@@ -53,7 +53,7 @@ public abstract class ItemBlockMultipartAble extends ItemBlock {
             pos = pos.offset(facing);
         }
 
-        if (player.canPlayerEdit(pos, facing, itemstack) && mayPlace(itemstack, worldIn, pos, iblockstate, hand, facing,player)) {
+        if (player.canPlayerEdit(pos, facing, itemstack) && mayPlace(itemstack, worldIn, pos, iblockstate, hand, facing, player)) {
             int i = this.getMetadata(itemstack.getMetadata());
             IBlockState iblockstate1 = this.block.getStateForPlacement(worldIn, pos, facing, hitX, hitY, hitZ, i, player, hand);
             boolean flag;
@@ -73,7 +73,7 @@ public abstract class ItemBlockMultipartAble extends ItemBlock {
         return EnumActionResult.FAIL;
     }
 
-    private boolean mayPlace(ItemStack itemstack, World worldIn, BlockPos pos, IBlockState state, EnumHand hand, EnumFacing facing,EntityPlayer player) {
+    private boolean mayPlace(ItemStack itemstack, World worldIn, BlockPos pos, IBlockState state, EnumHand hand, EnumFacing facing, EntityPlayer player) {
         if (!Mekanism.hooks.MCMPLoaded) {
             return worldIn.mayPlace(this.block, pos, false, facing, player);
         }

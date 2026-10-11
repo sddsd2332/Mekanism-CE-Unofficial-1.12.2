@@ -7,11 +7,13 @@ import mekanism.common.util.MekanismUtils;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.MathHelper;
 
-/** Digital QIO capacity bar matching the current Mekanism layout. */
+/**
+ * Digital QIO capacity bar matching the current Mekanism layout.
+ */
 public class GuiDigitalBar extends GuiBar<IBarInfoHandler> {
 
     private static final ResourceLocation DIGITAL_BAR = MekanismUtils.getResource(
-          MekanismUtils.ResourceType.GUI_BAR, "dynamic_digital.png");
+            MekanismUtils.ResourceType.GUI_BAR, "dynamic_digital.png");
     private static final int TEXTURE_SIZE = 2;
 
     public GuiDigitalBar(IGuiWrapper gui, IBarInfoHandler handler, int x, int y, int width) {
@@ -27,11 +29,11 @@ public class GuiDigitalBar extends GuiBar<IBarInfoHandler> {
         minecraft.renderEngine.bindTexture(DIGITAL_BAR);
         GuiUtils.blit(relativeX, relativeY, width, height, 1, 0, 1, 1, TEXTURE_SIZE, TEXTURE_SIZE);
         GuiUtils.blit(relativeX + 1, relativeY + 1, width - 2, height - 2,
-              1, 1, 1, 1, TEXTURE_SIZE, TEXTURE_SIZE);
+                1, 1, 1, 1, TEXTURE_SIZE, TEXTURE_SIZE);
         int displayWidth = calculateScaled(MathHelper.clamp(getHandler().getLevel(), 0, 1), width - 2);
         if (displayWidth > 0) {
             GuiUtils.blit(relativeX + 1, relativeY + 1, displayWidth, height - 2,
-                  0, 0, 1, 1, TEXTURE_SIZE, TEXTURE_SIZE);
+                    0, 0, 1, 1, TEXTURE_SIZE, TEXTURE_SIZE);
         }
     }
 }

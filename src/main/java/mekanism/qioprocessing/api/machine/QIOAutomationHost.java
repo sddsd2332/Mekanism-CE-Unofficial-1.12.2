@@ -42,7 +42,9 @@ public interface QIOAutomationHost extends INBTSerializable<NBTTagCompound> {
         @Deprecated
         DATA_ERROR;
 
-        /** 返回当前生命周期是否允许创建新的机器操作。 */
+        /**
+         * 返回当前生命周期是否允许创建新的机器操作。
+         */
         public boolean acceptsNewOperations() {
             return this == ACTIVE;
         }
@@ -60,64 +62,92 @@ public interface QIOAutomationHost extends INBTSerializable<NBTTagCompound> {
         QUARANTINED
     }
 
-    /** 返回跨 NBT 保存边界保持不变的机器 UUID。 */
+    /**
+     * 返回跨 NBT 保存边界保持不变的机器 UUID。
+     */
     @Nonnull
     UUID getPersistentDeviceUUID();
 
-    /** 返回当前绑定的 QIO 频率引用；未绑定时返回 null。 */
+    /**
+     * 返回当前绑定的 QIO 频率引用；未绑定时返回 null。
+     */
     @Nullable
     QIOFrequencyReference getFrequencyReference();
 
-    /** 返回当前安装并启用的自动化模式；未选择模式时返回 null。 */
+    /**
+     * 返回当前安装并启用的自动化模式；未选择模式时返回 null。
+     */
     @Nullable
     QIOAutomationMode getEnabledMode();
 
-    /** 返回主机的生命周期状态。 */
+    /**
+     * 返回主机的生命周期状态。
+     */
     @Nonnull
     State getState();
 
-    /** 返回当前持久化事务的内部恢复状态。 */
+    /**
+     * 返回当前持久化事务的内部恢复状态。
+     */
     @Nonnull
     default RecoveryState getRecoveryState() {
         return RecoveryState.NONE;
     }
 
-    /** 返回是否存在等待自动恢复或重试的持久化操作。 */
+    /**
+     * 返回是否存在等待自动恢复或重试的持久化操作。
+     */
     default boolean hasRecoveryPending() {
         return getRecoveryState() != RecoveryState.NONE;
     }
 
-    /** 返回用于日志和诊断界面的有限长度说明；该值不能用于路由选择。 */
+    /**
+     * 返回用于日志和诊断界面的有限长度说明；该值不能用于路由选择。
+     */
     @Nullable
     default String getRecoveryDiagnostic() {
         return null;
     }
 
-    /** 记录 Provider 或存储暂时不可用，但不隔离已有资源所有权。 */
+    /**
+     * 记录 Provider 或存储暂时不可用，但不隔离已有资源所有权。
+     */
     default void markRetryPending() {
     }
 
-    /** 在端点再次成功观测后清除暂时性重试标记。 */
+    /**
+     * 在端点再次成功观测后清除暂时性重试标记。
+     */
     default void clearRetryPending() {
     }
 
-    /** 返回用于端点快照和并发校验的配置版本号。 */
+    /**
+     * 返回用于端点快照和并发校验的配置版本号。
+     */
     long getConfigurationRevision();
 
-    /** 返回管理端是否暂时暂停了该机器。 */
+    /**
+     * 返回管理端是否暂时暂停了该机器。
+     */
     default boolean isManagementPaused() {
         return false;
     }
 
-    /** 设置管理暂停标志；不支持该能力的旧实现返回 false。 */
+    /**
+     * 设置管理暂停标志；不支持该能力的旧实现返回 false。
+     */
     default boolean setManagementPaused(boolean paused) {
         return false;
     }
 
-    /** 应用已由机器升级物品校验过的自动化模式选择。 */
+    /**
+     * 应用已由机器升级物品校验过的自动化模式选择。
+     */
     boolean selectMode(@Nonnull QIOAutomationMode mode);
 
-    /** 在最后一个 QIO 自动化升级被移除后清除已选择的模式。 */
+    /**
+     * 在最后一个 QIO 自动化升级被移除后清除已选择的模式。
+     */
     boolean clearMode();
 
     /**
@@ -131,19 +161,27 @@ public interface QIOAutomationHost extends INBTSerializable<NBTTagCompound> {
         return clearMode();
     }
 
-    /** 返回当前所有 lease 的只读视图。 */
+    /**
+     * 返回当前所有 lease 的只读视图。
+     */
     @Nonnull
     Map<UUID, MachineOperationLease> getLeases();
 
-    /** 返回当前所有操作 token 的只读视图。 */
+    /**
+     * 返回当前所有操作 token 的只读视图。
+     */
     @Nonnull
     Map<UUID, MachineOperationToken> getOperationTokens();
 
-    /** 返回按机器通道编号索引的活动快照只读视图。 */
+    /**
+     * 返回按机器通道编号索引的活动快照只读视图。
+     */
     @Nonnull
     Map<Long, MachineActivitySnapshot> getActivitySnapshots();
 
-    /** 返回自动输出中间 buffer 的只读视图。 */
+    /**
+     * 返回自动输出中间 buffer 的只读视图。
+     */
     @Nonnull
     Map<UUID, QIOOutputBufferEntry> getOutputBufferEntries();
 
@@ -160,38 +198,48 @@ public interface QIOAutomationHost extends INBTSerializable<NBTTagCompound> {
      * @return 成功取得的 lease；冲突、恢复隔离或状态不允许时返回 null
      */
     MachineOperationLease tryAcquireLease(@Nonnull UUID leaseId, @Nonnull UUID ownerOperationId,
-          @Nonnull MachineOperationLease.Mode mode, long laneId, long createdAt,
-          @Nonnull Collection<MachinePortBaseline> baselines);
+                                          @Nonnull MachineOperationLease.Mode mode, long laneId, long createdAt,
+                                          @Nonnull Collection<MachinePortBaseline> baselines);
 
-    /** 将操作 token 绑定到已经取得的 lease。 */
+    /**
+     * 将操作 token 绑定到已经取得的 lease。
+     */
     boolean attachOperationToken(@Nonnull MachineOperationToken token);
 
     /**
      * 原子推进操作 token 和 lease 的生命周期。
      *
      * @param operationId 要推进的操作标识
-     * @param tokenState token 的目标状态
-     * @param leaseState lease 的目标状态
+     * @param tokenState  token 的目标状态
+     * @param leaseState  lease 的目标状态
      * @return 状态转换成功时返回 true
      */
     boolean transitionOperation(@Nonnull UUID operationId, @Nonnull MachineOperationToken.State tokenState,
-          @Nonnull MachineOperationLease.State leaseState);
+                                @Nonnull MachineOperationLease.State leaseState);
 
-    /** 记录一次已写入 durable transfer 的传输回执，保证重启后幂等恢复。 */
+    /**
+     * 记录一次已写入 durable transfer 的传输回执，保证重启后幂等恢复。
+     */
     boolean recordTransferReceipt(@Nonnull UUID operationId, @Nonnull UUID transferId);
 
-    /** 仅当包含该回执的端点快照已经写入持久存储后返回 true。 */
+    /**
+     * 仅当包含该回执的端点快照已经写入持久存储后返回 true。
+     */
     default boolean isTransferReceiptPersisted(@Nonnull UUID operationId,
-          @Nonnull UUID transferId) {
+                                               @Nonnull UUID transferId) {
         return false;
     }
 
-    /** 在包含该回执的端点快照完成持久化后确认该回执。 */
+    /**
+     * 在包含该回执的端点快照完成持久化后确认该回执。
+     */
     default void confirmTransferReceiptPersisted(@Nonnull UUID operationId,
-          @Nonnull UUID transferId) {
+                                                 @Nonnull UUID transferId) {
     }
 
-    /** 在已完成且已释放的操作快照完成持久化后确认该操作。 */
+    /**
+     * 在已完成且已释放的操作快照完成持久化后确认该操作。
+     */
     default void confirmCompletedOperationPersisted(@Nonnull UUID operationId) {
     }
 
@@ -215,12 +263,18 @@ public interface QIOAutomationHost extends INBTSerializable<NBTTagCompound> {
      */
     boolean abandonJobOperation(@Nonnull UUID operationId);
 
-    /** 在尚未附加操作 token 时释放处于 ACQUIRED 状态的 lease。 */
+    /**
+     * 在尚未附加操作 token 时释放处于 ACQUIRED 状态的 lease。
+     */
     boolean releaseUnattachedLease(@Nonnull UUID leaseId);
 
-    /** 在所有传输结算完成后删除终止状态的 token 及其 released lease。 */
+    /**
+     * 在所有传输结算完成后删除终止状态的 token 及其 released lease。
+     */
     boolean forgetSettledOperation(@Nonnull UUID operationId);
 
-    /** 更新用于终端和管理界面显示的机器活动快照。 */
+    /**
+     * 更新用于终端和管理界面显示的机器活动快照。
+     */
     void updateActivitySnapshot(@Nonnull MachineActivitySnapshot snapshot);
 }

@@ -10,16 +10,12 @@ import net.minecraft.nbt.NBTTagList;
 import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nonnull;
-import java.util.Collections;
-import java.util.EnumMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
-/** Persistent resources physically owned by one QIO processing job. */
+/**
+ * Persistent resources physically owned by one QIO processing job.
+ */
+
 /**
  * QIO 处理模块中的 QIOJobBuffer 类型。
  *
@@ -42,7 +38,7 @@ public final class QIOJobBuffer {
 
     private final UUID jobId;
     private final Map<Compartment, Map<PortableResourceDescriptor, Long>> resources =
-          new EnumMap<>(Compartment.class);
+            new EnumMap<>(Compartment.class);
 
     public QIOJobBuffer(@Nonnull UUID jobId) {
         this.jobId = Objects.requireNonNull(jobId, "jobId");
@@ -56,36 +52,36 @@ public final class QIOJobBuffer {
     @Nonnull
     public Map<PortableResourceDescriptor, Long> get(@Nonnull Compartment compartment) {
         Map<PortableResourceDescriptor, Long> amounts = resources.get(
-              Objects.requireNonNull(compartment, "compartment"));
+                Objects.requireNonNull(compartment, "compartment"));
         return amounts == null ? Collections.emptyMap() :
-              Collections.unmodifiableMap(new LinkedHashMap<>(amounts));
+                Collections.unmodifiableMap(new LinkedHashMap<>(amounts));
     }
 
     public long get(@Nonnull Compartment compartment, @Nonnull PortableResourceDescriptor resource) {
         Map<PortableResourceDescriptor, Long> amounts = resources.get(
-              Objects.requireNonNull(compartment, "compartment"));
+                Objects.requireNonNull(compartment, "compartment"));
         return amounts == null ? 0 : amounts.getOrDefault(
-              Objects.requireNonNull(resource, "resource"), 0L);
+                Objects.requireNonNull(resource, "resource"), 0L);
     }
 
     public void add(@Nonnull Compartment compartment, @Nonnull PortableResourceDescriptor resource,
-          long amount) {
+                    long amount) {
         if (amount <= 0) {
             throw new IllegalArgumentException("Buffer insertion amount must be positive");
         }
         Map<PortableResourceDescriptor, Long> amounts = resources.computeIfAbsent(
-              Objects.requireNonNull(compartment, "compartment"), ignored -> new LinkedHashMap<>());
+                Objects.requireNonNull(compartment, "compartment"), ignored -> new LinkedHashMap<>());
         PortableResourceDescriptor key = Objects.requireNonNull(resource, "resource");
         amounts.put(key, Math.addExact(amounts.getOrDefault(key, 0L), amount));
     }
 
     public void remove(@Nonnull Compartment compartment, @Nonnull PortableResourceDescriptor resource,
-          long amount) {
+                       long amount) {
         if (amount <= 0) {
             throw new IllegalArgumentException("Buffer removal amount must be positive");
         }
         Map<PortableResourceDescriptor, Long> amounts = resources.get(
-              Objects.requireNonNull(compartment, "compartment"));
+                Objects.requireNonNull(compartment, "compartment"));
         PortableResourceDescriptor key = Objects.requireNonNull(resource, "resource");
         long stored = amounts == null ? 0 : amounts.getOrDefault(key, 0L);
         if (stored < amount) {
@@ -108,10 +104,10 @@ public final class QIOJobBuffer {
     /** Moves operation inputs into the durable in-flight compartment without losing ownership. */
     public void stageMachineInput(@Nonnull Map<PortableResourceDescriptor, Long> requested) {
         Map<PortableResourceDescriptor, Long> checked = QIOProcessingNbt.copyAmounts(requested,
-              false, "machine input");
+                false, "machine input");
         for (Map.Entry<PortableResourceDescriptor, Long> entry : checked.entrySet()) {
             long available = Math.addExact(get(Compartment.PRODUCED, entry.getKey()),
-                  get(Compartment.RESERVED, entry.getKey()));
+                    get(Compartment.RESERVED, entry.getKey()));
             if (available < entry.getValue()) {
                 throw new IllegalStateException("QIO job does not own all inputs required by its step");
             }
@@ -132,14 +128,14 @@ public final class QIOJobBuffer {
 
     public void commitMachineInput(@Nonnull Map<PortableResourceDescriptor, Long> resources) {
         Map<PortableResourceDescriptor, Long> checked = QIOProcessingNbt.copyAmounts(resources,
-              false, "committed machine input");
+                false, "committed machine input");
         checked.forEach((resource, amount) -> remove(Compartment.IN_PROCESS_RETURN, resource,
-              amount));
+                amount));
     }
 
     public void restoreMachineInput(@Nonnull Map<PortableResourceDescriptor, Long> resources) {
         Map<PortableResourceDescriptor, Long> checked = QIOProcessingNbt.copyAmounts(resources,
-              false, "restored machine input");
+                false, "restored machine input");
         checked.forEach((resource, amount) -> {
             remove(Compartment.IN_PROCESS_RETURN, resource, amount);
             add(Compartment.PRODUCED, resource, amount);
@@ -147,7 +143,7 @@ public final class QIOJobBuffer {
     }
 
     public boolean contains(@Nonnull Compartment compartment,
-          @Nonnull Map<PortableResourceDescriptor, Long> requested) {
+                            @Nonnull Map<PortableResourceDescriptor, Long> requested) {
         for (Map.Entry<PortableResourceDescriptor, Long> entry : requested.entrySet()) {
             if (get(compartment, entry.getKey()) < entry.getValue()) {
                 return false;
@@ -159,16 +155,16 @@ public final class QIOJobBuffer {
     public boolean canSupply(@Nonnull Map<PortableResourceDescriptor, Long> requested) {
         for (Map.Entry<PortableResourceDescriptor, Long> entry : requested.entrySet()) {
             long available = Math.addExact(get(Compartment.PRODUCED, entry.getKey()),
-                  get(Compartment.RESERVED, entry.getKey()));
+                    get(Compartment.RESERVED, entry.getKey()));
             if (available < entry.getValue()) return false;
         }
         return true;
     }
 
     public boolean canSupply(@Nonnull Map<PortableResourceDescriptor, Long> fixedInputs,
-          @Nonnull List<QIOCandidateInputGroup> candidateInputs) {
+                             @Nonnull List<QIOCandidateInputGroup> candidateInputs) {
         Map<PortableResourceDescriptor, Long> available = new LinkedHashMap<>(
-              getConsumableAmounts());
+                getConsumableAmounts());
         for (Map.Entry<PortableResourceDescriptor, Long> fixed : fixedInputs.entrySet()) {
             if (!consumeAvailable(available, fixed.getKey(), fixed.getValue())) return false;
         }
@@ -177,10 +173,10 @@ public final class QIOJobBuffer {
             for (QIOCandidateOption option : group.getOptions()) {
                 long amountPerUnit = option.getAmountPerUnit();
                 long units = Math.min(remainingUnits,
-                      available.getOrDefault(option.getResource(), 0L) / amountPerUnit);
+                        available.getOrDefault(option.getResource(), 0L) / amountPerUnit);
                 if (units > 0) {
                     consumeAvailable(available, option.getResource(),
-                          Math.multiplyExact(units, amountPerUnit));
+                            Math.multiplyExact(units, amountPerUnit));
                     remainingUnits -= units;
                 }
                 if (remainingUnits == 0) break;
@@ -197,14 +193,14 @@ public final class QIOJobBuffer {
             available.put(resource, get(Compartment.PRODUCED, resource));
         }
         for (Map.Entry<PortableResourceDescriptor, Long> reserved :
-              get(Compartment.RESERVED).entrySet()) {
+                get(Compartment.RESERVED).entrySet()) {
             available.merge(reserved.getKey(), reserved.getValue(), Math::addExact);
         }
         return Collections.unmodifiableMap(available);
     }
 
     private static boolean consumeAvailable(Map<PortableResourceDescriptor, Long> available,
-          PortableResourceDescriptor resource, long amount) {
+                                            PortableResourceDescriptor resource, long amount) {
         long stored = available.getOrDefault(resource, 0L);
         if (stored < amount) return false;
         if (stored == amount) available.remove(resource);
@@ -236,13 +232,13 @@ public final class QIOJobBuffer {
     public Map<PortableResourceDescriptor, Long> getReturnableResources() {
         Map<PortableResourceDescriptor, Long> result = new LinkedHashMap<>();
         for (Map.Entry<Compartment, Map<PortableResourceDescriptor, Long>> compartment :
-              resources.entrySet()) {
+                resources.entrySet()) {
             if (compartment.getKey() == Compartment.IN_PROCESS_RETURN ||
-                  compartment.getKey() == Compartment.RETURNING) {
+                    compartment.getKey() == Compartment.RETURNING) {
                 continue;
             }
             for (Map.Entry<PortableResourceDescriptor, Long> entry :
-                  compartment.getValue().entrySet()) {
+                    compartment.getValue().entrySet()) {
                 result.merge(entry.getKey(), entry.getValue(), Math::addExact);
             }
         }
@@ -256,7 +252,7 @@ public final class QIOJobBuffer {
         long available = 0;
         for (Compartment compartment : Compartment.values()) {
             if (compartment != Compartment.IN_PROCESS_RETURN &&
-                  compartment != Compartment.RETURNING) {
+                    compartment != Compartment.RETURNING) {
                 available = Math.addExact(available, get(compartment, resource));
             }
         }
@@ -269,7 +265,7 @@ public final class QIOJobBuffer {
                 break;
             }
             if (compartment == Compartment.IN_PROCESS_RETURN ||
-                  compartment == Compartment.RETURNING) {
+                    compartment == Compartment.RETURNING) {
                 continue;
             }
             long moved = Math.min(remaining, get(compartment, resource));
@@ -308,7 +304,7 @@ public final class QIOJobBuffer {
         QIOJobBuffer buffer = new QIOJobBuffer(QIOProcessingNbt.readUUID(data, "jobId"));
         if (!data.hasKey("compartments", NBT.TAG_LIST)) {
             throw new QIOProcessingDataException(
-                  "Job buffer compartments are missing from current-schema data");
+                    "Job buffer compartments are missing from current-schema data");
         }
         NBTTagList compartments = data.getTagList("compartments", NBT.TAG_COMPOUND);
         if (compartments.tagCount() > Compartment.values().length) {
@@ -321,7 +317,7 @@ public final class QIOJobBuffer {
                 throw new QIOProcessingDataException("Duplicate job buffer compartment " + compartment);
             }
             Map<PortableResourceDescriptor, Long> amounts = QIOProcessingNbt.readAmounts(stored,
-                  "amounts", MAX_RESOURCE_ENTRIES_PER_COMPARTMENT);
+                    "amounts", MAX_RESOURCE_ENTRIES_PER_COMPARTMENT);
             if (amounts.isEmpty()) {
                 throw new QIOProcessingDataException("Persisted job buffer compartment is empty");
             }

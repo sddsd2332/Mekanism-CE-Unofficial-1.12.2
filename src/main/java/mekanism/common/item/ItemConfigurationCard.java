@@ -91,7 +91,7 @@ public class ItemConfigurationCard extends ItemMekanism {
                 if (!world.isRemote) {
                     if (getNameFromTile(tileEntity, side).equals(getDataType(stack))) {
                         data = ConfigurationCardDataExtensionRegistry.filterForApply(tileEntity,
-                              player, data);
+                                player, data);
                         setBaseData(data, tileEntity, player);
                         if (CapabilityUtils.hasCapability(tileEntity, Capabilities.SPECIAL_CONFIG_DATA_CAPABILITY, side)) {
                             ISpecialConfigData special = CapabilityUtils.getCapability(tileEntity, Capabilities.SPECIAL_CONFIG_DATA_CAPABILITY, side);

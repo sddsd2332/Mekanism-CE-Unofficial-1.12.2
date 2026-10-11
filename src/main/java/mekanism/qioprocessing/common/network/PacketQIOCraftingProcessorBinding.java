@@ -17,7 +17,10 @@ import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
 import javax.annotation.Nullable;
 import java.util.UUID;
 
-/** Bind or unbind one open workbench processor without deleting its QIO frequency. */
+/**
+ * Bind or unbind one open workbench processor without deleting its QIO frequency.
+ */
+
 /**
  * QIO 处理模块中的 PacketQIOCraftingProcessorBinding 类型。
  *
@@ -25,7 +28,7 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class PacketQIOCraftingProcessorBinding implements
-      IMessageHandler<PacketQIOCraftingProcessorBinding.Message, IMessage> {
+        IMessageHandler<PacketQIOCraftingProcessorBinding.Message, IMessage> {
 
     @Override
     public IMessage onMessage(Message message, MessageContext context) {
@@ -41,18 +44,18 @@ public final class PacketQIOCraftingProcessorBinding implements
 
     private static void handle(Message message, EntityPlayer player) {
         if (!(player.openContainer instanceof ContainerQIOCraftingProcessor container) ||
-            container.windowId != message.windowId || !container.canInteractWith(player)) {
+                container.windowId != message.windowId || !container.canInteractWith(player)) {
             return;
         }
         TileEntity tile = message.position.getTileEntity(player.world);
         if (!(tile instanceof QIOCraftingProcessor processor) ||
-            tile != container.getTileEntity() ||
-            !PacketHandler.canAccessTile(player, tile, true)) {
+                tile != container.getTileEntity() ||
+                !PacketHandler.canAccessTile(player, tile, true)) {
             return;
         }
         if (message.bind) {
             QIOCraftingProcessorBindingService.bind(processor, message.identity,
-                  message.frequencyUUID, player);
+                    message.frequencyUUID, player);
         } else {
             QIOCraftingProcessorBindingService.unbind(processor, player);
         }
@@ -73,7 +76,7 @@ public final class PacketQIOCraftingProcessorBinding implements
         }
 
         private Message(boolean bind, int windowId, Coord4D position,
-              @Nullable FrequencyIdentity identity, @Nullable UUID frequencyUUID) {
+                        @Nullable FrequencyIdentity identity, @Nullable UUID frequencyUUID) {
             this.bind = bind;
             this.windowId = windowId;
             this.position = position;
@@ -83,13 +86,13 @@ public final class PacketQIOCraftingProcessorBinding implements
         }
 
         public static Message bind(int windowId, QIOCraftingProcessor processor,
-              FrequencyIdentity identity, UUID frequencyUUID) {
+                                   FrequencyIdentity identity, UUID frequencyUUID) {
             return new Message(true, windowId, Coord4D.get(processor), identity,
-                  frequencyUUID);
+                    frequencyUUID);
         }
 
         static Message bind(int windowId, Coord4D position,
-              FrequencyIdentity identity, UUID frequencyUUID) {
+                            FrequencyIdentity identity, UUID frequencyUUID) {
             return new Message(true, windowId, position, identity, frequencyUUID);
         }
 
@@ -138,7 +141,7 @@ public final class PacketQIOCraftingProcessorBinding implements
 
         private boolean isStructurallyValid() {
             return windowId >= 0 && position != null &&
-                  (!bind || identity != null && frequencyUUID != null);
+                    (!bind || identity != null && frequencyUUID != null);
         }
     }
 }

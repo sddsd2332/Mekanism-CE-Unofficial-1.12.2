@@ -12,7 +12,9 @@ import java.util.Random;
 
 public class ChanceOutput2 extends MachineOutput<ChanceOutput2> {
 
-    /** Legacy shared source, only used by the no-argument overloads. See {@link #checkSecondary(Random)}. */
+    /**
+     * Legacy shared source, only used by the no-argument overloads. See {@link #checkSecondary(Random)}.
+     */
     private static final Random LEGACY_RANDOM = new Random();
 
     public ItemStack primaryOutput = ItemStack.EMPTY;

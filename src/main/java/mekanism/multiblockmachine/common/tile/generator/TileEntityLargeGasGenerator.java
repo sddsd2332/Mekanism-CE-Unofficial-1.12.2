@@ -78,7 +78,7 @@ public class TileEntityLargeGasGenerator extends TileEntityGenerator implements 
     protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
         InventorySlotHelper builder = createInventorySlotHelper();
         fuelSlot = builder.addSlot(GasInventorySlot.fill(fuelTank, listener, 17, 35),
-              RelativeSide.FRONT, RelativeSide.LEFT, RelativeSide.BACK, RelativeSide.TOP, RelativeSide.BOTTOM);
+                RelativeSide.FRONT, RelativeSide.LEFT, RelativeSide.BACK, RelativeSide.TOP, RelativeSide.BOTTOM);
         fuelSlot.setSlotOverlay(SlotOverlay.MINUS);
         energySlot = builder.addSlot(EnergyInventorySlot.drain(this, listener, 143, 35), RelativeSide.RIGHT);
         return builder.build();
@@ -88,9 +88,9 @@ public class TileEntityLargeGasGenerator extends TileEntityGenerator implements 
     protected IGasTankHolder getInitialGasTanks(IContentsListener listener) {
         fuelTank = new FuelTank(listener);
         return ProxiedGasTankHolder.create(
-              this::isGasInputSide,
-              side -> false,
-              side -> side == null || isGasInputSide(side) ? Collections.singletonList(fuelTank) : Collections.emptyList()
+                this::isGasInputSide,
+                side -> false,
+                side -> side == null || isGasInputSide(side) ? Collections.singletonList(fuelTank) : Collections.emptyList()
         );
     }
 
@@ -122,7 +122,7 @@ public class TileEntityLargeGasGenerator extends TileEntityGenerator implements 
                 fuelTank.setStackSize(total / maxBurnTicks, Action.EXECUTE);
             }
             burnTicks = total % maxBurnTicks;
-            clientUsed = toUse /(double)  maxBurnTicks;
+            clientUsed = toUse / (double) maxBurnTicks;
         } else {
             if (!operate) {
                 reset();
@@ -152,9 +152,9 @@ public class TileEntityLargeGasGenerator extends TileEntityGenerator implements 
     @Override
     protected boolean isAsyncUpdateIdle() {
         return fuelTank.isEmpty() && fuelSlot.isEmpty() && energySlot.isEmpty() && burnTicks == 0 &&
-              maxBurnTicks == 0 && generationRate == 0 && clientUsed == 0 && !getActive() &&
-              cachedRecipeVersion == RecipeHandler.Recipe.GAS_FUEL_TO_ENERGY_RECIPE.getRecipeVersion() &&
-              currentRedstoneLevel == getRedstoneLevel();
+                maxBurnTicks == 0 && generationRate == 0 && clientUsed == 0 && !getActive() &&
+                cachedRecipeVersion == RecipeHandler.Recipe.GAS_FUEL_TO_ENERGY_RECIPE.getRecipeVersion() &&
+                currentRedstoneLevel == getRedstoneLevel();
     }
 
     public int getThread() {
@@ -305,10 +305,16 @@ public class TileEntityLargeGasGenerator extends TileEntityGenerator implements 
     }
 
     @Override
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return type == mekanism.api.transmitters.TransmissionType.GAS;
+    }
+
+    @Override
     public int getRedstoneLevel() {
         return MekanismUtils.redstoneLevelFromContents(fuelTank.getStored(), fuelTank.getMaxGas());
     }
-public GasStackFuelToEnergyRecipe getRecipe() {
+
+    public GasStackFuelToEnergyRecipe getRecipe() {
         int recipeVersion = RecipeHandler.Recipe.GAS_FUEL_TO_ENERGY_RECIPE.getRecipeVersion();
         if (cachedRecipeVersion != recipeVersion) {
             cachedRecipe = null;
@@ -387,10 +393,10 @@ public GasStackFuelToEnergyRecipe getRecipe() {
                         advanced = x == 0 && z == 0;
                     } else {
                         boolean normal = x == z || x == -z ||
-                              facing == EnumFacing.NORTH && x == 0 && z == -1 ||
-                              facing == EnumFacing.WEST && z == 0 && x == -1 ||
-                              facing == EnumFacing.SOUTH && x == 0 && z == 1 ||
-                              facing == EnumFacing.EAST && z == 0 && x == 1;
+                                facing == EnumFacing.NORTH && x == 0 && z == -1 ||
+                                facing == EnumFacing.WEST && z == 0 && x == -1 ||
+                                facing == EnumFacing.SOUTH && x == 0 && z == 1 ||
+                                facing == EnumFacing.EAST && z == 0 && x == 1;
                         advanced = !normal;
                     }
                     consumer.accept(getPos().add(x, y, z), advanced);
@@ -572,7 +578,7 @@ public GasStackFuelToEnergyRecipe getRecipe() {
 
         private FuelTank(IContentsListener listener) {
             super(MAX_GAS, BasicGasTank.notExternal, BasicGasTank.alwaysTrueBi,
-                  gas -> RecipeHandler.Recipe.GAS_FUEL_TO_ENERGY_RECIPE.containsRecipe(gas), listener);
+                    gas -> RecipeHandler.Recipe.GAS_FUEL_TO_ENERGY_RECIPE.containsRecipe(gas), listener);
         }
 
         @Override

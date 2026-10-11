@@ -1,10 +1,10 @@
 package mekanism.client.gui.element.window.filter.miner;
 
+import mekanism.api.text.ILangEntry;
 import mekanism.client.gui.IGuiWrapper;
 import mekanism.client.gui.element.window.filter.GuiFilterSelect;
 import mekanism.common.MekanismLang;
 import mekanism.common.tile.machine.TileEntityDigitalMiner;
-import mekanism.api.text.ILangEntry;
 
 public class GuiMinerFilterSelect extends GuiFilterSelect<TileEntityDigitalMiner> {
 

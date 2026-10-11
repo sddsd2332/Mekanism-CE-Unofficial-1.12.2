@@ -30,9 +30,9 @@ public final class MekanismSounds {
         SUCCESS = registerSound(registry, "etc.Success");
         CJ_EASTER_EGG = registerSound(registry, "etc.cj");
         BEEP2 = registerSound(registry, "etc.Beep2");
-        GEIGER_SLOW = registerSound(registry,"item.geiger_slow" );
-        GEIGER_MEDIUM = registerSound(registry,"item.geiger_medium" );
-        GEIGER_ELEVATED = registerSound(registry,"item.geiger_elevated");
+        GEIGER_SLOW = registerSound(registry, "item.geiger_slow");
+        GEIGER_MEDIUM = registerSound(registry, "item.geiger_medium");
+        GEIGER_ELEVATED = registerSound(registry, "item.geiger_elevated");
         GEIGER_FAST = registerSound(registry, "item.geiger_fast");
     }
 

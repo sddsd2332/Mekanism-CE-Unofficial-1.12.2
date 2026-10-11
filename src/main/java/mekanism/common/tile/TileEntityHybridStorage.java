@@ -97,7 +97,7 @@ public class TileEntityHybridStorage extends TileEntityElectricBlock implements 
         securityComponent = new TileComponentSecurity(this);
         ejectorComponent = new TileComponentEjector(this);
         ejectorComponent.setOutputData(configComponent, TransmissionType.ITEM, TransmissionType.GAS, TransmissionType.FLUID, TransmissionType.ENERGY)
-              .setCanEject(type -> MekanismUtils.canFunction(this));
+                .setCanEject(type -> MekanismUtils.canFunction(this));
     }
 
     @Override
@@ -171,8 +171,6 @@ public class TileEntityHybridStorage extends TileEntityElectricBlock implements 
             fluidTank.setEmpty();
         }
     }
-
-
 
 
     @Override

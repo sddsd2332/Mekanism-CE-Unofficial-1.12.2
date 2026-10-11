@@ -84,7 +84,7 @@ public final class HeatAPI {
     }
 
     public static double getFinalTemperature(double sourceTemperature, double sourceHeatCapacity,
-          double sinkTemperature, double sinkHeatCapacity) {
+                                             double sinkTemperature, double sinkHeatCapacity) {
         sourceTemperature = sanitizeTemperature(sourceTemperature);
         sinkTemperature = sanitizeTemperature(sinkTemperature);
         double sourceCapacity = sanitizeHeatCapacity(sourceHeatCapacity);

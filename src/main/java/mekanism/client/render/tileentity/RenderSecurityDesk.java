@@ -22,7 +22,7 @@ public class RenderSecurityDesk extends TileEntitySpecialRenderer<TileEntitySecu
         bindTexture(MekanismUtils.getResource(ResourceType.RENDER, "SecurityDesk.png"));
         MekanismRenderer.rotate(tileEntity.facing, 0, 180, 90, 270);
         GlStateManager.rotate(180, 0, 0, 1);
-        model.render(0.0625F, rendererDispatcher.renderEngine,true);
+        model.render(0.0625F, rendererDispatcher.renderEngine, true);
         GlStateManager.popMatrix();
     }
 

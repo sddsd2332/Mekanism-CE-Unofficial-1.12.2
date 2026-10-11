@@ -11,7 +11,10 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.UUID;
 
-/** One persistent frequency-owned requester rule and its idempotent runtime linkage. */
+/**
+ * One persistent frequency-owned requester rule and its idempotent runtime linkage.
+ */
+
 /**
  * QIO 处理模块中的 QIOMaintenanceRule 类型。
  *
@@ -52,9 +55,9 @@ public final class QIOMaintenanceRule {
     private String diagnostic = "";
 
     public QIOMaintenanceRule(@Nonnull UUID ruleId,
-          @Nonnull PortableResourceDescriptor resource, @Nonnull UUID creator, boolean enabled,
-          long triggerAmount, long targetAmount, long maximumSingleRequest, long jobPriority,
-          int retryIntervalTicks, long createdAtTick) {
+                              @Nonnull PortableResourceDescriptor resource, @Nonnull UUID creator, boolean enabled,
+                              long triggerAmount, long targetAmount, long maximumSingleRequest, long jobPriority,
+                              int retryIntervalTicks, long createdAtTick) {
         this.ruleId = Objects.requireNonNull(ruleId, "ruleId");
         this.resource = Objects.requireNonNull(resource, "resource");
         this.creator = Objects.requireNonNull(creator, "creator");
@@ -62,7 +65,7 @@ public final class QIOMaintenanceRule {
         this.createdAtTick = requireTick(createdAtTick, "createdAtTick");
         modifiedAtTick = this.createdAtTick;
         apply(enabled, triggerAmount, targetAmount, maximumSingleRequest, jobPriority,
-              retryIntervalTicks);
+                retryIntervalTicks);
     }
 
     @Nonnull
@@ -146,13 +149,13 @@ public final class QIOMaintenanceRule {
     }
 
     void update(@Nonnull UUID editor, long expectedRevision, boolean enabled,
-          long triggerAmount, long targetAmount, long maximumSingleRequest, long jobPriority,
-          int retryIntervalTicks, long modifiedAtTick) {
+                long triggerAmount, long targetAmount, long maximumSingleRequest, long jobPriority,
+                int retryIntervalTicks, long modifiedAtTick) {
         if (ruleRevision != expectedRevision) {
             throw new IllegalStateException("QIO maintenance rule revision changed");
         }
         apply(enabled, triggerAmount, targetAmount, maximumSingleRequest, jobPriority,
-              retryIntervalTicks);
+                retryIntervalTicks);
         lastModifiedBy = Objects.requireNonNull(editor, "editor");
         this.modifiedAtTick = requireTick(modifiedAtTick, "modifiedAtTick");
         if (ruleRevision == Long.MAX_VALUE) {
@@ -162,13 +165,13 @@ public final class QIOMaintenanceRule {
     }
 
     void recordEvaluation(@Nonnull UUID evaluationId, @Nonnull EvaluationStatus status,
-          long currentTick, @Nullable String diagnostic) {
+                          long currentTick, @Nullable String diagnostic) {
         lastEvaluationId = Objects.requireNonNull(evaluationId, "evaluationId");
         evaluationStatus = Objects.requireNonNull(status, "status");
         this.diagnostic = boundedDiagnostic(diagnostic);
         nextRetryTick = status == EvaluationStatus.NO_ROUTE ||
-              status == EvaluationStatus.ACCESS_DENIED || status == EvaluationStatus.ERROR ?
-              saturatedAdd(currentTick, retryIntervalTicks) : 0;
+                status == EvaluationStatus.ACCESS_DENIED || status == EvaluationStatus.ERROR ?
+                saturatedAdd(currentTick, retryIntervalTicks) : 0;
     }
 
     void bindOutstanding(@Nonnull UUID evaluationId, @Nonnull UUID jobId) {
@@ -186,7 +189,7 @@ public final class QIOMaintenanceRule {
     void clearOutstanding() {
         outstandingJobId = null;
         if (evaluationStatus == EvaluationStatus.ACTIVE_ORDER ||
-              evaluationStatus == EvaluationStatus.PLANNING) {
+                evaluationStatus == EvaluationStatus.PLANNING) {
             evaluationStatus = EvaluationStatus.NEVER;
         }
     }
@@ -223,27 +226,27 @@ public final class QIOMaintenanceRule {
 
     @Nonnull
     public static QIOMaintenanceRule read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         try {
             QIOMaintenanceRule rule = new QIOMaintenanceRule(
-                  QIOProcessingNbt.readUUID(data, "ruleId"),
-                  PortableResourceDescriptor.read(data.getCompoundTag("resource")),
-                  QIOProcessingNbt.readUUID(data, "creator"), data.getBoolean("enabled"),
-                  data.getLong("triggerAmount"), data.getLong("targetAmount"),
-                  data.getLong("maximumSingleRequest"), data.getLong("jobPriority"),
-                  data.getInteger("retryIntervalTicks"), data.getLong("createdAtTick"));
+                    QIOProcessingNbt.readUUID(data, "ruleId"),
+                    PortableResourceDescriptor.read(data.getCompoundTag("resource")),
+                    QIOProcessingNbt.readUUID(data, "creator"), data.getBoolean("enabled"),
+                    data.getLong("triggerAmount"), data.getLong("targetAmount"),
+                    data.getLong("maximumSingleRequest"), data.getLong("jobPriority"),
+                    data.getInteger("retryIntervalTicks"), data.getLong("createdAtTick"));
             rule.lastModifiedBy = QIOProcessingNbt.readUUID(data, "lastModifiedBy");
             rule.ruleRevision = QIOProcessingNbt.requireNonNegative(
-                  data.getLong("ruleRevision"), "ruleRevision");
+                    data.getLong("ruleRevision"), "ruleRevision");
             rule.modifiedAtTick = requireTick(data.getLong("modifiedAtTick"),
-                  "modifiedAtTick");
+                    "modifiedAtTick");
             rule.lastEvaluationId = data.hasKey("lastEvaluationId", NBT.TAG_STRING) ?
-                  QIOProcessingNbt.readUUID(data, "lastEvaluationId") : null;
+                    QIOProcessingNbt.readUUID(data, "lastEvaluationId") : null;
             rule.outstandingJobId = data.hasKey("outstandingJobId", NBT.TAG_STRING) ?
-                  QIOProcessingNbt.readUUID(data, "outstandingJobId") : null;
+                    QIOProcessingNbt.readUUID(data, "outstandingJobId") : null;
             rule.nextRetryTick = requireTick(data.getLong("nextRetryTick"), "nextRetryTick");
             rule.evaluationStatus = QIOProcessingNbt.readEnum(data, "evaluationStatus",
-                  EvaluationStatus.class);
+                    EvaluationStatus.class);
             rule.diagnostic = boundedDiagnostic(data.getString("diagnostic"));
             return rule;
         } catch (QIOProcessingDataException e) {
@@ -254,9 +257,9 @@ public final class QIOMaintenanceRule {
     }
 
     private void apply(boolean enabled, long triggerAmount, long targetAmount,
-          long maximumSingleRequest, long jobPriority, int retryIntervalTicks) {
+                       long maximumSingleRequest, long jobPriority, int retryIntervalTicks) {
         if (triggerAmount < 0 || targetAmount < triggerAmount || maximumSingleRequest <= 0 ||
-              retryIntervalTicks < 20) {
+                retryIntervalTicks < 20) {
             throw new IllegalArgumentException("Invalid QIO maintenance rule limits");
         }
         this.enabled = enabled;

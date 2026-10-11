@@ -1,8 +1,8 @@
 package mekanism.client.gui.machine;
 
-import mekanism.client.gui.GuiFilterHolder;
 import mekanism.api.Coord4D;
 import mekanism.api.TileNetworkList;
+import mekanism.client.gui.GuiFilterHolder;
 import mekanism.client.gui.element.GuiDigitalSwitch;
 import mekanism.client.gui.element.GuiDigitalSwitch.SwitchType;
 import mekanism.client.gui.element.button.FilterButton;
@@ -59,51 +59,51 @@ public class GuiDigitalMinerConfig extends GuiFilterHolder<MinerFilter, TileEnti
     protected void addGuiElements() {
         super.addGuiElements();
         addButton(new TranslationButton(this, 96, 136, 156, 20, MekanismLang.BUTTON_NEW_FILTER,
-              () -> addWindow(new GuiMinerFilterSelect(this, tileEntity))));
+                () -> addWindow(new GuiMinerFilterSelect(this, tileEntity))));
         addButton(new MekanismImageButton(this, 5, 5, 11, 14, getButtonLocation("back"),
-              () -> sendGuiPacket(MinerGuiPacket.SERVER, 4, 0), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.back")))));
+                () -> sendGuiPacket(MinerGuiPacket.SERVER, 4, 0), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.back")))));
         addButton(new GuiDigitalSwitch(this, 10, 115, INVERSE, () -> tileEntity.inverse,
-              () -> Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(10))),
-              null, SwitchType.LEFT_ICON).setTooltip(MekanismLang.MINER_INVERSE.translate()));
+                () -> Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(10))),
+                null, SwitchType.LEFT_ICON).setTooltip(MekanismLang.MINER_INVERSE.translate()));
         addButton(new GuiSlot(SlotType.NORMAL, this, 13, 135).setRenderAboveSlots().setRenderHover(true)
-              .stored(() -> tileEntity.getInverseReplaceTarget()).click((element, mouseX, mouseY) -> {
-                  ItemStack stack = Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) ? ItemStack.EMPTY : mc.player.inventory.getItemStack();
-                  if (!stack.isEmpty() && Block.getBlockFromItem(stack.getItem()) == Blocks.AIR) {
-                      return false;
-                  }
-                  setInverseReplaceTarget(stack);
-                  return true;
-              }).setGhostHandler(new IGhostBlockItemConsumer() {
-                  @Override
-                  public ItemStack supportedTarget(Object ingredient) {
-                      ItemStack stack = IGhostBlockItemConsumer.super.supportedTarget(ingredient);
-                      return stack != null && Block.getBlockFromItem(stack.getItem()) != Blocks.AIR &&
-                            Block.getBlockFromItem(stack.getItem()) != Blocks.BEDROCK ? stack : null;
-                  }
+                .stored(() -> tileEntity.getInverseReplaceTarget()).click((element, mouseX, mouseY) -> {
+                    ItemStack stack = Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) ? ItemStack.EMPTY : mc.player.inventory.getItemStack();
+                    if (!stack.isEmpty() && Block.getBlockFromItem(stack.getItem()) == Blocks.AIR) {
+                        return false;
+                    }
+                    setInverseReplaceTarget(stack);
+                    return true;
+                }).setGhostHandler(new IGhostBlockItemConsumer() {
+                    @Override
+                    public ItemStack supportedTarget(Object ingredient) {
+                        ItemStack stack = IGhostBlockItemConsumer.super.supportedTarget(ingredient);
+                        return stack != null && Block.getBlockFromItem(stack.getItem()) != Blocks.AIR &&
+                                Block.getBlockFromItem(stack.getItem()) != Blocks.BEDROCK ? stack : null;
+                    }
 
-                  @Override
-                  public void accept(Object ingredient) {
-                      setInverseReplaceTarget(StackUtils.size((ItemStack) ingredient, 1));
-                  }
-              }));
+                    @Override
+                    public void accept(Object ingredient) {
+                        setInverseReplaceTarget(StackUtils.size((ItemStack) ingredient, 1));
+                    }
+                }));
         addButton(new TooltipToggleButton(this, 35, 137, 14, 16, getButtonLocation("exclamation"), tileEntity::getInverseRequiresReplacement,
-              () -> Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(17))),
-              MekanismLang.MINER_REQUIRE_REPLACE_INVERSE.translate(MekanismLang.YES.translate()),
-              MekanismLang.MINER_REQUIRE_REPLACE_INVERSE.translate(MekanismLang.NO.translate())));
+                () -> Mekanism.packetHandler.sendToServer(new TileEntityMessage(tileEntity, TileNetworkList.withContents(17))),
+                MekanismLang.MINER_REQUIRE_REPLACE_INVERSE.translate(MekanismLang.YES.translate()),
+                MekanismLang.MINER_REQUIRE_REPLACE_INVERSE.translate(MekanismLang.NO.translate())));
 
         int lengthY = Math.max(Integer.toString(tileEntity.getMinimumYLimit()).length(), Integer.toString(tileEntity.getMaximumYLimit()).length());
         radiusField = addButton(new GuiTextField(this, 1, 13, 45, 38, 11)
-              .setMaxLength(Integer.toString(MekanismConfig.current().general.digitalMinerMaxRadius.val()).length())
-              .setInputValidator(this::isDigitOrTextKey)
-              .configureDigitalBorderInput(this::setRadius));
+                .setMaxLength(Integer.toString(MekanismConfig.current().general.digitalMinerMaxRadius.val()).length())
+                .setInputValidator(this::isDigitOrTextKey)
+                .configureDigitalBorderInput(this::setRadius));
         minField = addButton(new GuiTextField(this, 2, 13, 71, 38, 11)
-              .setMaxLength(lengthY)
-              .setInputValidator(this::isSignedDigitOrTextKey)
-              .configureDigitalBorderInput(this::setMinY));
+                .setMaxLength(lengthY)
+                .setInputValidator(this::isSignedDigitOrTextKey)
+                .configureDigitalBorderInput(this::setMinY));
         maxField = addButton(new GuiTextField(this, 3, 13, 98, 38, 11)
-              .setMaxLength(lengthY)
-              .setInputValidator(this::isSignedDigitOrTextKey)
-              .configureDigitalBorderInput(this::setMaxY));
+                .setMaxLength(lengthY)
+                .setInputValidator(this::isSignedDigitOrTextKey)
+                .configureDigitalBorderInput(this::setMaxY));
         trackWarning(WarningType.FILTER_HAS_BLACKLISTED_ELEMENT, () -> tileEntity.getFilterManager().anyEnabledMatch(MinerFilter::hasBlacklistedElement));
     }
 
@@ -117,8 +117,8 @@ public class GuiDigitalMinerConfig extends GuiFilterHolder<MinerFilter, TileEnti
 
     private boolean isTextboxKey(int keyCode) {
         return keyCode == Keyboard.KEY_BACK || keyCode == Keyboard.KEY_DELETE || keyCode == Keyboard.KEY_LEFT || keyCode == Keyboard.KEY_RIGHT ||
-              keyCode == Keyboard.KEY_HOME || keyCode == Keyboard.KEY_END || keyCode == Keyboard.KEY_A || keyCode == Keyboard.KEY_C ||
-              keyCode == Keyboard.KEY_V || keyCode == Keyboard.KEY_X;
+                keyCode == Keyboard.KEY_HOME || keyCode == Keyboard.KEY_END || keyCode == Keyboard.KEY_A || keyCode == Keyboard.KEY_C ||
+                keyCode == Keyboard.KEY_V || keyCode == Keyboard.KEY_X;
     }
 
     private void sendGuiPacket(MinerGuiPacket type, int guiID, int extra) {
@@ -178,7 +178,7 @@ public class GuiDigitalMinerConfig extends GuiFilterHolder<MinerFilter, TileEnti
     @Override
     protected FilterButton addFilterButton(FilterButton button) {
         return super.addFilterButton(button).warning(WarningType.FILTER_HAS_BLACKLISTED_ELEMENT,
-              filter -> filter instanceof MinerFilter minerFilter && filter.isEnabled() && minerFilter.hasBlacklistedElement());
+                filter -> filter instanceof MinerFilter minerFilter && filter.isEnabled() && minerFilter.hasBlacklistedElement());
     }
 
     @Override

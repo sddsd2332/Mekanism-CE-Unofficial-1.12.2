@@ -3,13 +3,11 @@ package mekanism.api.qio.external;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.math.BigInteger;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
-/** Immutable, idempotent mutation request for one QIO logical resource claim. */
+/**
+ * Immutable, idempotent mutation request for one QIO logical resource claim.
+ */
 public final class QIOClaimRequest {
 
     public static final long ANY_REVISION = -1;
@@ -36,9 +34,9 @@ public final class QIOClaimRequest {
     private final Map<UUID, BigInteger> expectedStoredAmounts;
 
     private QIOClaimRequest(UUID requestId, Mode mode, UUID claimId, @Nullable UUID sourceClaimId,
-          @Nullable UUID transferId, String ownerNamespace, String ownerId, long priority,
-          long enqueueSequence, long expectedContentsRevision, long expectedClaimRevision,
-          Map<UUID, Long> resourceAmounts, Map<UUID, BigInteger> expectedStoredAmounts) {
+                            @Nullable UUID transferId, String ownerNamespace, String ownerId, long priority,
+                            long enqueueSequence, long expectedContentsRevision, long expectedClaimRevision,
+                            Map<UUID, Long> resourceAmounts, Map<UUID, BigInteger> expectedStoredAmounts) {
         this.requestId = Objects.requireNonNull(requestId, "requestId");
         this.mode = Objects.requireNonNull(mode, "mode");
         this.claimId = Objects.requireNonNull(claimId, "claimId");
@@ -65,43 +63,43 @@ public final class QIOClaimRequest {
             throw new IllegalArgumentException("CONSUME requires exact physical storage baselines");
         }
         if (!this.expectedStoredAmounts.isEmpty() && (mode != Mode.CONSUME ||
-              !this.expectedStoredAmounts.keySet().equals(this.resourceAmounts.keySet()))) {
+                !this.expectedStoredAmounts.keySet().equals(this.resourceAmounts.keySet()))) {
             throw new IllegalArgumentException(
-                  "Physical storage baselines must exactly match a CONSUME request");
+                    "Physical storage baselines must exactly match a CONSUME request");
         }
         for (Map.Entry<UUID, BigInteger> baseline : this.expectedStoredAmounts.entrySet()) {
             if (baseline.getValue().compareTo(BigInteger.valueOf(
-                  this.resourceAmounts.get(baseline.getKey()))) < 0) {
+                    this.resourceAmounts.get(baseline.getKey()))) < 0) {
                 throw new IllegalArgumentException(
-                      "A physical storage baseline cannot be smaller than its consumed amount");
+                        "A physical storage baseline cannot be smaller than its consumed amount");
             }
         }
     }
 
     @Nonnull
     public static QIOClaimRequest createOrAdjust(UUID requestId, UUID claimId, String ownerNamespace,
-          String ownerId, long priority, long enqueueSequence, long expectedContentsRevision,
-          long expectedClaimRevision, Map<UUID, Long> targetAmounts) {
+                                                 String ownerId, long priority, long enqueueSequence, long expectedContentsRevision,
+                                                 long expectedClaimRevision, Map<UUID, Long> targetAmounts) {
         return new QIOClaimRequest(requestId, Mode.CREATE_OR_ADJUST, claimId, null, null,
-              ownerNamespace, ownerId, priority, enqueueSequence, expectedContentsRevision,
-              expectedClaimRevision, targetAmounts, Collections.emptyMap());
+                ownerNamespace, ownerId, priority, enqueueSequence, expectedContentsRevision,
+                expectedClaimRevision, targetAmounts, Collections.emptyMap());
     }
 
     @Nonnull
     public static QIOClaimRequest reassign(UUID requestId, UUID sourceClaimId, UUID targetClaimId,
-          String ownerNamespace, String ownerId, long priority, long enqueueSequence,
-          long expectedContentsRevision, long expectedClaimRevision, Map<UUID, Long> targetAmounts) {
+                                           String ownerNamespace, String ownerId, long priority, long enqueueSequence,
+                                           long expectedContentsRevision, long expectedClaimRevision, Map<UUID, Long> targetAmounts) {
         return new QIOClaimRequest(requestId, Mode.REASSIGN, targetClaimId, sourceClaimId, null,
-              ownerNamespace, ownerId, priority, enqueueSequence, expectedContentsRevision,
-              expectedClaimRevision, targetAmounts, Collections.emptyMap());
+                ownerNamespace, ownerId, priority, enqueueSequence, expectedContentsRevision,
+                expectedClaimRevision, targetAmounts, Collections.emptyMap());
     }
 
     @Nonnull
     public static QIOClaimRequest release(UUID requestId, UUID claimId, String ownerNamespace,
-          String ownerId, long expectedClaimRevision, Map<UUID, Long> releaseAmounts) {
+                                          String ownerId, long expectedClaimRevision, Map<UUID, Long> releaseAmounts) {
         return new QIOClaimRequest(requestId, Mode.RELEASE, claimId, null, null, ownerNamespace,
-              ownerId, 0, 0, ANY_REVISION, expectedClaimRevision, releaseAmounts,
-              Collections.emptyMap());
+                ownerId, 0, 0, ANY_REVISION, expectedClaimRevision, releaseAmounts,
+                Collections.emptyMap());
     }
 
     /**
@@ -110,12 +108,12 @@ public final class QIOClaimRequest {
      */
     @Nonnull
     public static QIOClaimRequest consumeReconciled(UUID requestId, UUID transferId, UUID claimId,
-          String ownerNamespace, String ownerId, long expectedContentsRevision,
-          long expectedClaimRevision, Map<UUID, Long> consumeAmounts,
-          Map<UUID, BigInteger> expectedStoredAmounts) {
+                                                    String ownerNamespace, String ownerId, long expectedContentsRevision,
+                                                    long expectedClaimRevision, Map<UUID, Long> consumeAmounts,
+                                                    Map<UUID, BigInteger> expectedStoredAmounts) {
         return new QIOClaimRequest(requestId, Mode.CONSUME, claimId, null, transferId,
-              ownerNamespace, ownerId, 0, 0, expectedContentsRevision, expectedClaimRevision,
-              consumeAmounts, expectedStoredAmounts);
+                ownerNamespace, ownerId, 0, 0, expectedContentsRevision, expectedClaimRevision,
+                consumeAmounts, expectedStoredAmounts);
     }
 
     @Nonnull
@@ -174,7 +172,9 @@ public final class QIOClaimRequest {
         return resourceAmounts;
     }
 
-    /** Exact pre-mutation drive amounts used by crash reconciliation, or empty for legacy requests. */
+    /**
+     * Exact pre-mutation drive amounts used by crash reconciliation, or empty for legacy requests.
+     */
     @Nonnull
     public Map<UUID, BigInteger> getExpectedStoredAmounts() {
         return expectedStoredAmounts;
@@ -184,15 +184,15 @@ public final class QIOClaimRequest {
         Objects.requireNonNull(amounts, "resourceAmounts");
         Map<UUID, Long> copy = new LinkedHashMap<>();
         amounts.entrySet().stream()
-              .sorted(Map.Entry.comparingByKey())
-              .forEach(entry -> {
-                  UUID resource = Objects.requireNonNull(entry.getKey(), "resourceUUID");
-                  Long amount = Objects.requireNonNull(entry.getValue(), "resourceAmount");
-                  if (amount <= 0) {
-                      throw new IllegalArgumentException("QIO claim request amounts must be positive");
-                  }
-                  copy.put(resource, amount);
-              });
+                .sorted(Map.Entry.comparingByKey())
+                .forEach(entry -> {
+                    UUID resource = Objects.requireNonNull(entry.getKey(), "resourceUUID");
+                    Long amount = Objects.requireNonNull(entry.getValue(), "resourceAmount");
+                    if (amount <= 0) {
+                        throw new IllegalArgumentException("QIO claim request amounts must be positive");
+                    }
+                    copy.put(resource, amount);
+                });
         if (!allowEmpty && copy.isEmpty()) {
             throw new IllegalArgumentException("QIO claim request cannot be empty");
         }

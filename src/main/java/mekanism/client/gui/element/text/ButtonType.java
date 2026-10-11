@@ -9,10 +9,10 @@ import java.util.function.BiFunction;
 
 public enum ButtonType {
     NORMAL((field, callback) -> new MekanismImageButton(field.gui(), field.getRelativeRight() - field.getHeight(), field.getRelativeY(),
-          field.getHeight(), 12, MekanismUtils.getResource(ResourceType.GUI_BUTTON, "checkmark.png"), callback)),
+            field.getHeight(), 12, MekanismUtils.getResource(ResourceType.GUI_BUTTON, "checkmark.png"), callback)),
     DIGITAL((field, callback) -> {
         MekanismImageButton ret = new MekanismImageButton(field.gui(), field.getRelativeRight() - field.getHeight(), field.getRelativeY(),
-              field.getHeight(), 12, MekanismUtils.getResource(ResourceType.GUI_BUTTON, "checkmark_digital.png"), callback);
+                field.getHeight(), 12, MekanismUtils.getResource(ResourceType.GUI_BUTTON, "checkmark_digital.png"), callback);
         ret.setButtonBackground(ButtonBackground.DIGITAL);
         return ret;
     });

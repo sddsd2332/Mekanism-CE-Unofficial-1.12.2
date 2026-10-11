@@ -30,9 +30,9 @@ public class TileEntityTurbineVent extends TileEntityTurbineCasing {
     @Override
     protected IFluidTankHolder getInitialFluidTanks(IContentsListener listener) {
         return ProxiedFluidTankHolder.create(
-              side -> false,
-              side -> isFormed(),
-              side -> isFormed() ? Collections.singletonList(ventTank) : Collections.emptyList()
+                side -> false,
+                side -> isFormed(),
+                side -> isFormed() ? Collections.singletonList(ventTank) : Collections.emptyList()
         );
     }
 

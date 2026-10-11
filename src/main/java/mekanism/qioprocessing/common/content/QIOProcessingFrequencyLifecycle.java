@@ -9,7 +9,10 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.UUID;
 
-/** Prevents normal frequency deletion while the processing module owns persistent assets. */
+/**
+ * Prevents normal frequency deletion while the processing module owns persistent assets.
+ */
+
 /**
  * QIO 处理模块中的 QIOProcessingFrequencyLifecycle 类型。
  *
@@ -19,7 +22,7 @@ import java.util.UUID;
 public final class QIOProcessingFrequencyLifecycle implements IQIOFrequencyLifecycleListener {
 
     public static final QIOProcessingFrequencyLifecycle INSTANCE =
-          new QIOProcessingFrequencyLifecycle();
+            new QIOProcessingFrequencyLifecycle();
 
     private QIOProcessingFrequencyLifecycle() {
     }
@@ -27,20 +30,20 @@ public final class QIOProcessingFrequencyLifecycle implements IQIOFrequencyLifec
     @Nonnull
     @Override
     public QIOFrequencyDeleteCheck beforeDelete(@Nonnull QIOFrequencyReference reference,
-          @Nullable UUID requester) {
+                                                @Nullable UUID requester) {
         QIOProcessingNetworkData network = QIOProcessingNetworkManager.INSTANCE.get(
-              reference.getFrequencyUUID());
+                reference.getFrequencyUUID());
         if (network == null) {
             return QIOFrequencyDeleteCheck.allowed();
         }
         List<String> blockers = network.getFrequencyDeletionBlockers();
         return blockers.isEmpty() ? QIOFrequencyDeleteCheck.allowed() :
-              QIOFrequencyDeleteCheck.blocked(blockers);
+                QIOFrequencyDeleteCheck.blocked(blockers);
     }
 
     @Override
     public void afterDelete(@Nonnull QIOFrequencyReference reference,
-          @Nullable UUID requester) {
+                            @Nullable UUID requester) {
         QIOProcessingNetworkManager.INSTANCE.frequencyDeleted(reference.getFrequencyUUID());
     }
 }

@@ -19,13 +19,7 @@ import net.minecraftforge.items.ItemHandlerHelper;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * Validates and executes a JEI crafting transfer as a two-phase transaction.
@@ -38,10 +32,10 @@ public final class QIOServerCraftingTransferHandler {
     }
 
     public static void tryTransfer(@Nonnull IQIOItemViewerContainer container, byte selectedWindow,
-          @Nonnull EntityPlayer player, @Nullable IRecipe requestedRecipe,
-          @Nullable Byte2ObjectMap<List<SingularHashedItemSource>> sources) {
+                                   @Nonnull EntityPlayer player, @Nullable IRecipe requestedRecipe,
+                                   @Nullable Byte2ObjectMap<List<SingularHashedItemSource>> sources) {
         if (sources == null || sources.isEmpty() || selectedWindow < 0 || selectedWindow >= IQIOCraftingWindowHolder.MAX_CRAFTING_WINDOWS ||
-              !(container instanceof Container) || player.openContainer != container || !((Container) container).canInteractWith(player)) {
+                !(container instanceof Container) || player.openContainer != container || !((Container) container).canInteractWith(player)) {
             return;
         }
         QIOCraftingWindow window = container.getCraftingWindow(selectedWindow);
@@ -69,7 +63,7 @@ public final class QIOServerCraftingTransferHandler {
         private boolean windowCommitted;
 
         private Transfer(IQIOItemViewerContainer container, QIOCraftingWindow window, EntityPlayer player,
-              @Nullable IRecipe requestedRecipe, @Nullable QIOFrequency frequency) {
+                         @Nullable IRecipe requestedRecipe, @Nullable QIOFrequency frequency) {
             this.container = container;
             this.window = window;
             this.player = player;
@@ -189,7 +183,7 @@ public final class QIOServerCraftingTransferHandler {
                         }
                         AvailableSource expected = available.get(SourceKey.of(source));
                         if (stack.isEmpty() || stack.getCount() != source.getUsed() || expected == null
-                              || !ItemHandlerHelper.canItemStacksStack(expected.stack, stack)) {
+                                || !ItemHandlerHelper.canItemStacksStack(expected.stack, stack)) {
                             rollbackBeforeCommit();
                             return;
                         }
@@ -198,7 +192,7 @@ public final class QIOServerCraftingTransferHandler {
                 for (int slot = 0; slot < 9; slot++) {
                     ItemStack target = targetContents.get(slot);
                     window.getCraftingInventory().setInventorySlotContents(slot,
-                          target.isEmpty() ? ItemStack.EMPTY : target.copy());
+                            target.isEmpty() ? ItemStack.EMPTY : target.copy());
                 }
                 // All extracted resources are now represented by the target
                 // stacks in the crafting window. From here on, rolling them
@@ -243,7 +237,7 @@ public final class QIOServerCraftingTransferHandler {
                     return null;
                 }
                 AvailableSource created = new AvailableSource(type.createItemStack(1),
-                      (int) Math.min(Integer.MAX_VALUE, frequency.getStored(uuid)), uuid, (byte) -1);
+                        (int) Math.min(Integer.MAX_VALUE, frequency.getStored(uuid)), uuid, (byte) -1);
                 available.put(key, created);
                 return created;
             }
@@ -311,7 +305,7 @@ public final class QIOServerCraftingTransferHandler {
                 for (int slot = 0; slot < originalWindow.size(); slot++) {
                     ItemStack original = originalWindow.get(slot);
                     window.getCraftingInventory().setInventorySlotContents(slot,
-                          original.isEmpty() ? ItemStack.EMPTY : original.copy());
+                            original.isEmpty() ? ItemStack.EMPTY : original.copy());
                 }
                 window.onContentsChanged();
             }
@@ -417,7 +411,9 @@ public final class QIOServerCraftingTransferHandler {
         }
     }
 
-    /** Lightweight inventory simulation used for the preflight room check. */
+    /**
+     * Lightweight inventory simulation used for the preflight room check.
+     */
     private static final class SimulatedInventory {
         private final List<ItemStack> stacks = new ArrayList<>();
         private final List<Integer> limits = new ArrayList<>();

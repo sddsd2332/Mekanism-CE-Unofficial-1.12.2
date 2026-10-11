@@ -70,18 +70,18 @@ public interface ISidedGasHandler extends IExtendedGasHandler {
     @Nullable
     default GasStack insertGas(@Nullable GasStack stack, @Nullable EnumFacing side, Action action) {
         return ExtendedGasHandlerUtils.insert(stack, action, () -> getCountGasTanks(side), tank -> getGasInTank(tank, side),
-              (tank, s, a) -> insertGas(tank, s, side, a));
+                (tank, s, a) -> insertGas(tank, s, side, a));
     }
 
     @Nullable
     default GasStack extractGas(int amount, @Nullable EnumFacing side, Action action) {
         return ExtendedGasHandlerUtils.extract(amount, action, () -> getCountGasTanks(side), tank -> getGasInTank(tank, side),
-              (tank, a, act) -> extractGas(tank, a, side, act));
+                (tank, a, act) -> extractGas(tank, a, side, act));
     }
 
     @Nullable
     default GasStack extractGas(@Nullable GasStack stack, @Nullable EnumFacing side, Action action) {
         return ExtendedGasHandlerUtils.extract(stack, action, () -> getCountGasTanks(side), tank -> getGasInTank(tank, side),
-              (tank, a, act) -> extractGas(tank, a, side, act));
+                (tank, a, act) -> extractGas(tank, a, side, act));
     }
 }

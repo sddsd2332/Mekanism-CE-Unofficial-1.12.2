@@ -19,7 +19,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.UUID;
 
-/** Response to one management-terminal remote recipe request. */
+/**
+ * Response to one management-terminal remote recipe request.
+ */
+
 /**
  * QIO 处理模块中的 PacketQIOManagementRecipeData 类型。
  *
@@ -27,7 +30,7 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class PacketQIOManagementRecipeData implements
-      IMessageHandler<PacketQIOManagementRecipeData.Message, IMessage> {
+        IMessageHandler<PacketQIOManagementRecipeData.Message, IMessage> {
 
     public enum Status {
         OK,
@@ -45,23 +48,23 @@ public final class PacketQIOManagementRecipeData implements
         if (player == null || !player.world.isRemote) return null;
         PacketHandler.handlePacket(() -> {
             if (!message.valid ||
-                !(player.openContainer instanceof QIOManagementRecipeContainer container) ||
-                player.openContainer.windowId != message.windowId) return;
+                    !(player.openContainer instanceof QIOManagementRecipeContainer container) ||
+                    player.openContainer.windowId != message.windowId) return;
             QIOProcessingTerminalContainerState state = container.getTerminalState();
             if (!state.matches(message.sessionNonce, message.terminalUUID,
-                  message.targetRevision, message.frequencyUUID,
-                  message.accessRevision)) return;
+                    message.targetRevision, message.frequencyUUID,
+                    message.accessRevision)) return;
             if (message.operation == Operation.MUTATE) {
                 container.getManagementRecipeClientCache().applyMutation(message.requestId,
-                      message.status);
+                        message.status);
             } else if (message.snapshot != null) {
                 container.getManagementRecipeClientCache().applyPage(message.requestId,
-                      message.status, message.snapshot);
+                        message.status, message.snapshot);
             } else {
                 container.getManagementRecipeClientCache().applyUnavailable(
-                      message.operation == Operation.PRODUCTS ? PageKind.PRODUCTS :
-                            PageKind.ROUTES,
-                      message.requestId, message.status);
+                        message.operation == Operation.PRODUCTS ? PageKind.PRODUCTS :
+                                PageKind.ROUTES,
+                        message.requestId, message.status);
             }
         }, player);
         return null;
@@ -78,7 +81,8 @@ public final class PacketQIOManagementRecipeData implements
         private UUID requestId;
         private Operation operation = Operation.PRODUCTS;
         private Status status = Status.UNAVAILABLE;
-        @Nullable private QIOManagementRecipeSnapshot snapshot;
+        @Nullable
+        private QIOManagementRecipeSnapshot snapshot;
         private boolean valid;
 
         public Message() {
@@ -86,8 +90,8 @@ public final class PacketQIOManagementRecipeData implements
 
         @Nonnull
         public static Message create(int windowId, QIOProcessingTerminalSession session,
-              UUID requestId, Operation operation, Status status,
-              @Nullable QIOManagementRecipeSnapshot snapshot) {
+                                     UUID requestId, Operation operation, Status status,
+                                     @Nullable QIOManagementRecipeSnapshot snapshot) {
             Message message = new Message();
             if (session != null && session.getFrequencyUUID() != null) {
                 message.windowId = windowId;
@@ -134,7 +138,7 @@ public final class PacketQIOManagementRecipeData implements
                 int operationIndex = buffer.readUnsignedByte();
                 int statusIndex = buffer.readUnsignedByte();
                 if (operationIndex >= Operation.values().length ||
-                    statusIndex >= Status.values().length) return;
+                        statusIndex >= Status.values().length) return;
                 operation = Operation.values()[operationIndex];
                 status = Status.values()[statusIndex];
                 NBTTagCompound payload = buffer.readBoolean() ? PacketHandler.readNBT(buffer) : null;
@@ -146,12 +150,14 @@ public final class PacketQIOManagementRecipeData implements
             }
         }
 
-        public boolean isValid() { return valid; }
+        public boolean isValid() {
+            return valid;
+        }
 
         private boolean shape() {
             if (windowId < 0 || sessionNonce == null || terminalUUID == null ||
-                targetRevision < 0 || frequencyUUID == null || accessRevision < 0 ||
-                requestId == null || operation == null || status == null) return false;
+                    targetRevision < 0 || frequencyUUID == null || accessRevision < 0 ||
+                    requestId == null || operation == null || status == null) return false;
             if (operation == Operation.MUTATE) {
                 return snapshot == null && status != Status.OK;
             }
@@ -159,7 +165,7 @@ public final class PacketQIOManagementRecipeData implements
                 return status != Status.OK;
             }
             PageKind expected = operation == Operation.PRODUCTS ? PageKind.PRODUCTS :
-                  PageKind.ROUTES;
+                    PageKind.ROUTES;
             return status == Status.OK && snapshot.getPageKind() == expected;
         }
 

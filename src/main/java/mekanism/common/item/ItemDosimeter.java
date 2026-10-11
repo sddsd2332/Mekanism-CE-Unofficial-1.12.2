@@ -66,12 +66,12 @@ public class ItemDosimeter extends ItemMekanism {
         double radiation = RadiationManager.INSTANCE.isRadiationEnabled() ? radiationCapability.getRadiation() : RadiationManager.BASELINE;
         RadiationManager.RadiationScale scale = RadiationManager.RadiationScale.get(radiation);
         player.sendMessage(label.translateColored(EnumColor.GREY)
-              .appendText(scale.getSeverityColor(radiation) +
-                    UnitDisplayUtils.getDisplayShort(radiation, UnitDisplayUtils.RadiationUnit.SV, 3)));
+                .appendText(scale.getSeverityColor(radiation) +
+                        UnitDisplayUtils.getDisplayShort(radiation, UnitDisplayUtils.RadiationUnit.SV, 3)));
         if (MekanismConfig.current().general.radiationDecayTimers.val() && radiation > RadiationManager.MIN_MAGNITUDE) {
             player.sendMessage(MekanismLang.RADIATION_DECAY_TIME.translateColored(EnumColor.GREY)
-                  .appendText(scale.getSeverityColor(radiation) +
-                        TextUtils.getHoursMinutesFromTicks(RadiationUtil.getDecayTime(radiation, false))));
+                    .appendText(scale.getSeverityColor(radiation) +
+                            TextUtils.getHoursMinutesFromTicks(RadiationUtil.getDecayTime(radiation, false))));
         }
     }
 }

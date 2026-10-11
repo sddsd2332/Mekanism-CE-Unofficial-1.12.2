@@ -4,18 +4,13 @@ import mekanism.client.gui.IGuiWrapper;
 import mekanism.client.gui.element.GuiInnerScreen;
 import mekanism.client.gui.element.button.MekanismButton;
 import mekanism.client.gui.element.window.GuiWindow;
-import mekanism.client.render.IFancyFontRenderer.TextAlignment;
 import mekanism.common.inventory.container.SelectedWindowData;
 import mekanism.common.util.text.TextUtils;
 import mekanism.qioprocessing.common.QIOProcessingWindowTypes;
 import mekanism.qioprocessing.common.inventory.container.QIOCraftingMonitorClientCache;
 import mekanism.qioprocessing.common.inventory.container.QIOCraftingMonitorPageContainer;
 import mekanism.qioprocessing.common.inventory.container.QIOProcessingTerminalContainerState;
-import mekanism.qioprocessing.common.network.PacketQIOCraftingMonitorCancel;
-import mekanism.qioprocessing.common.network.PacketQIOCraftingMonitorMutation;
-import mekanism.qioprocessing.common.network.PacketQIOCraftingMonitorPlanPageRequest;
-import mekanism.qioprocessing.common.network.PacketQIOCraftingMonitorRuntimeRequest;
-import mekanism.qioprocessing.common.network.QIOProcessingPacketHandler;
+import mekanism.qioprocessing.common.network.*;
 import mekanism.qioprocessing.common.terminal.QIOCraftingMonitorEntry;
 import mekanism.qioprocessing.common.terminal.QIOCraftingMonitorRuntimeSnapshot;
 import mekanism.qioprocessing.common.terminal.QIOPageCursor;
@@ -24,13 +19,12 @@ import net.minecraft.util.text.TextComponentString;
 import net.minecraft.util.text.TextComponentTranslation;
 
 import javax.annotation.Nullable;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
-/** Independent live crafting-tree viewer for one non-terminal QIO job. */
+/**
+ * Independent live crafting-tree viewer for one non-terminal QIO job.
+ */
+
 /**
  * QIO 处理模块中的 GuiQIOCraftingPlanWindow 类型。
  *
@@ -55,21 +49,27 @@ public final class GuiQIOCraftingPlanWindow extends GuiWindow {
     private final MekanismButton cancelButton;
 
     private QIOCraftingMonitorEntry entry;
-    @Nullable private Pending planPending;
-    @Nullable private Pending runtimePending;
-    @Nullable private Pending cancelPending;
-    @Nullable private Pending mutationPending;
-    @Nullable private UUID cancelRequestId;
-    @Nullable private UUID mutationRequestId;
+    @Nullable
+    private Pending planPending;
+    @Nullable
+    private Pending runtimePending;
+    @Nullable
+    private Pending cancelPending;
+    @Nullable
+    private Pending mutationPending;
+    @Nullable
+    private UUID cancelRequestId;
+    @Nullable
+    private UUID mutationRequestId;
     private long clientTick;
     private long lastRuntimeRequestTick = Long.MIN_VALUE;
     private boolean closeScheduled;
     private boolean closed;
 
     public GuiQIOCraftingPlanWindow(IGuiWrapper gui, int x, int y,
-          QIOCraftingMonitorPageContainer container, QIOCraftingMonitorEntry entry) {
+                                    QIOCraftingMonitorPageContainer container, QIOCraftingMonitorEntry entry) {
         super(gui, x, y, WIDTH, HEIGHT, new SelectedWindowData(
-              QIOProcessingWindowTypes.CRAFTING_MONITOR_PLAN));
+                QIOProcessingWindowTypes.CRAFTING_MONITOR_PLAN));
         this.container = Objects.requireNonNull(container, "container");
         state = container.getTerminalState();
         this.entry = Objects.requireNonNull(entry, "entry");
@@ -81,27 +81,27 @@ public final class GuiQIOCraftingPlanWindow extends GuiWindow {
         interactionStrategy = InteractionStrategy.ALL;
 
         priorityDownButton = addChild(new MekanismButton(gui, relativeX + 250,
-              relativeY + 5, 76, 14, new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.monitor_priority_down"),
-              () -> adjustPriority(-1), null));
+                relativeY + 5, 76, 14, new TextComponentTranslation(
+                "gui.mekanismqioprocessing.monitor_priority_down"),
+                () -> adjustPriority(-1), null));
         priorityUpButton = addChild(new MekanismButton(gui, relativeX + 328,
-              relativeY + 5, 76, 14, new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.monitor_priority_up"),
-              () -> adjustPriority(1), null));
+                relativeY + 5, 76, 14, new TextComponentTranslation(
+                "gui.mekanismqioprocessing.monitor_priority_up"),
+                () -> adjustPriority(1), null));
         cancelButton = addChild(new MekanismButton(gui, relativeX + 406,
-              relativeY + 5, 76, 14, new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.monitor_cancel"), this::cancel, null));
+                relativeY + 5, 76, 14, new TextComponentTranslation(
+                "gui.mekanismqioprocessing.monitor_cancel"), this::cancel, null));
         tree = addChild(new GuiQIOCraftingPlanTree(gui, relativeX + 6,
-              relativeY + 24, WIDTH - 12, 172, () -> cache().getPlanEntries(),
-              () -> cache().getRuntimeNodes(), () -> {
-                  QIOCraftingMonitorRuntimeSnapshot header = cache().getRuntimeHeader();
-                  return header == null ? Collections.emptyMap() :
-                        header.getMissingResources();
-              }, Collections::emptySet, Collections::emptySet, () -> false,
-              () -> this.entry, () -> cache().getPlanGeneration(),
-              () -> cache().getRuntimeGeneration(), () -> cache().isPlanComplete(), true));
+                relativeY + 24, WIDTH - 12, 172, () -> cache().getPlanEntries(),
+                () -> cache().getRuntimeNodes(), () -> {
+            QIOCraftingMonitorRuntimeSnapshot header = cache().getRuntimeHeader();
+            return header == null ? Collections.emptyMap() :
+                    header.getMissingResources();
+        }, Collections::emptySet, Collections::emptySet, () -> false,
+                () -> this.entry, () -> cache().getPlanGeneration(),
+                () -> cache().getRuntimeGeneration(), () -> cache().isPlanComplete(), true));
         addChild(new GuiInnerScreen(gui, relativeX + 6, relativeY + 199,
-              WIDTH - 12, 15, this::statusText).clearFormat());
+                WIDTH - 12, 15, this::statusText).clearFormat());
 
         beginDetail(true);
         updateButtons();
@@ -141,10 +141,10 @@ public final class GuiQIOCraftingPlanWindow extends GuiWindow {
     public void renderForeground(int mouseX, int mouseY) {
         super.renderForeground(mouseX, mouseY);
         drawScaledScrollingString(new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.monitor_plan_title",
-                    QIOGuiResourceRenderer.name(entry.getRootResource())),
-              39, 6, TextAlignment.LEFT, titleTextColor(), 207, 0,
-              false, 0.9F, getTimeOpened());
+                        "gui.mekanismqioprocessing.monitor_plan_title",
+                        QIOGuiResourceRenderer.name(entry.getRootResource())),
+                39, 6, TextAlignment.LEFT, titleTextColor(), 207, 0,
+                false, 0.9F, getTimeOpened());
     }
 
     @Override
@@ -162,20 +162,20 @@ public final class GuiQIOCraftingPlanWindow extends GuiWindow {
         if (!hasFrequency()) return;
         QIOCraftingMonitorClientCache cache = cache();
         if (!jobId.equals(cache.getDetailJobId()) ||
-              entry.getPlanRevision() != cache.getDetailPlanRevision()) {
+                entry.getPlanRevision() != cache.getDetailPlanRevision()) {
             beginDetail(true);
             return;
         }
         if (!cache.isPlanComplete()) {
             if (planPending == null) {
                 sendPlan(cache.getPlanSourceRevision() < 0 ? null :
-                      cache.getNextPlanCursor());
+                        cache.getNextPlanCursor());
             }
             return;
         }
         if (runtimePending == null && (cache.isRuntimeBaselineRequired() ||
-              cache.isRuntimeSweepPending() ||
-              clientTick - lastRuntimeRequestTick >= RUNTIME_REFRESH)) {
+                cache.isRuntimeSweepPending() ||
+                clientTick - lastRuntimeRequestTick >= RUNTIME_REFRESH)) {
             sendRuntime(cache.isRuntimeBaselineRequired());
         }
     }
@@ -192,9 +192,9 @@ public final class GuiQIOCraftingPlanWindow extends GuiWindow {
     private void sendPlan(@Nullable QIOPageCursor cursor) {
         if (!hasFrequency() || planPending != null) return;
         QIOProcessingPacketHandler.INSTANCE.sendToServer(
-              PacketQIOCraftingMonitorPlanPageRequest.Message.create(
-                    container.getTerminalWindowId(), state, jobId,
-                    entry.getPlanRevision(), PAGE_SIZE, cursor));
+                PacketQIOCraftingMonitorPlanPageRequest.Message.create(
+                        container.getTerminalWindowId(), state, jobId,
+                        entry.getPlanRevision(), PAGE_SIZE, cursor));
         planPending = new Pending(cache().getPlanGeneration(), clientTick);
     }
 
@@ -202,10 +202,10 @@ public final class GuiQIOCraftingPlanWindow extends GuiWindow {
         if (!hasFrequency() || runtimePending != null) return;
         QIOCraftingMonitorClientCache cache = cache();
         QIOProcessingPacketHandler.INSTANCE.sendToServer(
-              PacketQIOCraftingMonitorRuntimeRequest.Message.create(
-                    container.getTerminalWindowId(), state, jobId,
-                    entry.getPlanRevision(), cache.getDetailRuntimeRevision(), baseline,
-                    cache.getRuntimeNodeOffset(), cache.getKnownNodeRevisions()));
+                PacketQIOCraftingMonitorRuntimeRequest.Message.create(
+                        container.getTerminalWindowId(), state, jobId,
+                        entry.getPlanRevision(), cache.getDetailRuntimeRevision(), baseline,
+                        cache.getRuntimeNodeOffset(), cache.getKnownNodeRevisions()));
         runtimePending = new Pending(cache.getRuntimeGeneration(), clientTick);
         lastRuntimeRequestTick = clientTick;
     }
@@ -216,13 +216,13 @@ public final class GuiQIOCraftingPlanWindow extends GuiWindow {
             planPending = null;
         }
         if (runtimePending != null && runtimePending.generation !=
-              cache.getRuntimeGeneration()) {
+                cache.getRuntimeGeneration()) {
             runtimePending = null;
         }
         if (cancelPending != null && cancelPending.generation !=
-              cache.getCancelGeneration()) {
+                cache.getCancelGeneration()) {
             if (cancelRequestId != null && cancelRequestId.equals(
-                  cache.getLastCancelRequestId())) {
+                    cache.getLastCancelRequestId())) {
                 cache.requireRuntimeBaseline();
                 runtimePending = null;
             }
@@ -230,9 +230,9 @@ public final class GuiQIOCraftingPlanWindow extends GuiWindow {
             cancelRequestId = null;
         }
         if (mutationPending != null && mutationPending.generation !=
-              cache.getMutationGeneration()) {
+                cache.getMutationGeneration()) {
             if (mutationRequestId != null && mutationRequestId.equals(
-                  cache.getLastMutationRequestId())) {
+                    cache.getLastMutationRequestId())) {
                 cache.requireRuntimeBaseline();
                 runtimePending = null;
             }
@@ -248,17 +248,17 @@ public final class GuiQIOCraftingPlanWindow extends GuiWindow {
             sendPlan(null);
         }
         if (runtimePending != null &&
-              clientTick - runtimePending.sentAt >= REQUEST_TIMEOUT) {
+                clientTick - runtimePending.sentAt >= REQUEST_TIMEOUT) {
             runtimePending = null;
             cache().requireRuntimeBaseline();
         }
         if (cancelPending != null &&
-              clientTick - cancelPending.sentAt >= REQUEST_TIMEOUT) {
+                clientTick - cancelPending.sentAt >= REQUEST_TIMEOUT) {
             cancelPending = null;
             cancelRequestId = null;
         }
         if (mutationPending != null &&
-              clientTick - mutationPending.sentAt >= REQUEST_TIMEOUT) {
+                clientTick - mutationPending.sentAt >= REQUEST_TIMEOUT) {
             mutationPending = null;
             mutationRequestId = null;
         }
@@ -268,28 +268,28 @@ public final class GuiQIOCraftingPlanWindow extends GuiWindow {
         if (!hasFrequency() || cancelPending != null || terminal(currentState())) return;
         QIOCraftingMonitorRuntimeSnapshot header = cache().getRuntimeHeader();
         long revision = header == null ? entry.getRuntimeRevision() :
-              header.getRuntimeRevision();
+                header.getRuntimeRevision();
         cancelRequestId = UUID.randomUUID();
         QIOProcessingPacketHandler.INSTANCE.sendToServer(
-              PacketQIOCraftingMonitorCancel.Message.create(
-                    container.getTerminalWindowId(), state, cancelRequestId,
-                    jobId, revision));
+                PacketQIOCraftingMonitorCancel.Message.create(
+                        container.getTerminalWindowId(), state, cancelRequestId,
+                        jobId, revision));
         cancelPending = new Pending(cache().getCancelGeneration(), clientTick);
     }
 
     private void adjustPriority(int delta) {
         QIOCraftingMonitorRuntimeSnapshot header = cache().getRuntimeHeader();
         if (!hasFrequency() || header == null || mutationPending != null ||
-              terminal(header.getState())) return;
+                terminal(header.getState())) return;
         long current = header.getBasePriority();
         long updated = delta > 0 ? current == Long.MAX_VALUE ? current : current + 1 :
-              current == Long.MIN_VALUE ? current : current - 1;
+                current == Long.MIN_VALUE ? current : current - 1;
         mutationRequestId = UUID.randomUUID();
         QIOProcessingPacketHandler.INSTANCE.sendToServer(
-              PacketQIOCraftingMonitorMutation.Message.create(
-                    container.getTerminalWindowId(), state, mutationRequestId,
-                    jobId, header.getRuntimeRevision(),
-                    PacketQIOCraftingMonitorMutation.Action.PRIORITY, updated));
+                PacketQIOCraftingMonitorMutation.Message.create(
+                        container.getTerminalWindowId(), state, mutationRequestId,
+                        jobId, header.getRuntimeRevision(),
+                        PacketQIOCraftingMonitorMutation.Action.PRIORITY, updated));
         mutationPending = new Pending(cache().getMutationGeneration(), clientTick);
     }
 
@@ -297,7 +297,7 @@ public final class GuiQIOCraftingPlanWindow extends GuiWindow {
         boolean valid = hasFrequency();
         QIOCraftingMonitorRuntimeSnapshot header = cache().getRuntimeHeader();
         boolean priority = valid && header != null && mutationPending == null &&
-              !terminal(header.getState());
+                !terminal(header.getState());
         priorityDownButton.active = priority && header.getBasePriority() != Long.MIN_VALUE;
         priorityUpButton.active = priority && header.getBasePriority() != Long.MAX_VALUE;
         cancelButton.active = valid && cancelPending == null && !terminal(currentState());
@@ -306,18 +306,18 @@ public final class GuiQIOCraftingPlanWindow extends GuiWindow {
     private List<ITextComponent> statusText() {
         QIOCraftingMonitorRuntimeSnapshot header = cache().getRuntimeHeader();
         String stateName = localizedState(header == null ? entry.getState() :
-              header.getState());
+                header.getState());
         long delivered = header == null ? entry.getDeliveredAmount() :
-              header.getDeliveredRootAmount();
+                header.getDeliveredRootAmount();
         long requested = header == null ? entry.getRootAmount() :
-              header.getRequestedRootAmount();
+                header.getRequestedRootAmount();
         String summary = QIOGuiResourceRenderer.name(entry.getRootResource()) + "  " +
-              TextUtils.format(delivered) + "/" + TextUtils.format(requested) + "  " +
-              stateName;
+                TextUtils.format(delivered) + "/" + TextUtils.format(requested) + "  " +
+                stateName;
         if (header != null) {
             summary += "  " + translation("gui.mekanismqioprocessing.monitor_slots",
-                  Integer.toString(header.getActiveExecutionSlots()),
-                  Integer.toString(header.getConfiguredExecutionSlots()));
+                    Integer.toString(header.getActiveExecutionSlots()),
+                    Integer.toString(header.getConfiguredExecutionSlots()));
         }
         return Collections.singletonList(new TextComponentString(summary));
     }
@@ -346,12 +346,12 @@ public final class GuiQIOCraftingPlanWindow extends GuiWindow {
 
     private static boolean terminal(String state) {
         return "COMPLETED".equals(state) || "FAILED".equals(state) ||
-              "CANCELLED".equals(state);
+                "CANCELLED".equals(state);
     }
 
     private static String localizedState(String state) {
         return translation("gui.mekanismqioprocessing.monitor_state_" +
-              state.toLowerCase(Locale.ROOT));
+                state.toLowerCase(Locale.ROOT));
     }
 
     private static String translation(String key, Object... arguments) {
@@ -376,7 +376,7 @@ public final class GuiQIOCraftingPlanWindow extends GuiWindow {
         private final long accessRevision;
 
         private SessionKey(UUID nonce, UUID terminal, UUID frequency,
-              long targetRevision, long accessRevision) {
+                           long targetRevision, long accessRevision) {
             this.nonce = nonce;
             this.terminal = terminal;
             this.frequency = frequency;
@@ -387,13 +387,13 @@ public final class GuiQIOCraftingPlanWindow extends GuiWindow {
         @Nullable
         private static SessionKey capture(QIOProcessingTerminalContainerState state) {
             return state.isValid() ? new SessionKey(state.getSessionNonce(),
-                  state.getTerminalUUID(), state.getFrequencyUUID(),
-                  state.getTargetRevision(), state.getAccessRevision()) : null;
+                    state.getTerminalUUID(), state.getFrequencyUUID(),
+                    state.getTargetRevision(), state.getAccessRevision()) : null;
         }
 
         private boolean matches(QIOProcessingTerminalContainerState state) {
             return state.matches(nonce, terminal, targetRevision, frequency,
-                  accessRevision);
+                    accessRevision);
         }
     }
 }

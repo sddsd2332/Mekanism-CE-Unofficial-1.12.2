@@ -43,9 +43,9 @@ import mekanism.common.util.TileUtils;
 import net.minecraft.block.Block;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.AxisAlignedBB;
+import net.minecraft.util.math.BlockPos;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.relauncher.Side;
@@ -280,17 +280,17 @@ public class TileEntitySolarNeutronActivator extends TileEntityContainerBlock im
     @Override
     public CachedRecipe<SolarNeutronRecipe> createNewCachedRecipe(SolarNeutronRecipe recipe, int cacheIndex) {
         return new OneInputCachedRecipe<>(recipe, () -> false,
-              InputHelper.getGasInputHandler(inputTank, RecipeError.NOT_ENOUGH_INPUT),
-              OutputHelper.getGasOutputHandler(outputTank, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
-              () -> recipe.getInput().ingredient,
-              input -> input != null && input.isGasEqual(recipe.getInput().ingredient),
-              input -> recipe.getOutput().output.copy(),
-              input -> input == null || input.amount <= 0,
-              output -> output == null || output.amount <= 0)
-              .setCanHolderFunction(() -> seesSunThisTick && MekanismUtils.canFunction(this))
-              .setActive(this::setActive)
-              .setRequiredTicks(() -> 1)
-              .setBaselineMaxOperations(() -> getUpgradedUsage(recipe));
+                InputHelper.getGasInputHandler(inputTank, RecipeError.NOT_ENOUGH_INPUT),
+                OutputHelper.getGasOutputHandler(outputTank, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
+                () -> recipe.getInput().ingredient,
+                input -> input != null && input.isGasEqual(recipe.getInput().ingredient),
+                input -> recipe.getOutput().output.copy(),
+                input -> input == null || input.amount <= 0,
+                output -> output == null || output.amount <= 0)
+                .setCanHolderFunction(() -> seesSunThisTick && MekanismUtils.canFunction(this))
+                .setActive(this::setActive)
+                .setRequiredTicks(() -> 1)
+                .setBaselineMaxOperations(() -> getUpgradedUsage(recipe));
     }
 
     @Override
@@ -461,6 +461,11 @@ public class TileEntitySolarNeutronActivator extends TileEntityContainerBlock im
     }
 
     @Override
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return type == mekanism.api.transmitters.TransmissionType.GAS;
+    }
+
+    @Override
     public int getRedstoneLevel() {
         return MekanismUtils.redstoneLevelFromContents(inputTank.getStored(), inputTank.getMaxGas());
     }
@@ -474,7 +479,8 @@ public class TileEntitySolarNeutronActivator extends TileEntityContainerBlock im
     public Object[] invoke(int method, Object[] args) throws NoSuchMethodException {
         return new Object[0];
     }
-@Override
+
+    @Override
     public TileComponentConfig getConfig() {
         return configComponent;
     }
@@ -488,6 +494,7 @@ public class TileEntitySolarNeutronActivator extends TileEntityContainerBlock im
     public TileComponentEjector getEjector() {
         return ejectorComponent;
     }
+
     @Override
     public RedstoneControl getControlType() {
         return controlType;

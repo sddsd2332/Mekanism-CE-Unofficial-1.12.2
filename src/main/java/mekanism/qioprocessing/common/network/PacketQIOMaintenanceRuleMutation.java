@@ -27,7 +27,7 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class PacketQIOMaintenanceRuleMutation implements
-      IMessageHandler<PacketQIOMaintenanceRuleMutation.Message, IMessage> {
+        IMessageHandler<PacketQIOMaintenanceRuleMutation.Message, IMessage> {
 
     @Override
     public IMessage onMessage(Message message, MessageContext context) {
@@ -43,35 +43,35 @@ public final class PacketQIOMaintenanceRuleMutation implements
 
     private static void handle(Message message, EntityPlayer player) {
         if (!(player instanceof EntityPlayerMP playerMP) ||
-            !(player.openContainer instanceof QIOMaintenanceRulePageContainer container) ||
-            player.openContainer.windowId != message.windowId ||
-            !player.openContainer.canInteractWith(player)) {
+                !(player.openContainer instanceof QIOMaintenanceRulePageContainer container) ||
+                player.openContainer.windowId != message.windowId ||
+                !player.openContainer.canInteractWith(player)) {
             return;
         }
         QIOProcessingTerminalSession session = container.getTerminalSession();
         if (session == null || session.getFrequencyUUID() == null ||
-            session.getTerminalType() != QIOProcessingTerminalType.MAINTENANCE ||
-            session.validate(message.sessionNonce, player.getUniqueID(),
-                  session.getTargetKind(), QIOProcessingTerminalType.MAINTENANCE,
-                  message.terminalUUID, message.expectedTargetRevision,
-                  session.getFrequencyUUID(), session.getAccessRevision()) !=
-                  QIOProcessingTerminalSession.Validation.ACCEPTED) {
+                session.getTerminalType() != QIOProcessingTerminalType.MAINTENANCE ||
+                session.validate(message.sessionNonce, player.getUniqueID(),
+                        session.getTargetKind(), QIOProcessingTerminalType.MAINTENANCE,
+                        message.terminalUUID, message.expectedTargetRevision,
+                        session.getFrequencyUUID(), session.getAccessRevision()) !=
+                        QIOProcessingTerminalSession.Validation.ACCEPTED) {
             return;
         }
         QIOProcessingNetworkData network = QIOProcessingNetworkManager.INSTANCE.get(
-              session.getFrequencyUUID());
+                session.getFrequencyUUID());
         if (network == null) {
             return;
         }
         try {
             QIOMaintenanceRuleService.MutationResult result =
-                  QIOMaintenanceRuleService.mutate(session, network,
-                        session.getAccessRevision(), message.expectedRulesRevision,
-                        message.mutation, player.getUniqueID(),
-                        player.world.getTotalWorldTime());
+                    QIOMaintenanceRuleService.mutate(session, network,
+                            session.getAccessRevision(), message.expectedRulesRevision,
+                            message.mutation, player.getUniqueID(),
+                            player.world.getTotalWorldTime());
             QIOProcessingPacketHandler.INSTANCE.sendTo(
-                  PacketQIOMaintenanceRuleMutationResult.Message.create(
-                        message.windowId, session, message.requestId, result), playerMP);
+                    PacketQIOMaintenanceRuleMutationResult.Message.create(
+                            message.windowId, session, message.requestId, result), playerMP);
         } catch (IllegalArgumentException | IllegalStateException | SecurityException ignored) {
         }
     }
@@ -91,8 +91,8 @@ public final class PacketQIOMaintenanceRuleMutation implements
         }
 
         private Message(int windowId, UUID sessionNonce, UUID terminalUUID,
-              long expectedTargetRevision, long expectedRulesRevision, UUID requestId,
-              QIOMaintenanceRuleMutation mutation) {
+                        long expectedTargetRevision, long expectedRulesRevision, UUID requestId,
+                        QIOMaintenanceRuleMutation mutation) {
             this.windowId = windowId;
             this.sessionNonce = sessionNonce;
             this.terminalUUID = terminalUUID;
@@ -104,21 +104,21 @@ public final class PacketQIOMaintenanceRuleMutation implements
         }
 
         public static Message create(int windowId,
-              QIOProcessingTerminalContainerState state, long expectedRulesRevision,
-              UUID requestId, QIOMaintenanceRuleMutation mutation) {
+                                     QIOProcessingTerminalContainerState state, long expectedRulesRevision,
+                                     UUID requestId, QIOMaintenanceRuleMutation mutation) {
             return state == null || !state.isValid() ? new Message() :
-                  new Message(windowId, state.getSessionNonce(), state.getTerminalUUID(),
-                        state.getTargetRevision(), expectedRulesRevision, requestId,
-                        mutation);
+                    new Message(windowId, state.getSessionNonce(), state.getTerminalUUID(),
+                            state.getTargetRevision(), expectedRulesRevision, requestId,
+                            mutation);
         }
 
         static Message create(int windowId, QIOProcessingTerminalSession session,
-              long expectedRulesRevision, UUID requestId,
-              QIOMaintenanceRuleMutation mutation) {
+                              long expectedRulesRevision, UUID requestId,
+                              QIOMaintenanceRuleMutation mutation) {
             return session == null ? new Message() : new Message(windowId,
-                  session.getSessionNonce(), session.getTerminalUUID(),
-                  session.getTargetRevision(), expectedRulesRevision, requestId,
-                  mutation);
+                    session.getSessionNonce(), session.getTerminalUUID(),
+                    session.getTargetRevision(), expectedRulesRevision, requestId,
+                    mutation);
         }
 
         @Override
@@ -161,8 +161,8 @@ public final class PacketQIOMaintenanceRuleMutation implements
 
         private boolean structurallyValid() {
             return windowId >= 0 && sessionNonce != null && terminalUUID != null &&
-                  expectedTargetRevision >= 0 && expectedRulesRevision >= 0 &&
-                  requestId != null && mutation != null;
+                    expectedTargetRevision >= 0 && expectedRulesRevision >= 0 &&
+                    requestId != null && mutation != null;
         }
 
         private static void writeUUID(ByteBuf buffer, UUID uuid) {

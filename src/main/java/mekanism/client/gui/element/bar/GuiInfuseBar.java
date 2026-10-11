@@ -18,7 +18,7 @@ public class GuiInfuseBar extends GuiBar<GuiBar.IBarInfoHandler> {
     private final boolean vertical;
 
     public GuiInfuseBar(IGuiWrapper gui, InfuseStorage storage, DoubleSupplier levelSupplier, Supplier<String> tooltipSupplier, int x, int y, int width,
-          int height, boolean vertical) {
+                        int height, boolean vertical) {
         super(null, gui, new IBarInfoHandler() {
             @Override
             public double getLevel() {

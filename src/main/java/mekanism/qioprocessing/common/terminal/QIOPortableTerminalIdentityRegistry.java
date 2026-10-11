@@ -1,21 +1,13 @@
 package mekanism.qioprocessing.common.terminal;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.IdentityHashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * Tracks portable terminal instances currently reachable through open server containers.
  * A duplicate persistent UUID quarantines every observed copy until explicit recovery.
  */
+
 /**
  * QIO 处理模块中的 QIOPortableTerminalIdentityRegistry 类型。
  *
@@ -25,7 +17,7 @@ import java.util.UUID;
 public final class QIOPortableTerminalIdentityRegistry {
 
     public static final QIOPortableTerminalIdentityRegistry INSTANCE =
-          new QIOPortableTerminalIdentityRegistry();
+            new QIOPortableTerminalIdentityRegistry();
     private static final int MAX_LOCATION_LENGTH = 256;
 
     private final Map<UUID, List<Lease>> leasesByUUID = new LinkedHashMap<>();
@@ -36,12 +28,12 @@ public final class QIOPortableTerminalIdentityRegistry {
 
     @Nonnull
     public synchronized Lease acquire(@Nonnull UUID terminalUUID,
-          @Nonnull Object exactStackHandle, @Nonnull String auditLocation) {
+                                      @Nonnull Object exactStackHandle, @Nonnull String auditLocation) {
         Objects.requireNonNull(terminalUUID, "terminalUUID");
         Objects.requireNonNull(exactStackHandle, "exactStackHandle");
         String location = requireLocation(auditLocation);
         List<Lease> leases = leasesByUUID.computeIfAbsent(terminalUUID,
-              ignored -> new ArrayList<>());
+                ignored -> new ArrayList<>());
         leases.removeIf(Lease::isClosed);
         for (Lease existing : leases) {
             if (existing.exactStackHandle == exactStackHandle) {
@@ -59,13 +51,13 @@ public final class QIOPortableTerminalIdentityRegistry {
 
     public synchronized boolean isQuarantined(@Nonnull UUID terminalUUID) {
         return quarantinedUUIDs.contains(Objects.requireNonNull(terminalUUID,
-              "terminalUUID"));
+                "terminalUUID"));
     }
 
     @Nonnull
     public synchronized List<String> getActiveAuditLocations(@Nonnull UUID terminalUUID) {
         List<Lease> leases = leasesByUUID.get(Objects.requireNonNull(terminalUUID,
-              "terminalUUID"));
+                "terminalUUID"));
         if (leases == null) {
             return Collections.emptyList();
         }
@@ -79,7 +71,9 @@ public final class QIOPortableTerminalIdentityRegistry {
         return Collections.unmodifiableList(locations);
     }
 
-    /** Explicit recovery is allowed only after every observed copy has closed. */
+    /**
+     * Explicit recovery is allowed only after every observed copy has closed.
+     */
     public synchronized boolean acknowledgeRecovery(@Nonnull UUID terminalUUID) {
         Objects.requireNonNull(terminalUUID, "terminalUUID");
         List<Lease> leases = leasesByUUID.get(terminalUUID);
@@ -147,7 +141,7 @@ public final class QIOPortableTerminalIdentityRegistry {
         }
 
         private Lease(UUID terminalUUID, Object exactStackHandle, String auditLocation,
-              boolean alreadyOpenRejection, boolean closed) {
+                      boolean alreadyOpenRejection, boolean closed) {
             this.terminalUUID = terminalUUID;
             this.exactStackHandle = exactStackHandle;
             this.auditLocation = auditLocation;
@@ -167,12 +161,12 @@ public final class QIOPortableTerminalIdentityRegistry {
 
         public boolean isUsable() {
             return !closed && !quarantined && !alreadyOpenRejection &&
-                  !QIOPortableTerminalIdentityRegistry.this.isQuarantined(terminalUUID);
+                    !QIOPortableTerminalIdentityRegistry.this.isQuarantined(terminalUUID);
         }
 
         public boolean isQuarantined() {
             return quarantined ||
-                  QIOPortableTerminalIdentityRegistry.this.isQuarantined(terminalUUID);
+                    QIOPortableTerminalIdentityRegistry.this.isQuarantined(terminalUUID);
         }
 
         public boolean isAlreadyOpenRejection() {

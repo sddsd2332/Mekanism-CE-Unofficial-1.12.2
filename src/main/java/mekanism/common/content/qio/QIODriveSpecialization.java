@@ -36,8 +36,8 @@ public final class QIODriveSpecialization {
         contributesToMixed = builder.contributesToMixed;
         mixed = builder.mixed;
         translationKey = builder.translationKey == null || builder.translationKey.isEmpty() ?
-              "qio." + registryName.getNamespace() + ".drive_specialization." + registryName.getPath() :
-              builder.translationKey;
+                "qio." + registryName.getNamespace() + ".drive_specialization." + registryName.getPath() :
+                builder.translationKey;
         if (mixed) {
             if (!matcher.isAny() || contributesToMixed || useDefinitionCapacity || !capacities.isEmpty()) {
                 throw new IllegalArgumentException("A mixed QIO drive specialization must use the dynamic registry capacity");
@@ -139,7 +139,7 @@ public final class QIODriveSpecialization {
 
         private Builder(ResourceLocation registryName) {
             this.registryName = Objects.requireNonNull(registryName,
-                  "QIO drive specialization registry name cannot be null");
+                    "QIO drive specialization registry name cannot be null");
         }
 
         @Nonnull
@@ -148,14 +148,18 @@ public final class QIODriveSpecialization {
             return this;
         }
 
-        /** Uses the base count declared by every drive definition. */
+        /**
+         * Uses the base count declared by every drive definition.
+         */
         @Nonnull
         public Builder capacityFromDefinition() {
             useDefinitionCapacity = true;
             return this;
         }
 
-        /** Declares an item-equivalent capacity for one stable drive definition id. */
+        /**
+         * Declares an item-equivalent capacity for one stable drive definition id.
+         */
         @Nonnull
         public Builder capacity(@Nonnull ResourceLocation definitionName, long capacity) {
             return capacity(definitionName, QIOAmount.of(capacity));

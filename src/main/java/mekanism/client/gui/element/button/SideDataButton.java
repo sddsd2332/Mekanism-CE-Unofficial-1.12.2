@@ -33,7 +33,7 @@ public class SideDataButton extends BasicColorButton {
     private List<String> lastInfo = Collections.emptyList();
 
     public SideDataButton(IGuiWrapper gui, int x, int y, int sideIndex, RelativeSide side, Supplier<DataType> dataTypeSupplier,
-          Supplier<EnumColor> colorSupplier, TileEntityBasicBlock tile, Runnable onLeftClick, Runnable onRightClick, boolean displayDataType) {
+                          Supplier<EnumColor> colorSupplier, TileEntityBasicBlock tile, Runnable onLeftClick, Runnable onRightClick, boolean displayDataType) {
         super(gui, x, y, 22, () -> {
             DataType dataType = dataTypeSupplier.get();
             return dataType == null || dataType == DataType.EMPTY ? null : colorSupplier.get();

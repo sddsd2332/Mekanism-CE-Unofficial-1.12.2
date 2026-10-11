@@ -16,8 +16,8 @@ import mekanism.common.security.ISecurityTile;
 import mekanism.common.tile.TileEntityGasTank;
 import mekanism.common.tile.prefab.TileEntityBasicBlock;
 import mekanism.common.util.ItemDataUtils;
-import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.MekanismPlacementData;
+import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.SecurityUtils;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
@@ -223,7 +223,7 @@ public class BlockGasTank extends BlockMekanismContainer {
     @Deprecated
     public int getComparatorInputOverride(IBlockState state, World world, BlockPos pos) {
         TileEntityGasTank tileEntity = (TileEntityGasTank) world.getTileEntity(pos);
-        return tileEntity.getRedstoneLevel();
+        return tileEntity.supportsComparator() ? tileEntity.getCurrentRedstoneLevel() : 0;
     }
 
     @Override

@@ -46,10 +46,10 @@ public class OrganicFarm {
 
     @ZenMethod
     public static void addRecipe(IIngredient ingredientInput, ILiquidStack fluidInput, IItemStack itemOutput, @Optional IItemStack optionalItemOutput,
-          @Optional double optionalChance) {
+                                 @Optional double optionalChance) {
         if (IngredientHelper.checkNotNull(NAME, ingredientInput, fluidInput, itemOutput)) {
             FarmOutput output = optionalItemOutput == null ? new FarmOutput(CraftTweakerMC.getItemStack(itemOutput)) : new FarmOutput(CraftTweakerMC.getItemStack(itemOutput),
-                  CraftTweakerMC.getItemStack(optionalItemOutput), optionalChance);
+                    CraftTweakerMC.getItemStack(optionalItemOutput), optionalChance);
             addFluidRecipes(ingredientInput, IngredientHelper.toFluid(fluidInput), output);
         }
     }

@@ -52,7 +52,7 @@ public class MekaSuitModuleElytra implements LayerRenderer<EntityLivingBase> {
             }
             GlStateManager.pushMatrix();
             GlStateManager.translate(0F, -0.25F, 0.125F);
-            GlStateManager.rotate(-90,1, 0, 0);
+            GlStateManager.rotate(-90, 1, 0, 0);
             modelElytra.setRotationAngles(limbSwing, limbSwingAmount, ageInTicks, netHeadYaw, headPitch, scale, entity);
             modelElytra.render(entity, limbSwing, limbSwingAmount, ageInTicks, netHeadYaw, headPitch, scale);
             if (IMekaSuitBloomModel.shouldRenderDirectGlow()) {

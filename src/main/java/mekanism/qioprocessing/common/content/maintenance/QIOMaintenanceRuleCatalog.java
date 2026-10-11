@@ -9,21 +9,12 @@ import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
-/** Persistent rule catalog with configuration and runtime revisions kept separate. */
+/**
+ * Persistent rule catalog with configuration and runtime revisions kept separate.
+ */
+
 /**
  * QIO 处理模块中的 QIOMaintenanceRuleCatalog 类型。
  *
@@ -42,7 +33,7 @@ public final class QIOMaintenanceRuleCatalog {
     private final Set<PortableResourceDescriptor> targetedEvaluations = new LinkedHashSet<>();
     private long groupedRulesRevision = -1;
     private Map<PortableResourceDescriptor, List<QIOMaintenanceRule>> groupedRulesCache =
-          Collections.emptyMap();
+            Collections.emptyMap();
     private long orderedRulesRevision = -1;
     private List<QIOMaintenanceRule> orderedRulesCache = Collections.emptyList();
     private long rulesRevision;
@@ -111,7 +102,7 @@ public final class QIOMaintenanceRuleCatalog {
             return false;
         }
         if (targetedEvaluations.size() >= MAX_TARGETED_EVALUATIONS &&
-              !targetedEvaluations.contains(resource)) {
+                !targetedEvaluations.contains(resource)) {
             targetedEvaluations.clear();
             requestEvaluationPass();
             return true;
@@ -155,7 +146,7 @@ public final class QIOMaintenanceRuleCatalog {
 
     @Nullable
     public QIOMaintenanceEvaluation getPendingForResource(
-          @Nullable PortableResourceDescriptor resource) {
+            @Nullable PortableResourceDescriptor resource) {
         UUID evaluationId = resource == null ? null : pendingByResource.get(resource);
         return evaluationId == null ? null : pendingEvaluations.get(evaluationId);
     }
@@ -170,10 +161,10 @@ public final class QIOMaintenanceRuleCatalog {
             grouped.computeIfAbsent(rule.getResource(), ignored -> new ArrayList<>()).add(rule);
         }
         grouped.values().forEach(list -> list.sort(Comparator.comparing(rule ->
-              rule.getRuleId().toString())));
+                rule.getRuleId().toString())));
         Map<PortableResourceDescriptor, List<QIOMaintenanceRule>> immutable = new LinkedHashMap<>();
         grouped.forEach((resource, list) -> immutable.put(resource,
-              Collections.unmodifiableList(list)));
+                Collections.unmodifiableList(list)));
         groupedRulesCache = Collections.unmodifiableMap(immutable);
         groupedRulesRevision = rulesRevision;
         return groupedRulesCache;
@@ -181,26 +172,26 @@ public final class QIOMaintenanceRuleCatalog {
 
     @Nonnull
     public QIOMaintenanceRule create(@Nonnull PortableResourceDescriptor resource,
-          @Nonnull UUID creator, boolean enabled, long triggerAmount, long targetAmount,
-          long maximumSingleRequest, long jobPriority, int retryIntervalTicks, long currentTick,
-          int maximumRules) {
+                                     @Nonnull UUID creator, boolean enabled, long triggerAmount, long targetAmount,
+                                     long maximumSingleRequest, long jobPriority, int retryIntervalTicks, long currentTick,
+                                     int maximumRules) {
         if (rules.size() >= maximumRules) {
             throw new IllegalStateException("QIO maintenance rule limit reached");
         }
         QIOMaintenanceRule rule = new QIOMaintenanceRule(UUID.randomUUID(), resource, creator,
-              enabled, triggerAmount, targetAmount, maximumSingleRequest, jobPriority,
-              retryIntervalTicks, currentTick);
+                enabled, triggerAmount, targetAmount, maximumSingleRequest, jobPriority,
+                retryIntervalTicks, currentTick);
         rules.put(rule.getRuleId(), rule);
         incrementRulesRevision();
         return rule;
     }
 
     public void update(@Nonnull UUID ruleId, long expectedRevision, @Nonnull UUID editor,
-          boolean enabled, long triggerAmount, long targetAmount, long maximumSingleRequest,
-          long jobPriority, int retryIntervalTicks, long currentTick) {
+                       boolean enabled, long triggerAmount, long targetAmount, long maximumSingleRequest,
+                       long jobPriority, int retryIntervalTicks, long currentTick) {
         QIOMaintenanceRule rule = require(ruleId);
         rule.update(editor, expectedRevision, enabled, triggerAmount, targetAmount,
-              maximumSingleRequest, jobPriority, retryIntervalTicks, currentTick);
+                maximumSingleRequest, jobPriority, retryIntervalTicks, currentTick);
         incrementRulesRevision();
     }
 
@@ -217,8 +208,8 @@ public final class QIOMaintenanceRuleCatalog {
     }
 
     public void recordGroupEvaluation(@Nonnull List<QIOMaintenanceRule> group,
-          @Nonnull UUID evaluationId, @Nonnull QIOMaintenanceRule.EvaluationStatus status,
-          long currentTick, @Nullable String diagnostic) {
+                                      @Nonnull UUID evaluationId, @Nonnull QIOMaintenanceRule.EvaluationStatus status,
+                                      long currentTick, @Nullable String diagnostic) {
         for (QIOMaintenanceRule rule : group) {
             rule.recordEvaluation(evaluationId, status, currentTick, diagnostic);
         }
@@ -227,7 +218,7 @@ public final class QIOMaintenanceRuleCatalog {
 
     /** Persist a resource-group claim before submitting its asynchronous planning task. */
     public void beginEvaluation(@Nonnull QIOMaintenanceEvaluation evaluation,
-          @Nonnull List<QIOMaintenanceRule> group, long currentTick) {
+                                @Nonnull List<QIOMaintenanceRule> group, long currentTick) {
         Objects.requireNonNull(evaluation, "evaluation");
         Objects.requireNonNull(group, "group");
         QIOMaintenanceEvaluation existing = pendingEvaluations.get(evaluation.getEvaluationId());
@@ -236,7 +227,7 @@ public final class QIOMaintenanceRuleCatalog {
         }
         QIOMaintenanceEvaluation resourceExisting = getPendingForResource(evaluation.getResource());
         if (resourceExisting != null && !resourceExisting.getEvaluationId().equals(
-              evaluation.getEvaluationId())) {
+                evaluation.getEvaluationId())) {
             throw new IllegalStateException("A maintenance evaluation already owns this resource");
         }
         validateRuleSnapshot(evaluation, group);
@@ -244,7 +235,7 @@ public final class QIOMaintenanceRuleCatalog {
         pendingByResource.put(evaluation.getResource(), evaluation.getEvaluationId());
         for (UUID ruleId : evaluation.getTriggeredRuleIds()) {
             require(ruleId).recordEvaluation(evaluation.getEvaluationId(),
-                  QIOMaintenanceRule.EvaluationStatus.PLANNING, currentTick, null);
+                    QIOMaintenanceRule.EvaluationStatus.PLANNING, currentTick, null);
         }
         incrementRuntimeRevision();
     }
@@ -260,7 +251,7 @@ public final class QIOMaintenanceRuleCatalog {
     }
 
     public void bindOutstanding(@Nonnull List<QIOMaintenanceRule> group,
-          @Nonnull UUID evaluationId, @Nonnull UUID jobId) {
+                                @Nonnull UUID evaluationId, @Nonnull UUID jobId) {
         for (QIOMaintenanceRule rule : group) {
             UUID outstanding = rule.getOutstandingJobId();
             if (outstanding != null && !outstanding.equals(jobId)) {
@@ -277,14 +268,14 @@ public final class QIOMaintenanceRuleCatalog {
     /** Completes a pending claim and binds only the rules that actually triggered it. */
     public boolean completeEvaluation(@Nonnull UUID evaluationId, @Nonnull UUID jobId) {
         QIOMaintenanceEvaluation evaluation = pendingEvaluations.get(
-              Objects.requireNonNull(evaluationId, "evaluationId"));
+                Objects.requireNonNull(evaluationId, "evaluationId"));
         if (evaluation == null) {
             return false;
         }
         for (UUID ruleId : evaluation.getTriggeredRuleIds()) {
             QIOMaintenanceRule rule = rules.get(ruleId);
             if (rule != null && evaluation.getResource().equals(rule.getResource()) &&
-                  Objects.equals(rule.getLastEvaluationId(), evaluationId)) {
+                    Objects.equals(rule.getLastEvaluationId(), evaluationId)) {
                 UUID outstanding = rule.getOutstandingJobId();
                 if (outstanding != null && !outstanding.equals(jobId)) {
                     throw new IllegalStateException("Maintenance rule already owns another order");
@@ -296,7 +287,7 @@ public final class QIOMaintenanceRuleCatalog {
         for (UUID ruleId : evaluation.getTriggeredRuleIds()) {
             QIOMaintenanceRule rule = rules.get(ruleId);
             if (rule != null && evaluation.getResource().equals(rule.getResource()) &&
-                  Objects.equals(rule.getLastEvaluationId(), evaluationId)) {
+                    Objects.equals(rule.getLastEvaluationId(), evaluationId)) {
                 rule.bindOutstanding(evaluationId, jobId);
                 indexOutstanding(rule, jobId);
             }
@@ -309,7 +300,7 @@ public final class QIOMaintenanceRuleCatalog {
     /** Invalidates a stale planning claim without applying the normal failure backoff. */
     public boolean invalidateEvaluation(@Nonnull UUID evaluationId) {
         QIOMaintenanceEvaluation evaluation = pendingEvaluations.remove(
-              Objects.requireNonNull(evaluationId, "evaluationId"));
+                Objects.requireNonNull(evaluationId, "evaluationId"));
         if (evaluation == null) {
             return false;
         }
@@ -317,7 +308,7 @@ public final class QIOMaintenanceRuleCatalog {
         for (UUID ruleId : evaluation.getTriggeredRuleIds()) {
             QIOMaintenanceRule rule = rules.get(ruleId);
             if (rule != null && evaluation.getResource().equals(rule.getResource()) &&
-                  Objects.equals(rule.getLastEvaluationId(), evaluationId)) {
+                    Objects.equals(rule.getLastEvaluationId(), evaluationId)) {
                 UUID outstanding = rule.getOutstandingJobId();
                 rule.clearOutstanding();
                 removeOutstandingIndex(rule, outstanding);
@@ -331,10 +322,10 @@ public final class QIOMaintenanceRuleCatalog {
 
     /** Finishes a pending claim without creating an order and records a bounded diagnostic. */
     public boolean failEvaluation(@Nonnull UUID evaluationId,
-          @Nonnull QIOMaintenanceRule.EvaluationStatus status, long currentTick,
-          @Nullable String diagnostic) {
+                                  @Nonnull QIOMaintenanceRule.EvaluationStatus status, long currentTick,
+                                  @Nullable String diagnostic) {
         QIOMaintenanceEvaluation evaluation = pendingEvaluations.remove(
-              Objects.requireNonNull(evaluationId, "evaluationId"));
+                Objects.requireNonNull(evaluationId, "evaluationId"));
         if (evaluation == null) {
             return false;
         }
@@ -342,7 +333,7 @@ public final class QIOMaintenanceRuleCatalog {
         for (UUID ruleId : evaluation.getTriggeredRuleIds()) {
             QIOMaintenanceRule rule = rules.get(ruleId);
             if (rule != null && evaluation.getResource().equals(rule.getResource()) &&
-                  Objects.equals(rule.getLastEvaluationId(), evaluationId)) {
+                    Objects.equals(rule.getLastEvaluationId(), evaluationId)) {
                 rule.recordEvaluation(evaluationId, status, currentTick, diagnostic);
             }
         }
@@ -353,7 +344,7 @@ public final class QIOMaintenanceRuleCatalog {
 
     public boolean clearOutstandingForJob(@Nonnull UUID jobId) {
         Set<UUID> indexedRules = outstandingRulesByJob.remove(
-              Objects.requireNonNull(jobId, "jobId"));
+                Objects.requireNonNull(jobId, "jobId"));
         if (indexedRules == null || indexedRules.isEmpty()) {
             return false;
         }
@@ -380,7 +371,7 @@ public final class QIOMaintenanceRuleCatalog {
     public boolean clearTerminalOutstanding(Map<UUID, Boolean> terminalJobs) {
         boolean changed = false;
         Iterator<Map.Entry<UUID, Set<UUID>>> iterator =
-              outstandingRulesByJob.entrySet().iterator();
+                outstandingRulesByJob.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<UUID, Set<UUID>> entry = iterator.next();
             UUID jobId = entry.getKey();
@@ -404,13 +395,13 @@ public final class QIOMaintenanceRuleCatalog {
     }
 
     public void advanceCursor(int groupCount, int processed, long currentTick,
-          int evaluationInterval) {
+                              int evaluationInterval) {
         if (groupCount <= 0 || evaluationCursor + processed >= groupCount) {
             evaluationCursor = 0;
             evaluationGeneration = evaluationGeneration == Long.MAX_VALUE ? 0 :
-                  evaluationGeneration + 1;
+                    evaluationGeneration + 1;
             nextEvaluationTick = repeatEvaluationPass ? 0 :
-                  saturatedAdd(currentTick, evaluationInterval);
+                    saturatedAdd(currentTick, evaluationInterval);
             repeatEvaluationPass = false;
         } else {
             evaluationCursor += processed;
@@ -445,7 +436,7 @@ public final class QIOMaintenanceRuleCatalog {
     /** Allocates a durable identity generation immediately before a new planning claim. */
     public long reserveEvaluationGeneration() {
         evaluationGeneration = evaluationGeneration == Long.MAX_VALUE ? 0 :
-              evaluationGeneration + 1;
+                evaluationGeneration + 1;
         incrementRuntimeRevision();
         return evaluationGeneration;
     }
@@ -473,21 +464,21 @@ public final class QIOMaintenanceRuleCatalog {
 
     @Nonnull
     public static QIOMaintenanceRuleCatalog read(@Nonnull UUID frequencyUUID,
-          @Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+                                                 @Nonnull NBTTagCompound data)
+            throws QIOProcessingDataException {
         QIOMaintenanceRuleCatalog catalog = new QIOMaintenanceRuleCatalog();
         catalog.rulesRevision = QIOProcessingNbt.requireNonNegative(
-              data.getLong("rulesRevision"), "maintenanceRulesRevision");
+                data.getLong("rulesRevision"), "maintenanceRulesRevision");
         catalog.runtimeRevision = QIOProcessingNbt.requireNonNegative(
-              data.getLong("runtimeRevision"), "maintenanceRuntimeRevision");
+                data.getLong("runtimeRevision"), "maintenanceRuntimeRevision");
         catalog.evaluationGeneration = QIOProcessingNbt.requireNonNegative(
-              data.getLong("evaluationGeneration"), "maintenanceEvaluationGeneration");
+                data.getLong("evaluationGeneration"), "maintenanceEvaluationGeneration");
         catalog.evaluationCursor = data.getInteger("evaluationCursor");
         catalog.nextEvaluationTick = QIOProcessingNbt.requireNonNegative(
-              data.getLong("nextEvaluationTick"), "maintenanceNextEvaluationTick");
+                data.getLong("nextEvaluationTick"), "maintenanceNextEvaluationTick");
         catalog.repeatEvaluationPass = data.getBoolean("repeatEvaluationPass");
         catalog.lastCompletedEvaluationId = data.hasKey("lastCompletedEvaluationId", NBT.TAG_STRING) ?
-              QIOProcessingNbt.readUUID(data, "lastCompletedEvaluationId") : null;
+                QIOProcessingNbt.readUUID(data, "lastCompletedEvaluationId") : null;
         NBTTagList rules = data.getTagList("rules", NBT.TAG_COMPOUND);
         if (rules.tagCount() > MAX_PERSISTED_RULES) {
             throw new QIOProcessingDataException("QIO maintenance rule catalog is too large");
@@ -496,7 +487,7 @@ public final class QIOMaintenanceRuleCatalog {
             QIOMaintenanceRule rule = QIOMaintenanceRule.read(rules.getCompoundTagAt(index));
             if (catalog.rules.put(rule.getRuleId(), rule) != null) {
                 throw new QIOProcessingDataException("Duplicate QIO maintenance rule " +
-                      rule.getRuleId());
+                        rule.getRuleId());
             }
             if (rule.getOutstandingJobId() != null) {
                 catalog.indexOutstanding(rule, rule.getOutstandingJobId());
@@ -508,16 +499,16 @@ public final class QIOMaintenanceRuleCatalog {
         }
         for (int index = 0; index < evaluations.tagCount(); index++) {
             QIOMaintenanceEvaluation evaluation = QIOMaintenanceEvaluation.read(frequencyUUID,
-                  evaluations.getCompoundTagAt(index));
+                    evaluations.getCompoundTagAt(index));
             if (catalog.pendingEvaluations.containsKey(evaluation.getEvaluationId()) ||
-                  catalog.pendingByResource.containsKey(evaluation.getResource())) {
+                    catalog.pendingByResource.containsKey(evaluation.getResource())) {
                 throw new QIOProcessingDataException("Duplicate pending maintenance evaluation");
             }
             catalog.pendingEvaluations.put(evaluation.getEvaluationId(), evaluation);
             catalog.pendingByResource.put(evaluation.getResource(), evaluation.getEvaluationId());
         }
         if (catalog.evaluationCursor < 0 || catalog.evaluationCursor >
-              catalog.groupedRules().size()) {
+                catalog.groupedRules().size()) {
             catalog.evaluationCursor = 0;
         }
         return catalog;
@@ -546,7 +537,7 @@ public final class QIOMaintenanceRuleCatalog {
 
     private void indexOutstanding(QIOMaintenanceRule rule, UUID jobId) {
         outstandingRulesByJob.computeIfAbsent(jobId, ignored -> new HashSet<>())
-              .add(rule.getRuleId());
+                .add(rule.getRuleId());
     }
 
     private void removeOutstandingIndex(QIOMaintenanceRule rule, @Nullable UUID jobId) {
@@ -563,7 +554,7 @@ public final class QIOMaintenanceRuleCatalog {
     }
 
     private void validateRuleSnapshot(QIOMaintenanceEvaluation evaluation,
-          List<QIOMaintenanceRule> group) {
+                                      List<QIOMaintenanceRule> group) {
         Map<UUID, Long> current = new LinkedHashMap<>();
         for (QIOMaintenanceRule rule : group) {
             if (!evaluation.getResource().equals(rule.getResource())) {

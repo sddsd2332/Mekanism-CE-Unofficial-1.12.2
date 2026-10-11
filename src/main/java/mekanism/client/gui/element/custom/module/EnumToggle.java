@@ -50,23 +50,23 @@ class EnumToggle extends MiniElement {
     void renderForeground(int mouseX, int mouseY) {
         int textColor = parent.screenTextColor();
         parent.drawScaledScrollingString(data.getDescription(), xPos, yPos, TextAlignment.LEFT, textColor,
-              parent.getScreenWidth() - GuiScrollList.TEXTURE_WIDTH, 2, false, 0.8F, GuiElement.getMillis());
+                parent.getScreenWidth() - GuiScrollList.TEXTURE_WIDTH, 2, false, 0.8F, GuiElement.getMillis());
         List<? extends Enum<? extends IHasTextComponent>> options = ((ModuleEnumData<?>) data.getData()).getEnums();
         for (int i = 0, count = options.size(); i < count; i++) {
             int optionCenter = BAR_START + optionDistance * i;
             ITextComponent text = ((IHasTextComponent) options.get(i)).getTextComponent();
             if (optionCenter < parent.getStringWidth(text) * TEXT_SCALE / 2F) {
                 parent.drawScaledScrollingString(text, xPos, yPos + 20, TextAlignment.CENTER, textColor, BAR_START + optionDistance / 2F,
-                      1, false, TEXT_SCALE, GuiElement.getMillis());
+                        1, false, TEXT_SCALE, GuiElement.getMillis());
             } else {
                 int max = parent.getScreenWidth() - 1;
                 int start = xPos + optionCenter - optionDistance / 2;
                 if (start + Math.ceil(parent.getStringWidth(text) * TEXT_SCALE) > max) {
                     parent.drawScaledScrollingString(text, start, yPos + 20, TextAlignment.CENTER, textColor, max - start, 1, false, TEXT_SCALE,
-                          GuiElement.getMillis());
+                            GuiElement.getMillis());
                 } else {
                     parent.drawScaledScrollingString(text, start, yPos + 20, TextAlignment.CENTER, textColor, optionDistance, 1, false, TEXT_SCALE,
-                          GuiElement.getMillis());
+                            GuiElement.getMillis());
                 }
             }
         }

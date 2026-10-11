@@ -8,7 +8,6 @@ import mekanism.common.content.qio.QIOFrequencyStorageAccess;
 import mekanism.qioprocessing.common.content.QIOFrequencyIdentitySnapshot;
 import mekanism.qioprocessing.common.content.QIOProcessingNetworkData;
 import mekanism.qioprocessing.common.content.QIOProcessingNetworkManager;
-import mekanism.qioprocessing.common.content.job.QIOCraftingJob;
 import mekanism.qioprocessing.common.content.material.QIOMaterialClaimCoordinator;
 import mekanism.qioprocessing.common.content.material.QIOMaterialCommitment;
 import mekanism.qioprocessing.common.inventory.container.QIOCraftingMonitorPageContainer;
@@ -32,7 +31,7 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class PacketQIOCraftingMonitorMutation implements
-      IMessageHandler<PacketQIOCraftingMonitorMutation.Message, IMessage> {
+        IMessageHandler<PacketQIOCraftingMonitorMutation.Message, IMessage> {
 
     public enum Action {
         PRIORITY,
@@ -58,35 +57,35 @@ public final class PacketQIOCraftingMonitorMutation implements
 
     private static void handle(Message message, EntityPlayer player) {
         if (!(player instanceof EntityPlayerMP playerMP) ||
-            !(player.openContainer instanceof QIOCraftingMonitorPageContainer container) ||
-            player.openContainer.windowId != message.windowId ||
-            !player.openContainer.canInteractWith(player)) return;
+                !(player.openContainer instanceof QIOCraftingMonitorPageContainer container) ||
+                player.openContainer.windowId != message.windowId ||
+                !player.openContainer.canInteractWith(player)) return;
         QIOProcessingTerminalSession session = container.getTerminalSession();
         if (session == null || session.getFrequencyUUID() == null ||
-            session.getTerminalType() != QIOProcessingTerminalType.CRAFTING_MONITOR ||
-            session.validate(message.nonce, player.getUniqueID(), session.getTargetKind(),
-                  QIOProcessingTerminalType.CRAFTING_MONITOR, message.terminalUUID,
-                  message.targetRevision, session.getFrequencyUUID(),
-                  session.getAccessRevision()) !=
-                  QIOProcessingTerminalSession.Validation.ACCEPTED ||
-            !container.tryRequestCraftingMonitorDetail(player.world.getTotalWorldTime())) return;
+                session.getTerminalType() != QIOProcessingTerminalType.CRAFTING_MONITOR ||
+                session.validate(message.nonce, player.getUniqueID(), session.getTargetKind(),
+                        QIOProcessingTerminalType.CRAFTING_MONITOR, message.terminalUUID,
+                        message.targetRevision, session.getFrequencyUUID(),
+                        session.getAccessRevision()) !=
+                        QIOProcessingTerminalSession.Validation.ACCEPTED ||
+                !container.tryRequestCraftingMonitorDetail(player.world.getTotalWorldTime())) return;
         QIOProcessingNetworkData network = QIOProcessingNetworkManager.INSTANCE.get(
-              session.getFrequencyUUID());
+                session.getFrequencyUUID());
         if (network == null) return;
         Status status;
         try {
             QIOCraftingMonitorService.MutationStatus updated = switch (message.action) {
                 case PRIORITY -> QIOCraftingMonitorService.updatePriority(session, network,
-                      session.getAccessRevision(), message.jobId,
-                      message.expectedRuntimeRevision, message.value);
+                        session.getAccessRevision(), message.jobId,
+                        message.expectedRuntimeRevision, message.value);
                 case REDISPATCH -> QIOCraftingMonitorService.redispatchAfterForcedRecovery(
-                      session, network, session.getAccessRevision(), message.jobId,
-                      message.expectedRuntimeRevision);
+                        session, network, session.getAccessRevision(), message.jobId,
+                        message.expectedRuntimeRevision);
             };
             status = switch (updated) {
                 case ACCEPTED -> message.action == Action.PRIORITY ?
-                      persistPriority(network, session, message.jobId) :
-                      persistRedispatch(network);
+                        persistPriority(network, session, message.jobId) :
+                        persistRedispatch(network);
                 case UNCHANGED -> Status.UNCHANGED;
                 case REVISION_CONFLICT -> Status.REVISION_CONFLICT;
                 case INVALID_STATE -> Status.INVALID_STATE;
@@ -98,27 +97,27 @@ public final class PacketQIOCraftingMonitorMutation implements
             status = Status.INVALID_STATE;
         }
         QIOProcessingPacketHandler.INSTANCE.sendTo(
-              PacketQIOCraftingMonitorMutationResult.Message.create(message.windowId, session,
-                    message.requestId, message.jobId, status), playerMP);
+                PacketQIOCraftingMonitorMutationResult.Message.create(message.windowId, session,
+                        message.requestId, message.jobId, status), playerMP);
     }
 
     private static Status persistPriority(QIOProcessingNetworkData network,
-          QIOProcessingTerminalSession session, UUID jobId) {
+                                          QIOProcessingTerminalSession session, UUID jobId) {
         try {
             QIOProcessingNetworkManager.INSTANCE.persistenceBarrier().persist(network);
             QIOMaterialCommitment commitment = network.getCommitment(jobId);
             if (commitment != null && (commitment.getState() == QIOMaterialCommitment.State.ACTIVE ||
-                  commitment.getState() == QIOMaterialCommitment.State.NEEDS_RECONCILIATION)) {
+                    commitment.getState() == QIOMaterialCommitment.State.NEEDS_RECONCILIATION)) {
                 QIOFrequencyIdentitySnapshot identity = network.getLastKnownFrequencyIdentity();
                 QIOFrequencyReference reference = new QIOFrequencyReference(
-                      network.getFrequencyUUID(), identity.getName(), identity.getOwnerUUID(),
-                      identity.getSecurityMode(), session.getPlayerUUID());
+                        network.getFrequencyUUID(), identity.getName(), identity.getOwnerUUID(),
+                        identity.getSecurityMode(), session.getPlayerUUID());
                 IQIOStorageView view = QIOFrequencyStorageAccess.INSTANCE.open(reference,
-                      session.getPlayerUUID());
+                        session.getPlayerUUID());
                 if (view != null) {
                     try {
                         QIOMaterialClaimCoordinator.refresh(network, jobId, view,
-                              QIOProcessingNetworkManager.INSTANCE.persistenceBarrier());
+                                QIOProcessingNetworkManager.INSTANCE.persistenceBarrier());
                     } finally {
                         view.close();
                     }
@@ -155,8 +154,8 @@ public final class PacketQIOCraftingMonitorMutation implements
         }
 
         private Message(int windowId, UUID nonce, UUID terminalUUID, long targetRevision,
-              UUID requestId, UUID jobId, long expectedRuntimeRevision, Action action,
-              long value) {
+                        UUID requestId, UUID jobId, long expectedRuntimeRevision, Action action,
+                        long value) {
             this.windowId = windowId;
             this.nonce = nonce;
             this.terminalUUID = terminalUUID;
@@ -170,20 +169,20 @@ public final class PacketQIOCraftingMonitorMutation implements
         }
 
         public static Message create(int windowId, QIOProcessingTerminalContainerState state,
-              UUID requestId, UUID jobId, long expectedRuntimeRevision, Action action,
-              long value) {
+                                     UUID requestId, UUID jobId, long expectedRuntimeRevision, Action action,
+                                     long value) {
             return state == null || !state.isValid() ? new Message() : new Message(windowId,
-                  state.getSessionNonce(), state.getTerminalUUID(), state.getTargetRevision(),
-                  requestId, jobId, expectedRuntimeRevision, action, value);
+                    state.getSessionNonce(), state.getTerminalUUID(), state.getTargetRevision(),
+                    requestId, jobId, expectedRuntimeRevision, action, value);
         }
 
         static Message create(int windowId, QIOProcessingTerminalSession session,
-              UUID requestId, UUID jobId, long expectedRuntimeRevision, Action action,
-              long value) {
+                              UUID requestId, UUID jobId, long expectedRuntimeRevision, Action action,
+                              long value) {
             return session == null ? new Message() : new Message(windowId,
-                  session.getSessionNonce(), session.getTerminalUUID(),
-                  session.getTargetRevision(), requestId, jobId, expectedRuntimeRevision,
-                  action, value);
+                    session.getSessionNonce(), session.getTerminalUUID(),
+                    session.getTargetRevision(), requestId, jobId, expectedRuntimeRevision,
+                    action, value);
         }
 
         @Override
@@ -219,12 +218,14 @@ public final class PacketQIOCraftingMonitorMutation implements
             }
         }
 
-        public boolean isValid() { return valid; }
+        public boolean isValid() {
+            return valid;
+        }
 
         private boolean shape() {
             return windowId >= 0 && nonce != null && terminalUUID != null &&
-                  targetRevision >= 0 && requestId != null && jobId != null &&
-                  expectedRuntimeRevision >= 0 && action != null;
+                    targetRevision >= 0 && requestId != null && jobId != null &&
+                    expectedRuntimeRevision >= 0 && action != null;
         }
     }
 }

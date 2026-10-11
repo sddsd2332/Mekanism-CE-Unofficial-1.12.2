@@ -6,7 +6,6 @@ import mekanism.common.Upgrade;
 import mekanism.common.base.IComparatorSupport;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.util.MekanismUtils;
-import net.minecraft.inventory.Container;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 
@@ -35,7 +34,7 @@ public abstract class TileEntityOperationalMachine extends TileEntityMachine imp
     }
 
     public double getScaledProgress() {
-        return Math.max(Math.min((double) operatingTicks / ticksRequired, 1.0D),0.0D);
+        return Math.max(Math.min((double) operatingTicks / ticksRequired, 1.0D), 0.0D);
     }
 
     @Override
@@ -90,8 +89,13 @@ public abstract class TileEntityOperationalMachine extends TileEntityMachine imp
     }
 
     @Override
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return type == mekanism.api.transmitters.TransmissionType.ITEM;
+    }
+
+    @Override
     public int getRedstoneLevel() {
-        return Container.calcRedstoneFromInventory(this);
+        return getInventoryComparatorLevel();
     }
 
     public int getTicksRequired() {

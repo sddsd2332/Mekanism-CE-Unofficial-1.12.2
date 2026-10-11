@@ -3,8 +3,8 @@ package mekanism.qioprocessing.common.machine;
 import mekanism.qioprocessing.api.machine.QIOAutomationHost;
 import net.minecraft.nbt.NBTBase;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.EnumFacing;
+import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.capabilities.CapabilityInject;
 import net.minecraftforge.common.capabilities.CapabilityManager;
@@ -34,7 +34,7 @@ public final class QIOAutomationCapabilities {
         CapabilityManager.INSTANCE.register(QIOAutomationHost.class, new Capability.IStorage<>() {
             @Override
             public NBTBase writeNBT(Capability<QIOAutomationHost> capability, QIOAutomationHost instance,
-                  EnumFacing side) {
+                                    EnumFacing side) {
                 if (instance instanceof DefaultQIOAutomationHost host && !host.shouldPersistCapabilityNbt()) {
                     return new NBTTagCompound();
                 }
@@ -47,12 +47,12 @@ public final class QIOAutomationCapabilities {
 
             @Override
             public void readNBT(Capability<QIOAutomationHost> capability, QIOAutomationHost instance,
-                  EnumFacing side, NBTBase nbt) {
+                                EnumFacing side, NBTBase nbt) {
                 // Forge may pass null or a non-compound tag when a capability key is absent or
                 // damaged. Always drive the host through its clean empty-state path instead of
                 // leaving a reused instance carrying stale automation ownership.
                 instance.deserializeNBT(nbt instanceof NBTTagCompound compound ?
-                      compound : new NBTTagCompound());
+                        compound : new NBTTagCompound());
             }
         }, DefaultQIOAutomationHost::new);
         registered = true;

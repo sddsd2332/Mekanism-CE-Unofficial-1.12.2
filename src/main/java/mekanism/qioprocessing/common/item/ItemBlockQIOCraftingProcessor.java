@@ -12,7 +12,10 @@ import net.minecraft.world.World;
 
 import javax.annotation.Nonnull;
 
-/** Processor blocks carry stable identity and durable buffers, so their item form is never stackable. */
+/**
+ * Processor blocks carry stable identity and durable buffers, so their item form is never stackable.
+ */
+
 /**
  * QIO 处理模块中的 ItemBlockQIOCraftingProcessor 类型。
  *
@@ -28,11 +31,11 @@ public class ItemBlockQIOCraftingProcessor extends ItemBlockQIOComponent {
 
     @Override
     public void restorePlacementData(@Nonnull ItemStack stack,
-          @Nonnull EntityLivingBase placer, @Nonnull World world,
-          @Nonnull BlockPos pos, @Nonnull TileEntity tileEntity) {
+                                     @Nonnull EntityLivingBase placer, @Nonnull World world,
+                                     @Nonnull BlockPos pos, @Nonnull TileEntity tileEntity) {
         super.restorePlacementData(stack, placer, world, pos, tileEntity);
         if (!world.isRemote && tileEntity instanceof QIOCraftingProcessor processor &&
-            placer instanceof EntityPlayer player) {
+                placer instanceof EntityPlayer player) {
             processor.restoreExactBinding(player.getUniqueID());
         }
     }

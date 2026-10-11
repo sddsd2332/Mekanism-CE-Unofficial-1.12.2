@@ -1,14 +1,16 @@
 package mekanism.common.inventory.container;
 
-import mekanism.common.tile.qio.TileEntityQIODashboard;
 import mekanism.common.content.qio.QIOFrequency;
-import mekanism.common.util.SecurityUtils;
 import mekanism.common.network.qio.PacketQIOComponentConfig;
+import mekanism.common.tile.qio.TileEntityQIODashboard;
+import mekanism.common.util.SecurityUtils;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.entity.player.InventoryPlayer;
 
-/** Dashboard viewer container with a live frequency reference on the server. */
+/**
+ * Dashboard viewer container with a live frequency reference on the server.
+ */
 public class ContainerQIODashboard extends QIOItemViewerContainer {
 
     private final TileEntityQIODashboard tile;
@@ -99,6 +101,6 @@ public class ContainerQIODashboard extends QIOItemViewerContainer {
     @Override
     public boolean canInteractWith(EntityPlayer player) {
         return tile != null && tile.isUsableByPlayer(player) &&
-              (player.world.isRemote || SecurityUtils.canAccess(player, tile)) && super.canInteractWith(player);
+                (player.world.isRemote || SecurityUtils.canAccess(player, tile)) && super.canInteractWith(player);
     }
 }

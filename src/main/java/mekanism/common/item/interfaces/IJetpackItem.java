@@ -36,8 +36,8 @@ public interface IJetpackItem {
     double getJetpackThrust(ItemStack stack);
 
     enum JetpackMode implements IIncrementalEnum<JetpackMode>, IHasTextComponent {
-        NORMAL("tooltip.jetpack.regular", EnumColor.DARK_GREEN,"jetpack_normal.png"),
-        HOVER("tooltip.jetpack.hover", EnumColor.DARK_AQUA,"jetpack_hover.png"),
+        NORMAL("tooltip.jetpack.regular", EnumColor.DARK_GREEN, "jetpack_normal.png"),
+        HOVER("tooltip.jetpack.hover", EnumColor.DARK_AQUA, "jetpack_hover.png"),
         VECTOR("tooltip.jetpack.vector", EnumColor.ORANGE, "jetpack_vector.png"),
         DISABLED("tooltip.jetpack.disabled", EnumColor.DARK_RED, "jetpack_off.png");
 
@@ -49,7 +49,7 @@ public interface IJetpackItem {
         JetpackMode(String s, EnumColor c, String hudIcon) {
             unlocalized = s;
             color = c;
-            this.hudIcon =  MekanismUtils.getResource(MekanismUtils.ResourceType.GUI_HUD,hudIcon);
+            this.hudIcon = MekanismUtils.getResource(MekanismUtils.ResourceType.GUI_HUD, hudIcon);
         }
 
 

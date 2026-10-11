@@ -8,7 +8,9 @@ import net.minecraftforge.fluids.FluidStack;
 import javax.annotation.Nonnull;
 import java.util.Objects;
 
-/** Immutable generic QIO resource descriptor and positive integer amount. */
+/**
+ * Immutable generic QIO resource descriptor and positive integer amount.
+ */
 public final class QIOResourceStack {
 
     private final QIOResourceDescriptor descriptor;
@@ -63,13 +65,13 @@ public final class QIOResourceStack {
     public static QIOResourceStack read(@Nonnull NBTTagCompound data) {
         Objects.requireNonNull(data, "resource stack");
         return new QIOResourceStack(QIOResourceDescriptor.read(data.getCompoundTag("descriptor")),
-              data.getLong("amount"));
+                data.getLong("amount"));
     }
 
     @Override
     public boolean equals(Object obj) {
         return this == obj || obj instanceof QIOResourceStack other && amount == other.amount &&
-              descriptor.equals(other.descriptor);
+                descriptor.equals(other.descriptor);
     }
 
     @Override

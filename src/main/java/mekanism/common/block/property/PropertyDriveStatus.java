@@ -2,7 +2,9 @@ package mekanism.common.block.property;
 
 import net.minecraftforge.common.property.IUnlistedProperty;
 
-/** Compact client-side status data for the twelve QIO drive positions. */
+/**
+ * Compact client-side status data for the twelve QIO drive positions.
+ */
 public class PropertyDriveStatus implements IUnlistedProperty<Long> {
 
     public static final PropertyDriveStatus INSTANCE = new PropertyDriveStatus();

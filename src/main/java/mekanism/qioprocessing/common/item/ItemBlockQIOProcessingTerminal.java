@@ -12,7 +12,10 @@ import net.minecraft.world.World;
 
 import javax.annotation.Nonnull;
 
-/** Item form that retains exact terminal identity and frequency-reference NBT. */
+/**
+ * Item form that retains exact terminal identity and frequency-reference NBT.
+ */
+
 /**
  * QIO 处理模块中的 ItemBlockQIOProcessingTerminal 类型。
  *
@@ -28,8 +31,8 @@ public final class ItemBlockQIOProcessingTerminal extends ItemBlockQIOComponent 
 
     @Override
     public void restorePlacementData(@Nonnull ItemStack stack,
-          @Nonnull EntityLivingBase placer, @Nonnull World world,
-          @Nonnull BlockPos pos, @Nonnull TileEntity tileEntity) {
+                                     @Nonnull EntityLivingBase placer, @Nonnull World world,
+                                     @Nonnull BlockPos pos, @Nonnull TileEntity tileEntity) {
         if (!(tileEntity instanceof QIOProcessingTerminal terminal)) {
             super.restorePlacementData(stack, placer, world, pos, tileEntity);
             return;
@@ -42,9 +45,9 @@ public final class ItemBlockQIOProcessingTerminal extends ItemBlockQIOComponent 
         }
         terminal.getSecurity().setMode(getSecurity(stack));
         if (mekanism.common.util.ItemDataUtils.hasData(stack, "qioSustained",
-              net.minecraftforge.common.util.Constants.NBT.TAG_COMPOUND)) {
+                net.minecraftforge.common.util.Constants.NBT.TAG_COMPOUND)) {
             terminal.readSustainedQIOData(mekanism.common.util.ItemDataUtils.getCompound(
-                  stack, "qioSustained"));
+                    stack, "qioSustained"));
         }
         if (!world.isRemote && placer instanceof EntityPlayer player) {
             terminal.restoreExactBinding(player.getUniqueID());

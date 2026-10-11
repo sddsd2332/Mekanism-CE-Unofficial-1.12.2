@@ -1,7 +1,7 @@
 package mekanism.common.item;
 
-import mekanism.api.EnumColor;
 import mekanism.api.Action;
+import mekanism.api.EnumColor;
 import mekanism.common.Upgrade;
 import mekanism.common.base.IUpgradeItem;
 import mekanism.common.base.IUpgradeTile;

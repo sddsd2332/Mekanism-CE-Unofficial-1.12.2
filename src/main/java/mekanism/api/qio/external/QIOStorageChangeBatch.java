@@ -6,7 +6,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-/** A server-tick-batched QIO storage change notification. */
+/**
+ * A server-tick-batched QIO storage change notification.
+ */
 public final class QIOStorageChangeBatch {
 
     private final long oldContentsRevision;
@@ -21,16 +23,16 @@ public final class QIOStorageChangeBatch {
     private final boolean invalidated;
 
     public QIOStorageChangeBatch(long oldContentsRevision, long newContentsRevision,
-          long oldCapacityRevision, long newCapacityRevision, long accessRevision,
-          List<QIOStorageChange> changes, boolean fullRescanRequired, boolean invalidated) {
+                                 long oldCapacityRevision, long newCapacityRevision, long accessRevision,
+                                 List<QIOStorageChange> changes, boolean fullRescanRequired, boolean invalidated) {
         this(oldContentsRevision, newContentsRevision, oldCapacityRevision, newCapacityRevision,
-              0, 0, accessRevision, changes, fullRescanRequired, invalidated);
+                0, 0, accessRevision, changes, fullRescanRequired, invalidated);
     }
 
     public QIOStorageChangeBatch(long oldContentsRevision, long newContentsRevision,
-          long oldCapacityRevision, long newCapacityRevision, long oldClaimRevision,
-          long newClaimRevision, long accessRevision, List<QIOStorageChange> changes,
-          boolean fullRescanRequired, boolean invalidated) {
+                                 long oldCapacityRevision, long newCapacityRevision, long oldClaimRevision,
+                                 long newClaimRevision, long accessRevision, List<QIOStorageChange> changes,
+                                 boolean fullRescanRequired, boolean invalidated) {
         this.oldContentsRevision = oldContentsRevision;
         this.newContentsRevision = newContentsRevision;
         this.oldCapacityRevision = oldCapacityRevision;
@@ -45,15 +47,15 @@ public final class QIOStorageChangeBatch {
 
     @Nonnull
     public static QIOStorageChangeBatch invalidated(long contentsRevision, long capacityRevision,
-          long accessRevision) {
+                                                    long accessRevision) {
         return invalidated(contentsRevision, capacityRevision, 0, accessRevision);
     }
 
     @Nonnull
     public static QIOStorageChangeBatch invalidated(long contentsRevision, long capacityRevision,
-          long claimRevision, long accessRevision) {
+                                                    long claimRevision, long accessRevision) {
         return new QIOStorageChangeBatch(contentsRevision, contentsRevision, capacityRevision,
-              capacityRevision, claimRevision, claimRevision, accessRevision, Collections.emptyList(), true, true);
+                capacityRevision, claimRevision, claimRevision, accessRevision, Collections.emptyList(), true, true);
     }
 
     public long getOldContentsRevision() {
@@ -111,7 +113,7 @@ public final class QIOStorageChangeBatch {
             return this;
         }
         return new QIOStorageChangeBatch(oldContentsRevision, newContentsRevision,
-              oldCapacityRevision, newCapacityRevision, oldClaimRevision, newClaimRevision,
-              accessRevision, changes, true, invalidated);
+                oldCapacityRevision, newCapacityRevision, oldClaimRevision, newClaimRevision,
+                accessRevision, changes, true, invalidated);
     }
 }

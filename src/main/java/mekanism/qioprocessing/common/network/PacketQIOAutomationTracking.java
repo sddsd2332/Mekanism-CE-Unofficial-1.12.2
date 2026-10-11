@@ -34,12 +34,12 @@ public final class PacketQIOAutomationTracking implements IMessageHandler<Packet
 
     private static void handle(Message message, EntityPlayer player) {
         if (!(player.openContainer instanceof MekanismTileContainer<?> container) ||
-            container.windowId != message.windowId || !container.canInteractWith(player)) {
+                container.windowId != message.windowId || !container.canInteractWith(player)) {
             return;
         }
         TileEntity tile = message.position.getTileEntity(player.world);
         if (tile == null || tile != container.getTileEntity() ||
-            !PacketHandler.canAccessTile(player, tile, true)) {
+                !PacketHandler.canAccessTile(player, tile, true)) {
             return;
         }
         QIOAutomationContainerState state = QIOAutomationContainerState.get(container);

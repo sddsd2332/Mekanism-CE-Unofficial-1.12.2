@@ -8,15 +8,15 @@ import mekanism.client.gui.element.slot.GuiSlot;
 import mekanism.client.gui.element.slot.SlotType;
 import mekanism.client.gui.element.window.GuiConfirmationDialog;
 import mekanism.client.gui.element.window.GuiConfirmationDialog.DialogType;
-import mekanism.common.MekanismLang;
 import mekanism.common.Mekanism;
+import mekanism.common.MekanismLang;
 import mekanism.common.QIOGuiConstants;
 import mekanism.common.content.qio.QIOFrequency;
 import mekanism.common.frequency.Frequency.FrequencyIdentity;
 import mekanism.common.frequency.FrequencyType;
 import mekanism.common.inventory.container.ContainerQIOFrequencySelect;
-import mekanism.common.network.PacketSetTileFrequency.SetTileFrequencyMessage;
 import mekanism.common.network.PacketSetFrequencyColor.SetFrequencyColorMessage;
+import mekanism.common.network.PacketSetTileFrequency.SetTileFrequencyMessage;
 import mekanism.common.network.PacketSimpleGui.SimpleGuiMessage;
 import mekanism.common.tile.qio.TileEntityQIOComponent;
 import net.minecraft.entity.player.InventoryPlayer;
@@ -52,11 +52,11 @@ public class GuiQIOFrequencySelect extends GuiTeleporterBase<ContainerQIOFrequen
     protected void addGuiElements() {
         super.addGuiElements();
         addButton(new MekanismImageButton(this, 6, 6, 14, getButtonLocation("back"), this::goBack)
-              .setTooltip(MekanismLang.BACK.translate()));
+                .setTooltip(MekanismLang.BACK.translate()));
         addButton(new GuiSlot(SlotType.NORMAL, this, 131, 130));
         addButton(new ColorButton(this, 132, 131, 16, 16,
-              () -> getFrequency() == null ? null : getFrequency().getColor(),
-              () -> sendColorUpdate(true), () -> sendColorUpdate(false)));
+                () -> getFrequency() == null ? null : getFrequency().getColor(),
+                () -> sendColorUpdate(true), () -> sendColorUpdate(false)));
     }
 
     @Override

@@ -14,7 +14,10 @@ import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessageHandler;
 import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
 
-/** Server-authoritative local recovery request for a QIO automation host. */
+/**
+ * Server-authoritative local recovery request for a QIO automation host.
+ */
+
 /**
  * QIO 处理模块中的 PacketQIOAutomationRecovery 类型。
  *
@@ -22,7 +25,7 @@ import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class PacketQIOAutomationRecovery implements
-      IMessageHandler<PacketQIOAutomationRecovery.Message, IMessage> {
+        IMessageHandler<PacketQIOAutomationRecovery.Message, IMessage> {
 
     @Override
     public IMessage onMessage(Message message, MessageContext context) {
@@ -38,19 +41,19 @@ public final class PacketQIOAutomationRecovery implements
 
     private static void handle(Message message, EntityPlayer player) {
         if (!(player.openContainer instanceof MekanismTileContainer<?> container) ||
-            container.windowId != message.windowId || !container.canInteractWith(player)) {
+                container.windowId != message.windowId || !container.canInteractWith(player)) {
             return;
         }
         TileEntity tile = message.position.getTileEntity(player.world);
         if (tile == null || tile != container.getTileEntity() ||
-            !PacketHandler.canAccessTile(player, tile, true) ||
-            !tile.hasCapability(QIOAutomationCapabilities.AUTOMATION_HOST, null)) {
+                !PacketHandler.canAccessTile(player, tile, true) ||
+                !tile.hasCapability(QIOAutomationCapabilities.AUTOMATION_HOST, null)) {
             return;
         }
         Object capability = tile.getCapability(QIOAutomationCapabilities.AUTOMATION_HOST, null);
         if (capability instanceof DefaultQIOAutomationHost host &&
-            (host.getRecoveryState() == QIOAutomationHost.RecoveryState.QUARANTINED ||
-                  host.getState() == QIOAutomationHost.State.DATA_ERROR)) {
+                (host.getRecoveryState() == QIOAutomationHost.RecoveryState.QUARANTINED ||
+                        host.getState() == QIOAutomationHost.State.DATA_ERROR)) {
             QIOAutomationForcedRecoveryService.forceClear(host);
         }
     }

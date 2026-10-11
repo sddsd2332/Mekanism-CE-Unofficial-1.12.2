@@ -1,6 +1,9 @@
 package mekanism.qioprocessing.client.gui;
 
-/** Small helpers for monotonic client tick timestamps with an unset sentinel. */
+/**
+ * Small helpers for monotonic client tick timestamps with an unset sentinel.
+ */
+
 /**
  * QIO 处理模块中的 QIOClientTiming 类型。
  *

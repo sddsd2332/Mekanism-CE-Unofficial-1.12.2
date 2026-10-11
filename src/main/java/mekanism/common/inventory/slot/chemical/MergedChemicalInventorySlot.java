@@ -35,7 +35,7 @@ public class MergedChemicalInventorySlot<MERGED extends MergedTank> extends meka
     }
 
     protected MergedChemicalInventorySlot(MERGED mergedTank, BiPredicate<ItemStack, AutomationType> canExtract,
-          BiPredicate<ItemStack, AutomationType> canInsert, Predicate<ItemStack> validator, @Nullable IContentsListener listener, int x, int y) {
+                                          BiPredicate<ItemStack, AutomationType> canInsert, Predicate<ItemStack> validator, @Nullable IContentsListener listener, int x, int y) {
         super(mergedTank, canExtract, canInsert, validator, listener, x, y);
     }
 

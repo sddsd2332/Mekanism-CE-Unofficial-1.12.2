@@ -11,8 +11,8 @@ import mekanism.common.frequency.Frequency.FrequencyIdentity;
 import mekanism.common.frequency.FrequencyType;
 import mekanism.common.tile.qio.TileEntityQIOComponent;
 import mekanism.qioprocessing.common.terminal.QIOProcessingFrequencyAccess;
-import mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType;
 import mekanism.qioprocessing.common.terminal.QIOProcessingTerminalDeviceRegistry;
+import mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.common.util.Constants.NBT;
 
@@ -21,14 +21,18 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Shared exact-frequency state for the four QIO Processing terminal blocks. */
+/**
+ * Shared exact-frequency state for the four QIO Processing terminal blocks.
+ */
+
 /**
  * QIO 处理模块中的 QIOProcessingTerminal 类型。
  *
  * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
  * 实现负责保持状态与持久化表示的一致。</p>
  */
-public abstract class QIOProcessingTerminal extends TileEntityQIOComponent {
+public abstract class QIOProcessingTerminal extends TileEntityQIOComponent
+        implements mekanism.qioprocessing.common.terminal.QIOProcessingTerminalAccess {
 
     private static final int DATA_SCHEMA = 1;
     private static final int MAX_DIAGNOSTIC_LENGTH = 512;
@@ -43,13 +47,18 @@ public abstract class QIOProcessingTerminal extends TileEntityQIOComponent {
     private boolean identityConflict;
 
     protected QIOProcessingTerminal(@Nonnull String name,
-          @Nonnull QIOProcessingTerminalType terminalType) {
+                                    @Nonnull QIOProcessingTerminalType terminalType) {
         super(name);
         this.terminalType = Objects.requireNonNull(terminalType, "terminalType");
     }
 
     @Nonnull
     public final QIOProcessingTerminalType getTerminalType() {
+        return terminalType;
+    }
+
+    @Override
+    public final QIOProcessingTerminalType terminalType() {
         return terminalType;
     }
 
@@ -62,9 +71,30 @@ public abstract class QIOProcessingTerminal extends TileEntityQIOComponent {
         return configurationRevision;
     }
 
+    @Override
+    public final long configurationRevision() {
+        return configurationRevision;
+    }
+
     @Nullable
     public final QIOFrequencyReference getFrequencyReference() {
         return frequencyReference;
+    }
+
+    @Override
+    public final QIOFrequencyReference endpointReference() {
+        return frequencyReference;
+    }
+
+    @Override
+    public final boolean bindCurrentFrequency(UUID playerId) {
+        QIOFrequency frequency = getQIOFrequency();
+        if (frequency == null || !frequency.isValid() || frequency.isRemoved() ||
+                !QIOFrequencyStorageAccess.INSTANCE.canAccess(
+                        QIOFrequencyStorageAccess.INSTANCE.createReference(frequency, playerId), playerId)) {
+            return false;
+        }
+        return applyAuthorizedBinding(frequency, playerId);
     }
 
     @Nullable
@@ -110,31 +140,31 @@ public abstract class QIOProcessingTerminal extends TileEntityQIOComponent {
     @Nullable
     public final QIOFrequency getQIOFrequency() {
         return hasDataError() || identityConflict ? null : QIOProcessingFrequencyAccess.resolve(
-              frequencyReference);
+                frequencyReference);
     }
 
     /** Generic name-only frequency packets are not authoritative for processing terminals. */
     @Override
     public final void setFrequency(FrequencyType<?> type, FrequencyIdentity data,
-          UUID player) {
+                                   UUID player) {
     }
 
     /** Generic removal packets are likewise rejected for the exact QIO binding. */
     @Override
     public final void removeFrequency(FrequencyType<?> type, FrequencyIdentity data,
-          UUID player) {
+                                      UUID player) {
     }
 
     public final boolean applyAuthorizedBinding(@Nullable QIOFrequency frequency,
-          @Nonnull UUID bindingPlayerUUID) {
+                                                @Nonnull UUID bindingPlayerUUID) {
         Objects.requireNonNull(bindingPlayerUUID, "bindingPlayerUUID");
         if (identityConflict) {
             return false;
         }
         boolean clearedDiagnostic = clearDataErrorForRecovery();
         QIOFrequencyReference updatedReference = frequency == null ? null :
-              QIOFrequencyStorageAccess.INSTANCE.createReference(frequency,
-                    bindingPlayerUUID);
+                QIOFrequencyStorageAccess.INSTANCE.createReference(frequency,
+                        bindingPlayerUUID);
         if (Objects.equals(frequencyReference, updatedReference)) {
             return clearedDiagnostic;
         }
@@ -142,7 +172,7 @@ public abstract class QIOProcessingTerminal extends TileEntityQIOComponent {
             getFrequencyComponent().unsetFrequency(FrequencyType.QIO);
         } else {
             getFrequencyComponent().setFrequencyFromData(FrequencyType.QIO,
-                  frequency.getIdentity(), bindingPlayerUUID);
+                    frequency.getIdentity(), bindingPlayerUUID);
         }
         frequencyReference = updatedReference;
         markConfigurationChanged();
@@ -160,13 +190,13 @@ public abstract class QIOProcessingTerminal extends TileEntityQIOComponent {
             return false;
         }
         QIOFrequency frequency = QIOProcessingFrequencyAccess.resolveAccessible(
-              frequencyReference, bindingPlayerUUID);
+                frequencyReference, bindingPlayerUUID);
         if (frequency == null) {
             getFrequencyComponent().unsetFrequency(FrequencyType.QIO);
             return false;
         }
         getFrequencyComponent().setFrequencyFromData(FrequencyType.QIO,
-              frequency.getIdentity(), bindingPlayerUUID);
+                frequency.getIdentity(), bindingPlayerUUID);
         return true;
     }
 
@@ -275,11 +305,11 @@ public abstract class QIOProcessingTerminal extends TileEntityQIOComponent {
 
     private void readClientSyncData(NBTTagCompound data) {
         configurationRevision = Math.max(0,
-              data.getLong("qioProcessingTerminalConfigRevision"));
+                data.getLong("qioProcessingTerminalConfigRevision"));
         try {
             frequencyReference = data.hasKey("qioProcessingFrequencyReference",
-                  NBT.TAG_COMPOUND) ? QIOFrequencyReference.read(data.getCompoundTag(
-                  "qioProcessingFrequencyReference")) : null;
+                    NBT.TAG_COMPOUND) ? QIOFrequencyReference.read(data.getCompoundTag(
+                    "qioProcessingFrequencyReference")) : null;
         } catch (RuntimeException ignored) {
             frequencyReference = null;
         }
@@ -316,7 +346,7 @@ public abstract class QIOProcessingTerminal extends TileEntityQIOComponent {
         try {
             if (data.getInteger("qioProcessingTerminalSchema") != DATA_SCHEMA) {
                 throw new IllegalArgumentException("Unsupported terminal schema " +
-                      data.getInteger("qioProcessingTerminalSchema"));
+                        data.getInteger("qioProcessingTerminalSchema"));
             }
             String storedUUID = data.getString("qioProcessingTerminalUUID");
             UUID parsedUUID = UUID.fromString(storedUUID);
@@ -328,18 +358,18 @@ public abstract class QIOProcessingTerminal extends TileEntityQIOComponent {
                 throw new IllegalArgumentException("Negative terminal configuration revision");
             }
             QIOFrequencyReference parsedReference =
-                  data.hasKey("qioProcessingFrequencyReference", NBT.TAG_COMPOUND) ?
-                        QIOFrequencyReference.read(data.getCompoundTag(
-                              "qioProcessingFrequencyReference")) : null;
+                    data.hasKey("qioProcessingFrequencyReference", NBT.TAG_COMPOUND) ?
+                            QIOFrequencyReference.read(data.getCompoundTag(
+                                    "qioProcessingFrequencyReference")) : null;
             persistentTerminalUUID = parsedUUID;
             configurationRevision = parsedRevision;
             frequencyReference = parsedReference;
             dataError = data.hasKey("qioProcessingTerminalDataError", NBT.TAG_STRING) ?
-                  boundedDiagnostic(data.getString("qioProcessingTerminalDataError")) : null;
+                    boundedDiagnostic(data.getString("qioProcessingTerminalDataError")) : null;
         } catch (RuntimeException e) {
             frequencyReference = null;
             dataError = boundedDiagnostic(e.getMessage() == null ?
-                  e.getClass().getSimpleName() : e.getMessage());
+                    e.getClass().getSimpleName() : e.getMessage());
         }
     }
 
@@ -355,8 +385,8 @@ public abstract class QIOProcessingTerminal extends TileEntityQIOComponent {
 
     private static String boundedDiagnostic(String diagnostic) {
         String checked = diagnostic == null || diagnostic.trim().isEmpty() ?
-              "unknown QIO processing terminal data error" : diagnostic.trim();
+                "unknown QIO processing terminal data error" : diagnostic.trim();
         return checked.substring(0, Math.min(MAX_DIAGNOSTIC_LENGTH,
-              checked.length()));
+                checked.length()));
     }
 }

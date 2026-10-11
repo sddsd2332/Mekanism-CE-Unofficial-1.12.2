@@ -178,12 +178,12 @@ public class OrganicFarm extends VirtualizedMekanismRegistry<FarmRecipe> {
             msg.add(isInvalidChance(chance), "chance must be between 0 and 1.0, yet it was {}", chance);
             int chanceOutputCount = chanceItems.size() + (extra.isEmpty() ? 0 : 1);
             msg.add(chanceOutputCount > FarmOutput.MAX_CHANCE_OUTPUTS, "at most {} chance outputs are supported, yet {} were specified",
-                  FarmOutput.MAX_CHANCE_OUTPUTS, chanceOutputCount);
+                    FarmOutput.MAX_CHANCE_OUTPUTS, chanceOutputCount);
             for (int i = 0; i < chanceItems.size(); i++) {
                 msg.add(IngredientHelper.isEmpty(chanceItems.get(i)), "chance output {} must not be empty", i);
                 double outputChance = chances.get(i);
                 msg.add(isInvalidChance(outputChance),
-                      "chance output {} must have a chance between 0 and 1.0, yet it was {}", i, outputChance);
+                        "chance output {} must have a chance between 0 and 1.0, yet it was {}", i, outputChance);
             }
         }
 
@@ -201,7 +201,7 @@ public class OrganicFarm extends VirtualizedMekanismRegistry<FarmRecipe> {
             FarmRecipe recipe = null;
             for (ItemStack itemStack : input.get(0).getMatchingStacks()) {
                 FarmInput farmInput = gasInput.isEmpty() ? new FarmInput(itemStack.copy(), fluidInput.get(0)) :
-                      new FarmInput(itemStack.copy(), gasInput.get(0));
+                        new FarmInput(itemStack.copy(), gasInput.get(0));
                 FarmRecipe r = new FarmRecipe(farmInput, farmOutput);
                 if (recipe == null) recipe = r;
                 GrSMekanismAdd.get().organicFarm.add(r);

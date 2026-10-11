@@ -156,12 +156,12 @@ public class GuiWindow extends GuiTexturedElement implements IGUIWindow {
         if (isFocusOverlay()) {
             ScaledResolution scaledResolution = new ScaledResolution(minecraft);
             MekanismRenderer.renderColorOverlay(-getGuiLeft(), -getGuiTop(), scaledResolution.getScaledWidth() - getGuiLeft(), scaledResolution.getScaledHeight() - getGuiTop(),
-                  OVERLAY_COLOR.rgba());
+                    OVERLAY_COLOR.rgba());
         } else {
             GlStateManager.color(1, 1, 1, 0.75F);
             GlStateManager.enableBlend();
             GlStateManager.tryBlendFuncSeparate(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA,
-                  GlStateManager.SourceFactor.ONE, GlStateManager.DestFactor.ZERO);
+                    GlStateManager.SourceFactor.ONE, GlStateManager.DestFactor.ZERO);
             GuiUtils.renderBackgroundTexture(GuiMekanism.SHADOW, 4, 4, getButtonX() - 3, getButtonY() - 3, getButtonWidth() + 6, getButtonHeight() + 6, 256, 256);
             MekanismRenderer.resetColor();
         }

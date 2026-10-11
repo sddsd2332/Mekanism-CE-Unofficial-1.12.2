@@ -17,7 +17,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-/** Shared secured block container for management, request, maintenance and monitor terminals. */
+/**
+ * Shared secured block container for management, request, maintenance and monitor terminals.
+ */
+
 /**
  * QIO 处理模块中的 ContainerQIOProcessingTerminal 类型。
  *
@@ -25,45 +28,45 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public class ContainerQIOProcessingTerminal extends
-      MekanismTileContainer<QIOProcessingTerminal>
-      implements QIOBlockTerminalContainer, QIOManagementDevicePageContainer,
-      QIOManagementPolicyPageContainer, QIOManagementRecipeContainer,
-      QIOWorkbenchConfigurationContainer,
-      QIOMaintenanceRulePageContainer,
-      QIOMaintenanceResourcePageContainer,
-      QIOCraftingMonitorPageContainer, QIOProcessingTerminalFrequencyContainer {
+        MekanismTileContainer<QIOProcessingTerminal>
+        implements QIOBlockTerminalContainer, QIOManagementDevicePageContainer,
+        QIOManagementPolicyPageContainer, QIOManagementRecipeContainer,
+        QIOWorkbenchConfigurationContainer,
+        QIOMaintenanceRulePageContainer,
+        QIOMaintenanceResourcePageContainer,
+        QIOCraftingMonitorPageContainer, QIOProcessingTerminalFrequencyContainer {
 
     private final QIOBlockTerminalSessionTarget sessionTarget;
     private final QIOProcessingTerminalContainerState terminalState;
     private final QIOManagementDeviceClientCache deviceClientCache =
-          new QIOManagementDeviceClientCache();
+            new QIOManagementDeviceClientCache();
     private final QIOManagementDeviceGroupClientCache deviceGroupClientCache =
-          new QIOManagementDeviceGroupClientCache();
+            new QIOManagementDeviceGroupClientCache();
     private final QIOManagementPolicyClientCache policyClientCache =
-          new QIOManagementPolicyClientCache();
+            new QIOManagementPolicyClientCache();
     private final QIOManagementRecipeClientCache managementRecipeClientCache =
-          new QIOManagementRecipeClientCache();
+            new QIOManagementRecipeClientCache();
     private final QIOWorkbenchConfigurationClientCache workbenchConfigurationClientCache =
-          new QIOWorkbenchConfigurationClientCache();
+            new QIOWorkbenchConfigurationClientCache();
     private final QIOMaintenanceRuleClientCache maintenanceRuleClientCache =
-          new QIOMaintenanceRuleClientCache();
+            new QIOMaintenanceRuleClientCache();
     private final QIOSmartProcessingClientCache maintenanceResourceClientCache =
-          new QIOSmartProcessingClientCache();
+            new QIOSmartProcessingClientCache();
     private final QIOCraftingMonitorClientCache craftingMonitorClientCache =
-          new QIOCraftingMonitorClientCache();
+            new QIOCraftingMonitorClientCache();
     private final QIOManagementPageRequestThrottle managementPageThrottle =
-          new QIOManagementPageRequestThrottle();
+            new QIOManagementPageRequestThrottle();
     private long lastMaintenanceRuleRequestTick = Long.MIN_VALUE;
     private long lastMaintenanceResourceRequestTick = Long.MIN_VALUE;
     private long lastCraftingMonitorRequestTick = Long.MIN_VALUE;
     private long lastCraftingMonitorDetailRequestTick = Long.MIN_VALUE;
 
     public ContainerQIOProcessingTerminal(InventoryPlayer inventory,
-          QIOProcessingTerminal terminal) {
+                                          QIOProcessingTerminal terminal) {
         super(terminal, inventory);
         sessionTarget = new QIOBlockTerminalSessionTarget(inventory, terminal, isRemote());
         terminalState = new QIOProcessingTerminalContainerState(this,
-              this::getTerminalSession);
+                this::getTerminalSession);
     }
 
     @Nullable
@@ -85,8 +88,8 @@ public class ContainerQIOProcessingTerminal extends
     @Override
     public QIOFrequency getTerminalFrequency() {
         return tile.getQIOFrequency() == null && isRemote() &&
-              tile.getFrequencyReference() != null ? clientFrequency(
-              tile.getFrequencyReference().getFrequencyUUID()) : tile.getQIOFrequency();
+                tile.getFrequencyReference() != null ? clientFrequency(
+                tile.getFrequencyReference().getFrequencyUUID()) : tile.getQIOFrequency();
     }
 
     @Override
@@ -195,7 +198,7 @@ public class ContainerQIOProcessingTerminal extends
 
     @Override
     public boolean tryRequestWorkbenchConfiguration(long currentTick,
-          @Nonnull RequestStream requestStream) {
+                                                    @Nonnull RequestStream requestStream) {
         return managementPageThrottle.tryWorkbenchConfiguration(currentTick, requestStream);
     }
 
@@ -260,7 +263,7 @@ public class ContainerQIOProcessingTerminal extends
     }
 
     public boolean acceptAuthorizedBindingChange(long expectedRevision,
-          long updatedRevision) {
+                                                 long updatedRevision) {
         return sessionTarget.acceptMutation(expectedRevision, updatedRevision);
     }
 
@@ -281,12 +284,12 @@ public class ContainerQIOProcessingTerminal extends
     @Override
     protected void addInventorySlots(@Nonnull InventoryPlayer inventory) {
         if (tile != null && tile.getTerminalType() ==
-            mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT) {
+                mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT) {
             addWorkbenchPatternInventorySlots(inventory);
             return;
         }
         if (tile != null && tile.getTerminalType() ==
-            mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.CRAFTING_MONITOR) {
+                mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.CRAFTING_MONITOR) {
             return;
         }
         super.addInventorySlots(inventory);
@@ -298,14 +301,14 @@ public class ContainerQIOProcessingTerminal extends
         for (int slotY = 0; slotY < 3; slotY++) {
             for (int slotX = 0; slotX < 9; slotX++) {
                 MainInventorySlot slot = QIOWorkbenchEditorSlots.main(this, inventory,
-                      InventoryPlayer.getHotbarSize() + slotX + slotY * 9,
-                      x + slotX * 18, y + slotY * 18);
+                        InventoryPlayer.getHotbarSize() + slotX + slotY * 9,
+                        x + slotX * 18, y + slotY * 18);
                 addSlot(slot);
             }
         }
         for (int slotX = 0; slotX < InventoryPlayer.getHotbarSize(); slotX++) {
             HotBarSlot slot = QIOWorkbenchEditorSlots.hotbar(this, inventory, slotX,
-                  x + slotX * 18, y + 58, false);
+                    x + slotX * 18, y + 58, false);
             addSlot(slot);
         }
     }
@@ -313,26 +316,26 @@ public class ContainerQIOProcessingTerminal extends
     @Override
     protected int getInventoryYOffset() {
         if (tile != null && tile.getTerminalType() ==
-            mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT) {
+                mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT) {
             return 280;
         }
         if (tile != null && tile.getTerminalType() ==
-            mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.CRAFTING_MONITOR) {
+                mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.CRAFTING_MONITOR) {
             return 258;
         }
         return tile != null && tile.getTerminalType() ==
-              mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MAINTENANCE ?
-              134 : super.getInventoryYOffset();
+                mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MAINTENANCE ?
+                134 : super.getInventoryYOffset();
     }
 
     @Override
     protected int getInventoryXOffset() {
         if (tile != null && tile.getTerminalType() ==
-            mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT) {
+                mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT) {
             return 227;
         }
         if (tile != null && tile.getTerminalType() ==
-            mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MAINTENANCE) {
+                mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MAINTENANCE) {
             return 38;
         }
         return super.getInventoryXOffset();

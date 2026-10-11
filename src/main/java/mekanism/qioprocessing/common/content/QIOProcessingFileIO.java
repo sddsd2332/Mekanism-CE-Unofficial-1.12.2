@@ -2,37 +2,16 @@ package mekanism.qioprocessing.common.content;
 
 import mekanism.common.Mekanism;
 import mekanism.qioprocessing.common.util.QIONbtUtils;
-import net.minecraft.nbt.CompressedStreamTools;
-import net.minecraft.nbt.NBTBase;
-import net.minecraft.nbt.NBTTagByte;
-import net.minecraft.nbt.NBTTagByteArray;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.nbt.NBTTagDouble;
-import net.minecraft.nbt.NBTTagFloat;
-import net.minecraft.nbt.NBTTagInt;
-import net.minecraft.nbt.NBTTagIntArray;
-import net.minecraft.nbt.NBTTagList;
-import net.minecraft.nbt.NBTTagLong;
-import net.minecraft.nbt.NBTTagLongArray;
-import net.minecraft.nbt.NBTTagShort;
-import net.minecraft.nbt.NBTTagString;
+import net.minecraft.nbt.*;
 
 import javax.annotation.Nullable;
-import java.io.BufferedInputStream;
-import java.io.DataInputStream;
-import java.io.FilterInputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.SyncFailedException;
-import java.util.zip.GZIPInputStream;
+import java.io.*;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.UUID;
+import java.util.zip.GZIPInputStream;
 
 /**
  * QIO 处理模块中的 QIOProcessingFileIO 类型。
@@ -43,7 +22,9 @@ import java.util.UUID;
 final class QIOProcessingFileIO {
 
     private static final long MAX_COMPRESSED_FILE_SIZE = 64L * 1024 * 1024;
-    /** Limits apply to the expanded stream as well as the compressed file on disk. */
+    /**
+     * Limits apply to the expanded stream as well as the compressed file on disk.
+     */
     private static final long MAX_DECOMPRESSED_FILE_SIZE = 256L * 1024 * 1024;
     private static final long MAX_NBT_NODES = 4_000_000L;
     private static final long MAX_NBT_LIST_ENTRIES = 1_000_000L;
@@ -73,7 +54,7 @@ final class QIOProcessingFileIO {
         try (FileInputStream input = new FileInputStream(file);
              GZIPInputStream gzip = new GZIPInputStream(input);
              LimitedInputStream limited = new LimitedInputStream(gzip,
-                   MAX_DECOMPRESSED_FILE_SIZE);
+                     MAX_DECOMPRESSED_FILE_SIZE);
              DataInputStream data = new DataInputStream(new BufferedInputStream(limited))) {
             // Decode with local bounds instead of NBTSizeTracker. Some coremods replace its
             // hard limit with a warning that emits one stack trace for every subsequent field.
@@ -89,7 +70,7 @@ final class QIOProcessingFileIO {
             // Convert them to IO failures so the existing quarantine path handles them.
             String message = error.getMessage();
             if (message != null && (message.contains("too big") ||
-                  message.contains("too high complexity"))) {
+                    message.contains("too high complexity"))) {
                 throw new FileTooLargeException("QIO Processing NBT allocation limit exceeded");
             }
             throw new IOException("Unable to read bounded QIO Processing NBT", error);
@@ -97,7 +78,7 @@ final class QIOProcessingFileIO {
     }
 
     private static NBTTagCompound readBoundedCompound(DataInputStream input)
-          throws IOException {
+            throws IOException {
         int rootType = input.readUnsignedByte();
         if (rootType != 10) {
             throw new IOException("QIO Processing NBT root is not a compound");
@@ -108,13 +89,13 @@ final class QIOProcessingFileIO {
     }
 
     private static NBTBase readBoundedPayload(DataInputStream input, int type, int depth,
-          NbtBudget budget) throws IOException {
+                                              NbtBudget budget) throws IOException {
         if (type <= 0 || type > 12) {
             throw new IOException("QIO Processing NBT contains an invalid tag type: " + type);
         }
         if (depth > MAX_NBT_DEPTH) {
             throw new FileTooLargeException("QIO Processing NBT nesting exceeds " +
-                  MAX_NBT_DEPTH + " levels");
+                    MAX_NBT_DEPTH + " levels");
         }
         if (++budget.nodes > MAX_NBT_NODES) {
             throw new FileTooLargeException("QIO Processing NBT node limit exceeded");
@@ -144,9 +125,9 @@ final class QIOProcessingFileIO {
                 int childType = input.readUnsignedByte();
                 int count = input.readInt();
                 if (count < 0 || count > MAX_NBT_LIST_ENTRIES ||
-                    count > MAX_NBT_NODES - budget.nodes) {
+                        count > MAX_NBT_NODES - budget.nodes) {
                     throw new FileTooLargeException(
-                          "QIO Processing NBT list-entry limit exceeded");
+                            "QIO Processing NBT list-entry limit exceeded");
                 }
                 if (childType == 0 && count > 0 || childType > 12) {
                     throw new IOException("QIO Processing NBT list has an invalid tag type");
@@ -154,7 +135,7 @@ final class QIOProcessingFileIO {
                 budget.listEntries = saturatedAdd(budget.listEntries, count);
                 if (budget.listEntries > MAX_NBT_LIST_ENTRIES) {
                     throw new FileTooLargeException(
-                          "QIO Processing NBT list-entry limit exceeded");
+                            "QIO Processing NBT list-entry limit exceeded");
                 }
                 NBTTagList list = new NBTTagList();
                 for (int index = 0; index < count; index++) {
@@ -169,14 +150,14 @@ final class QIOProcessingFileIO {
                     if (childType == 0) return compound;
                     if (childType > 12) {
                         throw new IOException(
-                              "QIO Processing NBT contains an invalid compound tag type");
+                                "QIO Processing NBT contains an invalid compound tag type");
                     }
                     String key = readBoundedUtf(input, "key");
                     if (compound.hasKey(key)) {
                         throw new IOException("QIO Processing NBT contains a duplicate key");
                     }
                     compound.setTag(key,
-                          readBoundedPayload(input, childType, depth + 1, budget));
+                            readBoundedPayload(input, childType, depth + 1, budget));
                 }
             }
             case 11: {
@@ -197,25 +178,25 @@ final class QIOProcessingFileIO {
     }
 
     private static int boundedArrayLength(int length, int width, NbtBudget budget)
-          throws IOException {
+            throws IOException {
         if (length < 0) {
             throw new IOException("QIO Processing NBT array length is negative");
         }
         long bytes = saturatedMultiply(length, width);
         budget.arrayBytes = saturatedAdd(budget.arrayBytes, bytes);
         if (bytes > MAX_NBT_ARRAY_BYTES ||
-            budget.arrayBytes > MAX_NBT_TOTAL_ARRAY_BYTES) {
+                budget.arrayBytes > MAX_NBT_TOTAL_ARRAY_BYTES) {
             throw new FileTooLargeException("QIO Processing NBT array budget exceeded");
         }
         return length;
     }
 
     private static String readBoundedUtf(DataInputStream input, String description)
-          throws IOException {
+            throws IOException {
         String value = input.readUTF();
         if (modifiedUtfLength(value) > MAX_NBT_STRING_BYTES) {
             throw new FileTooLargeException("QIO Processing NBT " + description +
-                  " exceeds 65,535 encoded bytes");
+                    " exceeds 65,535 encoded bytes");
         }
         return value;
     }
@@ -234,7 +215,9 @@ final class QIOProcessingFileIO {
         }
     }
 
-    /** Replaces a target atomically after its previous generation was archived separately. */
+    /**
+     * Replaces a target atomically after its previous generation was archived separately.
+     */
     static void replaceAtomicWithoutBackup(File target, NBTTagCompound data) throws IOException {
         ensureDirectory(target.getParentFile());
         File temporary = new File(target.getParentFile(), target.getName() + ".tmp");
@@ -265,7 +248,7 @@ final class QIOProcessingFileIO {
 
     static File[] listBackupFiles(File directory) {
         File[] files = directory.listFiles(file -> file.isFile() &&
-              file.getName().endsWith(".dat" + BACKUP_SUFFIX));
+                file.getName().endsWith(".dat" + BACKUP_SUFFIX));
         if (files == null) {
             return new File[0];
         }
@@ -309,7 +292,9 @@ final class QIOProcessingFileIO {
         }
     }
 
-    /** Copies one generation to a uniquely named archive and verifies it byte-for-byte. */
+    /**
+     * Copies one generation to a uniquely named archive and verifies it byte-for-byte.
+     */
     @Nullable
     static File archiveCopy(File file, String suffix) {
         if (file == null || !file.isFile()) {
@@ -336,13 +321,13 @@ final class QIOProcessingFileIO {
                 Files.deleteIfExists(temporary.toPath());
             } catch (IOException e) {
                 Mekanism.logger.warn("Unable to remove temporary QIO Processing archive {}",
-                      temporary, e);
+                        temporary, e);
             }
         }
     }
 
     private static void writeVerifiedTemporary(File temporary, NBTTagCompound data,
-          File target) throws IOException {
+                                               File target) throws IOException {
         // Validate before DataOutputStream.writeUTF sees an oversized third-party string. This
         // prevents the UTFDataFormatException path and avoids creating a partial temporary file.
         validateNbt(data);
@@ -352,7 +337,7 @@ final class QIOProcessingFileIO {
         }
         if (temporary.length() > MAX_COMPRESSED_FILE_SIZE) {
             throw new FileTooLargeException(
-                  "QIO Processing file would exceed 64 MiB: " + target);
+                    "QIO Processing file would exceed 64 MiB: " + target);
         }
         NBTTagCompound verified = read(temporary);
         if (verified == null || !verified.equals(data)) {
@@ -382,19 +367,19 @@ final class QIOProcessingFileIO {
     }
 
     private static void validateNbt(@Nullable NBTBase tag, int depth, NbtBudget budget)
-          throws IOException {
+            throws IOException {
         if (tag == null) return;
         if (depth > MAX_NBT_DEPTH) {
             throw new FileTooLargeException("QIO Processing NBT nesting exceeds " +
-                  MAX_NBT_DEPTH + " levels");
+                    MAX_NBT_DEPTH + " levels");
         }
         if (++budget.nodes > MAX_NBT_NODES) {
             throw new FileTooLargeException("QIO Processing NBT node limit exceeded");
         }
         if (tag instanceof NBTTagString string &&
-              modifiedUtfLength(string.getString()) > MAX_NBT_STRING_BYTES) {
+                modifiedUtfLength(string.getString()) > MAX_NBT_STRING_BYTES) {
             throw new FileTooLargeException(
-                  "QIO Processing NBT string exceeds 65,535 encoded bytes");
+                    "QIO Processing NBT string exceeds 65,535 encoded bytes");
         }
         if (tag instanceof NBTTagCompound compound) {
             if (compound.getSize() > MAX_NBT_NODES) {
@@ -416,7 +401,7 @@ final class QIOProcessingFileIO {
             for (NBTBase child : list) {
                 if (child == null || child.getId() == 0 || child.getId() != childType) {
                     throw new IOException(
-                          "QIO Processing NBT list contains mixed or invalid tag types");
+                            "QIO Processing NBT list contains mixed or invalid tag types");
                 }
                 validateNbt(child, depth + 1, budget);
             }
@@ -435,7 +420,7 @@ final class QIOProcessingFileIO {
         } else if (tag instanceof NBTTagLongArray longs) {
             try {
                 validateArrayBytes(saturatedMultiply(QIONbtUtils.longArrayLength(longs), 8),
-                      budget);
+                        budget);
             } catch (IllegalStateException error) {
                 throw new IOException("Unable to inspect QIO Processing NBT long array", error);
             }
@@ -445,7 +430,7 @@ final class QIOProcessingFileIO {
     private static void validateArrayBytes(long bytes, NbtBudget budget) throws IOException {
         budget.arrayBytes = saturatedAdd(budget.arrayBytes, bytes);
         if (bytes > MAX_NBT_ARRAY_BYTES ||
-            budget.arrayBytes > MAX_NBT_TOTAL_ARRAY_BYTES) {
+                budget.arrayBytes > MAX_NBT_TOTAL_ARRAY_BYTES) {
             throw new FileTooLargeException("QIO Processing NBT array budget exceeded");
         }
     }
@@ -478,7 +463,9 @@ final class QIOProcessingFileIO {
         return left + right;
     }
 
-    /** Counts bytes after decompression and aborts before an unbounded NBT read can allocate. */
+    /**
+     * Counts bytes after decompression and aborts before an unbounded NBT read can allocate.
+     */
     private static final class LimitedInputStream extends FilterInputStream {
 
         private final long limit;
@@ -521,7 +508,7 @@ final class QIOProcessingFileIO {
 
         private FileTooLargeException limitExceeded() {
             return new FileTooLargeException("QIO Processing decompressed data exceeds " +
-                  MAX_DECOMPRESSED_FILE_SIZE + " bytes");
+                    MAX_DECOMPRESSED_FILE_SIZE + " bytes");
         }
     }
 
@@ -532,10 +519,10 @@ final class QIOProcessingFileIO {
         }
         File backup = backupFile(target);
         File temporaryBackup = new File(target.getParentFile(),
-              target.getName() + BACKUP_SUFFIX + ".tmp");
+                target.getName() + BACKUP_SUFFIX + ".tmp");
         try {
             Files.copy(target.toPath(), temporaryBackup.toPath(),
-                  StandardCopyOption.REPLACE_EXISTING);
+                    StandardCopyOption.REPLACE_EXISTING);
             try (FileOutputStream output = new FileOutputStream(temporaryBackup, true)) {
                 syncIfSupported(output, temporaryBackup);
             }
@@ -552,7 +539,7 @@ final class QIOProcessingFileIO {
     private static void moveReplacing(File source, File target) throws IOException {
         try {
             Files.move(source.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE,
-                  StandardCopyOption.REPLACE_EXISTING);
+                    StandardCopyOption.REPLACE_EXISTING);
         } catch (AtomicMoveNotSupportedException | java.nio.file.FileAlreadyExistsException e) {
             Files.move(source.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING);
         }
@@ -592,7 +579,7 @@ final class QIOProcessingFileIO {
     }
 
     private static int readFully(InputStream input, byte[] buffer, int length)
-          throws IOException {
+            throws IOException {
         int total = 0;
         while (total < length) {
             int read = input.read(buffer, total, length - total);
@@ -605,12 +592,12 @@ final class QIOProcessingFileIO {
     }
 
     private static void syncIfSupported(FileOutputStream output, File file)
-          throws IOException {
+            throws IOException {
         try {
             output.getFD().sync();
         } catch (SyncFailedException e) {
             Mekanism.logger.debug("File-descriptor sync is unavailable for {}; " +
-                  "continuing with close, verification, and atomic replacement", file);
+                    "continuing with close, verification, and atomic replacement", file);
         }
     }
 

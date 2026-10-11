@@ -24,7 +24,7 @@ public class GuiBigLight extends GuiTexturedElement {
     public void drawBackground(int mouseX, int mouseY, float partialTicks) {
         super.drawBackground(mouseX, mouseY, partialTicks);
         GuiUtils.renderBackgroundTexture(GuiInnerScreen.SCREEN, GuiInnerScreen.SCREEN_SIZE, GuiInnerScreen.SCREEN_SIZE, relativeX, relativeY, width, height,
-              GuiInnerScreen.SCREEN_SIZE, GuiInnerScreen.SCREEN_SIZE);
+                GuiInnerScreen.SCREEN_SIZE, GuiInnerScreen.SCREEN_SIZE);
         MekanismRenderer.bindTexture(getResource());
         GuiUtils.blit(relativeX + 1, relativeY + 1, lightSupplier.getAsBoolean() ? 0 : 12, 0, width - 2, height - 2, 24, 12);
     }

@@ -1,18 +1,17 @@
 package mekanism.qioprocessing.common.inventory.container;
 
 import mekanism.qioprocessing.common.content.device.QIOAutomationDeviceSnapshot;
-import mekanism.qioprocessing.common.terminal.QIOPageCursor;
 import mekanism.qioprocessing.common.terminal.QIODeviceCommandResult;
+import mekanism.qioprocessing.common.terminal.QIOPageCursor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
-/** Client-only ordered cache assembled from revision-consistent management pages. */
+/**
+ * Client-only ordered cache assembled from revision-consistent management pages.
+ */
+
 /**
  * QIO 处理模块中的 QIOManagementDeviceClientCache 类型。
  *
@@ -34,7 +33,8 @@ public final class QIOManagementDeviceClientCache {
     private QIOPageCursor nextCursor;
     private long pageGeneration;
     private long commandGeneration;
-    @Nullable private QIODeviceCommandResult lastCommandResult;
+    @Nullable
+    private QIODeviceCommandResult lastCommandResult;
 
     public void expectView(@Nonnull String requestedViewKey) {
         Objects.requireNonNull(requestedViewKey, "requestedViewKey");
@@ -45,19 +45,19 @@ public final class QIOManagementDeviceClientCache {
     }
 
     public boolean apply(@Nonnull UUID responseSessionNonce,
-          @Nonnull String responseViewKey, long responseRevision,
-          int offset, int responseTotalSize,
-          @Nonnull List<QIOAutomationDeviceSnapshot> page,
-          @Nullable QIOPageCursor responseNextCursor) {
+                         @Nonnull String responseViewKey, long responseRevision,
+                         int offset, int responseTotalSize,
+                         @Nonnull List<QIOAutomationDeviceSnapshot> page,
+                         @Nullable QIOPageCursor responseNextCursor) {
         if (!Objects.equals(expectedViewKey, responseViewKey) ||
-            responseRevision < 0 || offset < 0 || responseTotalSize < 0 ||
-            offset > responseTotalSize || page.size() > responseTotalSize - offset) {
+                responseRevision < 0 || offset < 0 || responseTotalSize < 0 ||
+                offset > responseTotalSize || page.size() > responseTotalSize - offset) {
             return false;
         }
         if (offset == 0) {
             if (responseSessionNonce.equals(sessionNonce) &&
-                responseViewKey.equals(viewKey) && sourceRevision >= 0 &&
-                responseRevision < sourceRevision) {
+                    responseViewKey.equals(viewKey) && sourceRevision >= 0 &&
+                    responseRevision < sourceRevision) {
                 return false;
             }
             devices.clear();
@@ -66,9 +66,9 @@ public final class QIOManagementDeviceClientCache {
             sourceRevision = responseRevision;
             totalSize = responseTotalSize;
         } else if (!responseSessionNonce.equals(sessionNonce) ||
-            !responseViewKey.equals(viewKey) ||
-            responseRevision != sourceRevision || responseTotalSize != totalSize ||
-            offset != devices.size()) {
+                !responseViewKey.equals(viewKey) ||
+                responseRevision != sourceRevision || responseTotalSize != totalSize ||
+                offset != devices.size()) {
             return false;
         }
         devices.addAll(page);
@@ -120,13 +120,13 @@ public final class QIOManagementDeviceClientCache {
     }
 
     public boolean hasPageFor(@Nonnull UUID expectedSessionNonce,
-          @Nonnull String expectedTypeKey) {
+                              @Nonnull String expectedTypeKey) {
         return sourceRevision >= 0 && expectedSessionNonce.equals(sessionNonce) &&
-              expectedTypeKey.equals(viewKey);
+                expectedTypeKey.equals(viewKey);
     }
 
     public boolean applyCommand(@Nonnull UUID responseSessionNonce,
-          @Nonnull QIODeviceCommandResult result) {
+                                @Nonnull QIODeviceCommandResult result) {
         if (sessionNonce != null && !sessionNonce.equals(responseSessionNonce)) return false;
         sessionNonce = responseSessionNonce;
         lastCommandResult = result;
@@ -134,8 +134,14 @@ public final class QIOManagementDeviceClientCache {
         return true;
     }
 
-    @Nullable public QIODeviceCommandResult getLastCommandResult() { return lastCommandResult; }
-    public long getCommandGeneration() { return commandGeneration; }
+    @Nullable
+    public QIODeviceCommandResult getLastCommandResult() {
+        return lastCommandResult;
+    }
+
+    public long getCommandGeneration() {
+        return commandGeneration;
+    }
 
     private static long nextGeneration(long generation) {
         return generation == Long.MAX_VALUE ? 0 : generation + 1;

@@ -1,10 +1,6 @@
 package mekanism.common.multiblock.persistence;
 
-import java.io.BufferedInputStream;
-import java.io.DataInputStream;
-import java.io.FilterInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.NoSuchFileException;
@@ -37,7 +33,7 @@ public final class LegacyMultiblockIndex {
     public final boolean missing;
 
     private LegacyMultiblockIndex(Builder builder, long compressedBytes, long expandedBytes,
-          long loadNanos, String sha256, boolean missing) {
+                                  long loadNanos, String sha256, boolean missing) {
         table = builder.table;
         mask = table.length / 2 - 1;
         containsZero = builder.containsZero;
@@ -83,7 +79,9 @@ public final class LegacyMultiblockIndex {
         return uuid;
     }
 
-    /** Must be called by an IO worker, after the owner has resolved the real per-world data path. */
+    /**
+     * Must be called by an IO worker, after the owner has resolved the real per-world data path.
+     */
     public static LegacyMultiblockIndex read(Path file) throws IOException {
         return read(file, Files::newInputStream);
     }
@@ -137,8 +135,8 @@ public final class LegacyMultiblockIndex {
                         require(value == '-', "UUID separator is invalid");
                     } else {
                         int hex = value >= '0' && value <= '9' ? value - '0' :
-                              value >= 'a' && value <= 'f' ? value - 'a' + 10 :
-                                    value >= 'A' && value <= 'F' ? value - 'A' + 10 : -1;
+                                value >= 'a' && value <= 'f' ? value - 'a' + 10 :
+                                        value >= 'A' && value <= 'F' ? value - 'A' + 10 : -1;
                         require(hex >= 0, "UUID contains a non-hexadecimal character");
                         if (digits++ < 16) high = high << 4 | hex;
                         else low = low << 4 | hex;
@@ -153,7 +151,7 @@ public final class LegacyMultiblockIndex {
         }
         BasicFileAttributes after = Files.readAttributes(file, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
         if (!after.isRegularFile() || before.size() != after.size() ||
-              !before.lastModifiedTime().equals(after.lastModifiedTime()) || !Objects.equals(before.fileKey(), after.fileKey())) {
+                !before.lastModifiedTime().equals(after.lastModifiedTime()) || !Objects.equals(before.fileKey(), after.fileKey())) {
             throw new IOException("Legacy tombstone file changed while reading: " + file);
         }
         return new LegacyMultiblockIndex(builder, before.size(), expanded, System.nanoTime() - started, hex(digest.digest()), false);

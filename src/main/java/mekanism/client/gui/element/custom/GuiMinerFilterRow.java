@@ -121,7 +121,7 @@ public class GuiMinerFilterRow extends GuiElement {
         int textWidth = width - 48;
         drawScaledScrollingString(new TextComponentString(getFilterName(filter)), 22, 2, TextAlignment.LEFT, 0x404040, textWidth, 3, false, 1, GuiElement.getMillis());
         drawScaledScrollingString(new TextComponentString(getFilterDetail(filter)), 22, 13, TextAlignment.LEFT, 0x404040, textWidth, 3, false, 0.8F,
-              GuiElement.getMillis());
+                GuiElement.getMillis());
         drawEnabledToggle(filter);
         int arrowX = relativeX + width - 12;
         if (filterIndex > 0) {
@@ -291,7 +291,7 @@ public class GuiMinerFilterRow extends GuiElement {
         GuiUtils.blit(x, y + height / 2, 0, (isHovered() ? 40 : 20) + 20 - height / 2, width / 2, height - height / 2, 200, 60);
         GuiUtils.blit(x + width / 2, y, 200 - width / 2, isHovered() ? 40 : 20, width - width / 2, height / 2, 200, 60);
         GuiUtils.blit(x + width / 2, y + height / 2, 200 - (width - width / 2), (isHovered() ? 40 : 20) + 20 - (height - height / 2),
-              width - width / 2, height - height / 2, 200, 60);
+                width - width / 2, height - height / 2, 200, 60);
     }
 
     private void drawArrow(int x, int y, boolean hovered, boolean up) {

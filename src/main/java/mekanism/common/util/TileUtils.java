@@ -69,14 +69,14 @@ public class TileUtils {
     public static void writeGasStack2(GasStack stack, ByteBuf dataStream) {
         if (stack == null) {
             dataStream.writeBoolean(false);
-        }else {
+        } else {
             dataStream.writeBoolean(true);
-            PacketHandler.writeNBT(dataStream,stack.write(new NBTTagCompound()));
+            PacketHandler.writeNBT(dataStream, stack.write(new NBTTagCompound()));
         }
     }
 
     public static GasStack readGasStack2(ByteBuf dataStream) {
-        return  !dataStream.readBoolean() ? null :GasStack.readFromNBT(PacketHandler.readNBT(dataStream));
+        return !dataStream.readBoolean() ? null : GasStack.readFromNBT(PacketHandler.readNBT(dataStream));
     }
 
     public static GasStack readGasStack(ByteBuf dataStream) {

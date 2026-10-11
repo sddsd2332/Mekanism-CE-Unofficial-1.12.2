@@ -3,20 +3,20 @@ package mekanism.common.multiblock;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import mekanism.api.Coord4D;
 import mekanism.api.gas.GasStack;
+import mekanism.common.multiblock.persistence.ManagedCacheStore;
+import mekanism.common.multiblock.persistence.MultiblockPersistenceSession;
 import mekanism.common.tile.multiblock.TileEntityMultiblock;
 import mekanism.common.util.FluidContainerUtils;
 import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraftforge.fluids.FluidStack;
 
 import javax.annotation.Nullable;
-import java.util.*;
 import java.io.IOException;
-import net.minecraft.nbt.NBTTagCompound;
-import mekanism.common.multiblock.persistence.ManagedCacheStore;
-import mekanism.common.multiblock.persistence.MultiblockPersistenceSession;
+import java.util.*;
 
 public abstract class UpdateProtocol<T extends SynchronizedData<T>> {
 
@@ -80,7 +80,7 @@ public abstract class UpdateProtocol<T extends SynchronizedData<T>> {
             int height = ymax - ymin + 1;
             int width = zmax - zmin + 1;
             isValid = length <= 18 && height <= 18 && width <= 18 &&
-                  isAreaLoaded(new BlockPos(minX, minY, minZ), new BlockPos(maxX, maxY, maxZ));
+                    isAreaLoaded(new BlockPos(minX, minY, minZ), new BlockPos(maxX, maxY, maxZ));
             for (int x = xmin; isValid && x <= xmax; x++) {
                 int xPos = origX + x;
                 for (int y = ymin; y <= ymax; y++) {
@@ -220,7 +220,7 @@ public abstract class UpdateProtocol<T extends SynchronizedData<T>> {
         int y = yShift == 1 ? 1 : 0;
         int z = zShift == 1 ? 1 : 0;
         while (Math.abs(x) + Math.abs(y) + Math.abs(z) < 18 &&
-              isViableNode(orig.x + x + xShift, orig.y + y + yShift, orig.z + z + zShift)) {
+                isViableNode(orig.x + x + xShift, orig.y + y + yShift, orig.z + z + zShift)) {
             x += xShift;
             y += yShift;
             z += zShift;
@@ -364,7 +364,7 @@ public abstract class UpdateProtocol<T extends SynchronizedData<T>> {
         T previousStructure = pointer.structure;
         String previousInventoryId = previousStructure == null ? null : previousStructure.inventoryID;
         Set<Coord4D> previousLocations = previousStructure == null ? Collections.emptySet() :
-              new ObjectOpenHashSet<>(previousStructure.locations);
+                new ObjectOpenHashSet<>(previousStructure.locations);
         pointer.syncCachedDataFromStructure();
         Deque<Coord4D> pathingQueue = new LinkedList<>();
         pathingQueue.add(Coord4D.get(pointer));
@@ -421,7 +421,9 @@ public abstract class UpdateProtocol<T extends SynchronizedData<T>> {
         }
     }
 
-    /** Shared cache claim/publication path for rectangular structures and the SPS shape scanner. */
+    /**
+     * Shared cache claim/publication path for rectangular structures and the SPS shape scanner.
+     */
     protected void formFoundStructure(T previousStructure, String previousInventoryId, Set<Coord4D> previousLocations) {
         Set<Coord4D> multiblockLocations = new ObjectOpenHashSet<>();
         List<TileEntityMultiblock<T>> casings = new ArrayList<>();
@@ -436,7 +438,10 @@ public abstract class UpdateProtocol<T extends SynchronizedData<T>> {
         long[] positions = multiblockLocations.stream().mapToLong(coord -> coord.getPos().toLong()).sorted().toArray();
         try {
             MultiblockPersistenceSession session = getManager().persistence(pointer.getWorld());
-            if (session == null) { waitForCache(previousStructure); return; }
+            if (session == null) {
+                waitForCache(previousStructure);
+                return;
+            }
             Map<ManagedCacheStore.SourceKey, List<TileEntityMultiblock<T>>> references = new LinkedHashMap<>();
             for (TileEntityMultiblock<T> casing : casings) {
                 if (casing.cacheFormat < 0) throw new IOException("Unknown or corrupt managed cache reference");
@@ -445,19 +450,26 @@ public abstract class UpdateProtocol<T extends SynchronizedData<T>> {
                 ManagedCacheStore.SourceKey source;
                 if (casing.cacheFormat == 1) {
                     source = ManagedCacheStore.SourceKey.managed(id);
-                    if (session.reserved(source)) { waitForCache(previousStructure); return; }
+                    if (session.reserved(source)) {
+                        waitForCache(previousStructure);
+                        return;
+                    }
                     if (session.entry(id) == null) {
                         ManagedCacheStore.Entry recovered = session.resolve(source, positions);
-                        if (recovered == null) throw new IOException("Consumed managed reference does not belong to this structure");
+                        if (recovered == null)
+                            throw new IOException("Consumed managed reference does not belong to this structure");
                         source = ManagedCacheStore.SourceKey.managed(recovered.id);
                     }
                 } else {
                     MultiblockPersistenceSession.LegacyStatus status = session.legacyStatus(id);
                     if (status == MultiblockPersistenceSession.LegacyStatus.LOADING || status == MultiblockPersistenceSession.LegacyStatus.RESERVED) {
-                        waitForCache(previousStructure); return;
+                        waitForCache(previousStructure);
+                        return;
                     }
-                    if (status == MultiblockPersistenceSession.LegacyStatus.FAILED) throw new IOException("Legacy history could not be loaded", session.legacyFailure());
-                    if (status == MultiblockPersistenceSession.LegacyStatus.CONFLICT) throw new IOException("Legacy UUID collides with managed authority");
+                    if (status == MultiblockPersistenceSession.LegacyStatus.FAILED)
+                        throw new IOException("Legacy history could not be loaded", session.legacyFailure());
+                    if (status == MultiblockPersistenceSession.LegacyStatus.CONFLICT)
+                        throw new IOException("Legacy UUID collides with managed authority");
                     if (status == MultiblockPersistenceSession.LegacyStatus.INVALIDATED) {
                         casing.cachedID = null;
                         casing.cachedData = casing.getNewCache();
@@ -467,7 +479,8 @@ public abstract class UpdateProtocol<T extends SynchronizedData<T>> {
                     }
                     if (status == MultiblockPersistenceSession.LegacyStatus.CONSUMED) {
                         ManagedCacheStore.Entry recovered = session.resolve(ManagedCacheStore.SourceKey.legacy(id), positions);
-                        if (recovered == null) throw new IOException("Consumed legacy reference does not belong to this structure");
+                        if (recovered == null)
+                            throw new IOException("Consumed legacy reference does not belong to this structure");
                         source = ManagedCacheStore.SourceKey.managed(recovered.id);
                     } else {
                         getManager().updateCache(casing);
@@ -480,13 +493,16 @@ public abstract class UpdateProtocol<T extends SynchronizedData<T>> {
                 ManagedCacheStore.Entry retained = session.findByBinding(positions);
                 if (retained != null) {
                     ManagedCacheStore.SourceKey source = ManagedCacheStore.SourceKey.managed(retained.id);
-                    if (session.reserved(source)) { waitForCache(previousStructure); return; }
+                    if (session.reserved(source)) {
+                        waitForCache(previousStructure);
+                        return;
+                    }
                     references.put(source, casings);
                 }
             }
             boolean legacyReuse = previousStructure != null && !previousStructure.destroyed && previousInventoryId != null &&
-                  previousLocations.equals(multiblockLocations) && references.size() == 1 &&
-                  references.keySet().iterator().next().equals(ManagedCacheStore.SourceKey.legacy(UUID.fromString(previousInventoryId)));
+                    previousLocations.equals(multiblockLocations) && references.size() == 1 &&
+                    references.keySet().iterator().next().equals(ManagedCacheStore.SourceKey.legacy(UUID.fromString(previousInventoryId)));
             if (legacyReuse) {
                 MultiblockCache<T> cache = getManager().selectFormationCache(pointer.getWorld(), previousInventoryId, casings, structureFound);
                 cache.validateCapacity(structureFound);
@@ -503,7 +519,7 @@ public abstract class UpdateProtocol<T extends SynchronizedData<T>> {
                 T owner = key.legacy ? null : getManager().boundStructure(pointer.getWorld(), key.id.toString());
                 if (owner != null) throw new IOException("Managed cache is already bound to another live structure");
                 sources.add(key.legacy ? getManager().selectFormationCache(pointer.getWorld(), key.id.toString(), reference.getValue(), structureFound) :
-                      getManager().managedCache(pointer.getWorld(), key.id.toString(), pointer));
+                        getManager().managedCache(pointer.getWorld(), key.id.toString(), pointer));
             }
             MultiblockCache<T> cache = previewMergedCache(sources, structureFound);
             if (references.size() == 1) {
@@ -525,7 +541,9 @@ public abstract class UpdateProtocol<T extends SynchronizedData<T>> {
         }
     }
 
-    /** Detach while the unloading casing and any induction cells are still accessible. */
+    /**
+     * Detach while the unloading casing and any induction cells are still accessible.
+     */
     public void detachCurrentStructure() {
         if (pointer.structure != null) {
             structureFound = pointer.structure;
@@ -569,7 +587,8 @@ public abstract class UpdateProtocol<T extends SynchronizedData<T>> {
 
         //Remove all structural multiblocks from locations, set controllers
         for (IStructuralMultiblock node : structures) {
-            if (node instanceof mekanism.common.tile.TileEntityStructuralGlass glass) structureFound.bindStructuralGlass(glass, toUse);
+            if (node instanceof mekanism.common.tile.TileEntityStructuralGlass glass)
+                structureFound.bindStructuralGlass(glass, toUse);
             else node.setController(toUse);
             structureFound.locations.remove(Coord4D.get((TileEntity) node));
         }
@@ -600,7 +619,9 @@ public abstract class UpdateProtocol<T extends SynchronizedData<T>> {
         }
     }
 
-    /** Pure preview used by both the legacy transition and the durable migration adapter. */
+    /**
+     * Pure preview used by both the legacy transition and the durable migration adapter.
+     */
     protected MultiblockCache<T> previewMergedCache(Collection<MultiblockCache<T>> sources, T target) throws IOException {
         MultiblockCache<T> result = null;
         List<ItemStack> rejected = new ArrayList<>();
@@ -612,12 +633,14 @@ public abstract class UpdateProtocol<T extends SynchronizedData<T>> {
             detached.load(snapshot);
             NBTTagCompound roundTrip = new NBTTagCompound();
             detached.save(roundTrip);
-            if (!snapshot.equals(roundTrip)) throw new IOException("Cache snapshot cannot round-trip without changing stored state");
+            if (!snapshot.equals(roundTrip))
+                throw new IOException("Cache snapshot cannot round-trip without changing stored state");
             if (result == null) result = detached;
             else {
                 result.validateMerge(detached);
                 mergeCaches(rejected, result, detached);
-                if (!rejected.isEmpty()) throw new IOException("Merged items were rejected; source inventories are retained");
+                if (!rejected.isEmpty())
+                    throw new IOException("Merged items were rejected; source inventories are retained");
             }
         }
         if (result == null) result = getNewCache();
@@ -625,7 +648,9 @@ public abstract class UpdateProtocol<T extends SynchronizedData<T>> {
         return result;
     }
 
-    /** Freeze a rejected/reconfiguring source without consuming its inventory or invalidating its ID. */
+    /**
+     * Freeze a rejected/reconfiguring source without consuming its inventory or invalidating its ID.
+     */
     protected void pauseSourceStructures(@Nullable T previous) {
         Set<T> sources = Collections.newSetFromMap(new IdentityHashMap<>());
         if (previous != null) sources.add(previous);

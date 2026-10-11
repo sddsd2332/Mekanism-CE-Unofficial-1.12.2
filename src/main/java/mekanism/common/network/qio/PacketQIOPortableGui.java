@@ -18,7 +18,9 @@ import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
 
 import javax.annotation.Nullable;
 
-/** Opens another GUI for the portable dashboard without trusting a slot id. */
+/**
+ * Opens another GUI for the portable dashboard without trusting a slot id.
+ */
 public class PacketQIOPortableGui implements IMessageHandler<PacketQIOPortableGui.Message, IMessage> {
 
     public static final int ACTION_TOGGLE_TARGET = -2;
@@ -86,8 +88,15 @@ public class PacketQIOPortableGui implements IMessageHandler<PacketQIOPortableGu
             valid = windowId >= 0 && hand != null && isSupportedGui(guiId);
         }
 
-        @Override public void toBytes(ByteBuf buffer) { buffer.writeInt(windowId); buffer.writeByte(hand.ordinal()); buffer.writeInt(guiId); }
-        @Override public void fromBytes(ByteBuf buffer) {
+        @Override
+        public void toBytes(ByteBuf buffer) {
+            buffer.writeInt(windowId);
+            buffer.writeByte(hand.ordinal());
+            buffer.writeInt(guiId);
+        }
+
+        @Override
+        public void fromBytes(ByteBuf buffer) {
             valid = false;
             try {
                 windowId = buffer.readInt();

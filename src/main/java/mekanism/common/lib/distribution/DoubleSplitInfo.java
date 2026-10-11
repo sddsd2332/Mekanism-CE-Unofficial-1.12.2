@@ -24,7 +24,7 @@ public class DoubleSplitInfo extends SplitInfo<Double> {
         if (!amountNeeded.equals(amountPerTarget) && toSplitAmong != 0) {
             double amountPerLast = amountPerTarget;
             amountPerTarget = amountToSplit / toSplitAmong;
-            if (!amountPerChanged && amountPerTarget !=amountPerLast) {
+            if (!amountPerChanged && amountPerTarget != amountPerLast) {
                 amountPerChanged = true;
             }
         }

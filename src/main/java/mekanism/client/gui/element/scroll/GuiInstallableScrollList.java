@@ -21,7 +21,7 @@ public abstract class GuiInstallableScrollList<TYPE> extends GuiScrollList {
     protected TYPE selectedType;
 
     protected GuiInstallableScrollList(IGuiWrapper gui, int x, int y, int width, int height, ResourceLocation background, int backgroundSideSize,
-          ResourceLocation texture, int textureWidth, int textureHeight) {
+                                       ResourceLocation texture, int textureWidth, int textureHeight) {
         super(gui, x, y, width, height, textureHeight / 3, background, backgroundSideSize);
         this.texture = texture;
         this.textureWidth = textureWidth;
@@ -29,7 +29,7 @@ public abstract class GuiInstallableScrollList<TYPE> extends GuiScrollList {
     }
 
     protected GuiInstallableScrollList(IGuiWrapper gui, int x, int y, int height, ResourceLocation background, int backgroundSideSize,
-          ResourceLocation texture, int textureWidth, int textureHeight) {
+                                       ResourceLocation texture, int textureWidth, int textureHeight) {
         this(gui, x, y, textureWidth + 8, height, background, backgroundSideSize, texture, textureWidth, textureHeight);
     }
 
@@ -116,7 +116,7 @@ public abstract class GuiInstallableScrollList<TYPE> extends GuiScrollList {
                 MekanismRenderer.resetColor();
             }
         }
-        
+
         for (int i = 0; i < max; i++) {
             TYPE type = currentInstalled.get(currentSelection + i);
             gui().renderItem(getRenderStack(type), relativeX + 3, relativeY + 3 + i * elementHeight, 0.5F);

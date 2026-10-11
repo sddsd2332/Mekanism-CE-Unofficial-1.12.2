@@ -38,7 +38,7 @@ public class TileComponentChunkLoader implements ITileComponent {
 
     public TileComponentChunkLoader(TileEntityContainerBlock tile) {
         tileEntity = tile;
-        tile.components.add(this);
+        tile.addComponent(this);
     }
 
     public void setTicket(Ticket t) {
@@ -91,35 +91,32 @@ public class TileComponentChunkLoader implements ITileComponent {
         return MekanismConfig.current().general.allowChunkloading.val() && ((IUpgradeTile) tileEntity).isUpgradeInstalled(Upgrade.ANCHOR);
     }
 
-    @Override
-    public void tick() {
-        if (!tileEntity.getWorld().isRemote) {
-            if (prevCoord == null || !prevCoord.equals(Coord4D.get(tileEntity))) {
-                release();
-                prevCoord = Coord4D.get(tileEntity);
+    public void tickServer() {
+        if (prevCoord == null || !prevCoord.equals(Coord4D.get(tileEntity))) {
+            release();
+            prevCoord = Coord4D.get(tileEntity);
+        }
+
+        if (chunkTicket != null && (!canOperate() || chunkTicket.world != tileEntity.getWorld())) {
+            release();
+        }
+
+        refreshChunkSet();
+
+        if (canOperate() && chunkTicket == null) {
+            Ticket ticket;
+            if (tileEntity instanceof ISecurityTile securityTile) {
+                ticket = ForgeChunkManager.requestPlayerTicket(Mekanism.instance,
+                        MekanismUtils.getLastKnownUsername(securityTile.getSecurity().getOwnerUUID()), tileEntity.getWorld(), Type.NORMAL);
+            } else {
+                ticket = ForgeChunkManager.requestTicket(Mekanism.instance, tileEntity.getWorld(), Type.NORMAL);
             }
 
-            if (chunkTicket != null && (!canOperate() || chunkTicket.world != tileEntity.getWorld())) {
-                release();
-            }
-
-            refreshChunkSet();
-
-            if (canOperate() && chunkTicket == null) {
-                Ticket ticket;
-                if (tileEntity instanceof ISecurityTile securityTile) {
-                    ticket = ForgeChunkManager.requestPlayerTicket(Mekanism.instance,
-                            MekanismUtils.getLastKnownUsername(securityTile.getSecurity().getOwnerUUID()), tileEntity.getWorld(), Type.NORMAL);
-                } else {
-                    ticket = ForgeChunkManager.requestTicket(Mekanism.instance, tileEntity.getWorld(), Type.NORMAL);
-                }
-
-                if (ticket != null) {
-                    ticket.getModData().setInteger("x", tileEntity.getPos().getX());
-                    ticket.getModData().setInteger("y", tileEntity.getPos().getY());
-                    ticket.getModData().setInteger("z", tileEntity.getPos().getZ());
-                    forceChunks(ticket);
-                }
+            if (ticket != null) {
+                ticket.getModData().setInteger("x", tileEntity.getPos().getX());
+                ticket.getModData().setInteger("y", tileEntity.getPos().getY());
+                ticket.getModData().setInteger("z", tileEntity.getPos().getZ());
+                forceChunks(ticket);
             }
         }
     }

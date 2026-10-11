@@ -1,17 +1,11 @@
 package mekanism.qioprocessing.common.maintenance;
 
-import mekanism.api.qio.external.IQIOStorageView;
-import mekanism.api.qio.external.QIOFrequencyReference;
-import mekanism.api.qio.external.QIOStorageChange;
-import mekanism.api.qio.external.QIOStorageChangeBatch;
-import mekanism.api.qio.external.QIOStorageEntry;
-import mekanism.api.qio.external.QIOStorageSnapshot;
+import mekanism.api.qio.external.*;
 import mekanism.common.Mekanism;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.config.QIOProcessingConfig;
 import mekanism.common.content.qio.QIOFrequencyStorageAccess;
 import mekanism.common.content.qio.QIOResourceTypeRegistry;
-import mekanism.common.lib.inventory.HashedItem;
 import mekanism.qioprocessing.api.resource.PortableResourceDescriptor;
 import mekanism.qioprocessing.common.content.QIOFrequencyIdentitySnapshot;
 import mekanism.qioprocessing.common.content.QIOProcessingNetworkData;
@@ -27,11 +21,7 @@ import mekanism.qioprocessing.common.content.material.QIOMaterialClaimCoordinato
 import mekanism.qioprocessing.common.content.plan.QIOCraftPlan;
 import mekanism.qioprocessing.common.execution.QIOProcessingExecutionService;
 import mekanism.qioprocessing.common.order.QIOOrderService;
-import mekanism.qioprocessing.common.planning.QIOPlanningExecutor;
-import mekanism.qioprocessing.common.planning.QIOPlanner;
-import mekanism.qioprocessing.common.planning.QIOPlanningRequest;
-import mekanism.qioprocessing.common.planning.QIOPlanningResult;
-import mekanism.qioprocessing.common.planning.QIOPlanningService;
+import mekanism.qioprocessing.common.planning.*;
 import net.minecraft.world.World;
 import net.minecraftforge.common.DimensionManager;
 
@@ -40,23 +30,12 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
-/** Frequency-owned inventory maintenance evaluation and automatic order coordinator. */
+/**
+ * Frequency-owned inventory maintenance evaluation and automatic order coordinator.
+ */
+
 /**
  * QIO 处理模块中的 QIOMaintenanceService 类型。
  *
@@ -95,10 +74,10 @@ public final class QIOMaintenanceService {
         observedTick = world.getTotalWorldTime();
         removeOrphanedInFlight();
         List<QIOProcessingNetworkData> networks = new ArrayList<>(
-              QIOProcessingNetworkManager.INSTANCE.getNetworks());
+                QIOProcessingNetworkManager.INSTANCE.getNetworks());
         networks.removeIf(network -> network.getLifecycle() != QIOProcessingNetworkLifecycle.ACTIVE ||
-              !network.getMaintenanceRules().hasRules() &&
-                    !network.getMaintenanceRules().hasPendingEvaluations());
+                !network.getMaintenanceRules().hasRules() &&
+                        !network.getMaintenanceRules().hasPendingEvaluations());
         networks.sort(Comparator.comparing(network -> network.getFrequencyUUID().toString()));
         synchronizeStorageSessions(networks, observedTick);
         if (networks.isEmpty()) {
@@ -113,7 +92,7 @@ public final class QIOMaintenanceService {
             int remainingNetworks = networks.size() - offset;
             int quota = Math.max(1, remaining / remainingNetworks);
             remaining -= Math.min(remaining, processNetwork(world, network,
-                  observedTick, quota, config));
+                    observedTick, quota, config));
         }
         networkCursor = (start + 1) % networks.size();
     }
@@ -135,13 +114,13 @@ public final class QIOMaintenanceService {
     }
 
     private int processNetwork(World world, QIOProcessingNetworkData network, long currentTick,
-          int quota, QIOProcessingConfig config) {
+                               int quota, QIOProcessingConfig config) {
         QIOMaintenanceRuleCatalog catalog = network.getMaintenanceRules();
         StorageSession storageSession = storageSessions.get(network.getFrequencyUUID());
         boolean changed = false;
         if (storageSession != null) {
             QIOMaintenanceWakeTracker.WakeBatch wake = storageSession.drainWake(network,
-                  currentTick);
+                    currentTick);
             if (wake.isFullScan()) {
                 changed |= catalog.requestEvaluationPass();
             } else {
@@ -178,13 +157,13 @@ public final class QIOMaintenanceService {
                 network.markMaintenanceRuntimeChanged();
             }
             int consumed = handleAccessLoss(network, catalog, resumable, evaluationDue,
-                  currentTick, quota, config);
+                    currentTick, quota, config);
             return consumed;
         }
         Map<PortableResourceDescriptor, List<QIOMaintenanceRule>> grouped =
-              catalog.groupedRules();
+                catalog.groupedRules();
         List<Map.Entry<PortableResourceDescriptor, List<QIOMaintenanceRule>>> groups =
-              evaluationDue ? new ArrayList<>(grouped.entrySet()) : Collections.emptyList();
+                evaluationDue ? new ArrayList<>(grouped.entrySet()) : Collections.emptyList();
         List<EvaluationCandidate> candidates = new ArrayList<>(quota);
 
         for (QIOMaintenanceEvaluation evaluation : resumable) {
@@ -198,7 +177,7 @@ public final class QIOMaintenanceService {
         int targetedBudget = available;
         if (evaluationDue && available > 0) {
             targetedBudget = available == 1 ? ((currentTick & 1) == 0 ? 1 : 0) :
-                  Math.max(1, available / 2);
+                    Math.max(1, available / 2);
         }
         int targetedAdded = 0;
         int targetedAttempts = 0;
@@ -218,9 +197,9 @@ public final class QIOMaintenanceService {
         if (evaluationDue && candidates.size() < quota) {
             int cursor = Math.min(catalog.getEvaluationCursor(), groups.size());
             for (int index = cursor; index < groups.size() && candidates.size() < quota;
-                  index++) {
+                 index++) {
                 Map.Entry<PortableResourceDescriptor, List<QIOMaintenanceRule>> entry =
-                      groups.get(index);
+                        groups.get(index);
                 candidates.add(EvaluationCandidate.audit(entry.getKey(), entry.getValue()));
             }
         }
@@ -231,24 +210,24 @@ public final class QIOMaintenanceService {
             Map<PortableResourceDescriptor, BigInteger> spendable = new LinkedHashMap<>();
             for (EvaluationCandidate candidate : candidates) {
                 spendable.computeIfAbsent(candidate.resource,
-                      resource -> availableAmount(view, resource));
+                        resource -> availableAmount(view, resource));
             }
             QIOMaintenanceEvaluator.EvaluationContext evaluationContext =
-                  QIOMaintenanceEvaluator.EvaluationContext.createProjected(network, spendable);
+                    QIOMaintenanceEvaluator.EvaluationContext.createProjected(network, spendable);
             PlanningInputs planningInputs = new PlanningInputs(world, network, view,
-                  storageSession);
+                    storageSession);
             List<PreparedSubmission> submissions = new ArrayList<>();
             for (EvaluationCandidate candidate : candidates) {
                 consumed++;
                 if (candidate.kind == CandidateKind.RESUMABLE) {
                     changed |= resumeEvaluation(network, catalog, grouped, evaluationContext,
-                          candidate.evaluation, config, currentTick, planningInputs,
-                          submissions);
+                            candidate.evaluation, config, currentTick, planningInputs,
+                            submissions);
                     continue;
                 }
                 FreshEvaluationResult result = evaluateFreshGroup(network, catalog,
-                      evaluationContext, candidate.resource, candidate.group, config,
-                      currentTick, planningInputs, submissions);
+                        evaluationContext, candidate.resource, candidate.group, config,
+                        currentTick, planningInputs, submissions);
                 changed |= result.changed;
                 if (result.deferred) {
                     if (candidate.kind == CandidateKind.TARGETED) {
@@ -263,7 +242,7 @@ public final class QIOMaintenanceService {
 
             if (evaluationDue && (processedAuditGroups > 0 || groups.isEmpty())) {
                 catalog.advanceCursor(groups.size(), processedAuditGroups, currentTick,
-                      config.maintenanceEvaluationInterval.val());
+                        config.maintenanceEvaluationInterval.val());
                 changed = true;
             }
 
@@ -287,7 +266,7 @@ public final class QIOMaintenanceService {
                 network.markMaintenanceRuntimeChanged();
             }
             Mekanism.logger.error("Unable to evaluate QIO maintenance rules for {}",
-                  network.getFrequencyUUID(), e);
+                    network.getFrequencyUUID(), e);
             return Math.max(1, consumed);
         } finally {
             if (transientView) {
@@ -297,129 +276,129 @@ public final class QIOMaintenanceService {
     }
 
     private boolean resumeEvaluation(QIOProcessingNetworkData network,
-          QIOMaintenanceRuleCatalog catalog,
-          Map<PortableResourceDescriptor, List<QIOMaintenanceRule>> grouped,
-          QIOMaintenanceEvaluator.EvaluationContext context,
-          QIOMaintenanceEvaluation evaluation, QIOProcessingConfig config, long currentTick,
-          PlanningInputs planningInputs, List<PreparedSubmission> submissions) {
+                                     QIOMaintenanceRuleCatalog catalog,
+                                     Map<PortableResourceDescriptor, List<QIOMaintenanceRule>> grouped,
+                                     QIOMaintenanceEvaluator.EvaluationContext context,
+                                     QIOMaintenanceEvaluation evaluation, QIOProcessingConfig config, long currentTick,
+                                     PlanningInputs planningInputs, List<PreparedSubmission> submissions) {
         List<QIOMaintenanceRule> group = grouped.get(evaluation.getResource());
         if (!matchesRuleSnapshot(evaluation, group)) {
             return catalog.invalidateEvaluation(evaluation.getEvaluationId());
         }
         QIOMaintenanceEvaluator.Decision decision = evaluate(network, context,
-              evaluation.getResource(), group, config, currentTick);
+                evaluation.getResource(), group, config, currentTick);
         if (decision.getStatus() == QIOMaintenanceEvaluator.Status.ACTIVE_ORDER &&
-              decision.getActiveJobId() != null) {
+                decision.getActiveJobId() != null) {
             return catalog.completeEvaluation(evaluation.getEvaluationId(),
-                  decision.getActiveJobId());
+                    decision.getActiveJobId());
         }
         if (!matchesPendingDecision(evaluation, decision)) {
             QIOMaintenanceRule.EvaluationStatus status = decision.getStatus() ==
-                  QIOMaintenanceEvaluator.Status.NOT_TRIGGERED ?
-                  QIOMaintenanceRule.EvaluationStatus.NOT_TRIGGERED :
-                  QIOMaintenanceRule.EvaluationStatus.ERROR;
+                    QIOMaintenanceEvaluator.Status.NOT_TRIGGERED ?
+                    QIOMaintenanceRule.EvaluationStatus.NOT_TRIGGERED :
+                    QIOMaintenanceRule.EvaluationStatus.ERROR;
             return catalog.failEvaluation(evaluation.getEvaluationId(), status, currentTick,
-                  "Effective maintenance request changed while planning");
+                    "Effective maintenance request changed while planning");
         }
         if (!hasPlanningCapacity(network.getFrequencyUUID(), submissions)) {
             return false;
         }
         QIOOrderService.PlanningCaptureResult captured = planningInputs.capture(
-              evaluation.getResource());
+                evaluation.getResource());
         if (captured.getStatus() != QIOOrderService.RequestStatus.ACCEPTED ||
-              captured.getCapture() == null) {
+                captured.getCapture() == null) {
             return catalog.failEvaluation(evaluation.getEvaluationId(),
-                  QIOMaintenanceRule.EvaluationStatus.NO_ROUTE, currentTick,
-                  captured.getStatus().name());
+                    QIOMaintenanceRule.EvaluationStatus.NO_ROUTE, currentTick,
+                    captured.getStatus().name());
         }
         QIOMaintenanceEvaluation refreshed = evaluation.withSourceRevisions(
-              captured.getCapture().getSourceRevisions());
+                captured.getCapture().getSourceRevisions());
         catalog.replacePendingEvaluation(refreshed);
         submissions.add(new PreparedSubmission(refreshed, captured.getCapture()));
         return true;
     }
 
     private FreshEvaluationResult evaluateFreshGroup(QIOProcessingNetworkData network,
-          QIOMaintenanceRuleCatalog catalog,
-          QIOMaintenanceEvaluator.EvaluationContext context,
-          PortableResourceDescriptor resource, List<QIOMaintenanceRule> group,
-          QIOProcessingConfig config, long currentTick, PlanningInputs planningInputs,
-          List<PreparedSubmission> submissions) {
+                                                     QIOMaintenanceRuleCatalog catalog,
+                                                     QIOMaintenanceEvaluator.EvaluationContext context,
+                                                     PortableResourceDescriptor resource, List<QIOMaintenanceRule> group,
+                                                     QIOProcessingConfig config, long currentTick, PlanningInputs planningInputs,
+                                                     List<PreparedSubmission> submissions) {
         if (catalog.getPendingForResource(resource) != null) {
             return FreshEvaluationResult.UNCHANGED;
         }
         try {
             QIOMaintenanceEvaluator.Decision decision = evaluate(network, context, resource,
-                  group, config, currentTick);
+                    group, config, currentTick);
             switch (decision.getStatus()) {
                 case NOT_TRIGGERED:
                     return FreshEvaluationResult.changed(recordGroupStatus(catalog, group,
-                          statusEvaluationId(network, catalog, resource, group,
-                                "not-triggered"),
-                          QIOMaintenanceRule.EvaluationStatus.NOT_TRIGGERED, currentTick,
-                          null, false));
+                            statusEvaluationId(network, catalog, resource, group,
+                                    "not-triggered"),
+                            QIOMaintenanceRule.EvaluationStatus.NOT_TRIGGERED, currentTick,
+                            null, false));
                 case RETRY_WAIT:
                     return FreshEvaluationResult.UNCHANGED;
                 case ACTIVE_ORDER:
                     if (decision.getActiveJobId() == null ||
-                          decision.getTriggeredRules().isEmpty()) {
+                            decision.getTriggeredRules().isEmpty()) {
                         return FreshEvaluationResult.UNCHANGED;
                     }
                     UUID activeJobId = decision.getActiveJobId();
                     boolean alreadyBound = decision.getTriggeredRules().stream().allMatch(rule ->
-                          activeJobId.equals(rule.getOutstandingJobId()) &&
-                                rule.getEvaluationStatus() ==
-                                      QIOMaintenanceRule.EvaluationStatus.ACTIVE_ORDER);
+                            activeJobId.equals(rule.getOutstandingJobId()) &&
+                                    rule.getEvaluationStatus() ==
+                                            QIOMaintenanceRule.EvaluationStatus.ACTIVE_ORDER);
                     if (alreadyBound) {
                         return FreshEvaluationResult.UNCHANGED;
                     }
                     catalog.bindOutstanding(decision.getTriggeredRules(),
-                          statusEvaluationId(network, catalog, resource,
-                                decision.getTriggeredRules(), "active-order"), activeJobId);
+                            statusEvaluationId(network, catalog, resource,
+                                    decision.getTriggeredRules(), "active-order"), activeJobId);
                     return FreshEvaluationResult.CHANGED;
                 case REQUEST:
                     if (!hasPlanningCapacity(network.getFrequencyUUID(), submissions)) {
                         return FreshEvaluationResult.DEFERRED;
                     }
                     QIOOrderService.PlanningCaptureResult captured = planningInputs.capture(
-                          resource);
+                            resource);
                     if (captured.getStatus() != QIOOrderService.RequestStatus.ACCEPTED ||
-                          captured.getCapture() == null) {
+                            captured.getCapture() == null) {
                         catalog.recordGroupEvaluation(decision.getTriggeredRules(),
-                              statusEvaluationId(network, catalog, resource,
-                                    decision.getTriggeredRules(), "no-route"),
-                              QIOMaintenanceRule.EvaluationStatus.NO_ROUTE, currentTick,
-                              captured.getStatus().name());
+                                statusEvaluationId(network, catalog, resource,
+                                        decision.getTriggeredRules(), "no-route"),
+                                QIOMaintenanceRule.EvaluationStatus.NO_ROUTE, currentTick,
+                                captured.getStatus().name());
                         return FreshEvaluationResult.CHANGED;
                     }
                     long generation = catalog.reserveEvaluationGeneration();
                     QIOMaintenanceEvaluation evaluation = QIOMaintenanceEvaluation.create(
-                          network.getFrequencyUUID(), generation, resource, group,
-                          decision.getTriggeredRules(), catalog.getRulesRevision(),
-                          captured.getCapture().getSourceRevisions(),
-                          decision.getRequestAmount(), decision.getJobPriority(), currentTick);
+                            network.getFrequencyUUID(), generation, resource, group,
+                            decision.getTriggeredRules(), catalog.getRulesRevision(),
+                            captured.getCapture().getSourceRevisions(),
+                            decision.getRequestAmount(), decision.getJobPriority(), currentTick);
                     catalog.beginEvaluation(evaluation, group, currentTick);
                     submissions.add(new PreparedSubmission(evaluation,
-                          captured.getCapture()));
+                            captured.getCapture()));
                     return FreshEvaluationResult.CHANGED;
                 default:
                     throw new IllegalStateException("Unknown maintenance decision");
             }
         } catch (RuntimeException e) {
             catalog.recordGroupEvaluation(group, statusEvaluationId(network, catalog, resource,
-                  group, "error"), QIOMaintenanceRule.EvaluationStatus.ERROR, currentTick,
-                  diagnostic(e));
+                            group, "error"), QIOMaintenanceRule.EvaluationStatus.ERROR, currentTick,
+                    diagnostic(e));
             return FreshEvaluationResult.CHANGED;
         }
     }
 
     private static boolean recordGroupStatus(QIOMaintenanceRuleCatalog catalog,
-          List<QIOMaintenanceRule> group, UUID evaluationId,
-          QIOMaintenanceRule.EvaluationStatus status, long currentTick,
-          @Nullable String diagnostic, boolean force) {
+                                             List<QIOMaintenanceRule> group, UUID evaluationId,
+                                             QIOMaintenanceRule.EvaluationStatus status, long currentTick,
+                                             @Nullable String diagnostic, boolean force) {
         String expectedDiagnostic = diagnostic == null ? "" : diagnostic.trim();
         if (!force && group.stream().allMatch(rule -> rule.getEvaluationStatus() == status &&
-              expectedDiagnostic.equals(rule.getDiagnostic()))) {
+                expectedDiagnostic.equals(rule.getDiagnostic()))) {
             return false;
         }
         catalog.recordGroupEvaluation(group, evaluationId, status, currentTick, diagnostic);
@@ -427,7 +406,7 @@ public final class QIOMaintenanceService {
     }
 
     private boolean hasPlanningCapacity(UUID frequencyUUID,
-          List<PreparedSubmission> submissions) {
+                                        List<PreparedSubmission> submissions) {
         if (inFlight.size() + submissions.size() >= MAX_GLOBAL_IN_FLIGHT) {
             return false;
         }
@@ -441,7 +420,7 @@ public final class QIOMaintenanceService {
     }
 
     private static BigInteger availableAmount(IQIOStorageView view,
-          PortableResourceDescriptor resource) {
+                                              PortableResourceDescriptor resource) {
         UUID resourceUUID = QIOResourceTypeRegistry.INSTANCE.getUUIDFor(resource.getDescriptor());
         QIOStorageEntry entry = resourceUUID == null ? null : view.getResource(resourceUUID);
         if (entry == null) {
@@ -455,7 +434,7 @@ public final class QIOMaintenanceService {
 
     /** Keeps one listener/view per active frequency and bounds reconnect attempts. */
     private void synchronizeStorageSessions(List<QIOProcessingNetworkData> networks,
-          long currentTick) {
+                                            long currentTick) {
         Map<UUID, QIOProcessingNetworkData> active = new LinkedHashMap<>();
         for (QIOProcessingNetworkData network : networks) {
             active.put(network.getFrequencyUUID(), network);
@@ -466,7 +445,7 @@ public final class QIOMaintenanceService {
             QIOProcessingNetworkData network = active.get(entry.getKey());
             StorageSession session = entry.getValue();
             if (network == null || network.getLifecycle() != QIOProcessingNetworkLifecycle.ACTIVE ||
-                  session.wakeTracker.isInvalidated() || !session.view.isValid()) {
+                    session.wakeTracker.isInvalidated() || !session.view.isValid()) {
                 session.view.close();
                 iterator.remove();
                 storageRetryTicks.put(entry.getKey(), currentTick + SESSION_RETRY_TICKS);
@@ -476,7 +455,7 @@ public final class QIOMaintenanceService {
         for (QIOProcessingNetworkData network : networks) {
             UUID frequencyUUID = network.getFrequencyUUID();
             if (storageSessions.containsKey(frequencyUUID) ||
-                  currentTick < storageRetryTicks.getOrDefault(frequencyUUID, 0L)) {
+                    currentTick < storageRetryTicks.getOrDefault(frequencyUUID, 0L)) {
                 continue;
             }
             IQIOStorageView view = null;
@@ -493,7 +472,7 @@ public final class QIOMaintenanceService {
                 }
             } catch (RuntimeException e) {
                 Mekanism.logger.debug("Unable to attach QIO maintenance storage listener for {}",
-                      frequencyUUID, e);
+                        frequencyUUID, e);
             }
             if (view != null) {
                 view.close();
@@ -503,7 +482,7 @@ public final class QIOMaintenanceService {
     }
 
     private synchronized void onStorageChanged(StorageSession expected,
-          QIOStorageChangeBatch changes) {
+                                               QIOStorageChangeBatch changes) {
         StorageSession current = storageSessions.get(expected.frequencyUUID);
         if (current != expected) {
             return;
@@ -517,15 +496,15 @@ public final class QIOMaintenanceService {
         current.accessRevision = changes.getAccessRevision();
         current.cachedSnapshot = null;
         boolean structural = changes.isFullRescanRequired() || changes.isCapacityChanged() ||
-              changes.isClaimChanged();
+                changes.isClaimChanged();
         if (structural) {
             current.wakeTracker.requestStructuralScan(observedTick);
         } else {
             for (QIOStorageChange change : changes.getChanges()) {
                 try {
                     current.wakeTracker.recordResource(
-                          PortableResourceDescriptor.fromStorageEntry(change.getResource()),
-                          observedTick);
+                            PortableResourceDescriptor.fromStorageEntry(change.getResource()),
+                            observedTick);
                 } catch (RuntimeException e) {
                     current.wakeTracker.requestStructuralScan(observedTick);
                     break;
@@ -535,8 +514,8 @@ public final class QIOMaintenanceService {
     }
 
     private int handleAccessLoss(QIOProcessingNetworkData network,
-          QIOMaintenanceRuleCatalog catalog, List<QIOMaintenanceEvaluation> resumable,
-          boolean evaluationDue, long currentTick, int quota, QIOProcessingConfig config) {
+                                 QIOMaintenanceRuleCatalog catalog, List<QIOMaintenanceEvaluation> resumable,
+                                 boolean evaluationDue, long currentTick, int quota, QIOProcessingConfig config) {
         int consumed = 0;
         boolean changed = false;
         for (QIOMaintenanceEvaluation evaluation : resumable) {
@@ -545,31 +524,31 @@ public final class QIOMaintenanceService {
             }
             consumed++;
             changed |= catalog.failEvaluation(evaluation.getEvaluationId(),
-                  QIOMaintenanceRule.EvaluationStatus.ACCESS_DENIED, currentTick,
-                  "QIO frequency storage access is unavailable");
+                    QIOMaintenanceRule.EvaluationStatus.ACCESS_DENIED, currentTick,
+                    "QIO frequency storage access is unavailable");
         }
         if (evaluationDue && consumed < quota) {
             List<Map.Entry<PortableResourceDescriptor, List<QIOMaintenanceRule>>> groups =
-                  new ArrayList<>(catalog.groupedRules().entrySet());
+                    new ArrayList<>(catalog.groupedRules().entrySet());
             int cursor = Math.min(catalog.getEvaluationCursor(), groups.size());
             int processed = 0;
             while (cursor + processed < groups.size() && consumed < quota) {
                 Map.Entry<PortableResourceDescriptor, List<QIOMaintenanceRule>> entry =
-                      groups.get(cursor + processed);
+                        groups.get(cursor + processed);
                 processed++;
                 consumed++;
                 if (hasActiveOutstanding(network, entry.getValue())) {
                     continue;
                 }
                 catalog.recordGroupEvaluation(entry.getValue(), statusEvaluationId(network,
-                      catalog, entry.getKey(), entry.getValue(), "access-denied"),
-                      QIOMaintenanceRule.EvaluationStatus.ACCESS_DENIED, currentTick,
-                      "QIO frequency storage access is unavailable");
+                                catalog, entry.getKey(), entry.getValue(), "access-denied"),
+                        QIOMaintenanceRule.EvaluationStatus.ACCESS_DENIED, currentTick,
+                        "QIO frequency storage access is unavailable");
                 changed = true;
             }
             if (processed > 0 || groups.isEmpty()) {
                 catalog.advanceCursor(groups.size(), processed, currentTick,
-                      config.maintenanceEvaluationInterval.val());
+                        config.maintenanceEvaluationInterval.val());
                 changed = true;
             }
         }
@@ -580,50 +559,56 @@ public final class QIOMaintenanceService {
     }
 
     private SubmitOutcome submit(QIOProcessingNetworkData network,
-          PreparedSubmission submission,
-          long currentTick) {
+                                 PreparedSubmission submission,
+                                 long currentTick) {
         QIOMaintenanceEvaluation evaluation = submission.evaluation;
         QIOPlanningExecutor.Submission submitted;
         try {
-            submitted = QIOPlanningService.INSTANCE.submitTask(submission.capture,
-                  (capture, cancellation) -> {
-                      QIOOrderService.PlanningPreparation preparation =
-                            QIOOrderService.INSTANCE.prepareCaptured(capture,
-                                  cancellation::isCancelled);
-                      if (preparation.getSnapshot() == null) {
-                          return QIOPlanningResult.failure(QIOPlanningResult.Status.NO_ROUTE,
-                                preparation.getStatus().name(), 0, 0);
-                      }
-                      QIOPlanningRequest request = new QIOPlanningRequest(
-                            evaluation.getEvaluationId(), 1, preparation.getSnapshot(),
-                            evaluation.getResource(), evaluation.getRequestAmount());
-                      return QIOPlanner.INSTANCE.plan(request, cancellation);
-                  }, completed -> completePlanning(evaluation.getEvaluationId(), completed));
+            submitted = QIOPlanningService.INSTANCE.submitTask(
+                    QIOPlanningExecutor.TaskKind.BACKGROUND, submission.capture,
+                    (capture, cancellation) -> {
+                        QIOOrderService.PlanningPreparation preparation =
+                                QIOOrderService.INSTANCE.prepareCaptured(capture,
+                                        cancellation::isCancelled);
+                        if (preparation.getSnapshot() == null) {
+                            return QIOPlanningResult.failure(QIOPlanningResult.Status.NO_ROUTE,
+                                    preparation.getStatus().name(), 0, 0);
+                        }
+                        QIOPlanningRequest request = new QIOPlanningRequest(
+                                evaluation.getEvaluationId(), 1, preparation.getSnapshot(),
+                                evaluation.getResource(), evaluation.getRequestAmount());
+                        return QIOPlanner.INSTANCE.plan(request, cancellation);
+                    }, completed -> completePlanning(evaluation.getEvaluationId(), completed));
         } catch (RuntimeException e) {
             network.getMaintenanceRules().failEvaluation(evaluation.getEvaluationId(),
-                  QIOMaintenanceRule.EvaluationStatus.ERROR, currentTick, diagnostic(e));
+                    QIOMaintenanceRule.EvaluationStatus.ERROR, currentTick, diagnostic(e));
             return SubmitOutcome.FAILED;
         }
         if (!submitted.isAccepted()) {
+            // Keep the persisted evaluation pending; the next maintenance pass retries it.
+            // Saturation is not a recipe failure and must not discard the maintenance request.
+            if (submitted.getStatus() == QIOPlanningExecutor.SubmissionStatus.BUSY) {
+                return SubmitOutcome.DEFERRED;
+            }
             network.getMaintenanceRules().failEvaluation(evaluation.getEvaluationId(),
-                  QIOMaintenanceRule.EvaluationStatus.ERROR, currentTick,
-                  submitted.getStatus().name());
+                    QIOMaintenanceRule.EvaluationStatus.ERROR, currentTick,
+                    submitted.getStatus().name());
             return SubmitOutcome.FAILED;
         }
         inFlight.put(evaluation.getEvaluationId(), new InFlightPlanning(
-              network.getFrequencyUUID(), submitted.getTaskId()));
+                network.getFrequencyUUID(), submitted.getTaskId()));
         return SubmitOutcome.SUBMITTED;
     }
 
     private synchronized void completePlanning(UUID evaluationId,
-          QIOPlanningExecutor.PlanningResult<QIOPlanningResult> completed) {
+                                               QIOPlanningExecutor.PlanningResult<QIOPlanningResult> completed) {
         InFlightPlanning planning = inFlight.get(evaluationId);
         if (planning == null || !planning.taskId.equals(completed.getTaskId())) {
             return;
         }
         inFlight.remove(evaluationId);
         QIOProcessingNetworkData network = QIOProcessingNetworkManager.INSTANCE.get(
-              planning.frequencyUUID);
+                planning.frequencyUUID);
         World world = DimensionManager.getWorld(0);
         if (network == null || world == null || world.isRemote) {
             return;
@@ -635,23 +620,23 @@ public final class QIOMaintenanceService {
         }
         long currentTick = Math.max(evaluation.getCreatedAtTick(), world.getTotalWorldTime());
         if (completed.getStatus() != QIOPlanningExecutor.ResultStatus.SUCCESS ||
-              completed.getValue() == null) {
+                completed.getValue() == null) {
             String failure = completed.getError() == null ? completed.getStatus().name() :
-                  diagnostic(completed.getError());
+                    diagnostic(completed.getError());
             failAndPersist(network, evaluationId, QIOMaintenanceRule.EvaluationStatus.ERROR,
-                  currentTick, failure);
+                    currentTick, failure);
             return;
         }
         QIOPlanningResult result = completed.getValue();
         if (result.getStatus() != QIOPlanningResult.Status.SUCCESS || result.getPlan() == null) {
             QIOMaintenanceRule.EvaluationStatus status = result.getStatus() ==
-                  QIOPlanningResult.Status.NO_ROUTE ||
-                  result.getStatus() == QIOPlanningResult.Status.CYCLE_NO_SEED ||
-                  result.getStatus() == QIOPlanningResult.Status.CYCLE_REQUIRES_SCC ?
-                  QIOMaintenanceRule.EvaluationStatus.NO_ROUTE :
-                  QIOMaintenanceRule.EvaluationStatus.ERROR;
+                    QIOPlanningResult.Status.NO_ROUTE ||
+                    result.getStatus() == QIOPlanningResult.Status.CYCLE_NO_SEED ||
+                    result.getStatus() == QIOPlanningResult.Status.CYCLE_REQUIRES_SCC ?
+                    QIOMaintenanceRule.EvaluationStatus.NO_ROUTE :
+                    QIOMaintenanceRule.EvaluationStatus.ERROR;
             failAndPersist(network, evaluationId, status, currentTick,
-                  result.getStatus() + ": " + result.getDiagnostic());
+                    result.getStatus() + ": " + result.getDiagnostic());
             return;
         }
 
@@ -661,23 +646,23 @@ public final class QIOMaintenanceService {
                 view.close();
             }
             failAndPersist(network, evaluationId,
-                  QIOMaintenanceRule.EvaluationStatus.ACCESS_DENIED, currentTick,
-                  "QIO frequency storage access is unavailable");
+                    QIOMaintenanceRule.EvaluationStatus.ACCESS_DENIED, currentTick,
+                    "QIO frequency storage access is unavailable");
             return;
         }
         try {
             QIOStorageSnapshot storage = view.getSnapshot();
             List<QIOMaintenanceRule> group = network.getMaintenanceRules().groupedRules()
-                  .get(evaluation.getResource());
+                    .get(evaluation.getResource());
             if (!matchesRuleSnapshot(evaluation, group)) {
                 invalidateAndPersist(network, evaluationId);
                 return;
             }
             QIOMaintenanceEvaluator.Decision decision = evaluate(network, storage,
-                  evaluation.getResource(), group, MekanismConfig.current().qioProcessing,
-                  currentTick);
+                    evaluation.getResource(), group, MekanismConfig.current().qioProcessing,
+                    currentTick);
             if (decision.getStatus() == QIOMaintenanceEvaluator.Status.ACTIVE_ORDER &&
-                  decision.getActiveJobId() != null) {
+                    decision.getActiveJobId() != null) {
                 catalog.completeEvaluation(evaluationId, decision.getActiveJobId());
                 network.markMaintenanceRuntimeChanged();
                 persistQuietly(network);
@@ -685,18 +670,18 @@ public final class QIOMaintenanceService {
             }
             if (!matchesPendingDecision(evaluation, decision)) {
                 failAndPersist(network, evaluationId,
-                      QIOMaintenanceRule.EvaluationStatus.ERROR, currentTick,
-                      "Effective maintenance request changed while planning");
+                        QIOMaintenanceRule.EvaluationStatus.ERROR, currentTick,
+                        "Effective maintenance request changed while planning");
                 return;
             }
             QIOCraftPlan plan = result.getPlan();
             if (!evaluation.getResource().equals(plan.getRootResource()) ||
-                  evaluation.getRequestAmount() != plan.getRootAmount() ||
-                  !QIOOrderService.INSTANCE.isAutomatedPlanCurrent(world, network, storage,
-                        plan.getSourceRevisions())) {
+                    evaluation.getRequestAmount() != plan.getRootAmount() ||
+                    !QIOOrderService.INSTANCE.isAutomatedPlanCurrent(world, network, storage,
+                            plan.getSourceRevisions())) {
                 failAndPersist(network, evaluationId,
-                      QIOMaintenanceRule.EvaluationStatus.ERROR, currentTick,
-                      "Maintenance planning inputs changed before commit");
+                        QIOMaintenanceRule.EvaluationStatus.ERROR, currentTick,
+                        "Maintenance planning inputs changed before commit");
                 return;
             }
 
@@ -704,20 +689,20 @@ public final class QIOMaintenanceService {
             if (job == null) {
                 try {
                     job = network.createJob(evaluation.getJobId(),
-                          QIOCraftingJobSource.MAINTENANCE, null, evaluation.getJobPriority(),
-                          currentTick, plan, MekanismConfig.current().qioProcessing
-                                .nonTerminalJobsPerFrequency.val());
+                            QIOCraftingJobSource.MAINTENANCE, null, evaluation.getJobPriority(),
+                            currentTick, plan, MekanismConfig.current().qioProcessing
+                                    .nonTerminalJobsPerFrequency.val());
                 } catch (RuntimeException e) {
                     failAndPersist(network, evaluationId,
-                          QIOMaintenanceRule.EvaluationStatus.ERROR, currentTick, diagnostic(e));
+                            QIOMaintenanceRule.EvaluationStatus.ERROR, currentTick, diagnostic(e));
                     return;
                 }
             } else if (job.getSource() != QIOCraftingJobSource.MAINTENANCE ||
-                  !evaluation.getResource().equals(job.getActivePlan().getRootResource()) ||
-                  evaluation.getRequestAmount() != job.getActivePlan().getRootAmount()) {
+                    !evaluation.getResource().equals(job.getActivePlan().getRootResource()) ||
+                    evaluation.getRequestAmount() != job.getActivePlan().getRootAmount()) {
                 failAndPersist(network, evaluationId,
-                      QIOMaintenanceRule.EvaluationStatus.ERROR, currentTick,
-                      "Stable maintenance job identity conflicts with another order");
+                        QIOMaintenanceRule.EvaluationStatus.ERROR, currentTick,
+                        "Stable maintenance job identity conflicts with another order");
                 return;
             }
             if (!catalog.completeEvaluation(evaluationId, job.getJobId())) {
@@ -728,41 +713,41 @@ public final class QIOMaintenanceService {
                 QIOProcessingNetworkManager.INSTANCE.persistenceBarrier().persist(network);
             } catch (IOException e) {
                 Mekanism.logger.error("Unable to persist QIO maintenance order {}",
-                      job.getJobId(), e);
+                        job.getJobId(), e);
                 return;
             }
             try {
                 QIOMaterialClaimCoordinator.refresh(network, job.getJobId(), view,
-                      QIOProcessingNetworkManager.INSTANCE.persistenceBarrier());
+                        QIOProcessingNetworkManager.INSTANCE.persistenceBarrier());
             } catch (IOException | RuntimeException e) {
                 Mekanism.logger.error("Unable to initialize material claim for QIO maintenance order {}",
-                      job.getJobId(), e);
+                        job.getJobId(), e);
             }
         } catch (RuntimeException e) {
             failAndPersist(network, evaluationId, QIOMaintenanceRule.EvaluationStatus.ERROR,
-                  currentTick, diagnostic(e));
+                    currentTick, diagnostic(e));
         } finally {
             view.close();
         }
     }
 
     private static QIOMaintenanceEvaluator.Decision evaluate(QIOProcessingNetworkData network,
-          QIOStorageSnapshot storage, PortableResourceDescriptor resource,
-          List<QIOMaintenanceRule> group, QIOProcessingConfig config, long currentTick) {
+                                                             QIOStorageSnapshot storage, PortableResourceDescriptor resource,
+                                                             List<QIOMaintenanceRule> group, QIOProcessingConfig config, long currentTick) {
         return QIOMaintenanceEvaluator.evaluate(network, storage, resource, group,
-              config.maintenanceBatchCap.val(), currentTick);
+                config.maintenanceBatchCap.val(), currentTick);
     }
 
     private static QIOMaintenanceEvaluator.Decision evaluate(QIOProcessingNetworkData network,
-          QIOMaintenanceEvaluator.EvaluationContext context,
-          PortableResourceDescriptor resource, List<QIOMaintenanceRule> group,
-          QIOProcessingConfig config, long currentTick) {
+                                                             QIOMaintenanceEvaluator.EvaluationContext context,
+                                                             PortableResourceDescriptor resource, List<QIOMaintenanceRule> group,
+                                                             QIOProcessingConfig config, long currentTick) {
         return QIOMaintenanceEvaluator.evaluate(network, context, resource, group,
-              config.maintenanceBatchCap.val(), currentTick);
+                config.maintenanceBatchCap.val(), currentTick);
     }
 
     private static boolean reconcileOutstandingJobs(QIOProcessingNetworkData network,
-          QIOMaintenanceRuleCatalog catalog) {
+                                                    QIOMaintenanceRuleCatalog catalog) {
         if (!catalog.hasOutstandingRules()) {
             return false;
         }
@@ -774,7 +759,7 @@ public final class QIOMaintenanceService {
     }
 
     private static boolean hasActiveOutstanding(QIOProcessingNetworkData network,
-          List<QIOMaintenanceRule> group) {
+                                                List<QIOMaintenanceRule> group) {
         for (QIOMaintenanceRule rule : group) {
             UUID jobId = rule.getOutstandingJobId();
             QIOCraftingJob job = jobId == null ? null : network.getJob(jobId);
@@ -786,7 +771,7 @@ public final class QIOMaintenanceService {
     }
 
     private static boolean matchesRuleSnapshot(QIOMaintenanceEvaluation evaluation,
-          @Nullable List<QIOMaintenanceRule> group) {
+                                               @Nullable List<QIOMaintenanceRule> group) {
         if (group == null || group.size() != evaluation.getGroupRuleRevisions().size()) {
             return false;
         }
@@ -798,10 +783,10 @@ public final class QIOMaintenanceService {
     }
 
     private static boolean matchesPendingDecision(QIOMaintenanceEvaluation evaluation,
-          QIOMaintenanceEvaluator.Decision decision) {
+                                                  QIOMaintenanceEvaluator.Decision decision) {
         if (decision.getStatus() != QIOMaintenanceEvaluator.Status.REQUEST ||
-              decision.getRequestAmount() != evaluation.getRequestAmount() ||
-              decision.getJobPriority() != evaluation.getJobPriority()) {
+                decision.getRequestAmount() != evaluation.getRequestAmount() ||
+                decision.getJobPriority() != evaluation.getJobPriority()) {
             return false;
         }
         List<UUID> triggered = new ArrayList<>();
@@ -817,7 +802,7 @@ public final class QIOMaintenanceService {
         QIOFrequencyIdentitySnapshot identity = network.getLastKnownFrequencyIdentity();
         UUID principal = identity.getOwnerUUID();
         QIOFrequencyReference reference = new QIOFrequencyReference(network.getFrequencyUUID(),
-              identity.getName(), identity.getOwnerUUID(), identity.getSecurityMode(), principal);
+                identity.getName(), identity.getOwnerUUID(), identity.getSecurityMode(), principal);
         return QIOFrequencyStorageAccess.INSTANCE.open(reference, principal);
     }
 
@@ -827,22 +812,22 @@ public final class QIOMaintenanceService {
             return true;
         } catch (IOException | RuntimeException e) {
             Mekanism.logger.error("Unable to persist QIO maintenance evaluation claim for {}",
-                  network.getFrequencyUUID(), e);
+                    network.getFrequencyUUID(), e);
             return false;
         }
     }
 
     private static void failAndPersist(QIOProcessingNetworkData network, UUID evaluationId,
-          QIOMaintenanceRule.EvaluationStatus status, long currentTick, String diagnostic) {
+                                       QIOMaintenanceRule.EvaluationStatus status, long currentTick, String diagnostic) {
         if (network.getMaintenanceRules().failEvaluation(evaluationId, status, currentTick,
-              diagnostic)) {
+                diagnostic)) {
             network.markMaintenanceRuntimeChanged();
             persistQuietly(network);
         }
     }
 
     private static void invalidateAndPersist(QIOProcessingNetworkData network,
-          UUID evaluationId) {
+                                             UUID evaluationId) {
         if (network.getMaintenanceRules().invalidateEvaluation(evaluationId)) {
             network.markMaintenanceRuntimeChanged();
             persistQuietly(network);
@@ -854,18 +839,18 @@ public final class QIOMaintenanceService {
             QIOProcessingNetworkManager.INSTANCE.persistenceBarrier().persist(network);
         } catch (IOException | RuntimeException e) {
             Mekanism.logger.error("Unable to persist QIO maintenance state for {}",
-                  network.getFrequencyUUID(), e);
+                    network.getFrequencyUUID(), e);
         }
     }
 
     private void removeOrphanedInFlight() {
         QIOPlanningExecutor executor = QIOPlanningService.INSTANCE.getExecutor();
         java.util.Iterator<Map.Entry<UUID, InFlightPlanning>> iterator =
-              inFlight.entrySet().iterator();
+                inFlight.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<UUID, InFlightPlanning> entry = iterator.next();
             QIOProcessingNetworkData network = QIOProcessingNetworkManager.INSTANCE.get(
-                  entry.getValue().frequencyUUID);
+                    entry.getValue().frequencyUUID);
             if (network == null || network.getMaintenanceRules().getPending(entry.getKey()) == null) {
                 if (executor != null) {
                     executor.cancel(entry.getValue().taskId);
@@ -876,22 +861,22 @@ public final class QIOMaintenanceService {
     }
 
     private static UUID statusEvaluationId(QIOProcessingNetworkData network,
-          QIOMaintenanceRuleCatalog catalog, PortableResourceDescriptor resource,
-          Collection<QIOMaintenanceRule> group, String outcome) {
+                                           QIOMaintenanceRuleCatalog catalog, PortableResourceDescriptor resource,
+                                           Collection<QIOMaintenanceRule> group, String outcome) {
         StringBuilder key = new StringBuilder("qio-maintenance-status-v1|")
-              .append(network.getFrequencyUUID()).append('|')
-              .append(catalog.getEvaluationGeneration()).append('|').append(resource)
-              .append('|').append(outcome);
+                .append(network.getFrequencyUUID()).append('|')
+                .append(catalog.getEvaluationGeneration()).append('|').append(resource)
+                .append('|').append(outcome);
         group.stream().sorted(Comparator.comparing(rule -> rule.getRuleId().toString()))
-              .forEach(rule -> key.append("|rule=").append(rule.getRuleId()).append('@')
-                    .append(rule.getRuleRevision()));
+                .forEach(rule -> key.append("|rule=").append(rule.getRuleId()).append('@')
+                        .append(rule.getRuleRevision()));
         return UUID.nameUUIDFromBytes(key.toString().getBytes(StandardCharsets.UTF_8));
     }
 
     private static String diagnostic(Throwable error) {
         String message = error == null ? "Unknown maintenance error" : error.getMessage();
         return message == null || message.trim().isEmpty() ?
-              error.getClass().getSimpleName() : message.trim();
+                error.getClass().getSimpleName() : message.trim();
     }
 
     private enum CandidateKind {
@@ -916,8 +901,8 @@ public final class QIOMaintenanceService {
         private final QIOMaintenanceEvaluation evaluation;
 
         private EvaluationCandidate(CandidateKind kind,
-              PortableResourceDescriptor resource, @Nullable List<QIOMaintenanceRule> group,
-              @Nullable QIOMaintenanceEvaluation evaluation) {
+                                    PortableResourceDescriptor resource, @Nullable List<QIOMaintenanceRule> group,
+                                    @Nullable QIOMaintenanceEvaluation evaluation) {
             this.kind = kind;
             this.resource = resource;
             this.group = group;
@@ -926,16 +911,16 @@ public final class QIOMaintenanceService {
 
         private static EvaluationCandidate resumable(QIOMaintenanceEvaluation evaluation) {
             return new EvaluationCandidate(CandidateKind.RESUMABLE,
-                  evaluation.getResource(), null, evaluation);
+                    evaluation.getResource(), null, evaluation);
         }
 
         private static EvaluationCandidate targeted(PortableResourceDescriptor resource,
-              List<QIOMaintenanceRule> group) {
+                                                    List<QIOMaintenanceRule> group) {
             return new EvaluationCandidate(CandidateKind.TARGETED, resource, group, null);
         }
 
         private static EvaluationCandidate audit(PortableResourceDescriptor resource,
-              List<QIOMaintenanceRule> group) {
+                                                 List<QIOMaintenanceRule> group) {
             return new EvaluationCandidate(CandidateKind.AUDIT, resource, group, null);
         }
     }
@@ -943,11 +928,11 @@ public final class QIOMaintenanceService {
     private static final class FreshEvaluationResult {
 
         private static final FreshEvaluationResult UNCHANGED =
-              new FreshEvaluationResult(false, false);
+                new FreshEvaluationResult(false, false);
         private static final FreshEvaluationResult CHANGED =
-              new FreshEvaluationResult(true, false);
+                new FreshEvaluationResult(true, false);
         private static final FreshEvaluationResult DEFERRED =
-              new FreshEvaluationResult(false, true);
+                new FreshEvaluationResult(false, true);
 
         private final boolean changed;
         private final boolean deferred;
@@ -970,12 +955,12 @@ public final class QIOMaintenanceService {
         @Nullable
         private final StorageSession storageSession;
         private final Map<PortableResourceDescriptor, QIOOrderService.PlanningCaptureResult>
-              captures = new LinkedHashMap<>();
+                captures = new LinkedHashMap<>();
         @Nullable
         private QIOStorageSnapshot storage;
 
         private PlanningInputs(World world, QIOProcessingNetworkData network,
-              IQIOStorageView view, @Nullable StorageSession storageSession) {
+                               IQIOStorageView view, @Nullable StorageSession storageSession) {
             this.world = world;
             this.network = network;
             this.view = view;
@@ -983,9 +968,9 @@ public final class QIOMaintenanceService {
         }
 
         private QIOOrderService.PlanningCaptureResult capture(
-              PortableResourceDescriptor resource) {
+                PortableResourceDescriptor resource) {
             return captures.computeIfAbsent(resource, ignored ->
-                  QIOOrderService.INSTANCE.capturePlanning(world, network, storage(), resource));
+                    QIOOrderService.INSTANCE.capturePlanning(world, network, storage(), resource));
         }
 
         private QIOStorageSnapshot storage() {
@@ -1001,8 +986,8 @@ public final class QIOMaintenanceService {
         private final UUID frequencyUUID;
         private final IQIOStorageView view;
         private final QIOMaintenanceWakeTracker wakeTracker = new QIOMaintenanceWakeTracker(
-              MAX_DIRTY_RESOURCES, CONTENT_SETTLE_TICKS, MAX_CONTENT_DELAY_TICKS,
-              STRUCTURAL_SETTLE_TICKS, MAX_STRUCTURAL_DELAY_TICKS);
+                MAX_DIRTY_RESOURCES, CONTENT_SETTLE_TICKS, MAX_CONTENT_DELAY_TICKS,
+                STRUCTURAL_SETTLE_TICKS, MAX_STRUCTURAL_DELAY_TICKS);
         private long contentsRevision = -1;
         private long accessRevision = -1;
         @Nullable
@@ -1021,19 +1006,19 @@ public final class QIOMaintenanceService {
             long currentClaim = view.getClaimRevision();
             long currentAccess = view.getAccessRevision();
             if (cachedSnapshot == null ||
-                  cachedSnapshot.getContentsRevision() != currentContents ||
-                  cachedSnapshot.getCapacityRevision() != currentCapacity ||
-                  cachedSnapshot.getClaimRevision() != currentClaim ||
-                  cachedSnapshot.getAccessRevision() != currentAccess) {
+                    cachedSnapshot.getContentsRevision() != currentContents ||
+                    cachedSnapshot.getCapacityRevision() != currentCapacity ||
+                    cachedSnapshot.getClaimRevision() != currentClaim ||
+                    cachedSnapshot.getAccessRevision() != currentAccess) {
                 cachedSnapshot = view.getSnapshot();
             }
             return cachedSnapshot;
         }
 
         private QIOMaintenanceWakeTracker.WakeBatch drainWake(
-              QIOProcessingNetworkData network, long currentTick) {
+                QIOProcessingNetworkData network, long currentTick) {
             return wakeTracker.drainIfDue(currentTick,
-                  network.getMaintenanceRules()::hasRuleForResource);
+                    network.getMaintenanceRules()::hasRuleForResource);
         }
     }
 
@@ -1043,7 +1028,7 @@ public final class QIOMaintenanceService {
         private final QIOOrderService.PlanningCapture capture;
 
         private PreparedSubmission(QIOMaintenanceEvaluation evaluation,
-              QIOOrderService.PlanningCapture capture) {
+                                   QIOOrderService.PlanningCapture capture) {
             this.evaluation = evaluation;
             this.capture = capture;
         }

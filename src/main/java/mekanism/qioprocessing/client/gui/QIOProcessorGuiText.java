@@ -21,6 +21,6 @@ final class QIOProcessorGuiText {
     static ITextComponent laneState(@Nullable QIOProcessorLaneRuntime.State state) {
         String suffix = state == null ? "idle" : state.name().toLowerCase(Locale.ROOT);
         return new TextComponentTranslation(
-              "gui.mekanismqioprocessing.processor_lane_" + suffix);
+                "gui.mekanismqioprocessing.processor_lane_" + suffix);
     }
 }

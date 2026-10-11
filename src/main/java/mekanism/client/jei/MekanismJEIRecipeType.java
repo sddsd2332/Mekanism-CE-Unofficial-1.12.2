@@ -3,23 +3,9 @@ package mekanism.client.jei;
 import mekanism.client.recipe_viewer.type.IRecipeViewerRecipeType;
 import mekanism.client.recipe_viewer.type.RecipeViewerRecipeType;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
-import mekanism.common.recipe.RecipeHandler.Recipe;
-import mekanism.common.recipe.machines.AdvancedMachineRecipe;
-import mekanism.common.recipe.machines.BasicMachineRecipe;
-import mekanism.common.recipe.machines.ChanceMachineRecipe;
-import mekanism.common.recipe.machines.ChemicalInfuserRecipe;
-import mekanism.common.recipe.machines.CrystallizerRecipe;
-import mekanism.common.recipe.machines.DissolutionRecipe;
-import mekanism.common.recipe.machines.DoubleMachineRecipe;
 import mekanism.common.recipe.ItemStackToEnergyRecipe;
-import mekanism.common.recipe.machines.IsotopicRecipe;
-import mekanism.common.recipe.machines.OxidationRecipe;
-import mekanism.common.recipe.machines.PressurizedRecipe;
-import mekanism.common.recipe.machines.SeparatorRecipe;
-import mekanism.common.recipe.machines.SolarNeutronRecipe;
-import mekanism.common.recipe.machines.WasherRecipe;
-import mekanism.common.recipe.machines.NucleosynthesizerRecipe;
-import mekanism.common.recipe.machines.NutritionalRecipe;
+import mekanism.common.recipe.RecipeHandler.Recipe;
+import mekanism.common.recipe.machines.*;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.text.ITextComponent;
@@ -67,12 +53,12 @@ public class MekanismJEIRecipeType<RECIPE> implements IRecipeViewerRecipeType<RE
     public static final MekanismJEIRecipeType<ChanceMachineRecipe<?>> CELL_SEPARATING = machine(Recipe.CELL_SEPARATOR, MachineType.CELL_SEPARATOR, "tile.MachineBlock4.CellSeparator.name", ChanceMachineRecipe.class, -28, -16, 144, 54);
 
     public static final MekanismJEIRecipeType<NucleosynthesizerRecipe> NUCLEOSYNTHESIZING = machine(Recipe.ANTIPROTONIC_NUCLEOSYNTHESIZER,
-          MachineType.ANTIPROTONIC_NUCLEOSYNTHESIZER, "tile.MachineBlock3.antiprotonicnucleosynthesizer.name", NucleosynthesizerRecipe.class, -6, -18, 182, 80);
+            MachineType.ANTIPROTONIC_NUCLEOSYNTHESIZER, "tile.MachineBlock3.antiprotonicnucleosynthesizer.name", NucleosynthesizerRecipe.class, -6, -18, 182, 80);
 
     public static final MekanismJEIRecipeType<ItemStackToEnergyRecipe> ENERGY_CONVERSION = new MekanismJEIRecipeType<>(Recipe.ENERGY_RECIPE.getJEICategory(),
-          "jei.mekanism.energy_conversion", ItemStackToEnergyRecipe.class, new ItemStack(mekanism.common.MekanismBlocks.EnergyCube), -20, -12, 132, 62);
+            "jei.mekanism.energy_conversion", ItemStackToEnergyRecipe.class, new ItemStack(mekanism.common.MekanismBlocks.EnergyCube), -20, -12, 132, 62);
     public static final MekanismJEIRecipeType<NutritionalRecipe> NUTRITIONAL_LIQUIFICATION = machine(Recipe.NUTRITIONAL_LIQUIFIER, MachineType.NUTRITIONAL_LIQUIFIER,
-          "tile.MachineBlock3.NutritionalLiquifier.name", NutritionalRecipe.class, -20, -12, 132, 62);
+            "tile.MachineBlock3.NutritionalLiquifier.name", NutritionalRecipe.class, -20, -12, 132, 62);
 
     private final ResourceLocation id;
     private final String translationKey;
@@ -84,7 +70,7 @@ public class MekanismJEIRecipeType<RECIPE> implements IRecipeViewerRecipeType<RE
     private final int height;
 
     private MekanismJEIRecipeType(String categoryUid, String translationKey, Class<? extends RECIPE> recipeClass, ItemStack iconStack, int xOffset, int yOffset, int width,
-          int height) {
+                                  int height) {
         this.id = RecipeViewerRecipeType.idFromCategoryUid(categoryUid);
         this.translationKey = translationKey;
         this.recipeClass = recipeClass;
@@ -97,7 +83,7 @@ public class MekanismJEIRecipeType<RECIPE> implements IRecipeViewerRecipeType<RE
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static <RECIPE> MekanismJEIRecipeType<RECIPE> machine(Recipe recipe, MachineType machineType, String translationKey, Class recipeClass, int xOffset,
-          int yOffset, int width, int height) {
+                                                                  int yOffset, int width, int height) {
         return new MekanismJEIRecipeType<>(recipe.getJEICategory(), translationKey, recipeClass, machineType.getStack(), xOffset, yOffset, width, height);
     }
 

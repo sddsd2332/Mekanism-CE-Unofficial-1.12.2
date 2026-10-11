@@ -8,7 +8,10 @@ import mekanism.qioprocessing.common.tile.QIOCraftingProcessor;
 
 import javax.annotation.Nonnull;
 
-/** Applies definition-specific upgrade limits on top of Mekanism's shared upgrade component. */
+/**
+ * Applies definition-specific upgrade limits on top of Mekanism's shared upgrade component.
+ */
+
 /**
  * QIO 处理模块中的 QIOProcessorUpgradeComponent 类型。
  *
@@ -28,7 +31,7 @@ public final class QIOProcessorUpgradeComponent extends TileComponentUpgrade {
     @Override
     public int getInstallRoom(Upgrade upgrade) {
         return Math.min(super.getInstallRoom(upgrade),
-              Math.max(0, limit(upgrade) - getUpgrades(upgrade)));
+                Math.max(0, limit(upgrade) - getUpgrades(upgrade)));
     }
 
     @Override
@@ -38,7 +41,7 @@ public final class QIOProcessorUpgradeComponent extends TileComponentUpgrade {
 
     private int limit(Upgrade upgrade) {
         QIOCraftingProcessorDefinition definition = processor.getProcessorState()
-              .getResolvedDefinition();
+                .getResolvedDefinition();
         if (definition == null) {
             return 0;
         }

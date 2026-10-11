@@ -30,8 +30,8 @@ public class GuiWindGenerator extends GuiGenerator<TileEntityWindGenerator, Cont
         addButton(new GuiEnergyTab(this, () -> getEnergyTabText(tileEntity.getActive() ? tileEntity.getEnergyAdd() : 0)));
         addButton(new GuiVerticalPowerBar(this, tileEntity.getEnergyContainer(), 164, 15));
         addButton(new GuiStateTexture(this, 18, 35, tileEntity::getActive,
-              new ResourceLocation(MekanismGenerators.MODID, "gui/wind_on.png"),
-              new ResourceLocation(MekanismGenerators.MODID, "gui/wind_off.png")));
+                new ResourceLocation(MekanismGenerators.MODID, "gui/wind_on.png"),
+                new ResourceLocation(MekanismGenerators.MODID, "gui/wind_off.png")));
     }
 
     private List<ITextComponent> getScreenText() {

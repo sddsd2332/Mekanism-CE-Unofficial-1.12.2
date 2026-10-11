@@ -36,7 +36,7 @@ public class GuiDigitalSwitch extends GuiTexturedElement {
     }
 
     public GuiDigitalSwitch(IGuiWrapper gui, int x, int y, ResourceLocation icon, BooleanSupplier stateSupplier, Runnable onToggle, String tooltip,
-          SwitchType type) {
+                            SwitchType type) {
         this(gui, x, y, icon, stateSupplier, (element, mouseX, mouseY) -> {
             onToggle.run();
             return true;
@@ -48,7 +48,7 @@ public class GuiDigitalSwitch extends GuiTexturedElement {
     }
 
     private GuiDigitalSwitch(IGuiWrapper gui, int x, int y, ResourceLocation icon, BooleanSupplier stateSupplier, IClickable onToggle, SwitchType type,
-          @Nullable String tooltip) {
+                             @Nullable String tooltip) {
         super(SWITCH, gui, x, y, type.width, type.height);
         this.type = type;
         this.icon = icon;
@@ -81,7 +81,7 @@ public class GuiDigitalSwitch extends GuiTexturedElement {
         boolean state = stateSupplier.getAsBoolean();
         GuiUtils.blit(relativeX + type.switchX, relativeY + type.switchY, 0, state ? 0 : BUTTON_SIZE_Y, BUTTON_SIZE_X, BUTTON_SIZE_Y, BUTTON_SIZE_X, BUTTON_SIZE_Y * 2);
         GuiUtils.blit(relativeX + type.switchX, relativeY + type.switchY + BUTTON_SIZE_Y + 1, 0, state ? BUTTON_SIZE_Y : 0, BUTTON_SIZE_X, BUTTON_SIZE_Y, BUTTON_SIZE_X,
-              BUTTON_SIZE_Y * 2);
+                BUTTON_SIZE_Y * 2);
         MekanismRenderer.bindTexture(icon);
         GuiUtils.blit(relativeX + type.iconX, relativeY + type.iconY, 0, 0, 5, 5, 5, 5);
         MekanismRenderer.resetColor();
@@ -91,9 +91,9 @@ public class GuiDigitalSwitch extends GuiTexturedElement {
     public void renderForeground(int mouseX, int mouseY) {
         super.renderForeground(mouseX, mouseY);
         drawScaledScrollingString(MekanismLang.ON.translate(), type.switchX, type.switchY, TextAlignment.CENTER, 0x101010, BUTTON_SIZE_X, 1, false, 0.5F,
-              GuiElement.getMillis());
+                GuiElement.getMillis());
         drawScaledScrollingString(MekanismLang.OFF.translate(), type.switchX, type.switchY + BUTTON_SIZE_Y + 1, TextAlignment.CENTER, 0x101010, BUTTON_SIZE_X, 1, false,
-              0.5F, GuiElement.getMillis());
+                0.5F, GuiElement.getMillis());
     }
 
     @Override

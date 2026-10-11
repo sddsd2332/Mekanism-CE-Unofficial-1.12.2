@@ -2,7 +2,6 @@ package mekanism.common.capabilities.heat;
 
 import mekanism.api.heat.HeatAPI;
 import mekanism.api.heat.HeatAPI.HeatTransfer;
-import mekanism.api.heat.IHeatCapacitor;
 import mekanism.api.heat.IHeatHandler;
 import mekanism.api.heat.IMekanismHeatHandler;
 import mekanism.api.heat.ISidedHeatHandler;
@@ -41,7 +40,9 @@ public interface ITileHeatHandler extends IMekanismHeatHandler {
         return environmentTransfer;
     }
 
-    /** Simulates environmental exchange for one exposed side. */
+    /**
+     * Simulates environmental exchange for one exposed side.
+     */
     default double simulateEnvironment(EnumFacing side) {
         double heatCapacity = getTotalHeatCapacity(side);
         if (!HeatAPI.isFinite(heatCapacity) || heatCapacity < 1) {
@@ -81,7 +82,9 @@ public interface ITileHeatHandler extends IMekanismHeatHandler {
         return adjacentTransfer;
     }
 
-    /** Simulates adjacent exchange for one exposed side. Only the hotter side initiates a transfer. */
+    /**
+     * Simulates adjacent exchange for one exposed side. Only the hotter side initiates a transfer.
+     */
     default double simulateAdjacent(EnumFacing side) {
         IHeatHandler sink = getAdjacent(side);
         Object sourceIdentity = getHeatIdentity(side);
@@ -139,14 +142,16 @@ public interface ITileHeatHandler extends IMekanismHeatHandler {
         return currentAdjacentTransfer + tempToTransfer;
     }
 
-    /** Returns a finite total heat estimate without losing unsaturated child capacitors. */
+    /**
+     * Returns a finite total heat estimate without losing unsaturated child capacitors.
+     */
     static double getHandlerHeat(IHeatHandler handler, @Nullable EnumFacing side) {
         return getAvailableHeat(snapshotHandlerHeat(handler, side));
     }
 
     static double[] snapshotHandlerHeat(IHeatHandler handler, @Nullable EnumFacing side) {
         int count = side != null && handler instanceof ISidedHeatHandler sided ?
-              sided.getHeatCapacitorCount(side) : handler.getHeatCapacitorCount();
+                sided.getHeatCapacitorCount(side) : handler.getHeatCapacitorCount();
         if (count <= 0) {
             return new double[0];
         }
@@ -162,7 +167,7 @@ public interface ITileHeatHandler extends IMekanismHeatHandler {
                 capacity = handler.getHeatCapacity(capacitor);
             }
             heat[capacitor] = HeatAPI.multiplyHeat(HeatAPI.sanitizeTemperature(temperature),
-                  HeatAPI.sanitizeHeatCapacity(capacity));
+                    HeatAPI.sanitizeHeatCapacity(capacity));
         }
         return heat;
     }

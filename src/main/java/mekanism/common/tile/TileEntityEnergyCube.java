@@ -104,7 +104,7 @@ public class TileEntityEnergyCube extends TileEntityElectricBlock implements ICo
 
         ejectorComponent = new TileComponentEjector(this, () -> tier.getOutput(), false);
         ejectorComponent.setOutputData(configComponent, TransmissionType.ENERGY)
-              .setCanEject(type -> MekanismUtils.canFunction(this));
+                .setCanEject(type -> MekanismUtils.canFunction(this));
 
         securityComponent = new TileComponentSecurity(this);
     }
@@ -164,7 +164,7 @@ public class TileEntityEnergyCube extends TileEntityElectricBlock implements ICo
             return null;
         }
         return new EnergyCubeUpgradeData(upgradeTier, facing, clientFacing, ticker, redstone, redstoneLastTick, doAutoSync, getEnergy(),
-              currentRedstoneLevel, getControlType(), writeUpgradeComponentData(), chargeSlot.serializeNBT(), dischargeSlot.serializeNBT());
+                currentRedstoneLevel, getControlType(), writeUpgradeComponentData(), chargeSlot.serializeNBT(), dischargeSlot.serializeNBT());
     }
 
     @Nonnull
@@ -308,6 +308,11 @@ public class TileEntityEnergyCube extends TileEntityElectricBlock implements ICo
             markNoUpdateSync();
             currentRedstoneLevel = newRedstoneLevel;
         }
+    }
+
+    @Override
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return type == mekanism.api.transmitters.TransmissionType.ENERGY;
     }
 
     @Override

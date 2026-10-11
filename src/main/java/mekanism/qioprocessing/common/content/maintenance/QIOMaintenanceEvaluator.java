@@ -12,16 +12,12 @@ import mekanism.qioprocessing.common.content.transfer.QIODurableTransferRecord;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
-/** Pure main-thread decision logic for one normalized maintenance resource group. */
+/**
+ * Pure main-thread decision logic for one normalized maintenance resource group.
+ */
+
 /**
  * QIO 处理模块中的 QIOMaintenanceEvaluator 类型。
  *
@@ -44,12 +40,12 @@ public final class QIOMaintenanceEvaluator {
         private final BigInteger committedGuaranteedInbound;
 
         private EffectiveStock(BigInteger qioSpendable, BigInteger settledInboundAwaitingQIO,
-              BigInteger committedGuaranteedInbound) {
+                               BigInteger committedGuaranteedInbound) {
             this.qioSpendable = requireNonNegative(qioSpendable, "qioSpendable");
             this.settledInboundAwaitingQIO = requireNonNegative(settledInboundAwaitingQIO,
-                  "settledInboundAwaitingQIO");
+                    "settledInboundAwaitingQIO");
             this.committedGuaranteedInbound = requireNonNegative(committedGuaranteedInbound,
-                  "committedGuaranteedInbound");
+                    "committedGuaranteedInbound");
         }
 
         @Nonnull
@@ -70,7 +66,7 @@ public final class QIOMaintenanceEvaluator {
         @Nonnull
         public BigInteger getTotal() {
             return qioSpendable.add(settledInboundAwaitingQIO)
-                  .add(committedGuaranteedInbound);
+                    .add(committedGuaranteedInbound);
         }
     }
 
@@ -84,10 +80,10 @@ public final class QIOMaintenanceEvaluator {
         private final Map<PortableResourceDescriptor, UUID> activeMaintenanceJobs;
 
         private EvaluationContext(UUID frequencyUUID,
-              Map<PortableResourceDescriptor, BigInteger> spendable,
-              Map<PortableResourceDescriptor, BigInteger> settled,
-              Map<PortableResourceDescriptor, BigInteger> guaranteed,
-              Map<PortableResourceDescriptor, UUID> activeMaintenanceJobs) {
+                                  Map<PortableResourceDescriptor, BigInteger> spendable,
+                                  Map<PortableResourceDescriptor, BigInteger> settled,
+                                  Map<PortableResourceDescriptor, BigInteger> guaranteed,
+                                  Map<PortableResourceDescriptor, UUID> activeMaintenanceJobs) {
             this.frequencyUUID = frequencyUUID;
             this.spendable = spendable;
             this.settled = settled;
@@ -97,7 +93,7 @@ public final class QIOMaintenanceEvaluator {
 
         @Nonnull
         public static EvaluationContext create(@Nonnull QIOProcessingNetworkData network,
-              @Nonnull QIOStorageSnapshot storage) {
+                                               @Nonnull QIOStorageSnapshot storage) {
             Objects.requireNonNull(network, "network");
             Objects.requireNonNull(storage, "storage");
             if (!network.getFrequencyUUID().equals(storage.getFrequencyUUID())) {
@@ -116,35 +112,35 @@ public final class QIOMaintenanceEvaluator {
         /** Builds a projection for only the resources selected by one bounded evaluation slice. */
         @Nonnull
         public static EvaluationContext createProjected(@Nonnull QIOProcessingNetworkData network,
-              @Nonnull Map<PortableResourceDescriptor, BigInteger> projectedSpendable) {
+                                                        @Nonnull Map<PortableResourceDescriptor, BigInteger> projectedSpendable) {
             Objects.requireNonNull(network, "network");
             Objects.requireNonNull(projectedSpendable, "projectedSpendable");
             Map<PortableResourceDescriptor, BigInteger> spendable = new LinkedHashMap<>();
             for (Map.Entry<PortableResourceDescriptor, BigInteger> entry :
-                  projectedSpendable.entrySet()) {
+                    projectedSpendable.entrySet()) {
                 PortableResourceDescriptor resource = Objects.requireNonNull(entry.getKey(),
-                      "projected resource");
+                        "projected resource");
                 spendable.put(resource, requireNonNegative(entry.getValue(),
-                      "projected spendable"));
+                        "projected spendable"));
             }
             return create(network, spendable, spendable.keySet());
         }
 
         private static EvaluationContext create(QIOProcessingNetworkData network,
-              Map<PortableResourceDescriptor, BigInteger> spendable,
-              @Nullable java.util.Set<PortableResourceDescriptor> projectedResources) {
+                                                Map<PortableResourceDescriptor, BigInteger> spendable,
+                                                @Nullable java.util.Set<PortableResourceDescriptor> projectedResources) {
 
             Map<UUID, Map<PortableResourceDescriptor, BigInteger>> creditedByJob =
-                  new LinkedHashMap<>();
+                    new LinkedHashMap<>();
             for (QIODurableTransferRecord transfer : network.getDurableTransfers()) {
                 UUID jobId = transfer.getOwnerJobId();
                 if (jobId == null || transfer.getType() != QIODurableTransferRecord.Type.JOB_TO_QIO ||
-                      transfer.getResolution() != QIODurableTransferRecord.Resolution.NONE ||
-                      transfer.getPhase() != QIODurableTransferRecord.Phase.DESTINATION_CREDITED) {
+                        transfer.getResolution() != QIODurableTransferRecord.Resolution.NONE ||
+                        transfer.getPhase() != QIODurableTransferRecord.Phase.DESTINATION_CREDITED) {
                     continue;
                 }
                 Map<PortableResourceDescriptor, BigInteger> credited = creditedByJob
-                      .computeIfAbsent(jobId, ignored -> new LinkedHashMap<>());
+                        .computeIfAbsent(jobId, ignored -> new LinkedHashMap<>());
                 transfer.getResources().forEach((resource, amount) -> {
                     if (projectedResources == null || projectedResources.contains(resource)) {
                         credited.merge(resource, BigInteger.valueOf(amount), BigInteger::add);
@@ -166,25 +162,25 @@ public final class QIOMaintenanceEvaluator {
                 }
                 BigInteger remaining = BigInteger.valueOf(job.getRemainingGuaranteedRootAmount());
                 BigInteger alreadyCredited = creditedByJob
-                      .getOrDefault(job.getJobId(), Collections.emptyMap())
-                      .getOrDefault(resource, BigInteger.ZERO).min(remaining);
+                        .getOrDefault(job.getJobId(), Collections.emptyMap())
+                        .getOrDefault(resource, BigInteger.ZERO).min(remaining);
                 remaining = remaining.subtract(alreadyCredited);
                 QIOJobBuffer buffer = network.getJobBuffer(job.getJobId());
                 BigInteger settledForJob = buffer == null ? BigInteger.ZERO :
-                      settledRootInBuffer(job, buffer, resource).min(remaining);
+                        settledRootInBuffer(job, buffer, resource).min(remaining);
                 settled.merge(resource, settledForJob, BigInteger::add);
                 guaranteed.merge(resource, remaining.subtract(settledForJob), BigInteger::add);
             }
             return new EvaluationContext(network.getFrequencyUUID(), spendable, settled,
-                  guaranteed, activeMaintenanceJobs);
+                    guaranteed, activeMaintenanceJobs);
         }
 
         private StockAndOrder stock(PortableResourceDescriptor resource) {
             return new StockAndOrder(new EffectiveStock(
-                  spendable.getOrDefault(resource, BigInteger.ZERO),
-                  settled.getOrDefault(resource, BigInteger.ZERO),
-                  guaranteed.getOrDefault(resource, BigInteger.ZERO)),
-                  activeMaintenanceJobs.get(resource));
+                    spendable.getOrDefault(resource, BigInteger.ZERO),
+                    settled.getOrDefault(resource, BigInteger.ZERO),
+                    guaranteed.getOrDefault(resource, BigInteger.ZERO)),
+                    activeMaintenanceJobs.get(resource));
         }
     }
 
@@ -200,8 +196,8 @@ public final class QIOMaintenanceEvaluator {
         private final UUID activeJobId;
 
         private Decision(Status status, EffectiveStock effectiveStock,
-              List<QIOMaintenanceRule> triggeredRules, long requestAmount, long jobPriority,
-              long retryAtTick, @Nullable UUID activeJobId) {
+                         List<QIOMaintenanceRule> triggeredRules, long requestAmount, long jobPriority,
+                         long retryAtTick, @Nullable UUID activeJobId) {
             this.status = Objects.requireNonNull(status, "status");
             this.effectiveStock = Objects.requireNonNull(effectiveStock, "effectiveStock");
             this.triggeredRules = Collections.unmodifiableList(new ArrayList<>(triggeredRules));
@@ -249,22 +245,22 @@ public final class QIOMaintenanceEvaluator {
 
     @Nonnull
     public static Decision evaluate(@Nonnull QIOProcessingNetworkData network,
-          @Nonnull QIOStorageSnapshot storage, @Nonnull PortableResourceDescriptor resource,
-          @Nonnull List<QIOMaintenanceRule> group, long serverBatchCap, long currentTick) {
+                                    @Nonnull QIOStorageSnapshot storage, @Nonnull PortableResourceDescriptor resource,
+                                    @Nonnull List<QIOMaintenanceRule> group, long serverBatchCap, long currentTick) {
         return evaluate(network, EvaluationContext.create(network, storage), resource, group,
-              serverBatchCap, currentTick);
+                serverBatchCap, currentTick);
     }
 
     @Nonnull
     public static Decision evaluate(@Nonnull QIOProcessingNetworkData network,
-          @Nonnull EvaluationContext context, @Nonnull PortableResourceDescriptor resource,
-          @Nonnull List<QIOMaintenanceRule> group, long serverBatchCap, long currentTick) {
+                                    @Nonnull EvaluationContext context, @Nonnull PortableResourceDescriptor resource,
+                                    @Nonnull List<QIOMaintenanceRule> group, long serverBatchCap, long currentTick) {
         Objects.requireNonNull(network, "network");
         Objects.requireNonNull(context, "context");
         Objects.requireNonNull(resource, "resource");
         Objects.requireNonNull(group, "group");
         if (!network.getFrequencyUUID().equals(context.frequencyUUID) ||
-              serverBatchCap <= 0 || currentTick < 0) {
+                serverBatchCap <= 0 || currentTick < 0) {
             throw new IllegalArgumentException("Invalid maintenance evaluation input");
         }
         List<QIOMaintenanceRule> ordered = new ArrayList<>(group);
@@ -279,17 +275,17 @@ public final class QIOMaintenanceEvaluator {
         List<QIOMaintenanceRule> triggered = new ArrayList<>();
         for (QIOMaintenanceRule rule : ordered) {
             if (rule.isEnabled() && stock.effectiveStock.getTotal().compareTo(
-                  BigInteger.valueOf(rule.getTriggerAmount())) < 0) {
+                    BigInteger.valueOf(rule.getTriggerAmount())) < 0) {
                 triggered.add(rule);
             }
         }
         if (stock.activeMaintenanceJobId != null) {
             return new Decision(Status.ACTIVE_ORDER, stock.effectiveStock, triggered, 0, 0,
-                  0, stock.activeMaintenanceJobId);
+                    0, stock.activeMaintenanceJobId);
         }
         if (triggered.isEmpty()) {
             return new Decision(Status.NOT_TRIGGERED, stock.effectiveStock, triggered, 0, 0,
-                  0, null);
+                    0, null);
         }
 
         long retryAtTick = 0;
@@ -298,7 +294,7 @@ public final class QIOMaintenanceEvaluator {
         }
         if (currentTick < retryAtTick) {
             return new Decision(Status.RETRY_WAIT, stock.effectiveStock, triggered, 0, 0,
-                  retryAtTick, null);
+                    retryAtTick, null);
         }
 
         long effectivePriority = Long.MIN_VALUE;
@@ -312,14 +308,14 @@ public final class QIOMaintenanceEvaluator {
         long requestAmount = effectiveBatchCap;
         if (requestAmount <= 0) {
             return new Decision(Status.NOT_TRIGGERED, stock.effectiveStock, triggered, 0, 0,
-                  0, null);
+                    0, null);
         }
         return new Decision(Status.REQUEST, stock.effectiveStock, triggered, requestAmount,
-              effectivePriority, 0, null);
+                effectivePriority, 0, null);
     }
 
     private static StockAndOrder calculateEffectiveStock(QIOProcessingNetworkData network,
-          QIOStorageSnapshot storage, PortableResourceDescriptor resource) {
+                                                         QIOStorageSnapshot storage, PortableResourceDescriptor resource) {
         BigInteger spendable = BigInteger.ZERO;
         for (QIOStorageEntry entry : storage.getEntries()) {
             if (entry != null && resource.equals(PortableResourceDescriptor.fromStorageEntry(entry))) {
@@ -335,61 +331,61 @@ public final class QIOMaintenanceEvaluator {
                 continue;
             }
             if (job.getSource() == QIOCraftingJobSource.MAINTENANCE &&
-                  activeMaintenanceJobId == null) {
+                    activeMaintenanceJobId == null) {
                 activeMaintenanceJobId = job.getJobId();
             }
             BigInteger remaining = BigInteger.valueOf(job.getRemainingGuaranteedRootAmount());
             BigInteger alreadyCredited = creditedToQIO(network, job.getJobId(), resource)
-                  .min(remaining);
+                    .min(remaining);
             remaining = remaining.subtract(alreadyCredited);
             QIOJobBuffer buffer = network.getJobBuffer(job.getJobId());
             BigInteger settledForJob = buffer == null ? BigInteger.ZERO :
-                  settledRootInBuffer(job, buffer, resource).min(remaining);
+                    settledRootInBuffer(job, buffer, resource).min(remaining);
             settled = settled.add(settledForJob);
             guaranteed = guaranteed.add(remaining.subtract(settledForJob));
         }
         return new StockAndOrder(new EffectiveStock(spendable, settled, guaranteed),
-              activeMaintenanceJobId);
+                activeMaintenanceJobId);
     }
 
     private static boolean contributesGuaranteedRoot(QIOCraftingJob job,
-          PortableResourceDescriptor resource) {
+                                                     PortableResourceDescriptor resource) {
         return contributesGuaranteedRoot(job) &&
-              resource.equals(job.getActivePlan().getRootResource());
+                resource.equals(job.getActivePlan().getRootResource());
     }
 
     private static boolean contributesGuaranteedRoot(QIOCraftingJob job) {
         return !job.getState().isTerminal() && !job.isCancellationRequested() &&
-              job.getState() != mekanism.qioprocessing.common.content.job.QIOCraftingJobState.CANCEL_REQUESTED &&
-              job.getState() != mekanism.qioprocessing.common.content.job.QIOCraftingJobState.RETURNING &&
-              job.getState() != mekanism.qioprocessing.common.content.job.QIOCraftingJobState.OPERATION_CONTAMINATED &&
-              job.getState() != mekanism.qioprocessing.common.content.job.QIOCraftingJobState.ORPHANED_FREQUENCY &&
-              job.getRemainingGuaranteedRootAmount() > 0;
+                job.getState() != mekanism.qioprocessing.common.content.job.QIOCraftingJobState.CANCEL_REQUESTED &&
+                job.getState() != mekanism.qioprocessing.common.content.job.QIOCraftingJobState.RETURNING &&
+                job.getState() != mekanism.qioprocessing.common.content.job.QIOCraftingJobState.OPERATION_CONTAMINATED &&
+                job.getState() != mekanism.qioprocessing.common.content.job.QIOCraftingJobState.ORPHANED_FREQUENCY &&
+                job.getRemainingGuaranteedRootAmount() > 0;
     }
 
     private static BigInteger creditedToQIO(QIOProcessingNetworkData network, UUID jobId,
-          PortableResourceDescriptor resource) {
+                                            PortableResourceDescriptor resource) {
         BigInteger credited = BigInteger.ZERO;
         for (QIODurableTransferRecord transfer : network.getDurableTransfers()) {
             if (jobId.equals(transfer.getOwnerJobId()) &&
-                  transfer.getType() == QIODurableTransferRecord.Type.JOB_TO_QIO &&
-                  transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE &&
-                  transfer.getPhase() == QIODurableTransferRecord.Phase.DESTINATION_CREDITED) {
+                    transfer.getType() == QIODurableTransferRecord.Type.JOB_TO_QIO &&
+                    transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE &&
+                    transfer.getPhase() == QIODurableTransferRecord.Phase.DESTINATION_CREDITED) {
                 credited = credited.add(BigInteger.valueOf(
-                      transfer.getResources().getOrDefault(resource, 0L)));
+                        transfer.getResources().getOrDefault(resource, 0L)));
             }
         }
         return credited;
     }
 
     private static BigInteger settledRootInBuffer(QIOCraftingJob job, QIOJobBuffer buffer,
-          PortableResourceDescriptor resource) {
+                                                  PortableResourceDescriptor resource) {
         BigInteger settled = BigInteger.valueOf(buffer.get(QIOJobBuffer.Compartment.SETTLED_OUTPUT,
-              resource)).add(BigInteger.valueOf(buffer.get(QIOJobBuffer.Compartment.RETURNING,
-              resource)));
+                resource)).add(BigInteger.valueOf(buffer.get(QIOJobBuffer.Compartment.RETURNING,
+                resource)));
         if (job.areAllStepsComplete()) {
             settled = settled.add(BigInteger.valueOf(buffer.get(QIOJobBuffer.Compartment.PRODUCED,
-                  resource)));
+                    resource)));
         }
         return settled;
     }
@@ -409,7 +405,7 @@ public final class QIOMaintenanceEvaluator {
         private final UUID activeMaintenanceJobId;
 
         private StockAndOrder(EffectiveStock effectiveStock,
-              @Nullable UUID activeMaintenanceJobId) {
+                              @Nullable UUID activeMaintenanceJobId) {
             this.effectiveStock = effectiveStock;
             this.activeMaintenanceJobId = activeMaintenanceJobId;
         }

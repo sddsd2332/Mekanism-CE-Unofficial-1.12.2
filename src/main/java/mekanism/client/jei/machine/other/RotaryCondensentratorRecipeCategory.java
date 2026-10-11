@@ -47,30 +47,34 @@ public class RotaryCondensentratorRecipeCategory extends BaseRecipeCategory<Rota
             public boolean fillProgressBar() {
                 return true;
             }
+
             @Override
             public boolean isActive() {
                 return condensentrating;
             }
+
             @Override
             public boolean isGuiInJei() {
                 return true;
             }
 
-        }, ProgressType.LARGE_RIGHT , this, 64, 39));
+        }, ProgressType.LARGE_RIGHT, this, 64, 39));
         guiElements.add(new GuiProgress(new IProgressInfoHandler.IBooleanProgressInfoHandler() {
             @Override
             public boolean fillProgressBar() {
                 return true;
             }
+
             @Override
             public boolean isActive() {
                 return !condensentrating;
             }
+
             @Override
             public boolean isGuiInJei() {
                 return true;
             }
-        }, ProgressType.LARGE_LEFT , this, 64, 39));
+        }, ProgressType.LARGE_LEFT, this, 64, 39));
     }
 
     @Override

@@ -57,12 +57,12 @@ public final class OutputHelper {
     }
 
     public static IOutputHandler<ChanceOutput> getOutputHandler(IInventorySlot primarySlot, IInventorySlot secondarySlot,
-          RecipeError notEnoughSpaceError) {
+                                                                RecipeError notEnoughSpaceError) {
         return getOutputHandler(primarySlot, notEnoughSpaceError, secondarySlot, notEnoughSpaceError);
     }
 
     public static IOutputHandler<ChanceOutput> getOutputHandler(IInventorySlot primarySlot, RecipeError primaryNotEnoughSpaceError,
-          IInventorySlot secondarySlot, RecipeError secondaryNotEnoughSpaceError) {
+                                                                IInventorySlot secondarySlot, RecipeError secondaryNotEnoughSpaceError) {
         return getOutputHandler(primarySlot, primaryNotEnoughSpaceError, secondarySlot, secondaryNotEnoughSpaceError, null);
     }
 
@@ -72,7 +72,7 @@ public final class OutputHelper {
      * @param random the source to roll probability outputs with, or null to keep using the legacy shared source
      */
     public static IOutputHandler<ChanceOutput> getOutputHandler(IInventorySlot primarySlot, IInventorySlot secondarySlot,
-          RecipeError notEnoughSpaceError, @Nullable Random random) {
+                                                                RecipeError notEnoughSpaceError, @Nullable Random random) {
         return getOutputHandler(primarySlot, notEnoughSpaceError, secondarySlot, notEnoughSpaceError, random);
     }
 
@@ -82,7 +82,7 @@ public final class OutputHelper {
      * @param random the source to roll probability outputs with, or null to keep using the legacy shared source
      */
     public static IOutputHandler<ChanceOutput> getOutputHandler(IInventorySlot primarySlot, RecipeError primaryNotEnoughSpaceError,
-          IInventorySlot secondarySlot, RecipeError secondaryNotEnoughSpaceError, @Nullable Random random) {
+                                                                IInventorySlot secondarySlot, RecipeError secondaryNotEnoughSpaceError, @Nullable Random random) {
         return new IOutputHandler<>() {
 
             @Override
@@ -134,12 +134,12 @@ public final class OutputHelper {
     }
 
     public static IOutputHandler<FarmOutput> getFarmOutputHandler(IInventorySlot primarySlot, IInventorySlot secondarySlot,
-          RecipeError notEnoughSpaceError) {
+                                                                  RecipeError notEnoughSpaceError) {
         return getFarmOutputHandler(Arrays.asList(primarySlot, secondarySlot), notEnoughSpaceError);
     }
 
     public static IOutputHandler<FarmOutput> getFarmOutputHandler(List<? extends IInventorySlot> outputSlots,
-          RecipeError notEnoughSpaceError) {
+                                                                  RecipeError notEnoughSpaceError) {
         return getFarmOutputHandler(outputSlots, notEnoughSpaceError, null);
     }
 
@@ -149,7 +149,7 @@ public final class OutputHelper {
      * @param random the source to roll chance outputs with, or null to keep using the legacy shared source
      */
     public static IOutputHandler<FarmOutput> getFarmOutputHandler(List<? extends IInventorySlot> outputSlots,
-          RecipeError notEnoughSpaceError, @Nullable Random random) {
+                                                                  RecipeError notEnoughSpaceError, @Nullable Random random) {
         return new IOutputHandler<>() {
 
             @Override
@@ -184,7 +184,7 @@ public final class OutputHelper {
             virtualSlots.add(slot.getStack().copy());
         }
         int maxOperations = Math.min(operationLimit,
-              getGuaranteedOutputUpperBound(outputSlots, virtualSlots, output.getGuaranteedOutput()));
+                getGuaranteedOutputUpperBound(outputSlots, virtualSlots, output.getGuaranteedOutput()));
         int operations = 0;
         while (operations < maxOperations && insertFarmOutputsVirtual(outputSlots, virtualSlots, worstCaseOutputs)) {
             operations++;
@@ -193,7 +193,7 @@ public final class OutputHelper {
     }
 
     private static int getGuaranteedOutputUpperBound(List<? extends IInventorySlot> outputSlots, List<ItemStack> virtualSlots,
-          ItemStack guaranteedOutput) {
+                                                     ItemStack guaranteedOutput) {
         int capacity = 0;
         for (int i = 0; i < outputSlots.size(); i++) {
             IInventorySlot slot = outputSlots.get(i);
@@ -228,7 +228,7 @@ public final class OutputHelper {
     }
 
     private static boolean insertFarmOutputsVirtual(List<? extends IInventorySlot> outputSlots, List<ItemStack> virtualSlots,
-          List<ItemStack> outputs) {
+                                                    List<ItemStack> outputs) {
         for (ItemStack output : outputs) {
             int remaining = output.getCount();
             remaining = insertFarmOutputVirtual(outputSlots, virtualSlots, output, remaining, false);
@@ -241,12 +241,12 @@ public final class OutputHelper {
     }
 
     private static int insertFarmOutputVirtual(List<? extends IInventorySlot> outputSlots, List<ItemStack> virtualSlots,
-          ItemStack output, int remaining, boolean emptySlots) {
+                                               ItemStack output, int remaining, boolean emptySlots) {
         for (int i = 0; i < outputSlots.size() && remaining > 0; i++) {
             IInventorySlot slot = outputSlots.get(i);
             ItemStack stored = virtualSlots.get(i);
             if (stored.isEmpty() != emptySlots || !slot.isItemValid(output) ||
-                  !stored.isEmpty() && !ItemHandlerHelper.canItemStacksStack(stored, output)) {
+                    !stored.isEmpty() && !ItemHandlerHelper.canItemStacksStack(stored, output)) {
                 continue;
             }
             int accepted = Math.min(remaining, Math.max(0, slot.getLimit(output) - stored.getCount()));
@@ -311,7 +311,7 @@ public final class OutputHelper {
      * @param random the source to roll probability outputs with, or null to keep using the legacy shared source
      */
     public static IOutputHandler<ChanceGasOutput> getChanceGasOutputHandler(IExtendedGasTank tank, RecipeError notEnoughSpaceError,
-          @Nullable Random random) {
+                                                                            @Nullable Random random) {
         return new IOutputHandler<>() {
 
             @Override
@@ -336,12 +336,12 @@ public final class OutputHelper {
     }
 
     public static IOutputHandler<PressurizedOutput> getOutputHandler(IInventorySlot itemSlot, IExtendedGasTank tank,
-          RecipeError notEnoughSpaceError) {
+                                                                     RecipeError notEnoughSpaceError) {
         return getOutputHandler(itemSlot, notEnoughSpaceError, tank, notEnoughSpaceError);
     }
 
     public static IOutputHandler<PressurizedOutput> getOutputHandler(IInventorySlot itemSlot, RecipeError itemNotEnoughSpaceError,
-          IExtendedGasTank tank, RecipeError gasNotEnoughSpaceError) {
+                                                                     IExtendedGasTank tank, RecipeError gasNotEnoughSpaceError) {
         return new IOutputHandler<>() {
 
             @Override
@@ -391,12 +391,12 @@ public final class OutputHelper {
     }
 
     public static IOutputHandler<ChemicalPairOutput> getChemicalPairOutputHandler(IExtendedGasTank leftTank, IExtendedGasTank rightTank,
-          RecipeError notEnoughSpaceError) {
+                                                                                  RecipeError notEnoughSpaceError) {
         return getChemicalPairOutputHandler(leftTank, notEnoughSpaceError, rightTank, notEnoughSpaceError);
     }
 
     public static IOutputHandler<ChemicalPairOutput> getChemicalPairOutputHandler(IExtendedGasTank leftTank, RecipeError leftNotEnoughSpaceError,
-          IExtendedGasTank rightTank, RecipeError rightNotEnoughSpaceError) {
+                                                                                  IExtendedGasTank rightTank, RecipeError rightNotEnoughSpaceError) {
         return new IOutputHandler<>() {
 
             @Override
@@ -515,7 +515,7 @@ public final class OutputHelper {
 
     private static int getMaxChemicalPairOutputOperations(IExtendedGasTank leftTank, IExtendedGasTank rightTank, ChemicalPairOutput toOutput) {
         return Math.max(getMaxChemicalPairOutputOperations(leftTank, toOutput.leftGas, rightTank, toOutput.rightGas),
-              getMaxChemicalPairOutputOperations(leftTank, toOutput.rightGas, rightTank, toOutput.leftGas));
+                getMaxChemicalPairOutputOperations(leftTank, toOutput.rightGas, rightTank, toOutput.leftGas));
     }
 
     private static int getMaxChemicalPairOutputOperations(IExtendedGasTank leftTank, GasStack leftOutput, IExtendedGasTank rightTank, GasStack rightOutput) {
@@ -523,20 +523,20 @@ public final class OutputHelper {
     }
 
     private static void addChemicalPairOutputErrors(OperationTracker tracker, IExtendedGasTank leftTank, IExtendedGasTank rightTank, ChemicalPairOutput toOutput,
-          RecipeError leftNotEnoughSpaceError, RecipeError rightNotEnoughSpaceError) {
+                                                    RecipeError leftNotEnoughSpaceError, RecipeError rightNotEnoughSpaceError) {
         boolean addedSpaceError = addChemicalPairOrientationErrors(tracker, leftTank, toOutput.leftGas, leftNotEnoughSpaceError, rightTank, toOutput.rightGas,
-              rightNotEnoughSpaceError);
+                rightNotEnoughSpaceError);
         addedSpaceError |= addChemicalPairOrientationErrors(tracker, leftTank, toOutput.rightGas, leftNotEnoughSpaceError, rightTank, toOutput.leftGas,
-              rightNotEnoughSpaceError);
+                rightNotEnoughSpaceError);
         if (!addedSpaceError) {
             tracker.addError(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT);
         }
     }
 
     private static boolean addChemicalPairOrientationErrors(OperationTracker tracker, IExtendedGasTank leftTank, GasStack leftOutput,
-          RecipeError leftNotEnoughSpaceError, IExtendedGasTank rightTank, GasStack rightOutput, RecipeError rightNotEnoughSpaceError) {
+                                                            RecipeError leftNotEnoughSpaceError, IExtendedGasTank rightTank, GasStack rightOutput, RecipeError rightNotEnoughSpaceError) {
         return addChemicalPairTankOutputError(tracker, leftTank, leftOutput, leftNotEnoughSpaceError) |
-              addChemicalPairTankOutputError(tracker, rightTank, rightOutput, rightNotEnoughSpaceError);
+                addChemicalPairTankOutputError(tracker, rightTank, rightOutput, rightNotEnoughSpaceError);
     }
 
     private static boolean addChemicalPairTankOutputError(OperationTracker tracker, IExtendedGasTank tank, GasStack output, RecipeError notEnoughSpaceError) {

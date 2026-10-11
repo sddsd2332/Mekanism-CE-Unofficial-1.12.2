@@ -1,15 +1,19 @@
 package mekanism.qioprocessing.common.planning;
 
 import mekanism.common.config.MekanismConfig;
+import mekanism.common.config.QIOProcessingConfig;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 
-import javax.annotation.Nullable;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-/** Owns the one planning pool associated with the active Minecraft server. */
+/**
+ * Owns the one planning pool associated with the active Minecraft server.
+ */
+
 /**
  * QIO 处理模块中的 QIOPlanningService 类型。
  *
@@ -22,6 +26,8 @@ public final class QIOPlanningService {
 
     private QIOPlanningExecutor executor;
     private int drainedThisServerTick;
+    private long completionNanosThisServerTick;
+    private boolean draining;
 
     private QIOPlanningService() {
     }
@@ -29,88 +35,108 @@ public final class QIOPlanningService {
     /** 启动后台规划执行器。 */
     public synchronized void start() {
         stop();
-        executor = new QIOPlanningExecutor();
+        QIOProcessingConfig config = MekanismConfig.current().qioProcessing;
+        executor = new QIOPlanningExecutor(config.planningWorkerThreads.val(),
+                config.planningQueueCapacity.val(), config.planningTaskTimeoutSeconds.val(),
+                TimeUnit.SECONDS);
         drainedThisServerTick = 0;
+        completionNanosThisServerTick = 0;
     }
 
     /** 停止规划执行器并清理待处理任务。 */
     public synchronized void stop() {
         if (executor != null) {
-            executor.shutdown(5, TimeUnit.SECONDS);
+            executor.close();
             executor = null;
         }
         QIOTopologicalPlanner.INSTANCE.clearCache();
         drainedThisServerTick = 0;
+        completionNanosThisServerTick = 0;
     }
 
     @Nullable
-    /** 返回当前规划执行器；未启动时按需启动。 */
+    /** 返回当前服务器的执行器；停服后不隐式重启。 */
     public synchronized QIOPlanningExecutor getExecutor() {
         return executor;
     }
 
-    /** Submits the built-in pure-data planner to the server-wide cached worker pool. */
+    /** Submits the built-in pure-data planner to the bounded independent worker pool. */
     @Nonnull
     /** 提交一次异步规划请求。 */
     public synchronized QIOPlanningExecutor.Submission submit(@Nonnull QIOPlanningRequest request,
-          @Nonnull Consumer<QIOPlanningExecutor.PlanningResult<QIOPlanningResult>> completion) {
+                                                              @Nonnull Consumer<QIOPlanningExecutor.PlanningResult<QIOPlanningResult>> completion) {
         if (executor == null) {
             throw new IllegalStateException("QIO planning service is not running");
         }
         return executor.submit(request, QIOPlanner.INSTANCE, completion);
     }
 
-    /** Submits a pure-data preparation or planning task to the shared tick-budgeted pool. */
+    /** Submits an interactive pure-data preparation or planning task. */
     @Nonnull
     /** 提交通用规划任务，供规划器和测试复用。 */
     public synchronized <I, O> QIOPlanningExecutor.Submission submitTask(@Nonnull I input,
-          @Nonnull QIOPlanningExecutor.PlanningTask<I, O> task,
-          @Nonnull Consumer<QIOPlanningExecutor.PlanningResult<O>> completion) {
+                                                                         @Nonnull QIOPlanningExecutor.PlanningTask<I, O> task,
+                                                                         @Nonnull Consumer<QIOPlanningExecutor.PlanningResult<O>> completion) {
+        return submitTask(QIOPlanningExecutor.TaskKind.INTERACTIVE, input, task, completion);
+    }
+
+    @Nonnull
+    public synchronized <I, O> QIOPlanningExecutor.Submission submitTask(
+            @Nonnull QIOPlanningExecutor.TaskKind kind, @Nonnull I input,
+            @Nonnull QIOPlanningExecutor.PlanningTask<I, O> task,
+            @Nonnull Consumer<QIOPlanningExecutor.PlanningResult<O>> completion) {
         if (executor == null) {
             throw new IllegalStateException("QIO planning service is not running");
         }
-        return executor.submit(input, task, completion);
+        return executor.submit(kind, input, task, completion);
     }
 
     @SubscribeEvent
-    /** 服务端 tick 中推进规划时间片并派发完成结果。 */
+    /** 服务端 tick 派发验证续作和完成结果，后台计算不需要 tick 授时。 */
     public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase == TickEvent.Phase.START) {
             synchronized (this) {
                 drainedThisServerTick = 0;
+                completionNanosThisServerTick = 0;
             }
             return;
         }
-        runPlanningSliceForCurrentTick();
         drainCompletedForCurrentTick();
-    }
-
-    /** Advances all active calculations using the AE2-style shared server-tick budget. */
-    /** 使用当前配置运行一次规划时间片。 */
-    public int runPlanningSliceForCurrentTick() {
-        QIOPlanningExecutor activeExecutor;
-        int milliseconds;
-        synchronized (this) {
-            activeExecutor = executor;
-            milliseconds = MekanismConfig.current().qioProcessing.planningTimePerTick.val();
-        }
-        return activeExecutor == null ? 0 :
-              activeExecutor.runPlanningSlice(milliseconds, TimeUnit.MILLISECONDS);
     }
 
     /** Publishes completed worker results without exceeding the configured per-tick commit budget. */
     /** 在主线程消费规划完成回调。 */
-    public synchronized int drainCompletedForCurrentTick() {
-        if (executor == null) {
-            return 0;
+    public int drainCompletedForCurrentTick() {
+        QIOPlanningExecutor active;
+        synchronized (this) {
+            if (executor == null || draining) return 0;
+            active = executor;
+            draining = true;
         }
-        int limit = MekanismConfig.current().qioProcessing.planningResultsPerTick.val();
-        int remaining = Math.max(0, limit - drainedThisServerTick);
-        if (remaining == 0) {
-            return 0;
+        int drained = 0;
+        try {
+            QIOProcessingConfig config = MekanismConfig.current().qioProcessing;
+            long budget = TimeUnit.MILLISECONDS.toNanos(config.planningResultTimePerTick.val());
+            while (true) {
+                synchronized (this) {
+                    if (executor != active || drainedThisServerTick >= config.planningResultsPerTick.val() ||
+                            completionNanosThisServerTick >= budget) break;
+                }
+                long started = System.nanoTime();
+                QIOPlanningExecutor.DrainResult result = active.drainWork(1);
+                synchronized (this) {
+                    if (executor != active) break;
+                    drainedThisServerTick += result.work;
+                    completionNanosThisServerTick += Math.max(0, System.nanoTime() - started);
+                }
+                drained += result.completed;
+                if (result.work == 0) break;
+            }
+        } finally {
+            synchronized (this) {
+                draining = false;
+            }
         }
-        int drained = executor.drainCompleted(remaining);
-        drainedThisServerTick += drained;
         return drained;
     }
 }

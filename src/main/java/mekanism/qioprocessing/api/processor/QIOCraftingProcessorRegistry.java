@@ -5,14 +5,12 @@ import net.minecraft.util.ResourceLocation;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
-/** Registration boundary shared by built-in and Mekanism-addon workbench processors. */
+/**
+ * Registration boundary shared by built-in and Mekanism-addon workbench processors.
+ */
+
 /**
  * QIO 处理模块中的 QIOCraftingProcessorRegistry 类型。
  *
@@ -52,14 +50,14 @@ public final class QIOCraftingProcessorRegistry {
     /** 注册一个处理器定义；冻结后或标识重复时拒绝注册。 */
     @Nonnull
     public static synchronized QIOCraftingProcessorDefinition register(
-          @Nonnull QIOCraftingProcessorDefinition definition) {
+            @Nonnull QIOCraftingProcessorDefinition definition) {
         Objects.requireNonNull(definition, "definition");
         if (frozen) {
             throw new IllegalStateException("QIO crafting processor registration is already frozen");
         }
         if (definition.getLaneCount() > registrationLaneLimit) {
             throw new IllegalArgumentException("QIO processor " + definition.getId() + " declares " +
-                  definition.getLaneCount() + " lanes, above the configured limit " + registrationLaneLimit);
+                    definition.getLaneCount() + " lanes, above the configured limit " + registrationLaneLimit);
         }
         QIOCraftingProcessorDefinition previous = DEFINITIONS.putIfAbsent(definition.getId(), definition);
         if (previous != null) {
@@ -105,7 +103,7 @@ public final class QIOCraftingProcessorRegistry {
         registrationLaneLimit = laneLimit;
     }
 
-    static synchronized void resetForTests() {
+    public static synchronized void resetForTests() {
         DEFINITIONS.clear();
         registrationLaneLimit = Long.MAX_VALUE;
         builtinsRegistered = false;
@@ -118,6 +116,6 @@ public final class QIOCraftingProcessorRegistry {
 
     private static QIOCraftingProcessorDefinition builtin(ResourceLocation id, long lanes) {
         return new QIOCraftingProcessorDefinition(id, lanes, 50, lanes * 100_000D,
-              8, 8, 8);
+                8, 8, 8);
     }
 }

@@ -3,11 +3,7 @@ package mekanism.api.processing;
 import mekanism.api.IContainerTransaction;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Supplier;
 
 /**
@@ -32,7 +28,7 @@ public final class MachineTransferPlan {
 
     public static MachineTransferPlan create(@Nullable Object owner) {
         return new MachineTransferPlan(owner instanceof IContainerTransaction transaction ? transaction : null,
-              owner == null ? new Object() : owner);
+                owner == null ? new Object() : owner);
     }
 
     public MachineTransferPlan addInsert(@Nullable MachinePort port, @Nullable MachineResourceStack stack) {
@@ -85,9 +81,9 @@ public final class MachineTransferPlan {
             for (Entry entry : entries) {
                 boolean success;
                 if (entry.operation == Operation.INSERT) {
-                    success = entry.port.insert(entry.stack);
+                    success = entry.port.insertInPreparedPlan(entry.stack);
                 } else {
-                    MachineResourceStack value = entry.port.extract(entry.stack);
+                    MachineResourceStack value = entry.port.extractInPreparedPlan(entry.stack);
                     success = value != null;
                     if (success) {
                         extracted.add(value);
@@ -124,7 +120,7 @@ public final class MachineTransferPlan {
     }
 
     private static void restoreAfterFailure(List<MachinePort.Snapshot> snapshots,
-          Throwable failure) {
+                                            Throwable failure) {
         for (int i = snapshots.size() - 1; i >= 0; i--) {
             try {
                 snapshots.get(i).restore();

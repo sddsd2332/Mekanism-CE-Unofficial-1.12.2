@@ -115,7 +115,7 @@ public class TileEntityBoilerCasing extends TileEntityMultiblock<SynchronizedBoi
 
                 boolean needsHotUpdate = false;
                 boolean newHot = HeatAPI.isFinite(structure.getTemperature()) &&
-                      structure.getTemperature() >= SynchronizedBoilerData.BASE_BOIL_TEMP - 0.01F;
+                        structure.getTemperature() >= SynchronizedBoilerData.BASE_BOIL_TEMP - 0.01F;
                 if (structure.inventoryID != null) {
                     SynchronizedBoilerData.hotMap.put(structure.inventoryID, newHot);
                 }
@@ -126,16 +126,16 @@ public class TileEntityBoilerCasing extends TileEntityMultiblock<SynchronizedBoi
 
                 double environmentLoss = structure.simulateEnvironment();
                 structure.lastEnvironmentLoss = HeatAPI.isFinite(environmentLoss) ?
-                      Math.max(0, Math.min(HeatAPI.MAX_HEAT, environmentLoss)) : 0;
+                        Math.max(0, Math.min(HeatAPI.MAX_HEAT, environmentLoss)) : 0;
                 GasStack superheatedCoolant = internalInputGasTank.getGas();
                 if (superheatedCoolant != null && superheatedCoolant.getGas() == MekanismFluids.SuperheatedSodium &&
-                    (internalOutputGasTank.isEmpty() || internalOutputGasTank.isTypeEqual(MekanismFluids.Sodium))) {
+                        (internalOutputGasTank.isEmpty() || internalOutputGasTank.isTypeEqual(MekanismFluids.Sodium))) {
                     //Match higher-version behavior: cool a fraction of heated coolant and scale it down at high case temperatures.
                     double portionToCool = SynchronizedBoilerData.COOLANT_COOLING_EFFICIENCY * superheatedCoolant.amount;
                     double coolingAmount = portionToCool * (1 - HeatAPI.sanitizeTemperature(structure.getTemperature()) /
-                          SynchronizedBoilerData.HEATED_COOLANT_TEMP);
+                            SynchronizedBoilerData.HEATED_COOLANT_TEMP);
                     int amountToCool = HeatAPI.isFinite(coolingAmount) ?
-                          (int) Math.min(superheatedCoolant.amount, Math.max(0, Math.min(Integer.MAX_VALUE, Math.round(coolingAmount)))) : 0;
+                            (int) Math.min(superheatedCoolant.amount, Math.max(0, Math.min(Integer.MAX_VALUE, Math.round(coolingAmount)))) : 0;
                     if (amountToCool > 0) {
                         GasStack cooledCoolant = new GasStack(MekanismFluids.Sodium, amountToCool);
                         GasStack simulatedRemainder = internalOutputGasTank.insert(cooledCoolant, Action.SIMULATE, AutomationType.INTERNAL);
@@ -152,9 +152,9 @@ public class TileEntityBoilerCasing extends TileEntityMultiblock<SynchronizedBoi
                 if (structure.getTemperature() >= SynchronizedBoilerData.BASE_BOIL_TEMP && !internalWaterTank.isEmpty() && FluidRegistry.getFluid("steam") != null) {
                     double heatAvailable = structure.getHeatAvailable();
                     double maxBoil = SynchronizedBoilerData.getSteamEnergyEfficiency() * heatAvailable /
-                          SynchronizedBoilerData.getHeatEnthalpy();
+                            SynchronizedBoilerData.getHeatEnthalpy();
                     structure.lastMaxBoil = HeatAPI.isFinite(maxBoil) ?
-                          (int) Math.max(0, Math.min(Integer.MAX_VALUE, Math.floor(maxBoil))) : 0;
+                            (int) Math.max(0, Math.min(Integer.MAX_VALUE, Math.floor(maxBoil))) : 0;
                     int amountToBoil = Math.min(structure.lastMaxBoil, internalWaterTank.getFluidAmount());
                     int boiled = 0;
                     if (amountToBoil > 0) {
@@ -166,7 +166,7 @@ public class TileEntityBoilerCasing extends TileEntityMultiblock<SynchronizedBoi
                         if (boiled > 0) {
                             internalSteamTank.insert(new FluidStack(FluidRegistry.getFluid("steam"), boiled), Action.EXECUTE, AutomationType.INTERNAL);
                             double consumedHeat = HeatAPI.multiplyHeat(boiled,
-                                  SynchronizedBoilerData.getHeatEnthalpy() / SynchronizedBoilerData.getSteamEnergyEfficiency());
+                                    SynchronizedBoilerData.getHeatEnthalpy() / SynchronizedBoilerData.getSteamEnergyEfficiency());
                             structure.getHeatCapacitor().handleHeat(-consumedHeat);
                         }
                     }
@@ -220,9 +220,9 @@ public class TileEntityBoilerCasing extends TileEntityMultiblock<SynchronizedBoi
     @Override
     protected IHeatCapacitorHolder getInitialHeatCapacitors(IContentsListener listener) {
         return ProxiedHeatCapacitorHolder.create(
-              side -> structure != null && structure.isFormed(),
-              side -> structure != null && structure.isFormed(),
-              side -> structure == null || !structure.isFormed() ? Collections.emptyList() : Collections.singletonList(structure.getHeatCapacitor())
+                side -> structure != null && structure.isFormed(),
+                side -> structure != null && structure.isFormed(),
+                side -> structure == null || !structure.isFormed() ? Collections.emptyList() : Collections.singletonList(structure.getHeatCapacitor())
         );
     }
 
@@ -244,7 +244,7 @@ public class TileEntityBoilerCasing extends TileEntityMultiblock<SynchronizedBoi
             data.add(structure.getWaterCapacity());
             data.add(structure.getSteamCapacity());
             data.add(HeatAPI.isFinite(structure.lastEnvironmentLoss) ?
-                  Math.max(0, Math.min(HeatAPI.MAX_HEAT, structure.lastEnvironmentLoss)) : 0);
+                    Math.max(0, Math.min(HeatAPI.MAX_HEAT, structure.lastEnvironmentLoss)) : 0);
             data.add(structure.lastBoilRate);
             data.add(structure.superheatingElements);
             data.add(structure.getHeatCapacitor().getHeatCapacity());
@@ -331,7 +331,7 @@ public class TileEntityBoilerCasing extends TileEntityMultiblock<SynchronizedBoi
                 clientSteamCapacity = Math.max(0, dataStream.readInt());
                 double environmentLoss = dataStream.readDouble();
                 structure.lastEnvironmentLoss = HeatAPI.isFinite(environmentLoss) ?
-                      Math.max(0, Math.min(HeatAPI.MAX_HEAT, environmentLoss)) : 0;
+                        Math.max(0, Math.min(HeatAPI.MAX_HEAT, environmentLoss)) : 0;
                 structure.lastBoilRate = Math.max(0, dataStream.readInt());
                 structure.superheatingElements = Math.max(0, dataStream.readInt());
                 structure.getHeatCapacitor().setHeatCapacityFromPacket(dataStream.readDouble());

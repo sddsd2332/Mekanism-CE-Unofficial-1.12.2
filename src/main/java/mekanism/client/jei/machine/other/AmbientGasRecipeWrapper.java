@@ -32,7 +32,7 @@ public class AmbientGasRecipeWrapper<RECIPE extends AmbientGasRecipe> extends Me
             fontRendererObj.drawString(LangUtils.localize("gui.dimension2") + ":" + input.ingredient, 3, 3, 0x33ff99);
             fontRendererObj.drawString(LangUtils.localize("gui.dimensionGas") + ":", 3, 12, 0x33ff99);
             fontRendererObj.drawString(output.output.getGas().getLocalizedName(), 3, 21, 0x33ff99);
-            fontRendererObj.drawString(LangUtils.localize("gui.probability2") + ":" + Math.round(output.primaryChance* 100) + "%", 3, 30, 0x33ff99);
+            fontRendererObj.drawString(LangUtils.localize("gui.probability2") + ":" + Math.round(output.primaryChance * 100) + "%", 3, 30, 0x33ff99);
         }
     }
 

@@ -1,0 +1,17 @@
+{
+  "result": {"item": "mekanism:comparatorupgrade"},
+  "pattern": [
+    " R ",
+    "ACA",
+    " R "
+  ],
+  "type": "forge:ore_shaped",
+  "key": {
+    "A": {"item": "mekanism:enrichedalloy"},
+    "C": {"item": "minecraft:comparator"},
+    "R": {
+      "ore": "dustRedstone",
+      "type": "forge:ore_dict"
+    }
+  }
+}

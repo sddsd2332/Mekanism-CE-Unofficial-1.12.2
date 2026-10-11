@@ -85,8 +85,8 @@ public class RotaryCondensentrator extends VirtualizedMekanismRegistry<RotaryRec
         List<RotaryInput> toRemove = new ArrayList<>();
         recipeRegistry.get().forEach((input, recipe) -> {
             if (input instanceof RotaryInput rotaryInput &&
-                (fluidInput == null || recipe.hasFluidToGas() && rotaryInput.containsType(fluidInput)) &&
-                (gasInput == null || recipe.hasGasToFluid() && rotaryInput.containsType(gasInput))) {
+                    (fluidInput == null || recipe.hasFluidToGas() && rotaryInput.containsType(fluidInput)) &&
+                    (gasInput == null || recipe.hasGasToFluid() && rotaryInput.containsType(gasInput))) {
                 toRemove.add(rotaryInput);
             }
         });

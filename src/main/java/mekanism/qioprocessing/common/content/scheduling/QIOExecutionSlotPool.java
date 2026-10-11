@@ -6,18 +6,12 @@ import net.minecraft.nbt.NBTTagList;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
-/** Sparse execution-slot ownership; its memory use follows active jobs, not the configured limit. */
+/**
+ * Sparse execution-slot ownership; its memory use follows active jobs, not the configured limit.
+ */
+
 /**
  * QIO 处理模块中的 QIOExecutionSlotPool 类型。
  *
@@ -33,7 +27,7 @@ public final class QIOExecutionSlotPool {
     /** 在配置上限内为任务取得或复用执行槽。 */
     @Nullable
     public ActiveExecutionSlot acquire(@Nonnull QIOCraftingJob job, int configuredLimit,
-          long schedulerClock) {
+                                       long schedulerClock) {
         Objects.requireNonNull(job, "job");
         if (configuredLimit <= 0) {
             throw new IllegalArgumentException("configuredLimit must be positive");
@@ -46,7 +40,7 @@ public final class QIOExecutionSlotPool {
             return null;
         }
         ActiveExecutionSlot slot = new ActiveExecutionSlot(UUID.randomUUID(), job.getJobId(),
-              schedulerClock, job.getSource());
+                schedulerClock, job.getSource());
         job.assignExecutionSlot(slot.getSlotToken(), schedulerClock);
         activeByJob.put(job.getJobId(), slot);
         return slot;
@@ -86,16 +80,16 @@ public final class QIOExecutionSlotPool {
     public NBTTagList write() {
         NBTTagList list = new NBTTagList();
         activeByJob.values().stream()
-              .sorted((left, right) -> left.getOwnerJobId().toString()
-                    .compareTo(right.getOwnerJobId().toString()))
-              .forEach(slot -> list.appendTag(slot.write()));
+                .sorted((left, right) -> left.getOwnerJobId().toString()
+                        .compareTo(right.getOwnerJobId().toString()))
+                .forEach(slot -> list.appendTag(slot.write()));
         return list;
     }
 
     /** 从 NBT 读取槽池并拒绝重复任务/重复 token。 */
     @Nonnull
     public static QIOExecutionSlotPool read(@Nonnull NBTTagList list)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         if (list.tagCount() > MAX_PERSISTED_ACTIVE_SLOTS) {
             throw new QIOProcessingDataException("QIO execution slot list exceeds its safety limit");
         }
@@ -105,11 +99,11 @@ public final class QIOExecutionSlotPool {
             ActiveExecutionSlot slot = ActiveExecutionSlot.read(list.getCompoundTagAt(i));
             if (pool.activeByJob.put(slot.getOwnerJobId(), slot) != null) {
                 throw new QIOProcessingDataException("QIO job owns more than one execution slot: " +
-                      slot.getOwnerJobId());
+                        slot.getOwnerJobId());
             }
             if (!tokens.add(slot.getSlotToken())) {
                 throw new QIOProcessingDataException("Duplicate QIO execution slot token: " +
-                      slot.getSlotToken());
+                        slot.getSlotToken());
             }
         }
         return pool;
@@ -117,19 +111,19 @@ public final class QIOExecutionSlotPool {
 
     /** 校验槽池与任务中的执行槽引用双向一致。 */
     public void validateAgainst(@Nonnull Map<UUID, QIOCraftingJob> jobs)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         Objects.requireNonNull(jobs, "jobs");
         for (ActiveExecutionSlot slot : activeByJob.values()) {
             QIOCraftingJob job = jobs.get(slot.getOwnerJobId());
             if (job == null) {
                 throw new QIOProcessingDataException("Execution slot references unknown job " +
-                      slot.getOwnerJobId());
+                        slot.getOwnerJobId());
             }
             if (job.getState().isTerminal() || !slot.getSlotToken().equals(job.getExecutionSlotToken()) ||
-                  slot.getAcquiredAtSchedulerClock() != job.getSlotAcquiredAtSchedulerClock() ||
-                  slot.getSource() != job.getSource()) {
+                    slot.getAcquiredAtSchedulerClock() != job.getSlotAcquiredAtSchedulerClock() ||
+                    slot.getSource() != job.getSource()) {
                 throw new QIOProcessingDataException("Execution slot ownership disagrees with job " +
-                      slot.getOwnerJobId());
+                        slot.getOwnerJobId());
             }
         }
         for (QIOCraftingJob job : jobs.values()) {

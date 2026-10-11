@@ -44,7 +44,7 @@ public class TileEntityPressurizedTube extends TileEntityTransmitter<IGasHandler
     private final List<IExtendedGasTank> gasTanks = Collections.singletonList(gasTank);
     private final DynamicGasHandler gasHandler = new DynamicGasHandler(this::getTubeGasTanks, this::canExtractGasTank, this::canInsertGasTank, this);
     private final GasHandlerManager gasHandlerManager = new GasHandlerManager(ProxiedGasTankHolder.create(
-          this::canInsertGas, this::canExtractGas, this::getTubeGasTanks
+            this::canInsertGas, this::canExtractGas, this::getTubeGasTanks
     ), gasHandler);
 
     public TileEntityPressurizedTube() {
@@ -65,15 +65,18 @@ public class TileEntityPressurizedTube extends TileEntityTransmitter<IGasHandler
     @Override
     public void doRestrictedTick() {
         if (!getWorld().isRemote) {
-            updateShare();
-            if (nextTransfer <= 0) {
+            if (nextTransfer <= 0 && getAvailablePull() > 0) {
+                byte pullMask = getPullConnectionMask();
                 boolean successAtLeaseOnce = false;
-                for (EnumFacing side : getConnections(ConnectionType.PULL)) {
+                for (EnumFacing side : EnumFacing.VALUES) {
+                    if (!connectionMapContainsSide(pullMask, side)) continue;
+                    int available = getAvailablePull();
+                    if (available <= 0) break;
                     IGasHandler container = getConnectedAcceptor(side, true);
                     if (container != null) {
                         GasStack bufferWithFallback = getBufferWithFallback();
                         Gas gasType = bufferWithFallback == null ? null : bufferWithFallback.getGas();
-                        GasStack received = GasInventorySlot.extractGas(container, side.getOpposite(), gasType, getAvailablePull(), false);
+                        GasStack received = GasInventorySlot.extractGas(container, side.getOpposite(), gasType, available, false);
                         if (received != null && received.amount != 0 && takeGas(received, false) == received.amount) {
                             GasStack extracted = GasInventorySlot.extractGas(container, side.getOpposite(), received.getGas(), received.amount, true);
                             if (extracted != null && extracted.amount != 0) {
@@ -86,7 +89,7 @@ public class TileEntityPressurizedTube extends TileEntityTransmitter<IGasHandler
                 if (!successAtLeaseOnce) {
                     nextTransfer = 20;
                 }
-            } else {
+            } else if (nextTransfer > 0) {
                 nextTransfer--;
             }
         } else {
@@ -107,40 +110,16 @@ public class TileEntityPressurizedTube extends TileEntityTransmitter<IGasHandler
 
     @Override
     public void updateShare() {
-        if (getTransmitter().hasTransmitterNetwork() && getTransmitter().getTransmitterNetworkSize() > 0) {
-            GasStack last = getSaveShare();
-            if ((last != null && !(lastWrite != null && lastWrite.amount == last.amount && lastWrite.getGas() == last.getGas())) || (last == null && lastWrite != null)) {
-                lastWrite = last;
-                markChunkDirty();
-                //markDirty();
-//                this.world.markChunkDirty(this.pos, this);
-            }
-        }
+        GasStack last = !unloaded && getTransmitter().hasTransmitterNetwork() ? getSaveShare() : buffer.getGas();
+        lastWrite = last == null ? null : last.copy();
     }
 
     private GasStack getSaveShare() {
-        GasNetwork transmitterNetwork = getTransmitter().getTransmitterNetwork();
-        GasStack networkBuffer = transmitterNetwork.getBuffer();
-        if (getTransmitter().hasTransmitterNetwork() && networkBuffer != null) {
-            int bufferAmount = transmitterNetwork.getBufferAmount();
-            int remain = bufferAmount % transmitterNetwork.transmittersSize();
-            int toSave = bufferAmount / transmitterNetwork.transmittersSize();
-            if (transmitterNetwork.firstTransmitter().equals(getTransmitter())) {
-                toSave += remain;
-            }
-            return new GasStack(networkBuffer.getGas(), toSave);
-        }
-        return null;
-    }
-
-    @Override
-    public void onChunkUnload() {
-        if (!getWorld().isRemote && getTransmitter().hasTransmitterNetwork()) {
-            if (lastWrite != null && getTransmitter().getTransmitterNetwork().getBuffer() != null) {
-                getTransmitter().getTransmitterNetwork().shrinkBuffer(lastWrite.amount);
-            }
-        }
-        super.onChunkUnload();
+        if (!getTransmitter().hasTransmitterNetwork()) return buffer.getGas();
+        GasNetwork network = getTransmitter().getTransmitterNetwork();
+        GasStack stored = network.getBuffer();
+        int amount = (int) network.getSaveShare(getTransmitter());
+        return stored == null || amount <= 0 ? null : new GasStack(stored.getGas(), amount);
     }
 
     @Override
@@ -162,6 +141,7 @@ public class TileEntityPressurizedTube extends TileEntityTransmitter<IGasHandler
 
     @Override
     public void writeCustomNBT(NBTTagCompound nbtTags) {
+        updateShare();
         super.writeCustomNBT(nbtTags);
         if (lastWrite != null && lastWrite.amount > 0) {
             nbtTags.setTag("cacheGas", lastWrite.write(new NBTTagCompound()));
@@ -184,7 +164,7 @@ public class TileEntityPressurizedTube extends TileEntityTransmitter<IGasHandler
     @Override
     public boolean isValidAcceptor(TileEntity tile, EnumFacing side) {
         return tile != null && !CapabilityUtils.hasCapability(tile, Capabilities.GRID_TRANSMITTER_CAPABILITY, side.getOpposite()) &&
-               CapabilityUtils.hasCapability(tile, Capabilities.GAS_HANDLER_CAPABILITY, side.getOpposite());
+                CapabilityUtils.hasCapability(tile, Capabilities.GAS_HANDLER_CAPABILITY, side.getOpposite());
     }
 
     @Override
@@ -238,9 +218,15 @@ public class TileEntityPressurizedTube extends TileEntityTransmitter<IGasHandler
 
     @Override
     public void takeShare() {
-        if (getTransmitter().hasTransmitterNetwork() && getTransmitter().getTransmitterNetwork().getBuffer() != null && lastWrite != null) {
-            getTransmitter().getTransmitterNetwork().shrinkBuffer(lastWrite.amount);
-            buffer.setGas(lastWrite);
+        updateShare();
+        if (getTransmitter().hasTransmitterNetwork()) {
+            GasNetwork network = getTransmitter().getTransmitterNetwork();
+            if (lastWrite == null) buffer.setGas(null);
+            else {
+                int removed = network.shrinkBuffer(lastWrite.amount);
+                lastWrite = removed <= 0 ? null : new GasStack(lastWrite.getGas(), removed);
+                buffer.setGas(lastWrite);
+            }
         }
     }
 

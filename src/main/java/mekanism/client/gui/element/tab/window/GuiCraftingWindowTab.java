@@ -17,7 +17,9 @@ import mekanism.common.util.MekanismUtils.ResourceType;
 import javax.annotation.Nonnull;
 import java.util.function.Supplier;
 
-/** Side tab that manages the three persistent QIO crafting windows. */
+/**
+ * Side tab that manages the three persistent QIO crafting windows.
+ */
 public class GuiCraftingWindowTab extends GuiInsetElement<Void> {
 
     private final boolean[] openWindows = new boolean[IQIOCraftingWindowHolder.MAX_CRAFTING_WINDOWS];

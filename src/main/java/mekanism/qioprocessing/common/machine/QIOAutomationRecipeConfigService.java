@@ -26,17 +26,12 @@ import net.minecraft.tileentity.TileEntity;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
-/** Server-side authorization, paging, and CAS mutation for QIO machine recipe profiles. */
+/**
+ * Server-side authorization, paging, and CAS mutation for QIO machine recipe profiles.
+ */
+
 /**
  * QIO 处理模块中的 QIOAutomationRecipeConfigService 类型。
  *
@@ -50,7 +45,7 @@ public final class QIOAutomationRecipeConfigService {
     private static final int MAX_ROUTE_DIRECTORY_CACHE_ENTRIES = 128;
     private static final int MAX_CACHED_ROUTE_COUNT = 250_000;
     private static final Map<RouteDirectoryKey, RouteDirectory> ROUTE_DIRECTORY_CACHE =
-          new LinkedHashMap<>(16, 0.75F, true);
+            new LinkedHashMap<>(16, 0.75F, true);
     private static long cachedRouteCount;
 
     public enum MutationStatus {
@@ -71,61 +66,57 @@ public final class QIOAutomationRecipeConfigService {
 
     @Nullable
     public static Context open(@Nonnull EntityPlayer player, @Nonnull TileEntity tile,
-          @Nonnull QIOAutomationRecipeConfigType type) {
+                               @Nonnull QIOAutomationRecipeConfigType type) {
         Objects.requireNonNull(player, "player");
         Objects.requireNonNull(tile, "tile");
         Objects.requireNonNull(type, "type");
         if (!(tile instanceof TileEntityContainerBlock containerTile) ||
-            !type.isInstalledIn(containerTile) || !SecurityUtils.canAccess(player, tile) ||
-            !tile.hasCapability(QIOAutomationCapabilities.AUTOMATION_HOST, null)) {
+                !type.isInstalledIn(containerTile) || !SecurityUtils.canAccess(player, tile) ||
+                !tile.hasCapability(QIOAutomationCapabilities.AUTOMATION_HOST, null)) {
             return null;
         }
         QIOAutomationHost host = tile.getCapability(QIOAutomationCapabilities.AUTOMATION_HOST,
-              null);
+                null);
         if (host == null || host.getEnabledMode() != type.getMode() ||
-            host.getState() == QIOAutomationHost.State.DRAINING_CHANGE ||
-            host.getState() == QIOAutomationHost.State.IDENTITY_CONFLICT) {
+                host.getState() == QIOAutomationHost.State.DRAINING_CHANGE ||
+                host.getState() == QIOAutomationHost.State.IDENTITY_CONFLICT) {
             return null;
         }
         QIOFrequencyReference reference = host.getFrequencyReference();
         if (reference == null || !QIOFrequencyStorageAccess.INSTANCE.canAccess(reference,
-              player.getUniqueID())) {
+                player.getUniqueID())) {
             return null;
         }
         QIOProcessingNetworkData network = QIOProcessingNetworkManager.INSTANCE.get(
-              reference.getFrequencyUUID());
+                reference.getFrequencyUUID());
         MachineRecipeProviderRegistry.BoundProvider provider =
-              MachineRecipeProviderRegistry.find(tile);
+                MachineRecipeProviderRegistry.find(tile);
         if (network == null || provider == null) {
             return null;
         }
         RouteDirectory directory = routeDirectory(provider, host.getPersistentDeviceUUID(),
-              type.getMode());
+                type.getMode());
         return directory.conformant ? new Context(player, tile, host, reference, network,
-              type, directory, canEditConfiguration(player, tile, reference)) : null;
+                type, directory, canEditConfiguration(player, tile, reference)) : null;
     }
 
     @Nonnull
     public static QIOAutomationRecipeConfigSnapshot page(@Nonnull Context context,
-          int offset, int requestedPageSize, @Nonnull String query) {
+                                                         int offset, int requestedPageSize, @Nonnull String query) {
         Objects.requireNonNull(context, "context");
         String normalizedQuery = normalizeQuery(query);
         int pageSize = Math.max(1, Math.min(MAX_PAGE_SIZE, requestedPageSize));
         QIOAutomationRecipeProfileCatalog catalog = context.network.getAutomationRecipeProfiles();
-        long beforePrune = catalog.getRevision();
-        catalog.pruneActive(context.host.getPersistentDeviceUUID(), context.type.getMode(),
-              context.directory.profileScopeId, context.directory.layout);
-        context.network.markAutomationRecipeProfilesChanged(beforePrune);
 
         UUID deviceUUID = context.host.getPersistentDeviceUUID();
         Selection selection = catalog.getSelection(deviceUUID, context.type.getMode(),
-              context.directory.profileScopeId);
+                context.directory.profileScopeId);
         QIOAutomationRecipeProfile profile = catalog.getActiveProfile(deviceUUID,
-              context.type.getMode(), context.directory.profileScopeId);
+                context.type.getMode(), context.directory.profileScopeId);
         List<QIOAutomationRecipeProfileLayout.Route> ordered =
-              context.directory.layout.ordered(profile, false);
+                context.directory.layout.ordered(profile, false);
         List<QIOAutomationRecipeProfileLayout.Route> matches = normalizedQuery.isEmpty() ?
-              ordered : context.directory.matches(ordered, normalizedQuery);
+                ordered : context.directory.matches(ordered, normalizedQuery);
         int total = matches.size();
         int checkedOffset = Math.max(0, Math.min(offset, total));
         int end = (int) Math.min((long) total, (long) checkedOffset + pageSize);
@@ -147,36 +138,35 @@ public final class QIOAutomationRecipeConfigService {
 
         QIOPolicyCatalog policies = context.network.getPolicies();
         List<QIOAutomationRecipeConfigSnapshot.Route> rows = new ArrayList<>(
-              end - checkedOffset);
+                end - checkedOffset);
         for (int index = checkedOffset; index < end; index++) {
             QIOAutomationRecipeProfileLayout.Route entry = matches.get(index);
             MachineRecipeRoute route = entry.getMachineRoute();
             boolean policyAllowed = policies.isRouteEnabled(deviceUUID,
-                  context.directory.providerId, route.routeId(), route.logicalRecipeKey());
+                    context.directory.providerId, route.routeId(), route.logicalRecipeKey());
             rows.add(new QIOAutomationRecipeConfigSnapshot.Route(entry.getProductKey(),
-                  entry.getRouteKey(), route.routeId(), route.logicalRecipeKey(),
-                  route.inputs(), route.guaranteedOutputs(),
-                  profile.isRouteEnabled(entry.getRouteKey()), policyAllowed,
-                  productOrders.getOrDefault(entry.getProductKey(), 0),
-                  routeOrders.getOrDefault(entry.getRouteKey(), 0),
-                  profile.getEffectiveCraftAmount(entry.getRouteKey(),
-                        entry.getMaximumCraftAmount()), entry.getMaximumCraftAmount(),
-                  profile.hasRouteCraftAmount(entry.getRouteKey())));
+                    entry.getRouteKey(), route.routeId(), route.logicalRecipeKey(),
+                    route.inputs(), route.guaranteedOutputs(),
+                    profile.isRouteEnabled(entry.getRouteKey()), policyAllowed,
+                    productOrders.getOrDefault(entry.getProductKey(), 0),
+                    routeOrders.getOrDefault(entry.getRouteKey(), 0),
+                    profile.getEffectiveCraftAmount(entry.getRouteKey(),
+                            entry.getMaximumCraftAmount()), entry.getMaximumCraftAmount(),
+                    profile.hasRouteCraftAmount(entry.getRouteKey())));
         }
         return new QIOAutomationRecipeConfigSnapshot(context.type,
-              context.reference.getFrequencyUUID(), deviceUUID, context.directory.providerId,
-              catalog.getRevision(), policies.getRevision(), checkedOffset, total,
-              normalizedQuery, selection.isIndividual(), selection.getGlobalSlot(),
-              selection.getFilterMode(), context.type == QIOAutomationRecipeConfigType.SCHEDULED,
-              context.editable,
-              QIOAutomationRecipeProfile.clampCraftAmount(profile.getCraftAmount(),
-                    context.directory.layout.getMaximumCraftAmount()),
-              context.directory.layout.getMaximumCraftAmount(), rows);
+                context.reference.getFrequencyUUID(), deviceUUID, context.directory.providerId,
+                catalog.getRevision(), policies.getRevision(), checkedOffset, total,
+                normalizedQuery, selection.isIndividual(), selection.getGlobalSlot(),
+                selection.getFilterMode(), context.type == QIOAutomationRecipeConfigType.SCHEDULED,
+                context.editable,
+                profile.getCraftAmount(context.directory.profileScopeId),
+                QIOAutomationRecipeProfile.MAX_CRAFT_AMOUNT, rows);
     }
 
     @Nonnull
     public static MutationResult mutate(@Nonnull Context context, long expectedRevision,
-          @Nonnull QIOAutomationRecipeProfileMutation mutation) {
+                                        @Nonnull QIOAutomationRecipeProfileMutation mutation) {
         Objects.requireNonNull(context, "context");
         Objects.requireNonNull(mutation, "mutation");
         if (!context.editable) {
@@ -197,11 +187,11 @@ public final class QIOAutomationRecipeConfigService {
         }
         context.network.markAutomationRecipeProfilesChanged(before);
         return new MutationResult(catalog.getRevision() == before ? MutationStatus.UNCHANGED :
-              MutationStatus.APPLIED);
+                MutationStatus.APPLIED);
     }
 
     private static boolean validTarget(Context context,
-          QIOAutomationRecipeProfileMutation mutation) {
+                                       QIOAutomationRecipeProfileMutation mutation) {
         Action action = mutation.getAction();
         boolean needsProduct = switch (action) {
             case TOGGLE_PRODUCT, DISABLE_PRODUCT, MOVE_PRODUCT, MOVE_PRODUCT_TO_TOP,
@@ -215,68 +205,68 @@ public final class QIOAutomationRecipeConfigService {
             default -> false;
         };
         if (needsProduct && !context.directory.layout.getDefaultProductOrder().contains(
-              mutation.getProductKey())) {
+                mutation.getProductKey())) {
             return false;
         }
         if (needsRoute) {
             QIOAutomationRecipeProfileLayout.Route route =
-                  context.directory.layout.getRoute(mutation.getRouteKey());
+                    context.directory.layout.getRoute(mutation.getRouteKey());
             if (route == null || needsProduct && !route.getProductKey().equals(
-                  mutation.getProductKey())) {
+                    mutation.getProductKey())) {
                 return false;
             }
         }
         return action != Action.TOGGLE_ROUTE_FILTER_MODE ||
-              context.type == QIOAutomationRecipeConfigType.SCHEDULED;
+                context.type == QIOAutomationRecipeConfigType.SCHEDULED;
     }
 
     private static void apply(Context context, QIOAutomationRecipeProfileMutation mutation) {
         QIOAutomationRecipeProfileCatalog catalog =
-              context.network.getAutomationRecipeProfiles();
+                context.network.getAutomationRecipeProfiles();
         UUID device = context.host.getPersistentDeviceUUID();
         QIOAutomationMode mode = context.type.getMode();
         String profileScopeId = context.directory.profileScopeId;
         QIOAutomationRecipeProfileLayout layout = context.directory.layout;
         switch (mutation.getAction()) {
             case TOGGLE_ROUTE -> catalog.toggleRoute(device, mode, profileScopeId, layout,
-                  mutation.getRouteKey());
+                    mutation.getRouteKey());
             case TOGGLE_PRODUCT -> catalog.toggleProduct(device, mode, profileScopeId, layout,
-                  mutation.getProductKey());
+                    mutation.getProductKey());
             case DISABLE_PRODUCT -> catalog.setProductEnabled(device, mode, profileScopeId,
-                  layout,
-                  mutation.getProductKey(), false);
+                    layout,
+                    mutation.getProductKey(), false);
             case MOVE_PRODUCT -> catalog.moveProduct(device, mode, profileScopeId, layout,
-                  mutation.getProductKey(), mutation.getDirection(), false, false);
+                    mutation.getProductKey(), mutation.getDirection(), false, false);
             case MOVE_ROUTE -> catalog.moveRoute(device, mode, profileScopeId, layout,
-                  mutation.getProductKey(), mutation.getRouteKey(), mutation.getDirection(),
-                  false, false);
+                    mutation.getProductKey(), mutation.getRouteKey(), mutation.getDirection(),
+                    false, false);
             case MOVE_PRODUCT_TO_TOP -> catalog.moveProduct(device, mode, profileScopeId, layout,
-                  mutation.getProductKey(), 0, true, true);
+                    mutation.getProductKey(), 0, true, true);
             case MOVE_PRODUCT_TO_BOTTOM -> catalog.moveProduct(device, mode, profileScopeId,
-                  layout,
-                  mutation.getProductKey(), 0, true, false);
+                    layout,
+                    mutation.getProductKey(), 0, true, false);
             case MOVE_ROUTE_TO_TOP -> catalog.moveRoute(device, mode, profileScopeId, layout,
-                  mutation.getProductKey(), mutation.getRouteKey(), 0, true, true);
+                    mutation.getProductKey(), mutation.getRouteKey(), 0, true, true);
             case MOVE_ROUTE_TO_BOTTOM -> catalog.moveRoute(device, mode, profileScopeId, layout,
-                  mutation.getProductKey(), mutation.getRouteKey(), 0, true, false);
+                    mutation.getProductKey(), mutation.getRouteKey(), 0, true, false);
             case SET_GLOBAL_CRAFT_AMOUNT -> catalog.setCraftAmount(device, mode,
-                  profileScopeId,
-                  layout, mutation.getAmount());
+                    profileScopeId,
+                    layout, mutation.getAmount());
             case SET_ROUTE_CRAFT_AMOUNT -> catalog.setRouteCraftAmount(device, mode,
-                  profileScopeId, layout, mutation.getRouteKey(), mutation.getAmount());
+                    profileScopeId, layout, mutation.getRouteKey(), mutation.getAmount());
             case CLEAR_ROUTE_CRAFT_AMOUNT -> catalog.clearRouteCraftAmount(device, mode,
-                  profileScopeId, layout, mutation.getRouteKey());
+                    profileScopeId, layout, mutation.getRouteKey());
             case RESET_PRODUCT -> catalog.resetProduct(device, mode, profileScopeId, layout,
-                  mutation.getProductKey());
-            case RESET_ALL -> catalog.resetAll(device, mode, profileScopeId);
+                    mutation.getProductKey());
+            case RESET_ALL -> catalog.resetAll(device, mode, profileScopeId, layout);
             case TOGGLE_PROFILE_MODE -> catalog.toggleProfileMode(device, mode,
-                  profileScopeId);
+                    profileScopeId);
             case CYCLE_GLOBAL_PROFILE -> catalog.cycleGlobalSlot(device, mode, profileScopeId,
-                  mutation.getDirection());
+                    mutation.getDirection());
             case TOGGLE_ROUTE_FILTER_MODE -> catalog.toggleRouteFilterMode(device, mode,
-                  profileScopeId);
+                    profileScopeId);
             case SET_ALL_ROUTES_ENABLED -> catalog.setAllRoutesEnabled(device, mode,
-                  profileScopeId, layout, mutation.getDirection() > 0);
+                    profileScopeId, layout, mutation.getDirection() > 0);
         }
     }
 
@@ -286,20 +276,20 @@ public final class QIOAutomationRecipeConfigService {
         for (MachineRecipeRoute route : source) {
             if (route != null) {
                 unique.putIfAbsent(QIOAutomationRecipeProfileLayout.routeKey(route.routeId(),
-                      route.logicalRecipeKey()), route);
+                        route.logicalRecipeKey()), route);
             }
         }
         List<MachineRecipeRoute> routes = new ArrayList<>(unique.values());
         routes.sort(Comparator.comparing(MachineRecipeRoute::logicalRecipeKey)
-              .thenComparing(MachineRecipeRoute::routeId)
-              .thenComparing(MachineRecipeRoute::recipeKey));
+                .thenComparing(MachineRecipeRoute::routeId)
+                .thenComparing(MachineRecipeRoute::recipeKey));
         return Collections.unmodifiableList(routes);
     }
 
     @Nonnull
     private static RouteDirectory routeDirectory(
-          @Nonnull MachineRecipeProviderRegistry.BoundProvider provider,
-          @Nonnull UUID deviceUUID, @Nonnull QIOAutomationMode mode) {
+            @Nonnull MachineRecipeProviderRegistry.BoundProvider provider,
+            @Nonnull UUID deviceUUID, @Nonnull QIOAutomationMode mode) {
         String providerId;
         String profileScopeId;
         int providerRevision;
@@ -311,7 +301,7 @@ public final class QIOAutomationRecipeConfigService {
             return RouteDirectory.unavailable();
         }
         RouteDirectoryKey key = new RouteDirectoryKey(deviceUUID, providerId, profileScopeId,
-              providerRevision, mode);
+                providerRevision, mode);
         synchronized (QIOAutomationRecipeConfigService.class) {
             RouteDirectory cached = ROUTE_DIRECTORY_CACHE.get(key);
             if (cached != null) {
@@ -328,7 +318,7 @@ public final class QIOAutomationRecipeConfigService {
             return RouteDirectory.unavailable();
         }
         RouteDirectory directory = new RouteDirectory(providerId, profileScopeId, routes,
-              conformant);
+                conformant);
         synchronized (QIOAutomationRecipeConfigService.class) {
             RouteDirectory previous = ROUTE_DIRECTORY_CACHE.put(key, directory);
             if (previous != null) {
@@ -336,9 +326,9 @@ public final class QIOAutomationRecipeConfigService {
             }
             cachedRouteCount += directory.layout.size();
             while (ROUTE_DIRECTORY_CACHE.size() > MAX_ROUTE_DIRECTORY_CACHE_ENTRIES ||
-                  cachedRouteCount > MAX_CACHED_ROUTE_COUNT && ROUTE_DIRECTORY_CACHE.size() > 1) {
+                    cachedRouteCount > MAX_CACHED_ROUTE_COUNT && ROUTE_DIRECTORY_CACHE.size() > 1) {
                 RouteDirectory removed = ROUTE_DIRECTORY_CACHE.remove(
-                      ROUTE_DIRECTORY_CACHE.keySet().iterator().next());
+                        ROUTE_DIRECTORY_CACHE.keySet().iterator().next());
                 if (removed != null) {
                     cachedRouteCount -= removed.layout.size();
                 }
@@ -358,7 +348,7 @@ public final class QIOAutomationRecipeConfigService {
 
     /** Matches AE profile ownership: access may be shared, configuration ownership is not. */
     public static boolean canEditConfiguration(@Nonnull EntityPlayer player,
-          @Nonnull TileEntity tile, @Nonnull QIOFrequencyReference reference) {
+                                               @Nonnull TileEntity tile, @Nonnull QIOFrequencyReference reference) {
         Objects.requireNonNull(player, "player");
         Objects.requireNonNull(tile, "tile");
         Objects.requireNonNull(reference, "reference");
@@ -384,9 +374,9 @@ public final class QIOAutomationRecipeConfigService {
         private final boolean editable;
 
         private Context(EntityPlayer player, TileEntity tile, QIOAutomationHost host,
-              QIOFrequencyReference reference, QIOProcessingNetworkData network,
-              QIOAutomationRecipeConfigType type, RouteDirectory directory,
-              boolean editable) {
+                        QIOFrequencyReference reference, QIOProcessingNetworkData network,
+                        QIOAutomationRecipeConfigType type, RouteDirectory directory,
+                        boolean editable) {
             this.player = player;
             this.tile = tile;
             this.host = host;
@@ -397,25 +387,55 @@ public final class QIOAutomationRecipeConfigService {
             this.editable = editable;
         }
 
-        public EntityPlayer getPlayer() { return player; }
-        public TileEntity getTile() { return tile; }
-        boolean isEditable() { return editable; }
-        QIOAutomationHost getHost() { return host; }
-        QIOProcessingNetworkData getNetwork() { return network; }
-        QIOAutomationRecipeConfigType getType() { return type; }
-        String getProviderId() { return directory.providerId; }
-        String getProfileScopeId() { return directory.profileScopeId; }
-        QIOAutomationRecipeProfileLayout getLayout() { return directory.layout; }
+        public EntityPlayer getPlayer() {
+            return player;
+        }
+
+        public TileEntity getTile() {
+            return tile;
+        }
+
+        boolean isEditable() {
+            return editable;
+        }
+
+        QIOAutomationHost getHost() {
+            return host;
+        }
+
+        QIOProcessingNetworkData getNetwork() {
+            return network;
+        }
+
+        QIOAutomationRecipeConfigType getType() {
+            return type;
+        }
+
+        String getProviderId() {
+            return directory.providerId;
+        }
+
+        String getProfileScopeId() {
+            return directory.profileScopeId;
+        }
+
+        QIOAutomationRecipeProfileLayout getLayout() {
+            return directory.layout;
+        }
     }
 
     public static final class MutationResult {
 
         private final MutationStatus status;
 
-        private MutationResult(MutationStatus status) { this.status = status; }
+        private MutationResult(MutationStatus status) {
+            this.status = status;
+        }
 
         @Nonnull
-        public MutationStatus getStatus() { return status; }
+        public MutationStatus getStatus() {
+            return status;
+        }
     }
 
     private static final class RouteDirectory {
@@ -427,19 +447,19 @@ public final class QIOAutomationRecipeConfigService {
         private final boolean conformant;
 
         private RouteDirectory(String providerId, String profileScopeId,
-              List<MachineRecipeRoute> routes, boolean conformant) {
+                               List<MachineRecipeRoute> routes, boolean conformant) {
             this.providerId = providerId;
             this.profileScopeId = profileScopeId;
-            this.layout = new QIOAutomationRecipeProfileLayout(routes);
+            this.layout = new QIOAutomationRecipeProfileLayout(profileScopeId, routes);
             this.conformant = conformant;
             Map<String, String> searches = new LinkedHashMap<>();
             for (QIOAutomationRecipeProfileLayout.Route route : layout.ordered(
-                  new QIOAutomationRecipeProfile(
-                        QIOAutomationRecipeProfile.RouteFilterMode.BLACKLIST), false)) {
+                    new QIOAutomationRecipeProfile(
+                            QIOAutomationRecipeProfile.RouteFilterMode.BLACKLIST), false)) {
                 MachineRecipeRoute machineRoute = route.getMachineRoute();
                 searches.put(route.getRouteKey(), (route.getProductKey() + '\u0000' +
-                      machineRoute.routeId() + '\u0000' + machineRoute.logicalRecipeKey() +
-                      '\u0000' + machineRoute.recipeKey()).toLowerCase(Locale.ROOT));
+                        machineRoute.routeId() + '\u0000' + machineRoute.logicalRecipeKey() +
+                        '\u0000' + machineRoute.recipeKey()).toLowerCase(Locale.ROOT));
             }
             searchValues = Collections.unmodifiableMap(searches);
         }
@@ -453,7 +473,7 @@ public final class QIOAutomationRecipeConfigService {
         }
 
         private List<QIOAutomationRecipeProfileLayout.Route> matches(
-              List<QIOAutomationRecipeProfileLayout.Route> routes, String query) {
+                List<QIOAutomationRecipeProfileLayout.Route> routes, String query) {
             List<QIOAutomationRecipeProfileLayout.Route> matches = new ArrayList<>();
             for (QIOAutomationRecipeProfileLayout.Route route : routes) {
                 if (searchValues.getOrDefault(route.getRouteKey(), "").contains(query)) {
@@ -473,7 +493,7 @@ public final class QIOAutomationRecipeConfigService {
         private final QIOAutomationMode mode;
 
         private RouteDirectoryKey(UUID deviceUUID, String providerId, String profileScopeId,
-              int providerRevision, QIOAutomationMode mode) {
+                                  int providerRevision, QIOAutomationMode mode) {
             this.deviceUUID = deviceUUID;
             this.providerId = providerId;
             this.profileScopeId = profileScopeId;
@@ -484,9 +504,9 @@ public final class QIOAutomationRecipeConfigService {
         @Override
         public boolean equals(Object obj) {
             return obj instanceof RouteDirectoryKey other &&
-                  providerRevision == other.providerRevision && mode == other.mode &&
-                  deviceUUID.equals(other.deviceUUID) && providerId.equals(other.providerId) &&
-                  profileScopeId.equals(other.profileScopeId);
+                    providerRevision == other.providerRevision && mode == other.mode &&
+                    deviceUUID.equals(other.deviceUUID) && providerId.equals(other.providerId) &&
+                    profileScopeId.equals(other.profileScopeId);
         }
 
         @Override

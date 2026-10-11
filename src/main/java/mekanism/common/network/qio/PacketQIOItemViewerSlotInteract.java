@@ -11,7 +11,9 @@ import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
 import javax.annotation.Nullable;
 import java.util.UUID;
 
-/** Compatibility packet for clients using the original QIO slot interaction API. */
+/**
+ * Compatibility packet for clients using the original QIO slot interaction API.
+ */
 public class PacketQIOItemViewerSlotInteract implements IMessageHandler<PacketQIOItemViewerSlotInteract.Message, IMessage> {
 
     @Override
@@ -122,7 +124,7 @@ public class PacketQIOItemViewerSlotInteract implements IMessageHandler<PacketQI
 
         private static boolean isRequestValid(int windowId, Type type, @Nullable UUID resource, long amount) {
             return windowId >= 0 && type != null && amount > 0
-                  && (type == Type.PUT ? resource == null : resource != null);
+                    && (type == Type.PUT ? resource == null : resource != null);
         }
 
         public int getWindowId() {
@@ -147,7 +149,9 @@ public class PacketQIOItemViewerSlotInteract implements IMessageHandler<PacketQI
         }
     }
 
-    /** Source-compatible nested packet name. */
+    /**
+     * Source-compatible nested packet name.
+     */
     public static class QIOItemViewerSlotInteractMessage extends Message {
         public QIOItemViewerSlotInteractMessage() {
             super();

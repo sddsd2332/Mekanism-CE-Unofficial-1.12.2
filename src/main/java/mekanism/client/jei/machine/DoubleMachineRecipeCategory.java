@@ -42,6 +42,7 @@ public class DoubleMachineRecipeCategory<RECIPE extends DoubleMachineRecipe<RECI
             public double getProgress() {
                 return (double) timer.getValue() / 20F;
             }
+
             @Override
             public boolean isGuiInJei() {
                 return true;

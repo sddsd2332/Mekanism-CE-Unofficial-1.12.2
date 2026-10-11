@@ -31,7 +31,7 @@ public class ReplicatorFluidStackRecipe extends MachineRecipe<GasAndFluidInput, 
     }
 
     public boolean canOperate(IExtendedGasTank inputTank, IExtendedFluidTank fluidTank, IExtendedFluidTank outputTank) {
-        return getInput().useGas(inputTank, false, 1) && getInput().useFluid(fluidTank, false, 1)  && getOutput().applyOutputs(outputTank, false);
+        return getInput().useGas(inputTank, false, 1) && getInput().useFluid(fluidTank, false, 1) && getOutput().applyOutputs(outputTank, false);
     }
 
     @Override

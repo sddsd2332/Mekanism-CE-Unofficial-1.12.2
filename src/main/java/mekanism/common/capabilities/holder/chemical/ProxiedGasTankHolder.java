@@ -16,20 +16,20 @@ import java.util.function.Predicate;
 public class ProxiedGasTankHolder extends mekanism.common.capabilities.holder.gas.ProxiedGasTankHolder implements IGasTankHolder {
 
     public static ProxiedGasTankHolder create(Predicate<EnumFacing> insertPredicate, Predicate<EnumFacing> extractPredicate,
-          Function<EnumFacing, List<IExtendedGasTank>> tankFunction) {
+                                              Function<EnumFacing, List<IExtendedGasTank>> tankFunction) {
         return new ProxiedGasTankHolder(insertPredicate, extractPredicate, tankFunction,
-              tankFunction, tankFunction);
+                tankFunction, tankFunction);
     }
 
     public static ProxiedGasTankHolder create(Predicate<EnumFacing> insertPredicate, Predicate<EnumFacing> extractPredicate,
-          Function<EnumFacing, List<IExtendedGasTank>> tankFunction, Function<EnumFacing, List<IExtendedGasTank>> insertTankFunction,
-          Function<EnumFacing, List<IExtendedGasTank>> extractTankFunction) {
+                                              Function<EnumFacing, List<IExtendedGasTank>> tankFunction, Function<EnumFacing, List<IExtendedGasTank>> insertTankFunction,
+                                              Function<EnumFacing, List<IExtendedGasTank>> extractTankFunction) {
         return new ProxiedGasTankHolder(insertPredicate, extractPredicate, tankFunction, insertTankFunction, extractTankFunction);
     }
 
     private ProxiedGasTankHolder(Predicate<EnumFacing> insertPredicate, Predicate<EnumFacing> extractPredicate,
-          Function<EnumFacing, List<IExtendedGasTank>> tankFunction, Function<EnumFacing, List<IExtendedGasTank>> insertTankFunction,
-          Function<EnumFacing, List<IExtendedGasTank>> extractTankFunction) {
+                                 Function<EnumFacing, List<IExtendedGasTank>> tankFunction, Function<EnumFacing, List<IExtendedGasTank>> insertTankFunction,
+                                 Function<EnumFacing, List<IExtendedGasTank>> extractTankFunction) {
         super(insertPredicate, extractPredicate, tankFunction, insertTankFunction, extractTankFunction);
     }
 }

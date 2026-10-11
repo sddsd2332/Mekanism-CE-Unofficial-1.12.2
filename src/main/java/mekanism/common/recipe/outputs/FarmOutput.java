@@ -10,12 +10,7 @@ import net.minecraft.nbt.NBTTagList;
 import net.minecraftforge.common.util.Constants;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
-import java.util.Random;
+import java.util.*;
 
 /**
  * Organic Farm output: one guaranteed item and up to 63 independently rolled items.
@@ -24,7 +19,9 @@ public class FarmOutput extends MachineOutput<FarmOutput> {
 
     public static final int MAX_CHANCE_OUTPUTS = 63;
 
-    /** Legacy shared source, only used by the no-argument overloads. See {@link #getOutputs(Random)}. */
+    /**
+     * Legacy shared source, only used by the no-argument overloads. See {@link #getOutputs(Random)}.
+     */
     private static final Random LEGACY_RANDOM = new Random();
 
     public ItemStack primaryOutput = ItemStack.EMPTY;

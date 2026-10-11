@@ -67,14 +67,14 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
     private static final double DEFAULT_SOLAR_MULTIPLIER = 0.2;
     private static final double DEFAULT_TEMPERATURE_MULTIPLIER = 0.4;
     private static final List<RecipeError> TRACKED_ERROR_TYPES = Arrays.asList(
-          RecipeError.NOT_ENOUGH_INPUT,
-          RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
-          RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
+            RecipeError.NOT_ENOUGH_INPUT,
+            RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
+            RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
     );
     private final RecipeCacheLookupMonitor<ThermalEvaporationRecipe> recipeCacheLookupMonitor = new RecipeCacheLookupMonitor<>(this);
     public VariableCapacityFluidTank inputTank = VariableCapacityFluidTank.input(this::getMaxFluid, fluid -> hasRecipe(fluid.getFluid()), recipeCacheLookupMonitor);
     public VariableCapacityFluidTank outputTank = VariableCapacityFluidTank.output(TileEntityThermalEvaporationController::getOutputTankCapacity,
-          BasicFluidTank.alwaysTrue, this::onRecipeCacheContentsChanged);
+            BasicFluidTank.alwaysTrue, this::onRecipeCacheContentsChanged);
     private FluidInventorySlot inputSlot;
     private OutputInventorySlot inputContainerSlot;
     private FluidInventorySlot outputSlot;
@@ -89,9 +89,9 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
 
     private double biomeAmbientTemp = HeatAPI.AMBIENT_TEMP;
     private final VariableHeatCapacitor structureHeatCapacitor = VariableHeatCapacitor.create(
-          getEvaporationHeatCapacity(3),
-          () -> biomeAmbientTemp,
-          this
+            getEvaporationHeatCapacity(3),
+            () -> biomeAmbientTemp,
+            this
     );
 
     public float lastGain = 0;
@@ -99,6 +99,21 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
     public int height = 0;
 
     public boolean structured = false;
+    private int structureComparatorLevel;
+    private long comparatorSampleTick = Long.MIN_VALUE;
+
+    public void refreshStructureComparatorLevel(long gameTime) {
+        if (comparatorSampleTick != gameTime) {
+            comparatorSampleTick = gameTime;
+            structureComparatorLevel = structured ? MekanismUtils.redstoneLevelFromContents(
+                    inputTank.getFluidAmount(), inputTank.getCapacity()) : 0;
+        }
+    }
+
+    public int getStructureComparatorLevel() {
+        return structured ? structureComparatorLevel : 0;
+    }
+
     public boolean controllerConflict = false;
     public boolean isLeftOnFace;
     public int renderY;
@@ -144,8 +159,8 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
         builder.addSlot(outputContainerSlot = OutputInventorySlot.at(recipeCacheChangeListener, 152, 51));
         IInventorySlotHolder slotHolder = builder.build();
         return ProxiedInventorySlotHolder.create(side -> getController() != null && slotHolder.canInsert(side),
-              side -> getController() != null && slotHolder.canExtract(side),
-              side -> side == null || getController() != null ? slotHolder.getInventorySlots(side) : Collections.emptyList());
+                side -> getController() != null && slotHolder.canExtract(side),
+                side -> side == null || getController() != null ? slotHolder.getInventorySlots(side) : Collections.emptyList());
     }
 
     private void onRecipeCacheContentsChanged() {
@@ -265,6 +280,7 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
             if (!updatedThisTick) {
                 clearStructure();
                 structured = buildStructure();
+                comparatorSampleTick = Long.MIN_VALUE;
                 if (structured != clientStructured) {
                     Mekanism.packetHandler.sendUpdatePacket(this);
                     clientStructured = structured;
@@ -307,24 +323,24 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
     @Override
     public CachedRecipe<ThermalEvaporationRecipe> createNewCachedRecipe(ThermalEvaporationRecipe recipe, int cacheIndex) {
         return new OneInputCachedRecipe<>(recipe, () -> false,
-              InputHelper.getFluidInputHandler(inputTank, RecipeError.NOT_ENOUGH_INPUT),
-              OutputHelper.getOutputHandler(outputTank, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
-              () -> recipe.getInput().ingredient,
-              input -> input != null && input.isFluidEqual(recipe.getInput().ingredient),
-              input -> recipe.getOutput().output.copy(),
-              input -> input == null || input.amount <= 0,
-              output -> output == null || output.amount <= 0)
-              .setCanHolderFunction(() -> structured && height >= 3 && height <= MAX_HEIGHT && getProductionRate() > 0)
-              .setActive(this::setRecipeActive)
-              .setRequiredTicks(this::getRecipeRequiredTicks)
-              .setBaselineMaxOperations(this::getBaselineMaxOperations)
-              .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
-              .setErrorsChanged(errors -> {
-                  for (int i = 0; i < trackedErrors.length; i++) {
-                      trackedErrors[i] = errors.contains(TRACKED_ERROR_TYPES.get(i));
-                  }
-              })
-              .setOnFinish(this::markNoUpdateSync);
+                InputHelper.getFluidInputHandler(inputTank, RecipeError.NOT_ENOUGH_INPUT),
+                OutputHelper.getOutputHandler(outputTank, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
+                () -> recipe.getInput().ingredient,
+                input -> input != null && input.isFluidEqual(recipe.getInput().ingredient),
+                input -> recipe.getOutput().output.copy(),
+                input -> input == null || input.amount <= 0,
+                output -> output == null || output.amount <= 0)
+                .setCanHolderFunction(() -> structured && height >= 3 && height <= MAX_HEIGHT && getProductionRate() > 0)
+                .setActive(this::setRecipeActive)
+                .setRequiredTicks(this::getRecipeRequiredTicks)
+                .setBaselineMaxOperations(this::getBaselineMaxOperations)
+                .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
+                .setErrorsChanged(errors -> {
+                    for (int i = 0; i < trackedErrors.length; i++) {
+                        trackedErrors[i] = errors.contains(TRACKED_ERROR_TYPES.get(i));
+                    }
+                })
+                .setOnFinish(this::markNoUpdateSync);
     }
 
     @Override
@@ -415,23 +431,23 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
 
     private static double getEvaporationHeatCapacity(int layers) {
         double capacityPerLayer = sanitizeRangedConfig(MekanismConfig.current().general.evaporationHeatCapacity.val(),
-              DEFAULT_HEAT_CAPACITY, 1, 1_000_000);
+                DEFAULT_HEAT_CAPACITY, 1, 1_000_000);
         return HeatAPI.sanitizeHeatCapacity(HeatAPI.multiplyHeat(capacityPerLayer, Math.max(1, Math.min(MAX_HEIGHT, layers))));
     }
 
     private static double getHeatDissipation() {
         return sanitizeRangedConfig(MekanismConfig.current().general.evaporationHeatDissipation.val(),
-              DEFAULT_HEAT_DISSIPATION, 0.001, 1_000);
+                DEFAULT_HEAT_DISSIPATION, 0.001, 1_000);
     }
 
     private static double getSolarMultiplier() {
         return sanitizeRangedConfig(MekanismConfig.current().general.evaporationSolarMultiplier.val(),
-              DEFAULT_SOLAR_MULTIPLIER, 0.001, 1_000_000);
+                DEFAULT_SOLAR_MULTIPLIER, 0.001, 1_000_000);
     }
 
     private static double getTemperatureMultiplier() {
         return sanitizeRangedConfig(MekanismConfig.current().general.evaporationTempMultiplier.val(),
-              DEFAULT_TEMPERATURE_MULTIPLIER, 0.001, 1_000_000);
+                DEFAULT_TEMPERATURE_MULTIPLIER, 0.001, 1_000_000);
     }
 
     private static double getMaxTemperature() {
@@ -497,9 +513,9 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
         }
         Coord4D oppositeCorner = startPoint.offset(right, 3).offset(MekanismUtils.getBack(facing), 3);
         BlockPos min = new BlockPos(Math.min(startPoint.x, oppositeCorner.x), renderY,
-              Math.min(startPoint.z, oppositeCorner.z));
+                Math.min(startPoint.z, oppositeCorner.z));
         BlockPos max = new BlockPos(Math.max(startPoint.x, oppositeCorner.x), startPoint.y,
-              Math.max(startPoint.z, oppositeCorner.z));
+                Math.max(startPoint.z, oppositeCorner.z));
         updateAmbientTemperature(min, max);
         structureHeatCapacitor.updateHeatAndCapacity(getEvaporationHeatCapacity(height));
         structured = true;
@@ -509,14 +525,14 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
 
     private void updateAmbientTemperature(BlockPos min, BlockPos max) {
         BlockPos[] corners = {
-              min,
-              new BlockPos(max.getX(), min.getY(), min.getZ()),
-              new BlockPos(min.getX(), min.getY(), max.getZ()),
-              new BlockPos(max.getX(), min.getY(), max.getZ()),
-              new BlockPos(min.getX(), max.getY(), min.getZ()),
-              new BlockPos(max.getX(), max.getY(), min.getZ()),
-              new BlockPos(min.getX(), max.getY(), max.getZ()),
-              max
+                min,
+                new BlockPos(max.getX(), min.getY(), min.getZ()),
+                new BlockPos(min.getX(), min.getY(), max.getZ()),
+                new BlockPos(max.getX(), min.getY(), max.getZ()),
+                new BlockPos(min.getX(), max.getY(), min.getZ()),
+                new BlockPos(max.getX(), max.getY(), min.getZ()),
+                new BlockPos(min.getX(), max.getY(), max.getZ()),
+                max
         };
         double biomeTemperature = 0;
         for (BlockPos corner : corners) {
@@ -1042,7 +1058,7 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
     }
 
     public void clearStructure() {
-        tankParts.forEach( tankPart-> {
+        tankParts.forEach(tankPart -> {
             TileEntity tile = tankPart.getTileEntity(world);
             if (tile instanceof TileEntityThermalEvaporationBlock tiles) {
                 tiles.controllerGone();
@@ -1066,7 +1082,7 @@ public class TileEntityThermalEvaporationController extends TileEntityThermalEva
     public static AxisAlignedBB getRenderBoundingBox(BlockPos interiorMin, int height) {
         int renderHeight = Math.max(3, height);
         return new AxisAlignedBB(interiorMin.getX() - 1D, interiorMin.getY() - 1D, interiorMin.getZ() - 1D,
-              interiorMin.getX() + 3D, interiorMin.getY() + renderHeight - 1D, interiorMin.getZ() + 3D);
+                interiorMin.getX() + 3D, interiorMin.getY() + renderHeight - 1D, interiorMin.getZ() + 3D);
     }
 
     @Override

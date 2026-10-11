@@ -21,7 +21,6 @@ public interface IModuleHelper {
      * Gets all the module types a given item support.
      *
      * @param container Module container, for example a Meka-Tool or MekaSuit piece.
-     *
      * @return Set of supported module types.
      */
     Set<ModuleData<?>> getSupported(ItemStack container);
@@ -30,7 +29,6 @@ public interface IModuleHelper {
      * Helper to get the various items that support a given module type.
      *
      * @param typeProvider Module type.
-     *
      * @return Set of items that support the given module type.
      */
     Set<Item> getSupported(ModuleData<?> typeProvider);
@@ -39,9 +37,7 @@ public interface IModuleHelper {
      * Gets all the module types a given module type conflicts with.
      *
      * @param typeProvider Module type.
-     *
      * @return Set of conflicting module types.
-     *
      * @since 10.2.3
      */
     Set<ModuleData<?>> getConflicting(ModuleData<?> typeProvider);
@@ -51,7 +47,6 @@ public interface IModuleHelper {
      *
      * @param container    Module container, for example a Meka-Tool or MekaSuit piece.
      * @param typeProvider Module type.
-     *
      * @return {@code true} if the item has the module installed and enabled.
      */
     boolean isEnabled(ItemStack container, ModuleData<?> typeProvider);
@@ -61,7 +56,6 @@ public interface IModuleHelper {
      *
      * @param container    Module container, for example a Meka-Tool or MekaSuit piece.
      * @param typeProvider Module type.
-     *
      * @return Module, or {@code null} if no module of the given type is installed.
      */
     @Nullable
@@ -71,7 +65,6 @@ public interface IModuleHelper {
      * Gets a list of all modules on an item stack.
      *
      * @param container Module container, for example a Meka-Tool or MekaSuit piece.
-     *
      * @return List of modules on an item, or an empty list if the item doesn't support modules.
      */
     List<? extends IModule<?>> loadAll(ItemStack container);
@@ -81,7 +74,6 @@ public interface IModuleHelper {
      *
      * @param container   Module container, for example a Meka-Tool or MekaSuit piece.
      * @param moduleClass Class representing the type of module's to load.
-     *
      * @return List of modules on an item of the given class, or an empty list if the item doesn't support modules or has no modules of that type.
      */
     <MODULE extends ICustomModule<?>> List<? extends IModule<? extends MODULE>> loadAll(ItemStack container, Class<MODULE> moduleClass);
@@ -90,7 +82,6 @@ public interface IModuleHelper {
      * Gets all the module types on an item stack.
      *
      * @param container Module container, for example a Meka-Tool or MekaSuit piece.
-     *
      * @return Module types on an item.
      */
     Collection<ModuleData<?>> loadAllTypes(ItemStack container);
@@ -101,7 +92,6 @@ public interface IModuleHelper {
      * @param icon  Element icon.
      * @param text  Text to display.
      * @param color Color to render the icon and text in.
-     *
      * @return A new HUD element.
      */
     IHUDElement hudElement(ResourceLocation icon, String text, HUDColor color);
@@ -111,7 +101,6 @@ public interface IModuleHelper {
      *
      * @param icon    Element icon.
      * @param enabled {@code true} if the element should use the enabled text and color, {@code false} if it should use the disabled text and color.
-     *
      * @return A new HUD element.
      */
     IHUDElement hudElementEnabled(ResourceLocation icon, boolean enabled);
@@ -122,7 +111,6 @@ public interface IModuleHelper {
      * @param icon  Element icon.
      * @param ratio Ratio. Values below 0.1 will display using {@link HUDColor#DANGER}, values above 0.1 and below 0.2 will display using {@link HUDColor#WARNING}, and
      *              values above 0.2 will display using {@link HUDColor#REGULAR}.
-     *
      * @return A new HUD element.
      */
     IHUDElement hudElementPercent(ResourceLocation icon, double ratio);

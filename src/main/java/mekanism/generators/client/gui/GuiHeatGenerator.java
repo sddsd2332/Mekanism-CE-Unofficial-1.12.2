@@ -32,9 +32,9 @@ public class GuiHeatGenerator extends GuiGenerator<TileEntityHeatGenerator, Cont
             String transfer = mekanism.common.util.MekanismUtils.getTemperatureDisplay(tileEntity.lastTransferLoss, TemperatureUnit.KELVIN, false);
             String environment = mekanism.common.util.MekanismUtils.getTemperatureDisplay(tileEntity.lastEnvironmentLoss, TemperatureUnit.KELVIN, false);
             return Arrays.asList(
-                  new TextComponentString(LangUtils.localize("gui.temp") + ": " + temp),
-                  new TextComponentString(LangUtils.localize("gui.transferred") + ": " + transfer + "/t"),
-                  new TextComponentString(LangUtils.localize("gui.dissipated") + ": " + environment + "/t")
+                    new TextComponentString(LangUtils.localize("gui.temp") + ": " + temp),
+                    new TextComponentString(LangUtils.localize("gui.transferred") + ": " + transfer + "/t"),
+                    new TextComponentString(LangUtils.localize("gui.dissipated") + ": " + environment + "/t")
             );
         }));
     }

@@ -1,13 +1,11 @@
 package mekanism.api.qio.external;
 
 import javax.annotation.Nonnull;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
-/** Immutable logical ownership of resources that are still physically stored in QIO. */
+/**
+ * Immutable logical ownership of resources that are still physically stored in QIO.
+ */
 public final class QIOResourceClaim {
 
     public enum State {
@@ -26,8 +24,8 @@ public final class QIOResourceClaim {
     private final Map<UUID, Long> resourceAmounts;
 
     public QIOResourceClaim(@Nonnull UUID claimId, @Nonnull String ownerNamespace, @Nonnull String ownerId,
-          long priority, long enqueueSequence, long revision, @Nonnull State state,
-          @Nonnull Map<UUID, Long> resourceAmounts) {
+                            long priority, long enqueueSequence, long revision, @Nonnull State state,
+                            @Nonnull Map<UUID, Long> resourceAmounts) {
         this.claimId = Objects.requireNonNull(claimId, "claimId");
         this.ownerNamespace = requireText(ownerNamespace, "ownerNamespace");
         this.ownerId = requireText(ownerId, "ownerId");
@@ -83,15 +81,15 @@ public final class QIOResourceClaim {
         Objects.requireNonNull(amounts, "resourceAmounts");
         Map<UUID, Long> copy = new LinkedHashMap<>();
         amounts.entrySet().stream()
-              .sorted(Map.Entry.comparingByKey())
-              .forEach(entry -> {
-                  UUID resource = Objects.requireNonNull(entry.getKey(), "resourceUUID");
-                  Long amount = Objects.requireNonNull(entry.getValue(), "resourceAmount");
-                  if (amount <= 0) {
-                      throw new IllegalArgumentException("QIO claim amounts must be positive");
-                  }
-                  copy.put(resource, amount);
-              });
+                .sorted(Map.Entry.comparingByKey())
+                .forEach(entry -> {
+                    UUID resource = Objects.requireNonNull(entry.getKey(), "resourceUUID");
+                    Long amount = Objects.requireNonNull(entry.getValue(), "resourceAmount");
+                    if (amount <= 0) {
+                        throw new IllegalArgumentException("QIO claim amounts must be positive");
+                    }
+                    copy.put(resource, amount);
+                });
         return Collections.unmodifiableMap(copy);
     }
 

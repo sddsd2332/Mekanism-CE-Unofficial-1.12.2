@@ -36,8 +36,10 @@ public class TileEntityFissionReactorLogicAdapter extends TileEntityFissionReact
         if (activationPending) applyActivationLogic();
         int newRedstoneLevel = getRedstoneLevel();
         if (newRedstoneLevel != currentRedstoneLevel) {
+            // This block exposes its signal as a comparator override. The queued
+            // comparator update is sufficient; a full neighbor broadcast would
+            // notify unrelated blocks a second time.
             updateComparatorOutputLevelSync();
-            world.notifyNeighborsOfStateChange(getPos(), getBlockType(), true);
             currentRedstoneLevel = newRedstoneLevel;
         }
     }
@@ -53,6 +55,15 @@ public class TileEntityFissionReactorLogicAdapter extends TileEntityFissionReact
     @Override
     public int getRedstoneLevel() {
         return shouldOutput() ? 15 : 0;
+    }
+
+    /**
+     * The logic adapter observes reactor state directly. Its comparator output is
+     * updated by onUpdateServer when that state changes, not by local containers.
+     */
+    @Override
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return false;
     }
 
     private boolean shouldOutput() {

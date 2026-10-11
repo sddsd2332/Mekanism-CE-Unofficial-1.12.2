@@ -77,7 +77,7 @@ public class DoubleOption extends Option<DoubleOption> {
     @SuppressWarnings("Duplicates")//types are different
     @Override
     public void load(Configuration config) {
-        if (category.isEmpty()){
+        if (category.isEmpty()) {
             return;
         }
         Property prop;

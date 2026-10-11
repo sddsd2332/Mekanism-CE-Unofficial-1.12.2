@@ -7,14 +7,9 @@ import mekanism.common.base.IFactory.RecipeType;
 import mekanism.common.base.ITierItem;
 import mekanism.common.block.states.BlockStateBasic.BasicBlockType;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
+import mekanism.common.content.qio.*;
 import mekanism.common.inventory.BinMekanismInventory;
 import mekanism.common.inventory.slot.gas.GasInventorySlot;
-import mekanism.common.content.qio.QIODriveDefinition;
-import mekanism.common.content.qio.QIODriveType;
-import mekanism.common.content.qio.QIODriveSpecialization;
-import mekanism.common.content.qio.QIODriveSpecializationRegistry;
-import mekanism.common.content.qio.IQIODriveItem;
-import mekanism.common.content.qio.QIOAmount;
 import mekanism.common.security.ISecurityItem;
 import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
@@ -104,7 +99,7 @@ public class RecipeUtils {
 
             if (gasFound != null) {
                 if (GasInventorySlot.insertGas(toReturn, gasFound.copy(), false) != gasFound.amount ||
-                    GasInventorySlot.insertGas(toReturn, gasFound.copy(), true) != gasFound.amount) {
+                        GasInventorySlot.insertGas(toReturn, gasFound.copy(), true) != gasFound.amount) {
                     return ItemStack.EMPTY;
                 }
             }
@@ -146,7 +141,7 @@ public class RecipeUtils {
             if (fluidFound != null) {
                 IFluidHandlerItem fluidHandler = FluidContainerUtils.getFluidHandlerCapability(toReturn);
                 if (fluidHandler == null || fluidHandler.fill(fluidFound.copy(), false) != fluidFound.amount ||
-                    fluidHandler.fill(fluidFound.copy(), true) != fluidFound.amount) {
+                        fluidHandler.fill(fluidFound.copy(), true) != fluidFound.amount) {
                     return ItemStack.EMPTY;
                 }
             }
@@ -217,7 +212,7 @@ public class RecipeUtils {
             }
             if (sourceId != null) {
                 if (toReturn.getCount() != 1 || sourceDrive == null ||
-                      !isQIODriveUpgrade(sourceDrive, sourceStack, outputDrive, toReturn)) {
+                        !isQIODriveUpgrade(sourceDrive, sourceStack, outputDrive, toReturn)) {
                     return ItemStack.EMPTY;
                 }
                 outputDrive.setDriveId(toReturn, sourceId);
@@ -230,14 +225,14 @@ public class RecipeUtils {
     }
 
     private static boolean isQIODriveUpgrade(IQIODriveItem inputDrive, ItemStack input,
-          IQIODriveItem outputDrive, ItemStack output) {
+                                             IQIODriveItem outputDrive, ItemStack output) {
         QIODriveSpecialization inputType = inputDrive.getDriveSpecialization(input);
         QIODriveSpecialization outputType = outputDrive.getDriveSpecialization(output);
         if (!QIODriveSpecializationRegistry.INSTANCE.isRegistered(inputType) ||
-              !QIODriveSpecializationRegistry.INSTANCE.isRegistered(outputType) ||
-              !inputType.getRegistryName().equals(outputType.getRegistryName()) ||
-              !QIODriveDefinition.isRegistered(inputDrive.getDriveDefinition(input)) ||
-              !QIODriveDefinition.isRegistered(outputDrive.getDriveDefinition(output))) {
+                !QIODriveSpecializationRegistry.INSTANCE.isRegistered(outputType) ||
+                !inputType.getRegistryName().equals(outputType.getRegistryName()) ||
+                !QIODriveDefinition.isRegistered(inputDrive.getDriveDefinition(input)) ||
+                !QIODriveDefinition.isRegistered(outputDrive.getDriveDefinition(output))) {
             return false;
         }
         QIOAmount inputCountCapacity = inputDrive.getExactCountCapacity(input);
@@ -247,9 +242,9 @@ public class RecipeUtils {
         int inputTypeCapacity = inputDrive.getTypeCapacity(input);
         int outputTypeCapacity = outputDrive.getTypeCapacity(output);
         return outputCountCapacity.compareTo(inputCountCapacity) >= 0 &&
-              outputStorageCapacity.compareTo(inputStorageCapacity) >= 0 && outputTypeCapacity >= inputTypeCapacity &&
-              (outputCountCapacity.compareTo(inputCountCapacity) > 0 ||
-                    outputStorageCapacity.compareTo(inputStorageCapacity) > 0 || outputTypeCapacity > inputTypeCapacity);
+                outputStorageCapacity.compareTo(inputStorageCapacity) >= 0 && outputTypeCapacity >= inputTypeCapacity &&
+                (outputCountCapacity.compareTo(inputCountCapacity) > 0 ||
+                        outputStorageCapacity.compareTo(inputStorageCapacity) > 0 || outputTypeCapacity > inputTypeCapacity);
     }
 
     public static IRecipe getRecipeFromGrid(InventoryCrafting inv, World world) {

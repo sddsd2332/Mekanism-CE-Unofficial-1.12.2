@@ -8,7 +8,9 @@ import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumHand;
 
-/** Frequency list container for the portable QIO Dashboard. */
+/**
+ * Frequency list container for the portable QIO Dashboard.
+ */
 public class QIOItemFrequencySelectContainer extends FrequencyItemContainer<QIOFrequency> implements IEmptyContainer {
 
     public QIOItemFrequencySelectContainer(InventoryPlayer inventory, EnumHand hand, ItemStack stack) {
@@ -36,7 +38,7 @@ public class QIOItemFrequencySelectContainer extends FrequencyItemContainer<QIOF
             return null;
         }
         mekanism.common.frequency.Frequency.FrequencyIdentity identity =
-              ((mekanism.common.frequency.IFrequencyItem) current.getItem()).getFrequency(current);
+                ((mekanism.common.frequency.IFrequencyItem) current.getItem()).getFrequency(current);
         return identity == null ? null : FrequencyType.QIO.getFrequency(identity, getPlayerUUID());
     }
 }

@@ -1,6 +1,5 @@
 package mekanism.common.capabilities.resolver.manager;
 
-import mekanism.api.IHeatTransfer;
 import mekanism.api.heat.IHeatCapacitor;
 import mekanism.api.heat.IHeatHandler;
 import mekanism.api.heat.ISidedHeatHandler;

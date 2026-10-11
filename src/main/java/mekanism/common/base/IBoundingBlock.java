@@ -31,14 +31,18 @@ public interface IBoundingBlock {
      */
     double RENDER_BOUNDS_EPSILON = 1D / 16D;
 
-    /** Result of attempting the shared, preflighted bounding-block placement path. */
+    /**
+     * Result of attempting the shared, preflighted bounding-block placement path.
+     */
     enum PlacementResult {
         SUCCESS,
         BLOCKED,
         LEGACY
     }
 
-    /** A position occupied by either a normal or capability-forwarding bounding block. */
+    /**
+     * A position occupied by either a normal or capability-forwarding bounding block.
+     */
     final class BoundingBlockData {
 
         private final BlockPos position;
@@ -78,7 +82,9 @@ public interface IBoundingBlock {
     default void collectBoundingBlocks(@Nonnull BiConsumer<BlockPos, Boolean> consumer) {
     }
 
-    /** Called after the shared path has successfully created the full layout. */
+    /**
+     * Called after the shared path has successfully created the full layout.
+     */
     default void onBoundingBlocksPlaced() {
     }
 
@@ -97,8 +103,8 @@ public interface IBoundingBlock {
     @Nullable
     default AxisAlignedBB getBoundingBlockRenderBounds(@Nonnull BlockPos main) {
         int[] bounds = {
-              Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE,
-              Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE
+                Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE,
+                Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE
         };
         boolean[] found = {false};
         collectBoundingBlocks((position, advanced) -> {
@@ -123,14 +129,16 @@ public interface IBoundingBlock {
         bounds[4] = Math.max(bounds[4], main.getY());
         bounds[5] = Math.max(bounds[5], main.getZ());
         return new AxisAlignedBB(bounds[0] - RENDER_BOUNDS_EPSILON,
-              bounds[1] - RENDER_BOUNDS_EPSILON,
-              bounds[2] - RENDER_BOUNDS_EPSILON,
-              bounds[3] + 1D + RENDER_BOUNDS_EPSILON,
-              bounds[4] + 1D + RENDER_BOUNDS_EPSILON,
-              bounds[5] + 1D + RENDER_BOUNDS_EPSILON);
+                bounds[1] - RENDER_BOUNDS_EPSILON,
+                bounds[2] - RENDER_BOUNDS_EPSILON,
+                bounds[3] + 1D + RENDER_BOUNDS_EPSILON,
+                bounds[4] + 1D + RENDER_BOUNDS_EPSILON,
+                bounds[5] + 1D + RENDER_BOUNDS_EPSILON);
     }
 
-    /** Performs a complete replaceability check before creating any auxiliary blocks. */
+    /**
+     * Performs a complete replaceability check before creating any auxiliary blocks.
+     */
     @Nonnull
     default PlacementResult tryPlaceBoundingBlocks(@Nonnull World world, @Nonnull Coord4D main) {
         List<BoundingBlockData> blocks = getBoundingBlocks();

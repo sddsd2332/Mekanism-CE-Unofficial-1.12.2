@@ -10,7 +10,6 @@ import java.util.function.Supplier;
  * @see Supplier
  */
 @FunctionalInterface
-public interface NonNullSupplier<T>
-{
+public interface NonNullSupplier<T> {
     @NotNull T get();
 }

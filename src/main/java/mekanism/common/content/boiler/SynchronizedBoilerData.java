@@ -2,20 +2,19 @@ package mekanism.common.content.boiler;
 
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import mekanism.api.Coord4D;
-import mekanism.api.heat.HeatAPI;
-import mekanism.api.heat.IHeatCapacitor;
 import mekanism.api.gas.GasStack;
+import mekanism.api.heat.HeatAPI;
 import mekanism.common.MekanismFluids;
+import mekanism.common.capabilities.heat.VariableHeatCapacitor;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.content.tank.SynchronizedTankData.ValveData;
 import mekanism.common.multiblock.SynchronizedData;
-import mekanism.common.capabilities.heat.VariableHeatCapacitor;
 import mekanism.common.util.FluidContainerUtils;
 import mekanism.common.util.UnitDisplayUtils.TemperatureUnit;
-import net.minecraftforge.fluids.FluidRegistry;
-import net.minecraftforge.fluids.FluidStack;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
+import net.minecraftforge.fluids.FluidRegistry;
+import net.minecraftforge.fluids.FluidStack;
 
 import java.util.Map;
 import java.util.Set;
@@ -23,10 +22,19 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class SynchronizedBoilerData extends SynchronizedData<SynchronizedBoilerData> {
 
-    /** Server-side hot-state lookup used by inner blocks. */
+    @Override
+    protected int getMultiblockRedstoneLevel() {
+        return mekanism.common.util.MekanismUtils.redstoneLevelFromContents(getWaterAmount(), getWaterCapacity());
+    }
+
+    /**
+     * Server-side hot-state lookup used by inner blocks.
+     */
     public static final Map<String, Boolean> hotMap = new ConcurrentHashMap<>();
 
-    /** Client-only compatibility lookup used by the 1.12 blockstate and lighting hooks. */
+    /**
+     * Client-only compatibility lookup used by the 1.12 blockstate and lighting hooks.
+     */
     @Deprecated
     public static final Map<String, Boolean> clientHotMap = new ConcurrentHashMap<>();
 
@@ -60,11 +68,11 @@ public class SynchronizedBoilerData extends SynchronizedData<SynchronizedBoilerD
 
     public double biomeAmbientTemp = HeatAPI.AMBIENT_TEMP;
     private final VariableHeatCapacitor heatCapacitor = new VariableHeatCapacitor(
-          CASING_HEAT_CAPACITY,
-          () -> CASING_INVERSE_CONDUCTION_COEFFICIENT,
-          () -> CASING_INSULATION_COEFFICIENT,
-          () -> biomeAmbientTemp,
-          this
+            CASING_HEAT_CAPACITY,
+            () -> CASING_INVERSE_CONDUCTION_COEFFICIENT,
+            () -> CASING_INSULATION_COEFFICIENT,
+            () -> biomeAmbientTemp,
+            this
     ) {
         @Override
         public void handleHeat(double transfer) {
@@ -156,14 +164,14 @@ public class SynchronizedBoilerData extends SynchronizedData<SynchronizedBoilerD
         BlockPos min = minLocation.getPos();
         BlockPos max = maxLocation.getPos();
         BlockPos[] corners = {
-              min,
-              new BlockPos(max.getX(), min.getY(), min.getZ()),
-              new BlockPos(min.getX(), min.getY(), max.getZ()),
-              new BlockPos(max.getX(), min.getY(), max.getZ()),
-              new BlockPos(min.getX(), max.getY(), min.getZ()),
-              new BlockPos(max.getX(), max.getY(), min.getZ()),
-              new BlockPos(min.getX(), max.getY(), max.getZ()),
-              max
+                min,
+                new BlockPos(max.getX(), min.getY(), min.getZ()),
+                new BlockPos(min.getX(), min.getY(), max.getZ()),
+                new BlockPos(max.getX(), min.getY(), max.getZ()),
+                new BlockPos(min.getX(), max.getY(), min.getZ()),
+                new BlockPos(max.getX(), max.getY(), min.getZ()),
+                new BlockPos(min.getX(), max.getY(), max.getZ()),
+                max
         };
         double biomeTemperature = 0;
         for (BlockPos corner : corners) {
@@ -196,25 +204,25 @@ public class SynchronizedBoilerData extends SynchronizedData<SynchronizedBoilerD
 
     public int getWaterCapacity() {
         return scaledCapacity(waterVolume, getConfiguredCapacity(
-              MekanismConfig.current().general == null ? BoilerUpdateProtocol.WATER_PER_TANK :
-                    MekanismConfig.current().general.boilerWaterPerTank.val(), BoilerUpdateProtocol.WATER_PER_TANK));
+                MekanismConfig.current().general == null ? BoilerUpdateProtocol.WATER_PER_TANK :
+                        MekanismConfig.current().general.boilerWaterPerTank.val(), BoilerUpdateProtocol.WATER_PER_TANK));
     }
 
     public int getSteamCapacity() {
         return scaledCapacity(steamVolume, getConfiguredCapacity(
-              MekanismConfig.current().general == null ? BoilerUpdateProtocol.STEAM_PER_TANK :
-                    MekanismConfig.current().general.boilerSteamPerTank.val(), BoilerUpdateProtocol.STEAM_PER_TANK));
+                MekanismConfig.current().general == null ? BoilerUpdateProtocol.STEAM_PER_TANK :
+                        MekanismConfig.current().general.boilerSteamPerTank.val(), BoilerUpdateProtocol.STEAM_PER_TANK));
     }
 
     public int getInputGasCapacity() {
         int configured = MekanismConfig.current().general == null ? DEFAULT_HEATED_COOLANT_PER_TANK :
-              MekanismConfig.current().general.boilerHeatedCoolantPerTank.val();
+                MekanismConfig.current().general.boilerHeatedCoolantPerTank.val();
         return scaledCapacity(waterVolume, getConfiguredCapacity(configured, DEFAULT_HEATED_COOLANT_PER_TANK));
     }
 
     public int getOutputGasCapacity() {
         int configured = MekanismConfig.current().general == null ? DEFAULT_COOLED_COOLANT_PER_TANK :
-              MekanismConfig.current().general.boilerCooledCoolantPerTank.val();
+                MekanismConfig.current().general.boilerCooledCoolantPerTank.val();
         return scaledCapacity(steamVolume, getConfiguredCapacity(configured, DEFAULT_COOLED_COOLANT_PER_TANK));
     }
 

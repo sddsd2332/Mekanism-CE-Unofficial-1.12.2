@@ -6,13 +6,11 @@ import net.minecraft.util.ResourceLocation;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
-/** Client-only factory registry for optional-module tabs on ordinary Mekanism machine screens. */
+/**
+ * Client-only factory registry for optional-module tabs on ordinary Mekanism machine screens.
+ */
 public final class MekanismTileGuiExtensionRegistry {
 
     private static final Map<ResourceLocation, Factory> FACTORIES = new LinkedHashMap<>();
@@ -33,7 +31,7 @@ public final class MekanismTileGuiExtensionRegistry {
     }
 
     static List<Widget> createElements(GuiMekanismTile<?, ?> gui,
-          TileEntityContainerBlock tile) {
+                                       TileEntityContainerBlock tile) {
         List<Map.Entry<ResourceLocation, Factory>> snapshot;
         synchronized (MekanismTileGuiExtensionRegistry.class) {
             snapshot = new ArrayList<>(FACTORIES.entrySet());
@@ -53,6 +51,6 @@ public final class MekanismTileGuiExtensionRegistry {
 
         @Nullable
         Widget create(@Nonnull GuiMekanismTile<?, ?> gui,
-              @Nonnull TileEntityContainerBlock tile);
+                      @Nonnull TileEntityContainerBlock tile);
     }
 }

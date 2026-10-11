@@ -2,18 +2,12 @@ package mekanism.common.content.entangloporter;
 
 import io.netty.buffer.ByteBuf;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
-import mekanism.api.Action;
-import mekanism.api.AutomationType;
-import mekanism.api.Coord4D;
-import mekanism.api.DataHandlerUtils;
-import mekanism.api.NBTConstants;
-import mekanism.api.RelativeSide;
-import mekanism.api.TileNetworkList;
+import mekanism.api.*;
 import mekanism.api.energy.IEnergyContainer;
-import mekanism.api.gas.GasStack;
-import mekanism.api.gas.IGasHandler;
 import mekanism.api.fluid.IExtendedFluidTank;
+import mekanism.api.gas.GasStack;
 import mekanism.api.gas.IExtendedGasTank;
+import mekanism.api.gas.IGasHandler;
 import mekanism.api.heat.HeatAPI;
 import mekanism.api.heat.IHeatCapacitor;
 import mekanism.api.inventory.IInventorySlot;
@@ -31,33 +25,23 @@ import mekanism.common.content.network.distribution.FluidHandlerTarget;
 import mekanism.common.content.network.distribution.GasHandlerTarget;
 import mekanism.common.frequency.Frequency;
 import mekanism.common.frequency.FrequencyType;
-import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.inventory.slot.EntangloporterInventorySlot;
+import mekanism.common.inventory.slot.gas.GasInventorySlot;
 import mekanism.common.security.ISecurityTile.SecurityMode;
 import mekanism.common.tile.TileEntityQuantumEntangloporter;
 import mekanism.common.tile.component.config.ConfigInfo;
 import mekanism.common.tile.component.config.DataType;
-import mekanism.common.util.CableUtils;
-import mekanism.common.util.CapabilityUtils;
-import mekanism.common.util.EmitUtils;
-import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.PipeUtils;
-import mekanism.common.util.TileUtils;
+import mekanism.common.util.*;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
+import net.minecraftforge.common.util.Constants.NBT;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.capability.CapabilityFluidHandler;
 import net.minecraftforge.fluids.capability.IFluidHandler;
-import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.function.Consumer;
 
 public class InventoryFrequency extends Frequency implements IMekanismInventory {
@@ -217,7 +201,7 @@ public class InventoryFrequency extends Frequency implements IMekanismInventory 
     }
 
     private void addEnergyTransferHandler(Map<TransmissionType, Consumer<TileEntityQuantumEntangloporter>> typesToEject, List<Runnable> transferHandlers,
-          int expected) {
+                                          int expected) {
         double toSend = storedEnergy.extract(storedEnergy.getMaxEnergy(), Action.SIMULATE, AutomationType.INTERNAL);
         if (toSend > 0) {
             SendingEnergyAcceptorTarget target = new SendingEnergyAcceptorTarget(expected, storedEnergy, toSend);
@@ -227,7 +211,7 @@ public class InventoryFrequency extends Frequency implements IMekanismInventory 
     }
 
     private void addFluidTransferHandler(Map<TransmissionType, Consumer<TileEntityQuantumEntangloporter>> typesToEject, List<Runnable> transferHandlers,
-          int expected) {
+                                         int expected) {
         FluidStack fluidToSend = storedFluid.extract(storedFluid.getCapacity(), Action.SIMULATE, AutomationType.INTERNAL);
         if (fluidToSend != null && fluidToSend.amount > 0) {
             SendingFluidHandlerTarget target = new SendingFluidHandlerTarget(fluidToSend, expected, storedFluid);
@@ -237,7 +221,7 @@ public class InventoryFrequency extends Frequency implements IMekanismInventory 
     }
 
     private void addGasTransferHandler(Map<TransmissionType, Consumer<TileEntityQuantumEntangloporter>> typesToEject, List<Runnable> transferHandlers,
-          int expected) {
+                                       int expected) {
         GasStack gasToSend = storedGas.extract(storedGas.getCapacity(), Action.SIMULATE, AutomationType.INTERNAL);
         if (gasToSend != null && gasToSend.amount > 0) {
             SendingGasHandlerTarget target = new SendingGasHandlerTarget(gasToSend, expected, storedGas);

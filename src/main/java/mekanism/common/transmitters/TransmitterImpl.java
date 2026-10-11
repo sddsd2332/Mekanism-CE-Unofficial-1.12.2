@@ -55,7 +55,7 @@ public class TransmitterImpl<ACCEPTOR, NETWORK extends DynamicNetwork<ACCEPTOR, 
 
     @Override
     public boolean isCompatibleWith(IGridTransmitter<ACCEPTOR, NETWORK, BUFFER> other) {
-        if (other instanceof TransmitterImpl<?,?,?> transmitter) {
+        if (other instanceof TransmitterImpl<?, ?, ?> transmitter) {
             return containingTile.isValidTransmitter(transmitter.containingTile);
         }
         return true;//allow non-Transmitter impls to connect?
@@ -75,7 +75,7 @@ public class TransmitterImpl<ACCEPTOR, NETWORK extends DynamicNetwork<ACCEPTOR, 
     public boolean isValid() {
         TileEntityTransmitter<ACCEPTOR, NETWORK, BUFFER> cont = getTileEntity();
         if (cont != null) {
-            return !cont.isInvalid() && coord().exists(this.world()) && coord().getTileEntity(this.world()) == cont && cont.getTransmitter() == this;
+            return !cont.unloaded && !cont.isInvalid() && coord().exists(this.world()) && coord().getTileEntity(this.world()) == cont && cont.getTransmitter() == this;
         }
         return false;
     }

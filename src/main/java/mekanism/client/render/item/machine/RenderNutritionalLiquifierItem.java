@@ -23,9 +23,9 @@ public class RenderNutritionalLiquifierItem {
         GlStateManager.scale(1.0F, 1.0F, 1.0F);
         GlStateManager.translate(0, -1.0F, 0);
         MekanismRenderer.bindTexture(MekanismUtils.getResource(ResourceType.RENDER, "NutritionalLiquifier.png"));
-        nutritionalliquifier.render(0.0625F,false);
+        nutritionalliquifier.render(0.0625F, false);
         nutritionalliquifier.renderBlade(0.0625F);
-        nutritionalliquifier.renderGlass(0.0625F,false);
+        nutritionalliquifier.renderGlass(0.0625F, false);
         GlStateManager.popMatrix();
     }
 }

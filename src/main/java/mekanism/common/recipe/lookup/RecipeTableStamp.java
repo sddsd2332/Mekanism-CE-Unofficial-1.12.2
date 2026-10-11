@@ -2,7 +2,9 @@ package mekanism.common.recipe.lookup;
 
 import java.util.Objects;
 
-/** Table identity is distinct from the global invalidation generation on a machine plan. */
+/**
+ * Table identity is distinct from the global invalidation generation on a machine plan.
+ */
 public final class RecipeTableStamp {
     private final long session;
     private final long mapIdentity;
@@ -19,12 +21,29 @@ public final class RecipeTableStamp {
         this.publication = publication;
     }
 
-    public long getSession() { return session; }
-    public long getMapIdentity() { return mapIdentity; }
-    public long getGeneration() { return generation; }
-    public long getPublication() { return publication; }
-    @Override public int hashCode() { return Objects.hash(session, mapIdentity, generation, publication); }
-    @Override public boolean equals(Object other) {
+    public long getSession() {
+        return session;
+    }
+
+    public long getMapIdentity() {
+        return mapIdentity;
+    }
+
+    public long getGeneration() {
+        return generation;
+    }
+
+    public long getPublication() {
+        return publication;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(session, mapIdentity, generation, publication);
+    }
+
+    @Override
+    public boolean equals(Object other) {
         if (this == other) return true;
         if (!(other instanceof RecipeTableStamp)) return false;
         RecipeTableStamp stamp = (RecipeTableStamp) other;

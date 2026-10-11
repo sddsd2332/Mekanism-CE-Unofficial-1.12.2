@@ -18,7 +18,7 @@ public class GuiVirtualSlot extends GuiSlot implements IJEIIngredientHelper {
     private IVirtualSlot virtualSlot;
 
     public GuiVirtualSlot(@Nullable IGUIWindow window, SlotType type, IGuiWrapper gui, int x, int y,
-          @Nullable VirtualInventoryContainerSlot containerSlot) {
+                          @Nullable VirtualInventoryContainerSlot containerSlot) {
         this(type, gui, x, y);
         if (containerSlot != null) {
             SlotOverlay slotOverlay = containerSlot.getSlotOverlay();
@@ -61,7 +61,7 @@ public class GuiVirtualSlot extends GuiSlot implements IJEIIngredientHelper {
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (mouseX >= getX() && mouseY >= getY() && mouseX < getRight() && mouseY < getBottom() &&
-            gui() instanceof VirtualSlotContainerScreen<?> screen && virtualSlot != null) {
+                gui() instanceof VirtualSlotContainerScreen<?> screen && virtualSlot != null) {
             return screen.slotClicked(virtualSlot.getSlot(), button);
         }
         return super.mouseClicked(mouseX, mouseY, button);

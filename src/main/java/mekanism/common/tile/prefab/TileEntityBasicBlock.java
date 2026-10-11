@@ -7,13 +7,14 @@ import mekanism.api.IContainerTransaction;
 import mekanism.api.TileNetworkList;
 import mekanism.api.gas.IGasHandler;
 import mekanism.common.Mekanism;
+import mekanism.common.base.EnergyAcceptorWrapper;
 import mekanism.common.base.IBoundingBlock;
 import mekanism.common.base.ITileComponent;
 import mekanism.common.base.ITileNetwork;
-import mekanism.common.base.EnergyAcceptorWrapper;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.config.MekanismConfig;
+import mekanism.common.frequency.TileComponentFrequency;
 import mekanism.common.integration.MekanismHooks;
 import mekanism.common.inventory.container.ITrackableContainer;
 import mekanism.common.inventory.container.MekanismContainer;
@@ -21,6 +22,8 @@ import mekanism.common.inventory.container.MekanismTileContainer;
 import mekanism.common.network.PacketDataRequest.DataRequestMessage;
 import mekanism.common.network.PacketTileEntity.TileEntityMessage;
 import mekanism.common.tile.base.TileEntityRestrictedTick;
+import mekanism.common.tile.component.TileComponentChunkLoader;
+import mekanism.common.tile.component.TileComponentEjector;
 import mekanism.common.tile.component.TileComponentUpgrade;
 import mekanism.common.util.CapabilityUtils;
 import mekanism.common.util.MekanismUtils;
@@ -35,12 +38,12 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.fluids.capability.CapabilityFluidHandler;
 import net.minecraftforge.fluids.capability.IFluidHandler;
-import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.common.Optional.Interface;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraftforge.items.CapabilityItemHandler;
+import net.minecraftforge.items.IItemHandler;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -49,7 +52,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -58,8 +60,8 @@ import java.util.function.Supplier;
 @Interface(iface = "ic2.api.tile.IWrenchable", modid = MekanismHooks.IC2_MOD_ID)
 public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick implements ITileNetwork, ITrackableContainer, IContainerTransaction {
 
-    private static volatile Consumer<TileEntityBasicBlock> serverPreComponentTickListener = tile -> {
-    };
+    private volatile mekanism.common.tile.component.UpgradeComponentController upgradeFeatures;
+    private boolean upgradeFeaturesPrepared;
     private final TileEntity[] cachedEnergyAcceptorTiles = new TileEntity[6];
     private final EnergyAcceptorWrapper[] cachedEnergyAcceptors = new EnergyAcceptorWrapper[6];
     private final boolean[] cachedEnergyAcceptorResolved = new boolean[6];
@@ -94,13 +96,40 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
     private boolean asyncUpdateSubmitted;
 
     /**
-     * Installs the optional-module callback which runs immediately before tile components.
-     * The callback is server-only and therefore observes the stable result of the previous
-     * tick before ejectors and asynchronous machine work begin for the current tick.
+     * Called only after construction. Feature factories may consult attached capability facades once.
      */
-    public static void setServerPreComponentTickListener(Consumer<TileEntityBasicBlock> listener) {
-        serverPreComponentTickListener = Objects.requireNonNull(listener,
-              "Server pre-component tick listener cannot be null");
+    public final void prepareUpgradeComponents() {
+        if (!upgradeFeaturesPrepared) {
+            upgradeFeaturesPrepared = true;
+            if (registeredUpgradeComponent != null) {
+                mekanism.common.tile.component.UpgradeComponentController controller =
+                        new mekanism.common.tile.component.UpgradeComponentController(this, registeredUpgradeComponent);
+                upgradeFeatures = controller.isEmpty() ? null : controller;
+            }
+        }
+    }
+
+    public final mekanism.common.base.IUpgradeTileComponent getUpgradeFeature(
+            mekanism.common.tile.component.UpgradeComponentRegistry.Slot slot) {
+        return upgradeFeatures == null ? null : upgradeFeatures.get(slot);
+    }
+
+    /**
+     * Pure refresh; server side effects are drained at the next safe pre-component phase.
+     */
+    public final void refreshUpgradeComponents(TileComponentUpgrade upgrades, boolean installedChange) {
+        if (upgradeFeatures != null) upgradeFeatures.refresh(upgrades, installedChange);
+    }
+
+    public final void notifyUpgradeFeatureContentsChanged() {
+        if (upgradeFeatures != null) upgradeFeatures.contentsChanged();
+    }
+
+    /**
+     * Parameter/layout batches invalidate runtime feature state without inventing install/remove events.
+     */
+    public final void notifyUpgradeParametersRecalculated() {
+        if (upgradeFeatures != null) upgradeFeatures.restored();
     }
 
     /**
@@ -133,11 +162,56 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
 
     public boolean doAutoSync = true;
 
-    public List<ITileComponent> components = new ArrayList<>();
+    private final List<ITileComponent> components = new ArrayList<>();
+    @Nullable
+    private TileComponentFrequency registeredFrequencyComponent;
+    @Nullable
+    private TileComponentUpgrade registeredUpgradeComponent;
+    @Nullable
+    private volatile TileComponentUpgrade tickingUpgradeComponent;
+    @Nullable
+    private TileComponentChunkLoader registeredChunkLoaderComponent;
+    @Nullable
+    private TileComponentEjector registeredEjectorComponent;
+
+    public final void addComponent(ITileComponent component) {
+        Objects.requireNonNull(component);
+        if (components.contains(component)) throw new IllegalArgumentException("Component already registered");
+        if (component instanceof TileComponentFrequency frequency) {
+            if (registeredFrequencyComponent != null)
+                throw new IllegalArgumentException("Duplicate frequency component");
+            registeredFrequencyComponent = frequency;
+        } else if (component instanceof TileComponentUpgrade upgrade) {
+            if (registeredUpgradeComponent != null) throw new IllegalArgumentException("Duplicate upgrade component");
+            registeredUpgradeComponent = upgrade;
+            tickingUpgradeComponent = upgrade;
+        } else if (component instanceof TileComponentChunkLoader chunkLoader) {
+            if (registeredChunkLoaderComponent != null)
+                throw new IllegalArgumentException("Duplicate chunk loader component");
+            registeredChunkLoaderComponent = chunkLoader;
+        } else if (component instanceof TileComponentEjector ejector) {
+            if (registeredEjectorComponent != null) throw new IllegalArgumentException("Duplicate ejector component");
+            registeredEjectorComponent = ejector;
+        }
+        components.add(component);
+    }
+
+    public final List<ITileComponent> getComponents() {
+        return java.util.Collections.unmodifiableList(components);
+    }
+
+    /**
+     * The registered component keeps its lifecycle ownership while its idle tick is suspended.
+     */
+    public final void setUpgradeComponentTicking(TileComponentUpgrade component, boolean needed) {
+        if (registeredUpgradeComponent == component) tickingUpgradeComponent = needed ? component : null;
+    }
 
     @Override
     public void onLoad() {
         super.onLoad();
+        prepareUpgradeComponents();
+        if (upgradeFeatures != null) upgradeFeatures.restored();
         if (isRemote()) {
             Mekanism.packetHandler.sendToServer(new DataRequestMessage(Coord4D.get(this)));
         }
@@ -153,13 +227,14 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
 
         if (!isRemote()) {
             tickServerPreComponents();
+            tickServerComponents();
         }
-        tickComponents();
         //TODO：切换为四种状态：同时更新,客户端更新,服务端更新，服务端异步更新
         if (!isRemote()) {
+            tickServerEjector();
             onUpdateServer(); //服务端更新
             if (supportsAsync() && !trySkipAsyncUpdate()) { //如果支持异步
-                Mekanism.EXECUTE_MANAGER.addTask(this::runAsyncUpdateServer); //进行服务端异步更新
+                Mekanism.EXECUTE_MANAGER.addMachineTask(this::runAsyncUpdateServer); //进行服务端异步更新
                 asyncUpdateSubmitted = true;
             }
         } else {
@@ -196,13 +271,29 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
         return false;
     }
 
-    protected void tickComponents() {
-        components.forEach(ITileComponent::tick);
+    /**
+     * Modern component ownership: the lifecycle list is never a generic ticking list.
+     */
+    protected void tickServerComponents() {
+        if (registeredFrequencyComponent != null) registeredFrequencyComponent.tickServer();
+        TileComponentUpgrade upgrade = tickingUpgradeComponent;
+        if (upgrade != null) upgrade.tickServer();
+        if (registeredChunkLoaderComponent != null) registeredChunkLoaderComponent.tickServer();
     }
 
-    /** Runs optional-module machine work before ordinary ejector/configuration components. */
-    void tickServerPreComponents() {
-        serverPreComponentTickListener.accept(this);
+    /**
+     * Machine I/O follows core components and precedes this port's asynchronous machine work.
+     */
+    protected void tickServerEjector() {
+        if (registeredEjectorComponent != null) registeredEjectorComponent.tickServer();
+    }
+
+    /**
+     * Runs optional-module machine work before ordinary ejector/configuration components.
+     */
+    final void tickServerPreComponents() {
+        prepareUpgradeComponents();
+        if (upgradeFeatures != null) upgradeFeatures.tickServer();
         onUpdateServerPreComponents();
     }
 
@@ -213,17 +304,23 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
     protected void onUpdateServerPreComponents() {
     }
 
-    /** Clears transient component guards before the current server tick is evaluated. */
+    /**
+     * Clears transient component guards before the current server tick is evaluated.
+     */
     void beginServerTick() {
         serverEjectionSuppressedForCurrentTick = false;
     }
 
-    /** Prevents this tile's ordinary ejector from racing an owned server-side transfer. */
+    /**
+     * Prevents this tile's ordinary ejector from racing an owned server-side transfer.
+     */
     public final void suppressServerEjectionForCurrentTick() {
         serverEjectionSuppressedForCurrentTick = true;
     }
 
-    /** Returns whether an earlier server pre-component hook retained output ownership. */
+    /**
+     * Returns whether an earlier server pre-component hook retained output ownership.
+     */
     public final boolean isServerEjectionSuppressedForCurrentTick() {
         return serverEjectionSuppressedForCurrentTick;
     }
@@ -232,10 +329,9 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
     public void addContainerTrackers(MekanismContainer container) {
         components.forEach(component -> component.trackForMainContainer(container));
         components.stream().filter(TileComponentUpgrade.class::isInstance)
-              .map(TileComponentUpgrade.class::cast)
-              .forEach(component -> container.startTracking(component, component));
+                .map(TileComponentUpgrade.class::cast)
+                .forEach(component -> container.startTracking(component, component));
     }
-
 
 
     @Override
@@ -293,8 +389,15 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
     @Override
     public void invalidate() {
         super.invalidate();
+        if (upgradeFeatures != null) upgradeFeatures.invalidated();
         clearCachedEnergyAcceptors();
         components.forEach(ITileComponent::invalidate);
+    }
+
+    @Override
+    public void onChunkUnload() {
+        if (upgradeFeatures != null) upgradeFeatures.unload();
+        super.onChunkUnload();
     }
 
     public boolean supportsAsync() {
@@ -313,18 +416,22 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
         return false;
     }
 
-    /** Called with the local container lock; no recipe lookup or capability discovery belongs here. */
+    /**
+     * Called with the local container lock; no recipe lookup or capability discovery belongs here.
+     */
     protected boolean isAsyncUpdateIdle() {
         return false;
     }
 
-    /** Small tile-owned bookkeeping which must continue even without a worker task. */
+    /**
+     * Small tile-owned bookkeeping which must continue even without a worker task.
+     */
     protected void onAsyncUpdateSkipped() {
     }
 
     private boolean trySkipAsyncUpdate() {
         if (!MekanismConfig.current().mekce.SkipIdleMachineAsyncTasks.val() || !supportsAsyncIdleSkipping() ||
-              !containerTransactionLock.tryLock()) {
+                !containerTransactionLock.tryLock()) {
             return false;
         }
         try {
@@ -439,16 +546,22 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
     @Override
     public void readCustomNBT(NBTTagCompound nbtTags) {
         super.readCustomNBT(nbtTags);
+        prepareUpgradeComponents();
         if (nbtTags.hasKey("facing")) {
             facing = EnumFacing.byIndex(nbtTags.getInteger("facing"));
         }
         redstone = nbtTags.getBoolean("redstone");
         components.forEach(component -> component.read(nbtTags));
+        if (upgradeFeatures != null) {
+            upgradeFeatures.refresh(registeredUpgradeComponent, false);
+            upgradeFeatures.restored();
+        }
     }
 
     @Override
     public void writeCustomNBT(NBTTagCompound nbtTags) {
         super.writeCustomNBT(nbtTags);
+        prepareUpgradeComponents();
         if (facing != null) {
             nbtTags.setInteger("facing", facing.ordinal());
         }
@@ -503,6 +616,7 @@ public abstract class TileEntityBasicBlock extends TileEntityRestrictedTick impl
 
     public void onNeighborChange(Block block) {
         if (!isRemote()) {
+            if (upgradeFeatures != null) upgradeFeatures.neighborChanged();
             updatePower();
             clearCachedEnergyAcceptors();
         }

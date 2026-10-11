@@ -26,7 +26,7 @@ public final class ItemStackSlotAccess {
     }
 
     public ItemStackSlotAccess(@Nonnull InventoryPlayer inventory, @Nonnull EnumHand hand, int slot,
-          @Nonnull ItemStack openingStack) {
+                               @Nonnull ItemStack openingStack) {
         this.inventory = Objects.requireNonNull(inventory, "Inventory cannot be null");
         this.hand = Objects.requireNonNull(hand, "Hand cannot be null");
         if (!isValidSlot(hand, slot)) {

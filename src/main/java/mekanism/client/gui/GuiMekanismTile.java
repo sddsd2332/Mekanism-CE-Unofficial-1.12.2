@@ -61,34 +61,34 @@ public abstract class GuiMekanismTile<TILE extends TileEntityContainerBlock, CON
             addSecurityTab();
         }
         for (mekanism.client.gui.element.Widget extension :
-              MekanismTileGuiExtensionRegistry.createElements(this, tileEntity)) {
+                MekanismTileGuiExtensionRegistry.createElements(this, tileEntity)) {
             addButton(extension);
         }
     }
 
     private void addQIOAutomationWarning() {
         Capability<QIOAutomationHost> automationHostCapability =
-              QIOAutomationCapabilities.AUTOMATION_HOST;
+                QIOAutomationCapabilities.AUTOMATION_HOST;
         if (automationHostCapability == null ||
-            !tileEntity.hasCapability(automationHostCapability, null)) {
+                !tileEntity.hasCapability(automationHostCapability, null)) {
             return;
         }
         trackWarning(mekanism.client.gui.warning.WarningTracker.WarningType.QIO_AUTOMATION_ERROR, () -> {
             Object exposed = tileEntity.getCapability(automationHostCapability, null);
             return exposed instanceof QIOAutomationHost host &&
-                  (host.getState() == QIOAutomationHost.State.IDENTITY_CONFLICT ||
-                  host.hasRecoveryPending() || host.getRecoveryDiagnostic() != null);
+                    (host.getState() == QIOAutomationHost.State.IDENTITY_CONFLICT ||
+                            host.hasRecoveryPending() || host.getRecoveryDiagnostic() != null);
         });
     }
 
     protected <REDSTONE_TILE extends TileEntity & IRedstoneControl> void addRedstoneControlTab(REDSTONE_TILE tile) {
         addButton(new GuiRedstoneControlTab<>(this, tile)
-              .warning(WarningType.REDSTONE_SIGNAL_ABSENT,
-                    () -> tile.getControlType() == RedstoneControl.HIGH && !MekanismUtils.canFunction(tile))
-              .warning(WarningType.REDSTONE_SIGNAL_PRESENT,
-                    () -> tile.getControlType() == RedstoneControl.LOW && !MekanismUtils.canFunction(tile))
-              .warning(WarningType.REDSTONE_PULSE_REQUIRED,
-                    () -> tile.getControlType() == RedstoneControl.PULSE && !MekanismUtils.canFunction(tile)));
+                .warning(WarningType.REDSTONE_SIGNAL_ABSENT,
+                        () -> tile.getControlType() == RedstoneControl.HIGH && !MekanismUtils.canFunction(tile))
+                .warning(WarningType.REDSTONE_SIGNAL_PRESENT,
+                        () -> tile.getControlType() == RedstoneControl.LOW && !MekanismUtils.canFunction(tile))
+                .warning(WarningType.REDSTONE_PULSE_REQUIRED,
+                        () -> tile.getControlType() == RedstoneControl.PULSE && !MekanismUtils.canFunction(tile)));
     }
 
     protected void addSecurityTab() {

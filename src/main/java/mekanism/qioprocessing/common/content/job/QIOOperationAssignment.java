@@ -10,7 +10,10 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Persistent assignment of one real recipe operation to one physical provider lane. */
+/**
+ * Persistent assignment of one real recipe operation to one physical provider lane.
+ */
+
 /**
  * QIO 处理模块中的 QIOOperationAssignment 类型。
  *
@@ -44,22 +47,22 @@ public final class QIOOperationAssignment {
 
     /** 创建机器/处理器操作分配的初始状态。 */
     public QIOOperationAssignment(@Nonnull UUID operationId, @Nonnull ProviderKind providerKind,
-          @Nonnull UUID deviceUUID, long laneId, long dispatchedAtTick) {
+                                  @Nonnull UUID deviceUUID, long laneId, long dispatchedAtTick) {
         this(operationId, providerKind, deviceUUID, laneId, 1, dispatchedAtTick);
     }
 
     /** 创建带路由键的操作分配。 */
     public QIOOperationAssignment(@Nonnull UUID operationId, @Nonnull ProviderKind providerKind,
-          @Nonnull UUID deviceUUID, long laneId, long operationCount, long dispatchedAtTick) {
+                                  @Nonnull UUID deviceUUID, long laneId, long operationCount, long dispatchedAtTick) {
         this(operationId, providerKind, deviceUUID, laneId, operationCount, dispatchedAtTick,
-              "");
+                "");
     }
 
     /** 创建完整操作分配并恢复其运行计数。 */
     public QIOOperationAssignment(@Nonnull UUID operationId,
-          @Nonnull ProviderKind providerKind, @Nonnull UUID deviceUUID, long laneId,
-          long operationCount, long dispatchedAtTick,
-          @Nonnull String executionRouteKey) {
+                                  @Nonnull ProviderKind providerKind, @Nonnull UUID deviceUUID, long laneId,
+                                  long operationCount, long dispatchedAtTick,
+                                  @Nonnull String executionRouteKey) {
         this.operationId = Objects.requireNonNull(operationId, "operationId");
         this.providerKind = Objects.requireNonNull(providerKind, "providerKind");
         this.deviceUUID = Objects.requireNonNull(deviceUUID, "deviceUUID");
@@ -69,10 +72,10 @@ public final class QIOOperationAssignment {
         }
         this.operationCount = operationCount;
         this.dispatchedAtTick = QIOProcessingNbt.requireNonNegative(dispatchedAtTick,
-              "dispatchedAtTick");
+                "dispatchedAtTick");
         String checkedRouteKey = Objects.requireNonNull(executionRouteKey,
-              "executionRouteKey").trim();
-        if (checkedRouteKey.length() > 1_536) {
+                "executionRouteKey").trim();
+        if (checkedRouteKey.length() > mekanism.qioprocessing.common.content.plan.QIOPlanStep.MAX_STABLE_ROUTE_ID_LENGTH) {
             throw new IllegalArgumentException("QIO execution route key is too long");
         }
         this.executionRouteKey = checkedRouteKey;
@@ -142,7 +145,7 @@ public final class QIOOperationAssignment {
 
     /** 更新运行状态和计数器；参数不一致时返回 false。 */
     public boolean update(@Nonnull State state, long currentTick, long totalTicks,
-          @Nullable String diagnostic) {
+                          @Nullable String diagnostic) {
         State checkedState = Objects.requireNonNull(state, "state");
         long checkedCurrentTick = QIOProcessingNbt.requireNonNegative(currentTick, "currentTick");
         long checkedTotalTicks = QIOProcessingNbt.requireNonNegative(totalTicks, "totalTicks");
@@ -154,8 +157,8 @@ public final class QIOOperationAssignment {
             throw new IllegalArgumentException("A failed QIO operation requires a diagnostic");
         }
         if (this.state == checkedState && this.currentTick == checkedCurrentTick &&
-              this.totalTicks == checkedTotalTicks && Objects.equals(this.diagnostic,
-              normalizedDiagnostic)) {
+                this.totalTicks == checkedTotalTicks && Objects.equals(this.diagnostic,
+                normalizedDiagnostic)) {
             return false;
         }
         this.state = checkedState;
@@ -189,22 +192,22 @@ public final class QIOOperationAssignment {
     @Nonnull
     /** 从 NBT 读取并校验操作分配。 */
     public static QIOOperationAssignment read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         try {
             if (data.getInteger("operationAssignmentSchemaVersion") != SCHEMA_VERSION ||
-                !data.hasKey("executionRouteKey", 8)) {
+                    !data.hasKey("executionRouteKey", 8)) {
                 throw new QIOProcessingDataException(
-                      "Unsupported or incomplete QIO operation assignment schema");
+                        "Unsupported or incomplete QIO operation assignment schema");
             }
             QIOOperationAssignment assignment = new QIOOperationAssignment(
-                  QIOProcessingNbt.readUUID(data, "operationId"),
-                  QIOProcessingNbt.readEnum(data, "providerKind", ProviderKind.class),
-                  QIOProcessingNbt.readUUID(data, "deviceUUID"), data.getLong("laneId"),
-                  data.getLong("operationCount"), data.getLong("dispatchedAtTick"),
-                  data.getString("executionRouteKey"));
+                    QIOProcessingNbt.readUUID(data, "operationId"),
+                    QIOProcessingNbt.readEnum(data, "providerKind", ProviderKind.class),
+                    QIOProcessingNbt.readUUID(data, "deviceUUID"), data.getLong("laneId"),
+                    data.getLong("operationCount"), data.getLong("dispatchedAtTick"),
+                    data.getString("executionRouteKey"));
             assignment.update(QIOProcessingNbt.readEnum(data, "state", State.class),
-                  data.getLong("currentTick"), data.getLong("totalTicks"),
-                  data.hasKey("diagnostic", 8) ? data.getString("diagnostic") : null);
+                    data.getLong("currentTick"), data.getLong("totalTicks"),
+                    data.hasKey("diagnostic", 8) ? data.getString("diagnostic") : null);
             return assignment;
         } catch (QIOProcessingDataException e) {
             throw e;

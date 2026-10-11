@@ -33,7 +33,7 @@ public class MMaterialFilter extends MinerFilter implements IMaterialFilter {
     @Override
     public boolean hasBlacklistedElement() {
         return !materialItem.isEmpty() && materialItem.getItem() instanceof ItemBlock &&
-              MinerBlacklistHelper.hasBlacklistedMaterial(getMaterial());
+                MinerBlacklistHelper.hasBlacklistedMaterial(getMaterial());
     }
 
     @Override

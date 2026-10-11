@@ -23,19 +23,25 @@ public class TileComponentSecurity implements ITileComponent {
     public TileEntityContainerBlock tileEntity;
 
     private UUID ownerUUID;
+    /**
+     * Monotonic identity revision for consumers that cache the owner lookup.
+     */
+    private long ownerRevision;
     private String clientOwner;
 
     private SecurityMode securityMode = SecurityMode.PUBLIC;
 
     public TileComponentSecurity(TileEntityContainerBlock tile) {
         tileEntity = tile;
-        tile.components.add(this);
+        tile.addComponent(this);
         tileEntity.getFrequencyComponent().track(FrequencyType.SECURITY, true, false, true);
     }
 
     public void readFrom(TileComponentSecurity security) {
         ownerUUID = security.ownerUUID;
+        ownerRevision++;
         securityMode = security.securityMode;
+        tileEntity.getFrequencyComponent().requestSecurityRestore(this);
     }
 
     public SecurityFrequency getFrequency() {
@@ -46,8 +52,14 @@ public class TileComponentSecurity implements ITileComponent {
         return ownerUUID;
     }
 
+    public long getOwnerRevision() {
+        return ownerRevision;
+    }
+
     public void setOwnerUUID(UUID uuid) {
         ownerUUID = uuid;
+        ownerRevision++;
+        tileEntity.getFrequencyComponent().requestSecurityRestore(this);
         if (ownerUUID == null) {
             tileEntity.getFrequencyComponent().unsetFrequency(FrequencyType.SECURITY);
         } else {
@@ -70,13 +82,15 @@ public class TileComponentSecurity implements ITileComponent {
         securityMode = mode;
     }
 
-    @Override
-    public void tick() {
-        if (!tileEntity.getWorld().isRemote) {
-            if (getFrequency() == null && ownerUUID != null) {
-                tileEntity.getFrequencyComponent().setFrequency(FrequencyType.SECURITY, new FrequencyIdentity(ownerUUID, SecurityMode.PUBLIC, ownerUUID), ownerUUID);
-            }
+    /**
+     * Restore legacy owner-only saves from the frequency component's server phase.
+     */
+    public boolean restoreOwnerFrequency() {
+        if (getFrequency() == null && ownerUUID != null) {
+            tileEntity.getFrequencyComponent().setFrequency(FrequencyType.SECURITY,
+                    new FrequencyIdentity(ownerUUID, SecurityMode.PUBLIC, ownerUUID), ownerUUID);
         }
+        return ownerUUID == null || getFrequency() != null;
     }
 
     @Override
@@ -85,6 +99,8 @@ public class TileComponentSecurity implements ITileComponent {
         if (nbtTags.hasKey("ownerUUID")) {
             ownerUUID = MekanismUtils.parseUUID(nbtTags.getString("ownerUUID"));
         }
+        ownerRevision++;
+        tileEntity.getFrequencyComponent().requestSecurityRestore(this);
     }
 
     @Override
@@ -98,6 +114,7 @@ public class TileComponentSecurity implements ITileComponent {
             ownerUUID = null;
             clientOwner = null;
         }
+        ownerRevision++;
 
     }
 

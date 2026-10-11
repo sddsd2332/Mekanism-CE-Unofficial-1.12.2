@@ -31,7 +31,9 @@ import net.minecraftforge.items.IItemHandler;
 
 import javax.annotation.Nullable;
 
-/** Pushes resources from QIO into the adjacent item/fluid/gas handler. */
+/**
+ * Pushes resources from QIO into the adjacent item/fluid/gas handler.
+ */
 public class TileEntityQIOExporter extends TileEntityQIOFilterHandler implements IAdvancedTransportEjector {
 
     private static final int MAX_DELAY = 10;
@@ -99,7 +101,7 @@ public class TileEntityQIOExporter extends TileEntityQIOFilterHandler implements
         TileEntity adjacent = getAdjacentTile();
         if (frequency != null && adjacent != null) {
             ILogisticalTransporter transporter = CapabilityUtils.getCapability(adjacent,
-                  Capabilities.LOGISTICAL_TRANSPORTER_CAPABILITY, getHandlerSide());
+                    Capabilities.LOGISTICAL_TRANSPORTER_CAPABILITY, getHandlerSide());
             if (transporter == null) {
                 exportItems(frequency, adjacent);
             } else {
@@ -163,7 +165,7 @@ public class TileEntityQIOExporter extends TileEntityQIOFilterHandler implements
         boolean moved = false;
         for (QIOResourceEntry entry : frequency.getResourceEntries()) {
             if (entry.getKind() != QIOResourceKind.ITEM || !acceptsItem(entry.getItem()) || count >= getMaxTransitCount()
-                  || types >= getMaxTransitTypes()) {
+                    || types >= getMaxTransitTypes()) {
                 continue;
             }
             int requested = (int) Math.min(entry.getAmount(), getMaxTransitCount() - count);
@@ -299,18 +301,18 @@ public class TileEntityQIOExporter extends TileEntityQIOFilterHandler implements
         boolean moved = false;
         for (QIOResourceEntry entry : frequency.getResourceEntries()) {
             if (entry.getKind() != null || movedAmount >= getMaxTransitCount() ||
-                  movedTypes >= getMaxTransitTypes() || !entry.getDescriptor().isResolved() ||
-                  !acceptsResource(entry)) {
+                    movedTypes >= getMaxTransitTypes() || !entry.getDescriptor().isResolved() ||
+                    !acceptsResource(entry)) {
                 continue;
             }
             QIOResourceTransferAdapter adapter = QIOResourceTransferAdapterRegistry.INSTANCE.get(
-                  entry.getDescriptor().getCodecId());
+                    entry.getDescriptor().getCodecId());
             if (adapter == null || !adapter.supports(target, getHandlerSide())) {
                 continue;
             }
             long requested = Math.min(entry.getAmount(), getMaxTransitCount() - movedAmount);
             long accepted = Math.min(requested, Math.max(0, adapter.insert(target, getHandlerSide(),
-                  entry.getDescriptor(), requested, Action.SIMULATE)));
+                    entry.getDescriptor(), requested, Action.SIMULATE)));
             if (accepted <= 0) {
                 continue;
             }
@@ -319,10 +321,10 @@ public class TileEntityQIOExporter extends TileEntityQIOFilterHandler implements
                 continue;
             }
             long inserted = Math.min(extracted, Math.max(0, adapter.insert(target, getHandlerSide(),
-                  entry.getDescriptor(), extracted, Action.EXECUTE)));
+                    entry.getDescriptor(), extracted, Action.EXECUTE)));
             if (inserted < extracted) {
                 QIORollback.restore(frequency, entry.getUUID(), extracted - inserted,
-                      "exporter custom resource transfer");
+                        "exporter custom resource transfer");
             }
             if (inserted > 0) {
                 movedAmount += inserted;
@@ -347,7 +349,7 @@ public class TileEntityQIOExporter extends TileEntityQIOFilterHandler implements
     public boolean canSendHome(ItemStack stack) {
         QIOFrequency frequency = getFrequencyForTransfer();
         return frequency != null && stack != null && !stack.isEmpty()
-              && frequency.massInsert(stack, stack.getCount(), Action.SIMULATE) > 0;
+                && frequency.massInsert(stack, stack.getCount(), Action.SIMULATE) > 0;
     }
 
     @Override
@@ -383,7 +385,7 @@ public class TileEntityQIOExporter extends TileEntityQIOFilterHandler implements
         super.readCustomNBT(nbtTags);
         roundRobin = nbtTags.getBoolean(NBTConstants.ROUND_ROBIN);
         roundRobinTarget = nbtTags.hasKey(NBTConstants.ROUND_ROBIN_TARGET)
-              ? SidedBlockPos.deserialize(nbtTags.getCompoundTag(NBTConstants.ROUND_ROBIN_TARGET)) : null;
+                ? SidedBlockPos.deserialize(nbtTags.getCompoundTag(NBTConstants.ROUND_ROBIN_TARGET)) : null;
     }
 
     @Override

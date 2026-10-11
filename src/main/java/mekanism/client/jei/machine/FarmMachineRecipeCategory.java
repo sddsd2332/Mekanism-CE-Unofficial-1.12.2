@@ -14,8 +14,8 @@ import mekanism.common.recipe.outputs.FarmOutput;
 import mekanism.common.tile.prefab.TileEntityFarmMachine;
 import mekanism.common.util.LangUtils;
 import mezz.jei.api.IGuiHelper;
-import mezz.jei.api.gui.IGuiIngredientGroup;
 import mezz.jei.api.gui.IGuiFluidStackGroup;
+import mezz.jei.api.gui.IGuiIngredientGroup;
 import mezz.jei.api.gui.IGuiItemStackGroup;
 import mezz.jei.api.gui.IRecipeLayout;
 import mezz.jei.api.ingredients.IIngredients;
@@ -78,7 +78,7 @@ public class FarmMachineRecipeCategory<RECIPE extends FarmMachineRecipe<RECIPE>,
         List<FarmChanceOutput> chanceOutputs = output.getChanceOutputs();
         for (int chanceIndex = 0; chanceIndex < chanceOutputs.size(); chanceIndex++) {
             initItem(itemStacks, FIRST_CHANCE_OUTPUT_INDEX + chanceIndex, false, outputSlots[chanceIndex + 1],
-                  chanceOutputs.get(chanceIndex).getOutput());
+                    chanceOutputs.get(chanceIndex).getOutput());
         }
         itemStacks.addTooltipCallback((slotIndex, input, ingredient, tooltip) -> {
             int chanceIndex = slotIndex - FIRST_CHANCE_OUTPUT_INDEX;
@@ -94,11 +94,11 @@ public class FarmMachineRecipeCategory<RECIPE extends FarmMachineRecipe<RECIPE>,
             initItem(itemStacks, FUEL_ITEM_INDEX, false, extra, recipeWrapper.getFuelStacks(tempRecipe.recipeInput.gasInput.getGas()));
             IGuiIngredientGroup<GasStack> gasStacks = recipeLayout.getIngredientsGroup(MekanismJEI.TYPE_GAS);
             initGas(gasStacks, 0, true, gasInput,
-                  java.util.Collections.singletonList(tempRecipe.recipeInput.gasInput.copy().withAmount(amount)), false);
+                    java.util.Collections.singletonList(tempRecipe.recipeInput.gasInput.copy().withAmount(amount)), false);
         } else if (tempRecipe.recipeInput.isFluidInput()) {
             IGuiFluidStackGroup fluidStacks = recipeLayout.getFluidStacks();
             initFluid(fluidStacks, 0, true, gasInput,
-                  new net.minecraftforge.fluids.FluidStack(tempRecipe.recipeInput.fluidInput, amount));
+                    new net.minecraftforge.fluids.FluidStack(tempRecipe.recipeInput.fluidInput, amount));
         }
     }
 

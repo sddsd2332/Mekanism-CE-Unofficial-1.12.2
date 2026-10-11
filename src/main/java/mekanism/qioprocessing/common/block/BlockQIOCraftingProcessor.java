@@ -8,7 +8,7 @@ import mekanism.common.security.ISecurityTile;
 import mekanism.common.tile.prefab.TileEntityBasicBlock;
 import mekanism.common.util.MekanismPlacementData;
 import mekanism.common.util.MekanismUtils;
-import mekanism.qioprocessing.common.registries.QIOProcessingItems;
+import mekanism.common.util.SecurityUtils;
 import mekanism.qioprocessing.common.MekanismQIOProcessing;
 import mekanism.qioprocessing.common.QIOProcessingCommonProxy;
 import mekanism.qioprocessing.common.tile.QIOCraftingProcessor;
@@ -30,9 +30,11 @@ import net.minecraft.world.World;
 import javax.annotation.Nonnull;
 import java.util.Objects;
 import java.util.function.Supplier;
-import mekanism.common.util.SecurityUtils;
 
-/** Shared block implementation for ordinary and tiered QIO workbench processors. */
+/**
+ * Shared block implementation for ordinary and tiered QIO workbench processors.
+ */
+
 /**
  * QIO 处理模块中的 BlockQIOCraftingProcessor 类型。
  *
@@ -50,9 +52,9 @@ public class BlockQIOCraftingProcessor extends BlockMekanismContainer {
         setResistance(8F);
         setCreativeTab(MekanismQIOProcessing.TAB);
         setDefaultState(blockState.getBaseState()
-              .withProperty(BlockStateFacing.facingProperty, EnumFacing.NORTH)
-              .withProperty(BlockStateQIOComponent.activeProperty, false)
-              .withProperty(BlockStateQIOCraftingProcessor.workingProperty, false));
+                .withProperty(BlockStateFacing.facingProperty, EnumFacing.NORTH)
+                .withProperty(BlockStateQIOComponent.activeProperty, false)
+                .withProperty(BlockStateQIOCraftingProcessor.workingProperty, false));
     }
 
     @Override
@@ -79,16 +81,16 @@ public class BlockQIOCraftingProcessor extends BlockMekanismContainer {
         TileEntity tile = MekanismUtils.getTileEntitySafe(world, pos);
         if (tile instanceof QIOCraftingProcessor processor) {
             return state.withProperty(BlockStateFacing.facingProperty, processor.facing)
-                  .withProperty(BlockStateQIOComponent.activeProperty, processor.isActive())
-                  .withProperty(BlockStateQIOCraftingProcessor.workingProperty,
-                        processor.isWorking());
+                    .withProperty(BlockStateQIOComponent.activeProperty, processor.isActive())
+                    .withProperty(BlockStateQIOCraftingProcessor.workingProperty,
+                            processor.isWorking());
         }
         return state;
     }
 
     @Override
     public void onBlockPlacedBy(World world, BlockPos pos, IBlockState state,
-          EntityLivingBase placer, ItemStack stack) {
+                                EntityLivingBase placer, ItemStack stack) {
         TileEntity tile = world.getTileEntity(pos);
         if (placer != null && tile instanceof TileEntityBasicBlock basicTile) {
             int side = MathHelper.floor(placer.rotationYaw * 4F / 360F + 0.5D) & 3;
@@ -100,7 +102,7 @@ public class BlockQIOCraftingProcessor extends BlockMekanismContainer {
             });
         }
         if (tile instanceof ISecurityTile securityTile && placer instanceof EntityPlayer player &&
-              securityTile.getSecurity().getOwnerUUID() == null) {
+                securityTile.getSecurity().getOwnerUUID() == null) {
             securityTile.getSecurity().setOwnerUUID(player.getUniqueID());
         }
         MekanismPlacementData.apply(world, pos, placer, stack);
@@ -109,7 +111,7 @@ public class BlockQIOCraftingProcessor extends BlockMekanismContainer {
     @Override
     @Deprecated
     public void neighborChanged(IBlockState state, World world, BlockPos pos,
-          net.minecraft.block.Block neighborBlock, BlockPos neighborPos) {
+                                net.minecraft.block.Block neighborBlock, BlockPos neighborPos) {
         if (!world.isRemote) {
             TileEntity tile = world.getTileEntity(pos);
             if (tile instanceof TileEntityBasicBlock basicTile) {
@@ -120,8 +122,8 @@ public class BlockQIOCraftingProcessor extends BlockMekanismContainer {
 
     @Override
     public boolean onBlockActivated(World world, BlockPos pos, IBlockState state,
-          EntityPlayer player, EnumHand hand, EnumFacing side, float hitX, float hitY,
-          float hitZ) {
+                                    EntityPlayer player, EnumHand hand, EnumFacing side, float hitX, float hitY,
+                                    float hitZ) {
         if (world.isRemote) {
             return true;
         }
@@ -134,8 +136,8 @@ public class BlockQIOCraftingProcessor extends BlockMekanismContainer {
             return true;
         }
         player.openGui(MekanismQIOProcessing.instance,
-              QIOProcessingCommonProxy.GUI_CRAFTING_PROCESSOR, world, pos.getX(), pos.getY(),
-              pos.getZ());
+                QIOProcessingCommonProxy.GUI_CRAFTING_PROCESSOR, world, pos.getX(), pos.getY(),
+                pos.getZ());
         return true;
     }
 
@@ -147,11 +149,11 @@ public class BlockQIOCraftingProcessor extends BlockMekanismContainer {
     @Nonnull
     @Override
     protected ItemStack getDropItem(@Nonnull IBlockState state, @Nonnull IBlockAccess world,
-          @Nonnull BlockPos pos) {
+                                    @Nonnull BlockPos pos) {
         ItemStack stack = new ItemStack(this);
         TileEntity tile = world.getTileEntity(pos);
         if (tile instanceof QIOCraftingProcessor processor &&
-              stack.getItem() instanceof ItemBlockQIOComponent item) {
+                stack.getItem() instanceof ItemBlockQIOComponent item) {
             item.setOwnerUUID(stack, processor.getSecurity().getOwnerUUID());
             item.setSecurity(stack, processor.getSecurity().getMode());
             if (processor.getQIOFrequency() != null) {

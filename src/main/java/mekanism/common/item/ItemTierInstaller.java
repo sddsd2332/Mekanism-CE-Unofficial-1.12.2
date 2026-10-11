@@ -53,10 +53,13 @@ public class ItemTierInstaller extends ItemMekanism implements IMetaItem, IUpgra
             if (tile instanceof TileEntityBasicBlock basicBlock && !basicBlock.playersUsing.isEmpty()) {
                 return EnumActionResult.FAIL;
             }
+            if (!UpgradeUtils.canInstallUpgrade(tile, tier)) {
+                return EnumActionResult.PASS;
+            }
             IUpgradeData upgradeData = UpgradeUtils.getUpgradeData(tile, tier);
             IBlockState upgradeResult = UpgradeUtils.getUpgradeResult(tile, tier);
             boolean upgraded = upgradeData != null && (upgradeResult == null ? UpgradeUtils.parseUpgradeData(tile, upgradeData) :
-                  UpgradeUtils.replaceTileForUpgrade(tile, upgradeResult, upgradeData));
+                    UpgradeUtils.replaceTileForUpgrade(tile, upgradeResult, upgradeData));
             if (upgraded) {
                 if (!player.capabilities.isCreativeMode) {
                     stack.shrink(1);

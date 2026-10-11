@@ -2,11 +2,6 @@ package mekanism.multiblockmachine.client.integration.jei;
 
 import mekanism.common.recipe.RecipeHandler;
 import mekanism.common.recipe.RecipeHandler.Recipe;
-import mekanism.multiblockmachine.client.gui.generator.GuiLargeGasGenerator;
-import mekanism.multiblockmachine.client.gui.machine.GuiLargeChemicalInfuser;
-import mekanism.multiblockmachine.client.gui.machine.GuiLargeChemicalWasher;
-import mekanism.multiblockmachine.client.gui.machine.GuiLargeElectrolyticSeparator;
-import mekanism.multiblockmachine.client.gui.machine.GuiLargeSolarNeutronActivator;
 import mekanism.multiblockmachine.common.registries.MultiblockMachineBlocks;
 import mezz.jei.api.IModRegistry;
 import net.minecraft.block.Block;

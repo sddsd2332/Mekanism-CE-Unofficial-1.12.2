@@ -28,7 +28,7 @@ public class ModelMekAsuitHead extends ModelBiped implements IMekaSuitBloomModel
     ModelRenderer helmet_head_chin2_r1;
 
     public ModelMekAsuitHead() {
-      super(0, 0, 128, 128);
+        super(0, 0, 128, 128);
 
         textureWidth = 128;
         textureHeight = 128;

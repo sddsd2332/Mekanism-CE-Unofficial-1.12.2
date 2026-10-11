@@ -76,7 +76,7 @@ public class MatrixUpdateProtocol extends UpdateProtocol<SynchronizedMatrixData>
         for (Coord4D coord : innerNodes) {
             TileEntity tile = coord.getTileEntity(pointer.getWorld());
             if (tile instanceof TileEntityInductionCell cell) {
-                structure.addCell(coord,cell);
+                structure.addCell(coord, cell);
             } else if (tile instanceof TileEntityInductionProvider provider) {
                 structure.addProvider(coord, provider);
             }

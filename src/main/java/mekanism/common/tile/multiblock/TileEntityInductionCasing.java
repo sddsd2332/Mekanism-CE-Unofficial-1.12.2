@@ -41,7 +41,7 @@ public class TileEntityInductionCasing extends TileEntityMultiblock<Synchronized
     }
 
     @Override
-    public void onUpdateServer(){
+    public void onUpdateServer() {
         super.onUpdateServer();
         if (structure != null && tryClaimStructureServerTick()) {
             structure.tick(world);

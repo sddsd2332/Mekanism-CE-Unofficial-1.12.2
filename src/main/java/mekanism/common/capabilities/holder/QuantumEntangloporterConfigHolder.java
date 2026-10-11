@@ -7,7 +7,7 @@ public abstract class QuantumEntangloporterConfigHolder<TYPE> extends ConfigHold
     protected final TileEntityQuantumEntangloporter entangloporter;
 
     protected QuantumEntangloporterConfigHolder(TileEntityQuantumEntangloporter entangloporter) {
-        super(entangloporter::getOrientation, entangloporter::getConfig);
+        super(entangloporter);
         this.entangloporter = entangloporter;
     }
 }

@@ -7,7 +7,10 @@ import net.minecraftforge.common.util.Constants.NBT;
 import javax.annotation.Nonnull;
 import java.util.Objects;
 
-/** One validated client request against the active QIO machine recipe profile. */
+/**
+ * One validated client request against the active QIO machine recipe profile.
+ */
+
 /**
  * QIO 处理模块中的 QIOAutomationRecipeProfileMutation 类型。
  *
@@ -47,7 +50,7 @@ public final class QIOAutomationRecipeProfileMutation {
     private final long amount;
 
     public QIOAutomationRecipeProfileMutation(@Nonnull Action action,
-          String productKey, String routeKey, int direction, long amount) {
+                                              String productKey, String routeKey, int direction, long amount) {
         this.action = Objects.requireNonNull(action, "action");
         this.productKey = checkedKey(productKey);
         this.routeKey = checkedKey(routeKey);
@@ -65,46 +68,46 @@ public final class QIOAutomationRecipeProfileMutation {
 
     @Nonnull
     public static QIOAutomationRecipeProfileMutation product(@Nonnull Action action,
-          @Nonnull String productKey) {
+                                                             @Nonnull String productKey) {
         return new QIOAutomationRecipeProfileMutation(action, productKey, "", 0, 0);
     }
 
     @Nonnull
     public static QIOAutomationRecipeProfileMutation route(@Nonnull Action action,
-          @Nonnull String productKey, @Nonnull String routeKey) {
+                                                           @Nonnull String productKey, @Nonnull String routeKey) {
         return new QIOAutomationRecipeProfileMutation(action, productKey, routeKey, 0, 0);
     }
 
     @Nonnull
     public static QIOAutomationRecipeProfileMutation moveProduct(@Nonnull String productKey,
-          int direction) {
+                                                                 int direction) {
         return new QIOAutomationRecipeProfileMutation(Action.MOVE_PRODUCT, productKey, "",
-              direction, 0);
+                direction, 0);
     }
 
     @Nonnull
     public static QIOAutomationRecipeProfileMutation moveRoute(@Nonnull String productKey,
-          @Nonnull String routeKey, int direction) {
+                                                               @Nonnull String routeKey, int direction) {
         return new QIOAutomationRecipeProfileMutation(Action.MOVE_ROUTE, productKey, routeKey,
-              direction, 0);
+                direction, 0);
     }
 
     @Nonnull
     public static QIOAutomationRecipeProfileMutation amount(@Nonnull Action action,
-          String routeKey, long amount) {
+                                                            String routeKey, long amount) {
         return new QIOAutomationRecipeProfileMutation(action, "", routeKey, 0, amount);
     }
 
     @Nonnull
     public static QIOAutomationRecipeProfileMutation cycleGlobalProfile(int direction) {
         return new QIOAutomationRecipeProfileMutation(Action.CYCLE_GLOBAL_PROFILE, "", "",
-              direction, 0);
+                direction, 0);
     }
 
     @Nonnull
     public static QIOAutomationRecipeProfileMutation setAllRoutesEnabled(boolean enabled) {
         return new QIOAutomationRecipeProfileMutation(Action.SET_ALL_ROUTES_ENABLED, "", "",
-              enabled ? 1 : -1, 0);
+                enabled ? 1 : -1, 0);
     }
 
     @Nonnull
@@ -144,20 +147,20 @@ public final class QIOAutomationRecipeProfileMutation {
 
     @Nonnull
     public static QIOAutomationRecipeProfileMutation read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         try {
             if (data.getInteger("schema") != SCHEMA_VERSION ||
-                !data.hasKey("action", NBT.TAG_STRING) ||
-                !data.hasKey("productKey", NBT.TAG_STRING) ||
-                !data.hasKey("routeKey", NBT.TAG_STRING) ||
-                !data.hasKey("direction", NBT.TAG_INT) ||
-                !data.hasKey("amount", NBT.TAG_LONG)) {
+                    !data.hasKey("action", NBT.TAG_STRING) ||
+                    !data.hasKey("productKey", NBT.TAG_STRING) ||
+                    !data.hasKey("routeKey", NBT.TAG_STRING) ||
+                    !data.hasKey("direction", NBT.TAG_INT) ||
+                    !data.hasKey("amount", NBT.TAG_LONG)) {
                 throw new QIOProcessingDataException("QIO automation profile mutation is incomplete");
             }
             return new QIOAutomationRecipeProfileMutation(Action.valueOf(
-                  data.getString("action")), data.getString("productKey"),
-                  data.getString("routeKey"), data.getInteger("direction"),
-                  data.getLong("amount"));
+                    data.getString("action")), data.getString("productKey"),
+                    data.getString("routeKey"), data.getInteger("direction"),
+                    data.getLong("amount"));
         } catch (QIOProcessingDataException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -170,19 +173,17 @@ public final class QIOAutomationRecipeProfileMutation {
         boolean route = !routeKey.isEmpty();
         return switch (action) {
             case TOGGLE_ROUTE, MOVE_ROUTE_TO_TOP, MOVE_ROUTE_TO_BOTTOM ->
-                  product && route && direction == 0 && amount == 0;
+                    product && route && direction == 0 && amount == 0;
             case TOGGLE_PRODUCT, DISABLE_PRODUCT, MOVE_PRODUCT_TO_TOP,
-                 MOVE_PRODUCT_TO_BOTTOM, RESET_PRODUCT ->
-                  product && !route && direction == 0 && amount == 0;
+                 MOVE_PRODUCT_TO_BOTTOM, RESET_PRODUCT -> product && !route && direction == 0 && amount == 0;
             case MOVE_PRODUCT -> product && !route && direction != 0 && amount == 0;
             case MOVE_ROUTE -> product && route && direction != 0 && amount == 0;
             case SET_GLOBAL_CRAFT_AMOUNT -> !product && !route && direction == 0 && amount > 0;
             case SET_ROUTE_CRAFT_AMOUNT -> !product && route && direction == 0 && amount > 0;
             case CLEAR_ROUTE_CRAFT_AMOUNT -> !product && route && direction == 0 && amount == 0;
-            case CYCLE_GLOBAL_PROFILE, SET_ALL_ROUTES_ENABLED ->
-                  !product && !route && direction != 0 && amount == 0;
+            case CYCLE_GLOBAL_PROFILE, SET_ALL_ROUTES_ENABLED -> !product && !route && direction != 0 && amount == 0;
             case RESET_ALL, TOGGLE_PROFILE_MODE, TOGGLE_ROUTE_FILTER_MODE ->
-                  !product && !route && direction == 0 && amount == 0;
+                    !product && !route && direction == 0 && amount == 0;
         };
     }
 

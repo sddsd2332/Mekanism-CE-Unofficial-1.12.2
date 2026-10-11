@@ -3,35 +3,21 @@ package mekanism.qioprocessing.common;
 import mekanism.common.Mekanism;
 import mekanism.common.base.IGuiProvider;
 import mekanism.common.config.MekanismConfig;
-import mekanism.qioprocessing.common.tile.TileEntityAdvancedQIOCraftingProcessor;
-import mekanism.qioprocessing.common.tile.TileEntityBasicQIOCraftingProcessor;
-import mekanism.qioprocessing.common.tile.TileEntityEliteQIOCraftingProcessor;
-import mekanism.qioprocessing.common.tile.TileEntityQIOCraftingProcessor;
-import mekanism.qioprocessing.common.tile.TileEntityUltimateQIOCraftingProcessor;
-import mekanism.qioprocessing.common.tile.TileEntityQIOManagementTerminal;
-import mekanism.qioprocessing.common.tile.TileEntityQIOSmartProcessingTerminal;
-import mekanism.qioprocessing.common.tile.TileEntityQIOMaintenanceTerminal;
-import mekanism.qioprocessing.common.tile.TileEntityQIOCraftingMonitor;
-import mekanism.qioprocessing.common.inventory.container.ContainerQIOCraftingProcessor;
-import mekanism.qioprocessing.common.inventory.container.ContainerPortableQIOProcessingTerminal;
-import mekanism.qioprocessing.common.inventory.container.ContainerPortableQIOSmartProcessingTerminal;
-import mekanism.qioprocessing.common.inventory.container.ContainerQIOProcessingTerminal;
-import mekanism.qioprocessing.common.inventory.container.ContainerQIOSmartProcessingTerminal;
+import mekanism.common.inventory.container.item.ItemStackSlotAccess;
+import mekanism.qioprocessing.common.inventory.container.*;
 import mekanism.qioprocessing.common.item.ItemPortableQIOProcessingTerminal;
 import mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType;
-import mekanism.qioprocessing.common.tile.QIOProcessingTerminal;
-import mekanism.qioprocessing.common.tile.TileEntityQIOSmartProcessingTerminal;
-import mekanism.common.inventory.container.item.ItemStackSlotAccess;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.EnumHand;
-import net.minecraft.tileentity.TileEntity;
+import mekanism.qioprocessing.common.tile.*;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.inventory.Container;
+import net.minecraft.item.ItemStack;
+import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.EnumHand;
+import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
-import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.fml.common.registry.GameRegistry;
 import net.minecraftforge.common.config.Configuration;
+import net.minecraftforge.fml.common.registry.GameRegistry;
 
 /**
  * QIO 处理模块中的 QIOProcessingCommonProxy 类型。
@@ -93,23 +79,23 @@ public class QIOProcessingCommonProxy implements IGuiProvider {
             ItemStack stack = ItemStackSlotAccess.getStack(player.inventory, hand, itemSlot);
             if (stack.getItem() instanceof ItemPortableQIOProcessingTerminal item) {
                 return item.getTerminalType() == QIOProcessingTerminalType.SMART_PROCESSING ?
-                      new ContainerPortableQIOSmartProcessingTerminal(player.inventory,
-                            hand, itemSlot, stack) :
-                      new ContainerPortableQIOProcessingTerminal(player.inventory, hand,
-                            itemSlot, stack);
+                        new ContainerPortableQIOSmartProcessingTerminal(player.inventory,
+                                hand, itemSlot, stack) :
+                        new ContainerPortableQIOProcessingTerminal(player.inventory, hand,
+                                itemSlot, stack);
             }
             return null;
         }
         TileEntity tile = world.getTileEntity(pos);
         if (id == GUI_CRAFTING_PROCESSOR && tile instanceof mekanism.qioprocessing.common.tile.QIOCraftingProcessor processor &&
-              mekanism.common.CommonProxy.canOpenServerGui(player, processor)) {
+                mekanism.common.CommonProxy.canOpenServerGui(player, processor)) {
             return new ContainerQIOCraftingProcessor(player.inventory, processor);
         }
         if (id == GUI_TERMINAL && tile instanceof QIOProcessingTerminal terminal &&
-            mekanism.common.CommonProxy.canOpenServerGui(player, terminal)) {
+                mekanism.common.CommonProxy.canOpenServerGui(player, terminal)) {
             return terminal instanceof TileEntityQIOSmartProcessingTerminal smart ?
-                  new ContainerQIOSmartProcessingTerminal(player.inventory, smart) :
-                  new ContainerQIOProcessingTerminal(player.inventory, terminal);
+                    new ContainerQIOSmartProcessingTerminal(player.inventory, smart) :
+                    new ContainerQIOProcessingTerminal(player.inventory, terminal);
         }
         return null;
     }
@@ -117,7 +103,7 @@ public class QIOProcessingCommonProxy implements IGuiProvider {
     @Override
     public boolean isValidServerGui(int id, TileEntity tile) {
         return id == GUI_CRAFTING_PROCESSOR && tile instanceof TileEntityQIOCraftingProcessor ||
-              id == GUI_TERMINAL && tile instanceof QIOProcessingTerminal;
+                id == GUI_TERMINAL && tile instanceof QIOProcessingTerminal;
     }
 
     @Override

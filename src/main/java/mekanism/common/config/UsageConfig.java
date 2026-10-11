@@ -1,5 +1,6 @@
 package mekanism.common.config;
 
+import mekanism.common.config.options.BooleanOption;
 import mekanism.common.config.options.DoubleOption;
 import mekanism.common.config.options.IntOption;
 
@@ -7,6 +8,9 @@ import mekanism.common.config.options.IntOption;
  * Created by Thiakil on 15/03/2019.
  */
 public class UsageConfig extends BaseConfig {
+
+    public final BooleanOption randomizedConsumption = new BooleanOption(this, "RandomizedConsumption", true,
+            "Allow statistical secondary gas/fluid usage. QIO processing and AE upgrades always force exact usage on the machine.");
 
     public final DoubleOption enrichmentChamber = new DoubleOption(this, "EnrichmentChamberUsage", 50D,
             "Energy per operation tick (Joules).");

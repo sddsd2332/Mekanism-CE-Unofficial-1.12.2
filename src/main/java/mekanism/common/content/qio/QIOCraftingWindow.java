@@ -7,13 +7,12 @@ import mekanism.common.lib.inventory.HashedItem;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.inventory.Container;
-import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.inventory.InventoryCraftResult;
+import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.crafting.CraftingManager;
 import net.minecraft.item.crafting.IRecipe;
 import net.minecraft.item.crafting.Ingredient;
-import net.minecraftforge.common.crafting.IShapedRecipe;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.stats.StatBase;
@@ -21,6 +20,7 @@ import net.minecraft.stats.StatList;
 import net.minecraft.util.NonNullList;
 import net.minecraft.world.World;
 import net.minecraftforge.common.ForgeHooks;
+import net.minecraftforge.common.crafting.IShapedRecipe;
 import net.minecraftforge.common.util.Constants;
 import net.minecraftforge.items.ItemHandlerHelper;
 
@@ -93,7 +93,9 @@ public class QIOCraftingWindow {
         return resultInventory;
     }
 
-    /** Reads only the nine input slots. The output is always recomputed. */
+    /**
+     * Reads only the nine input slots. The output is always recomputed.
+     */
     public void read(@Nonnull NBTTagCompound tag) {
         updating = true;
         try {
@@ -152,7 +154,9 @@ public class QIOCraftingWindow {
         }
     }
 
-    /** Clears the cached recipe and recomputes the derived output. */
+    /**
+     * Clears the cached recipe and recomputes the derived output.
+     */
     public void invalidateRecipe() {
         lastRecipe = null;
         resultInventory.setInventorySlotContents(0, ItemStack.EMPTY);
@@ -162,7 +166,9 @@ public class QIOCraftingWindow {
         }
     }
 
-    /** Recalculates the output using the server's recipe registry. */
+    /**
+     * Recalculates the output using the server's recipe registry.
+     */
     public void updateOutputSlot(@Nonnull World world) {
         if (craftingInventory.isEmpty()) {
             lastRecipe = null;
@@ -198,7 +204,7 @@ public class QIOCraftingWindow {
             return false;
         }
         return lastRecipe.isDynamic() || !player.world.getGameRules().getBoolean("doLimitedCrafting") ||
-              player.getRecipeBook().isUnlocked(lastRecipe);
+                player.getRecipeBook().isUnlocked(lastRecipe);
     }
 
     /**
@@ -210,7 +216,7 @@ public class QIOCraftingWindow {
     public ItemStack performShiftCraft(@Nonnull EntityPlayer player, @Nonnull IQIOItemViewerContainer container) {
         World world = holder.getHolderWorld();
         if (world == null || world.isRemote || lastRecipe == null || !(player instanceof EntityPlayerMP) ||
-              !canViewRecipe((EntityPlayerMP) player)) {
+                !canViewRecipe((EntityPlayerMP) player)) {
             return ItemStack.EMPTY;
         }
         ItemStack firstOutput = resultInventory.getStackInSlot(0);
@@ -260,11 +266,13 @@ public class QIOCraftingWindow {
         return Math.max(1, max);
     }
 
-    /** Consumes one recipe set and handles container remainders/replacement. */
+    /**
+     * Consumes one recipe set and handles container remainders/replacement.
+     */
     public void onCrafted(@Nonnull EntityPlayer player, @Nonnull ItemStack crafted) {
         World world = holder.getHolderWorld();
         if (world == null || world.isRemote || crafted.isEmpty() || lastRecipe == null || !(player instanceof EntityPlayerMP) ||
-              !canViewRecipe((EntityPlayerMP) player) || !lastRecipe.matches(craftingInventory, world)) {
+                !canViewRecipe((EntityPlayerMP) player) || !lastRecipe.matches(craftingInventory, world)) {
             return;
         }
         if (!lastRecipe.isDynamic()) {
@@ -376,7 +384,7 @@ public class QIOCraftingWindow {
     }
 
     private boolean matchesShapedLayout(@Nonnull IShapedRecipe shaped, @Nonnull NonNullList<Ingredient> ingredients,
-          int columnStart, int rowStart, boolean mirrored, int replacementSlot) {
+                                        int columnStart, int rowStart, boolean mirrored, int replacementSlot) {
         for (int column = 0; column < 3; column++) {
             for (int row = 0; row < 3; row++) {
                 int recipeColumn = column - columnStart;
@@ -384,7 +392,7 @@ public class QIOCraftingWindow {
                 Ingredient ingredient = Ingredient.EMPTY;
                 if (recipeColumn >= 0 && recipeRow >= 0 && recipeColumn < shaped.getRecipeWidth() && recipeRow < shaped.getRecipeHeight()) {
                     int index = mirrored ? shaped.getRecipeWidth() - recipeColumn - 1 + recipeRow * shaped.getRecipeWidth() :
-                          recipeColumn + recipeRow * shaped.getRecipeWidth();
+                            recipeColumn + recipeRow * shaped.getRecipeWidth();
                     ingredient = ingredients.get(index);
                 }
                 int actualSlot = column + row * 3;
@@ -433,7 +441,9 @@ public class QIOCraftingWindow {
         }
     }
 
-    /** Empties this window to QIO or to the player, with a final drop fallback. */
+    /**
+     * Empties this window to QIO or to the player, with a final drop fallback.
+     */
     public void emptyTo(boolean toPlayerInv, @Nullable EntityPlayer player) {
         QIOFrequency frequency = holder.getFrequency();
         updating = true;

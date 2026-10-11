@@ -18,6 +18,11 @@ import java.util.Set;
 
 public class SynchronizedTankData extends SynchronizedData<SynchronizedTankData> {
 
+    @Override
+    protected int getMultiblockRedstoneLevel() {
+        return mekanism.common.util.MekanismUtils.redstoneLevelFromContents(Math.max(getFluidAmount(), getGasAmount()), Math.max(getFluidCapacity(), getGasCapacity()));
+    }
+
     public FluidStack fluidStored;
 
     public GasStack gasstored;
@@ -153,7 +158,7 @@ public class SynchronizedTankData extends SynchronizedData<SynchronizedTankData>
     public boolean needsRenderUpdate() {
         if ((fluidStored == null && prevFluid != null) || (fluidStored != null && prevFluid == null)) {
             return true;
-        } else if ((gasstored == null && prevGas != null) || (gasstored != null && prevGas == null)){
+        } else if ((gasstored == null && prevGas != null) || (gasstored != null && prevGas == null)) {
             return true;
         }
         if (fluidStored != null) {
@@ -162,7 +167,7 @@ public class SynchronizedTankData extends SynchronizedData<SynchronizedTankData>
             boolean stageChanged = currentStage != prevFluidStage;
             prevFluidStage = currentStage;
             return (fluidStored.getFluid() != prevFluid.getFluid()) || stageChanged;
-        } else if (gasstored != null){
+        } else if (gasstored != null) {
             int totalStage = (volHeight - 2) * (TankUpdateProtocol.FLUID_PER_TANK / 100);
             int currentStage = (int) ((gasstored.amount / (float) (volume * TankUpdateProtocol.FLUID_PER_TANK)) * totalStage);
             boolean stageChanged = currentStage != prevGasStage;

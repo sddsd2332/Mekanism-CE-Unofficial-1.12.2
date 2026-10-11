@@ -36,8 +36,8 @@ public class SPSRecipeCategory extends BaseRecipeCategory<SPSRecipeWrapper> {
         guiElements.add(new GuiInnerScreen(this, 26, 13, 122, 60, () -> {
             List<ITextComponent> list = new ArrayList<>();
             list.add(new TextComponentGroup().translation(MekanismLang.STATUS.getTranslationKey())
-                  .string(" ")
-                  .translation(MekanismLang.ACTIVE.getTranslationKey()));
+                    .string(" ")
+                    .translation(MekanismLang.ACTIVE.getTranslationKey()));
             list.add(new TextComponentGroup().translation(MekanismLang.PROCESS_RATE_MB.getTranslationKey()).string(" 1mB/t"));
             return list;
         }));

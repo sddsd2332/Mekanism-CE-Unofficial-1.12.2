@@ -15,7 +15,7 @@ public class BloomRenderDigitalMiner extends BloomEffect<TileEntityDigitalMiner>
     private final TileEntityDigitalMiner tile;
 
     public BloomRenderDigitalMiner(TileEntityDigitalMiner tile) {
-        super(tile,0, 180, 90, 270);
+        super(tile, 0, 180, 90, 270);
         this.tile = tile;
     }
 

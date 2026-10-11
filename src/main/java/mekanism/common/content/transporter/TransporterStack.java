@@ -178,7 +178,7 @@ public class TransporterStack {
     }
 
     private TransitResponse recalculatePath(TransitRequest request, ILogisticalTransporter transporter, int min, boolean updateFlowing,
-          Map<Coord4D, Set<TransporterStack>> additionalFlowingStacks) {
+                                            Map<Coord4D, Set<TransporterStack>> additionalFlowingStacks) {
         Destination newPath = TransporterPathfinder.getNewBasePath(transporter, this, request, min, additionalFlowingStacks);
         if (newPath == null) {
             return request.getEmptyResponse();
@@ -194,7 +194,7 @@ public class TransporterStack {
     }
 
     public TransitResponse recalculateRRPath(TransitRequest request, IAdvancedTransportEjector outputter, ILogisticalTransporter transporter, int min,
-          boolean updateFlowing) {
+                                             boolean updateFlowing) {
         Destination newPath = TransporterPathfinder.getNewRRPath(transporter, this, request, outputter, min);
         if (newPath == null) {
             return request.getEmptyResponse();

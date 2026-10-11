@@ -51,24 +51,24 @@ public class GuiQIORedstoneAdapter extends GuiMekanismTile<TileEntityQIORedstone
         super.addGuiElements();
         frequencyTab = addButton(new GuiQIOFrequencyTab.Tile(this, tileEntity, () -> frequencyTab));
         addButton(new GuiSlot(SlotType.NORMAL, this, 7, 30).setRenderHover(true)
-              .click((element, mouseX, mouseY, button) -> updateTarget(button))
-              .tooltip(() -> QIOFilterGuiResource.tooltip(tileEntity.getTargetFilter()))
-              .setGhostHandler(createTargetGhostHandler()));
+                .click((element, mouseX, mouseY, button) -> updateTarget(button))
+                .tooltip(() -> QIOFilterGuiResource.tooltip(tileEntity.getTargetFilter()))
+                .setGhostHandler(createTargetGhostHandler()));
         addButton(new ToggleButton(this, 9, 64, 14, tileEntity::isInverted,
-              () -> PacketQIOComponentConfig.toggleRedstoneInverted(tileEntity),
-              new TextComponentTranslation("gui.qio.redstone.inverted.enabled"),
-              new TextComponentTranslation("gui.qio.redstone.inverted.disabled")));
+                () -> PacketQIOComponentConfig.toggleRedstoneInverted(tileEntity),
+                new TextComponentTranslation("gui.qio.redstone.inverted.enabled"),
+                new TextComponentTranslation("gui.qio.redstone.inverted.disabled")));
         fuzzyButton = addButton(new MekanismImageButton(this, 9, 80, 14, getButtonLocation("fuzzy"),
-              () -> PacketQIOComponentConfig.toggleRedstoneFuzzy(tileEntity))
-              .setTooltip(() -> new TextComponentTranslation("gui.qio.redstone.fuzzy", tileEntity.getFuzzyMode() ?
-                    MekanismLang.ON.translate() : MekanismLang.OFF.translate())));
+                () -> PacketQIOComponentConfig.toggleRedstoneFuzzy(tileEntity))
+                .setTooltip(() -> new TextComponentTranslation("gui.qio.redstone.fuzzy", tileEntity.getFuzzyMode() ?
+                        MekanismLang.ON.translate() : MekanismLang.OFF.translate())));
         addButton(new GuiInnerScreen(this, 7, 16, xSize - 15, 12, this::getFrequencyText)
-              .tooltip(this::getFrequencyTooltip));
+                .tooltip(this::getFrequencyTooltip));
         addButton(new GuiInnerScreen(this, 27, 30, xSize - 35, 64, this::getDetails).clearFormat());
         countField = addButton(new GuiTextField(this, 29, 80, xSize - 39, 12)
-              .setMaxLength(19)
-              .setInputValidator(this::isDigitOrTextKey)
-              .configureDigitalInput(this::setCount));
+                .setMaxLength(19)
+                .setInputValidator(this::isDigitOrTextKey)
+                .configureDigitalInput(this::setCount));
         setFocused(countField);
         updateFuzzyVisibility();
     }
@@ -136,7 +136,7 @@ public class GuiQIORedstoneAdapter extends GuiMekanismTile<TileEntityQIORedstone
     private List<ITextComponent> getFrequencyText() {
         mekanism.common.content.qio.QIOFrequency frequency = tileEntity.getQIOFrequency();
         return Collections.singletonList(frequency == null ? new TextComponentTranslation("frequency.mekanism.none") :
-              MekanismLang.FREQUENCY.translate(frequency.getName()));
+                MekanismLang.FREQUENCY.translate(frequency.getName()));
     }
 
     private List<ITextComponent> getFrequencyTooltip() {
@@ -151,15 +151,15 @@ public class GuiQIORedstoneAdapter extends GuiMekanismTile<TileEntityQIORedstone
         List<ITextComponent> details = new ArrayList<>();
         QIOFilter target = tileEntity.getTargetFilter();
         details.add(new TextComponentString(target == null ? LangUtils.localize("gui.qio.redstone.undefined") :
-              QIOFilterGuiResource.name(target)));
+                QIOFilterGuiResource.name(target)));
         details.add(new TextComponentTranslation(tileEntity.isInverted() ? "gui.qio.redstone.trigger.less" :
-              "gui.qio.redstone.trigger.greater", TextUtils.format(tileEntity.getThreshold())));
+                "gui.qio.redstone.trigger.greater", TextUtils.format(tileEntity.getThreshold())));
         if (target != null && tileEntity.getQIOFrequency() != null) {
             details.add(new TextComponentTranslation("gui.qio.redstone.stored", TextUtils.format(tileEntity.getStoredCount())));
         }
         if (isItemTarget()) {
             details.add(new TextComponentTranslation("gui.qio.redstone.fuzzy", tileEntity.getFuzzyMode() ?
-                  MekanismLang.ON.translate() : MekanismLang.OFF.translate()));
+                    MekanismLang.ON.translate() : MekanismLang.OFF.translate()));
         }
         return details;
     }
@@ -179,7 +179,7 @@ public class GuiQIORedstoneAdapter extends GuiMekanismTile<TileEntityQIORedstone
     private boolean isItemTarget() {
         QIOResourceDescriptor descriptor = QIOFilterGuiResource.descriptor(tileEntity.getTargetFilter());
         return descriptor != null && descriptor.getCodecId().equals(
-              mekanism.api.qio.resource.QIOResourceCodecs.ITEM_STACK_ID);
+                mekanism.api.qio.resource.QIOResourceCodecs.ITEM_STACK_ID);
     }
 
     private void updateFuzzyVisibility() {

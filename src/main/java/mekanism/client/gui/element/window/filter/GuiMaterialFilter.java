@@ -6,8 +6,8 @@ import mekanism.client.recipe_viewer.interfaces.IRecipeViewerGhostTarget.IGhostI
 import mekanism.common.content.filter.IMaterialFilter;
 import mekanism.common.tile.interfaces.ITileFilterHolder;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
-import mekanism.common.util.StackUtils;
 import mekanism.common.util.LangUtils;
+import mekanism.common.util.StackUtils;
 import net.minecraft.block.Block;
 import net.minecraft.init.Blocks;
 import net.minecraft.item.ItemBlock;
@@ -46,7 +46,7 @@ public abstract class GuiMaterialFilter<FILTER extends IMaterialFilter, TILE ext
         ItemStack stack = minecraft.player.inventory.getItemStack();
         ItemStack toUse = null;
         if (!stack.isEmpty() && !Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) && stack.getItem() instanceof ItemBlock &&
-              Block.getBlockFromItem(stack.getItem()) != Blocks.BEDROCK) {
+                Block.getBlockFromItem(stack.getItem()) != Blocks.BEDROCK) {
             toUse = stack.copy();
             toUse.setCount(1);
         } else if (stack.isEmpty() && Keyboard.isKeyDown(Keyboard.KEY_LSHIFT)) {

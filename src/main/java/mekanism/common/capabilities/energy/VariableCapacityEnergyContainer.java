@@ -21,7 +21,7 @@ public class VariableCapacityEnergyContainer extends BasicEnergyContainer {
     }
 
     public static VariableCapacityEnergyContainer create(DoubleSupplier maxEnergy, Predicate<AutomationType> canExtract, Predicate<AutomationType> canInsert,
-          @Nullable IContentsListener listener) {
+                                                         @Nullable IContentsListener listener) {
         Objects.requireNonNull(maxEnergy, "Max energy supplier cannot be null");
         Objects.requireNonNull(canExtract, "Extraction validity check cannot be null");
         Objects.requireNonNull(canInsert, "Insertion validity check cannot be null");
@@ -31,7 +31,7 @@ public class VariableCapacityEnergyContainer extends BasicEnergyContainer {
     private final DoubleSupplier maxEnergy;
 
     protected VariableCapacityEnergyContainer(DoubleSupplier maxEnergy, Predicate<AutomationType> canExtract, Predicate<AutomationType> canInsert,
-          @Nullable IContentsListener listener) {
+                                              @Nullable IContentsListener listener) {
         super(maxEnergy.getAsDouble(), canExtract, canInsert, listener);
         this.maxEnergy = maxEnergy;
     }

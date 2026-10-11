@@ -13,8 +13,8 @@ import org.jetbrains.annotations.NotNull;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.function.Consumer;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 public class InventoryContainerSlot extends Slot implements IInsertableSlot {
 
@@ -28,14 +28,14 @@ public class InventoryContainerSlot extends Slot implements IInsertableSlot {
     private BooleanSupplier extractionGuard;
 
     public InventoryContainerSlot(BasicInventorySlot slot, int xPosition, int yPosition, ContainerSlotType slotType, @Nullable SlotOverlay slotOverlay,
-          @Nullable Consumer<ISupportsWarning<?>> warningAdder, Consumer<ItemStack> uncheckedStackSetter) {
+                                  @Nullable Consumer<ISupportsWarning<?>> warningAdder, Consumer<ItemStack> uncheckedStackSetter) {
         this(slot, xPosition, yPosition, slotType, slotOverlay, warningAdder, uncheckedStackSetter,
-              () -> false);
+                () -> false);
     }
 
     public InventoryContainerSlot(BasicInventorySlot slot, int xPosition, int yPosition, ContainerSlotType slotType, @Nullable SlotOverlay slotOverlay,
-          @Nullable Consumer<ISupportsWarning<?>> warningAdder, Consumer<ItemStack> uncheckedStackSetter,
-          BooleanSupplier extractionGuard) {
+                                  @Nullable Consumer<ISupportsWarning<?>> warningAdder, Consumer<ItemStack> uncheckedStackSetter,
+                                  BooleanSupplier extractionGuard) {
         super(IgnoredIInventory.INSTANCE, 0, xPosition, yPosition);
         this.slot = slot;
         this.uncheckedStackSetter = uncheckedStackSetter;
@@ -45,7 +45,9 @@ public class InventoryContainerSlot extends Slot implements IInsertableSlot {
         this.extractionGuard = extractionGuard == null ? () -> false : extractionGuard;
     }
 
-    /** Binds the slot to its owning tile's extraction guard after container construction. */
+    /**
+     * Binds the slot to its owning tile's extraction guard after container construction.
+     */
     public void setExtractionGuard(@Nullable BooleanSupplier extractionGuard) {
         this.extractionGuard = extractionGuard == null ? () -> false : extractionGuard;
     }
@@ -123,7 +125,7 @@ public class InventoryContainerSlot extends Slot implements IInsertableSlot {
 
     public boolean mayPickup(@Nonnull EntityPlayer player) {
         return !extractionGuard.getAsBoolean() &&
-              !slot.extractItem(1, Action.SIMULATE, AutomationType.MANUAL).isEmpty();
+                !slot.extractItem(1, Action.SIMULATE, AutomationType.MANUAL).isEmpty();
     }
 
     @Override

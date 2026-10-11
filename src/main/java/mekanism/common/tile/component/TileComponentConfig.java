@@ -52,7 +52,7 @@ public class TileComponentConfig implements ITileComponent, ISpecificContainerTr
         for (TransmissionType type : types) {
             addSupported(type);
         }
-        tile.components.add(this);
+        tile.addComponent(this);
     }
 
     public List<TransmissionType> getTransmissions() {
@@ -157,9 +157,9 @@ public class TileComponentConfig implements ITileComponent, ISpecificContainerTr
         } else if (capability == CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY) {
             type = TransmissionType.FLUID;
         } else if (capability == Capabilities.STRICT_ENERGY_CAPABILITY || capability == Capabilities.ENERGY_STORAGE_CAPABILITY || capability == Capabilities.ENERGY_ACCEPTOR_CAPABILITY ||
-              capability == Capabilities.ENERGY_OUTPUTTER_CAPABILITY || capability == CapabilityEnergy.ENERGY ||
-              capability == Capabilities.TESLA_HOLDER_CAPABILITY || capability == Capabilities.TESLA_CONSUMER_CAPABILITY ||
-              capability == Capabilities.TESLA_PRODUCER_CAPABILITY) {
+                capability == Capabilities.ENERGY_OUTPUTTER_CAPABILITY || capability == CapabilityEnergy.ENERGY ||
+                capability == Capabilities.TESLA_HOLDER_CAPABILITY || capability == Capabilities.TESLA_CONSUMER_CAPABILITY ||
+                capability == Capabilities.TESLA_PRODUCER_CAPABILITY) {
             type = TransmissionType.ENERGY;
         }
         if (type != null) {
@@ -400,7 +400,7 @@ public class TileComponentConfig implements ITileComponent, ISpecificContainerTr
     }
 
     public ConfigInfo setupIOConfig(TransmissionType type, Object inputContainer, Object outputContainer, RelativeSide outputSide, boolean alwaysAllowInput,
-          boolean alwaysAllowOutput) {
+                                    boolean alwaysAllowOutput) {
         ConfigInfo config = getConfigInfo(type);
         if (config != null) {
             config.addSlotInfo(DataType.INPUT, createInfo(type, true, alwaysAllowOutput, inputContainer));
@@ -509,7 +509,7 @@ public class TileComponentConfig implements ITileComponent, ISpecificContainerTr
     }
 
     public ConfigInfo setupItemDualInputOutputConfig(IInventorySlot leftInputSlot, IInventorySlot rightInputSlot, IInventorySlot outputSlot,
-          IInventorySlot energySlot) {
+                                                     IInventorySlot energySlot) {
         ConfigInfo itemConfig = getConfigInfo(TransmissionType.ITEM);
         if (itemConfig != null) {
             addItemSlotInfo(itemConfig, DataType.INPUT_1, Collections.singletonList(leftInputSlot));
@@ -523,7 +523,7 @@ public class TileComponentConfig implements ITileComponent, ISpecificContainerTr
     }
 
     public ConfigInfo setupItemInputDualOutputConfig(IInventorySlot inputSlot, IInventorySlot leftOutputSlot, IInventorySlot rightOutputSlot,
-          IInventorySlot energySlot) {
+                                                     IInventorySlot energySlot) {
         ConfigInfo itemConfig = getConfigInfo(TransmissionType.ITEM);
         if (itemConfig != null) {
             addItemSlotInfo(itemConfig, DataType.INPUT, Collections.singletonList(inputSlot));
@@ -713,7 +713,7 @@ public class TileComponentConfig implements ITileComponent, ISpecificContainerTr
     }
 
     private void addItemSlotInfo(ConfigInfo itemConfig, DataType dataType, boolean input, boolean output, List<IInventorySlot> slots,
-          List<IInventorySlot> inputSlots, List<IInventorySlot> outputSlots) {
+                                 List<IInventorySlot> inputSlots, List<IInventorySlot> outputSlots) {
         itemConfig.addSlotInfo(dataType, createItemSlotInfo(input, output, slots, inputSlots, outputSlots));
     }
 
@@ -746,7 +746,7 @@ public class TileComponentConfig implements ITileComponent, ISpecificContainerTr
     }
 
     private void addGasSlotInfo(ConfigInfo gasConfig, DataType dataType, boolean input, boolean output, List<IExtendedGasTank> tanks,
-          List<IExtendedGasTank> inputTanks, List<IExtendedGasTank> outputTanks) {
+                                List<IExtendedGasTank> inputTanks, List<IExtendedGasTank> outputTanks) {
         gasConfig.addSlotInfo(dataType, createGasSlotInfo(input, output, tanks, inputTanks, outputTanks));
     }
 
@@ -762,7 +762,7 @@ public class TileComponentConfig implements ITileComponent, ISpecificContainerTr
     }
 
     private void addFluidSlotInfo(ConfigInfo fluidConfig, DataType dataType, boolean input, boolean output, List<IExtendedFluidTank> tanks,
-          List<IExtendedFluidTank> inputTanks, List<IExtendedFluidTank> outputTanks) {
+                                  List<IExtendedFluidTank> inputTanks, List<IExtendedFluidTank> outputTanks) {
         fluidConfig.addSlotInfo(dataType, createFluidSlotInfo(input, output, tanks, inputTanks, outputTanks));
     }
 
@@ -791,7 +791,7 @@ public class TileComponentConfig implements ITileComponent, ISpecificContainerTr
     }
 
     private InventorySlotInfo createItemSlotInfo(boolean input, boolean output, List<IInventorySlot> slots, List<IInventorySlot> inputSlots,
-          List<IInventorySlot> outputSlots) {
+                                                 List<IInventorySlot> outputSlots) {
         return new InventorySlotInfo(input, output, slots, inputSlots, outputSlots);
     }
 
@@ -806,11 +806,11 @@ public class TileComponentConfig implements ITileComponent, ISpecificContainerTr
             return new GasSlotInfo(input, output, tanks);
         }
         return createGasSlotInfo(input, output, tanks, input ? subtractGasTanks(tanks, outputTanks) : Collections.emptyList(),
-              output ? outputTanks : Collections.emptyList());
+                output ? outputTanks : Collections.emptyList());
     }
 
     private GasSlotInfo createGasSlotInfo(boolean input, boolean output, List<IExtendedGasTank> tanks, List<IExtendedGasTank> inputTanks,
-          List<IExtendedGasTank> outputTanks) {
+                                          List<IExtendedGasTank> outputTanks) {
         return new GasSlotInfo(input, output, tanks, inputTanks, outputTanks);
     }
 
@@ -825,11 +825,11 @@ public class TileComponentConfig implements ITileComponent, ISpecificContainerTr
             return new FluidSlotInfo(input, output, tanks);
         }
         return createFluidSlotInfo(input, output, tanks, input ? subtractFluidTanks(tanks, outputTanks) : Collections.emptyList(),
-              output ? outputTanks : Collections.emptyList());
+                output ? outputTanks : Collections.emptyList());
     }
 
     private FluidSlotInfo createFluidSlotInfo(boolean input, boolean output, List<IExtendedFluidTank> tanks, List<IExtendedFluidTank> inputTanks,
-          List<IExtendedFluidTank> outputTanks) {
+                                              List<IExtendedFluidTank> outputTanks) {
         return new FluidSlotInfo(input, output, tanks, inputTanks, outputTanks);
     }
 
@@ -906,10 +906,6 @@ public class TileComponentConfig implements ITileComponent, ISpecificContainerTr
         for (Consumer<EnumFacing> listener : configChangeListeners.getOrDefault(type, Collections.emptyList())) {
             listener.accept(side);
         }
-    }
-
-    @Override
-    public void tick() {
     }
 
     @Override
@@ -1030,11 +1026,14 @@ public class TileComponentConfig implements ITileComponent, ISpecificContainerTr
         List<?> inputContainers = input ? subtractObjects(containers, outputContainers) : Collections.emptyList();
         List<?> extractContainers = output ? outputContainers : Collections.emptyList();
         return switch (type) {
-            case ITEM -> new InventorySlotInfo(input, output, (List<IInventorySlot>) containers, (List<IInventorySlot>) inputContainers, (List<IInventorySlot>) extractContainers);
-            case FLUID -> new FluidSlotInfo(input, output, (List<IExtendedFluidTank>) containers, (List<IExtendedFluidTank>) inputContainers,
-                  (List<IExtendedFluidTank>) extractContainers);
-            case GAS -> new GasSlotInfo(input, output, (List<IExtendedGasTank>) containers, (List<IExtendedGasTank>) inputContainers,
-                  (List<IExtendedGasTank>) extractContainers);
+            case ITEM ->
+                    new InventorySlotInfo(input, output, (List<IInventorySlot>) containers, (List<IInventorySlot>) inputContainers, (List<IInventorySlot>) extractContainers);
+            case FLUID ->
+                    new FluidSlotInfo(input, output, (List<IExtendedFluidTank>) containers, (List<IExtendedFluidTank>) inputContainers,
+                            (List<IExtendedFluidTank>) extractContainers);
+            case GAS ->
+                    new GasSlotInfo(input, output, (List<IExtendedGasTank>) containers, (List<IExtendedGasTank>) inputContainers,
+                            (List<IExtendedGasTank>) extractContainers);
             default -> createInfo(type, input, output, containers);
         };
     }

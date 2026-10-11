@@ -19,7 +19,6 @@ public interface CharPredicate {
      * Evaluates this predicate on the given argument.
      *
      * @param value the input argument
-     *
      * @return {@code true} if the input argument matches the predicate, otherwise {@code false}
      */
     boolean test(char value);
@@ -32,9 +31,7 @@ public interface CharPredicate {
      * predicate will not be evaluated.
      *
      * @param other a predicate that will be logically-ANDed with this predicate
-     *
      * @return a composed predicate that represents the short-circuiting logical AND of this predicate and the {@code other} predicate
-     *
      * @throws NullPointerException if other is null
      */
     default CharPredicate and(CharPredicate other) {
@@ -59,9 +56,7 @@ public interface CharPredicate {
      * predicate will not be evaluated.
      *
      * @param other a predicate that will be logically-ORed with this predicate
-     *
      * @return a composed predicate that represents the short-circuiting logical OR of this predicate and the {@code other} predicate
-     *
      * @throws NullPointerException if other is null
      */
     default CharPredicate or(CharPredicate other) {

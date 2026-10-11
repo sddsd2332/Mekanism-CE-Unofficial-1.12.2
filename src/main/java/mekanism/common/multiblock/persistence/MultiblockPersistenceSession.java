@@ -2,16 +2,7 @@ package mekanism.common.multiblock.persistence;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * Main-thread ownership coordinator for one world/manager generation. IO workers never call this
@@ -49,7 +40,9 @@ public final class MultiblockPersistenceSession implements AutoCloseable {
     private final long[] acceptedReasons = new long[TransferReason.values().length];
     private final long[] confirmedReasons = new long[TransferReason.values().length];
 
-    /** Read-only session counters; elapsed time includes IO queueing and main-thread acknowledgement. */
+    /**
+     * Read-only session counters; elapsed time includes IO queueing and main-thread acknowledgement.
+     */
     public Map<String, String> diagnostics() {
         checkThread();
         Map<String, String> result = new LinkedHashMap<>();
@@ -108,11 +101,30 @@ public final class MultiblockPersistenceSession implements AutoCloseable {
         this.legacyFile = legacyFile;
     }
 
-    public State state() { checkThread(); return state; }
-    public IOException failure() { checkThread(); return failure; }
-    public IOException legacyFailure() { checkThread(); return legacy == null ? null : legacy.failure(); }
-    public boolean busy() { checkThread(); return pending != null; }
-    public ManagedCacheIo.Ticket<Void> closeTicket() { checkThread(); return storage.closedTicket(); }
+    public State state() {
+        checkThread();
+        return state;
+    }
+
+    public IOException failure() {
+        checkThread();
+        return failure;
+    }
+
+    public IOException legacyFailure() {
+        checkThread();
+        return legacy == null ? null : legacy.failure();
+    }
+
+    public boolean busy() {
+        checkThread();
+        return pending != null;
+    }
+
+    public ManagedCacheIo.Ticket<Void> closeTicket() {
+        checkThread();
+        return storage.closedTicket();
+    }
 
     private void recordWorkerTiming() {
         // Failed operations retain their ticket for recovery. Count it once, including polls
@@ -133,7 +145,11 @@ public final class MultiblockPersistenceSession implements AutoCloseable {
         recordWorkerTiming();
         if (state == State.CLOSING) {
             if (storage.closedTicket().isDone()) {
-                try { storage.closedTicket().result(); } catch (IOException error) { failure = error; }
+                try {
+                    storage.closedTicket().result();
+                } catch (IOException error) {
+                    failure = error;
+                }
                 state = State.CLOSED;
             }
             return;
@@ -164,7 +180,8 @@ public final class MultiblockPersistenceSession implements AutoCloseable {
             ManagedCacheStore.View committed = pending.result();
             if (transfer != null) {
                 ManagedCacheStore.Entry entry = committed.entries.get(transfer.target);
-                if (entry == null || !entry.createdBy.equals(transfer.transaction)) throw new IOException("Migration result does not match submitted target");
+                if (entry == null || !entry.createdBy.equals(transfer.transaction))
+                    throw new IOException("Migration result does not match submitted target");
                 for (ManagedCacheStore.SourceKey source : reserved) {
                     if (!source.legacy) {
                         byte[] removed = dirty.remove(source.id);
@@ -208,7 +225,9 @@ public final class MultiblockPersistenceSession implements AutoCloseable {
         }
     }
 
-    /** Caller has stopped all live changes. Keeps snapshots and reservations until replay proves ownership. */
+    /**
+     * Caller has stopped all live changes. Keeps snapshots and reservations until replay proves ownership.
+     */
     public void recover() throws IOException {
         checkThread();
         if (state != State.FAILED) throw new IllegalStateException("Only a failed session can recover");
@@ -219,12 +238,15 @@ public final class MultiblockPersistenceSession implements AutoCloseable {
         state = State.RECOVERING;
     }
 
-    /** Retain the last paused runtime state even after IO failure; never changes frozen transfer sources. */
+    /**
+     * Retain the last paused runtime state even after IO failure; never changes frozen transfer sources.
+     */
     public void retainFailedSnapshot(UUID id, byte[] snapshot) throws IOException {
         checkThread();
         if (state != State.FAILED) throw new IllegalStateException("Session has not failed");
         if (reserved.contains(ManagedCacheStore.SourceKey.managed(id))) return;
-        if (view == null || !view.entries.containsKey(id)) throw new IOException("No known authority for failed snapshot: " + id);
+        if (view == null || !view.entries.containsKey(id))
+            throw new IOException("No known authority for failed snapshot: " + id);
         putDirty(id, snapshot);
     }
 
@@ -273,22 +295,31 @@ public final class MultiblockPersistenceSession implements AutoCloseable {
         successfulRecoveries++;
     }
 
-    /** Pure managed structures do not need to load the historical tombstone file. */
+    /**
+     * Pure managed structures do not need to load the historical tombstone file.
+     */
     public LegacyStatus legacyStatus(UUID id) {
         requireReady();
         ManagedCacheStore.SourceKey key = ManagedCacheStore.SourceKey.legacy(id);
         if (reserved.contains(key)) return LegacyStatus.RESERVED;
         if (view.consumed.containsKey(key)) return LegacyStatus.CONSUMED;
-        if (view.entries.containsKey(id) || view.consumed.containsKey(ManagedCacheStore.SourceKey.managed(id))) return LegacyStatus.CONFLICT;
+        if (view.entries.containsKey(id) || view.consumed.containsKey(ManagedCacheStore.SourceKey.managed(id)))
+            return LegacyStatus.CONFLICT;
         if (legacy == null) legacy = legacyLoader.open(legacyFile);
         switch (legacy.state()) {
-            case READY: return legacy.index().contains(id) ? LegacyStatus.INVALIDATED : LegacyStatus.AVAILABLE;
-            case FAILED: case CLOSED: return LegacyStatus.FAILED;
-            default: return LegacyStatus.LOADING;
+            case READY:
+                return legacy.index().contains(id) ? LegacyStatus.INVALIDATED : LegacyStatus.AVAILABLE;
+            case FAILED:
+            case CLOSED:
+                return LegacyStatus.FAILED;
+            default:
+                return LegacyStatus.LOADING;
         }
     }
 
-    /** Explicit retry only; a failed index is not resubmitted from each structure tick. */
+    /**
+     * Explicit retry only; a failed index is not resubmitted from each structure tick.
+     */
     public void retryLegacyIndex() {
         requireReady();
         if (legacy != null && legacy.state() == LegacyIndexLoader.State.FAILED) {
@@ -312,7 +343,9 @@ public final class MultiblockPersistenceSession implements AutoCloseable {
         return reserved.contains(source);
     }
 
-    /** Missing managed authority never means an empty inventory. */
+    /**
+     * Missing managed authority never means an empty inventory.
+     */
     public byte[] latestSnapshot(UUID id) throws IOException {
         requireReady();
         ManagedCacheStore.Entry entry = view.entries.get(id);
@@ -323,7 +356,8 @@ public final class MultiblockPersistenceSession implements AutoCloseable {
 
     public void changed(UUID id, byte[] snapshot) throws IOException {
         requireReady();
-        if (reserved.contains(ManagedCacheStore.SourceKey.managed(id))) throw new IOException("Attempt to mutate a frozen migration source: " + id);
+        if (reserved.contains(ManagedCacheStore.SourceKey.managed(id)))
+            throw new IOException("Attempt to mutate a frozen migration source: " + id);
         ManagedCacheStore.Entry current = view.entries.get(id);
         if (current == null) throw new IOException("Cannot save missing managed cache: " + id);
         ManagedCacheNbt.validate(snapshot);
@@ -338,14 +372,16 @@ public final class MultiblockPersistenceSession implements AutoCloseable {
         long afterBytes = dirtyBytes - (before == null ? 0 : before.length) + snapshot.length;
         int afterCount = dirty.size() + (before == null ? 1 : 0);
         if (afterBytes > MAX_DIRTY_BYTES || afterCount > MultiblockEmergencySnapshot.MAX_ENTRIES ||
-              afterBytes + afterCount * 256L + 12 > MultiblockJournal.MAX_PAYLOAD_BYTES) {
+                afterBytes + afterCount * 256L + 12 > MultiblockJournal.MAX_PAYLOAD_BYTES) {
             throw new MultiblockBackpressureException("Dirty multiblock cache memory budget exceeded; saving must catch up");
         }
         dirty.put(id, snapshot.clone());
         dirtyBytes = afterBytes;
     }
 
-    /** Call after the last machine/transfer activity to capture the desired ordinary save boundary. */
+    /**
+     * Call after the last machine/transfer activity to capture the desired ordinary save boundary.
+     */
     public boolean flush() throws IOException {
         requireReady();
         if (pending != null || dirty.isEmpty()) return false;
@@ -356,7 +392,8 @@ public final class MultiblockPersistenceSession implements AutoCloseable {
             ManagedCacheStore.Entry current = view.entries.get(entry.getKey());
             if (current == null) throw new IOException("Dirty snapshot has no authority: " + entry.getKey());
             long entryBytes = current.savePayloadBytes(entry.getValue().length);
-            if (updates.size() == ManagedCacheStore.MAX_SOURCES || payloadBytes + entryBytes > MultiblockJournal.MAX_PAYLOAD_BYTES) break;
+            if (updates.size() == ManagedCacheStore.MAX_SOURCES || payloadBytes + entryBytes > MultiblockJournal.MAX_PAYLOAD_BYTES)
+                break;
             payloadBytes += entryBytes;
             captured.put(entry.getKey(), entry.getValue());
             updates.add(new ManagedCacheStore.Update(entry.getKey(), current.revision, entry.getValue()));
@@ -378,16 +415,19 @@ public final class MultiblockPersistenceSession implements AutoCloseable {
         requireReady();
         if (pending != null) return null;
         ManagedCacheNbt.validate(snapshot);
-        if (positions.length == 0 || positions.length > ManagedCacheStore.MAX_BINDING_POSITIONS) throw new IOException("Invalid migration binding");
+        if (positions.length == 0 || positions.length > ManagedCacheStore.MAX_BINDING_POSITIONS)
+            throw new IOException("Invalid migration binding");
         long[] checked = positions.clone();
         Arrays.sort(checked);
-        for (int i = 1; i < checked.length; i++) if (checked[i] == checked[i - 1]) throw new IOException("Duplicate migration coordinate");
+        for (int i = 1; i < checked.length; i++)
+            if (checked[i] == checked[i - 1]) throw new IOException("Duplicate migration coordinate");
         Set<UUID> ids = new HashSet<>();
         Collection<ManagedCacheStore.Source> captured = new ArrayList<>();
         for (ManagedCacheStore.SourceKey source : sources) {
             if (!ids.add(source.id)) throw new IOException("Duplicate migration source UUID");
             if (source.legacy) {
-                if (legacyStatus(source.id) != LegacyStatus.AVAILABLE) throw new IOException("Legacy source is not available for migration: " + source.id);
+                if (legacyStatus(source.id) != LegacyStatus.AVAILABLE)
+                    throw new IOException("Legacy source is not available for migration: " + source.id);
                 captured.add(ManagedCacheStore.Source.legacy(source.id));
             } else {
                 ManagedCacheStore.Entry current = view.entries.get(source.id);
@@ -399,15 +439,15 @@ public final class MultiblockPersistenceSession implements AutoCloseable {
         do {
             target = UUID.randomUUID();
         } while (ids.contains(target) || view.entries.containsKey(target) ||
-              view.consumed.containsKey(ManagedCacheStore.SourceKey.managed(target)) ||
-              view.consumed.containsKey(ManagedCacheStore.SourceKey.legacy(target)));
+                view.consumed.containsKey(ManagedCacheStore.SourceKey.managed(target)) ||
+                view.consumed.containsKey(ManagedCacheStore.SourceKey.legacy(target)));
         TransferReason reason;
         if (sources.isEmpty()) reason = TransferReason.NEW_STRUCTURE;
         else if (sources.size() > 1) reason = TransferReason.MULTIPLE_SOURCES;
         else {
             ManagedCacheStore.SourceKey source = sources.iterator().next();
             reason = source.legacy ? TransferReason.LEGACY_MIGRATION :
-                  view.entries.get(source.id).matchesBinding(checked) ? TransferReason.SAME_BINDING_REPLACEMENT : TransferReason.BINDING_CHANGED;
+                    view.entries.get(source.id).matchesBinding(checked) ? TransferReason.SAME_BINDING_REPLACEMENT : TransferReason.BINDING_CHANGED;
         }
         Transfer operation = new Transfer(UUID.randomUUID(), target, checked, reason);
         ManagedCacheIo.Ticket<ManagedCacheStore.View> accepted = storage.transfer(operation.transaction, target, captured, checked, snapshot);
@@ -429,25 +469,31 @@ public final class MultiblockPersistenceSession implements AutoCloseable {
         return operation;
     }
 
-    /** Resolve a reference/consumed source only at the exact last committed binding. */
+    /**
+     * Resolve a reference/consumed source only at the exact last committed binding.
+     */
     public ManagedCacheStore.Entry resolve(ManagedCacheStore.SourceKey source, long[] verifiedPositions) throws IOException {
         requireReady();
         if (reserved.contains(source)) return null;
         ManagedCacheStore.Entry current = view.resolve(source);
         if (current == null) {
-            if (!source.legacy || view.consumed.containsKey(source)) throw new IOException("Referenced managed cache is missing: " + source.id);
+            if (!source.legacy || view.consumed.containsKey(source))
+                throw new IOException("Referenced managed cache is missing: " + source.id);
             return null;
         }
         return current.matchesBinding(verifiedPositions) ? current : null;
     }
 
-    /** Only a completely verified structure may bind. The token is a runtime structure identity. */
+    /**
+     * Only a completely verified structure may bind. The token is a runtime structure identity.
+     */
     public boolean bind(UUID id, long[] verifiedPositions, Object structureToken) throws IOException {
         requireReady();
         if (structureToken == null) throw new IllegalArgumentException("Missing structure identity");
         ManagedCacheStore.Entry entry = view.entries.get(id);
         if (entry == null) throw new IOException("Cannot bind missing managed authority: " + id);
-        if (reserved.contains(ManagedCacheStore.SourceKey.managed(id)) || !entry.matchesBinding(verifiedPositions)) return false;
+        if (reserved.contains(ManagedCacheStore.SourceKey.managed(id)) || !entry.matchesBinding(verifiedPositions))
+            return false;
         Object current = bindings.get(id);
         if (current != null && current != structureToken) return false;
         bindings.put(id, structureToken);
@@ -489,13 +535,18 @@ public final class MultiblockPersistenceSession implements AutoCloseable {
     }
 
     private void checkThread() {
-        if (Thread.currentThread() != owner) throw new IllegalStateException("Multiblock ownership must be accessed on its owning server thread");
+        if (Thread.currentThread() != owner)
+            throw new IllegalStateException("Multiblock ownership must be accessed on its owning server thread");
     }
 
-    public enum State { LOADING, READY, FAILED, RECOVERING, CLOSING, CLOSED }
-    public enum LegacyStatus { LOADING, AVAILABLE, INVALIDATED, CONSUMED, RESERVED, CONFLICT, FAILED }
-    /** Mutually exclusive observed transfer causes, not inferred player actions. */
-    public enum TransferReason { NEW_STRUCTURE, LEGACY_MIGRATION, MULTIPLE_SOURCES, BINDING_CHANGED, SAME_BINDING_REPLACEMENT }
+    public enum State {LOADING, READY, FAILED, RECOVERING, CLOSING, CLOSED}
+
+    public enum LegacyStatus {LOADING, AVAILABLE, INVALIDATED, CONSUMED, RESERVED, CONFLICT, FAILED}
+
+    /**
+     * Mutually exclusive observed transfer causes, not inferred player actions.
+     */
+    public enum TransferReason {NEW_STRUCTURE, LEGACY_MIGRATION, MULTIPLE_SOURCES, BINDING_CHANGED, SAME_BINDING_REPLACEMENT}
 
     public static final class Transfer {
         public final UUID transaction;
@@ -512,8 +563,16 @@ public final class MultiblockPersistenceSession implements AutoCloseable {
             this.reason = reason;
         }
 
-        public boolean committed() { return committed; }
-        public boolean aborted() { return aborted; }
-        public long[] positions() { return positions.clone(); }
+        public boolean committed() {
+            return committed;
+        }
+
+        public boolean aborted() {
+            return aborted;
+        }
+
+        public long[] positions() {
+            return positions.clone();
+        }
     }
 }

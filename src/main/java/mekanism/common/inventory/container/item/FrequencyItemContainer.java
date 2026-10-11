@@ -2,7 +2,6 @@ package mekanism.common.inventory.container.item;
 
 import mekanism.common.frequency.Frequency;
 import mekanism.common.frequency.FrequencyAware;
-import mekanism.common.frequency.Frequency.FrequencyIdentity;
 import mekanism.common.frequency.FrequencyType;
 import mekanism.common.frequency.IFrequencyItem;
 import mekanism.common.inventory.container.sync.SyncableFrequency;

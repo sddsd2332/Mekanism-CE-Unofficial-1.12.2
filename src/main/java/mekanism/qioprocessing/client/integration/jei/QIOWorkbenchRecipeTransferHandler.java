@@ -16,13 +16,12 @@ import net.minecraft.util.text.translation.I18n;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
-/** JEI transfer target for the frequency-local 3x3 workbench pattern encoder. */
+/**
+ * JEI transfer target for the frequency-local 3x3 workbench pattern encoder.
+ */
+
 /**
  * QIO 处理模块中的 QIOWorkbenchRecipeTransferHandler 类型。
  *
@@ -30,7 +29,7 @@ import java.util.Map;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class QIOWorkbenchRecipeTransferHandler<CONTAINER extends MekanismContainer & QIOWorkbenchConfigurationContainer>
-      implements IRecipeTransferHandler<CONTAINER> {
+        implements IRecipeTransferHandler<CONTAINER> {
 
     enum TargetMode {
         PATTERN,
@@ -42,7 +41,7 @@ public final class QIOWorkbenchRecipeTransferHandler<CONTAINER extends MekanismC
     private final IRecipeTransferHandlerHelper helper;
 
     public QIOWorkbenchRecipeTransferHandler(Class<CONTAINER> containerClass,
-          IRecipeTransferHandlerHelper helper) {
+                                             IRecipeTransferHandlerHelper helper) {
         this.containerClass = containerClass;
         this.helper = helper;
     }
@@ -55,7 +54,7 @@ public final class QIOWorkbenchRecipeTransferHandler<CONTAINER extends MekanismC
     @Nullable
     @Override
     public IRecipeTransferError transferRecipe(CONTAINER container, IRecipeLayout recipeLayout,
-          EntityPlayer player, boolean maxTransfer, boolean doTransfer) {
+                                               EntityPlayer player, boolean maxTransfer, boolean doTransfer) {
         SelectedWindowData selected = container.getSelectedWindow();
         TargetMode targetMode = targetMode(selected);
         if (targetMode == TargetMode.NONE) {
@@ -65,7 +64,7 @@ public final class QIOWorkbenchRecipeTransferHandler<CONTAINER extends MekanismC
             List<ItemStack> grid = extractGrid(recipeLayout);
             if (grid == null) {
                 return helper.createUserErrorWithTooltip(I18n.translateToLocal(
-                      "gui.mekanismqioprocessing.jei_invalid_workbench_pattern"));
+                        "gui.mekanismqioprocessing.jei_invalid_workbench_pattern"));
             }
             if (doTransfer) {
                 container.getWorkbenchConfigurationClientCache().setEncodingGrid(grid);
@@ -75,11 +74,11 @@ public final class QIOWorkbenchRecipeTransferHandler<CONTAINER extends MekanismC
         List<ItemStack> outputs = extractOutputs(recipeLayout);
         if (outputs.isEmpty()) {
             return helper.createUserErrorWithTooltip(I18n.translateToLocal(
-                  "gui.mekanismqioprocessing.jei_invalid_workbench_target"));
+                    "gui.mekanismqioprocessing.jei_invalid_workbench_target"));
         }
         if (doTransfer) {
             container.getWorkbenchConfigurationClientCache().addBatchTargets(maxTransfer ?
-                  outputs : Collections.singletonList(outputs.get(0)));
+                    outputs : Collections.singletonList(outputs.get(0)));
         }
         return null;
     }
@@ -106,7 +105,7 @@ public final class QIOWorkbenchRecipeTransferHandler<CONTAINER extends MekanismC
         boolean[] seen = new boolean[9];
         boolean hasInput = false;
         List<Map.Entry<Integer, ? extends IGuiIngredient<ItemStack>>> entries =
-              new ArrayList<>(layout.getItemStacks().getGuiIngredients().entrySet());
+                new ArrayList<>(layout.getItemStacks().getGuiIngredients().entrySet());
         entries.sort(Comparator.comparingInt(Map.Entry::getKey));
         for (Map.Entry<Integer, ? extends IGuiIngredient<ItemStack>> entry : entries) {
             IGuiIngredient<ItemStack> ingredient = entry.getValue();
@@ -116,7 +115,7 @@ public final class QIOWorkbenchRecipeTransferHandler<CONTAINER extends MekanismC
             seen[slot] = true;
             ItemStack displayed = ingredient.getDisplayedIngredient();
             if (displayed == null || displayed.isEmpty()) continue;
-            ItemStack copy = QIORecipeStackUtils.copyForRecipeSelection(displayed, 1);
+            ItemStack copy = QIORecipeStackUtils.copyComplete(displayed, 1);
             if (copy.isEmpty()) return null;
             grid.set(slot, copy);
             hasInput = true;
@@ -128,14 +127,14 @@ public final class QIOWorkbenchRecipeTransferHandler<CONTAINER extends MekanismC
     static List<ItemStack> extractOutputs(IRecipeLayout layout) {
         List<ItemStack> outputs = new ArrayList<>();
         List<Map.Entry<Integer, ? extends IGuiIngredient<ItemStack>>> entries =
-              new ArrayList<>(layout.getItemStacks().getGuiIngredients().entrySet());
+                new ArrayList<>(layout.getItemStacks().getGuiIngredients().entrySet());
         entries.sort(Comparator.comparingInt(Map.Entry::getKey));
         for (Map.Entry<Integer, ? extends IGuiIngredient<ItemStack>> entry : entries) {
             IGuiIngredient<ItemStack> ingredient = entry.getValue();
             if (ingredient.isInput()) continue;
             ItemStack displayed = ingredient.getDisplayedIngredient();
             if (displayed == null || displayed.isEmpty()) continue;
-            ItemStack copy = QIORecipeStackUtils.copyForRecipeSelection(displayed, 1);
+            ItemStack copy = QIORecipeStackUtils.copyComplete(displayed, 1);
             if (copy.isEmpty()) continue;
             outputs.add(copy);
         }
@@ -145,7 +144,7 @@ public final class QIOWorkbenchRecipeTransferHandler<CONTAINER extends MekanismC
     @Nonnull
     private static List<ItemStack> immutableGrid(List<ItemStack> grid) {
         List<ItemStack> copy = new ArrayList<>(grid.size());
-        grid.forEach(stack -> copy.add(QIORecipeStackUtils.copyForRecipeSelection(stack)));
+        grid.forEach(stack -> copy.add(QIORecipeStackUtils.copyComplete(stack)));
         return java.util.Collections.unmodifiableList(copy);
     }
 }

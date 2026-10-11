@@ -4,7 +4,9 @@ import javax.annotation.Nonnull;
 import java.math.BigInteger;
 import java.util.Objects;
 
-/** Exact old and new amount for one resource in a QIO change batch. */
+/**
+ * Exact old and new amount for one resource in a QIO change batch.
+ */
 public final class QIOStorageChange {
 
     private final QIOStorageEntry resource;

@@ -49,8 +49,8 @@ public class GuiHybridStorage extends GuiConfigurableTile<TileEntityHybridStorag
         super.addGuiElements();
         addButton(new GuiContainerEditModeTab<>(this, tileEntity, 6));
         addButton(new GuiEnergyTab(this, () -> Arrays.asList(
-              new TextComponentString(LangUtils.localize("gui.storing") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getEnergy(), tileEntity.getMaxEnergy())),
-              new TextComponentString(LangUtils.localize("gui.maxOutput") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getMaxOutput()) + "/t")
+                new TextComponentString(LangUtils.localize("gui.storing") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getEnergy(), tileEntity.getMaxEnergy())),
+                new TextComponentString(LangUtils.localize("gui.maxOutput") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getMaxOutput()) + "/t")
         )));
         addButton(new GuiGasGauge(this, tileEntity.gasTank1, 7, 197).withColor(GuiGasGauge.GaugeColor.BLUE));
         addButton(new GuiGasGauge(this, tileEntity.gasTank2, 34, 197).withColor(GuiGasGauge.GaugeColor.ORANGE));

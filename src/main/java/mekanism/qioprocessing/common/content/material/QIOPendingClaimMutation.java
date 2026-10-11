@@ -10,7 +10,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Durable intent written before a QIO claim mutation is submitted. */
+/**
+ * Durable intent written before a QIO claim mutation is submitted.
+ */
+
 /**
  * QIO 处理模块中的 QIOPendingClaimMutation 类型。
  *
@@ -33,14 +36,14 @@ public final class QIOPendingClaimMutation {
     private final Map<PortableResourceDescriptor, Long> amounts;
 
     public QIOPendingClaimMutation(@Nonnull UUID requestId, @Nonnull Mode mode,
-          long expectedContentsRevision, long expectedClaimRevision,
-          @Nonnull Map<PortableResourceDescriptor, Long> amounts) {
+                                   long expectedContentsRevision, long expectedClaimRevision,
+                                   @Nonnull Map<PortableResourceDescriptor, Long> amounts) {
         this.requestId = Objects.requireNonNull(requestId, "requestId");
         this.mode = Objects.requireNonNull(mode, "mode");
         this.expectedContentsRevision = QIOProcessingNbt.requireNonNegative(expectedContentsRevision,
-              "expectedContentsRevision");
+                "expectedContentsRevision");
         this.expectedClaimRevision = QIOProcessingNbt.requireNonNegative(expectedClaimRevision,
-              "expectedClaimRevision");
+                "expectedClaimRevision");
         this.amounts = QIOProcessingNbt.copyAmounts(amounts, mode == Mode.RELEASE, "claimMutationAmounts");
     }
 
@@ -80,12 +83,12 @@ public final class QIOPendingClaimMutation {
 
     @Nonnull
     public static QIOPendingClaimMutation read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         try {
             return new QIOPendingClaimMutation(QIOProcessingNbt.readUUID(data, "requestId"),
-                  QIOProcessingNbt.readEnum(data, "mode", Mode.class),
-                  data.getLong("expectedContentsRevision"), data.getLong("expectedClaimRevision"),
-                  QIOProcessingNbt.readAmounts(data, "amounts", MAX_RESOURCE_ENTRIES));
+                    QIOProcessingNbt.readEnum(data, "mode", Mode.class),
+                    data.getLong("expectedContentsRevision"), data.getLong("expectedClaimRevision"),
+                    QIOProcessingNbt.readAmounts(data, "amounts", MAX_RESOURCE_ENTRIES));
         } catch (QIOProcessingDataException e) {
             throw e;
         } catch (RuntimeException e) {

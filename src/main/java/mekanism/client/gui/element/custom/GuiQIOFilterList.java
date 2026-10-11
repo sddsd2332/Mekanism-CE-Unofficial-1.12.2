@@ -3,13 +3,13 @@ package mekanism.client.gui.element.custom;
 import mekanism.api.EnumColor;
 import mekanism.client.gui.GuiUtils;
 import mekanism.client.gui.IGuiWrapper;
-import mekanism.client.gui.qio.QIOFilterGuiResource;
 import mekanism.client.gui.element.GuiElement;
 import mekanism.client.gui.element.button.FilterSelectButton;
 import mekanism.client.gui.element.button.RadioButton;
 import mekanism.client.gui.element.scroll.GuiScrollBar;
 import mekanism.client.gui.element.slot.GuiSlot;
 import mekanism.client.gui.element.slot.SlotType;
+import mekanism.client.gui.qio.QIOFilterGuiResource;
 import mekanism.client.render.MekanismRenderer;
 import mekanism.common.MekanismLang;
 import mekanism.common.OreDictCache;
@@ -32,16 +32,18 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.BiConsumer;
 
-/** 26.2-style movable filter rows backed by the mixed-resource QIO filter list. */
+/**
+ * 26.2-style movable filter rows backed by the mixed-resource QIO filter list.
+ */
 public class GuiQIOFilterList extends GuiElement {
 
     private static final int SCROLL_WIDTH = 14;
     private static final ResourceLocation FILTER_BACKGROUND = MekanismUtils.getResource(
-          MekanismUtils.ResourceType.GUI_BUTTON, "filter_holder.png");
+            MekanismUtils.ResourceType.GUI_BUTTON, "filter_holder.png");
     private static final List<String> MOVE_UP = Arrays.asList(
-          MekanismLang.MOVE_UP.translate().getFormattedText(), MekanismLang.MOVE_TO_TOP.translate().getFormattedText());
+            MekanismLang.MOVE_UP.translate().getFormattedText(), MekanismLang.MOVE_TO_TOP.translate().getFormattedText());
     private static final List<String> MOVE_DOWN = Arrays.asList(
-          MekanismLang.MOVE_DOWN.translate().getFormattedText(), MekanismLang.MOVE_TO_BOTTOM.translate().getFormattedText());
+            MekanismLang.MOVE_DOWN.translate().getFormattedText(), MekanismLang.MOVE_TO_BOTTOM.translate().getFormattedText());
 
     private final TileEntityQIOFilterHandler tile;
     private final GuiScrollBar scrollBar;
@@ -61,7 +63,7 @@ public class GuiQIOFilterList extends GuiElement {
     }
 
     public GuiQIOFilterList(IGuiWrapper gui, int x, int y, int contentWidth, int visibleRows, int rowHeight,
-          int scrollHeight, TileEntityQIOFilterHandler tile, @Nullable BiConsumer<QIOFilter, Integer> editHandler) {
+                            int scrollHeight, TileEntityQIOFilterHandler tile, @Nullable BiConsumer<QIOFilter, Integer> editHandler) {
         super(gui, x, y, contentWidth + SCROLL_WIDTH + 1, Math.max(visibleRows * rowHeight, scrollHeight));
         this.tile = tile;
         this.contentWidth = contentWidth;
@@ -76,21 +78,21 @@ public class GuiQIOFilterList extends GuiElement {
 
         int scrollY = relativeY - (scrollHeight > listHeight ? 1 : 0);
         scrollBar = addChild(new GuiScrollBar(gui, relativeX + contentWidth + 1, scrollY, scrollHeight,
-              () -> tile.getFilters().size(), () -> visibleRows));
+                () -> tile.getFilters().size(), () -> visibleRows));
         for (int row = 0; row < visibleRows; row++) {
             final int visibleRow = row;
             int rowY = relativeY + row * rowHeight;
             slots[row] = addChild(new GuiSlot(SlotType.NORMAL, gui, relativeX + 2, rowY + 2));
             toggleButtons[row] = addChild(new RadioButton(gui, relativeX + contentWidth - RadioButton.RADIO_SIZE - 17,
-                  rowY + rowHeight / 2 - RadioButton.RADIO_SIZE / 2,
-                  () -> isEnabled(visibleRow), (element, mouseX, mouseY) -> toggleFilter(visibleRow),
-                  MekanismLang.FILTER_STATE.translate(EnumColor.BRIGHT_GREEN, MekanismLang.MODULE_ENABLED_LOWER),
-                  MekanismLang.FILTER_STATE.translate(EnumColor.RED, MekanismLang.MODULE_DISABLED_LOWER)));
+                    rowY + rowHeight / 2 - RadioButton.RADIO_SIZE / 2,
+                    () -> isEnabled(visibleRow), (element, mouseX, mouseY) -> toggleFilter(visibleRow),
+                    MekanismLang.FILTER_STATE.translate(EnumColor.BRIGHT_GREEN, MekanismLang.MODULE_ENABLED_LOWER),
+                    MekanismLang.FILTER_STATE.translate(EnumColor.RED, MekanismLang.MODULE_DISABLED_LOWER)));
             int arrowX = relativeX + contentWidth - 14;
             upButtons[row] = addChild(new FilterSelectButton(gui, arrowX, rowY + rowHeight / 2 - 8, false,
-                  (element, mouseX, mouseY) -> moveFilter(visibleRow, false)));
+                    (element, mouseX, mouseY) -> moveFilter(visibleRow, false)));
             downButtons[row] = addChild(new FilterSelectButton(gui, arrowX, rowY + rowHeight / 2 + 1, true,
-                  (element, mouseX, mouseY) -> moveFilter(visibleRow, true)));
+                    (element, mouseX, mouseY) -> moveFilter(visibleRow, true)));
         }
         active = true;
         playClickSound = true;
@@ -114,12 +116,12 @@ public class GuiQIOFilterList extends GuiElement {
             }
             int rowY = relativeY + row * rowHeight;
             boolean hovered = mouseX >= getGuiLeft() + relativeX && mouseX < getGuiLeft() + relativeX + contentWidth &&
-                  mouseY >= getGuiTop() + rowY && mouseY < getGuiTop() + rowY + rowHeight && checkWindows(mouseX, mouseY);
+                    mouseY >= getGuiTop() + rowY && mouseY < getGuiTop() + rowY + rowHeight && checkWindows(mouseX, mouseY);
             GuiUtils.blitNineSlicedSized(FILTER_BACKGROUND, relativeX, rowY, contentWidth, rowHeight, 4, 4,
-                  156, 29, 0, hovered ? 0 : 29, 156, 58);
+                    156, 29, 0, hovered ? 0 : 29, 156, 58);
             EnumColor rowColor = getFilterColor(filter);
             GuiUtils.fill(relativeX, rowY, relativeX + contentWidth, rowY + rowHeight,
-                  MekanismRenderer.getColorARGB(rowColor, 0.3F));
+                    MekanismRenderer.getColorARGB(rowColor, 0.3F));
         }
     }
 
@@ -147,9 +149,9 @@ public class GuiQIOFilterList extends GuiElement {
         }
         int textWidth = contentWidth - RadioButton.RADIO_SIZE - 17 - 20;
         drawScaledScrollingString(new TextComponentString(getFilterName(filter)), 19, row * rowHeight + 3,
-              TextAlignment.LEFT, titleTextColor(), textWidth, 3, false, 1, getMillis());
+                TextAlignment.LEFT, titleTextColor(), textWidth, 3, false, 1, getMillis());
         drawScaledScrollingString(new TextComponentString(getFilterDetail(filter)), 19, row * rowHeight + 12,
-              TextAlignment.LEFT, titleTextColor(), textWidth, 3, false, 0.7F, getMillis());
+                TextAlignment.LEFT, titleTextColor(), textWidth, 3, false, 0.7F, getMillis());
     }
 
     private void renderPreviewStack(List<ItemStack> stacks, int x, int y) {
@@ -176,8 +178,8 @@ public class GuiQIOFilterList extends GuiElement {
         QIOFilter filter = row < 0 ? null : getFilter(row);
         if (row >= 0 && filter != null) {
             if (toggleButtons[row].mouseClicked(mouseX, mouseY, button) ||
-                  upButtons[row].visible && upButtons[row].mouseClicked(mouseX, mouseY, button) ||
-                  downButtons[row].visible && downButtons[row].mouseClicked(mouseX, mouseY, button)) {
+                    upButtons[row].visible && upButtons[row].mouseClicked(mouseX, mouseY, button) ||
+                    downButtons[row].visible && downButtons[row].mouseClicked(mouseX, mouseY, button)) {
                 return true;
             }
         }

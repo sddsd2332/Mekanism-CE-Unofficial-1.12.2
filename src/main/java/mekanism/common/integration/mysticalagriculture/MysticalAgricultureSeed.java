@@ -51,7 +51,7 @@ public class MysticalAgricultureSeed {
                 }
                 List<FarmChanceOutput> nutrientOutputs = new ArrayList<>();
                 nutrientOutputs.add(new FarmChanceOutput(new ItemStack(type.getSeed(), 4), seedChance));
-                nutrientOutputs.add(new FarmChanceOutput(StackUtils.size(fertilizedEssence,4), 0.05D));
+                nutrientOutputs.add(new FarmChanceOutput(StackUtils.size(fertilizedEssence, 4), 0.05D));
                 List<FarmChanceOutput> waterOutputs = new ArrayList<>();
                 waterOutputs.add(new FarmChanceOutput(new ItemStack(type.getSeed()), seedChance));
                 waterOutputs.add(new FarmChanceOutput(fertilizedEssence, 0.05D));
@@ -93,7 +93,7 @@ public class MysticalAgricultureSeed {
             List<FarmChanceOutput> waterOutputs = new ArrayList<>();
             waterOutputs.add(new FarmChanceOutput(new ItemStack(tier6seeds.getItem()), seedChance));
             if (ModConfig.confFertilizedEssence && !fertilizedEssence.isEmpty()) {
-                nutrientOutputs.add(new FarmChanceOutput(StackUtils.size(fertilizedEssence,4), 0.05D));
+                nutrientOutputs.add(new FarmChanceOutput(StackUtils.size(fertilizedEssence, 4), 0.05D));
                 waterOutputs.add(new FarmChanceOutput(fertilizedEssence, 0.05D));
             }
             if (tier6seeds != ItemStack.EMPTY) {

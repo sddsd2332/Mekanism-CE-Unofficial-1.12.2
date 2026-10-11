@@ -4,7 +4,6 @@ import io.netty.buffer.ByteBuf;
 import mekanism.api.*;
 import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasStack;
-import mekanism.api.math.MathUtils;
 import mekanism.api.transmitters.TransmissionType;
 import mekanism.common.Upgrade;
 import mekanism.common.base.ISustainedData;
@@ -32,7 +31,9 @@ import mekanism.common.recipe.cache.CachedRecipe;
 import mekanism.common.recipe.cache.CachedRecipe.OperationTracker.RecipeError;
 import mekanism.common.recipe.cache.IRecipeLookupHandler.ConstantUsageRecipeLookupHandler;
 import mekanism.common.recipe.cache.ItemStackConstantFarmCachedRecipe;
+import mekanism.common.recipe.cache.ItemStackConstantGasCachedRecipe;
 import mekanism.common.recipe.cache.ItemStackConstantGasCachedRecipe.GasUsageMultiplier;
+import mekanism.common.recipe.cache.SecondaryFuelUsage;
 import mekanism.common.recipe.cache.inputs.InputHelper;
 import mekanism.common.recipe.cache.outputs.OutputHelper;
 import mekanism.common.recipe.inputs.FarmInput;
@@ -54,11 +55,7 @@ import net.minecraftforge.items.ItemHandlerHelper;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * 农场方块
@@ -123,20 +120,10 @@ public abstract class TileEntityFarmMachine<RECIPE extends FarmMachineRecipe<REC
         BASE_SECONDARY_ENERGY_PER_TICK = secondaryPerTick;
         secondaryEnergyPerTick = secondaryPerTick;
         baseTotalUsage = ticksRequired;
-        if (useStatisticalMechanics()) {
-            gasUsageMultiplier = (usedSoFar, operatingTicks) -> gasUsageSampler.sample(gasPerTickMeanMultiplier);
-        } else {
-            gasUsageMultiplier = (usedSoFar, operatingTicks) -> {
-                long baseRemaining = baseTotalUsage - usedSoFar;
-                int remainingTicks = getTicksRequired() - operatingTicks;
-                if (baseRemaining < remainingTicks) {
-                    return 0;
-                } else if (baseRemaining == remainingTicks) {
-                    return 1;
-                }
-                return Math.max(MathUtils.clampToLong(baseRemaining / (double) remainingTicks), 0);
-            };
-        }
+        gasUsageMultiplier = (usedSoFar, operatingTicks) ->
+                useStatisticalMechanics() && SecondaryFuelUsage.isRandomized(this)
+                        ? gasUsageSampler.sample(gasPerTickMeanMultiplier)
+                        : SecondaryFuelUsage.constantUse(baseTotalUsage, usedSoFar, getTicksRequired(), operatingTicks);
 
         if (upgradeableSecondaryEfficiency()) {
             upgradeComponent.setSupported(Upgrade.GAS);
@@ -151,7 +138,7 @@ public abstract class TileEntityFarmMachine<RECIPE extends FarmMachineRecipe<REC
         IContentsListener recipeCacheListener = getRecipeCacheListener();
         IContentsListener recipeCacheChangeListener = getRecipeCacheChangeListener(listener);
         inputSlot = builder.addSlot(InputInventorySlot.at(stack -> getRecipes().keySet().stream().anyMatch(input -> ItemHandlerHelper.canItemStacksStack(input.itemStack, stack)), recipeCacheListener, 10, 79)
-              .setAutoPullValidator((stack, side) -> canAutoPullInput(stack)));
+                .setAutoPullValidator((stack, side) -> canAutoPullInput(stack)));
         mergedTankSlot = builder.addSlot(HybridInventorySlot.inputOrDrainOrConvert(getOrCreateMergedTank(), this::getWorld, listener, 10, 121));
         energySlot = builder.addSlot(EnergyInventorySlot.fillOrConvert(getMainEnergyContainer(), this::getWorld, listener, 10, 37));
         outputSlots.clear();
@@ -189,7 +176,7 @@ public abstract class TileEntityFarmMachine<RECIPE extends FarmMachineRecipe<REC
     private BasicFluidTank getOrCreateFluidTank() {
         if (fluidTank == null) {
             fluidTank = BasicFluidTank.input(SECONDARY_TANK_CAPACITY,
-                  stack -> stack != null && stack.getFluid() != null && isValidFluid(stack.getFluid()), getRecipeCacheListener());
+                    stack -> stack != null && stack.getFluid() != null && isValidFluid(stack.getFluid()), getRecipeCacheListener());
         }
         return fluidTank;
     }
@@ -297,11 +284,8 @@ public abstract class TileEntityFarmMachine<RECIPE extends FarmMachineRecipe<REC
     }
 
     public int getRecipeGasUsagePerOperation() {
-        if (!useStatisticalMechanics()) {
-            return Math.max(1, MathUtils.clampToInt(baseTotalUsage));
-        }
-        double usage = 3D * Math.max(1, Math.ceil(Math.max(secondaryEnergyPerTick, 0))) * Math.max(1, getTicksRequired());
-        return Math.max(1, MathUtils.clampToInt(usage));
+        return ItemStackConstantGasCachedRecipe.getGasUsagePerOperation(useStatisticalMechanics() && SecondaryFuelUsage.isRandomized(this),
+                baseTotalUsage, gasPerTickMeanMultiplier, ticksRequired);
     }
 
     @Override
@@ -374,7 +358,7 @@ public abstract class TileEntityFarmMachine<RECIPE extends FarmMachineRecipe<REC
     @Override
     public boolean canOperate(RECIPE recipe) {
         return recipe != null && recipe.getInput().useItem(inputSlot, false) && hasSecondaryInput(recipe.getInput(), secondaryEnergyThisTick) &&
-              OutputHelper.canFitFarmOutput(outputSlots, recipe.getOutput());
+                OutputHelper.canFitFarmOutput(outputSlots, recipe.getOutput());
     }
 
     private boolean hasSecondaryInput(FarmInput input, int usage) {
@@ -388,7 +372,7 @@ public abstract class TileEntityFarmMachine<RECIPE extends FarmMachineRecipe<REC
     }
 
     private boolean canAutoPullInput(ItemStack stack) {
-        RECIPE recipe = RecipeHandler.getFarmRecipe(createFarmInput(getSimulatedStackWithInsert(0, stack)), getRecipes());
+        RECIPE recipe = RecipeHandler.getFarmRecipe(createFarmInput(getSimulatedStackWithInsert(inputSlot, stack)), getRecipes());
         return recipe != null && OutputHelper.canFitFarmOutput(outputSlots, recipe.getOutput());
     }
 
@@ -409,22 +393,22 @@ public abstract class TileEntityFarmMachine<RECIPE extends FarmMachineRecipe<REC
     @Override
     public CachedRecipe<RECIPE> createNewCachedRecipe(RECIPE recipe, int cacheIndex) {
         return new ItemStackConstantFarmCachedRecipe<>(recipe, this::shouldRecheckAllRecipeErrors,
-              InputHelper.getInputHandler(inputSlot, RecipeError.NOT_ENOUGH_INPUT),
-              InputHelper.getConstantGasInputHandler(mergedTank.getGasTank(), RecipeError.NOT_ENOUGH_SECONDARY_INPUT, false),
-              InputHelper.getConstantFluidInputHandler(mergedTank.getFluidTank(), RecipeError.NOT_ENOUGH_SECONDARY_INPUT, false),
-              OutputHelper.getFarmOutputHandler(outputSlots, RecipeError.NOT_ENOUGH_OUTPUT_SPACE, farmRecipeRandom()),
-              gasUsageMultiplier, used -> usedSoFar = used)
-              .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
-              .setActive(active -> {
-                  if (active || prevEnergy >= getEnergy()) {
-                      setActive(active);
-                  }
-              })
-              .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
-              .setRequiredTicks(() -> ticksRequired)
-              .setBaselineMaxOperations(() -> getBaselineMaxOperations(energyPerTick, true))
-              .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
-              .setOnFinish(this::onCachedRecipeFinish);
+                InputHelper.getInputHandler(inputSlot, RecipeError.NOT_ENOUGH_INPUT),
+                InputHelper.getConstantGasInputHandler(mergedTank.getGasTank(), RecipeError.NOT_ENOUGH_SECONDARY_INPUT, false),
+                InputHelper.getConstantFluidInputHandler(mergedTank.getFluidTank(), RecipeError.NOT_ENOUGH_SECONDARY_INPUT, false),
+                OutputHelper.getFarmOutputHandler(outputSlots, RecipeError.NOT_ENOUGH_OUTPUT_SPACE, farmRecipeRandom()),
+                gasUsageMultiplier, used -> usedSoFar = used)
+                .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
+                .setActive(active -> {
+                    if (active || prevEnergy >= getEnergy()) {
+                        setActive(active);
+                    }
+                })
+                .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
+                .setRequiredTicks(() -> ticksRequired)
+                .setBaselineMaxOperations(() -> getBaselineMaxOperations(energyPerTick, true))
+                .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
+                .setOnFinish(this::onCachedRecipeFinish);
     }
 
     @Override
@@ -507,11 +491,8 @@ public abstract class TileEntityFarmMachine<RECIPE extends FarmMachineRecipe<REC
 
     private void recalculateSecondaryUpgrade() {
         secondaryEnergyPerTick = MekanismUtils.getSecondaryEnergyPerTickMean(this, BASE_SECONDARY_ENERGY_PER_TICK);
-        if (useStatisticalMechanics()) {
-            gasPerTickMeanMultiplier = MekanismUtils.getGasPerTickMeanMultiplier(this);
-        } else {
-            baseTotalUsage = MekanismUtils.getBaseUsage(this, BASE_TICKS_REQUIRED);
-        }
+        gasPerTickMeanMultiplier = MekanismUtils.getGasPerTickMeanMultiplier(this);
+        baseTotalUsage = SecondaryFuelUsage.fixedTotal(this, BASE_TICKS_REQUIRED);
     }
 
     @Override

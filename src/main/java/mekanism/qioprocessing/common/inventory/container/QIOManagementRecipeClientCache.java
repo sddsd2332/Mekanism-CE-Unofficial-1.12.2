@@ -8,7 +8,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.UUID;
 
-/** Client-only remote machine-recipe pages keyed by request id and selected device. */
+/**
+ * Client-only remote machine-recipe pages keyed by request id and selected device.
+ */
+
 /**
  * QIO 处理模块中的 QIOManagementRecipeClientCache 类型。
  *
@@ -17,11 +20,16 @@ import java.util.UUID;
  */
 public final class QIOManagementRecipeClientCache {
 
-    @Nullable private UUID expectedProductRequest;
-    @Nullable private UUID expectedRouteRequest;
-    @Nullable private UUID expectedMutationRequest;
-    @Nullable private QIOManagementRecipeSnapshot productPage;
-    @Nullable private QIOManagementRecipeSnapshot routePage;
+    @Nullable
+    private UUID expectedProductRequest;
+    @Nullable
+    private UUID expectedRouteRequest;
+    @Nullable
+    private UUID expectedMutationRequest;
+    @Nullable
+    private QIOManagementRecipeSnapshot productPage;
+    @Nullable
+    private QIOManagementRecipeSnapshot routePage;
     private Status productStatus = Status.UNAVAILABLE;
     private Status routeStatus = Status.UNAVAILABLE;
     private Status mutationStatus = Status.UNAVAILABLE;
@@ -42,7 +50,7 @@ public final class QIOManagementRecipeClientCache {
     }
 
     public boolean applyPage(@Nonnull UUID requestId, @Nonnull Status status,
-          @Nullable QIOManagementRecipeSnapshot snapshot) {
+                             @Nullable QIOManagementRecipeSnapshot snapshot) {
         PageKind kind = snapshot == null ? null : snapshot.getPageKind();
         if (kind == PageKind.PRODUCTS) {
             if (!requestId.equals(expectedProductRequest)) return false;
@@ -67,7 +75,7 @@ public final class QIOManagementRecipeClientCache {
     }
 
     public boolean applyUnavailable(@Nonnull PageKind kind, @Nonnull UUID requestId,
-          @Nonnull Status status) {
+                                    @Nonnull Status status) {
         if (kind == PageKind.PRODUCTS) {
             if (!requestId.equals(expectedProductRequest)) return false;
             expectedProductRequest = null;
@@ -117,18 +125,46 @@ public final class QIOManagementRecipeClientCache {
         mutationStatus = Status.UNAVAILABLE;
     }
 
-    @Nullable public QIOManagementRecipeSnapshot getProductPage() { return productPage; }
-    @Nullable public QIOManagementRecipeSnapshot getRoutePage() { return routePage; }
-    @Nonnull public Status getProductStatus() { return productStatus; }
-    @Nonnull public Status getRouteStatus() { return routeStatus; }
-    @Nonnull public Status getMutationStatus() { return mutationStatus; }
-    public long getProductGeneration() { return productGeneration; }
-    public long getRouteGeneration() { return routeGeneration; }
-    public long getMutationGeneration() { return mutationGeneration; }
+    @Nullable
+    public QIOManagementRecipeSnapshot getProductPage() {
+        return productPage;
+    }
+
+    @Nullable
+    public QIOManagementRecipeSnapshot getRoutePage() {
+        return routePage;
+    }
+
+    @Nonnull
+    public Status getProductStatus() {
+        return productStatus;
+    }
+
+    @Nonnull
+    public Status getRouteStatus() {
+        return routeStatus;
+    }
+
+    @Nonnull
+    public Status getMutationStatus() {
+        return mutationStatus;
+    }
+
+    public long getProductGeneration() {
+        return productGeneration;
+    }
+
+    public long getRouteGeneration() {
+        return routeGeneration;
+    }
+
+    public long getMutationGeneration() {
+        return mutationGeneration;
+    }
 
     private void invalidateRoutePage() {
         if (routePage != null || expectedRouteRequest != null ||
-            routeStatus != Status.UNAVAILABLE) {
+                routeStatus != Status.UNAVAILABLE) {
             routeGeneration = next(routeGeneration);
         }
         expectedRouteRequest = null;
@@ -137,11 +173,11 @@ public final class QIOManagementRecipeClientCache {
     }
 
     private static boolean sameSource(QIOManagementRecipeSnapshot first,
-          QIOManagementRecipeSnapshot second) {
+                                      QIOManagementRecipeSnapshot second) {
         return first.getDeviceUUID().equals(second.getDeviceUUID()) &&
-              first.getRouteDirectoryRevision() == second.getRouteDirectoryRevision() &&
-              first.getProfileRevision() == second.getProfileRevision() &&
-              first.getPolicyRevision() == second.getPolicyRevision();
+                first.getRouteDirectoryRevision() == second.getRouteDirectoryRevision() &&
+                first.getProfileRevision() == second.getProfileRevision() &&
+                first.getPolicyRevision() == second.getPolicyRevision();
     }
 
     private static long next(long value) {

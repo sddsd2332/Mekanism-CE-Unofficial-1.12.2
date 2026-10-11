@@ -20,10 +20,8 @@ import mekanism.common.network.PacketEditFilter.EditFilterMessage;
 import mekanism.common.network.PacketNewFilter.NewFilterMessage;
 import mekanism.common.tile.interfaces.ITileFilterHolder;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
-import mekanism.common.util.LangUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.text.ITextComponent;
-import net.minecraft.util.text.TextComponentString;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
@@ -94,10 +92,10 @@ public abstract class GuiFilter<FILTER extends IFilter, TILE extends TileEntityC
         int screenBottom = screenTop + getScreenHeight();
         addChild(new GuiInnerScreen(gui(), relativeX + 29, screenTop, getScreenWidth(), getScreenHeight(), this::getScreenText).clearFormat());
         addChild(new TranslationButton(gui(), getLeftButtonX(), screenBottom + 2, 60, 20,
-              isNew ? MekanismLang.BUTTON_CANCEL : MekanismLang.BUTTON_DELETE, this::deleteFilter));
+                isNew ? MekanismLang.BUTTON_CANCEL : MekanismLang.BUTTON_DELETE, this::deleteFilter));
         addChild(new TranslationButton(gui(), getLeftButtonX() + 62, screenBottom + 2, 60, 20, MekanismLang.BUTTON_SAVE, this::validateAndSave));
         GuiSlot slot = addChild(new GuiSlot(SlotType.NORMAL, gui(), relativeX + getSlotOffsetX(), relativeY + getSlotOffsetY())
-              .setRenderHover(true).setGhostHandler(getGhostHandler()));
+                .setRenderHover(true).setGhostHandler(getGhostHandler()));
         IClickable slotClickHandler = getSlotClickHandler();
         if (slotClickHandler != null) {
             slot.click(slotClickHandler);

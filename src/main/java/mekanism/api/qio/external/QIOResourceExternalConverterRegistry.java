@@ -11,32 +11,34 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
-/** Registry of explicit QIO-to-external-storage converters. */
+/**
+ * Registry of explicit QIO-to-external-storage converters.
+ */
 public final class QIOResourceExternalConverterRegistry {
 
     public static final QIOResourceExternalConverterRegistry INSTANCE =
-          new QIOResourceExternalConverterRegistry();
+            new QIOResourceExternalConverterRegistry();
 
     private final Map<Key, QIOResourceExternalConverter<?>> converters = new LinkedHashMap<>();
     private final Map<ExternalTypeKey, QIOResourceExternalConverter<?>> convertersByExternalType =
-          new LinkedHashMap<>();
+            new LinkedHashMap<>();
 
     private QIOResourceExternalConverterRegistry() {
     }
 
     @Nonnull
     public synchronized <T> QIOResourceExternalConverter<T> register(
-          @Nonnull QIOResourceExternalConverter<T> converter) {
+            @Nonnull QIOResourceExternalConverter<T> converter) {
         Objects.requireNonNull(converter, "QIO external converter cannot be null");
         ResourceLocation systemId = Objects.requireNonNull(converter.getExternalSystemId(),
-              "QIO external system id cannot be null");
+                "QIO external system id cannot be null");
         ResourceLocation codecId = Objects.requireNonNull(converter.getCodecId(),
-              "QIO external converter codec id cannot be null");
+                "QIO external converter codec id cannot be null");
         Class<T> externalType = Objects.requireNonNull(converter.getExternalType(),
-              "QIO external converter type cannot be null");
+                "QIO external converter type cannot be null");
         if (!QIOResourceCodecRegistry.INSTANCE.isRegistered(codecId)) {
             throw new IllegalArgumentException("A QIO codec must be registered before its external converter: " +
-                  codecId);
+                    codecId);
         }
         Key key = new Key(systemId, codecId);
         ExternalTypeKey typeKey = new ExternalTypeKey(systemId, externalType);
@@ -53,14 +55,14 @@ public final class QIOResourceExternalConverterRegistry {
 
     @Nullable
     public synchronized QIOResourceExternalConverter<?> get(@Nullable ResourceLocation externalSystemId,
-          @Nullable ResourceLocation codecId) {
+                                                            @Nullable ResourceLocation codecId) {
         return externalSystemId == null || codecId == null ? null :
-              converters.get(new Key(externalSystemId, codecId));
+                converters.get(new Key(externalSystemId, codecId));
     }
 
     @Nullable
     public synchronized Object toExternal(@Nonnull ResourceLocation externalSystemId,
-          @Nonnull QIOResourceDescriptor descriptor) {
+                                          @Nonnull QIOResourceDescriptor descriptor) {
         Objects.requireNonNull(externalSystemId, "externalSystemId");
         Objects.requireNonNull(descriptor, "descriptor");
         if (!descriptor.isResolved()) {
@@ -72,19 +74,19 @@ public final class QIOResourceExternalConverterRegistry {
 
     @Nullable
     public synchronized QIOResourceDescriptor fromExternal(@Nonnull ResourceLocation externalSystemId,
-          @Nonnull Object externalResource) {
+                                                           @Nonnull Object externalResource) {
         Objects.requireNonNull(externalSystemId, "externalSystemId");
         Objects.requireNonNull(externalResource, "externalResource");
         QIOResourceExternalConverter<?> exact = convertersByExternalType.get(
-              new ExternalTypeKey(externalSystemId, externalResource.getClass()));
+                new ExternalTypeKey(externalSystemId, externalResource.getClass()));
         if (exact != null) {
             return fromExternalUnchecked(exact, externalResource);
         }
         QIOResourceExternalConverter<?> candidate = null;
         for (Map.Entry<ExternalTypeKey, QIOResourceExternalConverter<?>> entry :
-              convertersByExternalType.entrySet()) {
+                convertersByExternalType.entrySet()) {
             if (entry.getKey().systemId.equals(externalSystemId) &&
-                  entry.getKey().externalType.isInstance(externalResource)) {
+                    entry.getKey().externalType.isInstance(externalResource)) {
                 if (candidate != null) {
                     return null;
                 }
@@ -103,7 +105,7 @@ public final class QIOResourceExternalConverterRegistry {
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     private static Object toExternalUnchecked(QIOResourceExternalConverter converter,
-          QIOResourceDescriptor descriptor) {
+                                              QIOResourceDescriptor descriptor) {
         try {
             Object converted = converter.toExternal(descriptor);
             return converted == null || converter.getExternalType().isInstance(converted) ? converted : null;
@@ -114,11 +116,11 @@ public final class QIOResourceExternalConverterRegistry {
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     private static QIOResourceDescriptor fromExternalUnchecked(QIOResourceExternalConverter converter,
-          Object externalResource) {
+                                                               Object externalResource) {
         try {
             QIOResourceDescriptor descriptor = converter.fromExternal(externalResource);
             return descriptor != null && descriptor.isResolved() &&
-                  converter.getCodecId().equals(descriptor.getCodecId()) ? descriptor : null;
+                    converter.getCodecId().equals(descriptor.getCodecId()) ? descriptor : null;
         } catch (RuntimeException ignored) {
             return null;
         }
@@ -136,7 +138,7 @@ public final class QIOResourceExternalConverterRegistry {
         @Override
         public boolean equals(Object obj) {
             return obj == this || obj instanceof Key other && systemId.equals(other.systemId) &&
-                  codecId.equals(other.codecId);
+                    codecId.equals(other.codecId);
         }
 
         @Override
@@ -162,7 +164,7 @@ public final class QIOResourceExternalConverterRegistry {
         @Override
         public boolean equals(Object obj) {
             return obj == this || obj instanceof ExternalTypeKey other && systemId.equals(other.systemId) &&
-                  externalType.equals(other.externalType);
+                    externalType.equals(other.externalType);
         }
 
         @Override

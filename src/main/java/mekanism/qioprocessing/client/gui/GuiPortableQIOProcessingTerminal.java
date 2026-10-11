@@ -9,8 +9,8 @@ import mekanism.qioprocessing.common.inventory.container.ContainerPortableQIOPro
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumHand;
-import net.minecraft.util.text.TextComponentString;
 import net.minecraft.util.text.ITextComponent;
+import net.minecraft.util.text.TextComponentString;
 import net.minecraft.util.text.TextComponentTranslation;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
@@ -18,7 +18,9 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 import java.util.Collections;
 import java.util.List;
 
-/** Portable screen for management, maintenance and monitor responsibilities. */
+/**
+ * Portable screen for management, maintenance and monitor responsibilities.
+ */
 @SideOnly(Side.CLIENT)
 /**
  * QIO 处理模块中的 GuiPortableQIOProcessingTerminal 类型。
@@ -27,7 +29,7 @@ import java.util.List;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class GuiPortableQIOProcessingTerminal extends
-      GuiMekanism<ContainerPortableQIOProcessingTerminal> {
+        GuiMekanism<ContainerPortableQIOProcessingTerminal> {
 
     private static final int MANAGEMENT_WIDTH = 384;
     private static final int MANAGEMENT_HEIGHT = 220;
@@ -44,29 +46,29 @@ public final class GuiPortableQIOProcessingTerminal extends
     private GuiQIOCraftingMonitorPanel craftingMonitorPanel;
 
     public GuiPortableQIOProcessingTerminal(InventoryPlayer inventory, EnumHand hand,
-          int itemSlot, ItemStack stack) {
+                                            int itemSlot, ItemStack stack) {
         super(new ContainerPortableQIOProcessingTerminal(inventory, hand, itemSlot,
-              stack));
+                stack));
         container = (ContainerPortableQIOProcessingTerminal) inventorySlots;
         if (stack.getItem() instanceof
-            mekanism.qioprocessing.common.item.ItemPortableQIOProcessingTerminal item &&
-            item.getTerminalType() ==
-                  mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT) {
+                mekanism.qioprocessing.common.item.ItemPortableQIOProcessingTerminal item &&
+                item.getTerminalType() ==
+                        mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT) {
             xSize = MANAGEMENT_WIDTH;
             ySize = MANAGEMENT_HEIGHT;
         } else if (stack.getItem() instanceof
-            mekanism.qioprocessing.common.item.ItemPortableQIOProcessingTerminal item &&
-            item.getTerminalType() ==
-                  mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MAINTENANCE) {
+                mekanism.qioprocessing.common.item.ItemPortableQIOProcessingTerminal item &&
+                item.getTerminalType() ==
+                        mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MAINTENANCE) {
             xSize = 236;
             ySize = MAINTENANCE_HEIGHT;
             dynamicSlots = true;
             inventoryLabelX = 38;
             inventoryLabelY = 122;
         } else if (stack.getItem() instanceof
-            mekanism.qioprocessing.common.item.ItemPortableQIOProcessingTerminal item &&
-            item.getTerminalType() ==
-                  mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.CRAFTING_MONITOR) {
+                mekanism.qioprocessing.common.item.ItemPortableQIOProcessingTerminal item &&
+                item.getTerminalType() ==
+                        mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.CRAFTING_MONITOR) {
             xSize = CRAFTING_MONITOR_WIDTH;
             ySize = CRAFTING_MONITOR_HEIGHT;
         }
@@ -76,59 +78,59 @@ public final class GuiPortableQIOProcessingTerminal extends
     protected void addGuiElements() {
         super.addGuiElements();
         frequencyTab = addButton(new GuiQIOProcessingTerminalFrequencyTab(this,
-              container, () -> frequencyTab));
+                container, () -> frequencyTab));
         if (container.getTerminalState().getTerminalType() ==
-            mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT ||
-            container.getPortableStack().getItem() instanceof
-                  mekanism.qioprocessing.common.item.ItemPortableQIOProcessingTerminal item &&
-                  item.getTerminalType() ==
-                        mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT) {
+                mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT ||
+                container.getPortableStack().getItem() instanceof
+                        mekanism.qioprocessing.common.item.ItemPortableQIOProcessingTerminal item &&
+                        item.getTerminalType() ==
+                                mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT) {
             workbenchConfigurationTab = addButton(new GuiQIOWorkbenchConfigurationTab(this,
-                  container, () -> workbenchConfigurationTab));
+                    container, () -> workbenchConfigurationTab));
         }
         addButton(new GuiInnerScreen(this, 7, 15, xSize - 16, 12,
-              this::frequencyText).clearFormat().clearSpacing().padding(3).textScale(0.8F));
+                this::frequencyText).clearFormat().clearSpacing().padding(3).textScale(0.8F));
         if (container.getTerminalState().getTerminalType() ==
-            mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT ||
-            container.getPortableStack().getItem() instanceof
-                  mekanism.qioprocessing.common.item.ItemPortableQIOProcessingTerminal item &&
-            item.getTerminalType() ==
-                        mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT) {
+                mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT ||
+                container.getPortableStack().getItem() instanceof
+                        mekanism.qioprocessing.common.item.ItemPortableQIOProcessingTerminal item &&
+                        item.getTerminalType() ==
+                                mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT) {
             managementPanel = addButton(new GuiQIOManagementPanel(this, container,
-                  container, 8, 31, xSize - 16, ySize - 39));
+                    container, 8, 31, xSize - 16, ySize - 39));
             trackWarning(WarningType.QIO_AUTOMATION_ERROR,
-                  () -> container.getDeviceClientCache().getDevices().stream()
-                        .anyMatch(device -> "DATA_ERROR".equals(device.getStateName()) ||
-                              "IDENTITY_CONFLICT".equals(device.getStateName()) ||
-                              device.hasRecoveryPending() ||
-                              !device.getDiagnostic().isEmpty()));
+                    () -> container.getDeviceClientCache().getDevices().stream()
+                            .anyMatch(device -> "DATA_ERROR".equals(device.getStateName()) ||
+                                    "IDENTITY_CONFLICT".equals(device.getStateName()) ||
+                                    device.hasRecoveryPending() ||
+                                    !device.getDiagnostic().isEmpty()));
             // 频率 Tab 为 y=6，工作台配置 Tab 为 y=32；按同样间距放在其下方。
             recoveryTab = addButton(new GuiQIOAutomationRecoveryTab(this, -26, 58,
-                  () -> managementPanel != null && managementPanel.hasSelectedDataError(),
-                  () -> managementPanel == null ? null : managementPanel.getSelectedDataErrorMode(),
-                  () -> managementPanel == null ? null :
-                        managementPanel.getSelectedDataErrorDiagnostic(),
-                  () -> {
-                      if (managementPanel != null) {
-                          managementPanel.recoverSelectedDataError();
-                      }
-                  }, true));
+                    () -> managementPanel != null && managementPanel.hasSelectedDataError(),
+                    () -> managementPanel == null ? null : managementPanel.getSelectedDataErrorMode(),
+                    () -> managementPanel == null ? null :
+                            managementPanel.getSelectedDataErrorDiagnostic(),
+                    () -> {
+                        if (managementPanel != null) {
+                            managementPanel.recoverSelectedDataError();
+                        }
+                    }, true));
         } else if (container.getTerminalState().getTerminalType() ==
-              mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MAINTENANCE ||
-              container.getPortableStack().getItem() instanceof
-                    mekanism.qioprocessing.common.item.ItemPortableQIOProcessingTerminal item &&
-                    item.getTerminalType() ==
-                          mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MAINTENANCE) {
+                mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MAINTENANCE ||
+                container.getPortableStack().getItem() instanceof
+                        mekanism.qioprocessing.common.item.ItemPortableQIOProcessingTerminal item &&
+                        item.getTerminalType() ==
+                                mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MAINTENANCE) {
             maintenancePanel = addButton(new GuiQIOMaintenanceRulesPanel(this,
-                  container, 8, 31, xSize - 16, 90));
+                    container, 8, 31, xSize - 16, 90));
         } else if (container.getTerminalState().getTerminalType() ==
-              mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.CRAFTING_MONITOR ||
-              container.getPortableStack().getItem() instanceof
-                    mekanism.qioprocessing.common.item.ItemPortableQIOProcessingTerminal item &&
-                    item.getTerminalType() ==
-                          mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.CRAFTING_MONITOR) {
+                mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.CRAFTING_MONITOR ||
+                container.getPortableStack().getItem() instanceof
+                        mekanism.qioprocessing.common.item.ItemPortableQIOProcessingTerminal item &&
+                        item.getTerminalType() ==
+                                mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.CRAFTING_MONITOR) {
             craftingMonitorPanel = addButton(new GuiQIOCraftingMonitorPanel(this,
-                  container, 8, 31, xSize - 16, ySize - 39));
+                    container, 8, 31, xSize - 16, ySize - 39));
         }
     }
 
@@ -136,13 +138,13 @@ public final class GuiPortableQIOProcessingTerminal extends
     protected void drawForegroundText(int mouseX, int mouseY) {
         ItemStack stack = container.getPortableStack();
         drawTitleText(new TextComponentString(stack.isEmpty() ? "QIO Processing Terminal" :
-              stack.getDisplayName()), 4);
+                stack.getDisplayName()), 4);
         if (!(stack.getItem() instanceof
-              mekanism.qioprocessing.common.item.ItemPortableQIOProcessingTerminal item) ||
-            item.getTerminalType() !=
-                  mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT &&
-            item.getTerminalType() !=
-                  mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.CRAFTING_MONITOR) {
+                mekanism.qioprocessing.common.item.ItemPortableQIOProcessingTerminal item) ||
+                item.getTerminalType() !=
+                        mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT &&
+                        item.getTerminalType() !=
+                                mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.CRAFTING_MONITOR) {
             renderInventoryText();
         }
         super.drawForegroundText(mouseX, mouseY);
@@ -150,26 +152,26 @@ public final class GuiPortableQIOProcessingTerminal extends
 
     private boolean isMaintenance() {
         return container.getTerminalState().getTerminalType() ==
-              mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MAINTENANCE ||
-              container.getPortableStack().getItem() instanceof
-                    mekanism.qioprocessing.common.item.ItemPortableQIOProcessingTerminal item &&
-                    item.getTerminalType() ==
-                          mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MAINTENANCE;
+                mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MAINTENANCE ||
+                container.getPortableStack().getItem() instanceof
+                        mekanism.qioprocessing.common.item.ItemPortableQIOProcessingTerminal item &&
+                        item.getTerminalType() ==
+                                mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MAINTENANCE;
     }
 
     private boolean isManagement() {
         return container.getTerminalState().getTerminalType() ==
-              mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT ||
-              container.getPortableStack().getItem() instanceof
-                    mekanism.qioprocessing.common.item.ItemPortableQIOProcessingTerminal item &&
-                    item.getTerminalType() ==
-                          mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT;
+                mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT ||
+                container.getPortableStack().getItem() instanceof
+                        mekanism.qioprocessing.common.item.ItemPortableQIOProcessingTerminal item &&
+                        item.getTerminalType() ==
+                                mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT;
     }
 
     private List<ITextComponent> frequencyText() {
         QIOFrequency frequency = container.getTerminalFrequency();
         return Collections.singletonList(frequency == null ?
-              new TextComponentTranslation("frequency.mekanism.none") :
-              MekanismLang.FREQUENCY.translate(frequency.getName()));
+                new TextComponentTranslation("frequency.mekanism.none") :
+                MekanismLang.FREQUENCY.translate(frequency.getName()));
     }
 }

@@ -67,7 +67,7 @@ public class TileEntityGasGenerator extends TileEntityGenerator implements ISust
     protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
         InventorySlotHelper builder = createInventorySlotHelper();
         fuelSlot = builder.addSlot(GasInventorySlot.fill(fuelTank, listener, 17, 35),
-              RelativeSide.FRONT, RelativeSide.LEFT, RelativeSide.BACK, RelativeSide.TOP, RelativeSide.BOTTOM);
+                RelativeSide.FRONT, RelativeSide.LEFT, RelativeSide.BACK, RelativeSide.TOP, RelativeSide.BOTTOM);
         fuelSlot.setSlotOverlay(SlotOverlay.MINUS);
         energySlot = builder.addSlot(EnergyInventorySlot.drain(this, listener, 143, 35), RelativeSide.RIGHT);
         return builder.build();
@@ -102,7 +102,7 @@ public class TileEntityGasGenerator extends TileEntityGenerator implements ISust
                 fuelTank.setStackSize(total / maxBurnTicks, Action.EXECUTE);
             }
             burnTicks = total % maxBurnTicks;
-            clientUsed = toUse /(double)  maxBurnTicks;
+            clientUsed = toUse / (double) maxBurnTicks;
         } else {
             if (!operate) {
                 reset();
@@ -125,10 +125,10 @@ public class TileEntityGasGenerator extends TileEntityGenerator implements ISust
     @Override
     protected boolean isAsyncUpdateIdle() {
         return fuelTank.isEmpty() && fuelSlot.isEmpty() && energySlot.isEmpty() && burnTicks == 0 &&
-              maxBurnTicks == 0 && generationRate == 0 && clientUsed == 0 && !getActive() &&
-              output == MekanismConfig.current().general.FROM_H2.val() * 2 &&
-              cachedRecipeVersion == RecipeHandler.Recipe.GAS_FUEL_TO_ENERGY_RECIPE.getRecipeVersion() &&
-              currentRedstoneLevel == getRedstoneLevel();
+                maxBurnTicks == 0 && generationRate == 0 && clientUsed == 0 && !getActive() &&
+                output == MekanismConfig.current().general.FROM_H2.val() * 2 &&
+                cachedRecipeVersion == RecipeHandler.Recipe.GAS_FUEL_TO_ENERGY_RECIPE.getRecipeVersion() &&
+                currentRedstoneLevel == getRedstoneLevel();
     }
 
     public void reset() {
@@ -266,10 +266,16 @@ public class TileEntityGasGenerator extends TileEntityGenerator implements ISust
     }
 
     @Override
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return type == mekanism.api.transmitters.TransmissionType.GAS;
+    }
+
+    @Override
     public int getRedstoneLevel() {
         return MekanismUtils.redstoneLevelFromContents(fuelTank.getStored(), fuelTank.getMaxGas());
     }
-public GasStackFuelToEnergyRecipe getRecipe() {
+
+    public GasStackFuelToEnergyRecipe getRecipe() {
         int recipeVersion = RecipeHandler.Recipe.GAS_FUEL_TO_ENERGY_RECIPE.getRecipeVersion();
         if (cachedRecipeVersion != recipeVersion) {
             cachedRecipe = null;
@@ -310,7 +316,7 @@ public GasStackFuelToEnergyRecipe getRecipe() {
 
         private FuelTank(IContentsListener listener) {
             super(MAX_GAS, BasicGasTank.notExternal, BasicGasTank.alwaysTrueBi,
-                  gas -> RecipeHandler.Recipe.GAS_FUEL_TO_ENERGY_RECIPE.containsRecipe(gas), listener);
+                    gas -> RecipeHandler.Recipe.GAS_FUEL_TO_ENERGY_RECIPE.containsRecipe(gas), listener);
         }
 
         @Override

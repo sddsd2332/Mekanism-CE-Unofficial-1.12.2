@@ -16,8 +16,8 @@ import mekanism.common.MekanismBlocks;
 import mekanism.common.MekanismFluids;
 import mekanism.common.Upgrade;
 import mekanism.common.base.*;
-import mekanism.common.base.IFactory.RecipeType;
 import mekanism.common.base.IBoundingBlock.BoundingBlockData;
+import mekanism.common.base.IFactory.RecipeType;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.block.states.BlockStateTransmitter.TransmitterType;
 import mekanism.common.config.MekanismConfig;
@@ -378,7 +378,7 @@ public final class MekanismUtils {
                 // def * upgradeMultiplier ^ (speed - gas)
                 //TODO: We may want to validate this provides the numbers we desire if we ever end up with any machines
                 // that use this that are not statistical and have gas upgrades so would go through this code path
-                return Math.round(def * Math.pow(MekanismConfig.current().general.maxUpgradeMultiplier.val(),   fractionUpgrades(tile, Upgrade.SPEED) - fractionUpgrades(tile, Upgrade.GAS)));
+                return Math.round(def * Math.pow(MekanismConfig.current().general.maxUpgradeMultiplier.val(), fractionUpgrades(tile, Upgrade.SPEED) - fractionUpgrades(tile, Upgrade.GAS)));
             }
         }
         return def;
@@ -534,7 +534,9 @@ public final class MekanismUtils {
         }
     }
 
-    /** Places an entire bounding layout atomically with respect to the preflight check. */
+    /**
+     * Places an entire bounding layout atomically with respect to the preflight check.
+     */
     public static boolean tryPlaceBoundingBlocks(@Nonnull World world, @Nonnull Coord4D orig, @Nonnull List<BoundingBlockData> blocks) {
         BlockPos mainPos = orig.getPos();
         Set<BlockPos> uniquePositions = new HashSet<>();
@@ -565,7 +567,9 @@ public final class MekanismUtils {
         return true;
     }
 
-    /** True when a location is loaded, in bounds, and replaceable without data loss. */
+    /**
+     * True when a location is loaded, in bounds, and replaceable without data loss.
+     */
     public static boolean isValidBoundingBlockPosition(@Nonnull World world, @Nonnull BlockPos position, @Nonnull BlockPos mainPos) {
         if (!world.isValid(position) || !world.isBlockLoaded(position, false)) {
             return false;
@@ -577,7 +581,9 @@ public final class MekanismUtils {
         return state.getBlock().isReplaceable(world, position);
     }
 
-    /** Removes only auxiliary blocks whose stored main position matches this machine. */
+    /**
+     * Removes only auxiliary blocks whose stored main position matches this machine.
+     */
     public static void removeBoundingBlocks(@Nonnull World world, @Nonnull BlockPos mainPos, @Nonnull List<BoundingBlockData> blocks) {
         Set<BlockPos> handled = new HashSet<>();
         for (BoundingBlockData block : blocks) {
@@ -789,7 +795,11 @@ public final class MekanismUtils {
         if (tileEntity == null || tileEntity.isInvalid() || tileEntity.getWorld() == null) {
             return;
         }
-        tileEntity.getWorld().markChunkDirty(tileEntity.getPos(), tileEntity);
+        if (tileEntity instanceof TileEntitySynchronized synchronizedTile) {
+            synchronizedTile.markForSave();
+        } else {
+            tileEntity.getWorld().markChunkDirty(tileEntity.getPos(), tileEntity);
+        }
     }
 
     /**
@@ -921,8 +931,8 @@ public final class MekanismUtils {
     /**
      * Formats either an absolute temperature or a temperature interval using the configured display unit.
      *
-     * @param T temperature expressed in {@code unit}
-     * @param unit unit the supplied temperature is expressed in
+     * @param T     temperature expressed in {@code unit}
+     * @param unit  unit the supplied temperature is expressed in
      * @param shift whether the display unit's zero offset should be applied
      */
     public static String getTemperatureDisplay(double T, TemperatureUnit unit, boolean shift) {
@@ -942,7 +952,7 @@ public final class MekanismUtils {
      * @return if IC2 power should be used
      */
     public static boolean useIC2() {
-        return Mekanism.hooks.IC2Loaded  && !MekanismConfig.current().general.blacklistIC2.val() && EnergyNet.instance != null;
+        return Mekanism.hooks.IC2Loaded && !MekanismConfig.current().general.blacklistIC2.val() && EnergyNet.instance != null;
     }
 
     /**
@@ -1529,8 +1539,6 @@ public final class MekanismUtils {
     }
 
 
-
-
     @FunctionalInterface
     public interface BlastEnergyFunction {
 
@@ -1541,8 +1549,6 @@ public final class MekanismUtils {
     public interface VeinEnergyFunction {
         double calc(float hardness, int distance, IBlockState state);
     }
-
-
 
 
 }

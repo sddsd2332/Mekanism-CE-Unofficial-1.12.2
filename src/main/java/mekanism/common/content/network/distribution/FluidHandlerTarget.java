@@ -23,8 +23,13 @@ public class FluidHandlerTarget extends Target<IFluidHandler, Integer, FluidStac
     }
 
     @Override
+    public Integer sendToSingle(Integer amount, FluidStack resource) {
+        return resource == null || amount <= 0 ? 0 : handlers.iterator().next().fill(FluidContainerUtils.copyWithAmount(resource, amount), true);
+    }
+
+    @Override
     protected void acceptAmount(IFluidHandler handler, SplitInfo<Integer> splitInfo, Integer amount) {
-        splitInfo.send(handler.fill(FluidContainerUtils.copyWithAmount(extra, amount), true));
+        splitInfo.send(amount > 0 ? handler.fill(FluidContainerUtils.copyWithAmount(extra, amount), true) : 0);
     }
 
     @Override

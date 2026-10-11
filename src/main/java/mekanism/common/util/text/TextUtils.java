@@ -16,7 +16,7 @@ public final class TextUtils {
     private static final NumberFormat doubleFormatter = NumberFormat.getNumberInstance();
 
     public static String getPercent(double ratio) {
-        return (Math.round(ratio * 100)) + LangUtils.localize("generic.mekanism.percent") ;
+        return (Math.round(ratio * 100)) + LangUtils.localize("generic.mekanism.percent");
     }
 
     public static String getHoursMinutes(int seconds) {
@@ -35,7 +35,7 @@ public final class TextUtils {
         long minutes = (long) Math.ceil(seconds / 60.0);
         long hours = minutes / 60;
         return hours > 0 ? LangUtils.localizeWithFormat("generic.mekanism.hours_minutes", hours, minutes % 60)
-                         : LangUtils.localizeWithFormat("generic.mekanism.minutes", minutes);
+                : LangUtils.localizeWithFormat("generic.mekanism.minutes", minutes);
     }
 
     public static String format(long count) {

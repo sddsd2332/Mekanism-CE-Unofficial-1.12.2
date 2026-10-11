@@ -2,14 +2,7 @@ package mekanism.common.integration.groovyscript;
 
 import com.cleanroommc.groovyscript.GroovyScript;
 import com.cleanroommc.groovyscript.api.GroovyLog;
-import com.cleanroommc.groovyscript.api.documentation.annotations.Comp;
-import com.cleanroommc.groovyscript.api.documentation.annotations.Example;
-import com.cleanroommc.groovyscript.api.documentation.annotations.MethodDescription;
-import com.cleanroommc.groovyscript.api.documentation.annotations.Property;
-import com.cleanroommc.groovyscript.api.documentation.annotations.RecipeBuilderDescription;
-import com.cleanroommc.groovyscript.api.documentation.annotations.RecipeBuilderMethodDescription;
-import com.cleanroommc.groovyscript.api.documentation.annotations.RecipeBuilderRegistrationMethod;
-import com.cleanroommc.groovyscript.api.documentation.annotations.RegistryDescription;
+import com.cleanroommc.groovyscript.api.documentation.annotations.*;
 import com.cleanroommc.groovyscript.helper.Alias;
 import com.cleanroommc.groovyscript.registry.NamedRegistry;
 import com.cleanroommc.groovyscript.sandbox.LoadStage;
@@ -24,10 +17,10 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 
 @RegistryDescription(
-      location = LoadStage.PRE_INIT,
-      reloadability = RegistryDescription.Reloadability.DISABLED,
-      category = RegistryDescription.Category.ENTRIES,
-      priority = 50
+        location = LoadStage.PRE_INIT,
+        reloadability = RegistryDescription.Reloadability.DISABLED,
+        category = RegistryDescription.Category.ENTRIES,
+        priority = 50
 )
 public class GasRegistration extends NamedRegistry {
 
@@ -129,7 +122,7 @@ public class GasRegistration extends NamedRegistry {
         msg.add(builder.tint < 0 || builder.tint > 0xFFFFFF, () -> "tint must be between 0x000000 and 0xFFFFFF");
         msg.add(invalidTranslationKey, () -> "translation key must not be empty");
         msg.add(builder.radioactivity < 0 || Double.isNaN(builder.radioactivity) || Double.isInfinite(builder.radioactivity),
-              () -> "radioactivity must be a finite value greater than or equal to zero");
+                () -> "radioactivity must be a finite value greater than or equal to zero");
         msg.add(builder.fluidName != null && builder.fluidName.isEmpty(), () -> "fluid name must not be empty");
         if (msg.postIfNotEmpty()) {
             return null;

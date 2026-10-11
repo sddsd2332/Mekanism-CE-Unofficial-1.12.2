@@ -4,8 +4,8 @@ import mekanism.common.multiblock.MultiblockCache;
 import mekanism.common.tile.TileEntityGasTank.GasMode;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.FluidRegistry;
+import net.minecraftforge.fluids.FluidStack;
 
 public class TurbineCache extends MultiblockCache<SynchronizedTurbineData> {
 

@@ -9,7 +9,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.function.IntSupplier;
 
-/** Player main-inventory slot whose screen position is supplied by a GUI window. */
+/**
+ * Player main-inventory slot whose screen position is supplied by a GUI window.
+ */
 public class VirtualMainInventorySlot extends MainInventorySlot implements IVirtualSlot {
 
     private final VirtualSlotData virtualData = new VirtualSlotData(() -> xPos, () -> yPos);
@@ -36,13 +38,13 @@ public class VirtualMainInventorySlot extends MainInventorySlot implements IVirt
 
     @Override
     public void updatePosition(@Nullable IGUIWindow window, IntSupplier xPositionSupplier,
-          IntSupplier yPositionSupplier) {
+                               IntSupplier yPositionSupplier) {
         virtualData.updatePosition(window, xPositionSupplier, yPositionSupplier);
     }
 
     @Override
     public void updateRenderInfo(@Nonnull ItemStack stackToRender, boolean shouldDrawOverlay,
-          @Nullable String tooltipOverride) {
+                                 @Nullable String tooltipOverride) {
         virtualData.updateRenderInfo(stackToRender, shouldDrawOverlay, tooltipOverride);
     }
 

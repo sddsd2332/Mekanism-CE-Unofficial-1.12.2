@@ -65,28 +65,57 @@ public class HandlerTransitRequest extends CollectionTransitRequest {
         @Override
         public ItemStack use(int amount) {
             IItemHandler handler = getHandler();
-            if (handler != null && !slotMap.isEmpty()) {
+            if (handler != null && !slotMap.isEmpty() && amount > 0) {
                 HashedItem itemType = getItemType();
                 ItemStack itemStack = itemType.getInternalStack();
+                int extractedTotal = 0;
                 for (ObjectIterator<Int2IntMap.Entry> iterator = slotMap.int2IntEntrySet().iterator(); iterator.hasNext(); ) {
                     Int2IntMap.Entry entry = iterator.next();
                     int slot = entry.getIntKey();
                     int currentCount = entry.getIntValue();
                     int toUse = Math.min(amount, currentCount);
+                    if (toUse <= 0) {
+                        continue;
+                    }
                     ItemStack ret = handler.extractItem(slot, toUse, false);
                     boolean stackable = InventoryUtils.areItemsStackable(itemStack, ret);
-                    if (!stackable || ret.getCount() != toUse) {
+                    int extracted = ret.isEmpty() ? 0 : ret.getCount();
+                    if (!stackable) {
                         Mekanism.logger.warn("An inventory's returned content {} does not line up with HandlerTransitRequest's prediction.", stackable ? "count" : "type");
                         Mekanism.logger.warn("HandlerTransitRequest item: {}, toUse: {}, ret: {}, slot: {}", itemStack, toUse, ret, slot);
                         Mekanism.logger.warn("ItemHandler: {}", handler.getClass().getName());
+                        // Forge has no transaction API in 1.12. If the handler
+                        // changed type between planning and execution, restore
+                        // the unexpected stack before aborting this response.
+                        if (!ret.isEmpty()) {
+                            ItemStack remainder = handler.insertItem(slot, ret, false);
+                            if (!remainder.isEmpty()) {
+                                Mekanism.logger.error("Unable to restore mismatched ItemHandler extraction: {}", remainder);
+                            }
+                        }
+                        break;
                     }
-                    amount -= toUse;
-                    totalCount -= toUse;
+                    if (extracted != toUse) {
+                        Mekanism.logger.warn("An inventory's returned content count does not line up with HandlerTransitRequest's prediction.");
+                        Mekanism.logger.warn("HandlerTransitRequest item: {}, toUse: {}, ret: {}, slot: {}", itemStack, toUse, ret, slot);
+                        Mekanism.logger.warn("ItemHandler: {}", handler.getClass().getName());
+                    }
+                    // Never debit the prediction. The handler's returned stack
+                    // is the only authoritative amount in this non-transactional
+                    // 1.12 API. A short return remains in slotMap and can be
+                    // retried by the next request without creating phantom items.
+                    extracted = Math.min(toUse, Math.max(0, extracted));
+                    if (extracted == 0) {
+                        break;
+                    }
+                    amount -= extracted;
+                    totalCount -= extracted;
                     if (totalCount == 0) {
                         itemMap.remove(itemType);
                     }
-                    currentCount -= toUse;
-                    if (currentCount == 0) {
+                    currentCount -= extracted;
+                    extractedTotal += extracted;
+                    if (currentCount <= 0) {
                         iterator.remove();
                     } else {
                         entry.setValue(currentCount);
@@ -95,8 +124,9 @@ public class HandlerTransitRequest extends CollectionTransitRequest {
                         break;
                     }
                 }
+                return extractedTotal == 0 ? ItemStack.EMPTY : itemType.createStack(extractedTotal);
             }
-            return getStack();
+            return ItemStack.EMPTY;
         }
     }
 }

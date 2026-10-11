@@ -2,7 +2,9 @@ package mekanism.common.recipe.lookup;
 
 import java.util.Objects;
 
-/** Identifies an entry in exactly one table publication; it never retains the live recipe. */
+/**
+ * Identifies an entry in exactly one table publication; it never retains the live recipe.
+ */
 public final class RecipeEntryToken {
     private final RecipeTableStamp table;
     private final int ordinal;
@@ -13,10 +15,21 @@ public final class RecipeEntryToken {
         this.ordinal = ordinal;
     }
 
-    public RecipeTableStamp getTable() { return table; }
-    public int getOrdinal() { return ordinal; }
-    @Override public int hashCode() { return 31 * table.hashCode() + ordinal; }
-    @Override public boolean equals(Object other) {
+    public RecipeTableStamp getTable() {
+        return table;
+    }
+
+    public int getOrdinal() {
+        return ordinal;
+    }
+
+    @Override
+    public int hashCode() {
+        return 31 * table.hashCode() + ordinal;
+    }
+
+    @Override
+    public boolean equals(Object other) {
         if (this == other) return true;
         if (!(other instanceof RecipeEntryToken)) return false;
         RecipeEntryToken token = (RecipeEntryToken) other;

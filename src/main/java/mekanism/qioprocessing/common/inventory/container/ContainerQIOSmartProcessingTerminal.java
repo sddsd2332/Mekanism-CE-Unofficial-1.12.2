@@ -4,9 +4,9 @@ import mekanism.common.content.qio.QIOFrequency;
 import mekanism.common.frequency.FrequencyType;
 import mekanism.common.inventory.container.QIOItemViewerContainer;
 import mekanism.common.util.SecurityUtils;
-import mekanism.qioprocessing.common.terminal.QIOProcessingTerminalSession;
 import mekanism.qioprocessing.common.network.PacketQIOProcessingTerminalPreference;
 import mekanism.qioprocessing.common.network.QIOProcessingPacketHandler;
+import mekanism.qioprocessing.common.terminal.QIOProcessingTerminalSession;
 import mekanism.qioprocessing.common.tile.QIOProcessingTerminal;
 import mekanism.qioprocessing.common.tile.TileEntityQIOSmartProcessingTerminal;
 import net.minecraft.entity.player.EntityPlayer;
@@ -18,7 +18,10 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.UUID;
 
-/** Block smart-processing viewer with three native QIO manual crafting windows. */
+/**
+ * Block smart-processing viewer with three native QIO manual crafting windows.
+ */
+
 /**
  * QIO 处理模块中的 ContainerQIOSmartProcessingTerminal 类型。
  *
@@ -26,28 +29,28 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class ContainerQIOSmartProcessingTerminal extends QIOItemViewerContainer
-      implements QIOBlockTerminalContainer, QIOProcessingTerminalFrequencyContainer,
-      QIOSmartProcessingPageContainer {
+        implements QIOBlockTerminalContainer, QIOProcessingTerminalFrequencyContainer,
+        QIOSmartProcessingPageContainer {
 
     private final TileEntityQIOSmartProcessingTerminal terminal;
     private final QIOBlockTerminalSessionTarget sessionTarget;
     private final QIOProcessingTerminalContainerState terminalState;
     private final QIOSmartProcessingClientCache smartProcessingClientCache =
-          new QIOSmartProcessingClientCache();
+            new QIOSmartProcessingClientCache();
     private final QIOSmartProcessingRequestLedger smartProcessingRequestLedger =
-          new QIOSmartProcessingRequestLedger();
+            new QIOSmartProcessingRequestLedger();
     private long lastSmartProcessingRequestTick = Long.MIN_VALUE;
     private long lastSmartProcessingPollTick = Long.MIN_VALUE;
 
     public ContainerQIOSmartProcessingTerminal(InventoryPlayer inventory,
-          TileEntityQIOSmartProcessingTerminal terminal) {
+                                               TileEntityQIOSmartProcessingTerminal terminal) {
         super(inventory, terminal == null ? null : terminal.getQIOFrequency(), false);
         this.terminal = terminal;
         setCraftingWindowHolder(terminal);
         terminal.addContainerTrackers(this);
         sessionTarget = new QIOBlockTerminalSessionTarget(inventory, terminal, isRemote());
         terminalState = new QIOProcessingTerminalContainerState(this,
-              this::getTerminalSession);
+                this::getTerminalSession);
         addSlotsAndOpen();
         openViewer();
     }
@@ -141,7 +144,7 @@ public final class ContainerQIOSmartProcessingTerminal extends QIOItemViewerCont
 
     @Override
     public boolean acceptAuthorizedBindingChange(long expectedRevision,
-          long updatedRevision) {
+                                                 long updatedRevision) {
         return sessionTarget.acceptMutation(expectedRevision, updatedRevision);
     }
 
@@ -210,8 +213,8 @@ public final class ContainerQIOSmartProcessingTerminal extends QIOItemViewerCont
     public void toggleTargetDirection() {
         if (isRemote() && terminalState.isValid()) {
             QIOProcessingPacketHandler.INSTANCE.sendToServer(
-                  PacketQIOProcessingTerminalPreference.Message.create(windowId,
-                        terminalState));
+                    PacketQIOProcessingTerminalPreference.Message.create(windowId,
+                            terminalState));
         }
     }
 
@@ -236,6 +239,6 @@ public final class ContainerQIOSmartProcessingTerminal extends QIOItemViewerCont
             return !isKilled();
         }
         return !isKilled() && terminal.isUsableByPlayer(player) &&
-              SecurityUtils.canAccess(player, terminal) && sessionTarget.validate(player);
+                SecurityUtils.canAccess(player, terminal) && sessionTarget.validate(player);
     }
 }

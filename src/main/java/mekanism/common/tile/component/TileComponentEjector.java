@@ -39,6 +39,7 @@ import java.util.function.DoubleSupplier;
 import java.util.function.Predicate;
 
 public class TileComponentEjector implements ITileComponent, ISpecificContainerTracker {
+    private static final TransmissionType[] TRANSMISSION_TYPES = TransmissionType.values();
 
 
     private TileEntityContainerBlock tileEntity;
@@ -47,6 +48,7 @@ public class TileComponentEjector implements ITileComponent, ISpecificContainerT
     private EnumColor outputColor;
     private EnumColor[] inputColors = new EnumColor[]{null, null, null, null, null, null};
     private int tickDelay = 0;
+    private final EjectorSlotIndex[] outputSlotIndices = new EjectorSlotIndex[6];
     private Map<TransmissionType, TileComponentConfig> configSources = new EnumMap<>(TransmissionType.class);
     private Map<TransmissionType, ConfigInfo> configInfo = new EnumMap<>(TransmissionType.class);
     private Predicate<TransmissionType> canEject;
@@ -67,7 +69,7 @@ public class TileComponentEjector implements ITileComponent, ISpecificContainerT
     private TileComponentEjector(TileEntityContainerBlock tile, DoubleSupplier energyEjectRate) {
         tileEntity = tile;
         this.energyEjectRate = energyEjectRate;
-        tile.components.add(this);
+        tile.addComponent(this);
     }
 
     public TileComponentEjector setOutputData(TileComponentConfig config, TransmissionType... types) {
@@ -98,6 +100,7 @@ public class TileComponentEjector implements ITileComponent, ISpecificContainerT
     }
 
     public void readFrom(TileComponentEjector ejector) {
+        Arrays.fill(outputSlotIndices, null);
         strictInput = ejector.strictInput;
         outputColor = ejector.outputColor;
         inputColors = ejector.inputColors;
@@ -113,12 +116,7 @@ public class TileComponentEjector implements ITileComponent, ISpecificContainerT
         return info != null && info.isEjecting() && (canEject == null || canEject.test(type));
     }
 
-    @Override
-    public void tick() {
-        if (tileEntity.getWorld().isRemote) {
-            return;
-        }
-
+    public void tickServer() {
         if (tickDelay == 0 || MekanismConfig.current().mekce.ItemsEjectWithoutDelay.val()) {
             inputItemsByConfig();
             outputItemsByConfig();
@@ -129,8 +127,9 @@ public class TileComponentEjector implements ITileComponent, ISpecificContainerT
             tickDelay--;
         }
 
-        for (TransmissionType type : new ArrayList<>(configInfo.keySet())) {
-            if (type != TransmissionType.ITEM && type != TransmissionType.HEAT) {
+        // Modern Mek walks a cached enum array instead of allocating a key snapshot per tick.
+        for (TransmissionType type : TRANSMISSION_TYPES) {
+            if (type != TransmissionType.ITEM && type != TransmissionType.HEAT && configInfo.containsKey(type)) {
                 ejectByConfig(type);
             }
         }
@@ -245,7 +244,7 @@ public class TileComponentEjector implements ITileComponent, ISpecificContainerT
             if (targetHandler == null) {
                 continue;
             }
-            TransitRequest ejectMap = getEjectItemMap(handler, sideSlots, outputSlots);
+            TransitRequest ejectMap = getEjectItemMap(handler, sideSlots, outputSlots, side);
             while (!ejectMap.isEmpty()) {
                 TransitResponse response = ejectMap.eject(self, targetHandler, 0, ignored -> outputColor);
                 if (response.isEmpty()) {
@@ -342,14 +341,16 @@ public class TileComponentEjector implements ITileComponent, ISpecificContainerT
             for (Object container : tanks) {
                 IEnergyContainer energyContainer = (IEnergyContainer) container;
                 CableUtils.emit(outputData.get(container), energyContainer, tileEntity,
-                      energyEjectRate == null ? energyContainer.getMaxEnergy() : energyEjectRate.getAsDouble());
+                        energyEjectRate == null ? energyContainer.getMaxEnergy() : energyEjectRate.getAsDouble());
             }
         }
         return true;
     }
 
     private void inputItemsByConfig() {
-        ConfigInfo info = getConfigInfo(TransmissionType.ITEM);
+        // Input configuration is independent of the transmission types registered for output.
+        TileComponentConfig config = tileEntity instanceof ISideConfiguration sideConfiguration ? sideConfiguration.getConfig() : null;
+        ConfigInfo info = config == null ? getConfigInfo(TransmissionType.ITEM) : config.getConfigInfo(TransmissionType.ITEM);
         if (info == null) {
             return;
         }
@@ -395,7 +396,7 @@ public class TileComponentEjector implements ITileComponent, ISpecificContainerT
                 continue;
             }
             if (inputFromExternalSlot(external, externalSlot, externalStack, internalSlots, side, true) ||
-                  inputFromExternalSlot(external, externalSlot, externalStack, internalSlots, side, false)) {
+                    inputFromExternalSlot(external, externalSlot, externalStack, internalSlots, side, false)) {
                 return true;
             }
         }
@@ -403,7 +404,7 @@ public class TileComponentEjector implements ITileComponent, ISpecificContainerT
     }
 
     private boolean inputFromExternalSlot(IItemHandler external, int externalSlot, ItemStack externalStack, List<IInventorySlot> internalSlots, EnumFacing side,
-          boolean ignoreEmpty) {
+                                          boolean ignoreEmpty) {
         int maxCanExtract = Math.min(externalStack.getCount(), externalStack.getMaxStackSize());
         for (IInventorySlot internalSlot : internalSlots) {
             if (ignoreEmpty == internalSlot.isEmpty()) {
@@ -431,20 +432,31 @@ public class TileComponentEjector implements ITileComponent, ISpecificContainerT
         return false;
     }
 
-    private TransitRequest getEjectItemMap(IItemHandler handler, List<IInventorySlot> sideSlots, List<IInventorySlot> outputSlots) {
+    private TransitRequest getEjectItemMap(IItemHandler handler, List<IInventorySlot> sideSlots, List<IInventorySlot> outputSlots, EnumFacing side) {
+        EjectorSlotIndex indices = outputSlotIndices[side.ordinal()];
+        if (indices == null || !indices.matches(sideSlots)) {
+            outputSlotIndices[side.ordinal()] = indices = new EjectorSlotIndex(sideSlots);
+        }
         HandlerTransitRequest request = new HandlerTransitRequest(handler);
         List<IInventorySlot> shuffled = new ArrayList<>(outputSlots);
         Collections.shuffle(shuffled);
         for (IInventorySlot slot : shuffled) {
-            int slotIndex = sideSlots.indexOf(slot);
+            int slotIndex = indices.indexOf(sideSlots, slot);
             if (slotIndex != -1) {
                 addToEjectItemMap(request, slot, slotIndex);
             }
+        }
+        // Simulation/protection callbacks can rebuild or reorder the holder. No items have
+        // been extracted yet: discard this proposal and retry next tick with the new layout.
+        if (!indices.matches(tileEntity.getInventorySlots(side))) {
+            outputSlotIndices[side.ordinal()] = null;
+            return new HandlerTransitRequest(handler);
         }
         return request;
     }
 
     private void addToEjectItemMap(HandlerTransitRequest request, IInventorySlot slot, int index) {
+        if (slot.isEmpty()) return;
         if (tileEntity.isContainerExtractionGuarded(slot)) {
             return;
         }
@@ -548,6 +560,7 @@ public class TileComponentEjector implements ITileComponent, ISpecificContainerT
 
     @Override
     public void invalidate() {
+        Arrays.fill(outputSlotIndices, null);
     }
 
     @Override

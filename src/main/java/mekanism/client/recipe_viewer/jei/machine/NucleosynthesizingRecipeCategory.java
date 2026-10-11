@@ -6,7 +6,7 @@ import mekanism.common.recipe.machines.NucleosynthesizerRecipe;
 import mezz.jei.api.IGuiHelper;
 
 public class NucleosynthesizingRecipeCategory<WRAPPER extends AntiprotonicNucleosynthesizerRecipeWrapper<NucleosynthesizerRecipe>>
-      extends mekanism.client.jei.machine.NucleosynthesizingRecipeCategory<WRAPPER> {
+        extends mekanism.client.jei.machine.NucleosynthesizingRecipeCategory<WRAPPER> {
 
     public NucleosynthesizingRecipeCategory(IGuiHelper helper, IRecipeViewerRecipeType<?> recipeType) {
         super(helper, recipeType);

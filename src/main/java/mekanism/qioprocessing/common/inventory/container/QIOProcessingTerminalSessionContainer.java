@@ -4,7 +4,10 @@ import mekanism.qioprocessing.common.terminal.QIOProcessingTerminalSession;
 
 import javax.annotation.Nullable;
 
-/** Marker used by terminal packet handlers to obtain the server-owned open session. */
+/**
+ * Marker used by terminal packet handlers to obtain the server-owned open session.
+ */
+
 /**
  * QIO 处理模块中的 QIOProcessingTerminalSessionContainer 类型。
  *
@@ -25,6 +28,6 @@ public interface QIOProcessingTerminalSessionContainer {
      */
     default int getTerminalWindowId() {
         return this instanceof net.minecraft.inventory.Container ?
-              ((net.minecraft.inventory.Container) this).windowId : -1;
+                ((net.minecraft.inventory.Container) this).windowId : -1;
     }
 }

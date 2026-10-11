@@ -3,16 +3,9 @@ package mekanism.common.multiblock;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import mekanism.api.Coord4D;
-import mekanism.common.tile.multiblock.TileEntityMultiblock;
-import mekanism.common.multiblock.persistence.LegacyReplicaSelection;
-import mekanism.common.multiblock.persistence.ManagedCacheIo;
-import mekanism.common.multiblock.persistence.MultiblockBackpressureException;
-import mekanism.common.multiblock.persistence.ManagedCacheNbt;
-import mekanism.common.multiblock.persistence.ManagedCacheStore;
-import mekanism.common.multiblock.persistence.LegacyIndexLoader;
-import mekanism.common.multiblock.persistence.MultiblockPersistenceSession;
-import mekanism.common.multiblock.persistence.MultiblockStoragePaths;
 import mekanism.common.Mekanism;
+import mekanism.common.multiblock.persistence.*;
+import mekanism.common.tile.multiblock.TileEntityMultiblock;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
@@ -30,7 +23,9 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
 
     public String name;
 
-    /** World identity, not a dimension number: multiple saves can reuse the same dimension/UUID. */
+    /**
+     * World identity, not a dimension number: multiple saves can reuse the same dimension/UUID.
+     */
     private final Map<World, WorldCacheState<T>> worlds = new IdentityHashMap<>();
 
     private static final class WorldCacheState<T extends SynchronizedData<T>> {
@@ -54,8 +49,9 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
         final MultiblockPersistenceSession.Transfer transfer;
         final Collection<ManagedCacheStore.SourceKey> sources;
         final List<TileEntityMultiblock<T>> casings;
+
         PendingFormation(MultiblockPersistenceSession.Transfer transfer, Collection<ManagedCacheStore.SourceKey> sources,
-              Collection<TileEntityMultiblock<T>> casings) {
+                         Collection<TileEntityMultiblock<T>> casings) {
             this.transfer = transfer;
             this.sources = new ArrayList<>(sources);
             this.casings = new ArrayList<>(casings);
@@ -71,7 +67,9 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
         return state == null ? null : state.inventories.get(id);
     }
 
-    /** Select a single detached legacy replica before consuming an ID during formation. */
+    /**
+     * Select a single detached legacy replica before consuming an ID during formation.
+     */
     public MultiblockCache<T> selectFormationCache(World world, String id, Collection<TileEntityMultiblock<T>> loaded, T target) throws IOException {
         WorldCacheState<T> state = worlds.get(world);
         MultiblockCache<T> current = state == null ? null : state.inventories.get(id);
@@ -101,7 +99,8 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
         result.load(snapshot);
         NBTTagCompound restored = new NBTTagCompound();
         result.save(restored);
-        if (!snapshot.equals(restored)) throw new IOException("Selected legacy cache cannot round-trip without changing stored state");
+        if (!snapshot.equals(restored))
+            throw new IOException("Selected legacy cache cannot round-trip without changing stored state");
         result.locations.addAll(current.locations);
         return result;
     }
@@ -136,7 +135,10 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
                 Mekanism.logger.error("Multiblock shutdown has unresolved runtime snapshots for {}; recover failed stores before stopping the server", manager.name);
             }
         }
-        if (legacyLoader != null) { legacyLoader.close(); legacyLoader = null; }
+        if (legacyLoader != null) {
+            legacyLoader.close();
+            legacyLoader = null;
+        }
         if (storageIo != null) {
             storageIo.close();
             retiringStores.add(storageIo);
@@ -145,7 +147,9 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
         pollClosedSessions();
     }
 
-    /** Only after server ticks have stopped: the owner thread must capture any budget-deferred state. */
+    /**
+     * Only after server ticks have stopped: the owner thread must capture any budget-deferred state.
+     */
     public static void shutdown() {
         long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(60);
         boolean interrupted = false;
@@ -156,13 +160,20 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
                 }
                 if (MANAGERS.stream().allMatch(manager -> manager.worlds.isEmpty())) break;
                 if (System.nanoTime() >= deadline) break;
-                try { Thread.sleep(10); }
-                catch (InterruptedException error) { interrupted = true; break; }
+                try {
+                    Thread.sleep(10);
+                } catch (InterruptedException error) {
+                    interrupted = true;
+                    break;
+                }
             }
             reset();
             while (!isPersistenceStopped() && System.nanoTime() < deadline && !interrupted) {
-                try { Thread.sleep(10); }
-                catch (InterruptedException error) { interrupted = true; }
+                try {
+                    Thread.sleep(10);
+                } catch (InterruptedException error) {
+                    interrupted = true;
+                }
             }
             if (!isPersistenceStopped()) {
                 Mekanism.logger.error("Multiblock shutdown did not finish within its drain deadline; latest runtime snapshots may not be durable. Preserve the world and emergency journals.");
@@ -177,19 +188,24 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
         while (iterator.hasNext()) {
             ManagedCacheIo.Ticket<Void> ticket = iterator.next();
             if (ticket.isDone()) {
-                try { ticket.result(); }
-                catch (IOException error) { Mekanism.logger.error("Multiblock final save/close failed", error); }
+                try {
+                    ticket.result();
+                } catch (IOException error) {
+                    Mekanism.logger.error("Multiblock final save/close failed", error);
+                }
                 iterator.remove();
             }
         }
     }
 
-    /** Nonblocking shutdown status for lifecycle diagnostics and standalone server harnesses. */
+    /**
+     * Nonblocking shutdown status for lifecycle diagnostics and standalone server harnesses.
+     */
     public static boolean isPersistenceStopped() {
         pollClosedSessions();
         retiringStores.removeIf(ManagedCacheIo::isTerminated);
         return storageIo == null && retiringStores.isEmpty() && closingSessions.isEmpty() &&
-              MANAGERS.stream().allMatch(manager -> manager.worlds.isEmpty());
+                MANAGERS.stream().allMatch(manager -> manager.worlds.isEmpty());
     }
 
     public static void unload(World world) {
@@ -201,20 +217,24 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
     }
 
     public static void saveAll() {
-        for (MultiblockManager<?> manager : MANAGERS) for (World world : new ArrayList<>(manager.worlds.keySet())) manager.saveWorld(world);
+        for (MultiblockManager<?> manager : MANAGERS)
+            for (World world : new ArrayList<>(manager.worlds.keySet())) manager.saveWorld(world);
     }
 
-    /** Explicit retry of a failed read-only history load; never clears a durable writer failure. */
+    /**
+     * Explicit retry of a failed read-only history load; never clears a durable writer failure.
+     */
     public static int retryLegacyHistory(World world) {
         int count = 0;
         for (MultiblockManager<?> manager : MANAGERS) {
             WorldCacheState<?> state = manager.worlds.get(world);
             if (state != null && state.persistence != null && state.persistence.state() == MultiblockPersistenceSession.State.READY &&
-                  state.persistence.legacyFailure() != null) {
+                    state.persistence.legacyFailure() != null) {
                 state.persistence.retryLegacyIndex();
                 count++;
                 for (TileEntity tile : world.loadedTileEntityList) {
-                    if (tile instanceof TileEntityMultiblock<?> casing && casing.getManager() == manager) casing.requestCacheRetry();
+                    if (tile instanceof TileEntityMultiblock<?> casing && casing.getManager() == manager)
+                        casing.requestCacheRetry();
                 }
             }
         }
@@ -228,8 +248,9 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
             if (state == null) continue;
             long observedLegacy = state.inventories.keySet().stream().filter(id -> !state.managed.contains(id)).count();
             result.add(manager.name + " observedLegacyCaches=" + observedLegacy + " " +
-                  (state.persistence == null ? "state=NOT_OPENED" : state.persistence.diagnostics().toString()));
-            if (state.persistenceFailure != null) result.add(manager.name + " managerFailure=" + state.persistenceFailure);
+                    (state.persistence == null ? "state=NOT_OPENED" : state.persistence.diagnostics().toString()));
+            if (state.persistenceFailure != null)
+                result.add(manager.name + " managerFailure=" + state.persistenceFailure);
         }
         if (result.isEmpty()) result.add("No observed multiblock sessions in this world");
         return result;
@@ -240,7 +261,8 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
         for (MultiblockManager<?> manager : MANAGERS) {
             WorldCacheState<?> state = manager.worlds.get(world);
             if (state == null || state.persistenceFailure == null || state.recovering) continue;
-            if (state.recoverySnapshotFailure != null) throw new IOException("Cannot recover " + manager.name + ": runtime snapshot was not retained", state.recoverySnapshotFailure);
+            if (state.recoverySnapshotFailure != null)
+                throw new IOException("Cannot recover " + manager.name + ": runtime snapshot was not retained", state.recoverySnapshotFailure);
             if (state.persistence == null || state.persistence.state() != MultiblockPersistenceSession.State.FAILED) {
                 throw new IOException("Cannot recover " + manager.name + ": failure requires a world reload");
             }
@@ -251,20 +273,23 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
         return count;
     }
 
-    /** null means preparation/close-drain is still in progress; no server-thread waits. */
+    /**
+     * null means preparation/close-drain is still in progress; no server-thread waits.
+     */
     public MultiblockPersistenceSession persistence(World world) throws IOException {
         WorldCacheState<T> state = state(world);
         if (state.recovering) return null;
         if (state.persistenceFailure != null) throw state.persistenceFailure;
         // An earlier close may still own this exact World during a failed unload retry.
         if (state.persistence != null && (state.persistence.state() == MultiblockPersistenceSession.State.CLOSING ||
-              state.persistence.state() == MultiblockPersistenceSession.State.CLOSED)) return null;
+                state.persistence.state() == MultiblockPersistenceSession.State.CLOSED)) return null;
         if (state.persistence == null) {
             if (world.getTotalWorldTime() < state.nextRetryTick) return null;
             try {
                 MultiblockStoragePaths paths = MultiblockStoragePaths.resolve(world, name);
                 retiringStores.removeIf(ManagedCacheIo::isTerminated);
-                for (ManagedCacheIo retiring : retiringStores) if (!retiring.isReleased(paths.managedDirectory)) return null;
+                for (ManagedCacheIo retiring : retiringStores)
+                    if (!retiring.isReleased(paths.managedDirectory)) return null;
                 if (storageIo == null) storageIo = new ManagedCacheIo();
                 if (legacyLoader == null) legacyLoader = new LegacyIndexLoader();
                 if (!storageIo.isReleased(paths.managedDirectory)) return null;
@@ -303,7 +328,8 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
         cache.load(snapshot);
         NBTTagCompound restored = new NBTTagCompound();
         cache.save(restored);
-        if (!snapshot.equals(restored)) throw new IOException("Managed cache cannot round-trip without changing stored state: " + id);
+        if (!snapshot.equals(restored))
+            throw new IOException("Managed cache cannot round-trip without changing stored state: " + id);
         return cache;
     }
 
@@ -322,15 +348,19 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
         if (state == null || structure.inventoryID == null) return;
         String id = structure.inventoryID;
         if (state.bindings.get(id) == structure) {
-            try { snapshot(state, id, structure); }
-            catch (IOException error) { failPersistence(world, state, error); return; }
+            try {
+                snapshot(state, id, structure);
+            } catch (IOException error) {
+                failPersistence(world, state, error);
+                return;
+            }
             state.persistence.unbind(UUID.fromString(id), structure);
             state.bindings.remove(id);
         }
     }
 
     public boolean beginTransfer(World world, Collection<ManagedCacheStore.SourceKey> sources, long[] positions,
-          MultiblockCache<T> cache, Collection<TileEntityMultiblock<T>> casings) throws IOException {
+                                 MultiblockCache<T> cache, Collection<TileEntityMultiblock<T>> casings) throws IOException {
         MultiblockPersistenceSession session = persistence(world);
         if (session == null || state(world).pending != null) return false;
         NBTTagCompound tag = new NBTTagCompound();
@@ -347,7 +377,8 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
         PendingFormation<T> pending = state.pending;
         if (pending != null && pending.transfer.aborted()) {
             for (TileEntityMultiblock<T> tile : pending.casings) {
-                if (!tile.isInvalid() && tile.getWorld() == world && world.isBlockLoaded(tile.getPos()) && world.getTileEntity(tile.getPos()) == tile) tile.requestCacheRetry();
+                if (!tile.isInvalid() && tile.getWorld() == world && world.isBlockLoaded(tile.getPos()) && world.getTileEntity(tile.getPos()) == tile)
+                    tile.requestCacheRetry();
             }
             state.pending = null;
             return;
@@ -374,7 +405,10 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
                 tile.cachedData = tile.getNewCache();
                 tile.cachedDataTimestamp = Long.MIN_VALUE;
                 tile.markDirty();
-                if (!retryRequested) { tile.requestCacheRetry(); retryRequested = true; }
+                if (!retryRequested) {
+                    tile.requestCacheRetry();
+                    retryRequested = true;
+                }
             }
         }
         state.pending = null;
@@ -382,7 +416,7 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
 
     private void snapshot(WorldCacheState<T> state, String id, T structure) throws IOException {
         if (state.persistence == null || state.persistence.state() != MultiblockPersistenceSession.State.READY ||
-              state.persistence.reserved(ManagedCacheStore.SourceKey.managed(UUID.fromString(id)))) return;
+                state.persistence.reserved(ManagedCacheStore.SourceKey.managed(UUID.fromString(id)))) return;
         MultiblockCache<T> cache = state.inventories.get(id);
         if (cache == null) throw new IOException("Missing runtime authority: " + id);
         cache.sync(structure);
@@ -391,7 +425,9 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
         state.persistence.changed(UUID.fromString(id), ManagedCacheNbt.encode(tag));
     }
 
-    private void saveWorld(World world) { saveWorld(world, true); }
+    private void saveWorld(World world) {
+        saveWorld(world, true);
+    }
 
     private void saveWorld(World world, boolean force) {
         WorldCacheState<T> state = worlds.get(world);
@@ -407,7 +443,8 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
         try {
             pollTransfer(world, state);
             if (state.persistence.state() != MultiblockPersistenceSession.State.READY) return;
-            for (Map.Entry<String, T> bound : state.bindings.entrySet()) snapshot(state, bound.getKey(), bound.getValue());
+            for (Map.Entry<String, T> bound : state.bindings.entrySet())
+                snapshot(state, bound.getKey(), bound.getValue());
             long tick = world.getTotalWorldTime();
             if (force || tick >= state.nextSaveTick) {
                 if (state.persistence.flush()) state.nextSaveTick = tick + 100;
@@ -419,7 +456,8 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
 
     private void failPersistence(World world, WorldCacheState<T> state, IOException error) {
         boolean firstFailure = state.persistenceFailure == null;
-        if (state.persistenceFailure == null) Mekanism.logger.error("Multiblock {} in dimension {} is paused: {}", name, world.provider.getDimension(), error.toString());
+        if (state.persistenceFailure == null)
+            Mekanism.logger.error("Multiblock {} in dimension {} is paused: {}", name, world.provider.getDimension(), error.toString());
         state.persistenceFailure = error;
         if (firstFailure) state.nextRetryTick = world.getTotalWorldTime() + 20;
         if (firstFailure) retainPausedSnapshots(state);
@@ -428,7 +466,8 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
             structure.destroyed = true;
             for (Coord4D coordinate : structure.locations) {
                 TileEntity tile = coordinate.getTileEntity(world);
-                if (tile instanceof TileEntityMultiblock<?> multiblock && multiblock.structure == structure) multiblock.structure = null;
+                if (tile instanceof TileEntityMultiblock<?> multiblock && multiblock.structure == structure)
+                    multiblock.structure = null;
             }
         }
     }
@@ -436,7 +475,8 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
     private void retainPausedSnapshots(WorldCacheState<T> state) {
         if (state.persistence == null) return;
         MultiblockPersistenceSession.State phase = state.persistence.state();
-        if (phase != MultiblockPersistenceSession.State.READY && phase != MultiblockPersistenceSession.State.FAILED) return;
+        if (phase != MultiblockPersistenceSession.State.READY && phase != MultiblockPersistenceSession.State.FAILED)
+            return;
         state.recoverySnapshotFailure = null;
         for (T structure : state.bindings.values()) {
             UUID id = UUID.fromString(structure.inventoryID);
@@ -485,7 +525,8 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
                 for (Coord4D coordinate : bound.getValue().locations) {
                     if (!coordinate.exists(world)) continue;
                     TileEntity tile = coordinate.getTileEntity(world);
-                    if (tile instanceof TileEntityMultiblock<?> casing && casing.getManager() == this) casing.requestCacheRetry();
+                    if (tile instanceof TileEntityMultiblock<?> casing && casing.getManager() == this)
+                        casing.requestCacheRetry();
                 }
             }
             state.bindings.clear();
@@ -514,7 +555,8 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
             state.persistenceFailure = null;
             state.recovering = false;
             for (TileEntity tile : world.loadedTileEntityList) {
-                if (tile instanceof TileEntityMultiblock<?> casing && casing.getManager() == this) casing.requestCacheRetry();
+                if (tile instanceof TileEntityMultiblock<?> casing && casing.getManager() == this)
+                    casing.requestCacheRetry();
             }
         } catch (IOException error) {
             state.recovering = false;
@@ -534,8 +576,11 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
                     // Keep the original frozen structures until every latest snapshot is accepted.
                     // Already accepted snapshots may drain to make room for an unload retry.
                     if (state.persistence.state() == MultiblockPersistenceSession.State.READY) {
-                        try { state.persistence.flush(); }
-                        catch (IOException error) { Mekanism.logger.error("Paused multiblock save is still pending", error); }
+                        try {
+                            state.persistence.flush();
+                        } catch (IOException error) {
+                            Mekanism.logger.error("Paused multiblock save is still pending", error);
+                        }
                     }
                     return;
                 }
@@ -543,27 +588,35 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
             try {
                 state.persistence.close();
                 closingSessions.add(state.persistence.closeTicket());
+            } catch (IOException error) {
+                failPersistence(world, state, error);
+                return;
             }
-            catch (IOException error) { failPersistence(world, state, error); return; }
         }
         worlds.remove(world);
     }
 
-    /** Claims structure-wide processing for a persistent multiblock inventory in a dimension. */
+    /**
+     * Claims structure-wide processing for a persistent multiblock inventory in a dimension.
+     */
     public boolean tryClaimServerTick(World world, String inventoryID, long gameTime) {
         Map<String, Long> dimensionClaims = state(world).serverTickClaims;
         Long previousTick = dimensionClaims.put(inventoryID, gameTime);
         return previousTick == null || previousTick != gameTime;
     }
 
-    /** Claims the manager's canonical cache synchronization for one persistent structure and tick. */
+    /**
+     * Claims the manager's canonical cache synchronization for one persistent structure and tick.
+     */
     public boolean tryClaimCacheSync(World world, String inventoryID, long gameTime) {
         Map<String, Long> dimensionClaims = state(world).cacheSyncClaims;
         Long previousTick = dimensionClaims.put(inventoryID, gameTime);
         return previousTick == null || previousTick != gameTime;
     }
 
-    /** Carries a processing claim across the cache ID replacement performed while reforming. */
+    /**
+     * Carries a processing claim across the cache ID replacement performed while reforming.
+     */
     public void inheritServerTickClaim(World world, Collection<String> staleIds, String replacementId, long gameTime) {
         WorldCacheState<T> state = worlds.get(world);
         if (state == null || replacementId == null) {
@@ -578,7 +631,9 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
         }
     }
 
-    /** Old immediate consumption cannot satisfy durable ownership; callers must use beginTransfer. */
+    /**
+     * Old immediate consumption cannot satisfy durable ownership; callers must use beginTransfer.
+     */
     @Deprecated
     public MultiblockCache<T> pullInventory(World world, String id) {
         throw new UnsupportedOperationException("Use the durable multiblock transfer protocol");
@@ -596,12 +651,14 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
             if (session == null) throw new IllegalStateException("Multiblock history is still loading");
             MultiblockPersistenceSession.LegacyStatus status = session.legacyStatus(UUID.fromString(id));
             if (status == MultiblockPersistenceSession.LegacyStatus.AVAILABLE) return false;
-            if (status == MultiblockPersistenceSession.LegacyStatus.INVALIDATED || status == MultiblockPersistenceSession.LegacyStatus.CONSUMED) return true;
+            if (status == MultiblockPersistenceSession.LegacyStatus.INVALIDATED || status == MultiblockPersistenceSession.LegacyStatus.CONSUMED)
+                return true;
             throw new IllegalStateException("Multiblock legacy status is " + status);
         } catch (IOException error) {
             throw new IllegalStateException("Multiblock history could not be read", error);
         }
     }
+
     /**
      * Grabs a unique inventory ID for a multiblock.
      *
@@ -657,7 +714,7 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
 
     public void updateCache(TileEntityMultiblock<T> tile) {
         boolean syncCanonical = tile.cachedID != null && tile.structure != null && Objects.equals(tile.cachedID, tile.structure.inventoryID) &&
-              tile.getWorld() != null && tryClaimCacheSync(tile.getWorld(), tile.cachedID, tile.getWorld().getTotalWorldTime());
+                tile.getWorld() != null && tryClaimCacheSync(tile.getWorld(), tile.cachedID, tile.getWorld().getTotalWorldTime());
         updateCache(tile, syncCanonical);
     }
 
@@ -674,8 +731,11 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
             MultiblockCache<T> authority = inventories.get(tile.cachedID);
             if (authority != null) authority.locations.add(Coord4D.get(tile));
             if (syncCanonical && tile.structure != null && state.bindings.get(tile.cachedID) == tile.structure) {
-                try { snapshot(state, tile.cachedID, tile.structure); }
-                catch (IOException error) { failPersistence(tile.getWorld(), state, error); }
+                try {
+                    snapshot(state, tile.cachedID, tile.structure);
+                } catch (IOException error) {
+                    failPersistence(tile.getWorld(), state, error);
+                }
             }
             return;
         }
@@ -701,7 +761,7 @@ public class MultiblockManager<T extends SynchronizedData<T>> {
                         current.sync(tile.structure);
                     }
                     inventoryTimestamps.put(tile.cachedID, tile.getWorld() == null ? Math.max(currentTimestamp, tile.cachedDataTimestamp) :
-                          tile.getWorld().getTotalWorldTime());
+                            tile.getWorld().getTotalWorldTime());
                 }
             }
         }

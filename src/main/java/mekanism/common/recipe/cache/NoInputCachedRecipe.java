@@ -19,7 +19,7 @@ public class NoInputCachedRecipe<OUTPUT, RECIPE> extends CachedRecipe<RECIPE> {
     private OUTPUT output;
 
     public NoInputCachedRecipe(RECIPE recipe, BooleanSupplier recheckAllErrors, BooleanSupplier inputValid, IOutputHandler<OUTPUT> outputHandler,
-          Supplier<OUTPUT> outputGetter, Predicate<OUTPUT> outputEmptyCheck) {
+                               Supplier<OUTPUT> outputGetter, Predicate<OUTPUT> outputEmptyCheck) {
         super(recipe, recheckAllErrors);
         this.inputValid = Objects.requireNonNull(inputValid);
         this.outputHandler = Objects.requireNonNull(outputHandler);

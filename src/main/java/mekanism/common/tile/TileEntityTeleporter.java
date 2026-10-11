@@ -31,7 +31,6 @@ import mekanism.common.inventory.slot.EnergyInventorySlot;
 import mekanism.common.network.PacketEntityMove.EntityMoveMessage;
 import mekanism.common.network.PacketPortalFX.PortalFXMessage;
 import mekanism.common.security.ISecurityTile;
-import mekanism.common.security.ISecurityTile.SecurityMode;
 import mekanism.common.tile.component.TileComponentChunkLoader;
 import mekanism.common.tile.component.TileComponentSecurity;
 import mekanism.common.tile.component.TileComponentUpgrade;
@@ -55,7 +54,10 @@ import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
 import javax.annotation.Nonnull;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 
 public class TileEntityTeleporter extends TileEntityElectricBlock implements IComputerIntegration, IChunkLoader, IFrequencyHandler, IRedstoneControl, ISecurityTile,
         IUpgradeTile, IComparatorSupport, IConfigCardAccess {
@@ -480,7 +482,18 @@ public class TileEntityTeleporter extends TileEntityElectricBlock implements ICo
     public int getRedstoneLevel() {
         return shouldRender ? 15 : 0;
     }
-@Override
+
+    @Override
+    public int getCurrentRedstoneLevel() {
+        return getRedstoneLevel();
+    }
+
+    @Override
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return false;
+    }
+
+    @Override
     public boolean hasCapability(@Nonnull Capability<?> capability, EnumFacing side) {
         return capability == Capabilities.CONFIG_CARD_CAPABILITY || super.hasCapability(capability, side);
     }

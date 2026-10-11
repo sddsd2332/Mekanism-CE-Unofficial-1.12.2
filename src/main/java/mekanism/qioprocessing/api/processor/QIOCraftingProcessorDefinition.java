@@ -8,7 +8,10 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Objects;
 
-/** Immutable identity and logical lane capacity of a QIO workbench processor. */
+/**
+ * Immutable identity and logical lane capacity of a QIO workbench processor.
+ */
+
 /**
  * QIO 处理模块中的 QIOCraftingProcessorDefinition 类型。
  *
@@ -52,14 +55,14 @@ public final class QIOCraftingProcessorDefinition {
      * @param stackingUpgradeLimit 堆叠升级上限
      */
     public QIOCraftingProcessorDefinition(@Nonnull ResourceLocation id, long laneCount,
-          double baseEnergyUsage, double energyCapacity, int speedUpgradeLimit,
-          int energyUpgradeLimit, int stackingUpgradeLimit) {
+                                          double baseEnergyUsage, double energyCapacity, int speedUpgradeLimit,
+                                          int energyUpgradeLimit, int stackingUpgradeLimit) {
         this.id = Objects.requireNonNull(id, "id");
         if (laneCount <= 0) {
             throw new IllegalArgumentException("QIO processor lane count must be positive");
         }
         if (!Double.isFinite(baseEnergyUsage) || baseEnergyUsage <= 0 ||
-              !Double.isFinite(energyCapacity) || energyCapacity < baseEnergyUsage) {
+                !Double.isFinite(energyCapacity) || energyCapacity < baseEnergyUsage) {
             throw new IllegalArgumentException("QIO processor energy values are invalid");
         }
         if (speedUpgradeLimit < 0 || energyUpgradeLimit < 0 || stackingUpgradeLimit < 0) {
@@ -72,7 +75,7 @@ public final class QIOCraftingProcessorDefinition {
         this.energyUpgradeLimit = energyUpgradeLimit;
         this.stackingUpgradeLimit = stackingUpgradeLimit;
         signature = createSignature(id, laneCount, baseEnergyUsage, energyCapacity,
-              speedUpgradeLimit, energyUpgradeLimit, stackingUpgradeLimit);
+                speedUpgradeLimit, energyUpgradeLimit, stackingUpgradeLimit);
     }
 
     /** 返回处理器定义标识。 */
@@ -118,12 +121,12 @@ public final class QIOCraftingProcessorDefinition {
     }
 
     private static String createSignature(ResourceLocation id, long laneCount,
-          double baseEnergyUsage, double energyCapacity, int speedUpgradeLimit,
-          int energyUpgradeLimit, int stackingUpgradeLimit) {
+                                          double baseEnergyUsage, double energyCapacity, int speedUpgradeLimit,
+                                          int energyUpgradeLimit, int stackingUpgradeLimit) {
         String canonical = id + "|lanes=" + laneCount + "|usage=" +
-              Double.toHexString(baseEnergyUsage) + "|capacity=" +
-              Double.toHexString(energyCapacity) + "|speed=" + speedUpgradeLimit +
-              "|energy=" + energyUpgradeLimit + "|stacking=" + stackingUpgradeLimit;
+                Double.toHexString(baseEnergyUsage) + "|capacity=" +
+                Double.toHexString(energyCapacity) + "|speed=" + speedUpgradeLimit +
+                "|energy=" + energyUpgradeLimit + "|stacking=" + stackingUpgradeLimit;
         MessageDigest digest = SHA_256.get();
         digest.reset();
         byte[] bytes = digest.digest(canonical.getBytes(StandardCharsets.UTF_8));

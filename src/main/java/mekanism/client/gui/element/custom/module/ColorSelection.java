@@ -40,11 +40,11 @@ class ColorSelection extends MiniElement {
     void renderForeground(int mouseX, int mouseY) {
         int textColor = parent.screenTextColor();
         parent.drawScaledScrollingString(selection.getDescription(), xPos, yPos, TextAlignment.LEFT, textColor, offsetX, 3, false, 0.8F,
-              GuiElement.getMillis());
+                GuiElement.getMillis());
         int color = selection.getColor();
         String hex = selection.handlesAlpha() ? TextUtils.hex(false, 4, color) : TextUtils.hex(false, 3, color & 0xFFFFFF);
         parent.drawScrollingString(MekanismLang.GENERIC_HEX.translate(hex), xPos, yPos + 11, TextAlignment.LEFT, textColor, offsetX, 3, false,
-              GuiElement.getMillis());
+                GuiElement.getMillis());
     }
 
     @Override
@@ -55,7 +55,7 @@ class ColorSelection extends MiniElement {
             int windowX = parent.getGuiWidth() / 2 - windowWidth / 2;
             int windowY = parent.getGuiHeight() / 2 - windowHeight / 2;
             Runnable previewUpdater = parent.getArmorPreview() != null && parent.getCurrentModule() != null ?
-                  () -> parent.getArmorPreview().tryUpdateFull(parent.getCurrentModule().getContainer()) : null;
+                    () -> parent.getArmorPreview().tryUpdateFull(parent.getCurrentModule().getContainer()) : null;
             parent.gui().addWindow(new GuiColorWindow(parent.gui(), windowX, windowY, selection, previewUpdater, parent.getArmorPreview()));
         }
     }

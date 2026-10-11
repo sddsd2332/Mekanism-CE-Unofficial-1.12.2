@@ -2,15 +2,13 @@ package mekanism.qioprocessing.common.maintenance;
 
 import mekanism.qioprocessing.api.resource.PortableResourceDescriptor;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Predicate;
 
-/** Pure, bounded debounce state used by one frequency's QIO storage listener. */
+/**
+ * Pure, bounded debounce state used by one frequency's QIO storage listener.
+ */
+
 /**
  * QIO 处理模块中的 QIOMaintenanceWakeTracker 类型。
  *
@@ -31,11 +29,11 @@ final class QIOMaintenanceWakeTracker {
     private long wakeAtTick = Long.MAX_VALUE;
 
     QIOMaintenanceWakeTracker(int maximumDirtyResources, long contentSettleTicks,
-          long maximumContentDelayTicks, long structuralSettleTicks,
-          long maximumStructuralDelayTicks) {
+                              long maximumContentDelayTicks, long structuralSettleTicks,
+                              long maximumStructuralDelayTicks) {
         if (maximumDirtyResources <= 0 || contentSettleTicks < 0 ||
-              maximumContentDelayTicks < contentSettleTicks || structuralSettleTicks < 0 ||
-              maximumStructuralDelayTicks < structuralSettleTicks) {
+                maximumContentDelayTicks < contentSettleTicks || structuralSettleTicks < 0 ||
+                maximumStructuralDelayTicks < structuralSettleTicks) {
             throw new IllegalArgumentException("Invalid maintenance wake limits");
         }
         this.maximumDirtyResources = maximumDirtyResources;
@@ -55,7 +53,7 @@ final class QIOMaintenanceWakeTracker {
             return;
         }
         if (dirtyResources.size() >= maximumDirtyResources &&
-              !dirtyResources.contains(resource)) {
+                !dirtyResources.contains(resource)) {
             requestFullScan(currentTick, contentSettleTicks, maximumContentDelayTicks);
             return;
         }
@@ -76,15 +74,15 @@ final class QIOMaintenanceWakeTracker {
     }
 
     boolean consumeIfDue(long currentTick,
-          Predicate<PortableResourceDescriptor> relevantResource) {
+                         Predicate<PortableResourceDescriptor> relevantResource) {
         return !drainIfDue(currentTick, relevantResource).isEmpty();
     }
 
     WakeBatch drainIfDue(long currentTick,
-          Predicate<PortableResourceDescriptor> relevantResource) {
+                         Predicate<PortableResourceDescriptor> relevantResource) {
         Objects.requireNonNull(relevantResource, "relevantResource");
         if (invalidated || currentTick < wakeAtTick ||
-              !fullRescan && dirtyResources.isEmpty()) {
+                !fullRescan && dirtyResources.isEmpty()) {
             return WakeBatch.EMPTY;
         }
         boolean full = fullRescan;
@@ -101,7 +99,7 @@ final class QIOMaintenanceWakeTracker {
         firstSignalTick = Long.MAX_VALUE;
         wakeAtTick = Long.MAX_VALUE;
         return full ? WakeBatch.FULL : relevant.isEmpty() ? WakeBatch.EMPTY :
-              new WakeBatch(false, relevant);
+                new WakeBatch(false, relevant);
     }
 
     boolean isInvalidated() {
@@ -134,11 +132,11 @@ final class QIOMaintenanceWakeTracker {
             firstSignalTick = currentTick;
         }
         long requested = delay > Long.MAX_VALUE - currentTick ? Long.MAX_VALUE :
-              currentTick + delay;
+                currentTick + delay;
         long deadline = maximumDelay > Long.MAX_VALUE - firstSignalTick ? Long.MAX_VALUE :
-              firstSignalTick + maximumDelay;
+                firstSignalTick + maximumDelay;
         long settled = wakeAtTick == Long.MAX_VALUE ? requested :
-              Math.max(wakeAtTick, requested);
+                Math.max(wakeAtTick, requested);
         wakeAtTick = Math.min(settled, deadline);
     }
 

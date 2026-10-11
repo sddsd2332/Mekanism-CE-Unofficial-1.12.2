@@ -1,6 +1,8 @@
 package mekanism.qioprocessing.common.planning;
 
+import mekanism.api.processing.MachineRecipeRoute;
 import mekanism.api.processing.QIOAutomationMode;
+import mekanism.qioprocessing.api.resource.PortableResourceDescriptor;
 import mekanism.qioprocessing.common.content.QIOProcessingDataException;
 import mekanism.qioprocessing.common.content.QIOProcessingNbt;
 import mekanism.qioprocessing.common.content.device.QIOAutomationDeviceCatalog;
@@ -9,8 +11,6 @@ import mekanism.qioprocessing.common.content.policy.QIOPolicyCatalog;
 import mekanism.qioprocessing.common.content.profile.QIOAutomationRecipeProfile;
 import mekanism.qioprocessing.common.content.profile.QIOAutomationRecipeProfileCatalog;
 import mekanism.qioprocessing.common.content.profile.QIOAutomationRecipeProfileLayout;
-import mekanism.qioprocessing.api.resource.PortableResourceDescriptor;
-import mekanism.api.processing.MachineRecipeRoute;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.util.ResourceLocation;
@@ -18,18 +18,12 @@ import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
-/** Persistent provider route semantics, separate from transient loaded-device availability. */
+/**
+ * Persistent provider route semantics, separate from transient loaded-device availability.
+ */
+
 /**
  * QIO 处理模块中的 QIOProviderCatalog 类型。
  *
@@ -65,7 +59,7 @@ public final class QIOProviderCatalog {
     }
 
     public boolean observe(@Nonnull QIOProviderRouteCatalog.Snapshot online,
-          @Nonnull QIOAutomationDeviceCatalog deviceCatalog, int maximumRoutes) {
+                           @Nonnull QIOAutomationDeviceCatalog deviceCatalog, int maximumRoutes) {
         Objects.requireNonNull(online, "online");
         Objects.requireNonNull(deviceCatalog, "deviceCatalog");
         if (maximumRoutes <= 0) {
@@ -75,8 +69,8 @@ public final class QIOProviderCatalog {
         for (UUID deviceUUID : observed) {
             QIOAutomationDeviceSnapshot device = deviceCatalog.get(deviceUUID);
             if (device == null || !device.isOnline() ||
-                  device.getKind() != QIOAutomationDeviceSnapshot.Kind.AUTOMATION_MACHINE ||
-                  device.getMode() != QIOAutomationMode.SCHEDULED) {
+                    device.getKind() != QIOAutomationDeviceSnapshot.Kind.AUTOMATION_MACHINE ||
+                    device.getMode() != QIOAutomationMode.SCHEDULED) {
                 throw new IllegalStateException("QIO provider snapshot references an unavailable device");
             }
         }
@@ -86,8 +80,8 @@ public final class QIOProviderCatalog {
         }
         long additions = incomingRouteIds.stream().filter(id -> !routes.containsKey(id)).count();
         long removals = routes.keySet().stream().filter(id -> !incomingRouteIds.contains(id))
-              .filter(id -> observed.containsAll(devicesByRoute.getOrDefault(id,
-                    Collections.emptySet()))).count();
+                .filter(id -> observed.containsAll(devicesByRoute.getOrDefault(id,
+                        Collections.emptySet()))).count();
         long projectedSize = routes.size() + additions - removals;
         if (projectedSize > maximumRoutes && projectedSize > routes.size()) {
             throw new IllegalStateException("QIO provider route directory limit reached");
@@ -109,20 +103,20 @@ public final class QIOProviderCatalog {
             structuralChanged |= current == null;
             for (UUID deviceUUID : online.getDeviceIds(stableId)) {
                 advertisedByDevice.computeIfAbsent(deviceUUID, ignored -> new LinkedHashSet<>())
-                      .add(stableId);
+                        .add(stableId);
             }
         }
         for (Map.Entry<UUID, Set<String>> entry : advertisedByDevice.entrySet()) {
             QIOAutomationDeviceSnapshot device = deviceCatalog.get(entry.getKey());
             structuralChanged |= replaceDeviceRoutes(entry.getKey(), entry.getValue(),
-                  Objects.requireNonNull(device, "observed device").getProfileScopeId(),
-                  QIOAutomationMode.SCHEDULED);
+                    Objects.requireNonNull(device, "observed device").getProfileScopeId(),
+                    QIOAutomationMode.SCHEDULED);
         }
         for (QIOAutomationDeviceSnapshot device : deviceCatalog.getDevices()) {
             if (device.isOnline() && routesByDevice.containsKey(device.getDeviceUUID()) &&
-                modesByDevice.get(device.getDeviceUUID()) == QIOAutomationMode.SCHEDULED &&
-                (device.getKind() != QIOAutomationDeviceSnapshot.Kind.AUTOMATION_MACHINE ||
-                 device.getMode() != QIOAutomationMode.SCHEDULED)) {
+                    modesByDevice.get(device.getDeviceUUID()) == QIOAutomationMode.SCHEDULED &&
+                    (device.getKind() != QIOAutomationDeviceSnapshot.Kind.AUTOMATION_MACHINE ||
+                            device.getMode() != QIOAutomationMode.SCHEDULED)) {
                 structuralChanged |= forgetDeviceInternal(device.getDeviceUUID());
             }
         }
@@ -143,9 +137,9 @@ public final class QIOProviderCatalog {
      * tracked separately, so management terminals can edit an unloaded machine's profile.
      */
     public boolean observeDeviceRoutes(@Nonnull UUID deviceUUID,
-          @Nonnull QIOAutomationMode mode, @Nonnull String profileScopeId,
-          @Nonnull ResourceLocation providerId, @Nonnull List<MachineRecipeRoute> machineRoutes,
-          int maximumRoutes) {
+                                       @Nonnull QIOAutomationMode mode, @Nonnull String profileScopeId,
+                                       @Nonnull ResourceLocation providerId, @Nonnull List<MachineRecipeRoute> machineRoutes,
+                                       int maximumRoutes) {
         Objects.requireNonNull(deviceUUID, "deviceUUID");
         Objects.requireNonNull(mode, "mode");
         Objects.requireNonNull(profileScopeId, "profileScopeId");
@@ -158,8 +152,8 @@ public final class QIOProviderCatalog {
             throw new IllegalArgumentException("maximumRoutes must be positive");
         }
         QIOProviderRouteCatalog.Snapshot captured = new QIOProviderRouteCatalog.Builder(
-              (ignoredProvider, ignoredRoute, ignoredRecipe) -> 0)
-              .addDevice(deviceUUID, providerId, machineRoutes).build();
+                (ignoredProvider, ignoredRoute, ignoredRecipe) -> 0)
+                .addDevice(deviceUUID, providerId, machineRoutes).build();
         if (!captured.getDiagnostics().isEmpty()) {
             throw new IllegalStateException(String.join("; ", captured.getDiagnostics()));
         }
@@ -169,17 +163,17 @@ public final class QIOProviderCatalog {
             QIOPlanningRoute existing = routes.get(route.getStableId());
             if (existing != null && !existing.getSignature().equals(route.getSignature())) {
                 throw new IllegalStateException("Conflicting QIO route identity " +
-                      route.getStableId());
+                        route.getStableId());
             }
             incoming.put(route.getStableId(), route.withPriority(0));
             advertised.add(route.getStableId());
         }
 
         Set<String> previous = routesByDevice.getOrDefault(deviceUUID,
-              Collections.emptySet());
+                Collections.emptySet());
         long orphaned = previous.stream().filter(id -> !advertised.contains(id))
-              .filter(id -> devicesByRoute.getOrDefault(id, Collections.emptySet()).size() == 1)
-              .count();
+                .filter(id -> devicesByRoute.getOrDefault(id, Collections.emptySet()).size() == 1)
+                .count();
         long additions = advertised.stream().filter(id -> !routes.containsKey(id)).count();
         long projectedSize = routes.size() - orphaned + additions;
         if (projectedSize > maximumRoutes && projectedSize > routes.size()) {
@@ -187,7 +181,7 @@ public final class QIOProviderCatalog {
         }
         incoming.forEach(routes::putIfAbsent);
         boolean changed = replaceDeviceRoutes(deviceUUID, advertised,
-              checkedProfileScopeId(profileScopeId), mode);
+                checkedProfileScopeId(profileScopeId), mode);
         if (changed) {
             incrementRevision();
         }
@@ -206,7 +200,7 @@ public final class QIOProviderCatalog {
     @Nonnull
     public List<QIOPlanningRoute> getDeviceRoutes(@Nonnull UUID deviceUUID) {
         Set<String> routeIds = routesByDevice.getOrDefault(
-              Objects.requireNonNull(deviceUUID, "deviceUUID"), Collections.emptySet());
+                Objects.requireNonNull(deviceUUID, "deviceUUID"), Collections.emptySet());
         List<QIOPlanningRoute> result = new ArrayList<>(routeIds.size());
         for (String routeId : routeIds) {
             QIOPlanningRoute route = routes.get(routeId);
@@ -252,23 +246,23 @@ public final class QIOProviderCatalog {
     /** Resolves administrator policy and the active per-machine recipe profile together. */
     @Nonnull
     public List<QIOPlanningRoute> getRoutes(@Nonnull QIOPolicyCatalog policies,
-          QIOAutomationRecipeProfileCatalog profiles) {
+                                            QIOAutomationRecipeProfileCatalog profiles) {
         Objects.requireNonNull(policies, "policies");
         Map<String, ProviderOrder> profileScopeOrders = profiles == null ?
-              Collections.emptyMap() : buildProfileScopeOrders();
+                Collections.emptyMap() : buildProfileScopeOrders();
         List<QIOPlanningRoute> result = new ArrayList<>();
         for (QIOPlanningRoute route : routes.values()) {
             Long priority = null;
             for (UUID deviceUUID : devicesByRoute.getOrDefault(route.getStableId(),
-                  Collections.emptySet())) {
+                    Collections.emptySet())) {
                 if (modesByDevice.get(deviceUUID) == QIOAutomationMode.SCHEDULED &&
-                      availableDevices.contains(deviceUUID) &&
-                      policies.isRouteEnabled(deviceUUID, route.getProviderId(),
-                      route.getRouteId(), route.getRecipeKey()) &&
-                      (profiles == null || profileEnabled(profiles, deviceUUID,
-                            profileScope(deviceUUID), route))) {
+                        availableDevices.contains(deviceUUID) &&
+                        policies.isRouteEnabled(deviceUUID, route.getProviderId(),
+                                route.getRouteId(), route.getRecipeKey()) &&
+                        (profiles == null || profileEnabled(profiles, deviceUUID,
+                                profileScope(deviceUUID), route))) {
                     long candidate = effectivePriority(policies, profiles,
-                          profileScopeOrders, deviceUUID, profileScope(deviceUUID), route);
+                            profileScopeOrders, deviceUUID, profileScope(deviceUUID), route);
                     priority = priority == null ? candidate : Math.max(priority, candidate);
                 }
             }
@@ -288,7 +282,7 @@ public final class QIOProviderCatalog {
             }
             String profileScopeId = profileScope(entry.getKey());
             Map<String, QIOPlanningRoute> scopedRoutes = byScope.computeIfAbsent(
-                  profileScopeId, ignored -> new LinkedHashMap<>());
+                    profileScopeId, ignored -> new LinkedHashMap<>());
             for (String routeId : entry.getValue()) {
                 QIOPlanningRoute route = routes.get(routeId);
                 if (route != null) {
@@ -298,30 +292,30 @@ public final class QIOProviderCatalog {
         }
         Map<String, ProviderOrder> orders = new LinkedHashMap<>();
         byScope.forEach((scope, scopedRoutes) ->
-              orders.put(scope, new ProviderOrder(new ArrayList<>(scopedRoutes.values()))));
+                orders.put(scope, new ProviderOrder(scope, new ArrayList<>(scopedRoutes.values()))));
         return orders;
     }
 
     private static boolean profileEnabled(QIOAutomationRecipeProfileCatalog profiles,
-          UUID deviceUUID, String profileScopeId, QIOPlanningRoute route) {
+                                          UUID deviceUUID, String profileScopeId, QIOPlanningRoute route) {
         QIOAutomationRecipeProfile profile = profiles.getActiveProfile(deviceUUID,
-              QIOAutomationMode.SCHEDULED, profileScopeId);
+                QIOAutomationMode.SCHEDULED, profileScopeId);
         return profile.isRouteEnabled(QIOAutomationRecipeProfileLayout.routeKey(
-              route.getRouteId(), route.getRecipeKey()));
+                profileScopeId, route.getRouteId(), route.getRecipeKey()));
     }
 
     private static long effectivePriority(QIOPolicyCatalog policies,
-          QIOAutomationRecipeProfileCatalog profiles,
-          Map<String, ProviderOrder> profileScopeOrders, UUID deviceUUID,
-          String profileScopeId, QIOPlanningRoute route) {
+                                          QIOAutomationRecipeProfileCatalog profiles,
+                                          Map<String, ProviderOrder> profileScopeOrders, UUID deviceUUID,
+                                          String profileScopeId, QIOPlanningRoute route) {
         long policyPriority = policies.routePriority(deviceUUID, route.getProviderId(),
-              route.getRouteId(), route.getRecipeKey());
+                route.getRouteId(), route.getRecipeKey());
         if (profiles == null) {
             return policyPriority;
         }
         QIOAutomationRecipeProfile profile = profiles.getActiveProfile(deviceUUID,
-              QIOAutomationMode.SCHEDULED, profileScopeId);
-        if (!profile.hasCustomOrder()) {
+                QIOAutomationMode.SCHEDULED, profileScopeId);
+        if (!profile.hasCustomOrder(profileScopeId)) {
             return policyPriority;
         }
         ProviderOrder order = profileScopeOrders.get(profileScopeId);
@@ -331,38 +325,44 @@ public final class QIOProviderCatalog {
 
     private static final class ProviderOrder {
 
+        private final String recipeFamily;
         private final List<String> products;
         private final Map<String, List<String>> routesByProduct;
         private final Map<String, String> productByRoute;
 
-        private ProviderOrder(List<QIOPlanningRoute> source) {
+        private ProviderOrder(String recipeFamily, List<QIOPlanningRoute> source) {
+            this.recipeFamily = recipeFamily;
             List<QIOPlanningRoute> ordered = new ArrayList<>(source);
-            ordered.sort(Comparator.comparing(QIOPlanningRoute::getStableId));
+            ordered.sort(Comparator.comparing((QIOPlanningRoute route) ->
+                            route.getGuaranteedOutputs().keySet().iterator().next().toString())
+                    .thenComparing(QIOPlanningRoute::getRouteId)
+                    .thenComparing(QIOPlanningRoute::getRecipeKey));
             Map<String, List<String>> grouped = new LinkedHashMap<>();
             Map<String, String> productsByRoute = new LinkedHashMap<>();
             for (QIOPlanningRoute route : ordered) {
                 PortableResourceDescriptor output = route.getGuaranteedOutputs().keySet()
-                      .stream().sorted().findFirst().orElse(null);
+                        .stream().sorted().findFirst().orElse(null);
                 if (output == null) {
                     continue;
                 }
-                String product = output.toString();
+                String product = QIOAutomationRecipeProfileLayout.productKey(recipeFamily, output.toString());
                 String routeKey = QIOAutomationRecipeProfileLayout.routeKey(
-                      route.getRouteId(), route.getRecipeKey());
-                grouped.computeIfAbsent(product, ignored -> new ArrayList<>()).add(routeKey);
-                productsByRoute.put(routeKey, product);
+                        recipeFamily, route.getRouteId(), route.getRecipeKey());
+                if (productsByRoute.putIfAbsent(routeKey, product) == null) {
+                    grouped.computeIfAbsent(product, ignored -> new ArrayList<>()).add(routeKey);
+                }
             }
             products = Collections.unmodifiableList(new ArrayList<>(grouped.keySet()));
             Map<String, List<String>> immutable = new LinkedHashMap<>();
             grouped.forEach((key, value) -> immutable.put(key,
-                  Collections.unmodifiableList(new ArrayList<>(value))));
+                    Collections.unmodifiableList(new ArrayList<>(value))));
             routesByProduct = Collections.unmodifiableMap(immutable);
             productByRoute = Collections.unmodifiableMap(productsByRoute);
         }
 
         private long rank(QIOAutomationRecipeProfile profile, QIOPlanningRoute route) {
-            String routeKey = QIOAutomationRecipeProfileLayout.routeKey(route.getRouteId(),
-                  route.getRecipeKey());
+            String routeKey = QIOAutomationRecipeProfileLayout.routeKey(recipeFamily, route.getRouteId(),
+                    route.getRecipeKey());
             String product = productByRoute.get(routeKey);
             if (product == null) {
                 return Integer.MAX_VALUE;
@@ -370,10 +370,10 @@ public final class QIOProviderCatalog {
             List<String> productOrder = profile.getCurrentProductOrder(products);
             int productIndex = productOrder.indexOf(product);
             List<String> routeOrder = profile.getCurrentRouteOrder(product,
-                  routesByProduct.getOrDefault(product, Collections.emptyList()));
+                    routesByProduct.getOrDefault(product, Collections.emptyList()));
             int routeIndex = routeOrder.indexOf(routeKey);
             return ((long) Math.max(0, productIndex) << 32) |
-                  (Math.max(0, routeIndex) & 0xFFFFFFFFL);
+                    (Math.max(0, routeIndex) & 0xFFFFFFFFL);
         }
     }
 
@@ -384,11 +384,11 @@ public final class QIOProviderCatalog {
         data.setLong("availabilityRevision", availabilityRevision);
         NBTTagList storedRoutes = new NBTTagList();
         routes.values().stream().sorted(Comparator.comparing(QIOPlanningRoute::getStableId))
-              .forEach(route -> storedRoutes.appendTag(route.write()));
+                .forEach(route -> storedRoutes.appendTag(route.write()));
         data.setTag("routes", storedRoutes);
         NBTTagList storedDevices = new NBTTagList();
         routesByDevice.entrySet().stream().sorted(Map.Entry.comparingByKey(
-              Comparator.comparing(UUID::toString))).forEach(entry -> {
+                Comparator.comparing(UUID::toString))).forEach(entry -> {
             NBTTagCompound storedDevice = new NBTTagCompound();
             QIOProcessingNbt.writeUUID(storedDevice, "deviceUUID", entry.getKey());
             storedDevice.setString("profileScopeId", profileScope(entry.getKey()));
@@ -408,13 +408,13 @@ public final class QIOProviderCatalog {
 
     @Nonnull
     public static QIOProviderCatalog read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         try {
             QIOProviderCatalog catalog = new QIOProviderCatalog();
             catalog.revision = QIOProcessingNbt.requireNonNegative(data.getLong("revision"),
-                  "providerCatalogRevision");
+                    "providerCatalogRevision");
             catalog.availabilityRevision = QIOProcessingNbt.requireNonNegative(
-                  data.getLong("availabilityRevision"), "providerAvailabilityRevision");
+                    data.getLong("availabilityRevision"), "providerAvailabilityRevision");
             NBTTagList storedRoutes = data.getTagList("routes", NBT.TAG_COMPOUND);
             if (storedRoutes.tagCount() > MAX_PERSISTED_ROUTES) {
                 throw new QIOProcessingDataException("QIO provider route directory is too large");
@@ -435,28 +435,28 @@ public final class QIOProviderCatalog {
                 UUID deviceUUID = QIOProcessingNbt.readUUID(storedDevice, "deviceUUID");
                 if (!storedDevice.hasKey("profileScopeId", NBT.TAG_STRING)) {
                     throw new QIOProcessingDataException(
-                          "Persisted QIO provider device has no profile scope");
+                            "Persisted QIO provider device has no profile scope");
                 }
                 String profileScopeId = storedDevice.getString("profileScopeId").trim();
                 if (profileScopeId.isEmpty() ||
-                    profileScopeId.length() > MAX_PROFILE_SCOPE_ID_LENGTH) {
+                        profileScopeId.length() > MAX_PROFILE_SCOPE_ID_LENGTH) {
                     throw new QIOProcessingDataException(
-                          "Persisted QIO provider device has an empty profile scope");
+                            "Persisted QIO provider device has an empty profile scope");
                 }
                 if (!storedDevice.hasKey("mode", NBT.TAG_STRING)) {
                     throw new QIOProcessingDataException(
-                          "Persisted QIO provider device has no automation mode");
+                            "Persisted QIO provider device has no automation mode");
                 }
                 QIOAutomationMode mode;
                 try {
                     mode = QIOAutomationMode.valueOf(storedDevice.getString("mode"));
                 } catch (RuntimeException e) {
                     throw new QIOProcessingDataException(
-                          "Persisted QIO provider device has an invalid automation mode", e);
+                            "Persisted QIO provider device has an invalid automation mode", e);
                 }
                 if (mode == QIOAutomationMode.OUTPUT_ONLY) {
                     throw new QIOProcessingDataException(
-                          "Output-only QIO provider device has persisted routes");
+                            "Output-only QIO provider device has persisted routes");
                 }
                 NBTTagList routeIds = storedDevice.getTagList("routeIds", NBT.TAG_COMPOUND);
                 associations = Math.addExact(associations, routeIds.tagCount());
@@ -470,7 +470,7 @@ public final class QIOProviderCatalog {
                         throw new QIOProcessingDataException("Invalid persisted QIO provider association");
                     }
                     catalog.devicesByRoute.computeIfAbsent(stableId,
-                          ignored -> new LinkedHashSet<>()).add(deviceUUID);
+                            ignored -> new LinkedHashSet<>()).add(deviceUUID);
                 }
                 if (ids.isEmpty() || catalog.routesByDevice.put(deviceUUID, ids) != null) {
                     throw new QIOProcessingDataException("Invalid persisted QIO provider device");
@@ -490,32 +490,32 @@ public final class QIOProviderCatalog {
     }
 
     public void validateDevices(@Nonnull QIOAutomationDeviceCatalog deviceCatalog)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         Objects.requireNonNull(deviceCatalog, "deviceCatalog");
         for (UUID deviceUUID : routesByDevice.keySet()) {
             QIOAutomationDeviceSnapshot device = deviceCatalog.get(deviceUUID);
             if (device == null ||
-                  device.getKind() != QIOAutomationDeviceSnapshot.Kind.AUTOMATION_MACHINE) {
+                    device.getKind() != QIOAutomationDeviceSnapshot.Kind.AUTOMATION_MACHINE) {
                 throw new QIOProcessingDataException(
-                      "Persisted QIO provider route references an unknown machine device " +
-                            deviceUUID);
+                        "Persisted QIO provider route references an unknown machine device " +
+                                deviceUUID);
             }
             if (!profileScope(deviceUUID).equals(device.getProfileScopeId())) {
                 throw new QIOProcessingDataException(
-                      "Persisted QIO provider profile scope does not match machine device " +
-                            deviceUUID);
+                        "Persisted QIO provider profile scope does not match machine device " +
+                                deviceUUID);
             }
             QIOAutomationMode storedMode = modesByDevice.get(deviceUUID);
             if (storedMode == null || storedMode == QIOAutomationMode.OUTPUT_ONLY) {
                 throw new QIOProcessingDataException(
-                      "Persisted QIO provider route has no configurable device mode " +
-                            deviceUUID);
+                        "Persisted QIO provider route has no configurable device mode " +
+                                deviceUUID);
             }
         }
     }
 
     private boolean replaceDeviceRoutes(UUID deviceUUID, Set<String> advertised,
-          String profileScopeId, QIOAutomationMode mode) {
+                                        String profileScopeId, QIOAutomationMode mode) {
         Set<String> previous = routesByDevice.getOrDefault(deviceUUID, Collections.emptySet());
         boolean scopeChanged = !profileScopeId.equals(profileScopesByDevice.get(deviceUUID));
         boolean modeChanged = mode != modesByDevice.get(deviceUUID);
@@ -547,7 +547,7 @@ public final class QIOProviderCatalog {
             modesByDevice.put(deviceUUID, mode);
             for (String stableId : copy) {
                 devicesByRoute.computeIfAbsent(stableId, ignored -> new LinkedHashSet<>())
-                      .add(deviceUUID);
+                        .add(deviceUUID);
             }
         }
         return true;
@@ -602,7 +602,7 @@ public final class QIOProviderCatalog {
         String profileScopeId = profileScopesByDevice.get(deviceUUID);
         if (profileScopeId == null || profileScopeId.isEmpty()) {
             throw new IllegalStateException("QIO provider device has no profile scope " +
-                  deviceUUID);
+                    deviceUUID);
         }
         return profileScopeId;
     }
@@ -611,7 +611,7 @@ public final class QIOProviderCatalog {
         QIOAutomationMode mode = modesByDevice.get(deviceUUID);
         if (mode == null || mode == QIOAutomationMode.OUTPUT_ONLY) {
             throw new IllegalStateException("QIO provider device has no configurable mode " +
-                  deviceUUID);
+                    deviceUUID);
         }
         return mode;
     }

@@ -5,17 +5,7 @@ import mekanism.common.tile.prefab.TileEntityContainerBlock;
 import net.minecraft.util.ResourceLocation;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.WeakHashMap;
+import java.util.*;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -34,14 +24,14 @@ public final class ExternalUpgradeSupportRegistry {
 
     public static void register(ResourceLocation id, Predicate<? super TileEntityContainerBlock> predicate, Upgrade... upgrades) {
         Set<Upgrade> values = upgrades == null ? Collections.emptySet() :
-              Collections.unmodifiableSet(new LinkedHashSet<>(Arrays.asList(upgrades.clone())));
+                Collections.unmodifiableSet(new LinkedHashSet<>(Arrays.asList(upgrades.clone())));
         register(id, new Entry(Objects.requireNonNull(predicate, "Tile predicate cannot be null"), values, null));
     }
 
     public static void register(ResourceLocation id, Predicate<? super TileEntityContainerBlock> predicate,
-          Supplier<? extends Collection<Upgrade>> upgrades) {
+                                Supplier<? extends Collection<Upgrade>> upgrades) {
         register(id, new Entry(Objects.requireNonNull(predicate, "Tile predicate cannot be null"), null,
-              Objects.requireNonNull(upgrades, "Upgrade supplier cannot be null")));
+                Objects.requireNonNull(upgrades, "Upgrade supplier cannot be null")));
     }
 
     /**
@@ -50,7 +40,7 @@ public final class ExternalUpgradeSupportRegistry {
      */
     public static void registerClassSupport(ResourceLocation id, Predicate<Class<?>> predicate, Upgrade... upgrades) {
         Set<Upgrade> values = upgrades == null ? Collections.emptySet() :
-              Collections.unmodifiableSet(new LinkedHashSet<>(Arrays.asList(upgrades.clone())));
+                Collections.unmodifiableSet(new LinkedHashSet<>(Arrays.asList(upgrades.clone())));
         register(id, new Entry(Objects.requireNonNull(predicate, "Type predicate cannot be null"), values));
     }
 
@@ -73,7 +63,9 @@ public final class ExternalUpgradeSupportRegistry {
         return true;
     }
 
-    /** Attaches a one-shot dependent cache to exactly the declaration revision it observed. */
+    /**
+     * Attaches a one-shot dependent cache to exactly the declaration revision it observed.
+     */
     public static synchronized void trackSupportValidity(long expectedVersion, UpgradeSupportValidity token) {
         Objects.requireNonNull(token, "Validity token cannot be null");
         if (snapshot.version != expectedVersion) token.invalidate();
@@ -85,16 +77,20 @@ public final class ExternalUpgradeSupportRegistry {
         validityTokens.clear();
     }
 
-    /** Changes when declarations are registered or removed; dynamic predicates and suppliers remain live. */
+    /**
+     * Changes when declarations are registered or removed; dynamic predicates and suppliers remain live.
+     */
     public static long getVersion() {
         return snapshot.version;
     }
 
-    /** Whether external support can be reused for a tile type until the declaration version changes. */
+    /**
+     * Whether external support can be reused for a tile type until the declaration version changes.
+     */
     public static boolean isSupportStable(Upgrade upgrade) {
         Snapshot current = snapshot;
         return current.stableUpgrades.contains(upgrade) ||
-              !current.candidates.containsKey(upgrade) && current.dynamicEntries.isEmpty();
+                !current.candidates.containsKey(upgrade) && current.dynamicEntries.isEmpty();
     }
 
     public static boolean supports(@Nullable TileEntityContainerBlock tile, @Nullable Upgrade upgrade) {
@@ -175,7 +171,7 @@ public final class ExternalUpgradeSupportRegistry {
         private final Supplier<? extends Collection<Upgrade>> upgrades;
 
         private Entry(Predicate<? super TileEntityContainerBlock> predicate, @Nullable Set<Upgrade> fixedUpgrades,
-              @Nullable Supplier<? extends Collection<Upgrade>> upgrades) {
+                      @Nullable Supplier<? extends Collection<Upgrade>> upgrades) {
             this.predicate = predicate;
             this.fixedUpgrades = fixedUpgrades;
             this.upgrades = upgrades;
@@ -187,7 +183,10 @@ public final class ExternalUpgradeSupportRegistry {
             this.fixedUpgrades = upgrades;
             this.upgrades = null;
             this.classMatches = new ClassValue<Boolean>() {
-                @Override protected Boolean computeValue(Class<?> type) { return predicate.test(type); }
+                @Override
+                protected Boolean computeValue(Class<?> type) {
+                    return predicate.test(type);
+                }
             };
         }
 

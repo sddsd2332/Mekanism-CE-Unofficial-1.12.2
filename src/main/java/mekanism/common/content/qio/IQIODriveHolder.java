@@ -32,7 +32,9 @@ public interface IQIODriveHolder extends IQIOFrequencyHolder {
     default void updateQIODriveStack(int slot, ItemStack stack) {
     }
 
-    /** Called after a physical drive slot changes so its frequency can remount. */
+    /**
+     * Called after a physical drive slot changes so its frequency can remount.
+     */
     default void onQIODriveSlotChanged(int slot) {
         QIOFrequency frequency = getQIOFrequency();
         if (frequency != null) {

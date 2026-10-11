@@ -1,11 +1,7 @@
 package mekanism.generators.common.tile.reactor;
 
 import io.netty.buffer.ByteBuf;
-import mekanism.api.Action;
-import mekanism.api.AutomationType;
-import mekanism.api.IContentsListener;
-import mekanism.api.NBTConstants;
-import mekanism.api.TileNetworkList;
+import mekanism.api.*;
 import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasStack;
 import mekanism.client.sound.SoundHandler;
@@ -54,16 +50,16 @@ public class TileEntityReactorController extends TileEntityReactorBlock implemen
     private static final String FUSION_PLASMA_TEMPERATURE = "fusionPlasmaTemperature";
 
     public VariableCapacityFluidTank waterTank = VariableCapacityFluidTank.input(this::getWaterTankCapacity,
-          fluid -> RecipeHandler.Recipe.FUSION_COOLING.containsRecipe(fluid.getFluid()), this);
+            fluid -> RecipeHandler.Recipe.FUSION_COOLING.containsRecipe(fluid.getFluid()), this);
     public VariableCapacityFluidTank steamTank = VariableCapacityFluidTank.output(this::getSteamTankCapacity, BasicFluidTank.alwaysTrue, this);
 
     public BasicGasTank deuteriumTank = BasicGasTank.input(MekanismConfig.current().generators.FusionReactorsDeuteriumTank.val(),
-          gas -> gas == MekanismFluids.Deuterium, this);
+            gas -> gas == MekanismFluids.Deuterium, this);
     public BasicGasTank tritiumTank = BasicGasTank.input(MekanismConfig.current().generators.FusionReactorsTritiumTank.val(),
-          gas -> gas == MekanismFluids.Tritium, this);
+            gas -> gas == MekanismFluids.Tritium, this);
 
     public BasicGasTank fuelTank = BasicGasTank.input(MekanismConfig.current().generators.FusionReactorsFuelTank.val(),
-          gas -> gas == MekanismFluids.FusionFuel, this);
+            gas -> gas == MekanismFluids.FusionFuel, this);
 
     public AxisAlignedBB box;
     public double clientTemp = 0;
@@ -111,16 +107,16 @@ public class TileEntityReactorController extends TileEntityReactorBlock implemen
     protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
         InventorySlotHelper builder = createInventorySlotHelper();
         hohlraumSlot = ReactorInventorySlot.at(
-              stack -> stack.getItem() instanceof ItemHohlraum,
-              (stack, automationType) -> automationType == AutomationType.INTERNAL ||
-                    stack.getItem() instanceof ItemHohlraum hohlraum && hohlraum.isReadyForReaction(stack),
-              listener, 80, 39
+                stack -> stack.getItem() instanceof ItemHohlraum,
+                (stack, automationType) -> automationType == AutomationType.INTERNAL ||
+                        stack.getItem() instanceof ItemHohlraum hohlraum && hohlraum.isReadyForReaction(stack),
+                listener, 80, 39
         );
         hohlraumSlot.setEnabledSupplier(this::isFormed);
         builder.addSlot(hohlraumSlot);
         IInventorySlotHolder slotHolder = builder.build();
         return ProxiedInventorySlotHolder.create(side -> isFormed() && slotHolder.canInsert(side), side -> isFormed() && slotHolder.canExtract(side),
-              side -> side == null || isFormed() ? slotHolder.getInventorySlots(side) : Collections.emptyList());
+                side -> side == null || isFormed() ? slotHolder.getInventorySlots(side) : Collections.emptyList());
     }
 
     public ReactorInventorySlot getHohlraumSlot() {
@@ -225,7 +221,7 @@ public class TileEntityReactorController extends TileEntityReactorBlock implemen
     }
 
     @Override
-    public void onUpdateClient(){
+    public void onUpdateClient() {
         super.onUpdateClient();
         updateSound();
     }
@@ -299,7 +295,7 @@ public class TileEntityReactorController extends TileEntityReactorBlock implemen
         super.readCustomNBT(tag);
         boolean formed = tag.getBoolean("formed");
         boolean hasReactorState = formed || tag.hasKey(FUSION_PLASMA_TEMPERATURE) ||
-              tag.hasKey(NBTConstants.HEAT_STORED, net.minecraftforge.common.util.Constants.NBT.TAG_COMPOUND) || tag.hasKey("injectionRate");
+                tag.hasKey(NBTConstants.HEAT_STORED, net.minecraftforge.common.util.Constants.NBT.TAG_COMPOUND) || tag.hasKey("injectionRate");
         if (hasReactorState) {
             setReactor(new FusionReactor(this));
             if (tag.hasKey(FUSION_PLASMA_TEMPERATURE)) {
@@ -413,7 +409,7 @@ public class TileEntityReactorController extends TileEntityReactorBlock implemen
 
     private static double sanitizeHeatMetric(double value) {
         return mekanism.api.heat.HeatAPI.isFinite(value) ?
-              Math.max(0, Math.min(mekanism.api.heat.HeatAPI.MAX_HEAT, value)) : 0;
+                Math.max(0, Math.min(mekanism.api.heat.HeatAPI.MAX_HEAT, value)) : 0;
     }
 
     public boolean isBurning() {

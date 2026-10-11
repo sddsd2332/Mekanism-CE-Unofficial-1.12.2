@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.function.BiFunction;
 
 public class CapabilityHandlerManager<HOLDER extends IHolder, CONTAINER, HANDLER, BASE_HANDLER>
-      extends BasicSidedCapabilityResolver<HANDLER, BASE_HANDLER> implements ICapabilityHandlerManager<CONTAINER> {
+        extends BasicSidedCapabilityResolver<HANDLER, BASE_HANDLER> implements ICapabilityHandlerManager<CONTAINER> {
 
     private final BiFunction<HOLDER, EnumFacing, List<CONTAINER>> containerGetter;
     private final boolean canHandle;
@@ -20,7 +20,7 @@ public class CapabilityHandlerManager<HOLDER extends IHolder, CONTAINER, HANDLER
     protected final HOLDER holder;
 
     protected CapabilityHandlerManager(@Nullable HOLDER holder, @Nonnull BASE_HANDLER baseHandler, @Nonnull Capability<HANDLER> supportedCapability,
-          @Nonnull ProxyCreator<HANDLER, BASE_HANDLER> proxyCreator, @Nonnull BiFunction<HOLDER, EnumFacing, List<CONTAINER>> containerGetter) {
+                                       @Nonnull ProxyCreator<HANDLER, BASE_HANDLER> proxyCreator, @Nonnull BiFunction<HOLDER, EnumFacing, List<CONTAINER>> containerGetter) {
         super(baseHandler, supportedCapability, proxyCreator, holder != null);
         this.holder = holder;
         canHandle = holder != null;

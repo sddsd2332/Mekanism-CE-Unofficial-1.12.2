@@ -18,23 +18,23 @@ public class ProxiedGasTankHolder extends ProxiedHolder implements IGasTankHolde
     private final Function<EnumFacing, List<IExtendedGasTank>> extractTankFunction;
 
     public static ProxiedGasTankHolder create(Predicate<EnumFacing> insertPredicate, Predicate<EnumFacing> extractPredicate,
-          Function<EnumFacing, List<IExtendedGasTank>> tankFunction) {
+                                              Function<EnumFacing, List<IExtendedGasTank>> tankFunction) {
         return new ProxiedGasTankHolder(insertPredicate, extractPredicate, tankFunction,
-              side -> insertPredicate.test(side) ? tankFunction.apply(side) : Collections.emptyList(),
-              side -> extractPredicate.test(side) ? tankFunction.apply(side) : Collections.emptyList());
+                side -> insertPredicate.test(side) ? tankFunction.apply(side) : Collections.emptyList(),
+                side -> extractPredicate.test(side) ? tankFunction.apply(side) : Collections.emptyList());
     }
 
     public static ProxiedGasTankHolder create(Predicate<EnumFacing> insertPredicate, Predicate<EnumFacing> extractPredicate,
-          Function<EnumFacing, List<IExtendedGasTank>> tankFunction, Function<EnumFacing, List<IExtendedGasTank>> insertTankFunction,
-          Function<EnumFacing, List<IExtendedGasTank>> extractTankFunction) {
+                                              Function<EnumFacing, List<IExtendedGasTank>> tankFunction, Function<EnumFacing, List<IExtendedGasTank>> insertTankFunction,
+                                              Function<EnumFacing, List<IExtendedGasTank>> extractTankFunction) {
         return new ProxiedGasTankHolder(insertPredicate, extractPredicate, tankFunction,
-              side -> insertPredicate.test(side) ? insertTankFunction.apply(side) : Collections.emptyList(),
-              side -> extractPredicate.test(side) ? extractTankFunction.apply(side) : Collections.emptyList());
+                side -> insertPredicate.test(side) ? insertTankFunction.apply(side) : Collections.emptyList(),
+                side -> extractPredicate.test(side) ? extractTankFunction.apply(side) : Collections.emptyList());
     }
 
     protected ProxiedGasTankHolder(Predicate<EnumFacing> insertPredicate, Predicate<EnumFacing> extractPredicate,
-          Function<EnumFacing, List<IExtendedGasTank>> tankFunction, Function<EnumFacing, List<IExtendedGasTank>> insertTankFunction,
-          Function<EnumFacing, List<IExtendedGasTank>> extractTankFunction) {
+                                   Function<EnumFacing, List<IExtendedGasTank>> tankFunction, Function<EnumFacing, List<IExtendedGasTank>> insertTankFunction,
+                                   Function<EnumFacing, List<IExtendedGasTank>> extractTankFunction) {
         super(insertPredicate, extractPredicate);
         this.tankFunction = tankFunction;
         this.insertTankFunction = insertTankFunction;

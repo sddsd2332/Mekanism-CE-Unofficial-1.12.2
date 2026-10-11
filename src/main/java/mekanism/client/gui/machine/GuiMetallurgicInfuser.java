@@ -29,14 +29,14 @@ public class GuiMetallurgicInfuser extends GuiConfigurableTile<TileEntityMetallu
     protected void addGuiElements() {
         super.addGuiElements();
         addButton(new GuiVerticalPowerBar(this, tileEntity.getEnergyContainer(), 164, 15))
-              .warning(WarningType.NOT_ENOUGH_ENERGY, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY));
+                .warning(WarningType.NOT_ENOUGH_ENERGY, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY));
         addButton(new GuiEnergyTab(this, tileEntity.getEnergyContainer(), tileEntity::getActive));
         addButton(new GuiProgress(tileEntity::getScaledProgress, ProgressType.RIGHT, this, 72, 47))
-              .recipeViewerCategories(RecipeViewerRecipeType.METALLURGIC_INFUSING)
-              .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity.getWarningCheck(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT));
+                .recipeViewerCategories(RecipeViewerRecipeType.METALLURGIC_INFUSING)
+                .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity.getWarningCheck(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT));
         addButton(new GuiInfuseBar(this, tileEntity.infuseStored, () -> tileEntity.getScaledInfuseLevel(52) / 52D,
-              tileEntity::getInfuseTooltip, 7, 15, 4, 52, true))
-              .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_SECONDARY_INPUT));
+                tileEntity::getInfuseTooltip, 7, 15, 4, 52, true))
+                .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_SECONDARY_INPUT));
         addButton(new GuiDumpButton<>(this, tileEntity, 147, 72));
     }
 

@@ -57,12 +57,10 @@ public class Chunk3D {
     }
 
 
-
     /**
      * Calculates the set of chunks in a given radius around this chunk.
      *
      * @param chunkRadius Radius in chunks.
-     *
      * @return Set of chunks in the given radius centered on this chunk.
      */
     public Set<Chunk3D> expand(int chunkRadius) {

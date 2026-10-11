@@ -1,7 +1,7 @@
 package mekanism.multiblockmachine.common;
 
-import mekanism.common.Mekanism;
 import mekanism.common.CommonProxy;
+import mekanism.common.Mekanism;
 import mekanism.common.base.IGuiProvider;
 import mekanism.common.config.MekanismConfig;
 import mekanism.multiblockmachine.common.inventory.container.*;
@@ -29,9 +29,9 @@ public class MultiblockMachineCommonProxy implements IGuiProvider {
         registerTileEntity(TileEntityLargeElectrolyticSeparator.class, "large_electrolytic_separator");
         registerTileEntity(TileEntityLargeChemicalInfuser.class, "large_chemical_infuser");
         registerTileEntity(TileEntityLargeChemicalWasher.class, "large_chemical_washer");
-        registerTileEntity(TileEntityLargeWindGenerator.class,"large_wind_generator");
-        registerTileEntity(TileEntityLargeGasGenerator.class,"large_gas_generator");
-        registerTileEntity(TileEntityLargeSolarNeutronActivator.class,"large_solar_neutron_activator");
+        registerTileEntity(TileEntityLargeWindGenerator.class, "large_wind_generator");
+        registerTileEntity(TileEntityLargeGasGenerator.class, "large_gas_generator");
+        registerTileEntity(TileEntityLargeSolarNeutronActivator.class, "large_solar_neutron_activator");
     }
 
     public void registerTESRs() {
@@ -68,12 +68,14 @@ public class MultiblockMachineCommonProxy implements IGuiProvider {
             return null;
         }
         return switch (ID) {
-            case 0 -> new ContainerLargeElectrolyticSeparator(player.inventory, (TileEntityLargeElectrolyticSeparator) tileEntity);
+            case 0 ->
+                    new ContainerLargeElectrolyticSeparator(player.inventory, (TileEntityLargeElectrolyticSeparator) tileEntity);
             case 1 -> new ContainerLargeChemicalInfuser(player.inventory, (TileEntityLargeChemicalInfuser) tileEntity);
             case 2 -> new ContainerLargeChemicalWasher(player.inventory, (TileEntityLargeChemicalWasher) tileEntity);
             case 3 -> new ContainerLargeWindGenerator(player.inventory, (TileEntityLargeWindGenerator) tileEntity);
-            case 4 -> new ContainerLargeGasGenerator(player.inventory,(TileEntityLargeGasGenerator) tileEntity);
-            case 5 -> new ContainerLargeSolarNeutronActivator(player.inventory,(TileEntityLargeSolarNeutronActivator) tileEntity);
+            case 4 -> new ContainerLargeGasGenerator(player.inventory, (TileEntityLargeGasGenerator) tileEntity);
+            case 5 ->
+                    new ContainerLargeSolarNeutronActivator(player.inventory, (TileEntityLargeSolarNeutronActivator) tileEntity);
             default -> null;
         };
     }

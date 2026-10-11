@@ -23,7 +23,7 @@ import java.util.List;
 
 @SideOnly(Side.CLIENT)
 public class GuiAdvancedElectricMachine<RECIPE extends AdvancedMachineRecipe<RECIPE>, TILE extends TileEntityAdvancedElectricMachine<RECIPE>>
-      extends GuiConfigurableTile<TILE, ContainerAdvancedElectricMachine<RECIPE>> {
+        extends GuiConfigurableTile<TILE, ContainerAdvancedElectricMachine<RECIPE>> {
 
     public GuiAdvancedElectricMachine(InventoryPlayer inventory, TILE tile) {
         super(tile, new ContainerAdvancedElectricMachine<>(inventory, tile));
@@ -34,13 +34,13 @@ public class GuiAdvancedElectricMachine<RECIPE extends AdvancedMachineRecipe<REC
     protected void addGuiElements() {
         super.addGuiElements();
         addButton(new GuiVerticalPowerBar(this, tileEntity.getEnergyContainer(), 164, 16))
-              .warning(WarningType.NOT_ENOUGH_ENERGY, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY));
+                .warning(WarningType.NOT_ENOUGH_ENERGY, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY));
         addButton(new GuiEnergyTab(this, tileEntity.getEnergyContainer(), tileEntity::getActive));
         addButton(new GuiProgress(tileEntity::getScaledProgress, ProgressType.BAR, this, 86, 38))
-              .recipeViewerCategories(getRecipeViewerRecipeTypes())
-              .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity.getWarningCheck(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT));
+                .recipeViewerCategories(getRecipeViewerRecipeTypes())
+                .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity.getWarningCheck(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT));
         addButton(new GuiGasBar(this, tileEntity.gasTank, 68, 36, 6, 12, true, this::getGasBarTooltip))
-              .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_SECONDARY_INPUT));
+                .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_SECONDARY_INPUT));
     }
 
     protected IRecipeViewerRecipeType<?>[] getRecipeViewerRecipeTypes() {
@@ -61,7 +61,7 @@ public class GuiAdvancedElectricMachine<RECIPE extends AdvancedMachineRecipe<REC
             tooltip.add(LangUtils.localize("gui.none"));
         } else {
             tooltip.add(stack.gasStack.getGas().getLocalizedName() + ": " +
-                  (stack.stored == Integer.MAX_VALUE ? LangUtils.localize("gui.infinite") : stack.stored));
+                    (stack.stored == Integer.MAX_VALUE ? LangUtils.localize("gui.infinite") : stack.stored));
         }
         return tooltip;
     }

@@ -7,9 +7,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-/** Chooses one loaded replica of one UUID. It never adds replicas or claims global freshness. */
+/**
+ * Chooses one loaded replica of one UUID. It never adds replicas or claims global freshness.
+ */
 public final class LegacyReplicaSelection {
-    private LegacyReplicaSelection() {}
+    private LegacyReplicaSelection() {
+    }
 
     public static Replica select(Collection<Replica> loaded, long worldTime, Replica runtimeAuthority) throws IOException {
         if (runtimeAuthority != null) return runtimeAuthority;
@@ -33,7 +36,8 @@ public final class LegacyReplicaSelection {
         for (Replica candidate : newest) requireEqual(selected, candidate, "Same-timestamp legacy replicas disagree");
         // An undated copy could be newer than any dated copy. Only equal content resolves that
         // ambiguity without scanning unloaded chunks or silently throwing away an inventory.
-        for (Replica candidate : unknown) requireEqual(selected, candidate, "Undated legacy replica disagrees with selected inventory");
+        for (Replica candidate : unknown)
+            requireEqual(selected, candidate, "Undated legacy replica disagrees with selected inventory");
         return selected;
     }
 
@@ -50,6 +54,8 @@ public final class LegacyReplicaSelection {
             data = snapshot.copy();
         }
 
-        public NBTTagCompound snapshot() { return data.copy(); }
+        public NBTTagCompound snapshot() {
+            return data.copy();
+        }
     }
 }

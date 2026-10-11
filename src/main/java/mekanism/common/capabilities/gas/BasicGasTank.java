@@ -1,11 +1,6 @@
 package mekanism.common.capabilities.gas;
 
-import mekanism.api.Action;
-import mekanism.api.AutomationType;
-import mekanism.api.IContentsListener;
-import mekanism.api.IContentsListenerRegistry;
-import mekanism.api.IContentsSnapshot;
-import mekanism.api.NBTConstants;
+import mekanism.api.*;
 import mekanism.api.functions.ConstantPredicates;
 import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasStack;
@@ -57,12 +52,12 @@ public class BasicGasTank extends GasTank implements IExtendedGasTank, IContents
     }
 
     public static BasicGasTank create(int capacity, Predicate<Gas> canExtract, Predicate<Gas> canInsert, Predicate<Gas> validator,
-          @Nullable IContentsListener listener) {
+                                      @Nullable IContentsListener listener) {
         return createModern(capacity, wrapValidatorToModern(canExtract), wrapValidatorToModern(canInsert), wrapValidatorToModern(validator), listener);
     }
 
     public static BasicGasTank create(int capacity, BiPredicate<Gas, AutomationType> canExtract, BiPredicate<Gas, AutomationType> canInsert,
-          Predicate<Gas> validator, @Nullable IContentsListener listener) {
+                                      Predicate<Gas> validator, @Nullable IContentsListener listener) {
         if (capacity < 0) {
             throw new IllegalArgumentException("Capacity must be at least zero");
         }
@@ -81,7 +76,7 @@ public class BasicGasTank extends GasTank implements IExtendedGasTank, IContents
     }
 
     public static BasicGasTank createModern(int capacity, Predicate<GasStack> canExtract, Predicate<GasStack> canInsert,
-          @Nullable IContentsListener listener) {
+                                            @Nullable IContentsListener listener) {
         return createModern(capacity, canExtract, canInsert, ConstantPredicates.alwaysTrue(), listener);
     }
 
@@ -90,7 +85,7 @@ public class BasicGasTank extends GasTank implements IExtendedGasTank, IContents
     }
 
     public static BasicGasTank inputModern(int capacity, Predicate<GasStack> canInsert, Predicate<GasStack> validator,
-          @Nullable IContentsListener listener) {
+                                           @Nullable IContentsListener listener) {
         return createModern(capacity, ConstantPredicates.notExternal(), (stack, automationType) -> canInsert.test(stack), validator, listener);
     }
 
@@ -99,13 +94,13 @@ public class BasicGasTank extends GasTank implements IExtendedGasTank, IContents
     }
 
     public static BasicGasTank createModern(int capacity, Predicate<GasStack> canExtract, Predicate<GasStack> canInsert,
-          Predicate<GasStack> validator, @Nullable IContentsListener listener) {
+                                            Predicate<GasStack> validator, @Nullable IContentsListener listener) {
         return createModern(capacity, (stack, automationType) -> automationType == AutomationType.MANUAL || canExtract.test(stack),
-              (stack, automationType) -> canInsert.test(stack), validator, listener);
+                (stack, automationType) -> canInsert.test(stack), validator, listener);
     }
 
     public static BasicGasTank createModern(int capacity, BiPredicate<GasStack, AutomationType> canExtract,
-          BiPredicate<GasStack, AutomationType> canInsert, Predicate<GasStack> validator, @Nullable IContentsListener listener) {
+                                            BiPredicate<GasStack, AutomationType> canInsert, Predicate<GasStack> validator, @Nullable IContentsListener listener) {
         if (capacity < 0) {
             throw new IllegalArgumentException("Capacity must be at least zero");
         }
@@ -118,9 +113,9 @@ public class BasicGasTank extends GasTank implements IExtendedGasTank, IContents
     @SuppressWarnings("unchecked")
     protected static BiPredicate<Gas, AutomationType> wrapAutomationPredicate(BiPredicate<GasStack, AutomationType> predicate) {
         if (predicate == ConstantPredicates.<GasStack, AutomationType>alwaysTrueBi() ||
-            predicate == ConstantPredicates.<GasStack>internalOnly() ||
-            predicate == ConstantPredicates.<GasStack>notExternal() ||
-            predicate == ConstantPredicates.<GasStack>manualOnly()) {
+                predicate == ConstantPredicates.<GasStack>internalOnly() ||
+                predicate == ConstantPredicates.<GasStack>notExternal() ||
+                predicate == ConstantPredicates.<GasStack>manualOnly()) {
             return (BiPredicate<Gas, AutomationType>) (BiPredicate<?, AutomationType>) predicate;
         }
         return (gas, automationType) -> gas != null && predicate.test(new GasStack(gas, 1), automationType);
@@ -162,7 +157,7 @@ public class BasicGasTank extends GasTank implements IExtendedGasTank, IContents
     private volatile IContentsListener[] additionalListeners;
 
     protected BasicGasTank(int capacity, BiPredicate<Gas, AutomationType> canExtract, BiPredicate<Gas, AutomationType> canInsert,
-          Predicate<Gas> validator, @Nullable IContentsListener listener) {
+                           Predicate<Gas> validator, @Nullable IContentsListener listener) {
         super(capacity);
         this.capacity = capacity;
         this.canExtract = canExtract;
@@ -174,7 +169,7 @@ public class BasicGasTank extends GasTank implements IExtendedGasTank, IContents
     }
 
     protected BasicGasTank(int capacity, BiPredicate<GasStack, AutomationType> canExtract, BiPredicate<GasStack, AutomationType> canInsert,
-          Predicate<GasStack> validator, @Nullable IContentsListener listener, @Nullable Void ignored) {
+                           Predicate<GasStack> validator, @Nullable IContentsListener listener, @Nullable Void ignored) {
         super(capacity);
         this.capacity = capacity;
         this.canExtractModern = canExtract;
@@ -296,7 +291,7 @@ public class BasicGasTank extends GasTank implements IExtendedGasTank, IContents
     @Override
     public void restoreContentsSnapshot(NBTTagCompound snapshot) {
         setStackUncheckedNoUpdate(snapshot.hasKey(NBTConstants.STORED) ?
-              GasStack.readFromNBT(snapshot.getCompoundTag(NBTConstants.STORED)) : null);
+                GasStack.readFromNBT(snapshot.getCompoundTag(NBTConstants.STORED)) : null);
     }
 
     @Override

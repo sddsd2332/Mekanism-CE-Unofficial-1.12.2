@@ -6,7 +6,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Objects;
 
-/** Bounded result published by a pure-data QIO planning worker. */
+/**
+ * Bounded result published by a pure-data QIO planning worker.
+ */
+
 /**
  * QIO 处理模块中的 QIOPlanningResult 类型。
  *
@@ -14,6 +17,7 @@ import java.util.Objects;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class QIOPlanningResult {
+    public static final String OPTIMIZATION_LIMIT_DIAGNOSTIC = "QIO optimization budget reached; using the best complete plan";
 
     public enum Status {
         SUCCESS,
@@ -24,6 +28,8 @@ public final class QIOPlanningResult {
         TOO_COMPLEX,
         AMOUNT_OVERFLOW,
         CANCELLED,
+        WORLD_UNAVAILABLE,
+        VERSION_CHANGED,
         INTERNAL_ERROR
     }
 
@@ -36,8 +42,8 @@ public final class QIOPlanningResult {
     private final long plannedOperations;
 
     private QIOPlanningResult(Status status, @Nullable QIOCraftPlan plan,
-          @Nonnull QIOPlanningTrace trace, String diagnostic, int exploredNodes,
-          long plannedOperations) {
+                              @Nonnull QIOPlanningTrace trace, String diagnostic, int exploredNodes,
+                              long plannedOperations) {
         this.status = Objects.requireNonNull(status, "status");
         this.plan = plan;
         this.trace = Objects.requireNonNull(trace, "trace");
@@ -52,28 +58,34 @@ public final class QIOPlanningResult {
     /** 创建成功规划结果。 */
     @Nonnull
     public static QIOPlanningResult success(@Nonnull QIOCraftPlan plan, int exploredNodes,
-          long plannedOperations) {
+                                            long plannedOperations) {
         return new QIOPlanningResult(Status.SUCCESS, Objects.requireNonNull(plan, "plan"),
-              QIOPlanningTrace.empty(), "", exploredNodes, plannedOperations);
+                QIOPlanningTrace.empty(), "", exploredNodes, plannedOperations);
+    }
+
+    public static QIOPlanningResult optimizedUntilBudget(@Nonnull QIOCraftPlan plan, int exploredNodes,
+                                                         long plannedOperations) {
+        return new QIOPlanningResult(Status.SUCCESS, Objects.requireNonNull(plan, "plan"),
+                QIOPlanningTrace.empty(), OPTIMIZATION_LIMIT_DIAGNOSTIC, exploredNodes, plannedOperations);
     }
 
     /** 创建带诊断和探索统计的失败结果。 */
     @Nonnull
     public static QIOPlanningResult failure(@Nonnull Status status, String diagnostic,
-          int exploredNodes, long plannedOperations) {
+                                            int exploredNodes, long plannedOperations) {
         return failure(status, diagnostic, exploredNodes, plannedOperations,
-              QIOPlanningTrace.empty());
+                QIOPlanningTrace.empty());
     }
 
     /** 创建带默认空 trace 的失败结果。 */
     @Nonnull
     public static QIOPlanningResult failure(@Nonnull Status status, String diagnostic,
-          int exploredNodes, long plannedOperations, @Nonnull QIOPlanningTrace trace) {
+                                            int exploredNodes, long plannedOperations, @Nonnull QIOPlanningTrace trace) {
         if (status == Status.SUCCESS) {
             throw new IllegalArgumentException("Use success for a successful QIO planning result");
         }
         return new QIOPlanningResult(status, null, trace, diagnostic, exploredNodes,
-              plannedOperations);
+                plannedOperations);
     }
 
     @Nonnull

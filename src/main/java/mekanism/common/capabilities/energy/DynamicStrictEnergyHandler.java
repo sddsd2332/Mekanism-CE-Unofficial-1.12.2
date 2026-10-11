@@ -16,12 +16,12 @@ import java.util.function.Predicate;
 public class DynamicStrictEnergyHandler extends DynamicHandler<IEnergyContainer> implements IMekanismStrictEnergyHandler {
 
     public DynamicStrictEnergyHandler(Function<EnumFacing, List<IEnergyContainer>> containerSupplier, Predicate<EnumFacing> canExtract,
-          Predicate<EnumFacing> canInsert, @Nullable IContentsListener listener) {
+                                      Predicate<EnumFacing> canInsert, @Nullable IContentsListener listener) {
         super(containerSupplier, canExtract, canInsert, listener);
     }
 
     public DynamicStrictEnergyHandler(Function<EnumFacing, List<IEnergyContainer>> containerSupplier, InteractPredicate canExtract, InteractPredicate canInsert,
-          @Nullable IContentsListener listener) {
+                                      @Nullable IContentsListener listener) {
         super(containerSupplier, canExtract, canInsert, listener);
     }
 

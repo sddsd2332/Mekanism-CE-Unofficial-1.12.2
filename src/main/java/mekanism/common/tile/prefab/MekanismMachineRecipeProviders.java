@@ -1,39 +1,17 @@
 package mekanism.common.tile.prefab;
 
-import mekanism.api.processing.MachinePort;
-import mekanism.api.processing.MachinePresentationDescriptor;
-import mekanism.api.processing.MachineRecipeProvider;
-import mekanism.api.processing.MachineRecipeProviderRegistry;
-import mekanism.api.processing.MachineRecipeRoute;
-import mekanism.api.processing.ProviderConformanceDescriptor;
-import mekanism.api.processing.QIOAutomationMode;
 import mekanism.api.AutomationType;
 import mekanism.api.inventory.IInventorySlot;
+import mekanism.api.processing.*;
 import mekanism.common.Mekanism;
 import mekanism.common.MekanismFluids;
 import mekanism.common.base.IFactory.RecipeType;
 import mekanism.common.recipe.RecipeHandler;
 import mekanism.common.recipe.processing.MachineRecipeRouteCollectors;
 import mekanism.common.tile.factory.TileEntityFactory;
-import mekanism.common.tile.machine.TileEntityAmbientAccumulator;
-import mekanism.common.tile.machine.TileEntityAmbientAccumulatorEnergy;
-import mekanism.common.tile.machine.TileEntityAntiprotonicNucleosynthesizer;
-import mekanism.common.tile.machine.TileEntityChemicalCrystallizer;
-import mekanism.common.tile.machine.TileEntityChemicalDissolutionChamber;
-import mekanism.common.tile.machine.TileEntityChemicalInfuser;
-import mekanism.common.tile.machine.TileEntityChemicalOxidizer;
-import mekanism.common.tile.machine.TileEntityChemicalWasher;
-import mekanism.common.tile.machine.TileEntityDigitalMiner;
-import mekanism.common.tile.machine.TileEntityElectricPump;
-import mekanism.common.tile.machine.TileEntityElectrolyticSeparator;
-import mekanism.common.tile.machine.TileEntityIsotopicCentrifuge;
-import mekanism.common.tile.machine.TileEntityMetallurgicInfuser;
-import mekanism.common.tile.machine.TileEntityNutritionalLiquifier;
-import mekanism.common.tile.machine.TileEntityPRC;
-import mekanism.common.tile.machine.TileEntityRotaryCondensentrator;
-import mekanism.common.tile.machine.TileEntitySolarNeutronActivator;
-import net.minecraft.tileentity.TileEntity;
+import mekanism.common.tile.machine.*;
 import net.minecraft.item.ItemStack;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.ResourceLocation;
 
 import java.util.ArrayList;
@@ -42,19 +20,21 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.ToIntFunction;
 
-/** Registers Mekanism machines with the network-independent processing bridge. */
+/**
+ * Registers Mekanism machines with the network-independent processing bridge.
+ */
 @SuppressWarnings({"rawtypes", "unchecked"})
 public final class MekanismMachineRecipeProviders {
 
     private static boolean registered;
     private static final ProviderConformanceDescriptor PROCESSING_CONFORMANCE =
-          ProviderConformanceDescriptor.builder(Mekanism.MODID, "main")
-                .supports(QIOAutomationMode.SCHEDULED, QIOAutomationMode.PASSIVE, QIOAutomationMode.OUTPUT_ONLY)
-                .build();
+            ProviderConformanceDescriptor.builder(Mekanism.MODID, "main")
+                    .supports(QIOAutomationMode.SCHEDULED, QIOAutomationMode.PASSIVE, QIOAutomationMode.OUTPUT_ONLY)
+                    .build();
     private static final ProviderConformanceDescriptor OUTPUT_CONFORMANCE =
-          ProviderConformanceDescriptor.builder(Mekanism.MODID, "main")
-                .supports(QIOAutomationMode.OUTPUT_ONLY)
-                .build();
+            ProviderConformanceDescriptor.builder(Mekanism.MODID, "main")
+                    .supports(QIOAutomationMode.OUTPUT_ONLY)
+                    .build();
 
     private MekanismMachineRecipeProviders() {
     }
@@ -72,157 +52,166 @@ public final class MekanismMachineRecipeProviders {
 
     private static void registerPrefabMachines() {
         register("electric_machine", TileEntityElectricMachine.class, tile -> tile.getRecipes(),
-              tile -> MachineRecipeRouteCollectors.collectBasicItem(tile.getRecipes()),
-              tile -> ports(
-                    MachinePort.item("item_input", MachinePort.Role.INPUT, tile.inputSlot),
-                    MachinePort.item("item_output", MachinePort.Role.OUTPUT, tile.outputSlot)));
+                tile -> MachineRecipeRouteCollectors.collectBasicItem(tile.getRecipes()),
+                tile -> ports(
+                        MachinePort.item("item_input", MachinePort.Role.INPUT, tile.inputSlot),
+                        MachinePort.item("item_output", MachinePort.Role.OUTPUT, tile.outputSlot)));
 
         register("chance_machine", TileEntityChanceMachine.class, tile -> tile.getRecipes(),
-              tile -> MachineRecipeRouteCollectors.collectChanceItem(tile.getRecipes()),
-              tile -> ports(
-                    MachinePort.item("item_input", MachinePort.Role.INPUT, tile.inputSlot),
-                    MachinePort.item("item_output", MachinePort.Role.OUTPUT, tile.outputSlot),
-                    MachinePort.item("secondary_item_output", MachinePort.Role.OUTPUT, tile.secondaryOutputSlot)));
+                tile -> MachineRecipeRouteCollectors.collectChanceItem(tile.getRecipes()),
+                tile -> ports(
+                        MachinePort.item("item_input", MachinePort.Role.INPUT, tile.inputSlot),
+                        MachinePort.item("item_output", MachinePort.Role.OUTPUT, tile.outputSlot),
+                        MachinePort.item("secondary_item_output", MachinePort.Role.OUTPUT, tile.secondaryOutputSlot)));
+
+        // Recycler has a runtime fallback recipe for inputs that are not in the
+        // registered table. Keep that fallback local to the machine: QIO must
+        // publish only registered deterministic routes.
+        register("recycler", TileEntityRecycler.class, tile -> tile.getRecipes(),
+                tile -> MachineRecipeRouteCollectors.collectGuaranteedChanceItem(tile.getRecipes()),
+                tile -> ports(
+                        MachinePort.item("item_input", MachinePort.Role.INPUT, tile.inputSlot),
+                        MachinePort.item("item_output", MachinePort.Role.OUTPUT, tile.outputSlot)));
 
         register("guaranteed_chance_machine", TileEntityChanceMachine2.class, tile -> tile.getRecipes(),
-              tile -> MachineRecipeRouteCollectors.collectGuaranteedChanceItem(tile.getRecipes()),
-              tile -> ports(
-                    MachinePort.item("item_input", MachinePort.Role.INPUT, tile.inputSlot),
-                    MachinePort.item("item_output", MachinePort.Role.OUTPUT, tile.outputSlot)));
+                tile -> MachineRecipeRouteCollectors.collectGuaranteedChanceItem(tile.getRecipes()),
+                tile -> ports(
+                        MachinePort.item("item_input", MachinePort.Role.INPUT, tile.inputSlot),
+                        MachinePort.item("item_output", MachinePort.Role.OUTPUT, tile.outputSlot)));
 
         register("double_item_machine", TileEntityDoubleElectricMachine.class, tile -> tile.getRecipes(),
-              tile -> MachineRecipeRouteCollectors.collectDoubleItem(tile.getRecipes()),
-              tile -> ports(
-                    MachinePort.item("item_input", MachinePort.Role.INPUT, tile.inputSlot),
-                    MachinePort.item("extra_item_input", MachinePort.Role.INPUT, tile.extraSlot),
-                    MachinePort.item("item_output", MachinePort.Role.OUTPUT, tile.outputSlot)));
+                tile -> MachineRecipeRouteCollectors.collectDoubleItem(tile.getRecipes()),
+                tile -> ports(
+                        MachinePort.item("item_input", MachinePort.Role.INPUT, tile.inputSlot),
+                        MachinePort.item("extra_item_input", MachinePort.Role.INPUT, tile.extraSlot),
+                        MachinePort.item("item_output", MachinePort.Role.OUTPUT, tile.outputSlot)));
 
         register("advanced_gas_machine", TileEntityAdvancedElectricMachine.class, tile -> tile.getRecipes(),
-              tile -> MachineRecipeRouteCollectors.collectAdvancedGasToItem(tile.getRecipes(), tile.getRecipeGasUsagePerOperation()),
-              tile -> ports(
-                    MachinePort.item("item_input", MachinePort.Role.INPUT, tile.inputSlot),
-                    MachinePort.gas("gas_input", MachinePort.Role.INPUT, tile.gasTank),
-                    MachinePort.item("item_output", MachinePort.Role.OUTPUT, tile.outputSlot)),
-              TileEntityAdvancedElectricMachine::getRecipeGasUsagePerOperation);
+                tile -> MachineRecipeRouteCollectors.collectAdvancedGasToItem(tile.getRecipes(), tile.getRecipeGasUsagePerOperation()),
+                tile -> ports(
+                        MachinePort.item("item_input", MachinePort.Role.INPUT, tile.inputSlot),
+                        MachinePort.gas("gas_input", MachinePort.Role.INPUT, tile.gasTank),
+                        MachinePort.item("item_output", MachinePort.Role.OUTPUT, tile.outputSlot)),
+                TileEntityAdvancedElectricMachine::getRecipeGasUsagePerOperation);
 
         register("farm_machine", TileEntityFarmMachine.class, tile -> tile.getRecipes(),
-              tile -> MachineRecipeRouteCollectors.collectFarmGasToItem(tile.getRecipes(), tile.getRecipeGasUsagePerOperation()),
-              tile -> ports(
-                    MachinePort.item("item_input", MachinePort.Role.INPUT, tile.inputSlot),
-                    MachinePort.gas("gas_input", MachinePort.Role.INPUT, tile.mergedTank.getGasTank()),
-                    MachinePort.fluid("fluid_input", MachinePort.Role.INPUT, tile.mergedTank.getFluidTank()),
-                    MachinePort.itemGroup("item_output", MachinePort.Role.OUTPUT, new ArrayList<>(tile.getOutputSlots()), "item_output", 0)),
-              TileEntityFarmMachine::getRecipeGasUsagePerOperation);
+                tile -> MachineRecipeRouteCollectors.collectFarmGasToItem(tile.getRecipes(), tile.getRecipeGasUsagePerOperation()),
+                tile -> ports(
+                        MachinePort.item("item_input", MachinePort.Role.INPUT, tile.inputSlot),
+                        MachinePort.gas("gas_input", MachinePort.Role.INPUT, tile.mergedTank.getGasTank()),
+                        MachinePort.fluid("fluid_input", MachinePort.Role.INPUT, tile.mergedTank.getFluidTank()),
+                        MachinePort.itemGroup("item_output", MachinePort.Role.OUTPUT, new ArrayList<>(tile.getOutputSlots()), "item_output", 0)),
+                TileEntityFarmMachine::getRecipeGasUsagePerOperation);
     }
 
     private static void registerChemicalMachines() {
         register("metallurgic_infuser", TileEntityMetallurgicInfuser.class, TileEntityMetallurgicInfuser::getRecipes,
-              tile -> MachineRecipeRouteCollectors.collectInfusionItem(tile.getRecipes()),
-              tile -> ports(
-                    MachinePort.item("item_input", MachinePort.Role.INPUT, tile.getRecipeInputSlot()),
-                    MachinePort.item("extra_item_input", MachinePort.Role.INPUT, tile.getRecipeExtraInputSlot()),
-                    MachinePort.item("item_output", MachinePort.Role.OUTPUT, tile.getRecipeOutputSlot())));
+                tile -> MachineRecipeRouteCollectors.collectInfusionItem(tile.getRecipes()),
+                tile -> ports(
+                        MachinePort.item("item_input", MachinePort.Role.INPUT, tile.getRecipeInputSlot()),
+                        MachinePort.item("extra_item_input", MachinePort.Role.INPUT, tile.getRecipeExtraInputSlot()),
+                        MachinePort.item("item_output", MachinePort.Role.OUTPUT, tile.getRecipeOutputSlot())));
 
         register("chemical_dissolution_chamber", TileEntityChemicalDissolutionChamber.class,
-              TileEntityChemicalDissolutionChamber::getRecipes,
-              tile -> MachineRecipeRouteCollectors.collectItemGasToGas(tile.getRecipes(), MekanismFluids.SulfuricAcid,
-                    tile.getRecipeGasUsagePerOperation()),
-              tile -> ports(
-                    MachinePort.item("item_input", MachinePort.Role.INPUT, tile.getRecipeInputSlot()),
-                    MachinePort.gas("gas_input", MachinePort.Role.INPUT, tile.injectTank),
-                    MachinePort.gas("gas_output", MachinePort.Role.OUTPUT, tile.outputTank)),
-              TileEntityChemicalDissolutionChamber::getRecipeGasUsagePerOperation);
+                TileEntityChemicalDissolutionChamber::getRecipes,
+                tile -> MachineRecipeRouteCollectors.collectItemGasToGas(tile.getRecipes(), MekanismFluids.SulfuricAcid,
+                        tile.getRecipeGasUsagePerOperation()),
+                tile -> ports(
+                        MachinePort.item("item_input", MachinePort.Role.INPUT, tile.getRecipeInputSlot()),
+                        MachinePort.gas("gas_input", MachinePort.Role.INPUT, tile.injectTank),
+                        MachinePort.gas("gas_output", MachinePort.Role.OUTPUT, tile.outputTank)),
+                TileEntityChemicalDissolutionChamber::getRecipeGasUsagePerOperation);
 
         register("chemical_oxidizer", TileEntityChemicalOxidizer.class, TileEntityChemicalOxidizer::getRecipes,
-              tile -> MachineRecipeRouteCollectors.collectItemToGas(tile.getRecipes()),
-              tile -> ports(
-                    MachinePort.item("item_input", MachinePort.Role.INPUT, tile.getRecipeInputSlot()),
-                    MachinePort.gas("gas_output", MachinePort.Role.OUTPUT, tile.gasTank)));
+                tile -> MachineRecipeRouteCollectors.collectItemToGas(tile.getRecipes()),
+                tile -> ports(
+                        MachinePort.item("item_input", MachinePort.Role.INPUT, tile.getRecipeInputSlot()),
+                        MachinePort.gas("gas_output", MachinePort.Role.OUTPUT, tile.gasTank)));
 
         register("nutritional_liquifier", TileEntityNutritionalLiquifier.class, TileEntityNutritionalLiquifier::getRecipes,
-              tile -> MachineRecipeRouteCollectors.collectItemToGas(tile.getRecipes()),
-              tile -> ports(
-                    MachinePort.item("item_input", MachinePort.Role.INPUT, tile.getRecipeInputSlot()),
-                    MachinePort.gas("gas_output", MachinePort.Role.OUTPUT, tile.gasTank)));
+                tile -> MachineRecipeRouteCollectors.collectItemToGas(tile.getRecipes()),
+                tile -> ports(
+                        MachinePort.item("item_input", MachinePort.Role.INPUT, tile.getRecipeInputSlot()),
+                        MachinePort.gas("gas_output", MachinePort.Role.OUTPUT, tile.gasTank)));
 
         register("chemical_crystallizer", TileEntityChemicalCrystallizer.class, TileEntityChemicalCrystallizer::getRecipes,
-              tile -> MachineRecipeRouteCollectors.collectGasToItem(tile.getRecipes()),
-              tile -> ports(
-                    MachinePort.gas("gas_input", MachinePort.Role.INPUT, tile.inputTank),
-                    MachinePort.item("item_output", MachinePort.Role.OUTPUT, tile.getRecipeOutputSlot())));
+                tile -> MachineRecipeRouteCollectors.collectGasToItem(tile.getRecipes()),
+                tile -> ports(
+                        MachinePort.gas("gas_input", MachinePort.Role.INPUT, tile.inputTank),
+                        MachinePort.item("item_output", MachinePort.Role.OUTPUT, tile.getRecipeOutputSlot())));
 
         register("chemical_infuser", TileEntityChemicalInfuser.class, TileEntityChemicalInfuser::getRecipes,
-              tile -> MachineRecipeRouteCollectors.collectChemicalPairToGas(tile.getRecipes()),
-              tile -> ports(
-                    MachinePort.gas("left_gas", MachinePort.Role.INPUT, tile.leftTank),
-                    MachinePort.gas("right_gas", MachinePort.Role.INPUT, tile.rightTank),
-                    MachinePort.gas("gas_output", MachinePort.Role.OUTPUT, tile.centerTank)));
+                tile -> MachineRecipeRouteCollectors.collectChemicalPairToGas(tile.getRecipes()),
+                tile -> ports(
+                        MachinePort.gas("left_gas", MachinePort.Role.INPUT, tile.leftTank),
+                        MachinePort.gas("right_gas", MachinePort.Role.INPUT, tile.rightTank),
+                        MachinePort.gas("gas_output", MachinePort.Role.OUTPUT, tile.centerTank)));
 
         register("chemical_washer", TileEntityChemicalWasher.class, TileEntityChemicalWasher::getRecipes,
-              tile -> MachineRecipeRouteCollectors.collectGasFluidToGas(tile.getRecipes()),
-              tile -> ports(
-                    MachinePort.gas("gas_input", MachinePort.Role.INPUT, tile.inputTank),
-                    MachinePort.fluid("fluid_input", MachinePort.Role.INPUT, tile.fluidTank),
-                    MachinePort.gas("gas_output", MachinePort.Role.OUTPUT, tile.outputTank)));
+                tile -> MachineRecipeRouteCollectors.collectGasFluidToGas(tile.getRecipes()),
+                tile -> ports(
+                        MachinePort.gas("gas_input", MachinePort.Role.INPUT, tile.inputTank),
+                        MachinePort.fluid("fluid_input", MachinePort.Role.INPUT, tile.fluidTank),
+                        MachinePort.gas("gas_output", MachinePort.Role.OUTPUT, tile.outputTank)));
 
         register("electrolytic_separator", TileEntityElectrolyticSeparator.class, TileEntityElectrolyticSeparator::getRecipes,
-              tile -> MachineRecipeRouteCollectors.collectFluidToGasPair(tile.getRecipes()),
-              tile -> ports(
-                    MachinePort.fluid("fluid_input", MachinePort.Role.INPUT, tile.fluidTank),
-                    MachinePort.gas("left_gas_output", MachinePort.Role.OUTPUT, tile.leftTank),
-                    MachinePort.gas("right_gas_output", MachinePort.Role.OUTPUT, tile.rightTank)));
+                tile -> MachineRecipeRouteCollectors.collectFluidToGasPair(tile.getRecipes()),
+                tile -> ports(
+                        MachinePort.fluid("fluid_input", MachinePort.Role.INPUT, tile.fluidTank),
+                        MachinePort.gas("left_gas_output", MachinePort.Role.OUTPUT, tile.leftTank),
+                        MachinePort.gas("right_gas_output", MachinePort.Role.OUTPUT, tile.rightTank)));
 
         register("isotopic_centrifuge", TileEntityIsotopicCentrifuge.class, TileEntityIsotopicCentrifuge::getRecipes,
-              tile -> MachineRecipeRouteCollectors.collectGasToGas(tile.getRecipes()),
-              tile -> ports(
-                    MachinePort.gas("gas_input", MachinePort.Role.INPUT, tile.inputTank),
-                    MachinePort.gas("gas_output", MachinePort.Role.OUTPUT, tile.outputTank)));
+                tile -> MachineRecipeRouteCollectors.collectGasToGas(tile.getRecipes()),
+                tile -> ports(
+                        MachinePort.gas("gas_input", MachinePort.Role.INPUT, tile.inputTank),
+                        MachinePort.gas("gas_output", MachinePort.Role.OUTPUT, tile.outputTank)));
 
         register("pressurized_reaction_chamber", TileEntityPRC.class, TileEntityPRC::getRecipes,
-              tile -> MachineRecipeRouteCollectors.collectPressurized(tile.getRecipes()),
-              tile -> ports(
-                    MachinePort.item("item_input", MachinePort.Role.INPUT, tile.getRecipeInputSlot()),
-                    MachinePort.fluid("fluid_input", MachinePort.Role.INPUT, tile.inputFluidTank),
-                    MachinePort.gas("gas_input", MachinePort.Role.INPUT, tile.inputGasTank),
-                    MachinePort.item("item_output", MachinePort.Role.OUTPUT, tile.getRecipeOutputSlot()),
-                    MachinePort.gas("gas_output", MachinePort.Role.OUTPUT, tile.outputGasTank)));
+                tile -> MachineRecipeRouteCollectors.collectPressurized(tile.getRecipes()),
+                tile -> ports(
+                        MachinePort.item("item_input", MachinePort.Role.INPUT, tile.getRecipeInputSlot()),
+                        MachinePort.fluid("fluid_input", MachinePort.Role.INPUT, tile.inputFluidTank),
+                        MachinePort.gas("gas_input", MachinePort.Role.INPUT, tile.inputGasTank),
+                        MachinePort.item("item_output", MachinePort.Role.OUTPUT, tile.getRecipeOutputSlot()),
+                        MachinePort.gas("gas_output", MachinePort.Role.OUTPUT, tile.outputGasTank)));
 
         register("antiprotonic_nucleosynthesizer", TileEntityAntiprotonicNucleosynthesizer.class,
-              TileEntityAntiprotonicNucleosynthesizer::getRecipes,
-              tile -> MachineRecipeRouteCollectors.collectNucleosynthesizerGasToItem(tile.getRecipes()),
-              tile -> ports(
-                    MachinePort.item("item_input", MachinePort.Role.INPUT, tile.getRecipeInputSlot()),
-                    MachinePort.gas("gas_input", MachinePort.Role.INPUT, tile.inputGasTank),
-                    MachinePort.item("item_output", MachinePort.Role.OUTPUT, tile.getRecipeOutputSlot())));
+                TileEntityAntiprotonicNucleosynthesizer::getRecipes,
+                tile -> MachineRecipeRouteCollectors.collectNucleosynthesizerGasToItem(tile.getRecipes()),
+                tile -> ports(
+                        MachinePort.item("item_input", MachinePort.Role.INPUT, tile.getRecipeInputSlot()),
+                        MachinePort.gas("gas_input", MachinePort.Role.INPUT, tile.inputGasTank),
+                        MachinePort.item("item_output", MachinePort.Role.OUTPUT, tile.getRecipeOutputSlot())));
 
         register("rotary_condensentrator", TileEntityRotaryCondensentrator.class,
-              ignored -> RecipeHandler.Recipe.ROTARY_CONDENSENTRATOR.get(),
-              tile -> tile.mode == 0 ?
-                    MachineRecipeRouteCollectors.collectRotaryGasToFluid(RecipeHandler.Recipe.ROTARY_CONDENSENTRATOR.get()) :
-                    MachineRecipeRouteCollectors.collectRotaryFluidToGas(RecipeHandler.Recipe.ROTARY_CONDENSENTRATOR.get()),
-              tile -> tile.mode == 0 ? ports(
-                    MachinePort.gas("gas_input", MachinePort.Role.INPUT, tile.gasTank),
-                    MachinePort.fluid("fluid_output", MachinePort.Role.OUTPUT, tile.fluidTank)) : ports(
-                    MachinePort.fluid("fluid_input", MachinePort.Role.INPUT, tile.fluidTank),
-                    MachinePort.gas("gas_output", MachinePort.Role.OUTPUT, tile.gasTank)),
-              tile -> tile.mode);
+                ignored -> RecipeHandler.Recipe.ROTARY_CONDENSENTRATOR.get(),
+                tile -> tile.mode == 0 ?
+                        MachineRecipeRouteCollectors.collectRotaryGasToFluid(RecipeHandler.Recipe.ROTARY_CONDENSENTRATOR.get()) :
+                        MachineRecipeRouteCollectors.collectRotaryFluidToGas(RecipeHandler.Recipe.ROTARY_CONDENSENTRATOR.get()),
+                tile -> tile.mode == 0 ? ports(
+                        MachinePort.gas("gas_input", MachinePort.Role.INPUT, tile.gasTank),
+                        MachinePort.fluid("fluid_output", MachinePort.Role.OUTPUT, tile.fluidTank)) : ports(
+                        MachinePort.fluid("fluid_input", MachinePort.Role.INPUT, tile.fluidTank),
+                        MachinePort.gas("gas_output", MachinePort.Role.OUTPUT, tile.gasTank)),
+                tile -> tile.mode);
 
         register("solar_neutron_activator", TileEntitySolarNeutronActivator.class,
-              ignored -> RecipeHandler.Recipe.SOLAR_NEUTRON_ACTIVATOR.get(),
-              ignored -> MachineRecipeRouteCollectors.collectGasToGas(RecipeHandler.Recipe.SOLAR_NEUTRON_ACTIVATOR.get()),
-              tile -> ports(
-                    MachinePort.gas("gas_input", MachinePort.Role.INPUT, tile.inputTank),
-                    MachinePort.gas("gas_output", MachinePort.Role.OUTPUT, tile.outputTank)));
+                ignored -> RecipeHandler.Recipe.SOLAR_NEUTRON_ACTIVATOR.get(),
+                ignored -> MachineRecipeRouteCollectors.collectGasToGas(RecipeHandler.Recipe.SOLAR_NEUTRON_ACTIVATOR.get()),
+                tile -> ports(
+                        MachinePort.gas("gas_input", MachinePort.Role.INPUT, tile.inputTank),
+                        MachinePort.gas("gas_output", MachinePort.Role.OUTPUT, tile.outputTank)));
     }
 
     private static void registerFactory() {
         register("factory", TileEntityFactory.class, MekanismMachineRecipeProviders::getFactoryRecipeSource,
-              MekanismMachineRecipeProviders::getFactoryRoutes, MekanismMachineRecipeProviders::getFactoryPorts,
-              tile -> {
-                  int revision = tile.getRecipeType().ordinal();
-                  revision = 31 * revision + tile.getProcessCount();
-                  return 31 * revision + tile.getRecipeGasUsagePerOperation();
-              });
+                MekanismMachineRecipeProviders::getFactoryRoutes, MekanismMachineRecipeProviders::getFactoryPorts,
+                tile -> {
+                    int revision = tile.getRecipeType().ordinal();
+                    revision = 31 * revision + tile.getProcessCount();
+                    return 31 * revision + tile.getRecipeGasUsagePerOperation();
+                });
     }
 
     private static Object getFactoryRecipeSource(TileEntityFactory tile) {
@@ -251,17 +240,20 @@ public final class MekanismMachineRecipeProviders {
 
     private static List<MachineRecipeRoute> getFactoryRoutes(TileEntityFactory tile) {
         List<MachineRecipeRoute> routes = switch (tile.getRecipeType()) {
-            case SMELTING -> MachineRecipeRouteCollectors.collectBasicItem(RecipeHandler.Recipe.ENERGIZED_SMELTER.get());
-            case ENRICHING -> MachineRecipeRouteCollectors.collectBasicItem(RecipeHandler.Recipe.ENRICHMENT_CHAMBER.get());
+            case SMELTING ->
+                    MachineRecipeRouteCollectors.collectBasicItem(RecipeHandler.Recipe.ENERGIZED_SMELTER.get());
+            case ENRICHING ->
+                    MachineRecipeRouteCollectors.collectBasicItem(RecipeHandler.Recipe.ENRICHMENT_CHAMBER.get());
             case CRUSHING -> MachineRecipeRouteCollectors.collectBasicItem(RecipeHandler.Recipe.CRUSHER.get());
             case COMPRESSING -> MachineRecipeRouteCollectors.collectAdvancedGasToItem(
-                  RecipeHandler.Recipe.OSMIUM_COMPRESSOR.get(), tile.getRecipeGasUsagePerOperation());
+                    RecipeHandler.Recipe.OSMIUM_COMPRESSOR.get(), tile.getRecipeGasUsagePerOperation());
             case COMBINING -> MachineRecipeRouteCollectors.collectDoubleItem(RecipeHandler.Recipe.COMBINER.get());
             case PURIFYING -> MachineRecipeRouteCollectors.collectAdvancedGasToItem(
-                  RecipeHandler.Recipe.PURIFICATION_CHAMBER.get(), tile.getRecipeGasUsagePerOperation());
+                    RecipeHandler.Recipe.PURIFICATION_CHAMBER.get(), tile.getRecipeGasUsagePerOperation());
             case INJECTING -> MachineRecipeRouteCollectors.collectAdvancedGasToItem(
-                  RecipeHandler.Recipe.CHEMICAL_INJECTION_CHAMBER.get(), tile.getRecipeGasUsagePerOperation());
-            case INFUSING -> MachineRecipeRouteCollectors.collectInfusionItem(RecipeHandler.Recipe.METALLURGIC_INFUSER.get());
+                    RecipeHandler.Recipe.CHEMICAL_INJECTION_CHAMBER.get(), tile.getRecipeGasUsagePerOperation());
+            case INFUSING ->
+                    MachineRecipeRouteCollectors.collectInfusionItem(RecipeHandler.Recipe.METALLURGIC_INFUSER.get());
             case SAWING -> MachineRecipeRouteCollectors.collectChanceItem(RecipeHandler.Recipe.PRECISION_SAWMILL.get());
             case STAMPING -> MachineRecipeRouteCollectors.collectBasicItem(RecipeHandler.Recipe.STAMPING.get());
             case ROLLING -> MachineRecipeRouteCollectors.collectBasicItem(RecipeHandler.Recipe.ROLLING.get());
@@ -270,10 +262,12 @@ public final class MekanismMachineRecipeProviders {
             case AllOY -> MachineRecipeRouteCollectors.collectDoubleItem(RecipeHandler.Recipe.ALLOY.get());
             case EXTRACTOR -> MachineRecipeRouteCollectors.collectChanceItem(RecipeHandler.Recipe.CELL_EXTRACTOR.get());
             case SEPARATOR -> MachineRecipeRouteCollectors.collectChanceItem(RecipeHandler.Recipe.CELL_SEPARATOR.get());
-            case RECYCLER -> MachineRecipeRouteCollectors.collectGuaranteedChanceItem(RecipeHandler.Recipe.RECYCLER.get());
-            case PRC -> MachineRecipeRouteCollectors.collectPressurized(RecipeHandler.Recipe.PRESSURIZED_REACTION_CHAMBER.get());
+            case RECYCLER ->
+                    MachineRecipeRouteCollectors.collectGuaranteedChanceItem(RecipeHandler.Recipe.RECYCLER.get());
+            case PRC ->
+                    MachineRecipeRouteCollectors.collectPressurized(RecipeHandler.Recipe.PRESSURIZED_REACTION_CHAMBER.get());
             case NUCLEOSYNTHESIZER -> MachineRecipeRouteCollectors.collectNucleosynthesizerGasToItem(
-                  RecipeHandler.Recipe.ANTIPROTONIC_NUCLEOSYNTHESIZER.get());
+                    RecipeHandler.Recipe.ANTIPROTONIC_NUCLEOSYNTHESIZER.get());
         };
         return routes;
     }
@@ -293,41 +287,41 @@ public final class MekanismMachineRecipeProviders {
             }
         }
         add(ports, MachinePort.itemGroup("item_input", MachinePort.Role.INPUT, inputs,
-              "item_input", 0));
+                "item_input", 0));
         add(ports, MachinePort.itemGroup("item_output", MachinePort.Role.OUTPUT, outputs,
-              "item_output", 0));
+                "item_output", 0));
         if (hasSecondaryOutput) {
             add(ports, MachinePort.itemGroup("secondary_item_output",
-                  MachinePort.Role.OUTPUT, secondaryOutputs, "secondary_item_output", 0));
+                    MachinePort.Role.OUTPUT, secondaryOutputs, "secondary_item_output", 0));
         }
         if (type == RecipeType.COMBINING || type == RecipeType.INFUSING || type == RecipeType.AllOY) {
             add(ports, MachinePort.item("extra_item_input", MachinePort.Role.INPUT, tile.getRecipeExtraInputSlot(),
-                  "extra_item_input", MachinePort.SHARED_LANE));
+                    "extra_item_input", MachinePort.SHARED_LANE));
         }
         if (type == RecipeType.COMPRESSING || type == RecipeType.PURIFYING || type == RecipeType.INJECTING ||
-            type == RecipeType.NUCLEOSYNTHESIZER || type == RecipeType.PRC) {
+                type == RecipeType.NUCLEOSYNTHESIZER || type == RecipeType.PRC) {
             add(ports, MachinePort.gas("gas_input", MachinePort.Role.INPUT, tile.getInputGasTank(),
-                  "gas_input", MachinePort.SHARED_LANE));
+                    "gas_input", MachinePort.SHARED_LANE));
         }
         if (type == RecipeType.PRC) {
             add(ports, MachinePort.fluid("fluid_input", MachinePort.Role.INPUT, tile.getInputFluidTank(),
-                  "fluid_input", MachinePort.SHARED_LANE));
+                    "fluid_input", MachinePort.SHARED_LANE));
             add(ports, MachinePort.gas("gas_output", MachinePort.Role.OUTPUT, tile.getOutputGasTank(),
-                  "gas_output", MachinePort.SHARED_LANE));
+                    "gas_output", MachinePort.SHARED_LANE));
         }
         return ports;
     }
 
     private static void registerOutputMachines() {
         registerOutput("electric_pump", TileEntityElectricPump.class, ignored -> null, ignored -> Collections.emptyList(),
-              tile -> ports(MachinePort.fluid("fluid_output", MachinePort.Role.OUTPUT, tile.fluidTank)));
+                tile -> ports(MachinePort.fluid("fluid_output", MachinePort.Role.OUTPUT, tile.fluidTank)));
         registerOutput("ambient_accumulator", TileEntityAmbientAccumulator.class, ignored -> null, ignored -> Collections.emptyList(),
-              tile -> ports(MachinePort.gas("gas_output", MachinePort.Role.OUTPUT, tile.collectedGas)));
+                tile -> ports(MachinePort.gas("gas_output", MachinePort.Role.OUTPUT, tile.collectedGas)));
         registerOutput("ambient_accumulator_energy", TileEntityAmbientAccumulatorEnergy.class, ignored -> null,
-              ignored -> Collections.emptyList(),
-              tile -> ports(MachinePort.gas("gas_output", MachinePort.Role.OUTPUT, tile.outputTank)));
+                ignored -> Collections.emptyList(),
+                tile -> ports(MachinePort.gas("gas_output", MachinePort.Role.OUTPUT, tile.outputTank)));
         registerOutput("digital_miner", TileEntityDigitalMiner.class, ignored -> null, ignored -> Collections.emptyList(),
-              MekanismMachineRecipeProviders::getDigitalMinerPorts);
+                MekanismMachineRecipeProviders::getDigitalMinerPorts);
     }
 
     private static List<MachinePort> getDigitalMinerPorts(TileEntityDigitalMiner tile) {
@@ -335,7 +329,7 @@ public final class MekanismMachineRecipeProviders {
         List<mekanism.api.inventory.IInventorySlot> slots = tile.getMiningOutputSlots();
         for (int index = 0; index < slots.size(); index++) {
             add(ports, MachinePort.item("item_output_" + index, MachinePort.Role.OUTPUT, slots.get(index),
-                  AutomationType.EXTERNAL));
+                    AutomationType.EXTERNAL));
         }
         return ports;
     }
@@ -355,69 +349,69 @@ public final class MekanismMachineRecipeProviders {
     }
 
     private static <TILE extends TileEntity> void register(String path, Class<TILE> tileClass,
-          Function<TILE, Object> recipeSource, Function<TILE, List<MachineRecipeRoute>> routes,
-          Function<TILE, List<MachinePort>> ports) {
+                                                           Function<TILE, Object> recipeSource, Function<TILE, List<MachineRecipeRoute>> routes,
+                                                           Function<TILE, List<MachinePort>> ports) {
         register(path, tileClass, recipeSource, routes, ports, ignored -> 0);
     }
 
     private static <TILE extends TileEntity> void register(String path, Class<TILE> tileClass,
-          Function<TILE, Object> recipeSource, Function<TILE, List<MachineRecipeRoute>> routes,
-          Function<TILE, List<MachinePort>> ports, ToIntFunction<TILE> configurationRevision) {
+                                                           Function<TILE, Object> recipeSource, Function<TILE, List<MachineRecipeRoute>> routes,
+                                                           Function<TILE, List<MachinePort>> ports, ToIntFunction<TILE> configurationRevision) {
         register(path, tileClass, recipeSource, routes, ports, configurationRevision, PROCESSING_CONFORMANCE);
     }
 
     private static <TILE extends TileEntity> void registerOutput(String path, Class<TILE> tileClass,
-          Function<TILE, Object> recipeSource, Function<TILE, List<MachineRecipeRoute>> routes,
-          Function<TILE, List<MachinePort>> ports) {
+                                                                 Function<TILE, Object> recipeSource, Function<TILE, List<MachineRecipeRoute>> routes,
+                                                                 Function<TILE, List<MachinePort>> ports) {
         register(path, tileClass, recipeSource, routes, ports, ignored -> 0, OUTPUT_CONFORMANCE);
     }
 
     private static <TILE extends TileEntity> void register(String path, Class<TILE> tileClass,
-          Function<TILE, Object> recipeSource, Function<TILE, List<MachineRecipeRoute>> routes,
-          Function<TILE, List<MachinePort>> ports, ToIntFunction<TILE> configurationRevision,
-          ProviderConformanceDescriptor conformance) {
+                                                           Function<TILE, Object> recipeSource, Function<TILE, List<MachineRecipeRoute>> routes,
+                                                           Function<TILE, List<MachinePort>> ports, ToIntFunction<TILE> configurationRevision,
+                                                           ProviderConformanceDescriptor conformance) {
         MachineRecipeProviderRegistry.register(new ResourceLocation(Mekanism.MODID, path), tileClass,
-              new MachineRecipeProvider<TILE>() {
-                  @Override
-                  public Object getRecipeSourceKey(TILE tile) {
-                      return recipeSource.apply(tile);
-                  }
+                new MachineRecipeProvider<TILE>() {
+                    @Override
+                    public Object getRecipeSourceKey(TILE tile) {
+                        return recipeSource.apply(tile);
+                    }
 
-                  @Override
-                  public int getConfigurationRevision(TILE tile) {
-                      return 31 * RecipeHandler.getGlobalRecipeVersion() + configurationRevision.applyAsInt(tile);
-                  }
+                    @Override
+                    public int getConfigurationRevision(TILE tile) {
+                        return 31 * RecipeHandler.getGlobalRecipeVersion() + configurationRevision.applyAsInt(tile);
+                    }
 
-                  @Override
-                  public List<MachineRecipeRoute> getRecipeRoutes(TILE tile) {
-                      return routes.apply(tile);
-                  }
+                    @Override
+                    public List<MachineRecipeRoute> getRecipeRoutes(TILE tile) {
+                        return routes.apply(tile);
+                    }
 
-                  @Override
-                  public List<MachinePort> getPorts(TILE tile) {
-                      return ports.apply(tile);
-                  }
+                    @Override
+                    public List<MachinePort> getPorts(TILE tile) {
+                        return ports.apply(tile);
+                    }
 
-                  @Override
-                  public MachinePresentationDescriptor getPresentation(TILE tile) {
-                      MachinePresentationDescriptor fallback =
-                            MachinePresentationDescriptor.fallback(tile);
-                      if (!(tile instanceof TileEntityFactory factory)) {
-                          return fallback;
-                      }
-                      ItemStack stack = fallback.createStack();
-                      if (!stack.isEmpty() && stack.getItem() instanceof mekanism.common.base.IFactory factoryItem) {
-                          factoryItem.setRecipeType(factory.getRecipeType().ordinal(), stack);
-                          return MachinePresentationDescriptor.fromStack(stack,
-                                factory.getRecipeType().getName());
-                      }
-                      return fallback;
-                  }
+                    @Override
+                    public MachinePresentationDescriptor getPresentation(TILE tile) {
+                        MachinePresentationDescriptor fallback =
+                                MachinePresentationDescriptor.fallback(tile);
+                        if (!(tile instanceof TileEntityFactory factory)) {
+                            return fallback;
+                        }
+                        ItemStack stack = fallback.createStack();
+                        if (!stack.isEmpty() && stack.getItem() instanceof mekanism.common.base.IFactory factoryItem) {
+                            factoryItem.setRecipeType(factory.getRecipeType().ordinal(), stack);
+                            return MachinePresentationDescriptor.fromStack(stack,
+                                    factory.getRecipeType().getName());
+                        }
+                        return fallback;
+                    }
 
-                  @Override
-                  public ProviderConformanceDescriptor getQIOConformance(TILE tile) {
-                      return conformance;
-                  }
-              });
+                    @Override
+                    public ProviderConformanceDescriptor getQIOConformance(TILE tile) {
+                        return conformance;
+                    }
+                });
     }
 }

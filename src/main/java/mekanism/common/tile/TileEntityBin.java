@@ -4,11 +4,7 @@ import io.netty.buffer.ByteBuf;
 import mekanism.api.*;
 import mekanism.common.Mekanism;
 import mekanism.common.PacketHandler;
-import mekanism.common.base.IActiveState;
-import mekanism.common.base.IBaseTierProvider;
-import mekanism.common.base.IComparatorSupport;
-import mekanism.common.base.ILogisticalTransporter;
-import mekanism.common.base.IUpgradeableTile;
+import mekanism.common.base.*;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
 import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
@@ -147,7 +143,7 @@ public class TileEntityBin extends TileEntityContainerBlock implements IActiveSt
 
     public boolean isValid(ItemStack stack) {
         return !stack.isEmpty() && stack.getCount() > 0 && binSlot.isItemValid(stack) &&
-              binSlot.insertItem(stack, Action.SIMULATE, AutomationType.MANUAL).getCount() < stack.getCount();
+                binSlot.insertItem(stack, Action.SIMULATE, AutomationType.MANUAL).getCount() < stack.getCount();
     }
 
     public ItemStack add(ItemStack stack, boolean simulate) {
@@ -284,10 +280,8 @@ public class TileEntityBin extends TileEntityContainerBlock implements IActiveSt
     }
 
     @Override
-    public void markDirty() {
-        super.markDirty();
+    protected void onMarkDirty() {
         if (!isRemote()) {
-            MekanismUtils.saveChunk(this);
             Mekanism.packetHandler.sendUpdatePacket(this);
             prevCount = getItemCount();
             sortStacks();
@@ -404,6 +398,11 @@ public class TileEntityBin extends TileEntityContainerBlock implements IActiveSt
     @Override
     public boolean lightUpdate() {
         return true;
+    }
+
+    @Override
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return type == mekanism.api.transmitters.TransmissionType.ITEM;
     }
 
     @Override

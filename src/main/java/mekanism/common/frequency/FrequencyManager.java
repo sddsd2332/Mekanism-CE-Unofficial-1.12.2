@@ -19,15 +19,7 @@ import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 public class FrequencyManager<FREQ extends Frequency> {
 
@@ -84,7 +76,9 @@ public class FrequencyManager<FREQ extends Frequency> {
         tickServer();
     }
 
-    /** Ticks global frequency state once after all server worlds have ticked. */
+    /**
+     * Ticks global frequency state once after all server worlds have ticked.
+     */
     public static void tickServer() {
         if (!loaded) {
             return;
@@ -110,13 +104,13 @@ public class FrequencyManager<FREQ extends Frequency> {
             QIOFrequencyReference reference = null;
             if (freq instanceof QIOFrequency qioFrequency) {
                 reference = QIOFrequencyStorageAccess.INSTANCE.createReference(qioFrequency,
-                      ownerUUID);
+                        ownerUUID);
                 QIOFrequencyDeleteCheck check = QIOFrequencyLifecycleRegistry.beforeDelete(
-                      reference, ownerUUID);
+                        reference, ownerUUID);
                 if (!check.isAllowed()) {
                     Mekanism.logger.warn("Refusing to delete QIO frequency {} ({}) because: {}",
-                          qioFrequency.getName(), qioFrequency.getFrequencyUUID(),
-                          String.join(", ", check.getBlockers()));
+                            qioFrequency.getName(), qioFrequency.getFrequencyUUID(),
+                            String.join(", ", check.getBlockers()));
                     return false;
                 }
             }

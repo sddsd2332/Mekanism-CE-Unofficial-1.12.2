@@ -25,7 +25,7 @@ public class GasTankHelper {
     }
 
     public static GasTankHelper forSide(Supplier<EnumFacing> facingSupplier, @Nullable Predicate<RelativeSide> insertPredicate,
-          @Nullable Predicate<RelativeSide> extractPredicate) {
+                                        @Nullable Predicate<RelativeSide> extractPredicate) {
         return new GasTankHelper(new GasTankHolder(facingSupplier, insertPredicate, extractPredicate));
     }
 

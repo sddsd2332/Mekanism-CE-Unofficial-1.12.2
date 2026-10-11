@@ -54,7 +54,7 @@ public abstract class TOPTankListElement implements IElement {
                 GL11.glDisable(GL11.GL_SCISSOR_TEST);
             } else {
                 GL11.glScissor(previousScissor.get(0), previousScissor.get(1),
-                      previousScissor.get(2), previousScissor.get(3));
+                        previousScissor.get(2), previousScissor.get(3));
             }
         }
     }

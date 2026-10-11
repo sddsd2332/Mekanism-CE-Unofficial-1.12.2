@@ -29,7 +29,7 @@ public interface TankProvider {
     }
 
     class Gas implements TankProvider {
-        
+
         private final IExtendedGasTank handler;
 
         public Gas(final IExtendedGasTank handler) {

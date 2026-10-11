@@ -12,6 +12,18 @@ import java.util.function.LongConsumer;
 
 public class ItemStackConstantGasCachedRecipe<OUTPUT, RECIPE extends IConstantGasRecipe<OUTPUT>> extends CachedRecipe<RECIPE> {
 
+    /**
+     * Gas for one recipe operation, before external batching or factory parallelism.
+     * Statistical recipes have no exact total: publish the mean over the actual, rounded
+     * processing duration. Their baseTotalUsage is not used by the runtime sampler.
+     */
+    public static int getGasUsagePerOperation(boolean statistical, long baseTotalUsage, double meanPerTick, int requiredTicks) {
+        if (statistical) {
+            return Math.max(1, MathUtils.clampToInt(Math.ceil(meanPerTick * Math.max(1, requiredTicks))));
+        }
+        return Math.max(1, MathUtils.clampToInt(baseTotalUsage));
+    }
+
     private final IInputHandler<ItemStack, ItemStack> itemInputHandler;
     private final IInputHandler<GasStack, GasStack> gasInputHandler;
     private final IOutputHandler<OUTPUT> outputHandler;
@@ -26,9 +38,10 @@ public class ItemStackConstantGasCachedRecipe<OUTPUT, RECIPE extends IConstantGa
     private OUTPUT output;
 
     public ItemStackConstantGasCachedRecipe(RECIPE recipe, BooleanSupplier recheckAllErrors, IInputHandler<ItemStack, ItemStack> itemInputHandler,
-          IInputHandler<GasStack, GasStack> gasInputHandler, IOutputHandler<OUTPUT> outputHandler, GasUsageMultiplier gasUsage,
-          LongConsumer gasUsedSoFarChanged) {
+                                            IInputHandler<GasStack, GasStack> gasInputHandler, IOutputHandler<OUTPUT> outputHandler, GasUsageMultiplier gasUsage,
+                                            LongConsumer gasUsedSoFarChanged) {
         super(recipe, recheckAllErrors);
+        lockBatchOperations();
         this.itemInputHandler = Objects.requireNonNull(itemInputHandler);
         this.gasInputHandler = Objects.requireNonNull(gasInputHandler);
         this.outputHandler = Objects.requireNonNull(outputHandler);
@@ -82,7 +95,7 @@ public class ItemStackConstantGasCachedRecipe<OUTPUT, RECIPE extends IConstantGa
         }
         long toUse = operations * gasUsageMultiplier;
         gasInputHandler.use(recipeGas, MathUtils.clampToInt(toUse));
-        gasUsedSoFar += toUse;
+        gasUsedSoFar += gasUsageMultiplier;
         gasUsedSoFarChanged.accept(gasUsedSoFar);
     }
 

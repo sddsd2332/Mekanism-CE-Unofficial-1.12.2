@@ -10,7 +10,10 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Server-authoritative resource row used by the smart-processing terminal. */
+/**
+ * Server-authoritative resource row used by the smart-processing terminal.
+ */
+
 /**
  * QIO 处理模块中的 QIOSmartProcessingResourceEntry 类型。
  *
@@ -31,23 +34,23 @@ public final class QIOSmartProcessingResourceEntry {
     private final UUID mergeGroupId;
 
     public QIOSmartProcessingResourceEntry(@Nonnull PortableResourceDescriptor resource,
-          long stored, long committed, long taskReserved, long inProduction,
-          boolean schedulable, boolean passive) {
+                                           long stored, long committed, long taskReserved, long inProduction,
+                                           boolean schedulable, boolean passive) {
         this(resource, stored, committed, taskReserved, inProduction, schedulable, passive,
-              0, null);
+                0, null);
     }
 
     public QIOSmartProcessingResourceEntry(@Nonnull PortableResourceDescriptor resource,
-          long stored, long committed, long taskReserved, long inProduction,
-          boolean schedulable, boolean passive, long mergeableInProduction,
-          @Nullable UUID mergeGroupId) {
+                                           long stored, long committed, long taskReserved, long inProduction,
+                                           boolean schedulable, boolean passive, long mergeableInProduction,
+                                           @Nullable UUID mergeGroupId) {
         this.resource = Objects.requireNonNull(resource, "resource");
         if (stored < 0 || committed < 0 || taskReserved < 0 || inProduction < 0 ||
-              mergeableInProduction < 0) {
+                mergeableInProduction < 0) {
             throw new IllegalArgumentException("Smart-processing resource amounts cannot be negative");
         }
         if ((mergeableInProduction > 0) != (mergeGroupId != null) ||
-              mergeableInProduction > inProduction) {
+                mergeableInProduction > inProduction) {
             throw new IllegalArgumentException("Invalid smart-processing merge projection");
         }
         this.stored = stored;
@@ -125,15 +128,15 @@ public final class QIOSmartProcessingResourceEntry {
 
     @Nonnull
     public static QIOSmartProcessingResourceEntry read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         try {
             return new QIOSmartProcessingResourceEntry(
-                  PortableResourceDescriptor.read(data.getCompoundTag("resource")),
-                  data.getLong("stored"), data.getLong("committed"),
-                  data.getLong("taskReserved"), data.getLong("inProduction"),
-                  data.getBoolean("schedulable"), data.getBoolean("passive"),
-                  data.getLong("mergeableInProduction"),
-                  QIOProcessingNbt.readOptionalUUID(data, "mergeGroupId"));
+                    PortableResourceDescriptor.read(data.getCompoundTag("resource")),
+                    data.getLong("stored"), data.getLong("committed"),
+                    data.getLong("taskReserved"), data.getLong("inProduction"),
+                    data.getBoolean("schedulable"), data.getBoolean("passive"),
+                    data.getLong("mergeableInProduction"),
+                    QIOProcessingNbt.readOptionalUUID(data, "mergeGroupId"));
         } catch (RuntimeException e) {
             throw new QIOProcessingDataException("Invalid smart-processing resource entry", e);
         }

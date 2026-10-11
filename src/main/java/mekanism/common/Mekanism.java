@@ -23,7 +23,6 @@ import mekanism.common.concurrent.TaskExecutor;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.content.boiler.SynchronizedBoilerData;
 import mekanism.common.content.entangloporter.InventoryFrequency;
-import mekanism.common.content.teleporter.TeleporterFrequency;
 import mekanism.common.content.gear.MekaSuitDispenseBehavior;
 import mekanism.common.content.gear.ModuleDispenseBehavior;
 import mekanism.common.content.gear.ModuleHelper;
@@ -31,6 +30,7 @@ import mekanism.common.content.matrix.SynchronizedMatrixData;
 import mekanism.common.content.qio.QIOStorageManager;
 import mekanism.common.content.sps.SynchronizedSPSData;
 import mekanism.common.content.tank.SynchronizedTankData;
+import mekanism.common.content.teleporter.TeleporterFrequency;
 import mekanism.common.content.transporter.PathfinderCache;
 import mekanism.common.content.transporter.TransporterManager;
 import mekanism.common.entity.EntityBalloon;
@@ -39,7 +39,6 @@ import mekanism.common.entity.EntityObsidianTNT;
 import mekanism.common.entity.EntityRobit;
 import mekanism.common.entity.baby.*;
 import mekanism.common.fixers.MekanismDataFixers;
-import mekanism.common.frequency.Frequency;
 import mekanism.common.frequency.FrequencyManager;
 import mekanism.common.frequency.FrequencyType;
 import mekanism.common.integration.IMCHandler;
@@ -58,21 +57,20 @@ import mekanism.common.recipe.RecipeHandler.Recipe;
 import mekanism.common.recipe.inputs.ItemStackInput;
 import mekanism.common.recipe.machines.SmeltingRecipe;
 import mekanism.common.recipe.outputs.ItemStackOutput;
-import mekanism.common.security.SecurityFrequency;
 import mekanism.common.security.ISecurityTile.SecurityMode;
+import mekanism.common.security.SecurityFrequency;
 import mekanism.common.tile.*;
-import mekanism.common.tile.factory.*;
+import mekanism.common.tile.factory.TileEntityAdvancedFactory;
+import mekanism.common.tile.factory.TileEntityBasicFactory;
+import mekanism.common.tile.factory.TileEntityEliteFactory;
+import mekanism.common.tile.factory.TileEntityUltimateFactory;
 import mekanism.common.tile.laser.TileEntityLaser;
 import mekanism.common.tile.laser.TileEntityLaserAmplifier;
 import mekanism.common.tile.laser.TileEntityLaserTractorBeam;
 import mekanism.common.tile.machine.*;
 import mekanism.common.tile.multiblock.*;
 import mekanism.common.tile.prefab.MekanismMachineRecipeProviders;
-import mekanism.common.tile.qio.TileEntityQIODriveArray;
-import mekanism.common.tile.qio.TileEntityQIODashboard;
-import mekanism.common.tile.qio.TileEntityQIOImporter;
-import mekanism.common.tile.qio.TileEntityQIOExporter;
-import mekanism.common.tile.qio.TileEntityQIORedstoneAdapter;
+import mekanism.common.tile.qio.*;
 import mekanism.common.tile.transmitter.*;
 import mekanism.common.transmitters.grid.EnergyNetwork.EnergyTransferEvent;
 import mekanism.common.transmitters.grid.FluidNetwork.FluidTransferEvent;
@@ -189,10 +187,11 @@ public class Mekanism {
     public static synchronized Configuration getQIOProcessingConfiguration() {
         if (configurationQIOProcessing == null) {
             configurationQIOProcessing = new Configuration(
-                  new File("config/mekanism/MekanismQIOProcessing.cfg"));
+                    new File("config/mekanism/MekanismQIOProcessing.cfg"));
         }
         return configurationQIOProcessing;
     }
+
     /**
      * Mekanism version number
      */
@@ -253,7 +252,7 @@ public class Mekanism {
     public static void registerBlocks(RegistryEvent.Register<Block> event) {
         // Register blocks and tile entities
         MekanismBlocks.registerBlocks(event.getRegistry());
-       // event.getRegistry().register(PortalHelper.BlockPortalOverride.instance);
+        // event.getRegistry().register(PortalHelper.BlockPortalOverride.instance);
     }
 
     @SubscribeEvent
@@ -541,7 +540,7 @@ public class Mekanism {
         TransporterManager.reset();
         PathfinderCache.reset();
         TransmitterNetworkRegistry.reset();
-     //   ModuleHelper.get().resetSupportedContainers();
+        //   ModuleHelper.get().resetSupportedContainers();
 
         QIOStorageManager.shutdown();
     }
@@ -746,7 +745,7 @@ public class Mekanism {
 
         ModuleHelper.get().setSupported(MekanismItems.MEKA_TOOL, MekanismModules.ATTACK_AMPLIFICATION_UNIT, MekanismModules.SILK_TOUCH_UNIT, MekanismModules.FORTUNE_UNIT, MekanismModules.BLASTING_UNIT, MekanismModules.VEIN_MINING_UNIT, MekanismModules.FARMING_UNIT, MekanismModules.SHEARING_UNIT, MekanismModules.TELEPORTATION_UNIT, MekanismModules.EXCAVATION_ESCALATION_UNIT);
         if (Mekanism.hooks.FarmersDelightLegacyLoaded) {
-            ModuleHelper.get().setSupported(MekanismItems.MEKA_TOOL,MekanismModules.LASER_CUTTER_UNIT);
+            ModuleHelper.get().setSupported(MekanismItems.MEKA_TOOL, MekanismModules.LASER_CUTTER_UNIT);
         }
 
         ModuleHelper.get().setSupported(MekanismItems.MEKASUIT_HELMET, MekanismModules.ELECTROLYTIC_BREATHING_UNIT, MekanismModules.INHALATION_PURIFICATION_UNIT, MekanismModules.VISION_ENHANCEMENT_UNIT, MekanismModules.NUTRITIONAL_INJECTION_UNIT);

@@ -10,7 +10,9 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 
-/** Hard limits for codec-owned data sent to a QIO viewer. */
+/**
+ * Hard limits for codec-owned data sent to a QIO viewer.
+ */
 public final class QIONetworkResourceLimits {
 
     public static final int MAX_DESCRIPTOR_BYTES = 48 * 1024;
@@ -31,7 +33,7 @@ public final class QIONetworkResourceLimits {
             NbtBudget budget = new NbtBudget();
             validate(payload, 0, budget);
             try (DataOutputStream output = new DataOutputStream(new LimitedCountingOutputStream(
-                  MAX_DESCRIPTOR_BYTES))) {
+                    MAX_DESCRIPTOR_BYTES))) {
                 CompressedStreamTools.write(payload, output);
             }
             return true;

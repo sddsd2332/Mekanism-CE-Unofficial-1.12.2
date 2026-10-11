@@ -8,8 +8,8 @@ import mekanism.client.gui.GuiUtils;
 import mekanism.client.gui.IGuiWrapper;
 import mekanism.client.gui.element.GuiElement;
 import mekanism.client.gui.element.GuiTexturedElement;
-import mekanism.client.recipe_viewer.interfaces.IRecipeViewerGhostTarget;
 import mekanism.client.gui.warning.WarningTracker.WarningType;
+import mekanism.client.recipe_viewer.interfaces.IRecipeViewerGhostTarget;
 import mekanism.client.render.MekanismRenderer;
 import mekanism.common.MekanismLang;
 import mekanism.common.base.ISideConfiguration;
@@ -114,7 +114,9 @@ public class GuiSlot extends GuiTexturedElement implements IRecipeViewerGhostTar
         return click(onClick, 0.25F, null);
     }
 
-    /** Button-aware fake-slot callback used when left and right clicks have different meanings. */
+    /**
+     * Button-aware fake-slot callback used when left and right clicks have different meanings.
+     */
     public GuiSlot click(IButtonClickable onClick) {
         this.onButtonClick = onClick;
         this.customClickSound = null;
@@ -279,7 +281,7 @@ public class GuiSlot extends GuiTexturedElement implements IRecipeViewerGhostTar
     private ITextComponent getConfiguratorSlotTooltip(int mouseX, int mouseY) {
         ItemStack stack = gui().getCarriedItem();
         if (stack.isEmpty() || !(stack.getItem() instanceof ItemConfigurator) || !(gui() instanceof GuiMekanismTile<?, ?> tileGui) ||
-            !(tileGui.getTileEntity() instanceof ISideConfiguration config) || config.getConfig() == null) {
+                !(tileGui.getTileEntity() instanceof ISideConfiguration config) || config.getConfig() == null) {
             return null;
         }
         Slot hovering = gui().getSlotUnderMouse(mouseX, mouseY);
@@ -307,7 +309,7 @@ public class GuiSlot extends GuiTexturedElement implements IRecipeViewerGhostTar
         if ((onClick != null || onButtonClick != null) && validButton) {
             if (mouseX >= getX() + borderSize() && mouseY >= getY() + borderSize() && mouseX < getRight() - borderSize() && mouseY < getBottom() - borderSize()) {
                 boolean handled = onButtonClick == null ? onClick.onClick(this, mouseX, mouseY) :
-                      onButtonClick.onClick(this, mouseX, mouseY, button);
+                        onButtonClick.onClick(this, mouseX, mouseY, button);
                 if (handled) {
                     playDownSound(Minecraft.getMinecraft().getSoundHandler());
                     return true;

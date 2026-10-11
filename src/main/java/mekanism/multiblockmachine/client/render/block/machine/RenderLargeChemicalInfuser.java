@@ -23,11 +23,11 @@ public class RenderLargeChemicalInfuser extends RenderTileEntityTime<TileEntityL
         bindTexture(MekanismUtils.getResource(MekanismMultiblockMachine.MODID, ResourceType.RENDER_MACHINE, "ChemicalInfuser/ChemicalInfuser.png"));
         MekanismRenderer.rotate(tileEntity.facing, 0, 180, 90, 270);
         GlStateManager.rotate(180, 0, 0, 1);
-        model.render(getTime(), 0.0625F, tileEntity.getActive(), rendererDispatcher.renderEngine, tileEntity.getScaledGasTankLevel(), tileEntity.getScaledLeftTankGasLevel(), tileEntity.getScaledRightTankGasLevel(),true);
+        model.render(getTime(), 0.0625F, tileEntity.getActive(), rendererDispatcher.renderEngine, tileEntity.getScaledGasTankLevel(), tileEntity.getScaledLeftTankGasLevel(), tileEntity.getScaledRightTankGasLevel(), true);
         GlStateManager.popMatrix();
     }
 
-    public ModelLargeChemicalInfuser getModel(){
+    public ModelLargeChemicalInfuser getModel() {
         return model;
     }
 

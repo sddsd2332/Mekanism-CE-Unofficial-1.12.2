@@ -48,7 +48,7 @@ public class GuiFusionReactorController extends GuiMekanismTile<TileEntityReacto
         drawTitleText(new TextComponentString(tileEntity.getName()), titleLabelY);
         renderInventoryText();
         drawScrollingString(new TextComponentString(LangUtils.localize(tileEntity.isFormed() ? "gui.formed" : "gui.incomplete")), 0, 16, TextAlignment.LEFT,
-              titleTextColor(), 13, false);
+                titleTextColor(), 13, false);
         super.drawForegroundText(mouseX, mouseY);
     }
 
@@ -57,8 +57,8 @@ public class GuiFusionReactorController extends GuiMekanismTile<TileEntityReacto
             return new ArrayList<>();
         }
         return Arrays.asList(
-              new TextComponentString(LangUtils.localize("gui.storing") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getEnergy(), tileEntity.getMaxEnergy())),
-              new TextComponentString(LangUtils.localize("gui.producing") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getReactor().getPassiveGeneration(false, true)) + "/t")
+                new TextComponentString(LangUtils.localize("gui.storing") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getEnergy(), tileEntity.getMaxEnergy())),
+                new TextComponentString(LangUtils.localize("gui.producing") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getReactor().getPassiveGeneration(false, true)) + "/t")
         );
     }
 
@@ -69,8 +69,8 @@ public class GuiFusionReactorController extends GuiMekanismTile<TileEntityReacto
         String transfer = MekanismUtils.getTemperatureDisplay(tileEntity.getReactor().lastTransferLoss, TemperatureUnit.KELVIN, false);
         String environment = MekanismUtils.getTemperatureDisplay(tileEntity.getReactor().lastEnvironmentLoss, TemperatureUnit.KELVIN, false);
         return Arrays.asList(
-              new TextComponentString(LangUtils.localize("gui.transferred") + ": " + transfer + "/t"),
-              new TextComponentString(LangUtils.localize("gui.dissipated") + ": " + environment + "/t")
+                new TextComponentString(LangUtils.localize("gui.transferred") + ": " + transfer + "/t"),
+                new TextComponentString(LangUtils.localize("gui.dissipated") + ": " + environment + "/t")
         );
     }
 

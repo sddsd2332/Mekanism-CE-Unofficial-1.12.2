@@ -66,11 +66,11 @@ public class TileEntityIsotopicCentrifuge extends TileEntityBasicMachine<GasInpu
 
     public static final int MAX_GAS = 10000;
     private static final List<RecipeError> TRACKED_ERROR_TYPES = Arrays.asList(
-          RecipeError.NOT_ENOUGH_ENERGY,
-          RecipeError.NOT_ENOUGH_ENERGY_REDUCED_RATE,
-          RecipeError.NOT_ENOUGH_INPUT,
-          RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
-          RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
+            RecipeError.NOT_ENOUGH_ENERGY,
+            RecipeError.NOT_ENOUGH_ENERGY_REDUCED_RATE,
+            RecipeError.NOT_ENOUGH_INPUT,
+            RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
+            RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
     );
     public BasicGasTank inputTank;
     public BasicGasTank outputTank;
@@ -99,7 +99,7 @@ public class TileEntityIsotopicCentrifuge extends TileEntityBasicMachine<GasInpu
 
         ejectorComponent = new TileComponentEjector(this);
         ejectorComponent.setOutputData(configComponent, TransmissionType.ITEM, TransmissionType.GAS)
-              .setCanTankEject(tank -> tank != inputTank);
+                .setCanTankEject(tank -> tank != inputTank);
     }
 
     @Override
@@ -232,22 +232,22 @@ public class TileEntityIsotopicCentrifuge extends TileEntityBasicMachine<GasInpu
     @Override
     public CachedRecipe<IsotopicRecipe> createNewCachedRecipe(IsotopicRecipe recipe, int cacheIndex) {
         return new OneInputCachedRecipe<>(recipe, this::shouldRecheckAllRecipeErrors,
-              InputHelper.getGasInputHandler(inputTank, RecipeError.NOT_ENOUGH_INPUT),
-              OutputHelper.getGasOutputHandler(outputTank, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
-              () -> recipe.getInput().ingredient, input -> input != null && input.isGasEqual(recipe.getInput().ingredient),
-              input -> recipe.getOutput().output.copy(), input -> input == null || input.amount <= 0, output -> output == null || output.amount <= 0)
-              .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
-              .setActive(active -> {
-                  if (active || prevEnergy >= getEnergy()) {
-                      setActive(active);
-                  }
-              })
-              .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
-              .setRequiredTicks(() -> ticksRequired)
-              .setBaselineMaxOperations(() -> getUpgradedUsage(recipe))
-              .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
-              .setErrorsChanged(this::onRecipeErrorsChanged)
-              .setOnFinish(this::onCachedRecipeFinish);
+                InputHelper.getGasInputHandler(inputTank, RecipeError.NOT_ENOUGH_INPUT),
+                OutputHelper.getGasOutputHandler(outputTank, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
+                () -> recipe.getInput().ingredient, input -> input != null && input.isGasEqual(recipe.getInput().ingredient),
+                input -> recipe.getOutput().output.copy(), input -> input == null || input.amount <= 0, output -> output == null || output.amount <= 0)
+                .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
+                .setActive(active -> {
+                    if (active || prevEnergy >= getEnergy()) {
+                        setActive(active);
+                    }
+                })
+                .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
+                .setRequiredTicks(() -> ticksRequired)
+                .setBaselineMaxOperations(() -> getUpgradedUsage(recipe))
+                .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
+                .setErrorsChanged(this::onRecipeErrorsChanged)
+                .setOnFinish(this::onCachedRecipeFinish);
     }
 
 
@@ -260,7 +260,7 @@ public class TileEntityIsotopicCentrifuge extends TileEntityBasicMachine<GasInpu
         int possibleProcess = Math.min((int) Math.pow(2, upgradeComponent.getUpgrades(Upgrade.SPEED)), MekanismConfig.current().mekce.MAXspeedmachines.val());
         possibleProcess = Math.min(Math.min(inputTank.getStored(), outputTank.getNeeded()), possibleProcess);
         possibleProcess = Math.min((int) (getEnergy() / energyPerTick), possibleProcess);
-        possibleProcess = Math.max(possibleProcess,1);
+        possibleProcess = Math.max(possibleProcess, 1);
         return Math.min(inputTank.getStored() / recipe.recipeInput.ingredient.amount, possibleProcess);
     }
 
@@ -353,6 +353,11 @@ public class TileEntityIsotopicCentrifuge extends TileEntityBasicMachine<GasInpu
     }
 
     @Override
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return type == mekanism.api.transmitters.TransmissionType.GAS;
+    }
+
+    @Override
     public int getRedstoneLevel() {
         return MekanismUtils.redstoneLevelFromContents(inputTank.getStored(), inputTank.getMaxGas());
     }
@@ -390,7 +395,8 @@ public class TileEntityIsotopicCentrifuge extends TileEntityBasicMachine<GasInpu
             updateDelay = 10;
         }
     }
-@Override
+
+    @Override
     protected boolean shouldDumpRadiation() {
         return true;
     }

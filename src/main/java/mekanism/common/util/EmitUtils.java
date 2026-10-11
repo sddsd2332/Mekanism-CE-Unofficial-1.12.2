@@ -58,6 +58,11 @@ public class EmitUtils {
      * @return The amount that actually got sent.
      */
     public static <HANDLER, EXTRA, TARGET extends Target<HANDLER, Integer, EXTRA>> int sendToAcceptors(TARGET availableTargets, int amountToSplit, EXTRA toSend) {
+        if (amountToSplit <= 0 || availableTargets.getHandlerCount() == 0) return 0;
+        if (availableTargets.getHandlerCount() == 1) {
+            Integer sent = availableTargets.sendToSingle(amountToSplit, toSend);
+            if (sent != null) return sent;
+        }
         return sendToAcceptors(availableTargets, new IntegerSplitInfo(amountToSplit, availableTargets.getHandlerCount()), toSend);
     }
 
@@ -67,6 +72,8 @@ public class EmitUtils {
      * @return The amount that actually got sent
      */
     public static double sendToAcceptors(EnergyAcceptorTarget availableTargets, double amountToSplit) {
+        if (amountToSplit <= 0 || availableTargets.getHandlerCount() == 0) return 0;
+        if (availableTargets.getHandlerCount() == 1) return availableTargets.sendToSingle(amountToSplit, amountToSplit);
         return sendToAcceptors(availableTargets, new DoubleSplitInfo(amountToSplit, availableTargets.getHandlerCount()), amountToSplit);
     }
 
@@ -76,6 +83,11 @@ public class EmitUtils {
      * @return The amount that actually got sent
      */
     public static <HANDLER, TARGET extends Target<HANDLER, Double, Double>> double sendToAcceptors(TARGET availableTargets, double amountToSplit) {
+        if (amountToSplit <= 0 || availableTargets.getHandlerCount() == 0) return 0;
+        if (availableTargets.getHandlerCount() == 1) {
+            Double sent = availableTargets.sendToSingle(amountToSplit, amountToSplit);
+            if (sent != null) return sent;
+        }
         return sendToAcceptors(availableTargets, new DoubleSplitInfo(amountToSplit, availableTargets.getHandlerCount()), amountToSplit);
     }
 

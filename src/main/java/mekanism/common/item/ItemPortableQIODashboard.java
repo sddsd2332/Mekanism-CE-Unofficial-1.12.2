@@ -13,7 +13,6 @@ import mekanism.common.util.ItemDataUtils;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.SecurityUtils;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
@@ -31,7 +30,9 @@ import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.UUID;
 
-/** Portable QIO viewer with frequency/security identity and a derived color cache. */
+/**
+ * Portable QIO viewer with frequency/security identity and a derived color cache.
+ */
 public class ItemPortableQIODashboard extends ItemMekanism implements IFrequencyItem, ISecurityItem, IColoredItem {
 
     public ItemPortableQIODashboard() {
@@ -68,7 +69,7 @@ public class ItemPortableQIODashboard extends ItemMekanism implements IFrequency
         if (getFrequency(stack) != null) {
             tooltip.add(EnumColor.INDIGO + LangUtils.localize("gui.frequency") + ": " + EnumColor.GREY + getFrequency(stack).key);
             tooltip.add(EnumColor.INDIGO + LangUtils.localize("gui.mode") + ": " + EnumColor.GREY +
-                  LangUtils.localize("gui." + getFrequency(stack).securityMode.name().toLowerCase(java.util.Locale.ROOT)));
+                    LangUtils.localize("gui." + getFrequency(stack).securityMode.name().toLowerCase(java.util.Locale.ROOT)));
         }
     }
 

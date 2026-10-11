@@ -8,8 +8,8 @@ import mekanism.client.gui.element.gauge.GuiNumberGauge;
 import mekanism.client.gui.element.gauge.GuiNumberGauge.INumberInfoHandler;
 import mekanism.client.gui.element.progress.GuiProgress;
 import mekanism.client.gui.element.progress.ProgressType;
-import mekanism.client.render.MekanismRenderer;
 import mekanism.client.recipe_viewer.type.RecipeViewerRecipeType;
+import mekanism.client.render.MekanismRenderer;
 import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.UnitDisplayUtils.TemperatureUnit;
@@ -76,8 +76,8 @@ public class GuiFusionReactorHeat extends GuiFusionReactorInfo {
         }, GaugeType.STANDARD, this, 66, 50));
         addButton(new GuiProgress(() -> tileEntity.getCaseTemp() > tileEntity.getReactor().getAmbientTemperature() ? 1 : 0, ProgressType.SMALL_RIGHT, this, 88, 61));
         addButton(new GuiProgress(() -> tileEntity.getCaseTemp() > tileEntity.getReactor().getAmbientTemperature() && tileEntity.waterTank.getFluidAmount() > 0 && tileEntity.getactivelyCooled() &&
-              tileEntity.steamTank.getFluidAmount() < tileEntity.steamTank.getCapacity() ? 1 : 0,
-              ProgressType.SMALL_RIGHT, this, 88, 91));
+                tileEntity.steamTank.getFluidAmount() < tileEntity.steamTank.getCapacity() ? 1 : 0,
+                ProgressType.SMALL_RIGHT, this, 88, 91));
         addButton(new GuiFluidGauge(this, tileEntity.waterTank, GuiFluidGauge.Type.SMALL, 120, 84));
         addButton(new GuiRecipeViewerArea(this, 120, 84, 18, 30, RecipeViewerRecipeType.FUSION_COOLING));
         addButton(new GuiFluidGauge(this, tileEntity.steamTank, GuiFluidGauge.Type.SMALL, 156, 84));

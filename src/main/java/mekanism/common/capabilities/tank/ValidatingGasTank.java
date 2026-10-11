@@ -4,8 +4,8 @@ import mekanism.api.Action;
 import mekanism.api.gas.Gas;
 import mekanism.common.capabilities.gas.BasicGasTank;
 
-import java.util.function.Predicate;
 import java.util.function.BooleanSupplier;
+import java.util.function.Predicate;
 
 public class ValidatingGasTank extends BasicGasTank {
 

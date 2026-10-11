@@ -59,26 +59,26 @@ public class GuiFissionReactor extends GuiMekanismTile<TileEntityFissionReactorC
         super.addGuiElements();
         addButton(new GuiFissionReactorTab(this, tileEntity, FissionReactorTab.STAT));
         addButton(new GuiInnerScreen(this, 45, 17, 105, 56, this::getScreenText).clearSpacing().padding(2).textScale(0.75F).centerY()
-              .recipeViewerCategories(RecipeViewerRecipeType.FISSION_REACTOR));
+                .recipeViewerCategories(RecipeViewerRecipeType.FISSION_REACTOR));
         addButton(new GuiHybridGauge(
-              () -> tileEntity.structure == null ? null : tileEntity.structure.gasCoolantTank, this::getGasTanks,
-              () -> tileEntity.structure == null ? null : tileEntity.structure.coolantTank, this::getFluidTanks,
-              GaugeType.STANDARD, this, 6, 13
+                () -> tileEntity.structure == null ? null : tileEntity.structure.gasCoolantTank, this::getGasTanks,
+                () -> tileEntity.structure == null ? null : tileEntity.structure.coolantTank, this::getFluidTanks,
+                GaugeType.STANDARD, this, 6, 13
         ).setLabel(coloredLabel(EnumColor.AQUA, "gui.coolant")));
         addButton(new GuiGasGauge(() -> tileEntity.structure == null ? null : tileEntity.structure.fuelTank, this::getGasTanks, GaugeType.STANDARD, this, 25, 13)
-              .setLabel(coloredLabel(EnumColor.DARK_GREEN, "gui.fuel")));
+                .setLabel(coloredLabel(EnumColor.DARK_GREEN, "gui.fuel")));
         addButton(new GuiHybridGauge(
-              () -> tileEntity.structure == null ? null : tileEntity.structure.heatedCoolantTank, this::getGasTanks,
-              () -> tileEntity.structure == null ? null : tileEntity.structure.steamTank, this::getFluidTanks,
-              GaugeType.STANDARD, this, 152, 13
+                () -> tileEntity.structure == null ? null : tileEntity.structure.heatedCoolantTank, this::getGasTanks,
+                () -> tileEntity.structure == null ? null : tileEntity.structure.steamTank, this::getFluidTanks,
+                GaugeType.STANDARD, this, 152, 13
         ).setLabel(coloredLabel(EnumColor.ORANGE, "gui.heatedCoolant")));
         addButton(new GuiGasGauge(() -> tileEntity.structure == null ? null : tileEntity.structure.wasteTank, this::getGasTanks, GaugeType.STANDARD, this, 171, 13)
-              .setLabel(coloredLabel(EnumColor.BROWN, "gui.waste")));
+                .setLabel(coloredLabel(EnumColor.BROWN, "gui.waste")));
         addButton(new GuiHeatTab(this, this::getHeatTabText));
         activateButton = addButton(new MekanismButton(this, 6, 75, 81, 16, new TextComponentString(LangUtils.localize("gui.activate")),
-              this::toggleActive, getOnHover(() -> new TextComponentString(LangUtils.localize("gui.activate")))));
+                this::toggleActive, getOnHover(() -> new TextComponentString(LangUtils.localize("gui.activate")))));
         scramButton = addButton(new MekanismButton(this, 89, 75, 81, 16, new TextComponentString(LangUtils.localize("gui.scram")),
-              this::toggleActive, getOnHover(() -> new TextComponentString(LangUtils.localize("gui.scram")))));
+                this::toggleActive, getOnHover(() -> new TextComponentString(LangUtils.localize("gui.scram")))));
         addButton(new GuiBigLight(this, 173, 76, () -> tileEntity.structure != null && tileEntity.structure.active));
         addButton(new GuiDynamicHorizontalRateBar(this, new IBarInfoHandler() {
             @Override
@@ -118,7 +118,7 @@ public class GuiFissionReactor extends GuiMekanismTile<TileEntityFissionReactorC
         super.updateScreen();
         if (heatGraph != null) {
             heatGraph.addData(tileEntity.structure == null ? (int) SynchronizedFissionData.BASE_TEMPERATURE :
-                  MathUtils.clampToInt(Math.round(tileEntity.structure.getTemperature())));
+                    MathUtils.clampToInt(Math.round(tileEntity.structure.getTemperature())));
         }
     }
 
@@ -137,14 +137,14 @@ public class GuiFissionReactor extends GuiMekanismTile<TileEntityFissionReactorC
             status += " (" + LangUtils.localize("fission.force_disabled") + ")";
         }
         String coolingMode = data.coolantTank.getFluidAmount() > 0 ? LangUtils.localize("fission.cooling.water")
-              : (data.gasCoolantTank.getStored() > 0 ? LangUtils.localize("fission.cooling.sodium") : LangUtils.localize("fission.cooling.idle"));
+                : (data.gasCoolantTank.getStored() > 0 ? LangUtils.localize("fission.cooling.sodium") : LangUtils.localize("fission.cooling.idle"));
         return Arrays.asList(
-              new TextComponentString(LangUtils.localize("gui.status") + ": " + status),
-              new TextComponentString(LangUtils.localize("gui.mode") + ": " + coolingMode),
-              new TextComponentString(LangUtils.localize("gui.burnRate") + ": " + UnitDisplayUtils.roundDecimals(data.lastBurnRate) + " /t"),
-              new TextComponentString(LangUtils.localize("gui.boilRate") + ": " + data.lastBoilRate + " /t"),
-              new TextComponentString(LangUtils.localize("gui.temp") + ": " + getTemperatureDisplay()),
-              new TextComponentString(LangUtils.localize("gui.reactorDamage") + ": " + getDamageColor() + UnitDisplayUtils.roundDecimals(data.reactorDamage) + "%")
+                new TextComponentString(LangUtils.localize("gui.status") + ": " + status),
+                new TextComponentString(LangUtils.localize("gui.mode") + ": " + coolingMode),
+                new TextComponentString(LangUtils.localize("gui.burnRate") + ": " + UnitDisplayUtils.roundDecimals(data.lastBurnRate) + " /t"),
+                new TextComponentString(LangUtils.localize("gui.boilRate") + ": " + data.lastBoilRate + " /t"),
+                new TextComponentString(LangUtils.localize("gui.temp") + ": " + getTemperatureDisplay()),
+                new TextComponentString(LangUtils.localize("gui.reactorDamage") + ": " + getDamageColor() + UnitDisplayUtils.roundDecimals(data.reactorDamage) + "%")
         );
     }
 

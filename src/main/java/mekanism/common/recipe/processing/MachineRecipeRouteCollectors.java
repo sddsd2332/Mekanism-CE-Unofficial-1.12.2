@@ -15,13 +15,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraftforge.fluids.FluidStack;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Collects network-independent, typed routes from Mekanism recipe maps.
@@ -35,15 +29,15 @@ public final class MachineRecipeRouteCollectors {
     }
 
     public static List<MachineRecipeRoute> collectBasicItem(
-          Map<ItemStackInput, ? extends BasicMachineRecipe<?>> recipes) {
+            Map<ItemStackInput, ? extends BasicMachineRecipe<?>> recipes) {
         List<MachineRecipeRoute> routes = new ArrayList<>();
         recipes.values().forEach(recipe -> addExpandedItemRoute(routes, recipes, recipe.getInput().ingredient,
-              recipe.getOutput().output));
+                recipe.getOutput().output));
         return routes;
     }
 
     public static List<MachineRecipeRoute> collectChanceItem(
-          Map<ItemStackInput, ? extends ChanceMachineRecipe<?>> recipes) {
+            Map<ItemStackInput, ? extends ChanceMachineRecipe<?>> recipes) {
         List<MachineRecipeRoute> routes = new ArrayList<>();
         for (ChanceMachineRecipe<?> recipe : recipes.values()) {
             ChanceOutput output = recipe.getOutput();
@@ -51,10 +45,11 @@ public final class MachineRecipeRouteCollectors {
                 continue;
             }
             for (ItemStack input : MachineRecipeItemInputs.expand(recipe.getInput().ingredient,
-                  candidate -> chanceRecipeMatches(recipes, candidate, output.getMainOutput()))) {
+                    candidate -> chanceRecipeMatches(recipes, candidate, output.getMainOutput()),
+                    MachineRecipeItemInputs.ROUTE_EXPANSION_MAX_RESULTS)) {
                 MachineRecipeRoute.Builder builder = MachineRecipeRoute.builder("route:item_to_item_chance")
-                      .inputItem("item_input", input)
-                      .outputItem("item_output", output.getMainOutput());
+                        .inputItem("item_input", input)
+                        .outputItem("item_output", output.getMainOutput());
                 ItemStack secondary = output.getMaxSecondaryOutput();
                 if (isPositiveItem(secondary)) {
                     builder.optionalOutputItem("secondary_item_output", secondary);
@@ -66,7 +61,7 @@ public final class MachineRecipeRouteCollectors {
     }
 
     public static List<MachineRecipeRoute> collectGuaranteedChanceItem(
-          Map<ItemStackInput, ? extends Chance2MachineRecipe<?>> recipes) {
+            Map<ItemStackInput, ? extends Chance2MachineRecipe<?>> recipes) {
         List<MachineRecipeRoute> routes = new ArrayList<>();
         for (Chance2MachineRecipe<?> recipe : recipes.values()) {
             ChanceOutput2 output = recipe.getOutput();
@@ -75,18 +70,19 @@ public final class MachineRecipeRouteCollectors {
             }
             ItemStack guaranteed = output.getMaxPrimaryOutput();
             for (ItemStack input : MachineRecipeItemInputs.expand(recipe.getInput().ingredient,
-                  candidate -> chance2RecipeMatches(recipes, candidate, guaranteed))) {
+                    candidate -> chance2RecipeMatches(recipes, candidate, guaranteed),
+                    MachineRecipeItemInputs.ROUTE_EXPANSION_MAX_RESULTS)) {
                 routes.add(MachineRecipeRoute.builder("route:item_to_item")
-                      .inputItem("item_input", input)
-                      .outputItem("item_output", guaranteed)
-                      .build());
+                        .inputItem("item_input", input)
+                        .outputItem("item_output", guaranteed)
+                        .build());
             }
         }
         return routes;
     }
 
     public static List<MachineRecipeRoute> collectDoubleItem(
-          Map<?, ? extends DoubleMachineRecipe<?>> recipes) {
+            Map<?, ? extends DoubleMachineRecipe<?>> recipes) {
         List<MachineRecipeRoute> routes = new ArrayList<>();
         for (DoubleMachineRecipe<?> recipe : recipes.values()) {
             DoubleMachineInput input = recipe.getInput();
@@ -96,12 +92,12 @@ public final class MachineRecipeRouteCollectors {
             }
             List<ItemStack> rawInputs = java.util.Arrays.asList(input.itemStack, input.extraStack);
             for (List<ItemStack> expanded : MachineRecipeItemInputs.expandCombinations(rawInputs,
-                  candidates -> doubleRecipeMatches(recipes, candidates.get(0), candidates.get(1), output))) {
+                    candidates -> doubleRecipeMatches(recipes, candidates.get(0), candidates.get(1), output))) {
                 routes.add(MachineRecipeRoute.builder("route:item_item_to_item")
-                      .inputItem("item_input", expanded.get(0))
-                      .inputItem("extra_item_input", expanded.get(1))
-                      .outputItem("item_output", output)
-                      .build());
+                        .inputItem("item_input", expanded.get(0))
+                        .inputItem("extra_item_input", expanded.get(1))
+                        .outputItem("item_output", output)
+                        .build());
             }
         }
         return routes;
@@ -112,13 +108,13 @@ public final class MachineRecipeRouteCollectors {
      * The recipe is scaled to the smallest whole number of operations and source items.
      */
     public static List<MachineRecipeRoute> collectInfusionItem(
-          Map<InfusionInput, ? extends MachineRecipe<InfusionInput, ItemStackOutput, ?>> recipes) {
+            Map<InfusionInput, ? extends MachineRecipe<InfusionInput, ItemStackOutput, ?>> recipes) {
         List<MachineRecipeRoute> routes = new ArrayList<>();
         for (MachineRecipe<InfusionInput, ItemStackOutput, ?> recipe : recipes.values()) {
             InfusionInput input = recipe.getInput();
             ItemStack output = recipe.getOutput().output;
             if (input == null || input.infuse == null || input.infuse.getType() == null || input.infuse.getAmount() <= 0 ||
-                !isPositiveItem(output)) {
+                    !isPositiveItem(output)) {
                 continue;
             }
             for (Map.Entry<ItemStack, InfuseObject> source : InfuseRegistry.getObjectMap().entrySet()) {
@@ -138,13 +134,13 @@ public final class MachineRecipeRouteCollectors {
                     continue;
                 }
                 for (List<ItemStack> expanded : MachineRecipeItemInputs.expandCombinations(
-                      Arrays.asList(scaledInput, scaledSource), candidates -> infusionRecipeMatches(recipes,
-                            candidates.get(0), candidates.get(1), input.infuse.getAmount(), operations, scaledOutput))) {
+                        Arrays.asList(scaledInput, scaledSource), candidates -> infusionRecipeMatches(recipes,
+                                candidates.get(0), candidates.get(1), input.infuse.getAmount(), operations, scaledOutput))) {
                     routes.add(MachineRecipeRoute.builder("route:item_item_to_item_infusing")
-                          .inputItem("item_input", expanded.get(0))
-                          .inputItem("extra_item_input", expanded.get(1))
-                          .outputItem("item_output", scaledOutput)
-                          .build());
+                            .inputItem("item_input", expanded.get(0))
+                            .inputItem("extra_item_input", expanded.get(1))
+                            .outputItem("item_output", scaledOutput)
+                            .build());
                 }
             }
         }
@@ -152,7 +148,7 @@ public final class MachineRecipeRouteCollectors {
     }
 
     public static List<MachineRecipeRoute> collectItemToGas(
-          Map<ItemStackInput, ? extends MachineRecipe<ItemStackInput, GasOutput, ?>> recipes) {
+            Map<ItemStackInput, ? extends MachineRecipe<ItemStackInput, GasOutput, ?>> recipes) {
         List<MachineRecipeRoute> routes = new ArrayList<>();
         for (MachineRecipe<ItemStackInput, GasOutput, ?> recipe : recipes.values()) {
             GasStack output = recipe.getOutput().output;
@@ -160,11 +156,12 @@ public final class MachineRecipeRouteCollectors {
                 continue;
             }
             for (ItemStack input : MachineRecipeItemInputs.expand(recipe.getInput().ingredient,
-                  candidate -> itemToGasRecipeMatches(recipes, candidate, output))) {
+                    candidate -> itemToGasRecipeMatches(recipes, candidate, output),
+                    MachineRecipeItemInputs.ROUTE_EXPANSION_MAX_RESULTS)) {
                 routes.add(MachineRecipeRoute.builder("route:item_to_gas")
-                      .inputItem("item_input", input)
-                      .outputGas("gas_output", output)
-                      .build());
+                        .inputItem("item_input", input)
+                        .outputGas("gas_output", output)
+                        .build());
             }
         }
         return routes;
@@ -177,33 +174,33 @@ public final class MachineRecipeRouteCollectors {
             ItemStack output = recipe.getOutput().output;
             if (isPositiveGas(input) && isPositiveItem(output)) {
                 routes.add(MachineRecipeRoute.builder("route:gas_to_item")
-                      .inputGas("gas_input", input)
-                      .outputItem("item_output", output)
-                      .build());
+                        .inputGas("gas_input", input)
+                        .outputItem("item_output", output)
+                        .build());
             }
         }
         return routes;
     }
 
     public static List<MachineRecipeRoute> collectGasToGas(
-          Map<GasInput, ? extends MachineRecipe<GasInput, GasOutput, ?>> recipes) {
+            Map<GasInput, ? extends MachineRecipe<GasInput, GasOutput, ?>> recipes) {
         List<MachineRecipeRoute> routes = new ArrayList<>();
         for (MachineRecipe<GasInput, GasOutput, ?> recipe : recipes.values()) {
             GasStack input = recipe.getInput().ingredient;
             GasStack output = recipe.getOutput().output;
             if (isPositiveGas(input) && isPositiveGas(output)) {
                 routes.add(MachineRecipeRoute.builder("route:gas_to_gas")
-                      .inputGas("gas_input", input)
-                      .outputGas("gas_output", output)
-                      .build());
+                        .inputGas("gas_input", input)
+                        .outputGas("gas_output", output)
+                        .build());
             }
         }
         return routes;
     }
 
     public static List<MachineRecipeRoute> collectItemGasToGas(
-          Map<ItemStackInput, ? extends MachineRecipe<ItemStackInput, GasOutput, ?>> recipes, @Nullable Gas gasType,
-          int gasPerOperation) {
+            Map<ItemStackInput, ? extends MachineRecipe<ItemStackInput, GasOutput, ?>> recipes, @Nullable Gas gasType,
+            int gasPerOperation) {
         if (gasType == null || gasPerOperation <= 0) {
             return Collections.emptyList();
         }
@@ -215,19 +212,20 @@ public final class MachineRecipeRouteCollectors {
                 continue;
             }
             for (ItemStack itemInput : MachineRecipeItemInputs.expand(recipe.getInput().ingredient,
-                  candidate -> itemToGasRecipeMatches(recipes, candidate, output))) {
+                    candidate -> itemToGasRecipeMatches(recipes, candidate, output),
+                    MachineRecipeItemInputs.ROUTE_EXPANSION_MAX_RESULTS)) {
                 routes.add(MachineRecipeRoute.builder("route:item_gas_to_gas")
-                      .inputItem("item_input", itemInput)
-                      .inputGas("gas_input", gasInput)
-                      .outputGas("gas_output", output)
-                      .build());
+                        .inputItem("item_input", itemInput)
+                        .inputGas("gas_input", gasInput)
+                        .outputGas("gas_output", output)
+                        .build());
             }
         }
         return routes;
     }
 
     public static List<MachineRecipeRoute> collectAdvancedGasToItem(
-          Map<AdvancedMachineInput, ? extends AdvancedMachineRecipe<?>> recipes, int gasPerOperation) {
+            Map<AdvancedMachineInput, ? extends AdvancedMachineRecipe<?>> recipes, int gasPerOperation) {
         if (gasPerOperation <= 0) {
             return Collections.emptyList();
         }
@@ -239,19 +237,20 @@ public final class MachineRecipeRouteCollectors {
                 continue;
             }
             for (ItemStack itemInput : MachineRecipeItemInputs.expand(input.itemStack,
-                  candidate -> advancedRecipeMatches(recipes, candidate, input.gasType, output))) {
+                    candidate -> advancedRecipeMatches(recipes, candidate, input.gasType, output),
+                    MachineRecipeItemInputs.ROUTE_EXPANSION_MAX_RESULTS)) {
                 routes.add(MachineRecipeRoute.builder("route:item_gas_to_item")
-                      .inputItem("item_input", itemInput)
-                      .inputGas("gas_input", new GasStack(input.gasType, gasPerOperation))
-                      .outputItem("item_output", output)
-                      .build());
+                        .inputItem("item_input", itemInput)
+                        .inputGas("gas_input", new GasStack(input.gasType, gasPerOperation))
+                        .outputItem("item_output", output)
+                        .build());
             }
         }
         return routes;
     }
 
     public static List<MachineRecipeRoute> collectFarmGasToItem(
-          Map<FarmInput, ? extends FarmMachineRecipe<?>> recipes, int secondaryPerOperation) {
+            Map<FarmInput, ? extends FarmMachineRecipe<?>> recipes, int secondaryPerOperation) {
         if (secondaryPerOperation <= 0) {
             return Collections.emptyList();
         }
@@ -263,11 +262,12 @@ public final class MachineRecipeRouteCollectors {
                 continue;
             }
             for (ItemStack itemInput : MachineRecipeItemInputs.expand(input.itemStack,
-                  candidate -> farmRecipeMatches(recipes, candidate, input, output.getGuaranteedOutput()))) {
+                    candidate -> farmRecipeMatches(recipes, candidate, input, output.getGuaranteedOutput()),
+                    MachineRecipeItemInputs.ROUTE_EXPANSION_MAX_RESULTS)) {
                 MachineRecipeRoute.Builder builder = MachineRecipeRoute.builder(input.isGasInput() ?
-                            "route:item_gas_to_item_chance" : "route:item_fluid_to_item_chance")
-                      .inputItem("item_input", itemInput)
-                      .outputItem("item_output", output.getGuaranteedOutput());
+                                "route:item_gas_to_item_chance" : "route:item_fluid_to_item_chance")
+                        .inputItem("item_input", itemInput)
+                        .outputItem("item_output", output.getGuaranteedOutput());
                 if (input.isGasInput()) {
                     builder.inputGas("gas_input", input.gasInput.copy().withAmount(input.gasInput.amount * secondaryPerOperation));
                 } else {
@@ -291,7 +291,7 @@ public final class MachineRecipeRouteCollectors {
     }
 
     public static List<MachineRecipeRoute> collectNucleosynthesizerGasToItem(
-          Map<NucleosynthesizerInput, ? extends MachineRecipe<NucleosynthesizerInput, ItemStackOutput, ?>> recipes) {
+            Map<NucleosynthesizerInput, ? extends MachineRecipe<NucleosynthesizerInput, ItemStackOutput, ?>> recipes) {
         List<MachineRecipeRoute> routes = new ArrayList<>();
         for (MachineRecipe<NucleosynthesizerInput, ItemStackOutput, ?> recipe : recipes.values()) {
             NucleosynthesizerInput input = recipe.getInput();
@@ -301,12 +301,13 @@ public final class MachineRecipeRouteCollectors {
                 continue;
             }
             for (ItemStack solid : MachineRecipeItemInputs.expand(input.getSolid(),
-                  candidate -> nucleosynthesizerRecipeMatches(recipes, candidate, gas, output))) {
+                    candidate -> nucleosynthesizerRecipeMatches(recipes, candidate, gas, output),
+                    MachineRecipeItemInputs.ROUTE_EXPANSION_MAX_RESULTS)) {
                 routes.add(MachineRecipeRoute.builder("route:item_gas_to_item")
-                      .inputItem("item_input", solid)
-                      .inputGas("gas_input", gas)
-                      .outputItem("item_output", output)
-                      .build());
+                        .inputItem("item_input", solid)
+                        .inputGas("gas_input", gas)
+                        .outputItem("item_output", output)
+                        .build());
             }
         }
         return routes;
@@ -317,14 +318,14 @@ public final class MachineRecipeRouteCollectors {
      * consumed by an operation, so only the UU gas is exposed as a route input.
      */
     public static List<MachineRecipeRoute> collectReplicatorItemTemplate(
-          Map<NucleosynthesizerInput, ? extends MachineRecipe<NucleosynthesizerInput, ItemStackOutput, ?>> recipes,
-          @Nullable ItemStack template) {
+            Map<NucleosynthesizerInput, ? extends MachineRecipe<NucleosynthesizerInput, ItemStackOutput, ?>> recipes,
+            @Nullable ItemStack template) {
         return collectReplicatorItemTemplate(recipes, template, "uu_input");
     }
 
     public static List<MachineRecipeRoute> collectReplicatorItemTemplate(
-          Map<NucleosynthesizerInput, ? extends MachineRecipe<NucleosynthesizerInput, ItemStackOutput, ?>> recipes,
-          @Nullable ItemStack template, String uuPortId) {
+            Map<NucleosynthesizerInput, ? extends MachineRecipe<NucleosynthesizerInput, ItemStackOutput, ?>> recipes,
+            @Nullable ItemStack template, String uuPortId) {
         if (!isPositiveItem(template)) {
             return Collections.emptyList();
         }
@@ -336,9 +337,9 @@ public final class MachineRecipeRouteCollectors {
             ItemStack output = recipe.getOutput().output;
             if (MachineInput.inputContains(template, requiredTemplate) && isPositiveGas(uu) && isPositiveItem(output)) {
                 routes.add(MachineRecipeRoute.builder("route:replicator_item.template")
-                      .inputGas(requirePortId(uuPortId), uu)
-                      .outputItem("item_output", output)
-                      .build());
+                        .inputGas(requirePortId(uuPortId), uu)
+                        .outputItem("item_output", output)
+                        .build());
             }
         }
         return routes;
@@ -348,14 +349,14 @@ public final class MachineRecipeRouteCollectors {
      * Collects configured gas-template replication routes without treating the retained template gas as an input.
      */
     public static List<MachineRecipeRoute> collectReplicatorGasTemplate(
-          Map<ChemicalGasInput, ? extends MachineRecipe<ChemicalGasInput, GasOutput, ?>> recipes,
-          @Nullable GasStack template) {
+            Map<ChemicalGasInput, ? extends MachineRecipe<ChemicalGasInput, GasOutput, ?>> recipes,
+            @Nullable GasStack template) {
         return collectReplicatorGasTemplate(recipes, template, "uu_input");
     }
 
     public static List<MachineRecipeRoute> collectReplicatorGasTemplate(
-          Map<ChemicalGasInput, ? extends MachineRecipe<ChemicalGasInput, GasOutput, ?>> recipes,
-          @Nullable GasStack template, String uuPortId) {
+            Map<ChemicalGasInput, ? extends MachineRecipe<ChemicalGasInput, GasOutput, ?>> recipes,
+            @Nullable GasStack template, String uuPortId) {
         if (!isPositiveGas(template)) {
             return Collections.emptyList();
         }
@@ -365,9 +366,9 @@ public final class MachineRecipeRouteCollectors {
             GasStack output = recipe.getOutput().output;
             if (input != null && containsGas(template, input.input) && isPositiveGas(input.uu) && isPositiveGas(output)) {
                 routes.add(MachineRecipeRoute.builder("route:replicator_gas.template")
-                      .inputGas(requirePortId(uuPortId), input.uu)
-                      .outputGas("gas_output", output)
-                      .build());
+                        .inputGas(requirePortId(uuPortId), input.uu)
+                        .outputGas("gas_output", output)
+                        .build());
             }
         }
         return routes;
@@ -377,14 +378,14 @@ public final class MachineRecipeRouteCollectors {
      * Collects configured fluid-template replication routes without treating the retained template fluid as an input.
      */
     public static List<MachineRecipeRoute> collectReplicatorFluidTemplate(
-          Map<GasAndFluidInput, ? extends MachineRecipe<GasAndFluidInput, FluidOutput, ?>> recipes,
-          @Nullable FluidStack template) {
+            Map<GasAndFluidInput, ? extends MachineRecipe<GasAndFluidInput, FluidOutput, ?>> recipes,
+            @Nullable FluidStack template) {
         return collectReplicatorFluidTemplate(recipes, template, "uu_input");
     }
 
     public static List<MachineRecipeRoute> collectReplicatorFluidTemplate(
-          Map<GasAndFluidInput, ? extends MachineRecipe<GasAndFluidInput, FluidOutput, ?>> recipes,
-          @Nullable FluidStack template, String uuPortId) {
+            Map<GasAndFluidInput, ? extends MachineRecipe<GasAndFluidInput, FluidOutput, ?>> recipes,
+            @Nullable FluidStack template, String uuPortId) {
         if (!isPositiveFluid(template)) {
             return Collections.emptyList();
         }
@@ -393,11 +394,11 @@ public final class MachineRecipeRouteCollectors {
             GasAndFluidInput input = recipe.getInput();
             FluidStack output = recipe.getOutput().output;
             if (input != null && containsFluid(template, input.ingredientFluid) && isPositiveGas(input.ingredientGas) &&
-                isPositiveFluid(output)) {
+                    isPositiveFluid(output)) {
                 routes.add(MachineRecipeRoute.builder("route:replicator_fluid.template")
-                      .inputGas(requirePortId(uuPortId), input.ingredientGas)
-                      .outputFluid("fluid_output", output)
-                      .build());
+                        .inputGas(requirePortId(uuPortId), input.ingredientGas)
+                        .outputFluid("fluid_output", output)
+                        .build());
             }
         }
         return routes;
@@ -408,13 +409,13 @@ public final class MachineRecipeRouteCollectors {
      * legacy template-filtered collector, this method does not depend on current machine state.
      */
     public static List<MachineRecipeRoute> collectConfigurableReplicatorItems(
-          Map<NucleosynthesizerInput, ? extends MachineRecipe<NucleosynthesizerInput, ItemStackOutput, ?>> recipes) {
+            Map<NucleosynthesizerInput, ? extends MachineRecipe<NucleosynthesizerInput, ItemStackOutput, ?>> recipes) {
         return collectConfigurableReplicatorItems(recipes, "template", "uu_input", "item_output");
     }
 
     public static List<MachineRecipeRoute> collectConfigurableReplicatorItems(
-          Map<NucleosynthesizerInput, ? extends MachineRecipe<NucleosynthesizerInput, ItemStackOutput, ?>> recipes,
-          String templatePortId, String uuPortId, String outputPortId) {
+            Map<NucleosynthesizerInput, ? extends MachineRecipe<NucleosynthesizerInput, ItemStackOutput, ?>> recipes,
+            String templatePortId, String uuPortId, String outputPortId) {
         String templatePort = requirePortId(templatePortId);
         String uuPort = requirePortId(uuPortId);
         String outputPort = requirePortId(outputPortId);
@@ -428,26 +429,29 @@ public final class MachineRecipeRouteCollectors {
                 continue;
             }
             for (ItemStack expanded : MachineRecipeItemInputs.expand(template,
-                  candidate -> nucleosynthesizerRecipeMatches(recipes, candidate, uu, output))) {
+                    candidate -> nucleosynthesizerRecipeMatches(recipes, candidate, uu, output),
+                    MachineRecipeItemInputs.ROUTE_EXPANSION_MAX_RESULTS)) {
                 routes.add(MachineRecipeRoute.builder("route:replicator_item.configurable")
-                      .configurationInput(MachineResourceStack.item(templatePort, expanded, 1))
-                      .inputGas(uuPort, uu)
-                      .outputItem(outputPort, output)
-                      .build());
+                        .configurationInput(MachineResourceStack.item(templatePort, expanded, 1))
+                        .inputGas(uuPort, uu)
+                        .outputItem(outputPort, output)
+                        .build());
             }
         }
         return routes;
     }
 
-    /** Publishes every gas replicator recipe with a one-unit retained template. */
+    /**
+     * Publishes every gas replicator recipe with a one-unit retained template.
+     */
     public static List<MachineRecipeRoute> collectConfigurableReplicatorGases(
-          Map<ChemicalGasInput, ? extends MachineRecipe<ChemicalGasInput, GasOutput, ?>> recipes) {
+            Map<ChemicalGasInput, ? extends MachineRecipe<ChemicalGasInput, GasOutput, ?>> recipes) {
         return collectConfigurableReplicatorGases(recipes, "template", "uu_input", "gas_output");
     }
 
     public static List<MachineRecipeRoute> collectConfigurableReplicatorGases(
-          Map<ChemicalGasInput, ? extends MachineRecipe<ChemicalGasInput, GasOutput, ?>> recipes,
-          String templatePortId, String uuPortId, String outputPortId) {
+            Map<ChemicalGasInput, ? extends MachineRecipe<ChemicalGasInput, GasOutput, ?>> recipes,
+            String templatePortId, String uuPortId, String outputPortId) {
         String templatePort = requirePortId(templatePortId);
         String uuPort = requirePortId(uuPortId);
         String outputPort = requirePortId(outputPortId);
@@ -456,27 +460,29 @@ public final class MachineRecipeRouteCollectors {
             ChemicalGasInput input = recipe.getInput();
             GasStack output = recipe.getOutput().output;
             if (input == null || !isPositiveGas(input.input) || !isPositiveGas(input.uu) ||
-                !isPositiveGas(output)) {
+                    !isPositiveGas(output)) {
                 continue;
             }
             routes.add(MachineRecipeRoute.builder("route:replicator_gas.configurable")
-                  .configurationInput(MachineResourceStack.gas(templatePort, input.input, 1))
-                  .inputGas(uuPort, input.uu)
-                  .outputGas(outputPort, output)
-                  .build());
+                    .configurationInput(MachineResourceStack.gas(templatePort, input.input, 1))
+                    .inputGas(uuPort, input.uu)
+                    .outputGas(outputPort, output)
+                    .build());
         }
         return routes;
     }
 
-    /** Publishes every fluid replicator recipe with a one-mB retained template. */
+    /**
+     * Publishes every fluid replicator recipe with a one-mB retained template.
+     */
     public static List<MachineRecipeRoute> collectConfigurableReplicatorFluids(
-          Map<GasAndFluidInput, ? extends MachineRecipe<GasAndFluidInput, FluidOutput, ?>> recipes) {
+            Map<GasAndFluidInput, ? extends MachineRecipe<GasAndFluidInput, FluidOutput, ?>> recipes) {
         return collectConfigurableReplicatorFluids(recipes, "template", "uu_input", "fluid_output");
     }
 
     public static List<MachineRecipeRoute> collectConfigurableReplicatorFluids(
-          Map<GasAndFluidInput, ? extends MachineRecipe<GasAndFluidInput, FluidOutput, ?>> recipes,
-          String templatePortId, String uuPortId, String outputPortId) {
+            Map<GasAndFluidInput, ? extends MachineRecipe<GasAndFluidInput, FluidOutput, ?>> recipes,
+            String templatePortId, String uuPortId, String outputPortId) {
         String templatePort = requirePortId(templatePortId);
         String uuPort = requirePortId(uuPortId);
         String outputPort = requirePortId(outputPortId);
@@ -485,121 +491,122 @@ public final class MachineRecipeRouteCollectors {
             GasAndFluidInput input = recipe.getInput();
             FluidStack output = recipe.getOutput().output;
             if (input == null || !isPositiveFluid(input.ingredientFluid) ||
-                !isPositiveGas(input.ingredientGas) || !isPositiveFluid(output)) {
+                    !isPositiveGas(input.ingredientGas) || !isPositiveFluid(output)) {
                 continue;
             }
             routes.add(MachineRecipeRoute.builder("route:replicator_fluid.configurable")
-                  .configurationInput(MachineResourceStack.fluid(templatePort,
-                        input.ingredientFluid, 1))
-                  .inputGas(uuPort, input.ingredientGas)
-                  .outputFluid(outputPort, output)
-                  .build());
+                    .configurationInput(MachineResourceStack.fluid(templatePort,
+                            input.ingredientFluid, 1))
+                    .inputGas(uuPort, input.ingredientGas)
+                    .outputFluid(outputPort, output)
+                    .build());
         }
         return routes;
     }
 
     public static List<MachineRecipeRoute> collectChemicalGasToGas(
-          Map<ChemicalGasInput, ? extends MachineRecipe<ChemicalGasInput, GasOutput, ?>> recipes) {
+            Map<ChemicalGasInput, ? extends MachineRecipe<ChemicalGasInput, GasOutput, ?>> recipes) {
         List<MachineRecipeRoute> routes = new ArrayList<>();
         for (MachineRecipe<ChemicalGasInput, GasOutput, ?> recipe : recipes.values()) {
             ChemicalGasInput input = recipe.getInput();
             GasStack output = recipe.getOutput().output;
             if (isPositiveGas(input.input) && isPositiveGas(input.uu) && isPositiveGas(output)) {
                 routes.add(MachineRecipeRoute.builder("route:gas_gas_to_gas")
-                      .inputGas("left_gas", input.input)
-                      .inputGas("right_gas", input.uu)
-                      .outputGas("gas_output", output)
-                      .build());
+                        .inputGas("left_gas", input.input)
+                        .inputGas("right_gas", input.uu)
+                        .outputGas("gas_output", output)
+                        .build());
             }
         }
         return routes;
     }
 
     public static List<MachineRecipeRoute> collectChemicalPairToGas(
-          Map<ChemicalPairInput, ? extends MachineRecipe<ChemicalPairInput, GasOutput, ?>> recipes) {
+            Map<ChemicalPairInput, ? extends MachineRecipe<ChemicalPairInput, GasOutput, ?>> recipes) {
         List<MachineRecipeRoute> routes = new ArrayList<>();
         for (MachineRecipe<ChemicalPairInput, GasOutput, ?> recipe : recipes.values()) {
             ChemicalPairInput input = recipe.getInput();
             GasStack output = recipe.getOutput().output;
             if (isPositiveGas(input.leftGas) && isPositiveGas(input.rightGas) && isPositiveGas(output)) {
                 routes.add(MachineRecipeRoute.builder("route:gas_gas_to_gas")
-                      .inputGas("left_gas", input.leftGas)
-                      .inputGas("right_gas", input.rightGas)
-                      .outputGas("gas_output", output)
-                      .build());
+                        .inputGas("left_gas", input.leftGas)
+                        .inputGas("right_gas", input.rightGas)
+                        .outputGas("gas_output", output)
+                        .build());
             }
         }
         return routes;
     }
 
     public static List<MachineRecipeRoute> collectGasFluidToGas(
-          Map<GasAndFluidInput, ? extends MachineRecipe<GasAndFluidInput, GasOutput, ?>> recipes) {
+            Map<GasAndFluidInput, ? extends MachineRecipe<GasAndFluidInput, GasOutput, ?>> recipes) {
         List<MachineRecipeRoute> routes = new ArrayList<>();
         for (MachineRecipe<GasAndFluidInput, GasOutput, ?> recipe : recipes.values()) {
             GasAndFluidInput input = recipe.getInput();
             GasStack output = recipe.getOutput().output;
             if (isPositiveGas(input.ingredientGas) && isPositiveFluid(input.ingredientFluid) && isPositiveGas(output)) {
                 routes.add(MachineRecipeRoute.builder("route:gas_fluid_to_gas")
-                      .inputGas("gas_input", input.ingredientGas)
-                      .inputFluid("fluid_input", input.ingredientFluid)
-                      .outputGas("gas_output", output)
-                      .build());
+                        .inputGas("gas_input", input.ingredientGas)
+                        .inputFluid("fluid_input", input.ingredientFluid)
+                        .outputGas("gas_output", output)
+                        .build());
             }
         }
         return routes;
     }
 
     public static List<MachineRecipeRoute> collectGasFluidToFluid(
-          Map<GasAndFluidInput, ? extends MachineRecipe<GasAndFluidInput, FluidOutput, ?>> recipes) {
+            Map<GasAndFluidInput, ? extends MachineRecipe<GasAndFluidInput, FluidOutput, ?>> recipes) {
         List<MachineRecipeRoute> routes = new ArrayList<>();
         for (MachineRecipe<GasAndFluidInput, FluidOutput, ?> recipe : recipes.values()) {
             GasAndFluidInput input = recipe.getInput();
             FluidStack output = recipe.getOutput().output;
             if (isPositiveGas(input.ingredientGas) && isPositiveFluid(input.ingredientFluid) && isPositiveFluid(output)) {
                 routes.add(MachineRecipeRoute.builder("route:gas_fluid_to_fluid")
-                      .inputGas("gas_input", input.ingredientGas)
-                      .inputFluid("fluid_input", input.ingredientFluid)
-                      .outputFluid("fluid_output", output)
-                      .build());
+                        .inputGas("gas_input", input.ingredientGas)
+                        .inputFluid("fluid_input", input.ingredientFluid)
+                        .outputFluid("fluid_output", output)
+                        .build());
             }
         }
         return routes;
     }
 
     public static List<MachineRecipeRoute> collectFluidToGasPair(
-          Map<FluidInput, ? extends MachineRecipe<FluidInput, ChemicalPairOutput, ?>> recipes) {
+            Map<FluidInput, ? extends MachineRecipe<FluidInput, ChemicalPairOutput, ?>> recipes) {
         List<MachineRecipeRoute> routes = new ArrayList<>();
         for (MachineRecipe<FluidInput, ChemicalPairOutput, ?> recipe : recipes.values()) {
             FluidStack input = recipe.getInput().ingredient;
             ChemicalPairOutput output = recipe.getOutput();
             if (isPositiveFluid(input) && output != null && output.isValid() && isPositiveGas(output.leftGas) &&
-                isPositiveGas(output.rightGas)) {
+                    isPositiveGas(output.rightGas)) {
                 routes.add(MachineRecipeRoute.builder("route:fluid_to_gas_pair")
-                      .inputFluid("fluid_input", input)
-                      .outputGas("left_gas_output", output.leftGas)
-                      .outputGas("right_gas_output", output.rightGas)
-                      .build());
+                        .inputFluid("fluid_input", input)
+                        .outputGas("left_gas_output", output.leftGas)
+                        .outputGas("right_gas_output", output.rightGas)
+                        .build());
             }
         }
         return routes;
     }
 
     public static List<MachineRecipeRoute> collectPressurized(
-          Map<PressurizedInput, ? extends MachineRecipe<PressurizedInput, PressurizedOutput, ?>> recipes) {
+            Map<PressurizedInput, ? extends MachineRecipe<PressurizedInput, PressurizedOutput, ?>> recipes) {
         List<MachineRecipeRoute> routes = new ArrayList<>();
         for (MachineRecipe<PressurizedInput, PressurizedOutput, ?> recipe : recipes.values()) {
             PressurizedInput input = recipe.getInput();
             PressurizedOutput output = recipe.getOutput();
             if (input == null || !input.isValid() || output == null || !isPositiveFluid(input.getFluid()) ||
-                !isPositiveGas(input.getGas())) {
+                    !isPositiveGas(input.getGas())) {
                 continue;
             }
             for (ItemStack solid : MachineRecipeItemInputs.expand(input.getSolid(),
-                  candidate -> pressurizedRecipeMatches(recipes, candidate, input.getFluid(), input.getGas(), output))) {
+                    candidate -> pressurizedRecipeMatches(recipes, candidate, input.getFluid(), input.getGas(), output),
+                    MachineRecipeItemInputs.ROUTE_EXPANSION_MAX_RESULTS)) {
                 MachineRecipeRoute.Builder builder = MachineRecipeRoute.builder("route:pressurized")
-                      .inputItem("item_input", solid)
-                      .inputFluid("fluid_input", input.getFluid())
-                      .inputGas("gas_input", input.getGas());
+                        .inputItem("item_input", solid)
+                        .inputFluid("fluid_input", input.getFluid())
+                        .inputGas("gas_input", input.getGas());
                 if (isPositiveItem(output.getItemOutput())) {
                     builder.outputItem("item_output", output.getItemOutput());
                 }
@@ -622,9 +629,9 @@ public final class MachineRecipeRouteCollectors {
                 FluidStack output = recipe.getFluidOutput(input);
                 if (isPositiveGas(input) && isPositiveFluid(output)) {
                     routes.add(MachineRecipeRoute.builder("route:gas_to_fluid")
-                          .inputGas("gas_input", input)
-                          .outputFluid("fluid_output", output)
-                          .build());
+                            .inputGas("gas_input", input)
+                            .outputFluid("fluid_output", output)
+                            .build());
                 }
             }
         }
@@ -639,9 +646,9 @@ public final class MachineRecipeRouteCollectors {
                 GasStack output = recipe.getGasOutput(input);
                 if (isPositiveFluid(input) && isPositiveGas(output)) {
                     routes.add(MachineRecipeRoute.builder("route:fluid_to_gas")
-                          .inputFluid("fluid_input", input)
-                          .outputGas("gas_output", output)
-                          .build());
+                            .inputFluid("fluid_input", input)
+                            .outputGas("gas_output", output)
+                            .build());
                 }
             }
         }
@@ -652,14 +659,14 @@ public final class MachineRecipeRouteCollectors {
      * Expands each logical recipe route into stable, independently addressable processing lanes.
      */
     public static List<MachineRecipeRoute> expandLanes(List<MachineRecipeRoute> routes, int lanes,
-          String... sharedPortIds) {
+                                                       String... sharedPortIds) {
         Set<String> sharedPorts = sharedPortIds == null || sharedPortIds.length == 0 ? Collections.emptySet() :
-              new HashSet<>(Arrays.asList(sharedPortIds));
+                new HashSet<>(Arrays.asList(sharedPortIds));
         return expandLanes(routes, lanes, sharedPorts);
     }
 
     public static List<MachineRecipeRoute> expandLanes(List<MachineRecipeRoute> routes, int lanes,
-          Set<String> sharedPortIds) {
+                                                       Set<String> sharedPortIds) {
         if (routes == null || routes.isEmpty() || lanes <= 0) {
             return Collections.emptyList();
         }
@@ -668,8 +675,8 @@ public final class MachineRecipeRouteCollectors {
         for (int lane = 0; lane < lanes; lane++) {
             for (MachineRecipeRoute route : routes) {
                 MachineRecipeRoute.Builder builder = MachineRecipeRoute.builder(route.routeId())
-                      .recipeKey(route.recipeKey() + ":lane_" + lane)
-                      .logicalRecipeKey(route.logicalRecipeKey());
+                        .recipeKey(route.recipeKey() + ":lane_" + lane)
+                        .logicalRecipeKey(route.logicalRecipeKey());
                 for (MachineResourceStack input : route.configurationInputs()) {
                     builder.configurationInput(withLane(input, lane, sharedPorts));
                 }
@@ -689,50 +696,51 @@ public final class MachineRecipeRouteCollectors {
     }
 
     private static void addExpandedItemRoute(List<MachineRecipeRoute> routes,
-          Map<ItemStackInput, ? extends BasicMachineRecipe<?>> recipes, ItemStack input, ItemStack output) {
+                                             Map<ItemStackInput, ? extends BasicMachineRecipe<?>> recipes, ItemStack input, ItemStack output) {
         if (!isPositiveItem(output)) {
             return;
         }
         for (ItemStack expanded : MachineRecipeItemInputs.expand(input,
-              candidate -> basicRecipeMatches(recipes, candidate, output))) {
+                candidate -> basicRecipeMatches(recipes, candidate, output),
+                MachineRecipeItemInputs.ROUTE_EXPANSION_MAX_RESULTS)) {
             routes.add(MachineRecipeRoute.builder("route:item_to_item")
-                  .inputItem("item_input", expanded)
-                  .outputItem("item_output", output)
-                  .build());
+                    .inputItem("item_input", expanded)
+                    .outputItem("item_output", output)
+                    .build());
         }
     }
 
     private static boolean basicRecipeMatches(Map<ItemStackInput, ? extends BasicMachineRecipe<?>> recipes,
-          ItemStack input, ItemStack output) {
+                                              ItemStack input, ItemStack output) {
         Object matched = getRecipe(recipes, new ItemStackInput(input.copy()));
         return matched instanceof BasicMachineRecipe<?> recipe && ItemStack.areItemStacksEqual(recipe.getOutput().output, output);
     }
 
     private static boolean chanceRecipeMatches(Map<ItemStackInput, ? extends ChanceMachineRecipe<?>> recipes,
-          ItemStack input, ItemStack output) {
+                                               ItemStack input, ItemStack output) {
         Object matched = getRecipe(recipes, new ItemStackInput(input.copy()));
         return matched instanceof ChanceMachineRecipe<?> recipe && ItemStack.areItemStacksEqual(recipe.getOutput().getMainOutput(), output);
     }
 
     private static boolean chance2RecipeMatches(Map<ItemStackInput, ? extends Chance2MachineRecipe<?>> recipes,
-          ItemStack input, ItemStack output) {
+                                                ItemStack input, ItemStack output) {
         Object matched = getRecipe(recipes, new ItemStackInput(input.copy()));
         return matched instanceof Chance2MachineRecipe<?> recipe && recipe.getOutput().primaryChance >= 1 &&
-              ItemStack.areItemStacksEqual(recipe.getOutput().getMaxPrimaryOutput(), output);
+                ItemStack.areItemStacksEqual(recipe.getOutput().getMaxPrimaryOutput(), output);
     }
 
     private static boolean doubleRecipeMatches(Map<?, ? extends DoubleMachineRecipe<?>> recipes, ItemStack first,
-          ItemStack second, ItemStack output) {
+                                               ItemStack second, ItemStack output) {
         Object matched = getRecipe(recipes, new DoubleMachineInput(first.copy(), second.copy()));
         return matched instanceof DoubleMachineRecipe<?> recipe && ItemStack.areItemStacksEqual(recipe.getOutput().output, output);
     }
 
     private static boolean infusionRecipeMatches(
-          Map<InfusionInput, ? extends MachineRecipe<InfusionInput, ItemStackOutput, ?>> recipes, ItemStack itemInput,
-          ItemStack sourceInput, int infusePerOperation, int operations, ItemStack expectedOutput) {
+            Map<InfusionInput, ? extends MachineRecipe<InfusionInput, ItemStackOutput, ?>> recipes, ItemStack itemInput,
+            ItemStack sourceInput, int infusePerOperation, int operations, ItemStack expectedOutput) {
         InfuseObject source = InfuseRegistry.getObject(sourceInput);
         if (source == null || source.type == null || source.stored <= 0 || operations <= 0 ||
-            (long) source.stored * sourceInput.getCount() != (long) infusePerOperation * operations) {
+                (long) source.stored * sourceInput.getCount() != (long) infusePerOperation * operations) {
             return false;
         }
         ItemStack singleOperationInput = itemInput.copy();
@@ -749,41 +757,41 @@ public final class MachineRecipeRouteCollectors {
     }
 
     private static boolean itemToGasRecipeMatches(
-          Map<ItemStackInput, ? extends MachineRecipe<ItemStackInput, GasOutput, ?>> recipes, ItemStack input, GasStack output) {
+            Map<ItemStackInput, ? extends MachineRecipe<ItemStackInput, GasOutput, ?>> recipes, ItemStack input, GasStack output) {
         Object matched = getRecipe(recipes, new ItemStackInput(input.copy()));
         return matched instanceof MachineRecipe<?, ?, ?> recipe && recipe.getOutput() instanceof GasOutput gasOutput &&
-              gasStacksEqual(gasOutput.output, output);
+                gasStacksEqual(gasOutput.output, output);
     }
 
     private static boolean advancedRecipeMatches(Map<AdvancedMachineInput, ? extends AdvancedMachineRecipe<?>> recipes,
-          ItemStack input, Gas gas, ItemStack output) {
+                                                 ItemStack input, Gas gas, ItemStack output) {
         Object matched = getRecipe(recipes, new AdvancedMachineInput(input.copy(), gas));
         return matched instanceof AdvancedMachineRecipe<?> recipe && ItemStack.areItemStacksEqual(recipe.getOutput().output, output);
     }
 
     private static boolean farmRecipeMatches(Map<FarmInput, ? extends FarmMachineRecipe<?>> recipes,
-          ItemStack itemInput, FarmInput recipeInput, ItemStack output) {
+                                             ItemStack itemInput, FarmInput recipeInput, ItemStack output) {
         FarmInput input = recipeInput.isGasInput() ? new FarmInput(itemInput.copy(), recipeInput.gasInput) :
-              new FarmInput(itemInput.copy(), recipeInput.fluidInput);
+                new FarmInput(itemInput.copy(), recipeInput.fluidInput);
         Object matched = getRecipe(recipes, input);
         return matched instanceof FarmMachineRecipe<?> recipe && ItemStack.areItemStacksEqual(recipe.getOutput().getGuaranteedOutput(), output);
     }
 
     private static boolean nucleosynthesizerRecipeMatches(
-          Map<NucleosynthesizerInput, ? extends MachineRecipe<NucleosynthesizerInput, ItemStackOutput, ?>> recipes,
-          ItemStack solid, GasStack gas, ItemStack output) {
+            Map<NucleosynthesizerInput, ? extends MachineRecipe<NucleosynthesizerInput, ItemStackOutput, ?>> recipes,
+            ItemStack solid, GasStack gas, ItemStack output) {
         Object matched = getRecipe(recipes, new NucleosynthesizerInput(solid.copy(), gas.copy()));
         return matched instanceof MachineRecipe<?, ?, ?> recipe && recipe.getOutput() instanceof ItemStackOutput itemOutput &&
-              ItemStack.areItemStacksEqual(itemOutput.output, output);
+                ItemStack.areItemStacksEqual(itemOutput.output, output);
     }
 
     private static boolean pressurizedRecipeMatches(
-          Map<PressurizedInput, ? extends MachineRecipe<PressurizedInput, PressurizedOutput, ?>> recipes,
-          ItemStack solid, FluidStack fluid, GasStack gas, PressurizedOutput output) {
+            Map<PressurizedInput, ? extends MachineRecipe<PressurizedInput, PressurizedOutput, ?>> recipes,
+            ItemStack solid, FluidStack fluid, GasStack gas, PressurizedOutput output) {
         Object matched = getRecipe(recipes, new PressurizedInput(solid.copy(), fluid.copy(), gas.copy()));
         return matched instanceof MachineRecipe<?, ?, ?> recipe && recipe.getOutput() instanceof PressurizedOutput actual &&
-              ItemStack.areItemStacksEqual(actual.getItemOutput(), output.getItemOutput()) &&
-              gasStacksEqual(actual.getGasOutput(), output.getGasOutput());
+                ItemStack.areItemStacksEqual(actual.getItemOutput(), output.getItemOutput()) &&
+                gasStacksEqual(actual.getGasOutput(), output.getGasOutput());
     }
 
     @Nullable

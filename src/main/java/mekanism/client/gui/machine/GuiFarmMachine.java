@@ -21,7 +21,7 @@ import java.util.Collections;
 
 @SideOnly(Side.CLIENT)
 public class GuiFarmMachine<RECIPE extends FarmMachineRecipe<RECIPE>, TILE extends TileEntityFarmMachine<RECIPE>>
-      extends GuiConfigurableTile<TILE, ContainerFarmMachine<RECIPE>> {
+        extends GuiConfigurableTile<TILE, ContainerFarmMachine<RECIPE>> {
 
     public GuiFarmMachine(InventoryPlayer inventory, TILE tile) {
         super(tile, new ContainerFarmMachine<>(inventory, tile));
@@ -36,18 +36,18 @@ public class GuiFarmMachine<RECIPE extends FarmMachineRecipe<RECIPE>, TILE exten
     protected void addGuiElements() {
         super.addGuiElements();
         addButton(new GuiEnergyGauge(this, tileEntity.getEnergyContainer(), GuiEnergyGauge.Type.STANDARD, 37, 15))
-              .warning(WarningType.NOT_ENOUGH_ENERGY, () -> tileEntity.getEnergy() < tileEntity.energyPerTick || tileEntity.getEnergy() == 0);
+                .warning(WarningType.NOT_ENOUGH_ENERGY, () -> tileEntity.getEnergy() < tileEntity.energyPerTick || tileEntity.getEnergy() == 0);
         addButton(new GuiEnergyTab(this, tileEntity.getEnergyContainer(), tileEntity::getActive));
         addButton(new GuiHybridGauge(() -> tileEntity.mergedTank.getGasTank(),
-              () -> Collections.singletonList(tileEntity.mergedTank.getGasTank()),
-              () -> tileEntity.mergedTank.getFluidTank(),
-              () -> Collections.singletonList(tileEntity.mergedTank.getFluidTank()),
-              GaugeType.STANDARD, this, 37, 99))
-              .warning(WarningType.NO_MATCHING_RECIPE, tileEntity::hasWarningNoMatchingSecondaryInput);
+                () -> Collections.singletonList(tileEntity.mergedTank.getGasTank()),
+                () -> tileEntity.mergedTank.getFluidTank(),
+                () -> Collections.singletonList(tileEntity.mergedTank.getFluidTank()),
+                GaugeType.STANDARD, this, 37, 99))
+                .warning(WarningType.NO_MATCHING_RECIPE, tileEntity::hasWarningNoMatchingSecondaryInput);
         trackWarning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity::hasWarningNoSpaceInOutput);
         addButton(new GuiProgress(tileEntity::getScaledProgress, ProgressType.RIGHT, this, 32, 83))
-              .recipeViewerCategories(getRecipeViewerRecipeTypes())
-              .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity::hasWarningInputDoesntProduceOutput);
+                .recipeViewerCategories(getRecipeViewerRecipeTypes())
+                .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity::hasWarningInputDoesntProduceOutput);
     }
 
     protected IRecipeViewerRecipeType<?>[] getRecipeViewerRecipeTypes() {

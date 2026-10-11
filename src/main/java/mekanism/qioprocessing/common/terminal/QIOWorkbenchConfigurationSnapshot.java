@@ -11,15 +11,12 @@ import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
-/** Bounded workbench configuration page sent to one management terminal. */
+/**
+ * Bounded workbench configuration page sent to one management terminal.
+ */
+
 /**
  * QIO 处理模块中的 QIOWorkbenchConfigurationSnapshot 类型。
  *
@@ -56,21 +53,22 @@ public final class QIOWorkbenchConfigurationSnapshot {
     private final List<Product> products;
     private final List<Recipe> recipes;
     private final List<Candidate> candidates;
+    private List<String> diagnostics = Collections.emptyList();
 
     public QIOWorkbenchConfigurationSnapshot(@Nonnull PageKind pageKind,
-          @Nonnull UUID configUUID, @Nonnull UUID originUUID,
-          long configurationRevision, long catalogRevision, boolean editable,
-          int recoveryPatternCount,
-          int offset, int totalSize, @Nonnull String query,
-          @Nonnull String productKey, @Nonnull String recipeId,
-          @Nonnull String recipeSignature, int ingredientSlot,
-          @Nonnull List<Product> products, @Nonnull List<Recipe> recipes,
-          @Nonnull List<Candidate> candidates) {
+                                             @Nonnull UUID configUUID, @Nonnull UUID originUUID,
+                                             long configurationRevision, long catalogRevision, boolean editable,
+                                             int recoveryPatternCount,
+                                             int offset, int totalSize, @Nonnull String query,
+                                             @Nonnull String productKey, @Nonnull String recipeId,
+                                             @Nonnull String recipeSignature, int ingredientSlot,
+                                             @Nonnull List<Product> products, @Nonnull List<Recipe> recipes,
+                                             @Nonnull List<Candidate> candidates) {
         this.pageKind = Objects.requireNonNull(pageKind, "pageKind");
         this.configUUID = Objects.requireNonNull(configUUID, "configUUID");
         this.originUUID = Objects.requireNonNull(originUUID, "originUUID");
         if (configurationRevision < 0 || catalogRevision < 0 || offset < 0 ||
-            totalSize < 0 || offset > totalSize) {
+                totalSize < 0 || offset > totalSize) {
             throw new IllegalArgumentException("Invalid workbench snapshot revision/page");
         }
         this.configurationRevision = configurationRevision;
@@ -84,13 +82,13 @@ public final class QIOWorkbenchConfigurationSnapshot {
         this.totalSize = totalSize;
         this.query = checkedText(query, 128, true, "query");
         this.productKey = checkedHash(productKey, pageKind == PageKind.PRODUCTS,
-              "productKey");
+                "productKey");
         this.recipeId = checkedText(recipeId, MAX_RECIPE_ID_LENGTH,
-              pageKind != PageKind.CANDIDATES, "recipeId");
+                pageKind != PageKind.CANDIDATES, "recipeId");
         this.recipeSignature = checkedHash(recipeSignature,
-              pageKind != PageKind.CANDIDATES, "recipeSignature");
+                pageKind != PageKind.CANDIDATES, "recipeSignature");
         if (pageKind == PageKind.CANDIDATES ? ingredientSlot < 0 || ingredientSlot >= 9 :
-            ingredientSlot != -1) {
+                ingredientSlot != -1) {
             throw new IllegalArgumentException("Invalid workbench ingredient slot");
         }
         this.ingredientSlot = ingredientSlot;
@@ -103,37 +101,120 @@ public final class QIOWorkbenchConfigurationSnapshot {
             case CANDIDATES -> this.candidates.size();
         };
         if (pageCount > totalSize - offset ||
-            pageKind != PageKind.PRODUCTS && !this.products.isEmpty() ||
-            pageKind != PageKind.RECIPES && !this.recipes.isEmpty() ||
-            pageKind != PageKind.CANDIDATES && !this.candidates.isEmpty()) {
+                pageKind != PageKind.PRODUCTS && !this.products.isEmpty() ||
+                pageKind != PageKind.RECIPES && !this.recipes.isEmpty() ||
+                pageKind != PageKind.CANDIDATES && !this.candidates.isEmpty()) {
             throw new IllegalArgumentException("Workbench snapshot page contents disagree");
         }
     }
 
-    @Nonnull public PageKind getPageKind() { return pageKind; }
-    @Nonnull public UUID getConfigUUID() { return configUUID; }
-    @Nonnull public UUID getOriginUUID() { return originUUID; }
-    public long getConfigurationRevision() { return configurationRevision; }
-    public long getCatalogRevision() { return catalogRevision; }
-    public boolean isEditable() { return editable; }
-    public int getRecoveryPatternCount() { return recoveryPatternCount; }
-    public int getOffset() { return offset; }
-    public int getTotalSize() { return totalSize; }
-    @Nonnull public String getQuery() { return query; }
-    @Nonnull public String getProductKey() { return productKey; }
-    @Nonnull public String getRecipeId() { return recipeId; }
-    @Nonnull public String getRecipeSignature() { return recipeSignature; }
-    public int getIngredientSlot() { return ingredientSlot; }
-    @Nonnull public List<Product> getProducts() { return products; }
-    @Nonnull public List<Recipe> getRecipes() { return recipes; }
-    @Nonnull public List<Candidate> getCandidates() { return candidates; }
-    public int pageSize() { return switch (pageKind) {
-        case PRODUCTS -> products.size();
-        case RECIPES -> recipes.size();
-        case CANDIDATES -> candidates.size();
-    }; }
-    public boolean hasPreviousPage() { return offset > 0; }
-    public boolean hasNextPage() { return offset + pageSize() < totalSize; }
+    public QIOWorkbenchConfigurationSnapshot withDiagnostics(List<String> values) {
+        List<String> copy = new ArrayList<>();
+        for (String value : values) {
+            if (copy.size() == 16) break;
+            copy.add(value.length() <= 512 ? value : value.substring(0, 512));
+        }
+        diagnostics = Collections.unmodifiableList(copy);
+        return this;
+    }
+
+    public List<String> getDiagnostics() {
+        return diagnostics;
+    }
+
+    @Nonnull
+    public PageKind getPageKind() {
+        return pageKind;
+    }
+
+    @Nonnull
+    public UUID getConfigUUID() {
+        return configUUID;
+    }
+
+    @Nonnull
+    public UUID getOriginUUID() {
+        return originUUID;
+    }
+
+    public long getConfigurationRevision() {
+        return configurationRevision;
+    }
+
+    public long getCatalogRevision() {
+        return catalogRevision;
+    }
+
+    public boolean isEditable() {
+        return editable;
+    }
+
+    public int getRecoveryPatternCount() {
+        return recoveryPatternCount;
+    }
+
+    public int getOffset() {
+        return offset;
+    }
+
+    public int getTotalSize() {
+        return totalSize;
+    }
+
+    @Nonnull
+    public String getQuery() {
+        return query;
+    }
+
+    @Nonnull
+    public String getProductKey() {
+        return productKey;
+    }
+
+    @Nonnull
+    public String getRecipeId() {
+        return recipeId;
+    }
+
+    @Nonnull
+    public String getRecipeSignature() {
+        return recipeSignature;
+    }
+
+    public int getIngredientSlot() {
+        return ingredientSlot;
+    }
+
+    @Nonnull
+    public List<Product> getProducts() {
+        return products;
+    }
+
+    @Nonnull
+    public List<Recipe> getRecipes() {
+        return recipes;
+    }
+
+    @Nonnull
+    public List<Candidate> getCandidates() {
+        return candidates;
+    }
+
+    public int pageSize() {
+        return switch (pageKind) {
+            case PRODUCTS -> products.size();
+            case RECIPES -> recipes.size();
+            case CANDIDATES -> candidates.size();
+        };
+    }
+
+    public boolean hasPreviousPage() {
+        return offset > 0;
+    }
+
+    public boolean hasNextPage() {
+        return offset + pageSize() < totalSize;
+    }
 
     @Nonnull
     public NBTTagCompound write() {
@@ -156,31 +237,34 @@ public final class QIOWorkbenchConfigurationSnapshot {
         data.setTag("products", writeList(products, Product::write));
         data.setTag("recipes", writeList(recipes, Recipe::write));
         data.setTag("candidates", writeList(candidates, Candidate::write));
+        NBTTagList messages = new NBTTagList();
+        diagnostics.forEach(value -> messages.appendTag(new net.minecraft.nbt.NBTTagString(value)));
+        data.setTag("diagnostics", messages);
         return data;
     }
 
     @Nonnull
     public static QIOWorkbenchConfigurationSnapshot read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         try {
             if (data.getInteger("schema") != SCHEMA_VERSION ||
-                !data.hasKey("pageKind", NBT.TAG_STRING) ||
-                !data.hasKey("configUUID", NBT.TAG_STRING) ||
-                !data.hasKey("originUUID", NBT.TAG_STRING) ||
-                !data.hasKey("configurationRevision", NBT.TAG_LONG) ||
-                !data.hasKey("catalogRevision", NBT.TAG_LONG) ||
-                !data.hasKey("editable", NBT.TAG_BYTE) ||
-                !data.hasKey("recoveryPatternCount", NBT.TAG_INT) ||
-                !data.hasKey("offset", NBT.TAG_INT) ||
-                !data.hasKey("totalSize", NBT.TAG_INT) ||
-                !data.hasKey("query", NBT.TAG_STRING) ||
-                !data.hasKey("productKey", NBT.TAG_STRING) ||
-                !data.hasKey("recipeId", NBT.TAG_STRING) ||
-                !data.hasKey("recipeSignature", NBT.TAG_STRING) ||
-                !data.hasKey("ingredientSlot", NBT.TAG_INT) ||
-                !data.hasKey("products", NBT.TAG_LIST) ||
-                !data.hasKey("recipes", NBT.TAG_LIST) ||
-                !data.hasKey("candidates", NBT.TAG_LIST)) {
+                    !data.hasKey("pageKind", NBT.TAG_STRING) ||
+                    !data.hasKey("configUUID", NBT.TAG_STRING) ||
+                    !data.hasKey("originUUID", NBT.TAG_STRING) ||
+                    !data.hasKey("configurationRevision", NBT.TAG_LONG) ||
+                    !data.hasKey("catalogRevision", NBT.TAG_LONG) ||
+                    !data.hasKey("editable", NBT.TAG_BYTE) ||
+                    !data.hasKey("recoveryPatternCount", NBT.TAG_INT) ||
+                    !data.hasKey("offset", NBT.TAG_INT) ||
+                    !data.hasKey("totalSize", NBT.TAG_INT) ||
+                    !data.hasKey("query", NBT.TAG_STRING) ||
+                    !data.hasKey("productKey", NBT.TAG_STRING) ||
+                    !data.hasKey("recipeId", NBT.TAG_STRING) ||
+                    !data.hasKey("recipeSignature", NBT.TAG_STRING) ||
+                    !data.hasKey("ingredientSlot", NBT.TAG_INT) ||
+                    !data.hasKey("products", NBT.TAG_LIST) ||
+                    !data.hasKey("recipes", NBT.TAG_LIST) ||
+                    !data.hasKey("candidates", NBT.TAG_LIST)) {
                 throw new QIOProcessingDataException("Incomplete workbench snapshot");
             }
             NBTTagList products = bounded(data, "products");
@@ -198,17 +282,22 @@ public final class QIOWorkbenchConfigurationSnapshot {
             for (int index = 0; index < candidates.tagCount(); index++) {
                 candidateList.add(Candidate.read(candidates.getCompoundTagAt(index)));
             }
+            NBTTagList messages = data.getTagList("diagnostics", NBT.TAG_STRING);
+            if (messages.tagCount() > 16) throw new QIOProcessingDataException("Too many workbench diagnostics");
+            List<String> diagnostics = new ArrayList<>();
+            for (int index = 0; index < messages.tagCount(); index++)
+                diagnostics.add(checkedText(messages.getStringTagAt(index), 512, true, "diagnostic"));
             return new QIOWorkbenchConfigurationSnapshot(PageKind.valueOf(
-                  data.getString("pageKind")),
-                  QIOProcessingNbt.readUUID(data, "configUUID"),
-                  QIOProcessingNbt.readUUID(data, "originUUID"),
-                  data.getLong("configurationRevision"), data.getLong("catalogRevision"),
-                  data.getBoolean("editable"), data.getInteger("recoveryPatternCount"),
-                  data.getInteger("offset"),
-                  data.getInteger("totalSize"), data.getString("query"),
-                  data.getString("productKey"), data.getString("recipeId"),
-                  data.getString("recipeSignature"), data.getInteger("ingredientSlot"),
-                  productList, recipeList, candidateList);
+                    data.getString("pageKind")),
+                    QIOProcessingNbt.readUUID(data, "configUUID"),
+                    QIOProcessingNbt.readUUID(data, "originUUID"),
+                    data.getLong("configurationRevision"), data.getLong("catalogRevision"),
+                    data.getBoolean("editable"), data.getInteger("recoveryPatternCount"),
+                    data.getInteger("offset"),
+                    data.getInteger("totalSize"), data.getString("query"),
+                    data.getString("productKey"), data.getString("recipeId"),
+                    data.getString("recipeSignature"), data.getInteger("ingredientSlot"),
+                    productList, recipeList, candidateList).withDiagnostics(diagnostics);
         } catch (QIOProcessingDataException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -224,21 +313,34 @@ public final class QIOWorkbenchConfigurationSnapshot {
         private final int enabledRecipeCount;
 
         public Product(String productKey, PortableResourceDescriptor output, int recipeCount,
-              int enabledRecipeCount) {
+                       int enabledRecipeCount) {
             this.productKey = checkedHash(productKey, false, "productKey");
             this.output = Objects.requireNonNull(output, "output").withoutCapabilities();
             if (output.getKind() != PortableResourceDescriptor.Kind.ITEM || recipeCount <= 0 ||
-                enabledRecipeCount < 0 || enabledRecipeCount > recipeCount) {
+                    enabledRecipeCount < 0 || enabledRecipeCount > recipeCount) {
                 throw new IllegalArgumentException("Invalid workbench product summary");
             }
             this.recipeCount = recipeCount;
             this.enabledRecipeCount = enabledRecipeCount;
         }
 
-        @Nonnull public String getProductKey() { return productKey; }
-        @Nonnull public PortableResourceDescriptor getOutput() { return output; }
-        public int getRecipeCount() { return recipeCount; }
-        public int getEnabledRecipeCount() { return enabledRecipeCount; }
+        @Nonnull
+        public String getProductKey() {
+            return productKey;
+        }
+
+        @Nonnull
+        public PortableResourceDescriptor getOutput() {
+            return output;
+        }
+
+        public int getRecipeCount() {
+            return recipeCount;
+        }
+
+        public int getEnabledRecipeCount() {
+            return enabledRecipeCount;
+        }
 
         private NBTTagCompound write() {
             NBTTagCompound data = new NBTTagCompound();
@@ -250,16 +352,16 @@ public final class QIOWorkbenchConfigurationSnapshot {
         }
 
         private static Product read(NBTTagCompound data)
-              throws QIOProcessingDataException {
+                throws QIOProcessingDataException {
             if (!data.hasKey("productKey", NBT.TAG_STRING) ||
-                !data.hasKey("output", NBT.TAG_COMPOUND) ||
-                !data.hasKey("recipeCount", NBT.TAG_INT) ||
-                !data.hasKey("enabledRecipeCount", NBT.TAG_INT)) {
+                    !data.hasKey("output", NBT.TAG_COMPOUND) ||
+                    !data.hasKey("recipeCount", NBT.TAG_INT) ||
+                    !data.hasKey("enabledRecipeCount", NBT.TAG_INT)) {
                 throw new QIOProcessingDataException("Incomplete workbench product summary");
             }
             return new Product(data.getString("productKey"), PortableResourceDescriptor.read(
-                  data.getCompoundTag("output")), data.getInteger("recipeCount"),
-                  data.getInteger("enabledRecipeCount"));
+                    data.getCompoundTag("output")), data.getInteger("recipeCount"),
+                    data.getInteger("enabledRecipeCount"));
         }
     }
 
@@ -277,14 +379,14 @@ public final class QIOWorkbenchConfigurationSnapshot {
         private final List<Ingredient> ingredients;
 
         public Recipe(String recipeId, String signature, PortableResourceDescriptor output,
-              int outputAmount, boolean enabled, int order, boolean shaped, int width,
-              int height, List<Ingredient> ingredients) {
+                      int outputAmount, boolean enabled, int order, boolean shaped, int width,
+                      int height, List<Ingredient> ingredients) {
             this.recipeId = checkedText(recipeId, MAX_RECIPE_ID_LENGTH, false, "recipeId");
             this.signature = checkedHash(signature, false, "recipeSignature");
             this.output = Objects.requireNonNull(output, "output").withoutCapabilities();
             if (outputAmount <= 0 || order < 0 || ingredients.size() != 9 ||
-                shaped && (width <= 0 || width > 3 || height <= 0 || height > 3) ||
-                !shaped && (width != 0 || height != 0)) {
+                    shaped && (width <= 0 || width > 3 || height <= 0 || height > 3) ||
+                    !shaped && (width != 0 || height != 0)) {
                 throw new IllegalArgumentException("Invalid logical workbench recipe");
             }
             this.outputAmount = outputAmount;
@@ -303,16 +405,49 @@ public final class QIOWorkbenchConfigurationSnapshot {
             this.ingredients = copied;
         }
 
-        @Nonnull public String getRecipeId() { return recipeId; }
-        @Nonnull public String getSignature() { return signature; }
-        @Nonnull public PortableResourceDescriptor getOutput() { return output; }
-        public int getOutputAmount() { return outputAmount; }
-        public boolean isEnabled() { return enabled; }
-        public int getOrder() { return order; }
-        public boolean isShaped() { return shaped; }
-        public int getWidth() { return width; }
-        public int getHeight() { return height; }
-        @Nonnull public List<Ingredient> getIngredients() { return ingredients; }
+        @Nonnull
+        public String getRecipeId() {
+            return recipeId;
+        }
+
+        @Nonnull
+        public String getSignature() {
+            return signature;
+        }
+
+        @Nonnull
+        public PortableResourceDescriptor getOutput() {
+            return output;
+        }
+
+        public int getOutputAmount() {
+            return outputAmount;
+        }
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public int getOrder() {
+            return order;
+        }
+
+        public boolean isShaped() {
+            return shaped;
+        }
+
+        public int getWidth() {
+            return width;
+        }
+
+        public int getHeight() {
+            return height;
+        }
+
+        @Nonnull
+        public List<Ingredient> getIngredients() {
+            return ingredients;
+        }
 
         private NBTTagCompound write() {
             NBTTagCompound data = new NBTTagCompound();
@@ -330,17 +465,17 @@ public final class QIOWorkbenchConfigurationSnapshot {
         }
 
         private static Recipe read(NBTTagCompound data)
-              throws QIOProcessingDataException {
+                throws QIOProcessingDataException {
             if (!data.hasKey("recipeId", NBT.TAG_STRING) ||
-                !data.hasKey("signature", NBT.TAG_STRING) ||
-                !data.hasKey("output", NBT.TAG_COMPOUND) ||
-                !data.hasKey("outputAmount", NBT.TAG_INT) ||
-                !data.hasKey("enabled", NBT.TAG_BYTE) ||
-                !data.hasKey("order", NBT.TAG_INT) ||
-                !data.hasKey("shaped", NBT.TAG_BYTE) ||
-                !data.hasKey("width", NBT.TAG_INT) ||
-                !data.hasKey("height", NBT.TAG_INT) ||
-                !data.hasKey("ingredients", NBT.TAG_LIST)) {
+                    !data.hasKey("signature", NBT.TAG_STRING) ||
+                    !data.hasKey("output", NBT.TAG_COMPOUND) ||
+                    !data.hasKey("outputAmount", NBT.TAG_INT) ||
+                    !data.hasKey("enabled", NBT.TAG_BYTE) ||
+                    !data.hasKey("order", NBT.TAG_INT) ||
+                    !data.hasKey("shaped", NBT.TAG_BYTE) ||
+                    !data.hasKey("width", NBT.TAG_INT) ||
+                    !data.hasKey("height", NBT.TAG_INT) ||
+                    !data.hasKey("ingredients", NBT.TAG_LIST)) {
                 throw new QIOProcessingDataException("Incomplete logical workbench recipe");
             }
             NBTTagList ingredients = bounded(data, "ingredients", 9);
@@ -349,10 +484,10 @@ public final class QIOWorkbenchConfigurationSnapshot {
                 values.add(Ingredient.read(ingredients.getCompoundTagAt(index)));
             }
             return new Recipe(data.getString("recipeId"), data.getString("signature"),
-                  PortableResourceDescriptor.read(data.getCompoundTag("output")),
-                  data.getInteger("outputAmount"), data.getBoolean("enabled"),
-                  data.getInteger("order"), data.getBoolean("shaped"),
-                  data.getInteger("width"), data.getInteger("height"), values);
+                    PortableResourceDescriptor.read(data.getCompoundTag("output")),
+                    data.getInteger("outputAmount"), data.getBoolean("enabled"),
+                    data.getInteger("order"), data.getBoolean("shaped"),
+                    data.getInteger("width"), data.getInteger("height"), values);
         }
     }
 
@@ -362,19 +497,20 @@ public final class QIOWorkbenchConfigurationSnapshot {
         private final int candidateCount;
         private final int enabledCandidateCount;
         private final ItemStack representative;
-        @Nullable private final PortableResourceDescriptor virtualFluid;
+        @Nullable
+        private final PortableResourceDescriptor virtualFluid;
         private final long virtualFluidAmount;
 
         public Ingredient(int slot, int candidateCount, int enabledCandidateCount,
-              ItemStack representative, @Nullable PortableResourceDescriptor virtualFluid,
-              long virtualFluidAmount) {
+                          ItemStack representative, @Nullable PortableResourceDescriptor virtualFluid,
+                          long virtualFluidAmount) {
             if (slot < 0 || slot >= 9 || candidateCount < 0 ||
-                enabledCandidateCount < 0 || enabledCandidateCount > candidateCount ||
-                candidateCount == 0 != representative.isEmpty() ||
-                candidateCount > 0 && enabledCandidateCount == 0 ||
-                (virtualFluid == null) != (virtualFluidAmount == 0) ||
-                virtualFluid != null && (candidateCount == 0 || virtualFluidAmount <= 0 ||
-                      virtualFluid.getKind() != PortableResourceDescriptor.Kind.FLUID)) {
+                    enabledCandidateCount < 0 || enabledCandidateCount > candidateCount ||
+                    candidateCount == 0 != representative.isEmpty() ||
+                    candidateCount > 0 && enabledCandidateCount == 0 ||
+                    (virtualFluid == null) != (virtualFluidAmount == 0) ||
+                    virtualFluid != null && (candidateCount == 0 || virtualFluidAmount <= 0 ||
+                            virtualFluid.getKind() != PortableResourceDescriptor.Kind.FLUID)) {
                 throw new IllegalArgumentException("Invalid workbench ingredient summary");
             }
             this.slot = slot;
@@ -385,16 +521,39 @@ public final class QIOWorkbenchConfigurationSnapshot {
             this.virtualFluidAmount = virtualFluidAmount;
         }
 
-        public int getSlot() { return slot; }
-        public int getCandidateCount() { return candidateCount; }
-        public int getEnabledCandidateCount() { return enabledCandidateCount; }
-        public boolean isEmpty() { return candidateCount == 0; }
-        @Nonnull public ItemStack getRepresentative() {
+        public int getSlot() {
+            return slot;
+        }
+
+        public int getCandidateCount() {
+            return candidateCount;
+        }
+
+        public int getEnabledCandidateCount() {
+            return enabledCandidateCount;
+        }
+
+        public boolean isEmpty() {
+            return candidateCount == 0;
+        }
+
+        @Nonnull
+        public ItemStack getRepresentative() {
             return QIORecipeStackUtils.copyForRecipeSelection(representative);
         }
-        public boolean isVirtualFluid() { return virtualFluid != null; }
-        @Nullable public PortableResourceDescriptor getVirtualFluid() { return virtualFluid; }
-        public long getVirtualFluidAmount() { return virtualFluidAmount; }
+
+        public boolean isVirtualFluid() {
+            return virtualFluid != null;
+        }
+
+        @Nullable
+        public PortableResourceDescriptor getVirtualFluid() {
+            return virtualFluid;
+        }
+
+        public long getVirtualFluidAmount() {
+            return virtualFluidAmount;
+        }
 
         private NBTTagCompound write() {
             NBTTagCompound data = new NBTTagCompound();
@@ -410,23 +569,23 @@ public final class QIOWorkbenchConfigurationSnapshot {
         }
 
         private static Ingredient read(NBTTagCompound data)
-              throws QIOProcessingDataException {
+                throws QIOProcessingDataException {
             if (!data.hasKey("slot", NBT.TAG_INT) ||
-                !data.hasKey("candidateCount", NBT.TAG_INT) ||
-                !data.hasKey("enabledCandidateCount", NBT.TAG_INT) ||
-                !data.hasKey("representative", NBT.TAG_COMPOUND)) {
+                    !data.hasKey("candidateCount", NBT.TAG_INT) ||
+                    !data.hasKey("enabledCandidateCount", NBT.TAG_INT) ||
+                    !data.hasKey("representative", NBT.TAG_COMPOUND)) {
                 throw new QIOProcessingDataException("Incomplete workbench ingredient summary");
             }
             boolean hasVirtualFluid = data.hasKey("virtualFluid", NBT.TAG_COMPOUND);
             if (hasVirtualFluid != data.hasKey("virtualFluidAmount", NBT.TAG_LONG)) {
                 throw new QIOProcessingDataException(
-                      "Incomplete workbench virtual fluid summary");
+                        "Incomplete workbench virtual fluid summary");
             }
             return new Ingredient(data.getInteger("slot"), data.getInteger("candidateCount"),
-                  data.getInteger("enabledCandidateCount"), readStack(
-                        data.getCompoundTag("representative")), hasVirtualFluid ?
-                        PortableResourceDescriptor.read(data.getCompoundTag("virtualFluid")) :
-                        null, hasVirtualFluid ? data.getLong("virtualFluidAmount") : 0);
+                    data.getInteger("enabledCandidateCount"), readStack(
+                    data.getCompoundTag("representative")), hasVirtualFluid ?
+                    PortableResourceDescriptor.read(data.getCompoundTag("virtualFluid")) :
+                    null, hasVirtualFluid ? data.getLong("virtualFluidAmount") : 0);
         }
     }
 
@@ -441,8 +600,8 @@ public final class QIOWorkbenchConfigurationSnapshot {
         private final int order;
 
         public Candidate(String candidateId, ItemStack displayStack,
-              PortableResourceDescriptor resource, long amount, boolean virtualFluid,
-              boolean enabled, int order) {
+                         PortableResourceDescriptor resource, long amount, boolean virtualFluid,
+                         boolean enabled, int order) {
             this.candidateId = checkedHash(candidateId, false, "candidateId");
             if (displayStack.isEmpty() || amount <= 0 || order < 0) {
                 throw new IllegalArgumentException("Invalid workbench candidate summary");
@@ -455,15 +614,36 @@ public final class QIOWorkbenchConfigurationSnapshot {
             this.order = order;
         }
 
-        @Nonnull public String getCandidateId() { return candidateId; }
-        @Nonnull public ItemStack getDisplayStack() {
+        @Nonnull
+        public String getCandidateId() {
+            return candidateId;
+        }
+
+        @Nonnull
+        public ItemStack getDisplayStack() {
             return QIORecipeStackUtils.copyForRecipeSelection(displayStack);
         }
-        @Nonnull public PortableResourceDescriptor getResource() { return resource; }
-        public long getAmount() { return amount; }
-        public boolean isVirtualFluid() { return virtualFluid; }
-        public boolean isEnabled() { return enabled; }
-        public int getOrder() { return order; }
+
+        @Nonnull
+        public PortableResourceDescriptor getResource() {
+            return resource;
+        }
+
+        public long getAmount() {
+            return amount;
+        }
+
+        public boolean isVirtualFluid() {
+            return virtualFluid;
+        }
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public int getOrder() {
+            return order;
+        }
 
         private NBTTagCompound write() {
             NBTTagCompound data = new NBTTagCompound();
@@ -478,21 +658,21 @@ public final class QIOWorkbenchConfigurationSnapshot {
         }
 
         private static Candidate read(NBTTagCompound data)
-              throws QIOProcessingDataException {
+                throws QIOProcessingDataException {
             if (!data.hasKey("candidateId", NBT.TAG_STRING) ||
-                !data.hasKey("displayStack", NBT.TAG_COMPOUND) ||
-                !data.hasKey("resource", NBT.TAG_COMPOUND) ||
-                !data.hasKey("amount", NBT.TAG_LONG) ||
-                !data.hasKey("virtualFluid", NBT.TAG_BYTE) ||
-                !data.hasKey("enabled", NBT.TAG_BYTE) ||
-                !data.hasKey("order", NBT.TAG_INT)) {
+                    !data.hasKey("displayStack", NBT.TAG_COMPOUND) ||
+                    !data.hasKey("resource", NBT.TAG_COMPOUND) ||
+                    !data.hasKey("amount", NBT.TAG_LONG) ||
+                    !data.hasKey("virtualFluid", NBT.TAG_BYTE) ||
+                    !data.hasKey("enabled", NBT.TAG_BYTE) ||
+                    !data.hasKey("order", NBT.TAG_INT)) {
                 throw new QIOProcessingDataException("Incomplete workbench candidate summary");
             }
             return new Candidate(data.getString("candidateId"), readStack(
-                  data.getCompoundTag("displayStack")), PortableResourceDescriptor.read(
-                  data.getCompoundTag("resource")), data.getLong("amount"),
-                  data.getBoolean("virtualFluid"), data.getBoolean("enabled"),
-                  data.getInteger("order"));
+                    data.getCompoundTag("displayStack")), PortableResourceDescriptor.read(
+                    data.getCompoundTag("resource")), data.getLong("amount"),
+                    data.getBoolean("virtualFluid"), data.getBoolean("enabled"),
+                    data.getInteger("order"));
         }
     }
 
@@ -505,7 +685,7 @@ public final class QIOWorkbenchConfigurationSnapshot {
     }
 
     private static String checkedText(String value, int maximum, boolean empty,
-          String name) {
+                                      String name) {
         String checked = Objects.requireNonNull(value, name).trim();
         if (checked.length() > maximum || !empty && checked.isEmpty()) {
             throw new IllegalArgumentException("Invalid workbench " + name);
@@ -515,10 +695,10 @@ public final class QIOWorkbenchConfigurationSnapshot {
 
     private static String checkedHash(String value, boolean empty, String name) {
         String checked = checkedText(value, HASH_LENGTH, empty, name).toLowerCase(
-              java.util.Locale.ROOT);
+                java.util.Locale.ROOT);
         if (!checked.isEmpty() && (checked.length() != HASH_LENGTH ||
-            !checked.chars().allMatch(character -> character >= '0' && character <= '9' ||
-                  character >= 'a' && character <= 'f'))) {
+                !checked.chars().allMatch(character -> character >= '0' && character <= '9' ||
+                        character >= 'a' && character <= 'f'))) {
             throw new IllegalArgumentException("Invalid workbench " + name);
         }
         return checked;
@@ -533,26 +713,26 @@ public final class QIOWorkbenchConfigurationSnapshot {
     }
 
     private static <T> NBTTagList writeList(List<T> values,
-          java.util.function.Function<T, NBTTagCompound> writer) {
+                                            java.util.function.Function<T, NBTTagCompound> writer) {
         NBTTagList list = new NBTTagList();
         values.forEach(value -> list.appendTag(writer.apply(value)));
         return list;
     }
 
     private static NBTTagList bounded(NBTTagCompound data, String key)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         return bounded(data, key, MAX_PAGE_SIZE);
     }
 
     private static NBTTagList bounded(NBTTagCompound data, String key, int maximum)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         if (!data.hasKey(key, NBT.TAG_LIST)) {
             throw new QIOProcessingDataException("Missing workbench snapshot list " + key);
         }
         NBTTagList list = (NBTTagList) data.getTag(key);
         if (!list.isEmpty() && list.getTagType() != NBT.TAG_COMPOUND) {
             throw new QIOProcessingDataException("Workbench snapshot list " + key +
-                  " has the wrong element type");
+                    " has the wrong element type");
         }
         if (list.tagCount() > maximum) {
             throw new QIOProcessingDataException("Workbench snapshot page is too large");

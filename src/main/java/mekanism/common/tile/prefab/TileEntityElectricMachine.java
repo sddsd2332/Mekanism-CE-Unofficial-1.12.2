@@ -24,13 +24,7 @@ import mekanism.common.recipe.outputs.ItemStackOutput;
 import mekanism.common.tile.component.TileComponentConfig;
 import mekanism.common.tile.component.TileComponentEjector;
 import mekanism.common.tile.component.config.DataType;
-import mekanism.common.tile.machine.TileEntityBrushed;
-import mekanism.common.tile.machine.TileEntityCrusher;
-import mekanism.common.tile.machine.TileEntityEnergizedSmelter;
-import mekanism.common.tile.machine.TileEntityEnrichmentChamber;
-import mekanism.common.tile.machine.TileEntityRolling;
-import mekanism.common.tile.machine.TileEntityStamping;
-import mekanism.common.tile.machine.TileEntityTurning;
+import mekanism.common.tile.machine.*;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.items.ItemHandlerHelper;
@@ -48,10 +42,10 @@ import java.util.Map;
 public abstract class TileEntityElectricMachine<RECIPE extends BasicMachineRecipe<RECIPE>> extends TileEntityUpgradeableMachine<ItemStackInput, ItemStackOutput, RECIPE> {
 
     private static final List<RecipeError> TRACKED_ERROR_TYPES = Arrays.asList(
-          RecipeError.NOT_ENOUGH_ENERGY,
-          RecipeError.NOT_ENOUGH_INPUT,
-          RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
-          RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
+            RecipeError.NOT_ENOUGH_ENERGY,
+            RecipeError.NOT_ENOUGH_INPUT,
+            RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
+            RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
     );
     private static final String[] methods = new String[]{"getEnergy", "getProgress", "isActive", "facing", "canOperate", "getMaxEnergy", "getEnergyNeeded"};
     protected InputInventorySlot inputSlot;
@@ -59,7 +53,7 @@ public abstract class TileEntityElectricMachine<RECIPE extends BasicMachineRecip
     protected OutputInventorySlot outputSlot;
 
     /**
-     * A simple electrical machine. This has 3 slots - the input slot (0), the energy slot (1), output slot (2), and the upgrade slot (3). It will not run if it does not
+     * A simple electrical machine. Its inventory holder contains input (0), output (1), and energy (2). It will not run if it does not
      * have enough energy.
      *
      * @param soundPath     - location of the sound effect
@@ -84,7 +78,7 @@ public abstract class TileEntityElectricMachine<RECIPE extends BasicMachineRecip
         IContentsListener recipeCacheListener = getRecipeCacheListener();
         IContentsListener recipeCacheChangeListener = getRecipeCacheChangeListener(listener);
         inputSlot = builder.addSlot(InputInventorySlot.at(stack -> RecipeHandler.isInRecipe(stack, getRecipes()), recipeCacheListener, 64, 17)
-              .setAutoPullValidator((stack, side) -> canAutoPullInput(stack)));
+                .setAutoPullValidator((stack, side) -> canAutoPullInput(stack)));
         inputSlot.tracksWarnings(slot -> slot.warning(WarningType.NO_MATCHING_RECIPE, getWarningCheck(RecipeError.NOT_ENOUGH_INPUT)));
         outputSlot = builder.addSlot(OutputInventorySlot.at(recipeCacheChangeListener, 116, 35));
         outputSlot.tracksWarnings(slot -> slot.warning(WarningType.NO_SPACE_IN_OUTPUT, getWarningCheck(RecipeError.NOT_ENOUGH_OUTPUT_SPACE)));
@@ -125,8 +119,8 @@ public abstract class TileEntityElectricMachine<RECIPE extends BasicMachineRecip
     protected boolean supportsAsyncIdleSkipping() {
         Class<?> type = getClass();
         return type == TileEntityEnergizedSmelter.class || type == TileEntityEnrichmentChamber.class ||
-              type == TileEntityCrusher.class || type == TileEntityStamping.class ||
-              type == TileEntityRolling.class || type == TileEntityBrushed.class || type == TileEntityTurning.class;
+                type == TileEntityCrusher.class || type == TileEntityStamping.class ||
+                type == TileEntityRolling.class || type == TileEntityBrushed.class || type == TileEntityTurning.class;
     }
 
     @Override
@@ -203,30 +197,30 @@ public abstract class TileEntityElectricMachine<RECIPE extends BasicMachineRecip
     }
 
     private boolean canAutoPullInput(ItemStack stack) {
-        RECIPE recipe = RecipeHandler.getRecipe(new ItemStackInput(getSimulatedStackWithInsert(0, stack)), getRecipes());
-        return recipe != null && canOutputToSlot(2, recipe.getOutput().output);
+        RECIPE recipe = RecipeHandler.getRecipe(new ItemStackInput(getSimulatedStackWithInsert(inputSlot, stack)), getRecipes());
+        return recipe != null && canOutputToSlot(outputSlot, recipe.getOutput().output);
     }
 
     @Override
     public CachedRecipe<RECIPE> createNewCachedRecipe(RECIPE recipe, int cacheIndex) {
         return new OneInputCachedRecipe<>(recipe, this::shouldRecheckAllRecipeErrors,
-              InputHelper.getInputHandler(inputSlot, RecipeError.NOT_ENOUGH_INPUT),
-              OutputHelper.getOutputHandler(outputSlot, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
-              () -> recipe.getInput().ingredient,
-              input -> mekanism.common.recipe.inputs.MachineInput.inputContains(input, recipe.getInput().ingredient),
-              input -> recipe.getOutput().output.copy(), ItemStack::isEmpty, ItemStack::isEmpty)
-              .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
-              .setActive(active -> {
-                  if (active || prevEnergy >= getEnergy()) {
-                      setActive(active);
-                  }
-              })
-              .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
-              .setRequiredTicks(() -> ticksRequired)
-              .setBaselineMaxOperations(() -> getBaselineMaxOperations(energyPerTick, true))
-              .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
-              .setErrorsChanged(this::onRecipeErrorsChanged)
-              .setOnFinish(this::onCachedRecipeFinish);
+                InputHelper.getInputHandler(inputSlot, RecipeError.NOT_ENOUGH_INPUT),
+                OutputHelper.getOutputHandler(outputSlot, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
+                () -> recipe.getInput().ingredient,
+                input -> mekanism.common.recipe.inputs.MachineInput.inputContains(input, recipe.getInput().ingredient),
+                input -> recipe.getOutput().output.copy(), ItemStack::isEmpty, ItemStack::isEmpty)
+                .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
+                .setActive(active -> {
+                    if (active || prevEnergy >= getEnergy()) {
+                        setActive(active);
+                    }
+                })
+                .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
+                .setRequiredTicks(() -> ticksRequired)
+                .setBaselineMaxOperations(() -> getBaselineMaxOperations(energyPerTick, true))
+                .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
+                .setErrorsChanged(this::onRecipeErrorsChanged)
+                .setOnFinish(this::onCachedRecipeFinish);
     }
 
     @Override
@@ -247,7 +241,8 @@ public abstract class TileEntityElectricMachine<RECIPE extends BasicMachineRecip
             default -> throw new NoSuchMethodException();
         };
     }
-@Override
+
+    @Override
     protected boolean shouldDumpRadiation() {
         return false;
     }

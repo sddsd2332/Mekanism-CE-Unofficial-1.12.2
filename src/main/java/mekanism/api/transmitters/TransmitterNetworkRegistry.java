@@ -23,8 +23,9 @@ public class TransmitterNetworkRegistry {
     private static boolean loaderRegistered = false;
     private static final Logger logger = LogManager.getLogger("MekanismTransmitters");
     private final Set<DynamicNetwork<?, ?, ?>> networks = new ReferenceOpenHashSet<>();
-    private final Set<DynamicNetwork<?, ?, ?>> networksToChange = new ReferenceOpenHashSet<>();
-    private final Set<IGridTransmitter<?, ?, ?>> invalidTransmitters = new ReferenceOpenHashSet<>();
+    private Set<DynamicNetwork<?, ?, ?>> networksToChange = new ReferenceOpenHashSet<>();
+    private Set<IGridTransmitter<?, ?, ?>> invalidTransmitters = new ReferenceOpenHashSet<>();
+    private Set<DynamicNetwork<?, ?, ?>> invalidNetworks = new ReferenceOpenHashSet<>();
     private final Map<Coord4D, IGridTransmitter<?, ?, ?>> orphanTransmitters = new Object2ObjectOpenHashMap<>();
     private final Map<Coord4D, IGridTransmitter<?, ?, ?>> newOrphanTransmitters = new Object2ObjectOpenHashMap<>();
 
@@ -39,12 +40,20 @@ public class TransmitterNetworkRegistry {
         INSTANCE.networks.clear();
         INSTANCE.networksToChange.clear();
         INSTANCE.invalidTransmitters.clear();
+        INSTANCE.invalidNetworks.clear();
         INSTANCE.orphanTransmitters.clear();
         INSTANCE.newOrphanTransmitters.clear();
     }
 
     public static void invalidateTransmitter(IGridTransmitter<?, ?, ?> transmitter) {
         INSTANCE.invalidTransmitters.add(transmitter);
+    }
+
+    /**
+     * Detached tiles can reload before the next registry tick; retain the old network itself.
+     */
+    public static void invalidateNetwork(DynamicNetwork<?, ?, ?> network) {
+        INSTANCE.invalidNetworks.add(network);
     }
 
     public static void registerOrphanTransmitter(IGridTransmitter<?, ?, ?> transmitter) {
@@ -70,6 +79,7 @@ public class TransmitterNetworkRegistry {
     public void removeNetwork(DynamicNetwork<?, ?, ?> network) {
         networks.remove(network);
         networksToChange.remove(network);
+        invalidNetworks.remove(network);
     }
 
     @SubscribeEvent
@@ -108,11 +118,17 @@ public class TransmitterNetworkRegistry {
     }
 
     public void removeInvalidTransmitters() {
+        if (invalidTransmitters.isEmpty() && invalidNetworks.isEmpty()) return;
         if (MekanismAPI.debug && !invalidTransmitters.isEmpty()) {
             logger.info("Dealing with {} invalid Transmitters", invalidTransmitters.size());
         }
 
-        invalidTransmitters.forEach(invalid -> {
+        Set<IGridTransmitter<?, ?, ?>> pending = invalidTransmitters;
+        invalidTransmitters = new ReferenceOpenHashSet<>();
+        Set<DynamicNetwork<?, ?, ?>> pendingNetworks = invalidNetworks;
+        invalidNetworks = new ReferenceOpenHashSet<>();
+        pendingNetworks.forEach(DynamicNetwork::invalidate);
+        pending.forEach(invalid -> {
             if (!(invalid.isOrphan() && invalid.isValid())) {
                 DynamicNetwork<?, ?, ?> network = invalid.getTransmitterNetwork();
                 if (network != null) {
@@ -121,7 +137,6 @@ public class TransmitterNetworkRegistry {
             }
         });
 
-        invalidTransmitters.clear();
     }
 
     public void assignOrphans() {
@@ -182,8 +197,11 @@ public class TransmitterNetworkRegistry {
     }
 
     public void commitChanges() {
-        networksToChange.forEach(DynamicNetwork::commit);
-        networksToChange.clear();
+        if (!networksToChange.isEmpty()) {
+            Set<DynamicNetwork<?, ?, ?>> pending = networksToChange;
+            networksToChange = new ReferenceOpenHashSet<>();
+            pending.forEach(DynamicNetwork::commit);
+        }
     }
 
     @Override

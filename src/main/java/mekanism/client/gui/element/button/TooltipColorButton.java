@@ -14,12 +14,12 @@ public class TooltipColorButton extends BasicColorButton {
     private final List<String> disabledTooltip;
 
     public TooltipColorButton(IGuiWrapper gui, int x, int y, int size, EnumColor color, BooleanSupplier toggled, Runnable onLeftClick,
-          String enabledTooltip, String disabledTooltip) {
+                              String enabledTooltip, String disabledTooltip) {
         this(gui, x, y, size, color, toggled, onLeftClick, Collections.singletonList(enabledTooltip), Collections.singletonList(disabledTooltip));
     }
 
     public TooltipColorButton(IGuiWrapper gui, int x, int y, int size, EnumColor color, BooleanSupplier toggled, Runnable onLeftClick,
-          List<String> enabledTooltip, List<String> disabledTooltip) {
+                              List<String> enabledTooltip, List<String> disabledTooltip) {
         super(gui, x, y, size, () -> toggled.getAsBoolean() ? color : null, onLeftClick, onLeftClick);
         this.toggled = toggled;
         this.enabledTooltip = enabledTooltip;

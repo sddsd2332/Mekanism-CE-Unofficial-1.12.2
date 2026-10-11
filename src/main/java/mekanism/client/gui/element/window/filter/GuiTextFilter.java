@@ -24,13 +24,13 @@ public abstract class GuiTextFilter<FILTER extends IFilter, TILE extends TileEnt
     protected void init() {
         super.init();
         text = addChild(new GuiTextField(gui(), this, getTextFieldX(), relativeY + 4 + getScreenHeight(), getTextFieldWidth(), 12)
-              .setMaxLength(TransporterFilter.MAX_LENGTH)
-              .setBackgroundDrawing(isTextBackgroundEnabled())
-              .setTextColor(getTextColor())
-              .setInputValidator(getInputValidator())
-              .setInputTransformer(getInputTransformer())
-              .configureDigitalInput(this::setText)
-              .setEditable(true));
+                .setMaxLength(TransporterFilter.MAX_LENGTH)
+                .setBackgroundDrawing(isTextBackgroundEnabled())
+                .setTextColor(getTextColor())
+                .setInputValidator(getInputValidator())
+                .setInputTransformer(getInputTransformer())
+                .configureDigitalInput(this::setText)
+                .setEditable(true));
         setFocusedChild(text);
     }
 

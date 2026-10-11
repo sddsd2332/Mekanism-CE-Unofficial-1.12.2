@@ -6,16 +6,12 @@ import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
-/** Persistent exclusive ownership of one machine lane and its shared port groups. */
+/**
+ * Persistent exclusive ownership of one machine lane and its shared port groups.
+ */
+
 /**
  * QIO 处理模块中的 MachineOperationLease 类型。
  *
@@ -64,7 +60,7 @@ public final class MachineOperationLease {
     private final String contaminationReason;
 
     private MachineOperationLease(UUID leaseId, UUID ownerOperationId, Mode mode, long laneId, long createdAt,
-          State state, Collection<MachinePortBaseline> baselines, @Nullable String contaminationReason) {
+                                  State state, Collection<MachinePortBaseline> baselines, @Nullable String contaminationReason) {
         this.leaseId = Objects.requireNonNull(leaseId, "Lease id cannot be null");
         this.ownerOperationId = Objects.requireNonNull(ownerOperationId, "Owner operation id cannot be null");
         this.mode = Objects.requireNonNull(mode, "Lease mode cannot be null");
@@ -97,9 +93,9 @@ public final class MachineOperationLease {
      */
     @Nonnull
     public static MachineOperationLease acquire(@Nonnull UUID leaseId, @Nonnull UUID ownerOperationId,
-          @Nonnull Mode mode, long laneId, long createdAt, @Nonnull Collection<MachinePortBaseline> baselines) {
+                                                @Nonnull Mode mode, long laneId, long createdAt, @Nonnull Collection<MachinePortBaseline> baselines) {
         return new MachineOperationLease(leaseId, ownerOperationId, mode, laneId, createdAt, State.ACQUIRED,
-              baselines, null);
+                baselines, null);
     }
 
     /** 返回租约唯一标识。 */
@@ -175,7 +171,7 @@ public final class MachineOperationLease {
             throw new IllegalStateException("Invalid machine lease transition " + state + " -> " + next);
         }
         return new MachineOperationLease(leaseId, ownerOperationId, mode, laneId, createdAt, next, baselines,
-              next == State.CONTAMINATED ? "unspecified contamination" : contaminationReason);
+                next == State.CONTAMINATED ? "unspecified contamination" : contaminationReason);
     }
 
     /** 将租约标记为污染并保留原因文本。 */
@@ -189,7 +185,7 @@ public final class MachineOperationLease {
             throw new IllegalStateException("A released lease cannot become contaminated");
         }
         return new MachineOperationLease(leaseId, ownerOperationId, mode, laneId, createdAt, State.CONTAMINATED,
-              baselines, reason);
+                baselines, reason);
     }
 
     /** 仅恢复主机已验证过的旧版自动输出 PREPARED 状态。 */
@@ -199,7 +195,7 @@ public final class MachineOperationLease {
             throw new IllegalStateException("Only a contaminated output lease can be recovered");
         }
         return new MachineOperationLease(leaseId, ownerOperationId, mode, laneId, createdAt,
-              State.COLLECTING, baselines, null);
+                State.COLLECTING, baselines, null);
     }
 
     /** 将租约写入稳定字段顺序的 NBT。 */
@@ -237,9 +233,9 @@ public final class MachineOperationLease {
                 baselines.add(MachinePortBaseline.read(list.getCompoundTagAt(index)));
             }
             return new MachineOperationLease(readUUID(data, LEASE_ID), readUUID(data, OWNER_OPERATION_ID),
-                  Mode.valueOf(data.getString(MODE)), data.getLong(LANE_ID), data.getLong(CREATED_AT),
-                  State.valueOf(data.getString(STATE)), baselines,
-                  data.hasKey(CONTAMINATION_REASON, NBT.TAG_STRING) ? data.getString(CONTAMINATION_REASON) : null);
+                    Mode.valueOf(data.getString(MODE)), data.getLong(LANE_ID), data.getLong(CREATED_AT),
+                    State.valueOf(data.getString(STATE)), baselines,
+                    data.hasKey(CONTAMINATION_REASON, NBT.TAG_STRING) ? data.getString(CONTAMINATION_REASON) : null);
         } catch (RuntimeException e) {
             throw new IllegalArgumentException("Invalid machine operation lease", e);
         }
@@ -248,10 +244,10 @@ public final class MachineOperationLease {
     private static boolean canTransition(State current, State next) {
         return switch (current) {
             case ACQUIRED -> next == State.LOADING || next == State.COLLECTING || next == State.RELEASED ||
-                             next == State.CONTAMINATED;
+                    next == State.CONTAMINATED;
             case LOADING -> next == State.ACTIVE || next == State.RELEASED || next == State.CONTAMINATED;
             case ACTIVE -> next == State.COLLECTING || next == State.RELEASED ||
-                           next == State.CONTAMINATED;
+                    next == State.CONTAMINATED;
             case COLLECTING -> next == State.COMPLETED || next == State.CONTAMINATED;
             case COMPLETED, CONTAMINATED -> next == State.RELEASED;
             case RELEASED -> false;
@@ -294,8 +290,8 @@ public final class MachineOperationLease {
             return false;
         }
         return laneId == other.laneId && createdAt == other.createdAt && leaseId.equals(other.leaseId) &&
-              ownerOperationId.equals(other.ownerOperationId) && mode == other.mode && state == other.state &&
-              baselines.equals(other.baselines) && Objects.equals(contaminationReason, other.contaminationReason);
+                ownerOperationId.equals(other.ownerOperationId) && mode == other.mode && state == other.state &&
+                baselines.equals(other.baselines) && Objects.equals(contaminationReason, other.contaminationReason);
     }
 
     @Override

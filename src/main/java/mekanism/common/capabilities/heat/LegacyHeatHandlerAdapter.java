@@ -8,6 +8,7 @@ import java.util.function.DoubleSupplier;
 
 /**
  * Converts a handler exposed through the deprecated 1.12 heat capability to the new absolute-Kelvin API.
+ *
  * @deprecated Compatibility bridge for {@link mekanism.api.IHeatTransfer}.
  */
 @Deprecated

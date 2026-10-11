@@ -11,7 +11,10 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Bounded read-only row for jobs, passive production, and automatic output. */
+/**
+ * Bounded read-only row for jobs, passive production, and automatic output.
+ */
+
 /**
  * QIO 处理模块中的 QIOCraftingMonitorEntry 类型。
  *
@@ -49,13 +52,13 @@ public final class QIOCraftingMonitorEntry {
     private final String diagnostic;
 
     public QIOCraftingMonitorEntry(@Nonnull Kind kind, @Nonnull UUID entryId,
-          @Nonnull String source, @Nonnull String state,
-          @Nullable PortableResourceDescriptor rootResource, long rootAmount,
-          long deliveredAmount, int planRevision, long runtimeRevision,
-          long basePriority, long totalOperations, long completedOperations, int activeOperations,
-          int missingResourceTypes, boolean ownsExecutionSlot,
-          @Nullable UUID deviceUUID, long laneId, @Nullable String routeId,
-          @Nullable String diagnostic) {
+                                   @Nonnull String source, @Nonnull String state,
+                                   @Nullable PortableResourceDescriptor rootResource, long rootAmount,
+                                   long deliveredAmount, int planRevision, long runtimeRevision,
+                                   long basePriority, long totalOperations, long completedOperations, int activeOperations,
+                                   int missingResourceTypes, boolean ownsExecutionSlot,
+                                   @Nullable UUID deviceUUID, long laneId, @Nullable String routeId,
+                                   @Nullable String diagnostic) {
         this.kind = Objects.requireNonNull(kind, "kind");
         this.entryId = Objects.requireNonNull(entryId, "entryId");
         this.source = bounded(source, 64);
@@ -72,7 +75,7 @@ public final class QIOCraftingMonitorEntry {
         this.totalOperations = nonNegative(totalOperations, "totalOperations");
         this.completedOperations = nonNegative(completedOperations, "completedOperations");
         if (completedOperations > totalOperations || activeOperations < 0 ||
-            missingResourceTypes < 0 || laneId < -1) {
+                missingResourceTypes < 0 || laneId < -1) {
             throw new IllegalArgumentException("Invalid monitor operation progress");
         }
         this.activeOperations = activeOperations;
@@ -85,25 +88,89 @@ public final class QIOCraftingMonitorEntry {
         validateShape();
     }
 
-    @Nonnull public Kind getKind() { return kind; }
-    @Nonnull public UUID getEntryId() { return entryId; }
-    @Nonnull public String getSource() { return source; }
-    @Nonnull public String getState() { return state; }
-    @Nullable public PortableResourceDescriptor getRootResource() { return rootResource; }
-    public long getRootAmount() { return rootAmount; }
-    public long getDeliveredAmount() { return deliveredAmount; }
-    public int getPlanRevision() { return planRevision; }
-    public long getRuntimeRevision() { return runtimeRevision; }
-    public long getBasePriority() { return basePriority; }
-    public long getTotalOperations() { return totalOperations; }
-    public long getCompletedOperations() { return completedOperations; }
-    public int getActiveOperations() { return activeOperations; }
-    public int getMissingResourceTypes() { return missingResourceTypes; }
-    public boolean ownsExecutionSlot() { return ownsExecutionSlot; }
-    @Nullable public UUID getDeviceUUID() { return deviceUUID; }
-    public long getLaneId() { return laneId; }
-    @Nonnull public String getRouteId() { return routeId; }
-    @Nonnull public String getDiagnostic() { return diagnostic; }
+    @Nonnull
+    public Kind getKind() {
+        return kind;
+    }
+
+    @Nonnull
+    public UUID getEntryId() {
+        return entryId;
+    }
+
+    @Nonnull
+    public String getSource() {
+        return source;
+    }
+
+    @Nonnull
+    public String getState() {
+        return state;
+    }
+
+    @Nullable
+    public PortableResourceDescriptor getRootResource() {
+        return rootResource;
+    }
+
+    public long getRootAmount() {
+        return rootAmount;
+    }
+
+    public long getDeliveredAmount() {
+        return deliveredAmount;
+    }
+
+    public int getPlanRevision() {
+        return planRevision;
+    }
+
+    public long getRuntimeRevision() {
+        return runtimeRevision;
+    }
+
+    public long getBasePriority() {
+        return basePriority;
+    }
+
+    public long getTotalOperations() {
+        return totalOperations;
+    }
+
+    public long getCompletedOperations() {
+        return completedOperations;
+    }
+
+    public int getActiveOperations() {
+        return activeOperations;
+    }
+
+    public int getMissingResourceTypes() {
+        return missingResourceTypes;
+    }
+
+    public boolean ownsExecutionSlot() {
+        return ownsExecutionSlot;
+    }
+
+    @Nullable
+    public UUID getDeviceUUID() {
+        return deviceUUID;
+    }
+
+    public long getLaneId() {
+        return laneId;
+    }
+
+    @Nonnull
+    public String getRouteId() {
+        return routeId;
+    }
+
+    @Nonnull
+    public String getDiagnostic() {
+        return diagnostic;
+    }
 
     @Nonnull
     public NBTTagCompound write() {
@@ -136,24 +203,24 @@ public final class QIOCraftingMonitorEntry {
 
     @Nonnull
     public static QIOCraftingMonitorEntry read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         try {
             return new QIOCraftingMonitorEntry(
-                  QIOProcessingNbt.readEnum(data, "kind", Kind.class),
-                  QIOProcessingNbt.readUUID(data, "entryId"),
-                  data.getString("source"), data.getString("state"),
-                  data.hasKey("rootResource", NBT.TAG_COMPOUND) ?
-                        PortableResourceDescriptor.read(data.getCompoundTag("rootResource")) : null,
-                  data.getLong("rootAmount"), data.getLong("deliveredAmount"),
-                  data.getInteger("planRevision"), data.getLong("runtimeRevision"),
-                  data.getLong("basePriority"),
-                  data.getLong("totalOperations"), data.getLong("completedOperations"),
-                  data.getInteger("activeOperations"), data.getInteger("missingResourceTypes"),
-                  data.getBoolean("ownsExecutionSlot"),
-                  data.hasKey("deviceUUID", NBT.TAG_STRING) ?
-                        QIOProcessingNbt.readUUID(data, "deviceUUID") : null,
-                  data.hasKey("deviceUUID", NBT.TAG_STRING) ? data.getLong("laneId") : -1,
-                  data.getString("routeId"), data.getString("diagnostic"));
+                    QIOProcessingNbt.readEnum(data, "kind", Kind.class),
+                    QIOProcessingNbt.readUUID(data, "entryId"),
+                    data.getString("source"), data.getString("state"),
+                    data.hasKey("rootResource", NBT.TAG_COMPOUND) ?
+                            PortableResourceDescriptor.read(data.getCompoundTag("rootResource")) : null,
+                    data.getLong("rootAmount"), data.getLong("deliveredAmount"),
+                    data.getInteger("planRevision"), data.getLong("runtimeRevision"),
+                    data.getLong("basePriority"),
+                    data.getLong("totalOperations"), data.getLong("completedOperations"),
+                    data.getInteger("activeOperations"), data.getInteger("missingResourceTypes"),
+                    data.getBoolean("ownsExecutionSlot"),
+                    data.hasKey("deviceUUID", NBT.TAG_STRING) ?
+                            QIOProcessingNbt.readUUID(data, "deviceUUID") : null,
+                    data.hasKey("deviceUUID", NBT.TAG_STRING) ? data.getLong("laneId") : -1,
+                    data.getString("routeId"), data.getString("diagnostic"));
         } catch (QIOProcessingDataException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -163,8 +230,8 @@ public final class QIOCraftingMonitorEntry {
 
     private void validateShape() {
         if ((kind == Kind.JOB) != (rootResource != null) ||
-            kind == Kind.JOB && (deviceUUID != null || laneId != -1) ||
-            kind != Kind.JOB && deviceUUID == null) {
+                kind == Kind.JOB && (deviceUUID != null || laneId != -1) ||
+                kind != Kind.JOB && deviceUUID == null) {
             throw new IllegalArgumentException("Monitor entry identity does not match its kind");
         }
     }

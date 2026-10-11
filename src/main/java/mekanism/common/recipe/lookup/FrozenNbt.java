@@ -1,14 +1,10 @@
 package mekanism.common.recipe.lookup;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
-/** Immutable NBT values. This worker type has no Minecraft, registry or callback references. */
+/**
+ * Immutable NBT values. This worker type has no Minecraft, registry or callback references.
+ */
 public final class FrozenNbt {
     public enum Type {
         END, BYTE, SHORT, INT, LONG, FLOAT, DOUBLE, BYTE_ARRAY, STRING, LIST, COMPOUND, INT_ARRAY, LONG_ARRAY;
@@ -31,7 +27,7 @@ public final class FrozenNbt {
     private final int hash;
 
     private FrozenNbt(Type type, long number, String text, byte[] bytes, int[] ints, long[] longs,
-          Type elementType, List<FrozenNbt> elements, Map<String, FrozenNbt> members) {
+                      Type elementType, List<FrozenNbt> elements, Map<String, FrozenNbt> members) {
         this.type = type;
         this.number = number;
         this.text = text;
@@ -57,16 +53,24 @@ public final class FrozenNbt {
     public static FrozenNbt integer(Type type, long value) {
         Objects.requireNonNull(type, "NBT numeric type");
         if (type == Type.END && value != 0 || type == Type.BYTE && value != (byte) value ||
-              type == Type.SHORT && value != (short) value || type == Type.INT && value != (int) value ||
-              type.ordinal() > Type.LONG.ordinal()) {
+                type == Type.SHORT && value != (short) value || type == Type.INT && value != (int) value ||
+                type.ordinal() > Type.LONG.ordinal()) {
             throw new IllegalArgumentException("Invalid integral NBT value for " + type);
         }
         return scalar(type, value, null);
     }
 
-    public static FrozenNbt floatValue(float value) { return scalar(Type.FLOAT, Float.floatToIntBits(value), null); }
-    public static FrozenNbt doubleValue(double value) { return scalar(Type.DOUBLE, Double.doubleToLongBits(value), null); }
-    public static FrozenNbt string(String value) { return scalar(Type.STRING, 0, Objects.requireNonNull(value, "NBT string")); }
+    public static FrozenNbt floatValue(float value) {
+        return scalar(Type.FLOAT, Float.floatToIntBits(value), null);
+    }
+
+    public static FrozenNbt doubleValue(double value) {
+        return scalar(Type.DOUBLE, Double.doubleToLongBits(value), null);
+    }
+
+    public static FrozenNbt string(String value) {
+        return scalar(Type.STRING, 0, Objects.requireNonNull(value, "NBT string"));
+    }
 
     private static FrozenNbt scalar(Type type, long number, String text) {
         return new FrozenNbt(type, number, text, null, null, null, null, null, null);
@@ -95,7 +99,7 @@ public final class FrozenNbt {
             copy.add(value);
         }
         return new FrozenNbt(Type.LIST, 0, null, null, null, null, elementType,
-              Collections.unmodifiableList(copy), null);
+                Collections.unmodifiableList(copy), null);
     }
 
     public static FrozenNbt compound(Map<String, FrozenNbt> values) {
@@ -104,28 +108,64 @@ public final class FrozenNbt {
         for (Map.Entry<String, FrozenNbt> entry : values.entrySet()) {
             String key = Objects.requireNonNull(entry.getKey(), "NBT key");
             FrozenNbt value = Objects.requireNonNull(entry.getValue(), "NBT value");
-            if (value.type == Type.END) throw new IllegalArgumentException("Named END is not a valid NBT compound entry");
+            if (value.type == Type.END)
+                throw new IllegalArgumentException("Named END is not a valid NBT compound entry");
             copy.put(key, value);
         }
         return new FrozenNbt(Type.COMPOUND, 0, null, null, null, null, null, null,
-              Collections.unmodifiableMap(copy));
+                Collections.unmodifiableMap(copy));
     }
 
-    public Type getType() { return type; }
-    public long getNumberBits() { return number; }
-    public String getText() { require(Type.STRING); return text; }
-    public byte[] getBytes() { require(Type.BYTE_ARRAY); return bytes.clone(); }
-    public int[] getInts() { require(Type.INT_ARRAY); return ints.clone(); }
-    public long[] getLongs() { require(Type.LONG_ARRAY); return longs.clone(); }
-    public Type getElementType() { require(Type.LIST); return elementType; }
-    public List<FrozenNbt> getElements() { require(Type.LIST); return elements; }
-    public Map<String, FrozenNbt> getMembers() { require(Type.COMPOUND); return members; }
+    public Type getType() {
+        return type;
+    }
+
+    public long getNumberBits() {
+        return number;
+    }
+
+    public String getText() {
+        require(Type.STRING);
+        return text;
+    }
+
+    public byte[] getBytes() {
+        require(Type.BYTE_ARRAY);
+        return bytes.clone();
+    }
+
+    public int[] getInts() {
+        require(Type.INT_ARRAY);
+        return ints.clone();
+    }
+
+    public long[] getLongs() {
+        require(Type.LONG_ARRAY);
+        return longs.clone();
+    }
+
+    public Type getElementType() {
+        require(Type.LIST);
+        return elementType;
+    }
+
+    public List<FrozenNbt> getElements() {
+        require(Type.LIST);
+        return elements;
+    }
+
+    public Map<String, FrozenNbt> getMembers() {
+        require(Type.COMPOUND);
+        return members;
+    }
 
     private void require(Type expected) {
         if (type != expected) throw new IllegalStateException("Expected " + expected + ", found " + type);
     }
 
-    /** NBT matching uses numeric ==, including signed zero and nonmatching NaNs. */
+    /**
+     * NBT matching uses numeric ==, including signed zero and nonmatching NaNs.
+     */
     public boolean matches(FrozenNbt other) {
         if (other == null || type != other.type) return false;
         if (type == Type.FLOAT) return Float.intBitsToFloat((int) number) == Float.intBitsToFloat((int) other.number);
@@ -152,12 +192,16 @@ public final class FrozenNbt {
         FrozenNbt value = (FrozenNbt) other;
         if (type != value.type || hash != value.hash) return false;
         boolean sameNumber = number == value.number;
-        if (type == Type.FLOAT) sameNumber |= Float.intBitsToFloat((int) number) == Float.intBitsToFloat((int) value.number);
+        if (type == Type.FLOAT)
+            sameNumber |= Float.intBitsToFloat((int) number) == Float.intBitsToFloat((int) value.number);
         if (type == Type.DOUBLE) sameNumber |= Double.longBitsToDouble(number) == Double.longBitsToDouble(value.number);
         return sameNumber && Objects.equals(text, value.text) && Arrays.equals(bytes, value.bytes) &&
-              Arrays.equals(ints, value.ints) && Arrays.equals(longs, value.longs) && elementType == value.elementType &&
-              Objects.equals(elements, value.elements) && Objects.equals(members, value.members);
+                Arrays.equals(ints, value.ints) && Arrays.equals(longs, value.longs) && elementType == value.elementType &&
+                Objects.equals(elements, value.elements) && Objects.equals(members, value.members);
     }
 
-    @Override public int hashCode() { return hash; }
+    @Override
+    public int hashCode() {
+        return hash;
+    }
 }

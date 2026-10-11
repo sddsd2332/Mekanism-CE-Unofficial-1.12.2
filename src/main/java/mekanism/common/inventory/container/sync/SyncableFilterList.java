@@ -38,7 +38,7 @@ public abstract class SyncableFilterList<FILTER extends IFilter> implements ISyn
     }
 
     public static <FILTER extends IFilter> SyncableFilterList<FILTER> create(Supplier<HashList<FILTER>> getter, Consumer<HashList<FILTER>> setter,
-          FilterListType type, BiConsumer<FILTER, TileNetworkList> writer) {
+                                                                             FilterListType type, BiConsumer<FILTER, TileNetworkList> writer) {
         return new SyncableFilterList<>() {
             @Override
             public HashList<FILTER> get() {

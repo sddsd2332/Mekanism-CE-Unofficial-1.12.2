@@ -5,18 +5,19 @@ import mekanism.api.Coord4D;
 import mekanism.api.NBTConstants;
 import mekanism.api.TileNetworkList;
 import mekanism.api.heat.HeatAPI;
-import mekanism.api.heat.IHeatHandler;
 import mekanism.api.heat.IHeatCapacitor;
-import mekanism.api.transmitters.IGridTransmitter;
+import mekanism.api.heat.IHeatHandler;
 import mekanism.api.transmitters.TransmissionType;
 import mekanism.common.ColourRGBA;
 import mekanism.common.Mekanism;
 import mekanism.common.block.states.BlockStateTransmitter.TransmitterType;
+import mekanism.common.capabilities.Capabilities;
 import mekanism.common.capabilities.heat.CachedAmbientTemperature;
 import mekanism.common.capabilities.heat.ITileHeatHandler;
 import mekanism.common.capabilities.heat.VariableHeatCapacitor;
 import mekanism.common.capabilities.holder.heat.ProxiedHeatCapacitorHolder;
 import mekanism.common.capabilities.resolver.manager.HeatHandlerManager;
+import mekanism.common.content.network.distribution.ManagedAcceptor;
 import mekanism.common.tier.AlloyTier;
 import mekanism.common.tier.BaseTier;
 import mekanism.common.tier.ConductorTier;
@@ -38,17 +39,46 @@ public class TileEntityThermodynamicConductor extends TileEntityTransmitter<IHea
 
     public ConductorTier tier = ConductorTier.BASIC;
 
-    /** Relative-to-ambient temperature retained for the existing renderer. */
+    /**
+     * Relative-to-ambient temperature retained for the existing renderer.
+     */
     public double temperature;
     private double clientTemperature = -1;
+    private final ManagedAcceptor<IHeatHandler>[] adjacentHandlers = createAdjacentHandlers();
+    private final TileEntity[] simulationNeighbors = new TileEntity[6];
+    private boolean simulating;
+
+    @SuppressWarnings("unchecked")
+    private static ManagedAcceptor<IHeatHandler>[] createAdjacentHandlers() {
+        ManagedAcceptor<IHeatHandler>[] caches = new ManagedAcceptor[6];
+        for (int i = 0; i < caches.length; i++) caches[i] = new ManagedAcceptor<>();
+        return caches;
+    }
+
+    @Nullable
+    public final Object getManagedHeatAcceptorToken(EnumFacing side) {
+        return !isInvalid() && heatHandlerManager.canResolve(Capabilities.HEAT_HANDLER_CAPABILITY, side) ? getCapabilityGeneration() : null;
+    }
+
+    @Override
+    public HeatAPI.HeatTransfer simulate() {
+        simulating = true;
+        try {
+            return ITileHeatHandler.super.simulate();
+        } finally {
+            simulating = false;
+            java.util.Arrays.fill(simulationNeighbors, null);
+        }
+    }
+
     private final CachedAmbientTemperature ambientTemperature = new CachedAmbientTemperature(this::getWorld, this::getPos);
     public final VariableHeatCapacitor buffer = VariableHeatCapacitor.create(tier.getHeatCapacity(), () -> tier.getInverseConduction(),
-          () -> tier.getInverseConductionInsulation(), ambientTemperature, this);
+            () -> tier.getInverseConductionInsulation(), ambientTemperature, this);
 
     private final HeatHandlerManager heatHandlerManager = new HeatHandlerManager(this, ProxiedHeatCapacitorHolder.create(
-          side -> true,
-          side -> true,
-          this::getConductorHeatTransfers
+            side -> true,
+            side -> true,
+            this::getConductorHeatTransfers
     ));
 
     @Override
@@ -163,8 +193,11 @@ public class TileEntityThermodynamicConductor extends TileEntityTransmitter<IHea
     public IHeatHandler getAdjacent(EnumFacing side) {
         if (connectionMapContainsSide(getAllCurrentConnections(), side)) {
             TileEntity adj = MekanismUtils.getTileEntity(world, getPos().offset(side));
-            return HeatCapabilityUtils.getHandler(adj, side.getOpposite());
+            if (simulating) simulationNeighbors[side.ordinal()] = adj;
+            IHeatHandler handler = adjacentHandlers[side.ordinal()].resolve(adj, Capabilities.HEAT_HANDLER_CAPABILITY, side.getOpposite());
+            return handler != null ? handler : HeatCapabilityUtils.getLegacyHandler(adj, side.getOpposite());
         }
+        adjacentHandlers[side.ordinal()].clear();
         return null;
     }
 
@@ -186,7 +219,7 @@ public class TileEntityThermodynamicConductor extends TileEntityTransmitter<IHea
             invConduction = HeatAPI.MAX_HEAT;
         }
         double temperatureTransfer = (HeatAPI.sanitizeTemperature(buffer.getTemperature()) -
-              HeatAPI.sanitizeTemperature(getAmbientTemperature(side))) / invConduction;
+                HeatAPI.sanitizeTemperature(getAmbientTemperature(side))) / invConduction;
         if (!HeatAPI.isFinite(temperatureTransfer)) {
             return 0;
         }
@@ -205,7 +238,7 @@ public class TileEntityThermodynamicConductor extends TileEntityTransmitter<IHea
 
     @Override
     public double incrementAdjacentTransfer(double currentAdjacentTransfer, double tempToTransfer, EnumFacing side) {
-        TileEntity adjacent = MekanismUtils.getTileEntity(world, getPos().offset(side));
+        TileEntity adjacent = simulating ? simulationNeighbors[side.ordinal()] : MekanismUtils.getTileEntity(world, getPos().offset(side));
         if (!HeatAPI.isFinite(tempToTransfer) || tempToTransfer <= 0) {
             return currentAdjacentTransfer;
         }
@@ -217,7 +250,7 @@ public class TileEntityThermodynamicConductor extends TileEntityTransmitter<IHea
             if (getTransmitter().hasTransmitterNetwork()) {
                 HeatNetwork network = getTransmitter().getTransmitterNetwork();
                 HeatNetwork adjacentNetwork = adjacentConductor.getTransmitter().hasTransmitterNetwork()
-                      ? adjacentConductor.getTransmitter().getTransmitterNetwork() : null;
+                        ? adjacentConductor.getTransmitter().getTransmitterNetwork() : null;
                 if (!isSameNetworkForAdjacentTransfer(network, adjacentNetwork, Coord4D.get(adjacentConductor))) {
                     return currentAdjacentTransfer;
                 }
@@ -233,12 +266,7 @@ public class TileEntityThermodynamicConductor extends TileEntityTransmitter<IHea
         }
         // During a split or merge either pointer or member set may be transitional. Retain the old
         // coordinate lookup unless identity already proved the common, stable same-network case.
-        for (IGridTransmitter<IHeatHandler, HeatNetwork, Void> transmitter : network.getTransmitters()) {
-            if (transmitter != null && adjacentCoord.equals(transmitter.coord())) {
-                return true;
-            }
-        }
-        return false;
+        return network.containsTransmitterAt(adjacentCoord);
     }
 
     @Override
@@ -297,6 +325,13 @@ public class TileEntityThermodynamicConductor extends TileEntityTransmitter<IHea
         if (getTransmitter().hasTransmitterNetwork()) {
             getTransmitter().getTransmitterNetwork().wakeUp();
         }
+    }
+
+    @Override
+    public void onWorldSeparate() {
+        for (ManagedAcceptor<IHeatHandler> cache : adjacentHandlers) cache.clear();
+        java.util.Arrays.fill(simulationNeighbors, null);
+        super.onWorldSeparate();
     }
 
     private void updateRenderTemperature() {

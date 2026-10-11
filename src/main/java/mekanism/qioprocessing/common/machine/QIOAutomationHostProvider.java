@@ -1,6 +1,5 @@
 package mekanism.qioprocessing.common.machine;
 
-import mekanism.qioprocessing.api.machine.QIOAutomationHost;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
@@ -18,14 +17,14 @@ import javax.annotation.Nullable;
  */
 public final class QIOAutomationHostProvider implements ICapabilitySerializable<NBTTagCompound> {
 
-    private final DefaultQIOAutomationHost host;
+    private final QIOUpgradeComponent component;
 
     public QIOAutomationHostProvider(@Nonnull TileEntity tile) {
-        host = new DefaultQIOAutomationHost(tile);
+        component = new QIOUpgradeComponent(tile);
     }
 
     DefaultQIOAutomationHost host() {
-        return host;
+        return component.host();
     }
 
     @Override
@@ -37,16 +36,16 @@ public final class QIOAutomationHostProvider implements ICapabilitySerializable<
     @Override
     public <T> T getCapability(@Nonnull Capability<T> capability, @Nullable EnumFacing facing) {
         return capability == QIOAutomationCapabilities.AUTOMATION_HOST ?
-              QIOAutomationCapabilities.AUTOMATION_HOST.cast(host) : null;
+                QIOAutomationCapabilities.AUTOMATION_HOST.cast(component.host()) : null;
     }
 
     @Override
     public NBTTagCompound serializeNBT() {
-        return host.shouldPersistCapabilityNbt() ? host.serializeNBT() : new NBTTagCompound();
+        return component.serializeCapabilityNBT();
     }
 
     @Override
     public void deserializeNBT(NBTTagCompound nbt) {
-        host.deserializeNBT(nbt);
+        component.deserializeCapabilityNBT(nbt);
     }
 }

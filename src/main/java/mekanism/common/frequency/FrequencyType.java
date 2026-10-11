@@ -1,10 +1,9 @@
 package mekanism.common.frequency;
 
 import io.netty.buffer.ByteBuf;
-import mekanism.common.Mekanism;
 import mekanism.common.content.entangloporter.InventoryFrequency;
-import mekanism.common.content.teleporter.TeleporterFrequency;
 import mekanism.common.content.qio.QIOFrequency;
+import mekanism.common.content.teleporter.TeleporterFrequency;
 import mekanism.common.frequency.Frequency.FrequencyIdentity;
 import mekanism.common.security.ISecurityTile.SecurityMode;
 import mekanism.common.security.SecurityFrequency;
@@ -20,25 +19,25 @@ public class FrequencyType<FREQ extends Frequency> {
 
     private static final Map<String, FrequencyType<?>> REGISTRY = new HashMap<>();
     public static final FrequencyType<TeleporterFrequency> TELEPORTER = register(Frequency.TELEPORTER,
-          (key, uuid, securityMode) -> new TeleporterFrequency(String.valueOf(key), uuid, securityMode), TeleporterFrequency::new, TeleporterFrequency::new,
-          FrequencyManagerWrapper.Type.PUBLIC_PRIVATE_TRUSTED, IdentitySerializer.NAME);
+            (key, uuid, securityMode) -> new TeleporterFrequency(String.valueOf(key), uuid, securityMode), TeleporterFrequency::new, TeleporterFrequency::new,
+            FrequencyManagerWrapper.Type.PUBLIC_PRIVATE_TRUSTED, IdentitySerializer.NAME);
     public static final FrequencyType<InventoryFrequency> INVENTORY = register("Inventory",
-          (key, uuid, securityMode) -> new InventoryFrequency(String.valueOf(key), uuid, securityMode), InventoryFrequency::new, InventoryFrequency::new,
-          FrequencyManagerWrapper.Type.PUBLIC_PRIVATE_TRUSTED, IdentitySerializer.NAME);
+            (key, uuid, securityMode) -> new InventoryFrequency(String.valueOf(key), uuid, securityMode), InventoryFrequency::new, InventoryFrequency::new,
+            FrequencyManagerWrapper.Type.PUBLIC_PRIVATE_TRUSTED, IdentitySerializer.NAME);
     public static final FrequencyType<QIOFrequency> QIO = register(Frequency.QIO,
-          (key, uuid, securityMode) -> new QIOFrequency(String.valueOf(key), uuid, securityMode),
-          QIOFrequency::new, QIOFrequency::new,
-          FrequencyManagerWrapper.Type.PUBLIC_PRIVATE_TRUSTED, IdentitySerializer.NAME);
+            (key, uuid, securityMode) -> new QIOFrequency(String.valueOf(key), uuid, securityMode),
+            QIOFrequency::new, QIOFrequency::new,
+            FrequencyManagerWrapper.Type.PUBLIC_PRIVATE_TRUSTED, IdentitySerializer.NAME);
     public static final FrequencyType<SecurityFrequency> SECURITY = register(SecurityFrequency.SECURITY,
-          (key, uuid, securityMode) -> new SecurityFrequency(uuid, securityMode),
-          SecurityFrequency::new, SecurityFrequency::new, FrequencyManagerWrapper.Type.PUBLIC_ONLY, IdentitySerializer.UUID);
+            (key, uuid, securityMode) -> new SecurityFrequency(uuid, securityMode),
+            SecurityFrequency::new, SecurityFrequency::new, FrequencyManagerWrapper.Type.PUBLIC_ONLY, IdentitySerializer.UUID);
 
     public static void init() {
     }
 
     private static <FREQ extends Frequency> FrequencyType<FREQ> register(String name, FrequencyConstructor<FREQ> creationFunction,
-          NBTConstructor<FREQ> nbtConstructor, BufferConstructor<FREQ> bufferConstructor, FrequencyManagerWrapper.Type managerType,
-          IdentitySerializer identitySerializer) {
+                                                                         NBTConstructor<FREQ> nbtConstructor, BufferConstructor<FREQ> bufferConstructor, FrequencyManagerWrapper.Type managerType,
+                                                                         IdentitySerializer identitySerializer) {
         FrequencyType<FREQ> type = new FrequencyType<>(name, creationFunction, nbtConstructor, bufferConstructor, managerType, identitySerializer);
         REGISTRY.put(name, type);
         return type;
@@ -81,7 +80,7 @@ public class FrequencyType<FREQ extends Frequency> {
     private final IdentitySerializer identitySerializer;
 
     private FrequencyType(String name, FrequencyConstructor<FREQ> creationFunction, NBTConstructor<FREQ> nbtConstructor,
-          BufferConstructor<FREQ> bufferConstructor, FrequencyManagerWrapper.Type managerType, IdentitySerializer identitySerializer) {
+                          BufferConstructor<FREQ> bufferConstructor, FrequencyManagerWrapper.Type managerType, IdentitySerializer identitySerializer) {
         this.name = name;
         this.creationFunction = creationFunction;
         this.nbtConstructor = nbtConstructor;

@@ -28,8 +28,8 @@ public class RotaryCachedRecipe extends CachedRecipe<RotaryRecipe> {
     private GasStack gasOutput;
 
     public RotaryCachedRecipe(RotaryRecipe recipe, BooleanSupplier recheckAllErrors, IInputHandler<FluidStack, FluidStack> fluidInputHandler,
-          IInputHandler<GasStack, GasStack> gasInputHandler, IOutputHandler<GasStack> gasOutputHandler, IOutputHandler<FluidStack> fluidOutputHandler,
-          BooleanSupplier modeSupplier) {
+                              IInputHandler<GasStack, GasStack> gasInputHandler, IOutputHandler<GasStack> gasOutputHandler, IOutputHandler<FluidStack> fluidOutputHandler,
+                              BooleanSupplier modeSupplier) {
         super(recipe, recheckAllErrors);
         this.fluidInputHandler = Objects.requireNonNull(fluidInputHandler, "Fluid input handler cannot be null.");
         this.gasInputHandler = Objects.requireNonNull(gasInputHandler, "Gas input handler cannot be null.");
@@ -55,13 +55,13 @@ public class RotaryCachedRecipe extends CachedRecipe<RotaryRecipe> {
                     tracker.mismatchedRecipe();
                 } else {
                     CachedRecipeHelper.oneInputCalculateOperationsThisTick(tracker, fluidInputHandler, recipe::getFluidInput, input -> recipeFluid = input,
-                          gasOutputHandler, recipe::getGasOutput, output -> gasOutput = output, RotaryCachedRecipe::isFluidEmpty);
+                            gasOutputHandler, recipe::getGasOutput, output -> gasOutput = output, RotaryCachedRecipe::isFluidEmpty);
                 }
             } else if (!recipe.hasGasToFluid()) {
                 tracker.mismatchedRecipe();
             } else {
                 CachedRecipeHelper.oneInputCalculateOperationsThisTick(tracker, gasInputHandler, recipe::getGasInput, input -> recipeGas = input,
-                      fluidOutputHandler, recipe::getFluidOutput, output -> fluidOutput = output, RotaryCachedRecipe::isGasEmpty);
+                        fluidOutputHandler, recipe::getFluidOutput, output -> fluidOutput = output, RotaryCachedRecipe::isGasEmpty);
             }
         }
     }

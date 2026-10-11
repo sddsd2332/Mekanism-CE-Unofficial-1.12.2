@@ -53,6 +53,7 @@ public class ElectrolyticSeparatorRecipeCategory<WRAPPER extends ElectrolyticSep
             public double getProgress() {
                 return 1;
             }
+
             @Override
             public boolean isGuiInJei() {
                 return true;

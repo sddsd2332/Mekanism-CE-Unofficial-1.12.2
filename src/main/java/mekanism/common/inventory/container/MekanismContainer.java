@@ -15,11 +15,7 @@ import mekanism.common.network.to_client.container.property.PropertyData;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.entity.player.InventoryPlayer;
-import net.minecraft.inventory.ClickType;
-import net.minecraft.inventory.Container;
-import net.minecraft.inventory.EntityEquipmentSlot;
-import net.minecraft.inventory.IContainerListener;
-import net.minecraft.inventory.Slot;
+import net.minecraft.inventory.*;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.network.play.server.SPacketSetSlot;
@@ -252,7 +248,7 @@ public abstract class MekanismContainer extends Container {
             // client-side dynamic slot validator rejects its prediction. Vanilla suppresses
             // the cursor update after a successful click transaction, so correct it here.
             playerMP.connection.sendPacket(new SPacketSetSlot(-1, -1,
-                  player.inventory.getItemStack()));
+                    player.inventory.getItemStack()));
         }
         return originalSlotStack;
     }
@@ -323,25 +319,25 @@ public abstract class MekanismContainer extends Container {
     }
 
     public static <SLOT extends Slot & IInsertableSlot> ItemStack insertItem(List<SLOT> slots, @Nonnull ItemStack stack, boolean ignoreEmpty,
-          @Nullable SelectedWindowData selectedWindow) {
+                                                                             @Nullable SelectedWindowData selectedWindow) {
         return insertItem(slots, stack, ignoreEmpty, selectedWindow, Action.EXECUTE);
     }
 
     @Nonnull
     public static <SLOT extends Slot & IInsertableSlot> ItemStack insertItem(List<SLOT> slots, @Nonnull ItemStack stack, boolean ignoreEmpty,
-          @Nullable SelectedWindowData selectedWindow, @Nonnull Action action) {
+                                                                             @Nullable SelectedWindowData selectedWindow, @Nonnull Action action) {
         return insertItem(slots, stack, ignoreEmpty, false, selectedWindow, action);
     }
 
     @Nonnull
     public static <SLOT extends Slot & IInsertableSlot> ItemStack insertItemCheckAll(List<SLOT> slots, @Nonnull ItemStack stack,
-          @Nullable SelectedWindowData selectedWindow, @Nonnull Action action) {
+                                                                                     @Nullable SelectedWindowData selectedWindow, @Nonnull Action action) {
         return insertItem(slots, stack, false, true, selectedWindow, action);
     }
 
     @Nonnull
     public static <SLOT extends Slot & IInsertableSlot> ItemStack insertItem(List<SLOT> slots, @Nonnull ItemStack stack, boolean ignoreEmpty, boolean checkAll,
-          @Nullable SelectedWindowData selectedWindow, @Nonnull Action action) {
+                                                                             @Nullable SelectedWindowData selectedWindow, @Nonnull Action action) {
         if (stack.isEmpty()) {
             return stack;
         }
@@ -499,7 +495,7 @@ public abstract class MekanismContainer extends Container {
             return trackedData.get(property);
         }
         Mekanism.logger.warn("Received out of bounds window property {} for container {}. There are currently {} tracked properties.",
-              property, getClass().getSimpleName(), trackedData.size());
+                property, getClass().getSimpleName(), trackedData.size());
         return null;
     }
 

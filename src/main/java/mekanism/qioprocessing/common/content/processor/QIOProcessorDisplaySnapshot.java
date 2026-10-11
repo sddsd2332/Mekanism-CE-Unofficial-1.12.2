@@ -9,14 +9,12 @@ import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
-/** Bounded, display-only projection of the occupied workbench processor lanes. */
+/**
+ * Bounded, display-only projection of the occupied workbench processor lanes.
+ */
+
 /**
  * QIO 处理模块中的 QIOProcessorDisplaySnapshot 类型。
  *
@@ -28,7 +26,7 @@ public final class QIOProcessorDisplaySnapshot {
     public static final int SCHEMA_VERSION = 1;
     public static final int MAX_DISPLAY_LANES = 64;
     private static final int GRID_SIZE = 9;
-    private static final int MAX_ROUTE_KEY_LENGTH = 512;
+    private static final int MAX_ROUTE_KEY_LENGTH = mekanism.qioprocessing.common.content.plan.QIOPlanStep.MAX_STABLE_ROUTE_ID_LENGTH;
 
     private final int laneCount;
     private final Map<Integer, Lane> lanes;
@@ -46,7 +44,7 @@ public final class QIOProcessorDisplaySnapshot {
             }
             if (checked.put(lane.getLaneId(), lane) != null) {
                 throw new IllegalArgumentException("Duplicate QIO processor display lane " +
-                      lane.getLaneId());
+                        lane.getLaneId());
             }
         }
         this.laneCount = laneCount;
@@ -56,7 +54,7 @@ public final class QIOProcessorDisplaySnapshot {
     @Nonnull
     public static QIOProcessorDisplaySnapshot empty(int laneCount) {
         return new QIOProcessorDisplaySnapshot(Math.max(0,
-              Math.min(MAX_DISPLAY_LANES, laneCount)), Collections.emptyList());
+                Math.min(MAX_DISPLAY_LANES, laneCount)), Collections.emptyList());
     }
 
     public int getLaneCount() {
@@ -86,7 +84,7 @@ public final class QIOProcessorDisplaySnapshot {
 
     @Nonnull
     public static QIOProcessorDisplaySnapshot read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         Objects.requireNonNull(data, "data");
         try {
             if (data.getInteger("schemaVersion") != SCHEMA_VERSION) {
@@ -122,8 +120,8 @@ public final class QIOProcessorDisplaySnapshot {
         private final ItemStack output;
 
         public Lane(int laneId, @Nonnull QIOProcessorLaneRuntime.State state,
-              long operationCount, @Nonnull String routeKey, @Nonnull List<ItemStack> grid,
-              @Nonnull ItemStack output) {
+                    long operationCount, @Nonnull String routeKey, @Nonnull List<ItemStack> grid,
+                    @Nonnull ItemStack output) {
             if (laneId < 0 || laneId >= MAX_DISPLAY_LANES) {
                 throw new IllegalArgumentException("QIO processor display lane id is invalid");
             }
@@ -170,7 +168,7 @@ public final class QIOProcessorDisplaySnapshot {
         @Nonnull
         public ItemStack getGridStack(int slot) {
             return slot < 0 || slot >= GRID_SIZE ? ItemStack.EMPTY :
-                  QIORecipeStackUtils.copyForRecipeSelection(grid.get(slot));
+                    QIORecipeStackUtils.copyForRecipeSelection(grid.get(slot));
         }
 
         @Nonnull
@@ -202,19 +200,19 @@ public final class QIOProcessorDisplaySnapshot {
             try {
                 int laneId = data.getInteger("laneId");
                 QIOProcessorLaneRuntime.State state = QIOProcessorLaneRuntime.State.valueOf(
-                      data.getString("state"));
+                        data.getString("state"));
                 long operationCount = data.getLong("operationCount");
                 NBTTagList storedGrid = data.getTagList("grid", NBT.TAG_COMPOUND);
                 if (storedGrid.tagCount() != GRID_SIZE) {
                     throw new QIOProcessingDataException(
-                          "QIO processor display grid must contain nine slots");
+                            "QIO processor display grid must contain nine slots");
                 }
                 List<ItemStack> grid = new ArrayList<>(GRID_SIZE);
                 for (int slot = 0; slot < GRID_SIZE; slot++) {
                     grid.add(readStack(storedGrid.getCompoundTagAt(slot)));
                 }
                 return new Lane(laneId, state, operationCount, data.getString("routeKey"),
-                      grid, readStack(data.getCompoundTag("output")));
+                        grid, readStack(data.getCompoundTag("output")));
             } catch (QIOProcessingDataException e) {
                 throw e;
             } catch (RuntimeException e) {

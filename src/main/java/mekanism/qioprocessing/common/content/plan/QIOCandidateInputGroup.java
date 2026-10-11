@@ -9,15 +9,12 @@ import net.minecraft.nbt.NBTTagList;
 import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
-/** Candidate group retained by one workbench plan step until exact dispatch binding. */
+/**
+ * Candidate group retained by one workbench plan step until exact dispatch binding.
+ */
+
 /**
  * QIO 处理模块中的 QIOCandidateInputGroup 类型。
  *
@@ -33,8 +30,8 @@ public final class QIOCandidateInputGroup {
     private final Map<PortableResourceDescriptor, Long> plannedInputs;
 
     public QIOCandidateInputGroup(@Nonnull List<Integer> slots,
-          @Nonnull List<QIOCandidateOption> options,
-          @Nonnull Map<PortableResourceDescriptor, Long> plannedInputs) {
+                                  @Nonnull List<QIOCandidateOption> options,
+                                  @Nonnull Map<PortableResourceDescriptor, Long> plannedInputs) {
         Objects.requireNonNull(slots, "slots");
         Objects.requireNonNull(options, "options");
         if (slots.isEmpty() || slots.size() > 9 || options.isEmpty() || options.size() > 64) {
@@ -61,32 +58,48 @@ public final class QIOCandidateInputGroup {
         }
         this.options = Collections.unmodifiableList(checkedOptions);
         this.plannedInputs = QIOProcessingNbt.copyAmounts(plannedInputs, false,
-              "candidate planned inputs");
+                "candidate planned inputs");
         long plannedUnits = 0;
         for (Map.Entry<PortableResourceDescriptor, Long> planned :
-              this.plannedInputs.entrySet()) {
+                this.plannedInputs.entrySet()) {
             QIOCandidateOption matching = checkedOptions.stream().filter(option ->
-                  option.getResource().equals(planned.getKey()) &&
-                  planned.getValue() % option.getAmountPerUnit() == 0).findFirst()
-                  .orElseThrow(() -> new IllegalArgumentException(
-                        "Planned QIO candidate input is not represented by its options"));
+                            option.getResource().equals(planned.getKey()) &&
+                                    planned.getValue() % option.getAmountPerUnit() == 0).findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Planned QIO candidate input is not represented by its options"));
             plannedUnits = Math.addExact(plannedUnits,
-                  planned.getValue() / matching.getAmountPerUnit());
+                    planned.getValue() / matching.getAmountPerUnit());
         }
         if (plannedUnits != this.slots.size()) {
             throw new IllegalArgumentException(
-                  "Planned QIO candidate inputs do not cover their slots exactly");
+                    "Planned QIO candidate inputs do not cover their slots exactly");
         }
         groupId = calculateId();
     }
 
-    @Nonnull public String getGroupId() { return groupId; }
-    @Nonnull public List<Integer> getSlots() { return slots; }
-    @Nonnull public List<QIOCandidateOption> getOptions() { return options; }
-    @Nonnull public Map<PortableResourceDescriptor, Long> getPlannedInputs() {
+    @Nonnull
+    public String getGroupId() {
+        return groupId;
+    }
+
+    @Nonnull
+    public List<Integer> getSlots() {
+        return slots;
+    }
+
+    @Nonnull
+    public List<QIOCandidateOption> getOptions() {
+        return options;
+    }
+
+    @Nonnull
+    public Map<PortableResourceDescriptor, Long> getPlannedInputs() {
         return plannedInputs;
     }
-    public long getUnitsPerOperation() { return slots.size(); }
+
+    public long getUnitsPerOperation() {
+        return slots.size();
+    }
 
     @Nonnull
     public NBTTagCompound write() {
@@ -109,19 +122,19 @@ public final class QIOCandidateInputGroup {
 
     @Nonnull
     public static QIOCandidateInputGroup read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         if (data.getInteger("schema") != SCHEMA_VERSION ||
-            !data.hasKey("groupId", NBT.TAG_STRING) ||
-            !data.hasKey("slots", NBT.TAG_LIST) ||
-            !data.hasKey("options", NBT.TAG_LIST) ||
-            !data.hasKey("plannedInputs", NBT.TAG_LIST)) {
+                !data.hasKey("groupId", NBT.TAG_STRING) ||
+                !data.hasKey("slots", NBT.TAG_LIST) ||
+                !data.hasKey("options", NBT.TAG_LIST) ||
+                !data.hasKey("plannedInputs", NBT.TAG_LIST)) {
             throw new QIOProcessingDataException("Incomplete QIO candidate input group");
         }
         try {
             NBTTagList storedSlots = data.getTagList("slots", NBT.TAG_COMPOUND);
             NBTTagList storedOptions = data.getTagList("options", NBT.TAG_COMPOUND);
             if (storedSlots.tagCount() <= 0 || storedSlots.tagCount() > 9 ||
-                storedOptions.tagCount() <= 0 || storedOptions.tagCount() > 64) {
+                    storedOptions.tagCount() <= 0 || storedOptions.tagCount() > 64) {
                 throw new QIOProcessingDataException("Invalid QIO candidate input group size");
             }
             List<Integer> slots = new ArrayList<>(storedSlots.tagCount());
@@ -133,10 +146,10 @@ public final class QIOCandidateInputGroup {
                 options.add(QIOCandidateOption.read(storedOptions.getCompoundTagAt(index)));
             }
             QIOCandidateInputGroup group = new QIOCandidateInputGroup(slots, options,
-                  QIOProcessingNbt.readAmounts(data, "plannedInputs", 64));
+                    QIOProcessingNbt.readAmounts(data, "plannedInputs", 64));
             if (!group.groupId.equals(data.getString("groupId"))) {
                 throw new QIOProcessingDataException(
-                      "QIO candidate input group identity does not match its contents");
+                        "QIO candidate input group identity does not match its contents");
             }
             return group;
         } catch (QIOProcessingDataException e) {
@@ -150,9 +163,9 @@ public final class QIOCandidateInputGroup {
         StringBuilder canonical = new StringBuilder();
         slots.forEach(slot -> canonical.append("slot=").append(slot).append(';'));
         options.forEach(option -> canonical.append("option=")
-              .append(option.getCandidateId()).append('@').append(option.getResource())
-              .append('@').append(option.getAmountPerUnit()).append('@')
-              .append(option.isVirtualFluid()).append(';'));
+                .append(option.getCandidateId()).append('@').append(option.getResource())
+                .append('@').append(option.getAmountPerUnit()).append('@')
+                .append(option.isVirtualFluid()).append(';'));
         return QIOHashing.sha256(canonical);
     }
 }

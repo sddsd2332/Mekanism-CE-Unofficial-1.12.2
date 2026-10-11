@@ -9,7 +9,9 @@ import net.minecraftforge.fluids.FluidStack;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-/** Compatibility projection between legacy QIO filters and codec-defined descriptors. */
+/**
+ * Compatibility projection between legacy QIO filters and codec-defined descriptors.
+ */
 public final class QIOFilterResourceHelper {
 
     private QIOFilterResourceHelper() {
@@ -36,16 +38,20 @@ public final class QIOFilterResourceHelper {
         return null;
     }
 
-    /** Creates the compatible exact filter representation for one resolved descriptor. */
+    /**
+     * Creates the compatible exact filter representation for one resolved descriptor.
+     */
     @Nullable
     public static QIOFilter createFilter(@Nonnull QIOResourceDescriptor descriptor) {
         return createFilter(descriptor, false);
     }
 
-    /** Item descriptors retain the legacy fuzzy option; other codecs remain exact. */
+    /**
+     * Item descriptors retain the legacy fuzzy option; other codecs remain exact.
+     */
     @Nullable
     public static QIOFilter createFilter(@Nonnull QIOResourceDescriptor descriptor,
-          boolean fuzzyItem) {
+                                         boolean fuzzyItem) {
         if (descriptor == null || !descriptor.isResolved()) {
             return null;
         }

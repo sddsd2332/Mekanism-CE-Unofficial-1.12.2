@@ -21,7 +21,7 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 
 @SideOnly(Side.CLIENT)
 public class GuiChanceMachine<RECIPE extends ChanceMachineRecipe<RECIPE>, TILE extends TileEntityChanceMachine<RECIPE>>
-      extends GuiConfigurableTile<TILE, ContainerChanceMachine<RECIPE>> {
+        extends GuiConfigurableTile<TILE, ContainerChanceMachine<RECIPE>> {
 
     public GuiChanceMachine(InventoryPlayer inventory, TILE tile) {
         super(tile, new ContainerChanceMachine<>(inventory, tile));
@@ -33,13 +33,13 @@ public class GuiChanceMachine<RECIPE extends ChanceMachineRecipe<RECIPE>, TILE e
         super.addGuiElements();
         addButton(new GuiUpArrow(this, 60, 38));
         addButton(new GuiVerticalPowerBar(this, tileEntity.getEnergyContainer(), 164, 15))
-              .warning(WarningType.NOT_ENOUGH_ENERGY, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY));
+                .warning(WarningType.NOT_ENOUGH_ENERGY, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY));
         addButton(new GuiEnergyTab(this, tileEntity.getEnergyContainer(), tileEntity::getActive));
         addButton(new GuiSlot(SlotType.OUTPUT_WIDE, this, 111, 30)
-              .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_OUTPUT_SPACE)));
+                .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_OUTPUT_SPACE)));
         addButton(new GuiProgress(tileEntity::getScaledProgress, ProgressType.BAR, this, 78, 38))
-              .recipeViewerCategories(getRecipeViewerRecipeTypes())
-              .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity.getWarningCheck(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT));
+                .recipeViewerCategories(getRecipeViewerRecipeTypes())
+                .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity.getWarningCheck(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT));
     }
 
     protected IRecipeViewerRecipeType<?>[] getRecipeViewerRecipeTypes() {

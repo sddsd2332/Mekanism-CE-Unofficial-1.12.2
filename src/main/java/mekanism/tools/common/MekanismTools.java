@@ -32,7 +32,7 @@ import net.minecraftforge.fml.common.registry.GameRegistry;
 import java.util.List;
 import java.util.Random;
 
-@Mod(modid = MekanismTools.MODID, useMetadata = true, guiFactory = "mekanism.tools.client.gui.ToolsGuiFactory",customProperties = {
+@Mod(modid = MekanismTools.MODID, useMetadata = true, guiFactory = "mekanism.tools.client.gui.ToolsGuiFactory", customProperties = {
         @Mod.CustomProperty(k = "license", v = "EUPL-1.2"),
         @Mod.CustomProperty(k = "issueTrackerUrl", v = "https://github.com/sddsd2332/Mekanism-CE-Unofficial-1.12.2/issues"),
         @Mod.CustomProperty(k = "iconFile", v = "assets/mekanism/icon.png"),

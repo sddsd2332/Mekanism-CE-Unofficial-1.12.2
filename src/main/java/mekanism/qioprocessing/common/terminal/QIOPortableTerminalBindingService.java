@@ -12,7 +12,10 @@ import net.minecraft.item.ItemStack;
 import javax.annotation.Nonnull;
 import java.util.Objects;
 
-/** Server-authoritative exact frequency mutation for an already validated portable session. */
+/**
+ * Server-authoritative exact frequency mutation for an already validated portable session.
+ */
+
 /**
  * QIO 处理模块中的 QIOPortableTerminalBindingService 类型。
  *
@@ -25,26 +28,26 @@ public final class QIOPortableTerminalBindingService {
     }
 
     public static boolean bind(@Nonnull QIOPortableTerminalContainer container,
-          @Nonnull QIOFrequency frequency, @Nonnull EntityPlayer player) {
+                               @Nonnull QIOFrequency frequency, @Nonnull EntityPlayer player) {
         Objects.requireNonNull(container, "container");
         Objects.requireNonNull(frequency, "frequency");
         Objects.requireNonNull(player, "player");
         ItemStack stack = container.getPortableStack();
         if (!container.isPortableTargetUsable(player) || stack.isEmpty() ||
-            !(stack.getItem() instanceof ItemPortableQIOProcessingTerminal item) ||
-            !SecurityUtils.canAccess(player, stack) ||
-            !SecurityUtils.canAccess(frequency.getSecurity(), player.getUniqueID(),
-                  frequency.getOwner())) {
+                !(stack.getItem() instanceof ItemPortableQIOProcessingTerminal item) ||
+                !SecurityUtils.canAccess(player, stack) ||
+                !SecurityUtils.canAccess(frequency.getSecurity(), player.getUniqueID(),
+                        frequency.getOwner())) {
             return false;
         }
         QIOFrequencyReference reference = QIOFrequencyStorageAccess.INSTANCE.createReference(
-              frequency, player.getUniqueID());
+                frequency, player.getUniqueID());
         if (!QIOFrequencyStorageAccess.INSTANCE.canAccess(reference,
-              player.getUniqueID())) {
+                player.getUniqueID())) {
             return false;
         }
         boolean changed = item.applyAuthorizedFrequency(stack, frequency,
-              player.getUniqueID());
+                player.getUniqueID());
         if (changed) {
             player.inventory.markDirty();
         }
@@ -52,17 +55,17 @@ public final class QIOPortableTerminalBindingService {
     }
 
     public static boolean unbind(@Nonnull QIOPortableTerminalContainer container,
-          @Nonnull EntityPlayer player) {
+                                 @Nonnull EntityPlayer player) {
         Objects.requireNonNull(container, "container");
         Objects.requireNonNull(player, "player");
         ItemStack stack = container.getPortableStack();
         if (!container.isPortableTargetUsable(player) || stack.isEmpty() ||
-            !(stack.getItem() instanceof ItemPortableQIOProcessingTerminal item) ||
-            !SecurityUtils.canAccess(player, stack)) {
+                !(stack.getItem() instanceof ItemPortableQIOProcessingTerminal item) ||
+                !SecurityUtils.canAccess(player, stack)) {
             return false;
         }
         boolean changed = item.applyAuthorizedFrequency(stack, null,
-              player.getUniqueID());
+                player.getUniqueID());
         if (changed) {
             player.inventory.markDirty();
         }

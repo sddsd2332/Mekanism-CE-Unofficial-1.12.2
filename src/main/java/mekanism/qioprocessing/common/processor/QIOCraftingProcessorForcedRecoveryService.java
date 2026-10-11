@@ -18,17 +18,15 @@ import net.minecraftforge.common.util.Constants.NBT;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
-/** Network-audited, explicitly player-triggered recovery for ambiguous processor state. */
+/**
+ * Network-audited, explicitly player-triggered recovery for ambiguous processor state.
+ */
 public final class QIOCraftingProcessorForcedRecoveryService {
 
     private static final String DIAGNOSTIC =
-          "QIO crafting processor was force-recovered; affected operations require player review";
+            "QIO crafting processor was force-recovered; affected operations require player review";
 
     private QIOCraftingProcessorForcedRecoveryService() {
     }
@@ -41,7 +39,7 @@ public final class QIOCraftingProcessorForcedRecoveryService {
     public static boolean forceClear(@Nonnull QIOCraftingProcessor processor) {
         QIOCraftingProcessorState state = processor.getProcessorState();
         if (state.forceRecoverAfterDataError(processor.getExpectedProcessorHostId(),
-              processor.getExpectedProcessorDefinitionId())) {
+                processor.getExpectedProcessorDefinitionId())) {
             refreshAndWake(processor);
             return true;
         }
@@ -51,15 +49,15 @@ public final class QIOCraftingProcessorForcedRecoveryService {
 
         QIOFrequencyReference reference = processor.getFrequencyReference();
         QIOProcessingNetworkData network = reference == null ? null :
-              QIOProcessingNetworkManager.INSTANCE.get(reference.getFrequencyUUID());
+                QIOProcessingNetworkManager.INSTANCE.get(reference.getFrequencyUUID());
         NBTTagCompound raw = state.getQuarantinedDataCopy();
         Set<UUID> operationIds = collectOperationIds(network, processor, raw);
         boolean localOwnership = !state.getActiveLanes().isEmpty() || raw != null &&
-              raw.hasKey("activeLanes", NBT.TAG_LIST) &&
-              raw.getTagList("activeLanes", NBT.TAG_COMPOUND).tagCount() > 0;
+                raw.hasKey("activeLanes", NBT.TAG_LIST) &&
+                raw.getTagList("activeLanes", NBT.TAG_COMPOUND).tagCount() > 0;
         if (network == null && reference != null &&
-              QIOProcessingNetworkManager.INSTANCE.getIsolationStatus(
-                    reference.getFrequencyUUID()) != null) {
+                QIOProcessingNetworkManager.INSTANCE.getIsolationStatus(
+                        reference.getFrequencyUUID()) != null) {
             // An isolated/damaged network is intentionally absent from the loaded map.  Even a
             // diagnostic-only processor marker must wait for that authoritative file to become
             // available before the player can clear it.
@@ -76,11 +74,11 @@ public final class QIOCraftingProcessorForcedRecoveryService {
             }
         } catch (IOException | RuntimeException e) {
             Mekanism.logger.warn("Unable to checkpoint QIO processor recovery {}",
-                  state.getProcessorUUID(), e);
+                    state.getProcessorUUID(), e);
             return false;
         }
         if (!state.forceClearAfterAuditedRecovery(processor.getExpectedProcessorHostId(),
-              processor.getExpectedProcessorDefinitionId())) {
+                processor.getExpectedProcessorDefinitionId())) {
             return false;
         }
         refreshAndWake(processor);
@@ -92,10 +90,10 @@ public final class QIOCraftingProcessorForcedRecoveryService {
 
     @Nonnull
     private static Set<UUID> collectOperationIds(@Nullable QIOProcessingNetworkData network,
-          @Nonnull QIOCraftingProcessor processor, @Nullable NBTTagCompound raw) {
+                                                 @Nonnull QIOCraftingProcessor processor, @Nullable NBTTagCompound raw) {
         Set<UUID> operationIds = new LinkedHashSet<>();
         processor.getProcessorState().getActiveLanes().values().forEach(lane ->
-              operationIds.add(lane.getOperationId()));
+                operationIds.add(lane.getOperationId()));
         collectRawOperationIds(raw, operationIds);
         if (network == null) {
             return operationIds;
@@ -107,7 +105,7 @@ public final class QIOCraftingProcessorForcedRecoveryService {
                 operationId = operationIdFromNode(transfer.getNodeId());
             }
             if (transfer.getSource().startsWith(prefix) || transfer.getDestination().startsWith(prefix) ||
-                  operationId != null && operationIds.contains(operationId)) {
+                    operationId != null && operationIds.contains(operationId)) {
                 if (operationId != null) {
                     operationIds.add(operationId);
                 }
@@ -117,8 +115,8 @@ public final class QIOCraftingProcessorForcedRecoveryService {
             for (QIOStepRuntime runtime : job.getStepRuntimes().values()) {
                 for (QIOOperationAssignment assignment : runtime.getActiveOperations().values()) {
                     if (processor.getProcessorState().getProcessorUUID().equals(
-                          assignment.getDeviceUUID()) || operationIds.contains(
-                                assignment.getOperationId())) {
+                            assignment.getDeviceUUID()) || operationIds.contains(
+                            assignment.getOperationId())) {
                         operationIds.add(assignment.getOperationId());
                     }
                 }
@@ -128,7 +126,7 @@ public final class QIOCraftingProcessorForcedRecoveryService {
     }
 
     private static void collectRawOperationIds(@Nullable NBTTagCompound raw,
-          @Nonnull Set<UUID> operationIds) {
+                                               @Nonnull Set<UUID> operationIds) {
         if (raw == null || !raw.hasKey("activeLanes", NBT.TAG_LIST)) {
             return;
         }
@@ -147,7 +145,7 @@ public final class QIOCraftingProcessorForcedRecoveryService {
     }
 
     private static void recordAffectedOperations(@Nonnull QIOProcessingNetworkData network,
-          @Nonnull Set<UUID> operationIds) {
+                                                 @Nonnull Set<UUID> operationIds) {
         Map<UUID, UUID> ownerJobs = new LinkedHashMap<>();
         for (QIODurableTransferRecord transfer : network.getDurableTransfers()) {
             UUID operationId = transfer.getOwnerOperationId();
@@ -155,30 +153,30 @@ public final class QIOCraftingProcessorForcedRecoveryService {
                 operationId = operationIdFromNode(transfer.getNodeId());
             }
             if (operationId != null && operationIds.contains(operationId) &&
-                  transfer.getOwnerJobId() != null) {
+                    transfer.getOwnerJobId() != null) {
                 ownerJobs.put(operationId, transfer.getOwnerJobId());
             }
         }
         for (mekanism.qioprocessing.common.content.transfer.QIOConfigurationExchangeRecord exchange :
-              network.getConfigurationExchanges()) {
+                network.getConfigurationExchanges()) {
             if (operationIds.contains(exchange.getOperationId()) &&
-                  exchange.getOwnerJobId() != null) {
+                    exchange.getOwnerJobId() != null) {
                 ownerJobs.put(exchange.getOperationId(), exchange.getOwnerJobId());
             }
         }
         Set<UUID> markedJobs = new LinkedHashSet<>();
         for (QIOCraftingJob job : network.getJobs()) {
             for (java.util.Map.Entry<Long, QIOStepRuntime> runtimeEntry :
-                  job.getStepRuntimes().entrySet()) {
+                    job.getStepRuntimes().entrySet()) {
                 for (QIOOperationAssignment assignment :
-                      runtimeEntry.getValue().getActiveOperations().values()) {
+                        runtimeEntry.getValue().getActiveOperations().values()) {
                     UUID operationId = assignment.getOperationId();
                     if (!operationIds.contains(operationId)) {
                         continue;
                     }
                     if (!job.getState().isTerminal() && !job.isCancellationRequested()) {
                         if (network.markForcedRecoveryOperation(job.getJobId(),
-                              runtimeEntry.getKey(), operationId, DIAGNOSTIC)) {
+                                runtimeEntry.getKey(), operationId, DIAGNOSTIC)) {
                             markedJobs.add(job.getJobId());
                         }
                     }
@@ -217,7 +215,7 @@ public final class QIOCraftingProcessorForcedRecoveryService {
         QIOFrequencyReference reference = processor.getFrequencyReference();
         if (reference != null) {
             QIOProcessingExecutionService.INSTANCE.wakeDeviceContents(
-                  reference.getFrequencyUUID(), processor.getProcessorState().getProcessorUUID());
+                    reference.getFrequencyUUID(), processor.getProcessorState().getProcessorUUID());
         }
     }
 }

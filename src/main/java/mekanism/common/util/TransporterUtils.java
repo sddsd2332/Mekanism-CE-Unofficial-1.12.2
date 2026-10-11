@@ -34,7 +34,7 @@ public final class TransporterUtils {
     }
 
     public static TransitResponse insertMaybeRR(IAdvancedTransportEjector outputter, TileEntity outputterTile, ILogisticalTransporter transporter, TransitRequest request,
-          EnumColor color, boolean doEmit, int min) {
+                                                EnumColor color, boolean doEmit, int min) {
         return transporter.insertMaybeRR(outputter, Coord4D.get(outputterTile), request, color, doEmit, min);
     }
 
@@ -65,7 +65,7 @@ public final class TransporterUtils {
         }
         TransporterManager.remove(stack);
         BlockPos blockPos = new BlockPos(tileEntity.coord().x + pos[0], tileEntity.coord().y + pos[1], tileEntity.coord().z + pos[2]);
-        InventoryUtils.dropStack(stack.itemStack,itemStack -> Block.spawnAsEntity(tileEntity.world(), blockPos,itemStack));
+        InventoryUtils.dropStack(stack.itemStack, itemStack -> Block.spawnAsEntity(tileEntity.world(), blockPos, itemStack));
     }
 
     public static float[] getStackPosition(ILogisticalTransporter tileEntity, TransporterStack stack, float partial) {

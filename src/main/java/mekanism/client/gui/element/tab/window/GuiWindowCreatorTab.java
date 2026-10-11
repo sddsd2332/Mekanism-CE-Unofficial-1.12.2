@@ -24,7 +24,7 @@ public abstract class GuiWindowCreatorTab<DATA_SOURCE, ELEMENT extends GuiWindow
     }
 
     protected GuiWindowCreatorTab(ResourceLocation icon, IGuiWrapper gui, DATA_SOURCE dataSource, int x, int y, int height, int innerSize, boolean left,
-          Supplier<ELEMENT> elementSupplier) {
+                                  Supplier<ELEMENT> elementSupplier) {
         super(icon, gui, dataSource, x, y, height, innerSize, left);
         this.elementSupplier = elementSupplier;
     }

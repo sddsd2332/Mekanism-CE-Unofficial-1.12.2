@@ -75,6 +75,12 @@ public final class Upgrade {
             .color(EnumColor.ORANGE)
             .stack(count -> new ItemStack(MekanismItems.StoneGeneratorUpgrade, count))
             .register();
+    public static final Upgrade COMPARATOR = builder("comparator")
+            .maxInstalled(1)
+            .maxItemStackSize(1)
+            .color(EnumColor.RED)
+            .stack(count -> new ItemStack(MekanismItems.ComparatorUpgrade, count))
+            .register();
     private final ResourceLocation registryName;
     private final String translationKey;
     private final IntSupplier maxInstalled;
@@ -83,6 +89,7 @@ public final class Upgrade {
     private final IntFunction<ItemStack> stackCreator;
     private final InfoProvider infoProvider;
     private final ChangeHandler changeHandler;
+    private final boolean deterministicSecondaryUsage;
     private final Set<ResourceLocation> conflictingUpgradeNames;
 
     private Upgrade(Builder builder) {
@@ -94,6 +101,7 @@ public final class Upgrade {
         stackCreator = builder.stackCreator;
         infoProvider = builder.infoProvider;
         changeHandler = builder.changeHandler;
+        deterministicSecondaryUsage = builder.deterministicSecondaryUsage;
         conflictingUpgradeNames = Collections.unmodifiableSet(new LinkedHashSet<>(builder.conflictingUpgradeNames));
     }
 
@@ -335,6 +343,10 @@ public final class Upgrade {
         changeHandler.onChanged(this, tile, previousAmount, amount);
     }
 
+    public boolean requiresDeterministicSecondaryUsage() {
+        return deterministicSecondaryUsage;
+    }
+
     public List<String> getMultScaledInfo(IUpgradeTile tile) {
         List<String> ret = new ArrayList<>();
         if (canMultiply()) {
@@ -378,6 +390,7 @@ public final class Upgrade {
         private IntFunction<ItemStack> stackCreator = count -> ItemStack.EMPTY;
         private InfoProvider infoProvider = DEFAULT_INFO_PROVIDER;
         private ChangeHandler changeHandler = NOOP_CHANGE_HANDLER;
+        private boolean deterministicSecondaryUsage;
         private final Set<ResourceLocation> conflictingUpgradeNames = new LinkedHashSet<>();
 
         private Builder(ResourceLocation registryName, String translationKey) {
@@ -387,6 +400,14 @@ public final class Upgrade {
 
         public Builder maxInstalled(int maxInstalled) {
             return maxInstalled(() -> maxInstalled);
+        }
+
+        /**
+         * Automation requires a reproducible secondary-resource budget per operation.
+         */
+        public Builder deterministicSecondaryUsage() {
+            deterministicSecondaryUsage = true;
+            return this;
         }
 
         public Builder maxInstalled(@Nonnull IntSupplier maxInstalled) {
@@ -462,8 +483,8 @@ public final class Upgrade {
          */
         public Builder conflictsWith(@Nonnull String modid, @Nonnull String name) {
             return conflictsWith(new ResourceLocation(
-                  Objects.requireNonNull(modid, "Conflicting upgrade mod id cannot be null"),
-                  Objects.requireNonNull(name, "Conflicting upgrade name cannot be null")));
+                    Objects.requireNonNull(modid, "Conflicting upgrade mod id cannot be null"),
+                    Objects.requireNonNull(name, "Conflicting upgrade name cannot be null")));
         }
 
         public Builder conflictsWithIds(@Nonnull ResourceLocation... registryNames) {

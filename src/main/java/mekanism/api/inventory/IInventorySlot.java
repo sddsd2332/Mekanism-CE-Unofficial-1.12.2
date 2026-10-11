@@ -125,14 +125,14 @@ public interface IInventorySlot extends INBTSerializable<NBTTagCompound>, IConte
      * Implementations may avoid stack construction only when these same rules can be evaluated exactly.
      */
     default int getResourceCapacity(QIOResourceDescriptor resource, int templateCount, boolean checkInsertion,
-          AutomationType automationType) {
+                                    AutomationType automationType) {
         if (templateCount <= 0) return 0;
         ItemStack expected = resource.resolveItemStackTemplate();
         if (expected == null || expected.isEmpty()) return 0;
         expected.setCount(templateCount);
         ItemStack stored = getStack();
         if (!stored.isEmpty() && (!ItemStack.areItemsEqual(stored, expected) ||
-              !ItemStack.areItemStackTagsEqual(stored, expected))) return 0;
+                !ItemStack.areItemStackTagsEqual(stored, expected))) return 0;
         int room = Math.max(0, getLimit(expected) - stored.getCount());
         if (!checkInsertion || room == 0) return room;
         expected.setCount(room);

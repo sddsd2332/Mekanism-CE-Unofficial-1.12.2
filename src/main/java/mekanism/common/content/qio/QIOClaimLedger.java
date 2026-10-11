@@ -12,19 +12,12 @@ import javax.annotation.Nullable;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.function.Function;
 
-/** Frequency-owned, persistent logical claim state. All methods are called under the QIO frequency lock. */
+/**
+ * Frequency-owned, persistent logical claim state. All methods are called under the QIO frequency lock.
+ */
 final class QIOClaimLedger {
 
     private static final String CLAIM_REVISION = "qioClaimRevision";
@@ -115,21 +108,21 @@ final class QIOClaimLedger {
      */
     @Nonnull
     Map<UUID, Map<UUID, Long>> calculateBackedAmounts(
-          @Nonnull Function<UUID, QIOAmount> storedAmount) {
+            @Nonnull Function<UUID, QIOAmount> storedAmount) {
         Objects.requireNonNull(storedAmount, "storedAmount");
         List<QIOResourceClaim> ordered = new ArrayList<>(claims.values());
         ordered.sort(Comparator.comparingLong(QIOResourceClaim::getPriority).reversed()
-              .thenComparingLong(QIOResourceClaim::getEnqueueSequence)
-              .thenComparing(QIOResourceClaim::getOwnerNamespace)
-              .thenComparing(QIOResourceClaim::getOwnerId)
-              .thenComparing(claim -> claim.getClaimId().toString()));
+                .thenComparingLong(QIOResourceClaim::getEnqueueSequence)
+                .thenComparing(QIOResourceClaim::getOwnerNamespace)
+                .thenComparing(QIOResourceClaim::getOwnerId)
+                .thenComparing(claim -> claim.getClaimId().toString()));
         Map<UUID, QIOAmount> remainingByResource = new LinkedHashMap<>();
         Map<UUID, Map<UUID, Long>> backingByClaim = new LinkedHashMap<>();
         for (QIOResourceClaim claim : ordered) {
             Map<UUID, Long> backed = new LinkedHashMap<>();
             for (Map.Entry<UUID, Long> entry : claim.getResourceAmounts().entrySet()) {
                 QIOAmount remaining = remainingByResource.computeIfAbsent(entry.getKey(),
-                      storedAmount);
+                        storedAmount);
                 long granted = Math.min(entry.getValue(), remaining.longValueClamped());
                 if (granted > 0) {
                     backed.put(entry.getKey(), granted);
@@ -150,15 +143,15 @@ final class QIOClaimLedger {
         if (existingReceipt != null) {
             if (existingReceipt.digest.equals(digest)) {
                 if (request.getMode() == QIOClaimRequest.Mode.CONSUME &&
-                      !existingReceipt.result.getConsumedAmounts().isEmpty()) {
+                        !existingReceipt.result.getConsumedAmounts().isEmpty()) {
                     QIOClaimResult reconciliation = reconcilePhysicalConsume(request, storage,
-                          existingReceipt.result.getConsumedAmounts());
+                            existingReceipt.result.getConsumedAmounts());
                     if (reconciliation != null) {
                         return unchanged(reconciliation);
                     }
                 }
                 if (request.getMode() == QIOClaimRequest.Mode.CONSUME &&
-                      existingReceipt.result.getStatus() == QIOClaimResult.Status.FAILED) {
+                        existingReceipt.result.getStatus() == QIOClaimResult.Status.FAILED) {
                     Submission retry = consume(request, storage);
                     putReceipt(request.getRequestId(), new RequestReceipt(digest, retry.result));
                     return retry;
@@ -166,18 +159,18 @@ final class QIOClaimLedger {
                 return unchanged(existingReceipt.result);
             }
             return unchanged(result(request, QIOClaimResult.Status.REQUEST_ID_CONFLICT, null,
-                  Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap()));
+                    Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap()));
         }
         boolean reconciledConsume = request.getMode() == QIOClaimRequest.Mode.CONSUME;
         if (!reconciledConsume && request.getExpectedContentsRevision() != QIOClaimRequest.ANY_REVISION &&
-              request.getExpectedContentsRevision() != contentsRevision) {
+                request.getExpectedContentsRevision() != contentsRevision) {
             return record(request, digest, result(request, QIOClaimResult.Status.STALE_CONTENTS, null,
-                  Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap()), Collections.emptySet());
+                    Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap()), Collections.emptySet());
         }
         if (!reconciledConsume && request.getExpectedClaimRevision() != QIOClaimRequest.ANY_REVISION &&
-              request.getExpectedClaimRevision() != revision) {
+                request.getExpectedClaimRevision() != revision) {
             return record(request, digest, result(request, QIOClaimResult.Status.STALE_CLAIMS, null,
-                  Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap()), Collections.emptySet());
+                    Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap()), Collections.emptySet());
         }
         Submission submission;
         switch (request.getMode()) {
@@ -195,7 +188,7 @@ final class QIOClaimLedger {
                 break;
             default:
                 submission = unchanged(result(request, QIOClaimResult.Status.INVALID_REQUEST, null,
-                      Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap()));
+                        Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap()));
                 break;
         }
         putReceipt(request.getRequestId(), new RequestReceipt(digest, submission.result));
@@ -205,12 +198,12 @@ final class QIOClaimLedger {
     private Submission createOrAdjust(QIOClaimRequest request, Storage storage) {
         if (!allClaimable(request.getResourceAmounts(), storage)) {
             return unchanged(result(request, QIOClaimResult.Status.INVALID_REQUEST, null,
-                  Collections.emptyMap(), request.getResourceAmounts(), Collections.emptyMap()));
+                    Collections.emptyMap(), request.getResourceAmounts(), Collections.emptyMap()));
         }
         QIOResourceClaim previous = claims.get(request.getClaimId());
         if (previous != null && !ownerMatches(previous, request)) {
             return unchanged(result(request, QIOClaimResult.Status.OWNER_MISMATCH, previous,
-                  previous.getResourceAmounts(), Collections.emptyMap(), Collections.emptyMap()));
+                    previous.getResourceAmounts(), Collections.emptyMap(), Collections.emptyMap()));
         }
         Map<UUID, Long> previousAmounts = previous == null ? Collections.emptyMap() : previous.getResourceAmounts();
         Map<UUID, Long> committed = new LinkedHashMap<>();
@@ -227,14 +220,14 @@ final class QIOClaimLedger {
             }
         }
         boolean metadataChanged = previous == null || previous.getPriority() != request.getPriority() ||
-              previous.getEnqueueSequence() != request.getEnqueueSequence();
+                previous.getEnqueueSequence() != request.getEnqueueSequence();
         boolean amountsChanged = !previousAmounts.equals(committed);
         if (!metadataChanged && !amountsChanged) {
             QIOClaimResult.Status status = unavailable.isEmpty() ? QIOClaimResult.Status.NO_CHANGE : QIOClaimResult.Status.PARTIAL;
             return unchanged(result(request, status, previous, committed, unavailable, Collections.emptyMap()));
         }
         Set<UUID> changed = replaceClaim(previous, request.getClaimId(), request.getOwnerNamespace(),
-              request.getOwnerId(), request.getPriority(), request.getEnqueueSequence(), committed);
+                request.getOwnerId(), request.getPriority(), request.getEnqueueSequence(), committed);
         QIOResourceClaim current = claims.get(request.getClaimId());
         QIOClaimResult.Status status = unavailable.isEmpty() ? QIOClaimResult.Status.APPLIED : QIOClaimResult.Status.PARTIAL;
         return changed(result(request, status, current, committed, unavailable, Collections.emptyMap()), changed);
@@ -243,24 +236,24 @@ final class QIOClaimLedger {
     private Submission reassign(QIOClaimRequest request, Storage storage) {
         if (!allClaimable(request.getResourceAmounts(), storage)) {
             return unchanged(result(request, QIOClaimResult.Status.INVALID_REQUEST, null,
-                  Collections.emptyMap(), request.getResourceAmounts(), Collections.emptyMap()));
+                    Collections.emptyMap(), request.getResourceAmounts(), Collections.emptyMap()));
         }
         UUID sourceId = request.getSourceClaimId();
         if (sourceId == null || sourceId.equals(request.getClaimId())) {
             return unchanged(result(request, QIOClaimResult.Status.INVALID_REQUEST, null,
-                  Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap()));
+                    Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap()));
         }
         QIOResourceClaim source = claims.get(sourceId);
         QIOResourceClaim targetPrevious = claims.get(request.getClaimId());
         if (source == null) {
             return unchanged(result(request, QIOClaimResult.Status.NOT_FOUND, null,
-                  Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap()));
+                    Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap()));
         }
         if (!source.getOwnerNamespace().equals(request.getOwnerNamespace()) ||
-              targetPrevious != null && !ownerMatches(targetPrevious, request)) {
+                targetPrevious != null && !ownerMatches(targetPrevious, request)) {
             return unchanged(result(request, QIOClaimResult.Status.OWNER_MISMATCH, targetPrevious,
-                  targetPrevious == null ? Collections.emptyMap() : targetPrevious.getResourceAmounts(),
-                  Collections.emptyMap(), Collections.emptyMap()));
+                    targetPrevious == null ? Collections.emptyMap() : targetPrevious.getResourceAmounts(),
+                    Collections.emptyMap(), Collections.emptyMap()));
         }
         Map<UUID, Long> targetOld = targetPrevious == null ? Collections.emptyMap() : targetPrevious.getResourceAmounts();
         Map<UUID, Long> targetNew = new LinkedHashMap<>();
@@ -269,7 +262,7 @@ final class QIOClaimLedger {
             long sourceOwned = source.getResourceAmounts().getOrDefault(desired.getKey(), 0L);
             long targetOwned = targetOld.getOrDefault(desired.getKey(), 0L);
             QIOAmount usable = getAvailable(desired.getKey(), storage.getStored(desired.getKey()))
-                  .add(sourceOwned).add(targetOwned);
+                    .add(sourceOwned).add(targetOwned);
             long granted = Math.min(desired.getValue(), usable.longValueClamped());
             if (granted > 0) {
                 targetNew.put(desired.getKey(), granted);
@@ -284,7 +277,7 @@ final class QIOClaimLedger {
             changedResources.addAll(removeClaim(targetPrevious));
         }
         QIOResourceClaim target = createClaim(request.getClaimId(), request.getOwnerNamespace(), request.getOwnerId(),
-              request.getPriority(), request.getEnqueueSequence(), targetPrevious, targetNew);
+                request.getPriority(), request.getEnqueueSequence(), targetPrevious, targetNew);
         if (target != null) {
             claims.put(target.getClaimId(), target);
             addTotals(target.getResourceAmounts());
@@ -293,18 +286,18 @@ final class QIOClaimLedger {
         incrementRevision();
         QIOClaimResult.Status status = unavailable.isEmpty() ? QIOClaimResult.Status.APPLIED : QIOClaimResult.Status.PARTIAL;
         return new Submission(result(request, status, target, targetNew, unavailable, Collections.emptyMap()),
-              immutableSet(changedResources));
+                immutableSet(changedResources));
     }
 
     private Submission release(QIOClaimRequest request) {
         QIOResourceClaim previous = claims.get(request.getClaimId());
         if (previous == null) {
             return unchanged(result(request, QIOClaimResult.Status.NOT_FOUND, null,
-                  Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap()));
+                    Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap()));
         }
         if (!ownerMatches(previous, request)) {
             return unchanged(result(request, QIOClaimResult.Status.OWNER_MISMATCH, previous,
-                  previous.getResourceAmounts(), Collections.emptyMap(), Collections.emptyMap()));
+                    previous.getResourceAmounts(), Collections.emptyMap(), Collections.emptyMap()));
         }
         Map<UUID, Long> remaining = new LinkedHashMap<>(previous.getResourceAmounts());
         if (request.getResourceAmounts().isEmpty()) {
@@ -322,45 +315,45 @@ final class QIOClaimLedger {
         }
         if (remaining.equals(previous.getResourceAmounts())) {
             return unchanged(result(request, QIOClaimResult.Status.NO_CHANGE, previous, remaining,
-                  Collections.emptyMap(), Collections.emptyMap()));
+                    Collections.emptyMap(), Collections.emptyMap()));
         }
         Set<UUID> changed = replaceClaim(previous, request.getClaimId(), previous.getOwnerNamespace(),
-              previous.getOwnerId(), previous.getPriority(), previous.getEnqueueSequence(), remaining);
+                previous.getOwnerId(), previous.getPriority(), previous.getEnqueueSequence(), remaining);
         return changed(result(request, QIOClaimResult.Status.APPLIED, claims.get(request.getClaimId()),
-              remaining, Collections.emptyMap(), Collections.emptyMap()), changed);
+                remaining, Collections.emptyMap(), Collections.emptyMap()), changed);
     }
 
     private Submission consume(QIOClaimRequest request, Storage storage) {
         QIOResourceClaim previous = claims.get(request.getClaimId());
         if (previous == null) {
             return unchanged(result(request, QIOClaimResult.Status.NOT_FOUND, null,
-                  Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap()));
+                    Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap()));
         }
         if (!ownerMatches(previous, request)) {
             return unchanged(result(request, QIOClaimResult.Status.OWNER_MISMATCH, previous,
-                  previous.getResourceAmounts(), Collections.emptyMap(), Collections.emptyMap()));
+                    previous.getResourceAmounts(), Collections.emptyMap(), Collections.emptyMap()));
         }
         Map<UUID, Long> consume = request.getResourceAmounts().isEmpty() ?
-              previous.getResourceAmounts() : request.getResourceAmounts();
+                previous.getResourceAmounts() : request.getResourceAmounts();
         if (!allClaimable(consume, storage)) {
             return unchanged(result(request, QIOClaimResult.Status.INVALID_REQUEST, previous,
-                  previous.getResourceAmounts(), consume, Collections.emptyMap()));
+                    previous.getResourceAmounts(), consume, Collections.emptyMap()));
         }
         for (Map.Entry<UUID, Long> entry : consume.entrySet()) {
             if (entry.getValue() > previous.getResourceAmounts().getOrDefault(entry.getKey(), 0L)) {
                 return unchanged(result(request, QIOClaimResult.Status.INSUFFICIENT_RESOURCES, previous,
-                      previous.getResourceAmounts(), consume, Collections.emptyMap()));
+                        previous.getResourceAmounts(), consume, Collections.emptyMap()));
             }
         }
         Map<UUID, Long> physicalExtraction = remainingPhysicalExtraction(request, storage, consume);
         if (physicalExtraction == null) {
             return unchanged(result(request, QIOClaimResult.Status.RECONCILIATION_CONFLICT,
-                  previous, previous.getResourceAmounts(), consume, Collections.emptyMap()));
+                    previous, previous.getResourceAmounts(), consume, Collections.emptyMap()));
         }
         if (!physicalExtraction.isEmpty() && !storage.extractClaimed(physicalExtraction) ||
-              !storage.persistPhysical()) {
+                !storage.persistPhysical()) {
             return unchanged(result(request, QIOClaimResult.Status.FAILED, previous,
-                  previous.getResourceAmounts(), Collections.emptyMap(), Collections.emptyMap()));
+                    previous.getResourceAmounts(), Collections.emptyMap(), Collections.emptyMap()));
         }
         Map<UUID, Long> remaining = new LinkedHashMap<>(previous.getResourceAmounts());
         for (Map.Entry<UUID, Long> consumed : consume.entrySet()) {
@@ -372,9 +365,9 @@ final class QIOClaimLedger {
             }
         }
         Set<UUID> changed = replaceClaim(previous, request.getClaimId(), previous.getOwnerNamespace(),
-              previous.getOwnerId(), previous.getPriority(), previous.getEnqueueSequence(), remaining);
+                previous.getOwnerId(), previous.getPriority(), previous.getEnqueueSequence(), remaining);
         return changed(result(request, QIOClaimResult.Status.APPLIED, claims.get(request.getClaimId()),
-              remaining, Collections.emptyMap(), consume), changed);
+                remaining, Collections.emptyMap(), consume), changed);
     }
 
     /**
@@ -384,25 +377,25 @@ final class QIOClaimLedger {
      */
     @Nullable
     private QIOClaimResult reconcilePhysicalConsume(QIOClaimRequest request, Storage storage,
-          Map<UUID, Long> consumed) {
+                                                    Map<UUID, Long> consumed) {
         Map<UUID, Long> remaining = remainingPhysicalExtraction(request, storage, consumed);
         QIOResourceClaim current = claims.get(request.getClaimId());
         if (remaining == null) {
             return result(request, QIOClaimResult.Status.RECONCILIATION_CONFLICT, current,
-                  current == null ? Collections.emptyMap() : current.getResourceAmounts(),
-                  consumed, Collections.emptyMap());
+                    current == null ? Collections.emptyMap() : current.getResourceAmounts(),
+                    consumed, Collections.emptyMap());
         }
         if (!remaining.isEmpty() && !storage.extractClaimed(remaining) || !storage.persistPhysical()) {
             return result(request, QIOClaimResult.Status.FAILED, current,
-                  current == null ? Collections.emptyMap() : current.getResourceAmounts(),
-                  Collections.emptyMap(), Collections.emptyMap());
+                    current == null ? Collections.emptyMap() : current.getResourceAmounts(),
+                    Collections.emptyMap(), Collections.emptyMap());
         }
         return null;
     }
 
     @Nullable
     private static Map<UUID, Long> remainingPhysicalExtraction(QIOClaimRequest request,
-          Storage storage, Map<UUID, Long> consumed) {
+                                                               Storage storage, Map<UUID, Long> consumed) {
         Map<UUID, Long> remaining = new LinkedHashMap<>();
         for (Map.Entry<UUID, Long> entry : consumed.entrySet()) {
             java.math.BigInteger baseline = request.getExpectedStoredAmounts().get(entry.getKey());
@@ -410,7 +403,7 @@ final class QIOClaimLedger {
                 return null;
             }
             java.math.BigInteger target = baseline.subtract(
-                  java.math.BigInteger.valueOf(entry.getValue()));
+                    java.math.BigInteger.valueOf(entry.getValue()));
             java.math.BigInteger current = storage.getStored(entry.getKey()).toBigInteger();
             if (!current.equals(target) && !current.equals(baseline)) {
                 return null;
@@ -424,14 +417,14 @@ final class QIOClaimLedger {
     }
 
     private Set<UUID> replaceClaim(@Nullable QIOResourceClaim previous, UUID claimId,
-          String ownerNamespace, String ownerId, long priority, long enqueueSequence,
-          Map<UUID, Long> amounts) {
+                                   String ownerNamespace, String ownerId, long priority, long enqueueSequence,
+                                   Map<UUID, Long> amounts) {
         Set<UUID> changedResources = new HashSet<>();
         if (previous != null) {
             changedResources.addAll(removeClaim(previous));
         }
         QIOResourceClaim next = createClaim(claimId, ownerNamespace, ownerId, priority,
-              enqueueSequence, previous, amounts);
+                enqueueSequence, previous, amounts);
         if (next != null) {
             claims.put(claimId, next);
             addTotals(amounts);
@@ -443,14 +436,14 @@ final class QIOClaimLedger {
 
     @Nullable
     private QIOResourceClaim createClaim(UUID claimId, String ownerNamespace, String ownerId,
-          long priority, long enqueueSequence, @Nullable QIOResourceClaim previous,
-          Map<UUID, Long> amounts) {
+                                         long priority, long enqueueSequence, @Nullable QIOResourceClaim previous,
+                                         Map<UUID, Long> amounts) {
         if (amounts.isEmpty()) {
             return null;
         }
         long claimRevision = previous == null ? 1 : nextRevision(previous.getRevision());
         return new QIOResourceClaim(claimId, ownerNamespace, ownerId, priority, enqueueSequence,
-              claimRevision, QIOResourceClaim.State.ACTIVE, amounts);
+                claimRevision, QIOResourceClaim.State.ACTIVE, amounts);
     }
 
     private Set<UUID> removeClaim(QIOResourceClaim claim) {
@@ -462,7 +455,7 @@ final class QIOClaimLedger {
     private void addTotals(Map<UUID, Long> amounts) {
         for (Map.Entry<UUID, Long> entry : amounts.entrySet()) {
             committedByResource.put(entry.getKey(),
-                  committedByResource.getOrDefault(entry.getKey(), QIOAmount.ZERO).add(entry.getValue()));
+                    committedByResource.getOrDefault(entry.getKey(), QIOAmount.ZERO).add(entry.getValue()));
         }
     }
 
@@ -484,7 +477,7 @@ final class QIOClaimLedger {
 
     private static boolean ownerMatches(QIOResourceClaim claim, QIOClaimRequest request) {
         return claim.getOwnerNamespace().equals(request.getOwnerNamespace()) &&
-              claim.getOwnerId().equals(request.getOwnerId());
+                claim.getOwnerId().equals(request.getOwnerId());
     }
 
     private static boolean allClaimable(Map<UUID, Long> amounts, Storage storage) {
@@ -497,7 +490,7 @@ final class QIOClaimLedger {
     }
 
     private Submission record(QIOClaimRequest request, String digest, QIOClaimResult result,
-          Set<UUID> changedResources) {
+                              Set<UUID> changedResources) {
         putReceipt(request.getRequestId(), new RequestReceipt(digest, result));
         return new Submission(result, immutableSet(changedResources));
     }
@@ -511,10 +504,10 @@ final class QIOClaimLedger {
     }
 
     private QIOClaimResult result(QIOClaimRequest request, QIOClaimResult.Status status,
-          @Nullable QIOResourceClaim claim, Map<UUID, Long> committed, Map<UUID, Long> unavailable,
-          Map<UUID, Long> consumed) {
+                                  @Nullable QIOResourceClaim claim, Map<UUID, Long> committed, Map<UUID, Long> unavailable,
+                                  Map<UUID, Long> consumed) {
         return new QIOClaimResult(request.getRequestId(), status, revision, claim, committed,
-              unavailable, consumed);
+                unavailable, consumed);
     }
 
     void write(NBTTagCompound data) {
@@ -568,7 +561,7 @@ final class QIOClaimLedger {
         }
         if (firstReceipt > 0) {
             QIOLog.LOGGER.warn("Discarded {} oldest QIO claim receipts above the supported limit {}",
-                  firstReceipt, MAX_RECEIPTS);
+                    firstReceipt, MAX_RECEIPTS);
         }
     }
 
@@ -587,10 +580,10 @@ final class QIOClaimLedger {
 
     private static QIOResourceClaim readClaim(NBTTagCompound data) {
         return new QIOResourceClaim(UUID.fromString(data.getString("claimId")),
-              data.getString("ownerNamespace"), data.getString("ownerId"), data.getLong("priority"),
-              data.getLong("enqueueSequence"), data.getLong("revision"),
-              QIOResourceClaim.State.valueOf(data.getString("state")), readAmounts(data.getTagList("resources",
-              Constants.NBT.TAG_COMPOUND)));
+                data.getString("ownerNamespace"), data.getString("ownerId"), data.getLong("priority"),
+                data.getLong("enqueueSequence"), data.getLong("revision"),
+                QIOResourceClaim.State.valueOf(data.getString("state")), readAmounts(data.getTagList("resources",
+                Constants.NBT.TAG_COMPOUND)));
     }
 
     private static NBTTagCompound writeResult(QIOClaimResult result) {
@@ -609,12 +602,12 @@ final class QIOClaimLedger {
 
     private static QIOClaimResult readResult(NBTTagCompound data) {
         QIOResourceClaim claim = data.hasKey("claim", Constants.NBT.TAG_COMPOUND) ?
-              readClaim(data.getCompoundTag("claim")) : null;
+                readClaim(data.getCompoundTag("claim")) : null;
         return new QIOClaimResult(UUID.fromString(data.getString("requestId")),
-              QIOClaimResult.Status.valueOf(data.getString("status")), data.getLong("claimRevision"), claim,
-              readAmounts(data.getTagList("committed", Constants.NBT.TAG_COMPOUND)),
-              readAmounts(data.getTagList("unavailable", Constants.NBT.TAG_COMPOUND)),
-              readAmounts(data.getTagList("consumed", Constants.NBT.TAG_COMPOUND)));
+                QIOClaimResult.Status.valueOf(data.getString("status")), data.getLong("claimRevision"), claim,
+                readAmounts(data.getTagList("committed", Constants.NBT.TAG_COMPOUND)),
+                readAmounts(data.getTagList("unavailable", Constants.NBT.TAG_COMPOUND)),
+                readAmounts(data.getTagList("consumed", Constants.NBT.TAG_COMPOUND)));
     }
 
     private static NBTTagList writeAmounts(Map<UUID, Long> amounts) {
@@ -644,10 +637,10 @@ final class QIOClaimLedger {
     private static String digest(QIOClaimRequest request) {
         StringBuilder value = new StringBuilder();
         value.append(request.getMode()).append('|').append(request.getClaimId()).append('|')
-              .append(request.getSourceClaimId()).append('|').append(request.getTransferId()).append('|')
-              .append(request.getOwnerNamespace()).append('|').append(request.getOwnerId()).append('|')
-              .append(request.getPriority()).append('|').append(request.getEnqueueSequence()).append('|')
-              .append(request.getExpectedContentsRevision()).append('|').append(request.getExpectedClaimRevision());
+                .append(request.getSourceClaimId()).append('|').append(request.getTransferId()).append('|')
+                .append(request.getOwnerNamespace()).append('|').append(request.getOwnerId()).append('|')
+                .append(request.getPriority()).append('|').append(request.getEnqueueSequence()).append('|')
+                .append(request.getExpectedContentsRevision()).append('|').append(request.getExpectedClaimRevision());
         for (Map.Entry<UUID, Long> entry : request.getResourceAmounts().entrySet()) {
             value.append('|').append(entry.getKey()).append('=').append(entry.getValue());
             if (!request.getExpectedStoredAmounts().isEmpty()) {

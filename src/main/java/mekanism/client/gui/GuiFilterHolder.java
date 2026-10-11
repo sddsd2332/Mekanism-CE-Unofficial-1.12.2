@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.function.IntConsumer;
 
 public abstract class GuiFilterHolder<FILTER extends IFilter, TILE extends TileEntityContainerBlock & ITileFilterHolder<FILTER>, CONTAINER extends Container>
-      extends GuiMekanismTile<TILE, CONTAINER> {
+        extends GuiMekanismTile<TILE, CONTAINER> {
 
     protected static final int FILTER_COUNT = 4;
 
@@ -45,7 +45,7 @@ public abstract class GuiFilterHolder<FILTER extends IFilter, TILE extends TileE
         scrollBar = addButton(new GuiScrollBar(this, 253, 17, 140, filterManager::count, () -> FILTER_COUNT));
         for (int i = 0; i < FILTER_COUNT; i++) {
             addFilterButton(new MovableFilterButton(this, 96, 18 + i * 29, i, () -> scrollBar.getCurrentSelection(), filterManager,
-                  getMoveUpSender(), getMoveDownSender(), this::onClick, getToggleSender(), this::getRenderStacks));
+                    getMoveUpSender(), getMoveDownSender(), this::onClick, getToggleSender(), this::getRenderStacks));
         }
     }
 

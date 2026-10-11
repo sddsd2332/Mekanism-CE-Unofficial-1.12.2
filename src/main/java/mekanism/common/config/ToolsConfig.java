@@ -21,18 +21,18 @@ public class ToolsConfig extends BaseConfig {
     public final ArmorBalance armorGLOWSTONE = new ArmorBalance(this, "glowstone", 18, 3, 6, 7, 3, 18, 0);
     public final ArmorBalance armorSTEEL = new ArmorBalance(this, "steel", 40, 3, 6, 7, 3, 10, 1);
 
-    public final ToolBalance toolOBSIDIAN = new ToolBalance(this, "obsidian", "regular", 3, 2500,2240 ,20, 10, 40, 12, -2);
-    public final ToolBalance toolOBSIDIAN2 = new ToolBalance(this, "obsidian", "paxel", 3, 3000, 2740,25, 10, 50);
-    public final ToolBalance toolLAZULI = new ToolBalance(this, "lapis", "regular", 2, 200,582 ,5, 2, 8, 8, -3.1F);
-    public final ToolBalance toolLAZULI2 = new ToolBalance(this, "lapis", "paxel", 2, 250,632 ,6, 4, 10);
-    public final ToolBalance toolOSMIUM = new ToolBalance(this, "osmium", "regular", 2, 500, 1344,10, 4, 12, 8, -3);
-    public final ToolBalance toolOSMIUM2 = new ToolBalance(this, "osmium", "paxel", 3, 700, 1544,12, 5, 16);
-    public final ToolBalance toolBRONZE = new ToolBalance(this, "bronze", "regular", 2, 800,1568 ,14, 6, 10, 8, -3.1F);
-    public final ToolBalance toolBRONZE2 = new ToolBalance(this, "bronze", "paxel", 3, 1100, 1868,16, 10, 14);
-    public final ToolBalance toolGLOWSTONE = new ToolBalance(this, "glowstone", "regular", 2, 300,806 ,14, 5, 18, 8, -3.1F);
-    public final ToolBalance toolGLOWSTONE2 = new ToolBalance(this, "glowstone", "paxel", 2, 450, 956,18, 5, 22);
-    public final ToolBalance toolSTEEL = new ToolBalance(this, "steel", "regular", 3, 850, 1792,14, 4, 10, 8, -3);
-    public final ToolBalance toolSTEEL2 = new ToolBalance(this, "steel", "paxel", 3, 1250, 2192,18, 8, 14);
+    public final ToolBalance toolOBSIDIAN = new ToolBalance(this, "obsidian", "regular", 3, 2500, 2240, 20, 10, 40, 12, -2);
+    public final ToolBalance toolOBSIDIAN2 = new ToolBalance(this, "obsidian", "paxel", 3, 3000, 2740, 25, 10, 50);
+    public final ToolBalance toolLAZULI = new ToolBalance(this, "lapis", "regular", 2, 200, 582, 5, 2, 8, 8, -3.1F);
+    public final ToolBalance toolLAZULI2 = new ToolBalance(this, "lapis", "paxel", 2, 250, 632, 6, 4, 10);
+    public final ToolBalance toolOSMIUM = new ToolBalance(this, "osmium", "regular", 2, 500, 1344, 10, 4, 12, 8, -3);
+    public final ToolBalance toolOSMIUM2 = new ToolBalance(this, "osmium", "paxel", 3, 700, 1544, 12, 5, 16);
+    public final ToolBalance toolBRONZE = new ToolBalance(this, "bronze", "regular", 2, 800, 1568, 14, 6, 10, 8, -3.1F);
+    public final ToolBalance toolBRONZE2 = new ToolBalance(this, "bronze", "paxel", 3, 1100, 1868, 16, 10, 14);
+    public final ToolBalance toolGLOWSTONE = new ToolBalance(this, "glowstone", "regular", 2, 300, 806, 14, 5, 18, 8, -3.1F);
+    public final ToolBalance toolGLOWSTONE2 = new ToolBalance(this, "glowstone", "paxel", 2, 450, 956, 18, 5, 22);
+    public final ToolBalance toolSTEEL = new ToolBalance(this, "steel", "regular", 3, 850, 1792, 14, 4, 10, 8, -3);
+    public final ToolBalance toolSTEEL2 = new ToolBalance(this, "steel", "paxel", 3, 1250, 2192, 18, 8, 14);
 
     @FieldsAreNonnullByDefault
     public static class ArmorBalance {
@@ -79,19 +79,19 @@ public class ToolsConfig extends BaseConfig {
         public final FloatOption axeAttackDamage;
         public final FloatOption axeAttackSpeed;
 
-        private ToolBalance(BaseConfig owner, String toolKey, String variant, int harvestLevelDefault, int maxUsesDefault, int maxShieldUsesDefault,float efficiencyDefault, int damageDefault,
+        private ToolBalance(BaseConfig owner, String toolKey, String variant, int harvestLevelDefault, int maxUsesDefault, int maxShieldUsesDefault, float efficiencyDefault, int damageDefault,
                             int enchantabilityDefault, float axeAttackDamageDefault, float axeAttackSpeedDefault) {
             owner.setCategory("tools.tool-balance." + toolKey + "." + variant);
             this.harvestLevel = new IntOption(owner, "harvestLevel", harvestLevelDefault, "Harvest level of " + toolKey + " tools.");
-            this.maxUses = new IntOption(owner,  "maxUses", maxUsesDefault, "Maximum durability of " + toolKey + " tools.");
-            this.maxShieldUses = new IntOption(owner,"maxShieldUses",maxShieldUsesDefault,"Maximum durability of " + toolKey + " tools.");
-            this.efficiency = new FloatOption(owner,  "efficiency", efficiencyDefault, "Base speed of " + toolKey + ".");
-            this.damage = new IntOption(owner,  "damage", damageDefault, "Base attack damage of " + toolKey + ".");
-            this.enchantability = new IntOption(owner,  "enchantability", enchantabilityDefault, "Natural enchantability factor of " + toolKey + ".");
+            this.maxUses = new IntOption(owner, "maxUses", maxUsesDefault, "Maximum durability of " + toolKey + " tools.");
+            this.maxShieldUses = new IntOption(owner, "maxShieldUses", maxShieldUsesDefault, "Maximum durability of " + toolKey + " tools.");
+            this.efficiency = new FloatOption(owner, "efficiency", efficiencyDefault, "Base speed of " + toolKey + ".");
+            this.damage = new IntOption(owner, "damage", damageDefault, "Base attack damage of " + toolKey + ".");
+            this.enchantability = new IntOption(owner, "enchantability", enchantabilityDefault, "Natural enchantability factor of " + toolKey + ".");
 
             if (variant.equals("regular")) {
-                this.axeAttackDamage = new FloatOption(owner,  "axeAttackDamage", axeAttackDamageDefault, "Base attack damage of a " + toolKey + " axe.");
-                this.axeAttackSpeed = new FloatOption(owner,  "axeAttackSpeed", axeAttackSpeedDefault, "Base attack speed of a " + toolKey + " axe.");
+                this.axeAttackDamage = new FloatOption(owner, "axeAttackDamage", axeAttackDamageDefault, "Base attack damage of a " + toolKey + " axe.");
+                this.axeAttackSpeed = new FloatOption(owner, "axeAttackSpeed", axeAttackSpeedDefault, "Base attack speed of a " + toolKey + " axe.");
             } else {
                 this.axeAttackDamage = new FloatOption(NULL_OWNER, "");
                 this.axeAttackSpeed = new FloatOption(NULL_OWNER, "");
@@ -107,9 +107,9 @@ public class ToolsConfig extends BaseConfig {
             this.axeAttackSpeed.setRequiresGameRestart();
         }
 
-        public ToolBalance(BaseConfig owner, String toolKey, String variant, int harvestLevelDefault, int maxUsesDefault,int maxShieldUsesDefault, float efficiencyDefault, int damageDefault,
+        public ToolBalance(BaseConfig owner, String toolKey, String variant, int harvestLevelDefault, int maxUsesDefault, int maxShieldUsesDefault, float efficiencyDefault, int damageDefault,
                            int enchantabilityDefault) {
-            this(owner, toolKey, variant, harvestLevelDefault, maxUsesDefault, maxShieldUsesDefault,efficiencyDefault, damageDefault, enchantabilityDefault, 0, 0);
+            this(owner, toolKey, variant, harvestLevelDefault, maxUsesDefault, maxShieldUsesDefault, efficiencyDefault, damageDefault, enchantabilityDefault, 0, 0);
             if (!variant.equals("paxel")) {
                 throw new IllegalStateException("Wrong constructor, only paxel can use this");
             }

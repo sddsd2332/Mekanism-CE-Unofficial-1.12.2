@@ -16,15 +16,11 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.util.text.TextComponentString;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 public class GuiSupportedUpgrades extends GuiElement {
 
-    private static  TextComponentString SUPPORTED = new TextComponentString(LangUtils.localize("gui.upgrades.supported"));
+    private static TextComponentString SUPPORTED = new TextComponentString(LangUtils.localize("gui.upgrades.supported"));
     private static final int ELEMENT_WIDTH = 167;
     private static final int PADDED_ELEMENT_WIDTH = ELEMENT_WIDTH - 2;
     private static final int ELEMENT_SIZE = 12;
@@ -120,7 +116,7 @@ public class GuiSupportedUpgrades extends GuiElement {
             int xPos = x + 1 + pos.x;
             int yPos = y + 1 + pos.y;
             if (mouseX >= xPos && mouseX < xPos + ELEMENT_SIZE &&
-                mouseY >= yPos && mouseY < yPos + ELEMENT_SIZE) {
+                    mouseY >= yPos && mouseY < yPos + ELEMENT_SIZE) {
                 Upgrade upgrade = upgrades.get(i);
                 displayTooltips(getUpgradeTooltip(upgrade), mouseX, mouseY);
                 return;

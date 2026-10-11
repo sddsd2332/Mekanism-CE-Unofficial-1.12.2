@@ -27,11 +27,11 @@ public class TileEntityReactorLogicAdapter extends TileEntityReactorBlock implem
     @Override
     public void onUpdateServer() {
         super.onUpdateServer();
-            boolean outputting = checkMode();
-            if (outputting != prevOutputting) {
-                world.notifyNeighborsOfStateChange(getPos(), getBlockType(), true);
-            }
-            prevOutputting = outputting;
+        boolean outputting = checkMode();
+        if (outputting != prevOutputting) {
+            world.notifyNeighborsOfStateChange(getPos(), getBlockType(), true);
+        }
+        prevOutputting = outputting;
     }
 
 

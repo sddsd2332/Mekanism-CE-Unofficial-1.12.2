@@ -1,41 +1,39 @@
 package mekanism.common.tile.qio;
 
-import mekanism.api.AutomationType;
 import mekanism.api.IContentsListener;
-import mekanism.api.TileNetworkList;
+import mekanism.api.gas.GasStack;
+import mekanism.api.qio.resource.QIOResourceDescriptor;
 import mekanism.common.HashList;
+import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
+import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
 import mekanism.common.content.qio.QIOFrequency;
 import mekanism.common.content.qio.QIOResourceEntry;
-import mekanism.api.qio.resource.QIOResourceDescriptor;
 import mekanism.common.content.qio.filter.QIOFilter;
 import mekanism.common.inventory.container.MekanismContainer;
 import mekanism.common.inventory.container.slot.ContainerSlotType;
 import mekanism.common.inventory.container.sync.SyncableBoolean;
 import mekanism.common.inventory.container.sync.SyncableFilterList;
-import mekanism.common.network.to_client.container.property.FilterListPropertyData.FilterListType;
 import mekanism.common.inventory.slot.BasicInventorySlot;
-import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
-import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
+import mekanism.common.network.to_client.container.property.FilterListPropertyData.FilterListType;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
-import net.minecraft.util.math.BlockPos;
 import net.minecraftforge.common.util.Constants.NBT;
 import net.minecraftforge.fluids.FluidStack;
-import mekanism.api.gas.GasStack;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 
-/** Shared direction, filter and inventory behavior for QIO automation blocks. */
+/**
+ * Shared direction, filter and inventory behavior for QIO automation blocks.
+ */
 public abstract class TileEntityQIOFilterHandler extends TileEntityQIOComponent {
 
     protected BasicInventorySlot filterSlot;
@@ -61,7 +59,7 @@ public abstract class TileEntityQIOFilterHandler extends TileEntityQIOComponent 
         // Kept only so worlds written by the early port can migrate their
         // single physical filter slot into the authoritative filter list.
         filterSlot = builder.addSlot(BasicInventorySlot.at(BasicInventorySlot.internalOnly,
-              BasicInventorySlot.internalOnly, listener, 8, 30));
+                BasicInventorySlot.internalOnly, listener, 8, 30));
         filterSlot.setSlotType(ContainerSlotType.IGNORED);
         filterSlot.setEnabledSupplier(() -> false);
         return builder.build();
@@ -225,7 +223,9 @@ public abstract class TileEntityQIOFilterHandler extends TileEntityQIOComponent 
         }
     }
 
-    /** Replaces the filter set with one selected filter, preserving slot UI compatibility. */
+    /**
+     * Replaces the filter set with one selected filter, preserving slot UI compatibility.
+     */
     public void setFilter(@Nullable QIOFilter filter) {
         filters.clear();
         QIOFilter copy = copyFilter(filter);
@@ -446,6 +446,6 @@ public abstract class TileEntityQIOFilterHandler extends TileEntityQIOComponent 
         super.addContainerTrackers(container);
         container.track(SyncableBoolean.create(this::isFilterless, this::setFilterless));
         container.track(SyncableFilterList.create(this::getFiltersForSync, this::setFiltersFromSync,
-              FilterListType.QIO, QIOFilter::writeToPacket));
+                FilterListType.QIO, QIOFilter::writeToPacket));
     }
 }

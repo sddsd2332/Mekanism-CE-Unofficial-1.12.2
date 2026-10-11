@@ -19,8 +19,15 @@ public class EnergyAcceptorTarget extends Target<EnergyAcceptorTarget.SideHandle
     }
 
     @Override
+    public Double sendToSingle(Double amount, Double resource) {
+        SideHandler target = handlers.iterator().next();
+        return amount > 0 ? target.handler.acceptEnergy(target.side, amount, false) : 0D;
+    }
+
+    @Override
     protected void acceptAmount(SideHandler handler, SplitInfo<Double> splitInfo, Double amount) {
-        splitInfo.send(handler.handler.acceptEnergy(handler.side, amount, false));
+        // Full acceptors participate in the split without a zero-sized external transfer.
+        splitInfo.send(amount > 0 ? handler.handler.acceptEnergy(handler.side, amount, false) : 0D);
     }
 
     @Override

@@ -7,11 +7,11 @@ import mekanism.common.block.states.BlockStateFacing;
 import mekanism.common.block.states.BlockStateQIOComponent;
 import mekanism.common.item.ItemBlockQIOComponent;
 import mekanism.common.security.ISecurityTile;
-import mekanism.common.tile.qio.TileEntityQIODashboard;
-import mekanism.common.tile.qio.TileEntityQIOComponent;
 import mekanism.common.tile.prefab.TileEntityBasicBlock;
-import mekanism.common.util.MekanismUtils;
+import mekanism.common.tile.qio.TileEntityQIOComponent;
+import mekanism.common.tile.qio.TileEntityQIODashboard;
 import mekanism.common.util.MekanismPlacementData;
+import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.SecurityUtils;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.BlockFaceShape;
@@ -36,7 +36,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.List;
 
-/** Wall-mounted-capable QIO network dashboard. */
+/**
+ * Wall-mounted-capable QIO network dashboard.
+ */
 public class BlockQIODashboard extends BlockMekanismContainer {
 
     public BlockQIODashboard() {
@@ -72,13 +74,13 @@ public class BlockQIODashboard extends BlockMekanismContainer {
             state = state.withProperty(BlockStateFacing.facingProperty, ((TileEntityBasicBlock) tile).facing);
         }
         return tile instanceof TileEntityQIOComponent
-              ? state.withProperty(BlockStateQIOComponent.activeProperty, ((TileEntityQIOComponent) tile).isActive()) : state;
+                ? state.withProperty(BlockStateQIOComponent.activeProperty, ((TileEntityQIOComponent) tile).isActive()) : state;
     }
 
     @Nonnull
     @Override
     public IBlockState getStateForPlacement(World world, BlockPos pos, EnumFacing facing, float hitX, float hitY, float hitZ,
-          int meta, EntityLivingBase placer, EnumHand hand) {
+                                            int meta, EntityLivingBase placer, EnumHand hand) {
         return QIOBlockShapes.getStateForPlacement(getDefaultState(), facing);
     }
 
@@ -105,7 +107,7 @@ public class BlockQIODashboard extends BlockMekanismContainer {
 
     @Override
     public boolean onBlockActivated(World world, BlockPos pos, IBlockState state, EntityPlayer player, EnumHand hand,
-          EnumFacing side, float hitX, float hitY, float hitZ) {
+                                    EnumFacing side, float hitX, float hitY, float hitZ) {
         if (world.isRemote) {
             return true;
         }
@@ -184,7 +186,7 @@ public class BlockQIODashboard extends BlockMekanismContainer {
     @Override
     @Deprecated
     public void addCollisionBoxToList(IBlockState state, @Nonnull World world, @Nonnull BlockPos pos,
-          @Nonnull AxisAlignedBB entityBox, @Nonnull List<AxisAlignedBB> collidingBoxes, @Nullable Entity entity, boolean actualState) {
+                                      @Nonnull AxisAlignedBB entityBox, @Nonnull List<AxisAlignedBB> collidingBoxes, @Nullable Entity entity, boolean actualState) {
         QIOBlockShapes.addCollisionBoxes(QIOBlockShapes.DASHBOARD, state, world, pos, entityBox, collidingBoxes);
     }
 
@@ -192,7 +194,7 @@ public class BlockQIODashboard extends BlockMekanismContainer {
     @Override
     @Deprecated
     public RayTraceResult collisionRayTrace(IBlockState state, @Nonnull World world, @Nonnull BlockPos pos,
-          @Nonnull Vec3d start, @Nonnull Vec3d end) {
+                                            @Nonnull Vec3d start, @Nonnull Vec3d end) {
         return QIOBlockShapes.collisionRayTrace(QIOBlockShapes.DASHBOARD, state, world, pos, start, end);
     }
 

@@ -27,8 +27,8 @@ final class MinerBlacklistHelper {
     static boolean hasBlacklistedMaterial(Material material) {
         for (BlockInfo info : MekanismAPI.getBoxIgnore()) {
             if (info.block != null && (info.meta == OreDictionary.WILDCARD_VALUE ?
-                  info.block.getBlockState().getValidStates().stream().anyMatch(state -> state.getMaterial() == material) :
-                  info.block.getStateFromMeta(info.meta).getMaterial() == material)) {
+                    info.block.getBlockState().getValidStates().stream().anyMatch(state -> state.getMaterial() == material) :
+                    info.block.getStateFromMeta(info.meta).getMaterial() == material)) {
                 return true;
             }
         }

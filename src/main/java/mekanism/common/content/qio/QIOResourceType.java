@@ -16,7 +16,9 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.UUID;
 
-/** An immutable, amount-independent QIO resource template. */
+/**
+ * An immutable, amount-independent QIO resource template.
+ */
 public final class QIOResourceType {
 
     static final int DATA_VERSION = 3;
@@ -87,12 +89,12 @@ public final class QIOResourceType {
                 throw new IllegalArgumentException("Unknown legacy QIO resource kind: " + data.getString("kind"));
             }
             descriptor = QIOResourceDescriptor.persisted(kind.getCodecId(), kind.getFamily(), 1,
-                  QIOStorageUnits.getUnitsPerResource(kind), payload);
+                    QIOStorageUnits.getUnitsPerResource(kind), payload);
         } else {
             if (!data.hasKey("codec", NBT.TAG_STRING) || !data.hasKey("family", NBT.TAG_STRING) ||
-                  !data.hasKey("codecVersion", NBT.TAG_INT) ||
-                  !data.hasKey("storageUnitsPerUnit", NBT.TAG_LONG) ||
-                  !data.hasKey("payload", NBT.TAG_COMPOUND)) {
+                    !data.hasKey("codecVersion", NBT.TAG_INT) ||
+                    !data.hasKey("storageUnitsPerUnit", NBT.TAG_LONG) ||
+                    !data.hasKey("payload", NBT.TAG_COMPOUND)) {
                 throw new IllegalArgumentException("Incomplete QIO resource type metadata");
             }
             ResourceLocation codecId;
@@ -102,7 +104,7 @@ public final class QIOResourceType {
                 throw new IllegalArgumentException("Invalid QIO resource codec id: " + data.getString("codec"), e);
             }
             descriptor = QIOResourceDescriptor.persisted(codecId, data.getString("family"),
-                  data.getInteger("codecVersion"), data.getLong("storageUnitsPerUnit"), payload);
+                    data.getInteger("codecVersion"), data.getLong("storageUnitsPerUnit"), payload);
         }
         return forDescriptor(fileUUID, descriptor);
     }
@@ -150,7 +152,9 @@ public final class QIOResourceType {
         return descriptor.isResolved();
     }
 
-    /** @deprecated Use {@link #getDescriptor()} or {@link #getCodecId()}. */
+    /**
+     * @deprecated Use {@link #getDescriptor()} or {@link #getCodecId()}.
+     */
     @Deprecated
     @Nullable
     public QIOResourceKind getKind() {

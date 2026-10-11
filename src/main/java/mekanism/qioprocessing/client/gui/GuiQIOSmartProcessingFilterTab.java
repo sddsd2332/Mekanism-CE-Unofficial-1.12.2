@@ -12,7 +12,10 @@ import net.minecraft.util.text.TextComponentTranslation;
 import javax.annotation.Nonnull;
 import java.util.Locale;
 
-/** Fixed-position resource filter tab for the smart-processing order window. */
+/**
+ * Fixed-position resource filter tab for the smart-processing order window.
+ */
+
 /**
  * QIO 处理模块中的 GuiQIOSmartProcessingFilterTab 类型。
  *
@@ -20,13 +23,13 @@ import java.util.Locale;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 final class GuiQIOSmartProcessingFilterTab extends
-      GuiInsetElement<QIOSmartProcessingResourceFilter> {
+        GuiInsetElement<QIOSmartProcessingResourceFilter> {
 
     private final Runnable onSelect;
 
     GuiQIOSmartProcessingFilterTab(@Nonnull IGuiWrapper gui,
-          @Nonnull QIOSmartProcessingResourceFilter filter, int x, int y,
-          @Nonnull Runnable onSelect) {
+                                   @Nonnull QIOSmartProcessingResourceFilter filter, int x, int y,
+                                   @Nonnull Runnable onSelect) {
         super(icon(filter), gui, filter, x, y, 26, 18, true);
         this.onSelect = onSelect;
     }
@@ -54,8 +57,8 @@ final class GuiQIOSmartProcessingFilterTab extends
     public void renderToolTip(int mouseX, int mouseY) {
         super.renderToolTip(mouseX, mouseY);
         displayTooltip(new TextComponentTranslation(
-              "gui.mekanismqioprocessing.order_filter_" +
-                    dataSource.name().toLowerCase(Locale.ROOT)), mouseX, mouseY);
+                "gui.mekanismqioprocessing.order_filter_" +
+                        dataSource.name().toLowerCase(Locale.ROOT)), mouseX, mouseY);
     }
 
     private static ResourceLocation icon(QIOSmartProcessingResourceFilter filter) {
@@ -64,7 +67,7 @@ final class GuiQIOSmartProcessingFilterTab extends
             case FLUID -> MekanismUtils.getResource(MekanismUtils.ResourceType.GUI, "fluids.png");
             case GAS -> MekanismUtils.getResource(MekanismUtils.ResourceType.GUI, "gases.png");
             case ALL -> MekanismUtils.getResource(MekanismUtils.ResourceType.GUI_BUTTON,
-                  "crafting.png");
+                    "crafting.png");
         };
     }
 }

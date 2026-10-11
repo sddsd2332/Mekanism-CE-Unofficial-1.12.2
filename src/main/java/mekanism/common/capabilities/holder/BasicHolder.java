@@ -11,7 +11,7 @@ import java.util.function.Supplier;
 public class BasicHolder<TYPE> implements IHolder {
 
     private final Map<RelativeSide, List<TYPE>> directionalSlots = new EnumMap<>(RelativeSide.class);
-    private final List<TYPE> inventorySlots = new ArrayList<>();
+    private final List<TYPE> inventorySlots = new mekanism.common.util.RevisionedList<>();
     protected final Supplier<EnumFacing> facingSupplier;
 
     protected BasicHolder(Supplier<EnumFacing> facingSupplier) {

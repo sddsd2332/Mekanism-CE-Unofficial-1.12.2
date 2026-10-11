@@ -61,15 +61,15 @@ public class GuiSideConfiguration<TILE extends TileEntityContainerBlock & ISideC
         slotPosMap.put(4, new GuiPos(44, 69));
         slotPosMap.put(5, new GuiPos(90, 69));
         addChild(new GuiInnerScreen(gui, relativeX + 38, relativeY + 25, 80, 12, () -> Collections.singletonList(new TextComponentString(getEjectText())))
-              .tooltip(() -> tile.getConfig().canEject(currentType) ? Collections.emptyList() :
-                    Collections.singletonList(new TextComponentString(LangUtils.localize("gui.noEject")))));
+                .tooltip(() -> tile.getConfig().canEject(currentType) ? Collections.emptyList() :
+                        Collections.singletonList(new TextComponentString(LangUtils.localize("gui.noEject")))));
         autoEjectButton = addChild(new MekanismImageButton(gui, relativeX + 136, relativeY + 6, 14, getButtonLocation("auto_eject"),
-              () -> Mekanism.packetHandler.sendToServer(new ConfigurationUpdateMessage(ConfigurationPacket.EJECT, Coord4D.get(tile), 0, 0, currentType)),
-              getOnHover(() -> new TextComponentString(LangUtils.localize("gui.autoEject")))));
+                () -> Mekanism.packetHandler.sendToServer(new ConfigurationUpdateMessage(ConfigurationPacket.EJECT, Coord4D.get(tile), 0, 0, currentType)),
+                getOnHover(() -> new TextComponentString(LangUtils.localize("gui.autoEject")))));
         addChild(new TooltipToggleButton(gui, relativeX + 136, relativeY + 95, 14, getButtonLocation("clear_sides"),
-              () -> getTargetType(DataType::getNext) == DataType.NONE, this::clearSides, this::decrementSides,
-              new TextComponentString(LangUtils.localize("configuration.mekanism.side.clear") + "\n" + LangUtils.localize("configuration.mekanism.side.clear.all")),
-              new TextComponentString(LangUtils.localize("configuration.mekanism.side.increment"))));
+                () -> getTargetType(DataType::getNext) == DataType.NONE, this::clearSides, this::decrementSides,
+                new TextComponentString(LangUtils.localize("configuration.mekanism.side.clear") + "\n" + LangUtils.localize("configuration.mekanism.side.clear.all")),
+                new TextComponentString(LangUtils.localize("configuration.mekanism.side.increment"))));
         List<TransmissionType> transmissions = tile.getConfig().getTransmissions();
         for (int i = 0; i < transmissions.size(); i++) {
             TransmissionType type = transmissions.get(i);
@@ -81,10 +81,10 @@ public class GuiSideConfiguration<TILE extends TileEntityContainerBlock & ISideC
             EnumFacing facing = EnumFacing.byIndex(i);
             RelativeSide side = RelativeSide.bydex(i);
             SideDataButton button = addChild(new SideDataButton(gui, relativeX + guiPos.xPos, relativeY + guiPos.yPos, i, side,
-                  () -> tile.getConfig().getDataType(currentType, facing),
-                  () -> tile.getConfig().getDataType(currentType, facing).getColor(), tile,
-                  () -> sendSideData(Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) ? 2 : 0, facing),
-                  () -> sendSideData(1, facing), true));
+                    () -> tile.getConfig().getDataType(currentType, facing),
+                    () -> tile.getConfig().getDataType(currentType, facing).getColor(), tile,
+                    () -> sendSideData(Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) ? 2 : 0, facing),
+                    () -> sendSideData(1, facing), true));
             sideDataButtons.add(button);
         }
         updateTabs();
@@ -257,6 +257,7 @@ public class GuiSideConfiguration<TILE extends TileEntityContainerBlock & ISideC
 
         private final int xPos;
         private final int yPos;
+
         private GuiPos(int xPos, int yPos) {
             this.xPos = xPos;
             this.yPos = yPos;

@@ -48,13 +48,13 @@ public final class MachineResourceStack {
 
     @Nonnull
     public static MachineResourceStack resource(String portId, @Nonnull QIOResourceDescriptor descriptor,
-          long amount) {
+                                                long amount) {
         return new MachineResourceStack(descriptor, portId, 0, amount);
     }
 
     @Nonnull
     public static <T> MachineResourceStack resource(String portId, @Nonnull QIOResourceCodec<T> codec,
-          @Nonnull T value, long amount) {
+                                                    @Nonnull T value, long amount) {
         return resource(portId, QIOResourceDescriptor.of(codec, value), amount);
     }
 
@@ -107,7 +107,9 @@ public final class MachineResourceStack {
         return withAmount(amount * multiplier);
     }
 
-    /** @deprecated Use {@link #descriptor()} or {@link #codecId()} for compatibility decisions. */
+    /**
+     * @deprecated Use {@link #descriptor()} or {@link #codecId()} for compatibility decisions.
+     */
     @Deprecated
     public MachineResourceKind kind() {
         return MachineResourceKind.fromDescriptor(descriptor);
@@ -208,7 +210,7 @@ public final class MachineResourceStack {
         try {
             if (nbt.hasKey(DESCRIPTOR, NBT.TAG_COMPOUND)) {
                 return resource(portId, QIOResourceDescriptor.read(nbt.getCompoundTag(DESCRIPTOR)), amount)
-                      .withOrder(order);
+                        .withOrder(order);
             }
             return readLegacy(nbt, portId, order, amount);
         } catch (RuntimeException ignored) {
@@ -239,7 +241,7 @@ public final class MachineResourceStack {
     @Override
     public boolean equals(Object obj) {
         return this == obj || obj instanceof MachineResourceStack other && order == other.order &&
-              amount == other.amount && portId.equals(other.portId) && descriptor.equals(other.descriptor);
+                amount == other.amount && portId.equals(other.portId) && descriptor.equals(other.descriptor);
     }
 
     @Override

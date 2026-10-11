@@ -10,8 +10,8 @@ import mekanism.client.gui.element.slot.GuiSlot;
 import mekanism.client.gui.element.slot.SlotType;
 import mekanism.client.jei.BaseRecipeCategory;
 import mekanism.client.jei.MekanismJEI;
-import mekanism.client.recipe_viewer.type.IRecipeViewerRecipeType;
 import mekanism.client.jei.machine.other.AntiprotonicNucleosynthesizerRecipeWrapper;
+import mekanism.client.recipe_viewer.type.IRecipeViewerRecipeType;
 import mekanism.common.inventory.container.slot.SlotOverlay;
 import mekanism.common.lib.Color;
 import mekanism.common.lib.Color.ColorFunction;
@@ -26,7 +26,7 @@ import mezz.jei.api.ingredients.IIngredients;
 import java.util.Collections;
 
 public class NucleosynthesizingRecipeCategory<WRAPPER extends AntiprotonicNucleosynthesizerRecipeWrapper<NucleosynthesizerRecipe>>
-      extends BaseRecipeCategory<WRAPPER> {
+        extends BaseRecipeCategory<WRAPPER> {
 
     private final GuiSlot input;
     private final GuiSlot extra;
@@ -53,7 +53,7 @@ public class NucleosynthesizingRecipeCategory<WRAPPER extends AntiprotonicNucleo
             }
         }, GaugeType.SMALL_MED.with(DataType.ENERGY), this, 172, 18));
         addElement(new mekanism.client.gui.element.bar.GuiDynamicHorizontalRateBar(this, getBarProgressTimer(), 5, 88, 183,
-              ColorFunction.scale(Color.rgbi(60, 45, 74), Color.rgbi(100, 30, 170))));
+                ColorFunction.scale(Color.rgbi(60, 45, 74), Color.rgbi(100, 30, 170))));
     }
 
     @Override

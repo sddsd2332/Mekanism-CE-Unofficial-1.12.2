@@ -1,9 +1,8 @@
 package mekanism.common.content.qio.filter;
 
-import mekanism.common.content.qio.QIOResourceEntry;
-import mekanism.common.content.qio.QIOResourceKind;
 import mekanism.api.qio.resource.QIOResourceCodecs;
 import mekanism.api.qio.resource.QIOResourceFamilyMatcher;
+import mekanism.common.content.qio.QIOResourceEntry;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.fluids.FluidStack;
 
@@ -31,7 +30,8 @@ public class QIOFluidFilter extends QIOFilter {
         this.fluid = fluid == null ? null : new FluidStack(fluid, 1);
     }
 
-    @Override public QIOResourceFamilyMatcher getMatcher() {
+    @Override
+    public QIOResourceFamilyMatcher getMatcher() {
         return QIOResourceFamilyMatcher.family(QIOResourceCodecs.FLUID_FAMILY);
     }
 
@@ -46,9 +46,15 @@ public class QIOFluidFilter extends QIOFilter {
         return fluid != null && stack != null && fluid.isFluidEqual(stack);
     }
 
-    @Override public String getType() { return TYPE; }
+    @Override
+    public String getType() {
+        return TYPE;
+    }
 
-    @Override public boolean hasFilter() { return fluid != null && fluid.getFluid() != null; }
+    @Override
+    public boolean hasFilter() {
+        return fluid != null && fluid.getFluid() != null;
+    }
 
     @Override
     public void writePayload(NBTTagCompound data) {

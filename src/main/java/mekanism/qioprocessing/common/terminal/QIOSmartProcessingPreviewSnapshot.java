@@ -12,17 +12,12 @@ import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
-/** Bounded, display-oriented projection of one asynchronous order preview. */
+/**
+ * Bounded, display-oriented projection of one asynchronous order preview.
+ */
+
 /**
  * QIO 处理模块中的 QIOSmartProcessingPreviewSnapshot 类型。
  *
@@ -49,6 +44,21 @@ public final class QIOSmartProcessingPreviewSnapshot {
     private final long mainThreadPreparationNanos;
     private final long routePreparationNanos;
     private final long schedulingNanos;
+    private final long workerNanos;
+    private long validationWaitNanos;
+    private mekanism.qioprocessing.common.planning.QIOPlanningMetrics.Snapshot metrics =
+            mekanism.qioprocessing.common.planning.QIOPlanningMetrics.Snapshot.EMPTY;
+
+    public QIOSmartProcessingPreviewSnapshot withMetrics(mekanism.qioprocessing.common.planning.QIOPlanningMetrics.Snapshot metrics) {
+        this.metrics = java.util.Objects.requireNonNull(metrics);
+        return this;
+    }
+
+    public mekanism.qioprocessing.common.planning.QIOPlanningMetrics.Snapshot getMetrics() {
+        return metrics;
+    }
+
+    private final long completionWaitNanos;
     private final long totalNanos;
     private final int planningAttempt;
     private final long plannedOperations;
@@ -65,54 +75,75 @@ public final class QIOSmartProcessingPreviewSnapshot {
     private final UUID jobId;
 
     public QIOSmartProcessingPreviewSnapshot(@Nonnull UUID previewId,
-          @Nonnull QIOOrderPreview.State state, @Nullable QIOPlanningResult.Status planningStatus,
-          @Nullable String diagnostic, @Nullable PortableResourceDescriptor target, long amount,
-          long priority, long expiresAtTick, long planningNanos, long plannedOperations,
-          int planRevision, @Nonnull Map<PortableResourceDescriptor, Long> externalRequirements,
-          @Nonnull List<QIOCraftingMonitorPlanEntry> planEntries, @Nullable UUID jobId) {
+                                             @Nonnull QIOOrderPreview.State state, @Nullable QIOPlanningResult.Status planningStatus,
+                                             @Nullable String diagnostic, @Nullable PortableResourceDescriptor target, long amount,
+                                             long priority, long expiresAtTick, long planningNanos, long plannedOperations,
+                                             int planRevision, @Nonnull Map<PortableResourceDescriptor, Long> externalRequirements,
+                                             @Nonnull List<QIOCraftingMonitorPlanEntry> planEntries, @Nullable UUID jobId) {
         this(previewId, state, planningStatus, diagnostic, target, amount, priority,
-              expiresAtTick, planningNanos, plannedOperations, planRevision,
-              externalRequirements, planEntries, false, false, Collections.emptySet(),
-              Collections.emptySet(), false, false, 0, 0, 0, 0, 1, jobId);
+                expiresAtTick, planningNanos, plannedOperations, planRevision,
+                externalRequirements, planEntries, false, false, Collections.emptySet(),
+                Collections.emptySet(), false, false, 0, 0, 0, 0, 1, jobId);
     }
 
     public QIOSmartProcessingPreviewSnapshot(@Nonnull UUID previewId,
-          @Nonnull QIOOrderPreview.State state, @Nullable QIOPlanningResult.Status planningStatus,
-          @Nullable String diagnostic, @Nullable PortableResourceDescriptor target, long amount,
-          long priority, long expiresAtTick, long planningNanos, long plannedOperations,
-          int planRevision, @Nonnull Map<PortableResourceDescriptor, Long> externalRequirements,
-          @Nonnull List<QIOCraftingMonitorPlanEntry> planEntries,
-          boolean externalRequirementsTruncated, boolean planEntriesTruncated,
-          @Nonnull Set<Long> errorNodeIds,
-          @Nonnull Set<PortableResourceDescriptor> errorResources, boolean rootError,
-          boolean mergeOrder, @Nullable UUID jobId) {
+                                             @Nonnull QIOOrderPreview.State state, @Nullable QIOPlanningResult.Status planningStatus,
+                                             @Nullable String diagnostic, @Nullable PortableResourceDescriptor target, long amount,
+                                             long priority, long expiresAtTick, long planningNanos, long plannedOperations,
+                                             int planRevision, @Nonnull Map<PortableResourceDescriptor, Long> externalRequirements,
+                                             @Nonnull List<QIOCraftingMonitorPlanEntry> planEntries,
+                                             boolean externalRequirementsTruncated, boolean planEntriesTruncated,
+                                             @Nonnull Set<Long> errorNodeIds,
+                                             @Nonnull Set<PortableResourceDescriptor> errorResources, boolean rootError,
+                                             boolean mergeOrder, @Nullable UUID jobId) {
         this(previewId, state, planningStatus, diagnostic, target, amount, priority,
-              expiresAtTick, planningNanos, plannedOperations, planRevision,
-              externalRequirements, planEntries, externalRequirementsTruncated,
-              planEntriesTruncated, errorNodeIds, errorResources, rootError, mergeOrder,
-              0, 0, 0, 0, 1, jobId);
+                expiresAtTick, planningNanos, plannedOperations, planRevision,
+                externalRequirements, planEntries, externalRequirementsTruncated,
+                planEntriesTruncated, errorNodeIds, errorResources, rootError, mergeOrder,
+                0, 0, 0, 0, 1, jobId);
     }
 
     public QIOSmartProcessingPreviewSnapshot(@Nonnull UUID previewId,
-          @Nonnull QIOOrderPreview.State state, @Nullable QIOPlanningResult.Status planningStatus,
-          @Nullable String diagnostic, @Nullable PortableResourceDescriptor target, long amount,
-          long priority, long expiresAtTick, long planningNanos, long plannedOperations,
-          int planRevision, @Nonnull Map<PortableResourceDescriptor, Long> externalRequirements,
-          @Nonnull List<QIOCraftingMonitorPlanEntry> planEntries,
-          boolean externalRequirementsTruncated, boolean planEntriesTruncated,
-          @Nonnull Set<Long> errorNodeIds,
-          @Nonnull Set<PortableResourceDescriptor> errorResources, boolean rootError,
-          boolean mergeOrder, long mainThreadPreparationNanos, long routePreparationNanos,
-          long schedulingNanos, long totalNanos, int planningAttempt, @Nullable UUID jobId) {
+                                             @Nonnull QIOOrderPreview.State state, @Nullable QIOPlanningResult.Status planningStatus,
+                                             @Nullable String diagnostic, @Nullable PortableResourceDescriptor target, long amount,
+                                             long priority, long expiresAtTick, long planningNanos, long plannedOperations,
+                                             int planRevision, @Nonnull Map<PortableResourceDescriptor, Long> externalRequirements,
+                                             @Nonnull List<QIOCraftingMonitorPlanEntry> planEntries,
+                                             boolean externalRequirementsTruncated, boolean planEntriesTruncated,
+                                             @Nonnull Set<Long> errorNodeIds,
+                                             @Nonnull Set<PortableResourceDescriptor> errorResources, boolean rootError,
+                                             boolean mergeOrder, long mainThreadPreparationNanos, long routePreparationNanos,
+                                             long schedulingNanos, long totalNanos, int planningAttempt, @Nullable UUID jobId) {
+        this(previewId, state, planningStatus, diagnostic, target, amount, priority,
+                expiresAtTick, planningNanos, plannedOperations, planRevision,
+                externalRequirements, planEntries, externalRequirementsTruncated,
+                planEntriesTruncated, errorNodeIds, errorResources, rootError, mergeOrder,
+                mainThreadPreparationNanos, routePreparationNanos, schedulingNanos,
+                totalNanos, planningAttempt, 0, 0, jobId);
+    }
+
+    public QIOSmartProcessingPreviewSnapshot(@Nonnull UUID previewId,
+                                             @Nonnull QIOOrderPreview.State state, @Nullable QIOPlanningResult.Status planningStatus,
+                                             @Nullable String diagnostic, @Nullable PortableResourceDescriptor target, long amount,
+                                             long priority, long expiresAtTick, long planningNanos, long plannedOperations,
+                                             int planRevision, @Nonnull Map<PortableResourceDescriptor, Long> externalRequirements,
+                                             @Nonnull List<QIOCraftingMonitorPlanEntry> planEntries,
+                                             boolean externalRequirementsTruncated, boolean planEntriesTruncated,
+                                             @Nonnull Set<Long> errorNodeIds,
+                                             @Nonnull Set<PortableResourceDescriptor> errorResources, boolean rootError,
+                                             boolean mergeOrder, long mainThreadPreparationNanos, long routePreparationNanos,
+                                             long schedulingNanos, long totalNanos, int planningAttempt, long workerNanos,
+                                             long completionWaitNanos, @Nullable UUID jobId) {
         this.previewId = Objects.requireNonNull(previewId, "previewId");
         this.state = Objects.requireNonNull(state, "state");
         this.planningStatus = planningStatus;
         this.diagnostic = bounded(diagnostic, 512);
         this.target = target;
         if (amount < 0 || priority < Long.MIN_VALUE || expiresAtTick < 0 || planningNanos < 0 ||
-            mainThreadPreparationNanos < 0 || routePreparationNanos < 0 ||
-            schedulingNanos < 0 || totalNanos < 0 || planningAttempt <= 0 ||
-            plannedOperations < 0 || planRevision < 0) {
+                mainThreadPreparationNanos < 0 || routePreparationNanos < 0 ||
+                schedulingNanos < 0 || workerNanos < 0 || completionWaitNanos < 0 ||
+                totalNanos < 0 || planningAttempt <= 0 ||
+                plannedOperations < 0 || planRevision < 0) {
             throw new IllegalArgumentException("Invalid preview snapshot bounds");
         }
         this.amount = amount;
@@ -122,14 +153,16 @@ public final class QIOSmartProcessingPreviewSnapshot {
         this.mainThreadPreparationNanos = mainThreadPreparationNanos;
         this.routePreparationNanos = routePreparationNanos;
         this.schedulingNanos = schedulingNanos;
+        this.workerNanos = workerNanos;
+        this.completionWaitNanos = completionWaitNanos;
         this.totalNanos = totalNanos;
         this.planningAttempt = planningAttempt;
         this.plannedOperations = plannedOperations;
         this.planRevision = planRevision;
         if (externalRequirements.size() > MAX_EXTERNAL_REQUIREMENTS ||
-            planEntries.size() > MAX_PLAN_ENTRIES ||
-            errorNodeIds.size() > MAX_ERROR_MARKERS ||
-            errorResources.size() > MAX_ERROR_MARKERS) {
+                planEntries.size() > MAX_PLAN_ENTRIES ||
+                errorNodeIds.size() > MAX_ERROR_MARKERS ||
+                errorResources.size() > MAX_ERROR_MARKERS) {
             throw new IllegalArgumentException("Preview snapshot is too large");
         }
         this.externalRequirements = Collections.unmodifiableMap(new LinkedHashMap<>(externalRequirements));
@@ -150,31 +183,133 @@ public final class QIOSmartProcessingPreviewSnapshot {
         this.jobId = jobId;
     }
 
-    @Nonnull public UUID getPreviewId() { return previewId; }
-    @Nonnull public QIOOrderPreview.State getState() { return state; }
-    @Nullable public QIOPlanningResult.Status getPlanningStatus() { return planningStatus; }
-    @Nonnull public String getDiagnostic() { return diagnostic; }
-    @Nullable public PortableResourceDescriptor getTarget() { return target; }
-    public long getAmount() { return amount; }
-    public long getPriority() { return priority; }
-    public long getExpiresAtTick() { return expiresAtTick; }
-    public long getPlanningNanos() { return planningNanos; }
-    public long getMainThreadPreparationNanos() { return mainThreadPreparationNanos; }
-    public long getRoutePreparationNanos() { return routePreparationNanos; }
-    public long getSchedulingNanos() { return schedulingNanos; }
-    public long getTotalNanos() { return totalNanos; }
-    public int getPlanningAttempt() { return planningAttempt; }
-    public long getPlannedOperations() { return plannedOperations; }
-    public int getPlanRevision() { return planRevision; }
-    @Nonnull public Map<PortableResourceDescriptor, Long> getExternalRequirements() { return externalRequirements; }
-    @Nonnull public List<QIOCraftingMonitorPlanEntry> getPlanEntries() { return planEntries; }
-    @Nonnull public Set<Long> getErrorNodeIds() { return errorNodeIds; }
-    @Nonnull public Set<PortableResourceDescriptor> getErrorResources() { return errorResources; }
-    public boolean isRootError() { return rootError; }
-    public boolean isMergeOrder() { return mergeOrder; }
-    public boolean isExternalRequirementsTruncated() { return externalRequirementsTruncated; }
-    public boolean isStepsTruncated() { return planEntriesTruncated; }
-    @Nullable public UUID getJobId() { return jobId; }
+    @Nonnull
+    public UUID getPreviewId() {
+        return previewId;
+    }
+
+    @Nonnull
+    public QIOOrderPreview.State getState() {
+        return state;
+    }
+
+    @Nullable
+    public QIOPlanningResult.Status getPlanningStatus() {
+        return planningStatus;
+    }
+
+    @Nonnull
+    public String getDiagnostic() {
+        return diagnostic;
+    }
+
+    @Nullable
+    public PortableResourceDescriptor getTarget() {
+        return target;
+    }
+
+    public long getAmount() {
+        return amount;
+    }
+
+    public long getPriority() {
+        return priority;
+    }
+
+    public long getExpiresAtTick() {
+        return expiresAtTick;
+    }
+
+    public long getPlanningNanos() {
+        return planningNanos;
+    }
+
+    public long getMainThreadPreparationNanos() {
+        return mainThreadPreparationNanos;
+    }
+
+    public long getRoutePreparationNanos() {
+        return routePreparationNanos;
+    }
+
+    public long getSchedulingNanos() {
+        return schedulingNanos;
+    }
+
+    public QIOSmartProcessingPreviewSnapshot withValidationWait(long nanos) {
+        if (nanos < 0) throw new IllegalArgumentException("Negative validation wait");
+        validationWaitNanos = nanos;
+        return this;
+    }
+
+    public long getValidationWaitNanos() {
+        return validationWaitNanos;
+    }
+
+    public long getWorkerNanos() {
+        return workerNanos;
+    }
+
+    public long getCompletionWaitNanos() {
+        return completionWaitNanos;
+    }
+
+    public long getTotalNanos() {
+        return totalNanos;
+    }
+
+    public int getPlanningAttempt() {
+        return planningAttempt;
+    }
+
+    public long getPlannedOperations() {
+        return plannedOperations;
+    }
+
+    public int getPlanRevision() {
+        return planRevision;
+    }
+
+    @Nonnull
+    public Map<PortableResourceDescriptor, Long> getExternalRequirements() {
+        return externalRequirements;
+    }
+
+    @Nonnull
+    public List<QIOCraftingMonitorPlanEntry> getPlanEntries() {
+        return planEntries;
+    }
+
+    @Nonnull
+    public Set<Long> getErrorNodeIds() {
+        return errorNodeIds;
+    }
+
+    @Nonnull
+    public Set<PortableResourceDescriptor> getErrorResources() {
+        return errorResources;
+    }
+
+    public boolean isRootError() {
+        return rootError;
+    }
+
+    public boolean isMergeOrder() {
+        return mergeOrder;
+    }
+
+    public boolean isExternalRequirementsTruncated() {
+        return externalRequirementsTruncated;
+    }
+
+    public boolean isStepsTruncated() {
+        return planEntriesTruncated;
+    }
+
+    @Nullable
+    public UUID getJobId() {
+        return jobId;
+    }
 
     @Nonnull
     public NBTTagCompound write() {
@@ -191,6 +326,10 @@ public final class QIOSmartProcessingPreviewSnapshot {
         data.setLong("mainThreadPreparationNanos", mainThreadPreparationNanos);
         data.setLong("routePreparationNanos", routePreparationNanos);
         data.setLong("schedulingNanos", schedulingNanos);
+        data.setLong("workerNanos", workerNanos);
+        data.setLong("validationWaitNanos", validationWaitNanos);
+        data.setTag("metrics", metrics.write());
+        data.setLong("completionWaitNanos", completionWaitNanos);
         data.setLong("totalNanos", totalNanos);
         data.setInteger("planningAttempt", planningAttempt);
         data.setLong("plannedOperations", plannedOperations);
@@ -225,7 +364,7 @@ public final class QIOSmartProcessingPreviewSnapshot {
 
     @Nonnull
     public static QIOSmartProcessingPreviewSnapshot read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         try {
             NBTTagList list = data.getTagList("planEntries", NBT.TAG_COMPOUND);
             if (list.tagCount() > MAX_PLAN_ENTRIES) {
@@ -238,7 +377,7 @@ public final class QIOSmartProcessingPreviewSnapshot {
             NBTTagList storedErrorNodes = data.getTagList("errorNodeIds", NBT.TAG_COMPOUND);
             NBTTagList storedErrorResources = data.getTagList("errorResources", NBT.TAG_COMPOUND);
             if (storedErrorNodes.tagCount() > MAX_ERROR_MARKERS ||
-                storedErrorResources.tagCount() > MAX_ERROR_MARKERS) {
+                    storedErrorResources.tagCount() > MAX_ERROR_MARKERS) {
                 throw new QIOProcessingDataException("Preview has too many error markers");
             }
             Set<Long> errorNodeIds = new LinkedHashSet<>();
@@ -248,28 +387,30 @@ public final class QIOSmartProcessingPreviewSnapshot {
             Set<PortableResourceDescriptor> errorResources = new LinkedHashSet<>();
             for (int i = 0; i < storedErrorResources.tagCount(); i++) {
                 errorResources.add(PortableResourceDescriptor.read(
-                      storedErrorResources.getCompoundTagAt(i).getCompoundTag("resource")));
+                        storedErrorResources.getCompoundTagAt(i).getCompoundTag("resource")));
             }
             return new QIOSmartProcessingPreviewSnapshot(
-                  QIOProcessingNbt.readUUID(data, "previewId"),
-                  QIOProcessingNbt.readEnum(data, "state", QIOOrderPreview.State.class),
-                  data.hasKey("planningStatus", NBT.TAG_STRING) ?
-                        QIOProcessingNbt.readEnum(data, "planningStatus", QIOPlanningResult.Status.class) : null,
-                  data.getString("diagnostic"),
-                  data.hasKey("target", NBT.TAG_COMPOUND) ?
-                        PortableResourceDescriptor.read(data.getCompoundTag("target")) : null,
-                  data.getLong("amount"), data.getLong("priority"), data.getLong("expiresAtTick"),
-                  data.getLong("planningNanos"), data.getLong("plannedOperations"),
-                  data.getInteger("planRevision"),
-                  QIOProcessingNbt.readAmounts(data, "externalRequirements", MAX_EXTERNAL_REQUIREMENTS),
-                  planEntries, data.getBoolean("externalRequirementsTruncated"),
-                  data.getBoolean("planEntriesTruncated"), errorNodeIds, errorResources,
-                  data.getBoolean("rootError"), data.getBoolean("mergeOrder"),
-                  data.getLong("mainThreadPreparationNanos"),
-                  data.getLong("routePreparationNanos"), data.getLong("schedulingNanos"),
-                  data.getLong("totalNanos"), data.hasKey("planningAttempt", NBT.TAG_INT) ?
-                        data.getInteger("planningAttempt") : 1,
-                  data.hasKey("jobId") ? QIOProcessingNbt.readUUID(data, "jobId") : null);
+                    QIOProcessingNbt.readUUID(data, "previewId"),
+                    QIOProcessingNbt.readEnum(data, "state", QIOOrderPreview.State.class),
+                    data.hasKey("planningStatus", NBT.TAG_STRING) ?
+                            QIOProcessingNbt.readEnum(data, "planningStatus", QIOPlanningResult.Status.class) : null,
+                    data.getString("diagnostic"),
+                    data.hasKey("target", NBT.TAG_COMPOUND) ?
+                            PortableResourceDescriptor.read(data.getCompoundTag("target")) : null,
+                    data.getLong("amount"), data.getLong("priority"), data.getLong("expiresAtTick"),
+                    data.getLong("planningNanos"), data.getLong("plannedOperations"),
+                    data.getInteger("planRevision"),
+                    QIOProcessingNbt.readAmounts(data, "externalRequirements", MAX_EXTERNAL_REQUIREMENTS),
+                    planEntries, data.getBoolean("externalRequirementsTruncated"),
+                    data.getBoolean("planEntriesTruncated"), errorNodeIds, errorResources,
+                    data.getBoolean("rootError"), data.getBoolean("mergeOrder"),
+                    data.getLong("mainThreadPreparationNanos"),
+                    data.getLong("routePreparationNanos"), data.getLong("schedulingNanos"),
+                    data.getLong("totalNanos"), data.hasKey("planningAttempt", NBT.TAG_INT) ?
+                    data.getInteger("planningAttempt") : 1,
+                    data.getLong("workerNanos"), data.getLong("completionWaitNanos"),
+                    data.hasKey("jobId") ? QIOProcessingNbt.readUUID(data, "jobId") : null).withValidationWait(data.getLong("validationWaitNanos"))
+                    .withMetrics(mekanism.qioprocessing.common.planning.QIOPlanningMetrics.Snapshot.read(data.getCompoundTag("metrics")));
         } catch (QIOProcessingDataException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -279,7 +420,7 @@ public final class QIOSmartProcessingPreviewSnapshot {
 
     @Nonnull
     public static QIOSmartProcessingPreviewSnapshot fromPreview(@Nonnull QIOOrderPreview preview,
-          @Nullable UUID jobId) {
+                                                                @Nullable UUID jobId) {
         QIOPlanningResult result = preview.getResult();
         Map<PortableResourceDescriptor, Long> requirements = new LinkedHashMap<>();
         List<QIOCraftingMonitorPlanEntry> planEntries = new ArrayList<>();
@@ -299,7 +440,7 @@ public final class QIOSmartProcessingPreviewSnapshot {
             if (result.getPlan() != null) {
                 revision = result.getPlan().getRevision();
                 for (Map.Entry<PortableResourceDescriptor, Long> requirement :
-                      result.getPlan().getExternalRequirements().entrySet()) {
+                        result.getPlan().getExternalRequirements().entrySet()) {
                     if (requirements.size() >= MAX_EXTERNAL_REQUIREMENTS) {
                         requirementsTruncated = true;
                         break;
@@ -307,18 +448,18 @@ public final class QIOSmartProcessingPreviewSnapshot {
                     requirements.put(requirement.getKey(), requirement.getValue());
                 }
                 for (mekanism.qioprocessing.common.content.plan.QIOPlanStep step :
-                      result.getPlan().getSteps()) {
+                        result.getPlan().getSteps()) {
                     if (!addPlanEntry(planEntries,
-                          QIOCraftingMonitorPlanEntry.step(step))) {
+                            QIOCraftingMonitorPlanEntry.step(step))) {
                         planEntriesTruncated = true;
                         break;
                     }
                 }
                 if (!planEntriesTruncated) {
                     for (mekanism.qioprocessing.common.content.plan.QIOCyclePlanNode cycle :
-                          result.getPlan().getCycleNodes()) {
+                            result.getPlan().getCycleNodes()) {
                         if (!addPlanEntry(planEntries,
-                              QIOCraftingMonitorPlanEntry.cycle(cycle))) {
+                                QIOCraftingMonitorPlanEntry.cycle(cycle))) {
                             planEntriesTruncated = true;
                             break;
                         }
@@ -326,43 +467,51 @@ public final class QIOSmartProcessingPreviewSnapshot {
                 }
             } else {
                 QIOPlanningTrace trace = result.getTrace();
+                for (Map.Entry<PortableResourceDescriptor, Long> requirement : trace.getRequirements().entrySet()) {
+                    if (requirements.size() >= MAX_EXTERNAL_REQUIREMENTS) {
+                        requirementsTruncated = true;
+                        break;
+                    }
+                    requirements.put(requirement.getKey(), requirement.getValue());
+                }
                 for (mekanism.qioprocessing.common.content.plan.QIOPlanStep step :
-                      trace.getSteps()) {
+                        trace.getSteps()) {
                     if (!addPlanEntry(planEntries,
-                          QIOCraftingMonitorPlanEntry.step(step))) {
+                            QIOCraftingMonitorPlanEntry.step(step))) {
                         planEntriesTruncated = true;
                         break;
                     }
                 }
                 if (!planEntriesTruncated) {
                     for (mekanism.qioprocessing.common.content.plan.QIOCyclePlanNode cycle :
-                          trace.getCycles()) {
+                            trace.getCycles()) {
                         if (!addPlanEntry(planEntries,
-                              QIOCraftingMonitorPlanEntry.cycle(cycle))) {
+                                QIOCraftingMonitorPlanEntry.cycle(cycle))) {
                             planEntriesTruncated = true;
                             break;
                         }
                     }
                 }
                 trace.getErrorNodeIds().stream().limit(MAX_ERROR_MARKERS)
-                      .forEach(errorNodeIds::add);
+                        .forEach(errorNodeIds::add);
                 trace.getErrorResources().stream().limit(MAX_ERROR_MARKERS)
-                      .forEach(errorResources::add);
+                        .forEach(errorResources::add);
                 rootError = trace.isRootError();
             }
         }
         return new QIOSmartProcessingPreviewSnapshot(preview.getPreviewId(), preview.getState(),
-              status, diagnostic, preview.getTarget(), preview.getAmount(), preview.getPriority(),
-              preview.getExpiresAtTick(), preview.getPlanningNanos(), operations, revision,
-              requirements, planEntries, requirementsTruncated, planEntriesTruncated,
-              errorNodeIds, errorResources, rootError, preview.isMergeOrder(),
-              preview.getMainThreadPreparationNanos(), preview.getRoutePreparationNanos(),
-              preview.getSchedulingNanos(), preview.getTotalNanos(),
-              preview.getPlanningAttempt(), jobId);
+                status, diagnostic, preview.getTarget(), preview.getAmount(), preview.getPriority(),
+                preview.getExpiresAtTick(), preview.getPlanningNanos(), operations, revision,
+                requirements, planEntries, requirementsTruncated, planEntriesTruncated,
+                errorNodeIds, errorResources, rootError, preview.isMergeOrder(),
+                preview.getMainThreadPreparationNanos(), preview.getRoutePreparationNanos(),
+                preview.getSchedulingNanos(), preview.getTotalNanos(),
+                preview.getPlanningAttempt(), preview.getWorkerNanos(),
+                preview.getCompletionWaitNanos(), jobId).withValidationWait(preview.getValidationWaitNanos()).withMetrics(preview.getMetrics());
     }
 
     private static boolean addPlanEntry(List<QIOCraftingMonitorPlanEntry> entries,
-          QIOCraftingMonitorPlanEntry entry) {
+                                        QIOCraftingMonitorPlanEntry entry) {
         if (entries.size() >= MAX_PLAN_ENTRIES) return false;
         entries.add(entry);
         return true;

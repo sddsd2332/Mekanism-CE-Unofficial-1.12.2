@@ -3,7 +3,10 @@ package mekanism.common.transmitters.grid;
 import mekanism.api.Coord4D;
 import mekanism.api.transmitters.DynamicNetwork;
 import mekanism.api.transmitters.IGridTransmitter;
+import mekanism.common.base.ILogisticalTransporter;
+import mekanism.common.content.transporter.PathfinderCache;
 import mekanism.common.content.transporter.TransporterManager;
+import mekanism.common.content.transporter.TransporterPathfinder;
 import mekanism.common.content.transporter.TransporterStack;
 import mekanism.common.lib.inventory.TransitRequest;
 import mekanism.common.lib.inventory.TransitRequest.TransitResponse;
@@ -33,6 +36,11 @@ public class InventoryNetwork extends DynamicNetwork<TileEntity, InventoryNetwor
     }
 
     public List<AcceptorData> calculateAcceptors(TransitRequest request, TransporterStack stack, Map<Coord4D, Set<TransporterStack>> additionalFlowingStacks) {
+        return calculateAcceptors(request, stack, additionalFlowingStacks, null);
+    }
+
+    public List<AcceptorData> calculateAcceptors(TransitRequest request, TransporterStack stack,
+                                                 Map<Coord4D, Set<TransporterStack>> additionalFlowingStacks, ILogisticalTransporter start) {
         List<AcceptorData> toReturn = new ArrayList<>();
         for (Coord4D coord : possibleAcceptors) {
             if (coord == null || coord.equals(stack.homeLocation)) {
@@ -50,9 +58,14 @@ public class InventoryNetwork extends DynamicNetwork<TileEntity, InventoryNetwor
             Map<TransitResponse, AcceptorData> responseData = new HashMap<>();
             for (EnumFacing side : sides) {
                 EnumFacing opposite = side.getOpposite();
+                List<Coord4D> checked = start == null ? null : TransporterPathfinder.preflightPath(start, coord, opposite, stack);
+                if (checked == TransporterPathfinder.UNREACHABLE_PATH) continue;
+                long revision = PathfinderCache.getRevision();
                 TransitResponse response = TransporterManager.getPredictedInsert(acceptor, stack.color, request, opposite, additionalFlowingStacks);
                 if (!response.isEmpty()) {
                     addAcceptorData(toReturn, responseData, coord, response, opposite);
+                    if (checked != null && revision == PathfinderCache.getRevision())
+                        responseData.get(response).prevalidate(checked, revision);
                 }
             }
         }
@@ -60,7 +73,7 @@ public class InventoryNetwork extends DynamicNetwork<TileEntity, InventoryNetwor
     }
 
     static void addAcceptorData(List<AcceptorData> acceptors, Map<TransitResponse, AcceptorData> responseData,
-          Coord4D coord, TransitResponse response, EnumFacing side) {
+                                Coord4D coord, TransitResponse response, EnumFacing side) {
         AcceptorData data = responseData.get(response);
         if (data == null) {
             data = new AcceptorData(coord, response, side);
@@ -117,6 +130,19 @@ public class InventoryNetwork extends DynamicNetwork<TileEntity, InventoryNetwor
         private Coord4D location;
         private TransitResponse response;
         private Set<EnumFacing> sides;
+        private List<Coord4D> prevalidatedPath;
+        private long pathRevision;
+
+        private void prevalidate(List<Coord4D> path, long revision) {
+            if (prevalidatedPath == null || pathRevision != revision || path.size() < prevalidatedPath.size()) {
+                prevalidatedPath = path;
+                pathRevision = revision;
+            }
+        }
+
+        public boolean isPrevalidated(List<Coord4D> path) {
+            return path == prevalidatedPath && pathRevision == PathfinderCache.getRevision();
+        }
 
         public AcceptorData(Coord4D coord, TransitResponse ret, EnumFacing side) {
             location = coord;

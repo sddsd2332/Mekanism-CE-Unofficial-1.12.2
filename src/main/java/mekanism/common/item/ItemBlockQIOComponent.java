@@ -2,8 +2,8 @@ package mekanism.common.item;
 
 import mekanism.api.EnumColor;
 import mekanism.common.content.qio.QIOFrequency;
-import mekanism.common.frequency.FrequencyAware;
 import mekanism.common.frequency.Frequency.FrequencyIdentity;
+import mekanism.common.frequency.FrequencyAware;
 import mekanism.common.frequency.FrequencyType;
 import mekanism.common.frequency.IFrequencyItem;
 import mekanism.common.item.interfaces.IColoredItem;
@@ -15,18 +15,15 @@ import mekanism.common.tile.qio.TileEntityQIOComponent;
 import mekanism.common.util.ItemDataUtils;
 import mekanism.common.util.LangUtils;
 import net.minecraft.block.Block;
-import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
-import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
-import net.minecraft.util.EnumFacing;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.World;
 import net.minecraftforge.common.util.Constants.NBT;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
@@ -37,9 +34,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
-/** Shared item implementation for QIO component blocks. */
+/**
+ * Shared item implementation for QIO component blocks.
+ */
 public class ItemBlockQIOComponent extends ItemBlock implements IItemSustainedInventory, ISecurityItem, IFrequencyItem, IColoredItem,
-      IItemBlockPlacementData {
+        IItemBlockPlacementData {
 
     public ItemBlockQIOComponent(Block block) {
         super(block);
@@ -68,13 +67,13 @@ public class ItemBlockQIOComponent extends ItemBlock implements IItemSustainedIn
         if (identity != null) {
             tooltip.add(EnumColor.INDIGO + LangUtils.localize("gui.frequency") + ": " + EnumColor.GREY + identity.key());
             tooltip.add(EnumColor.INDIGO + LangUtils.localize("gui.mode") + ": " + EnumColor.GREY +
-                  LangUtils.localize("gui." + identity.securityMode().name().toLowerCase(Locale.ROOT)));
+                    LangUtils.localize("gui." + identity.securityMode().name().toLowerCase(Locale.ROOT)));
         }
     }
 
     @Override
     public void restorePlacementData(@Nonnull ItemStack stack, @Nonnull EntityLivingBase placer, @Nonnull World world, @Nonnull BlockPos pos,
-          @Nonnull TileEntity tileEntity) {
+                                     @Nonnull TileEntity tileEntity) {
         if (!(tileEntity instanceof TileEntityQIOComponent tile)) {
             return;
         }
@@ -148,7 +147,9 @@ public class ItemBlockQIOComponent extends ItemBlock implements IItemSustainedIn
         return true;
     }
 
-    /** Stores non-inventory QIO configuration on a dropped block item. */
+    /**
+     * Stores non-inventory QIO configuration on a dropped block item.
+     */
     public void setSustainedQIOData(TileEntityQIOComponent tile, ItemStack stack) {
         if (tile == null || stack == null || stack.isEmpty()) {
             return;

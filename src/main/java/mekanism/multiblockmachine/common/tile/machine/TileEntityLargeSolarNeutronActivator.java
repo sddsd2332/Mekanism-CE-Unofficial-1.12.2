@@ -62,9 +62,9 @@ public class TileEntityLargeSolarNeutronActivator extends TileEntityContainerBlo
 
     public static final int MAX_GAS = 8192000;
     private static final List<RecipeError> TRACKED_ERROR_TYPES = Arrays.asList(
-          RecipeError.NOT_ENOUGH_INPUT,
-          RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
-          RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
+            RecipeError.NOT_ENOUGH_INPUT,
+            RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
+            RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
     );
     private final RecipeCacheLookupMonitor<SolarNeutronRecipe> recipeCacheLookupMonitor = new RecipeCacheLookupMonitor<>(this);
     public BasicGasTank inputTank;
@@ -124,18 +124,18 @@ public class TileEntityLargeSolarNeutronActivator extends TileEntityContainerBlo
         getOrCreateInputTank();
         getOrCreateOutputTank();
         return ProxiedGasTankHolder.create(
-              this::isGasInputSide,
-              this::isGasOutputSide,
-              side -> {
-                  if (side == null) {
-                      return Arrays.asList(inputTank, outputTank);
-                  } else if (isGasInputSide(side)) {
-                      return Collections.singletonList(inputTank);
-                  } else if (isGasOutputSide(side)) {
-                      return Collections.singletonList(outputTank);
-                  }
-                  return Collections.emptyList();
-              }
+                this::isGasInputSide,
+                this::isGasOutputSide,
+                side -> {
+                    if (side == null) {
+                        return Arrays.asList(inputTank, outputTank);
+                    } else if (isGasInputSide(side)) {
+                        return Collections.singletonList(inputTank);
+                    } else if (isGasOutputSide(side)) {
+                        return Collections.singletonList(outputTank);
+                    }
+                    return Collections.emptyList();
+                }
         );
     }
 
@@ -201,7 +201,7 @@ public class TileEntityLargeSolarNeutronActivator extends TileEntityContainerBlo
             return;
         }
         gasSpeedController.ensureSize(2,
-              () -> Arrays.asList(new TankProvider.Gas(outputTank), new TankProvider.Gas(outputTank)));
+                () -> Arrays.asList(new TankProvider.Gas(outputTank), new TankProvider.Gas(outputTank)));
         handleTank(outputTank, getLeftTankside(), MekanismUtils.getLeft(facing), 0);
         handleTank(outputTank, getRightTankside(), MekanismUtils.getRight(facing), 1);
     }
@@ -227,11 +227,6 @@ public class TileEntityLargeSolarNeutronActivator extends TileEntityContainerBlo
             setActive(false);
         }
         sendPeriodicUpdate();
-        int newRedstoneLevel = getRedstoneLevel();
-        if (newRedstoneLevel != currentRedstoneLevel) {
-            updateComparatorOutputLevelSync();
-            currentRedstoneLevel = newRedstoneLevel;
-        }
     }
 
     private void sendPeriodicUpdate() {
@@ -250,7 +245,7 @@ public class TileEntityLargeSolarNeutronActivator extends TileEntityContainerBlo
     @Override
     protected boolean isAsyncUpdateIdle() {
         return inputTank.isEmpty() && inputSlot.isEmpty() && outputSlot.isEmpty() && !getActive() &&
-              operatingTicks == 0 && currentRedstoneLevel == getRedstoneLevel() && recipeCacheLookupMonitor.canSkipProcessing();
+                operatingTicks == 0 && currentRedstoneLevel == getRedstoneLevel() && recipeCacheLookupMonitor.canSkipProcessing();
     }
 
     @Override
@@ -277,7 +272,7 @@ public class TileEntityLargeSolarNeutronActivator extends TileEntityContainerBlo
     public void addTileSyncTask() {
         int newRedstoneLevel = getRedstoneLevel();
         if (newRedstoneLevel != currentRedstoneLevel) {
-            world.updateComparatorOutputLevel(pos, getBlockType());
+            updateComparatorOutputLevelSync();
             currentRedstoneLevel = newRedstoneLevel;
         }
     }
@@ -385,22 +380,22 @@ public class TileEntityLargeSolarNeutronActivator extends TileEntityContainerBlo
     @Override
     public CachedRecipe<SolarNeutronRecipe> createNewCachedRecipe(SolarNeutronRecipe recipe, int cacheIndex) {
         return new OneInputCachedRecipe<>(recipe, () -> false,
-              InputHelper.getGasInputHandler(inputTank, RecipeError.NOT_ENOUGH_INPUT),
-              OutputHelper.getGasOutputHandler(outputTank, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
-              () -> recipe.getInput().ingredient,
-              input -> input != null && input.isGasEqual(recipe.getInput().ingredient),
-              input -> recipe.getOutput().output.copy(),
-              input -> input == null || input.amount <= 0,
-              output -> output == null || output.amount <= 0)
-              .setCanHolderFunction(() -> seesSunThisTick && MekanismUtils.canFunction(this))
-              .setActive(this::setActive)
-              .setRequiredTicks(() -> 1)
-              .setBaselineMaxOperations(() -> getUpgradedUsage(recipe))
-              .setErrorsChanged(errors -> {
-                  for (int i = 0; i < trackedErrors.length; i++) {
-                      trackedErrors[i] = errors.contains(TRACKED_ERROR_TYPES.get(i));
-                  }
-              });
+                InputHelper.getGasInputHandler(inputTank, RecipeError.NOT_ENOUGH_INPUT),
+                OutputHelper.getGasOutputHandler(outputTank, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
+                () -> recipe.getInput().ingredient,
+                input -> input != null && input.isGasEqual(recipe.getInput().ingredient),
+                input -> recipe.getOutput().output.copy(),
+                input -> input == null || input.amount <= 0,
+                output -> output == null || output.amount <= 0)
+                .setCanHolderFunction(() -> seesSunThisTick && MekanismUtils.canFunction(this))
+                .setActive(this::setActive)
+                .setRequiredTicks(() -> 1)
+                .setBaselineMaxOperations(() -> getUpgradedUsage(recipe))
+                .setErrorsChanged(errors -> {
+                    for (int i = 0; i < trackedErrors.length; i++) {
+                        trackedErrors[i] = errors.contains(TRACKED_ERROR_TYPES.get(i));
+                    }
+                });
     }
 
     @Override
@@ -596,6 +591,11 @@ public class TileEntityLargeSolarNeutronActivator extends TileEntityContainerBlo
     }
 
     @Override
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return type == mekanism.api.transmitters.TransmissionType.GAS;
+    }
+
+    @Override
     public int getRedstoneLevel() {
         return MekanismUtils.redstoneLevelFromContents(inputTank.getStored(), inputTank.getMaxGas());
     }
@@ -609,7 +609,8 @@ public class TileEntityLargeSolarNeutronActivator extends TileEntityContainerBlo
     public Object[] invoke(int method, Object[] args) throws NoSuchMethodException {
         return new Object[0];
     }
-@Override
+
+    @Override
     public RedstoneControl getControlType() {
         return controlType;
     }

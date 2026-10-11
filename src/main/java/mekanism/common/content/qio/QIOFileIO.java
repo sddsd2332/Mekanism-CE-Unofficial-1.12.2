@@ -1,21 +1,9 @@
 package mekanism.common.content.qio;
 
-import net.minecraft.nbt.CompressedStreamTools;
-import net.minecraft.nbt.NBTBase;
-import net.minecraft.nbt.NBTSizeTracker;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.nbt.NBTTagList;
-import net.minecraft.nbt.NBTTagString;
+import net.minecraft.nbt.*;
 
 import javax.annotation.Nullable;
-import java.io.BufferedInputStream;
-import java.io.DataInputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.FilterInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
@@ -52,10 +40,10 @@ final class QIOFileIO {
         try (FileInputStream input = new FileInputStream(file);
              GZIPInputStream gzip = new GZIPInputStream(input);
              LimitedInputStream limited = new LimitedInputStream(gzip,
-                   MAX_DECOMPRESSED_FILE_SIZE);
+                     MAX_DECOMPRESSED_FILE_SIZE);
              DataInputStream data = new DataInputStream(new BufferedInputStream(limited))) {
             NBTTagCompound result = CompressedStreamTools.read(data,
-                  new NBTSizeTracker(MAX_DECOMPRESSED_FILE_SIZE));
+                    new NBTSizeTracker(MAX_DECOMPRESSED_FILE_SIZE));
             validateNbt(result);
             return result;
         } catch (FileTooLargeException error) {
@@ -63,7 +51,7 @@ final class QIOFileIO {
         } catch (RuntimeException error) {
             String message = error.getMessage();
             if (message != null && (message.contains("too big") ||
-                  message.contains("too high complexity"))) {
+                    message.contains("too high complexity"))) {
                 throw new FileTooLargeException("QIO NBT allocation limit exceeded");
             }
             throw new IOException("Unable to read bounded QIO NBT", error);
@@ -83,7 +71,7 @@ final class QIOFileIO {
             }
             try {
                 Files.move(temporary.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE,
-                      StandardCopyOption.REPLACE_EXISTING);
+                        StandardCopyOption.REPLACE_EXISTING);
             } catch (AtomicMoveNotSupportedException | java.nio.file.FileAlreadyExistsException e) {
                 Files.move(temporary.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
@@ -105,7 +93,9 @@ final class QIOFileIO {
         return files;
     }
 
-    /** Moves an unreadable record aside so a later flush can never overwrite the evidence. */
+    /**
+     * Moves an unreadable record aside so a later flush can never overwrite the evidence.
+     */
     static void quarantine(File file) {
         if (file == null || !file.isFile()) {
             return;
@@ -129,7 +119,7 @@ final class QIOFileIO {
     }
 
     private static void validateNbt(@Nullable NBTBase tag, int depth, NbtBudget budget)
-          throws IOException {
+            throws IOException {
         if (tag == null) return;
         if (depth > MAX_NBT_DEPTH) {
             throw new FileTooLargeException("QIO NBT nesting exceeds " + MAX_NBT_DEPTH + " levels");
@@ -138,7 +128,7 @@ final class QIOFileIO {
             throw new FileTooLargeException("QIO NBT node limit exceeded");
         }
         if (tag instanceof NBTTagString string &&
-              modifiedUtfLength(string.getString()) > MAX_NBT_STRING_BYTES) {
+                modifiedUtfLength(string.getString()) > MAX_NBT_STRING_BYTES) {
             throw new FileTooLargeException("QIO NBT string exceeds 65,535 encoded bytes");
         }
         if (tag instanceof NBTTagCompound compound) {
@@ -178,7 +168,9 @@ final class QIOFileIO {
         return bytes;
     }
 
-    /** Counts expanded bytes so a small gzip cannot allocate an unbounded NBT tree. */
+    /**
+     * Counts expanded bytes so a small gzip cannot allocate an unbounded NBT tree.
+     */
     private static final class LimitedInputStream extends FilterInputStream {
 
         private final long limit;

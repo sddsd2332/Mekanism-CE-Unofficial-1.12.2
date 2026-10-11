@@ -21,7 +21,7 @@ public class PacketResetPlayerClient implements IMessageHandler<ResetPlayerClien
         }
         PacketHandler.handlePacket(() -> {
             Mekanism.playerState.clearPlayer(message.uuid, true);
-        },player);
+        }, player);
         return null;
     }
 

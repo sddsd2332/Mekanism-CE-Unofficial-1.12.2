@@ -30,7 +30,7 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class PacketQIOCraftingMonitorPlanPageData implements
-      IMessageHandler<PacketQIOCraftingMonitorPlanPageData.Message, IMessage> {
+        IMessageHandler<PacketQIOCraftingMonitorPlanPageData.Message, IMessage> {
 
     public static final int MAX_PAGE_SIZE = 1_024;
 
@@ -40,15 +40,15 @@ public final class PacketQIOCraftingMonitorPlanPageData implements
         if (player == null || !player.world.isRemote) return null;
         PacketHandler.handlePacket(() -> {
             if (!message.valid ||
-                !(player.openContainer instanceof QIOCraftingMonitorPageContainer container) ||
-                player.openContainer.windowId != message.windowId) return;
+                    !(player.openContainer instanceof QIOCraftingMonitorPageContainer container) ||
+                    player.openContainer.windowId != message.windowId) return;
             QIOProcessingTerminalContainerState state = container.getTerminalState();
             if (state.matches(message.nonce, message.terminalUUID, message.targetRevision,
-                  message.frequencyUUID, message.accessRevision)) {
+                    message.frequencyUUID, message.accessRevision)) {
                 container.getCraftingMonitorClientCache().applyPlanPage(message.nonce,
-                      message.jobId, message.planRevision, message.structuralSignature,
-                      message.sourceRevision, message.offset, message.total, message.entries,
-                      message.cursor);
+                        message.jobId, message.planRevision, message.structuralSignature,
+                        message.sourceRevision, message.offset, message.total, message.entries,
+                        message.cursor);
             }
         }, player);
         return null;
@@ -68,15 +68,16 @@ public final class PacketQIOCraftingMonitorPlanPageData implements
         private int offset;
         private int total;
         private List<QIOCraftingMonitorPlanEntry> entries = Collections.emptyList();
-        @Nullable private QIOPageCursor cursor;
+        @Nullable
+        private QIOPageCursor cursor;
         private boolean valid;
 
         public Message() {
         }
 
         private Message(int windowId, QIOProcessingTerminalSession session, UUID jobId,
-              int planRevision, String structuralSignature,
-              QIOPage<QIOCraftingMonitorPlanEntry> page) {
+                        int planRevision, String structuralSignature,
+                        QIOPage<QIOCraftingMonitorPlanEntry> page) {
             this.windowId = windowId;
             nonce = session.getSessionNonce();
             terminalUUID = session.getTerminalUUID();
@@ -95,10 +96,10 @@ public final class PacketQIOCraftingMonitorPlanPageData implements
         }
 
         public static Message create(int windowId, @Nonnull QIOProcessingTerminalSession session,
-              @Nonnull UUID jobId, int planRevision, @Nonnull String structuralSignature,
-              @Nonnull QIOPage<QIOCraftingMonitorPlanEntry> page) {
+                                     @Nonnull UUID jobId, int planRevision, @Nonnull String structuralSignature,
+                                     @Nonnull QIOPage<QIOCraftingMonitorPlanEntry> page) {
             return session.getFrequencyUUID() == null ? new Message() : new Message(windowId,
-                  session, jobId, planRevision, structuralSignature, page);
+                    session, jobId, planRevision, structuralSignature, page);
         }
 
         @Override
@@ -142,7 +143,7 @@ public final class PacketQIOCraftingMonitorPlanPageData implements
                 cursor = buffer.readBoolean() ? QIOPageCursor.read(buffer) : null;
                 int count = buffer.readInt();
                 if (count < 0 || count > MAX_PAGE_SIZE || offset < 0 || total < 0 ||
-                    offset > total || count > total - offset) return;
+                        offset > total || count > total - offset) return;
                 List<QIOCraftingMonitorPlanEntry> decoded = new ArrayList<>(count);
                 for (int i = 0; i < count; i++) {
                     NBTTagCompound data = PacketHandler.readNBT(buffer);
@@ -156,20 +157,26 @@ public final class PacketQIOCraftingMonitorPlanPageData implements
             }
         }
 
-        public boolean isValid() { return valid; }
-        @Nonnull List<QIOCraftingMonitorPlanEntry> getEntries() { return entries; }
+        public boolean isValid() {
+            return valid;
+        }
+
+        @Nonnull
+        List<QIOCraftingMonitorPlanEntry> getEntries() {
+            return entries;
+        }
 
         private boolean shape() {
             if (windowId < 0 || nonce == null || terminalUUID == null || frequencyUUID == null ||
-                targetRevision < 0 || accessRevision < 0 || jobId == null || planRevision <= 0 ||
-                structuralSignature.isEmpty() || structuralSignature.length() > 128 ||
-                sourceRevision < 0 || offset < 0 || total < 0 || offset > total ||
-                entries.size() > MAX_PAGE_SIZE || entries.size() > total - offset) return false;
+                    targetRevision < 0 || accessRevision < 0 || jobId == null || planRevision <= 0 ||
+                    structuralSignature.isEmpty() || structuralSignature.length() > 128 ||
+                    sourceRevision < 0 || offset < 0 || total < 0 || offset > total ||
+                    entries.size() > MAX_PAGE_SIZE || entries.size() > total - offset) return false;
             return cursor == null ? offset + entries.size() == total :
-                  nonce.equals(cursor.getSessionNonce()) &&
-                        sourceRevision == cursor.getSourceRevision() &&
-                        cursor.getOffset() == offset + entries.size() &&
-                        cursor.getOffset() < total;
+                    nonce.equals(cursor.getSessionNonce()) &&
+                            sourceRevision == cursor.getSourceRevision() &&
+                            cursor.getOffset() == offset + entries.size() &&
+                            cursor.getOffset() < total;
         }
 
         private static void writeString(ByteBuf buffer, String value) {

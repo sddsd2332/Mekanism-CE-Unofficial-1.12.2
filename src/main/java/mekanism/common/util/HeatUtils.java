@@ -13,7 +13,9 @@ import java.util.Objects;
 
 public class HeatUtils {
 
-    /** @deprecated Use {@link mekanism.common.capabilities.heat.ITileHeatHandler#simulate()} instead. */
+    /**
+     * @deprecated Use {@link mekanism.common.capabilities.heat.ITileHeatHandler#simulate()} instead.
+     */
     @Deprecated
     @SuppressWarnings("removal")
     public static double[] simulate(IHeatTransfer source) {
@@ -33,7 +35,7 @@ public class HeatUtils {
                 if (temp > sinkTemp && heatCapacity >= 1 && sinkHeatCapacity >= 1) {
                     double finalTemp = HeatAPI.getFinalTemperature(temp, heatCapacity, sinkTemp, sinkHeatCapacity);
                     double invConduction = HeatAPI.sanitizeInverseConduction(source.getInverseConductionCoefficient()) +
-                          HeatAPI.sanitizeInverseConduction(sink.getInverseConductionCoefficient());
+                            HeatAPI.sanitizeInverseConduction(sink.getInverseConductionCoefficient());
                     if (!HeatAPI.isFinite(invConduction) || invConduction <= 0) {
                         invConduction = HeatAPI.MAX_HEAT;
                     }
@@ -41,14 +43,14 @@ public class HeatUtils {
                     double[] sourceBefore = ITileHeatHandler.snapshotHandlerHeat(sourceHandler, null);
                     double[] sinkBefore = ITileHeatHandler.snapshotHandlerHeat(sinkHandler, null);
                     heatToTransfer = Math.min(heatToTransfer, Math.min(ITileHeatHandler.getAvailableHeat(sourceBefore),
-                          ITileHeatHandler.getAvailableHeatRoom(sinkBefore)));
+                            ITileHeatHandler.getAvailableHeatRoom(sinkBefore)));
                     if (HeatAPI.isFinite(heatToTransfer) && heatToTransfer > HeatAPI.EPSILON) {
                         sourceHandler.handleHeat(-heatToTransfer);
                         sinkHandler.handleHeat(heatToTransfer);
                         double removed = ITileHeatHandler.getHeatDecrease(sourceBefore,
-                              ITileHeatHandler.snapshotHandlerHeat(sourceHandler, null));
+                                ITileHeatHandler.snapshotHandlerHeat(sourceHandler, null));
                         double accepted = ITileHeatHandler.getHeatIncrease(sinkBefore,
-                              ITileHeatHandler.snapshotHandlerHeat(sinkHandler, null));
+                                ITileHeatHandler.snapshotHandlerHeat(sinkHandler, null));
                         if (accepted < removed - HeatAPI.EPSILON) {
                             sourceHandler.handleHeat(removed - accepted);
                         } else if (removed < accepted - HeatAPI.EPSILON) {
@@ -56,8 +58,8 @@ public class HeatUtils {
                         }
                         double actualTransfer = Math.min(removed, accepted);
                         if (actualTransfer > HeatAPI.EPSILON &&
-                              !(sink instanceof ICapabilityProvider provider && CapabilityUtils.hasCapability(provider,
-                                    Capabilities.GRID_TRANSMITTER_CAPABILITY, side.getOpposite()))) {
+                                !(sink instanceof ICapabilityProvider provider && CapabilityUtils.hasCapability(provider,
+                                        Capabilities.GRID_TRANSMITTER_CAPABILITY, side.getOpposite()))) {
                             heatTransferred[0] = addClamped(heatTransferred[0], actualTransfer / heatCapacity);
                         }
                     }
@@ -72,8 +74,8 @@ public class HeatUtils {
                 continue;
             }
             double invConduction = HeatAPI.AIR_INVERSE_COEFFICIENT +
-                  HeatAPI.sanitizeInverseInsulation(source.getInsulationCoefficient(side)) +
-                  HeatAPI.sanitizeInverseConduction(source.getInverseConductionCoefficient());
+                    HeatAPI.sanitizeInverseInsulation(source.getInsulationCoefficient(side)) +
+                    HeatAPI.sanitizeInverseConduction(source.getInverseConductionCoefficient());
             if (!HeatAPI.isFinite(invConduction) || invConduction <= 0) {
                 invConduction = HeatAPI.MAX_HEAT;
             }
@@ -83,7 +85,7 @@ public class HeatUtils {
                 double[] before = ITileHeatHandler.snapshotHandlerHeat(sourceHandler, null);
                 sourceHandler.handleHeat(-heatToTransfer);
                 double actualHeat = ITileHeatHandler.getHeatDecrease(before,
-                      ITileHeatHandler.snapshotHandlerHeat(sourceHandler, null));
+                        ITileHeatHandler.snapshotHandlerHeat(sourceHandler, null));
                 if (actualHeat > HeatAPI.EPSILON) {
                     heatTransferred[1] = addClamped(heatTransferred[1], actualHeat / heatCapacity);
                 }

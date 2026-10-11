@@ -5,9 +5,9 @@ import mekanism.common.base.IUpgradeTile;
 import mekanism.common.base.IUpgradeableTile;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.tier.BaseTier;
+import mekanism.common.tile.base.TileEntityRestrictedTick;
 import mekanism.common.upgrade.IUpgradeData;
 import mekanism.common.upgrade.TileUpgradeRegistry;
-import mekanism.common.tile.base.TileEntityRestrictedTick;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
@@ -52,7 +52,7 @@ public class UpgradeUtils {
         }
         TileUpgradeRegistry.BoundAdapter adapter = TileUpgradeRegistry.find(tile);
         return adapter != null && adapter.canInstallUpgrade(upgradeTier) ||
-              tile instanceof IUpgradeableTile upgradeable && upgradeable.canInstallUpgrade(upgradeTier);
+                tile instanceof IUpgradeableTile upgradeable && upgradeable.canInstallUpgrade(upgradeTier);
     }
 
     public static IBlockState getUpgradeResult(TileEntity tile, BaseTier upgradeTier) {

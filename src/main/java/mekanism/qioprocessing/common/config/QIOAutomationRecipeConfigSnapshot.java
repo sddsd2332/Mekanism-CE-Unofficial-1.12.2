@@ -9,13 +9,12 @@ import net.minecraft.nbt.NBTTagList;
 import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
-/** One bounded server-authoritative page of the active machine recipe profile. */
+/**
+ * One bounded server-authoritative page of the active machine recipe profile.
+ */
+
 /**
  * QIO 处理模块中的 QIOAutomationRecipeConfigSnapshot 类型。
  *
@@ -49,22 +48,22 @@ public final class QIOAutomationRecipeConfigSnapshot {
     private final List<Route> routes;
 
     public QIOAutomationRecipeConfigSnapshot(@Nonnull QIOAutomationRecipeConfigType type,
-          @Nonnull UUID frequencyUUID, @Nonnull UUID deviceUUID,
-          @Nonnull String providerId, long profileRevision, long policyRevision,
-          int offset, int totalSize, @Nonnull String query, boolean individualProfile,
-          int globalProfileSlot, @Nonnull RouteFilterMode routeFilterMode,
-          boolean routeFilterMutable, boolean editable, long craftAmount,
-          long maximumCraftAmount,
-          @Nonnull List<Route> routes) {
+                                             @Nonnull UUID frequencyUUID, @Nonnull UUID deviceUUID,
+                                             @Nonnull String providerId, long profileRevision, long policyRevision,
+                                             int offset, int totalSize, @Nonnull String query, boolean individualProfile,
+                                             int globalProfileSlot, @Nonnull RouteFilterMode routeFilterMode,
+                                             boolean routeFilterMutable, boolean editable, long craftAmount,
+                                             long maximumCraftAmount,
+                                             @Nonnull List<Route> routes) {
         this.type = Objects.requireNonNull(type, "type");
         this.frequencyUUID = Objects.requireNonNull(frequencyUUID, "frequencyUUID");
         this.deviceUUID = Objects.requireNonNull(deviceUUID, "deviceUUID");
         this.providerId = bounded(providerId, "providerId", false);
         if (profileRevision < 0 || policyRevision < 0 || offset < 0 || totalSize < 0 ||
-            offset > totalSize || routes.size() > MAX_PAGE_SIZE ||
-            routes.size() > totalSize - offset || globalProfileSlot < 1 ||
-            globalProfileSlot > 10 || craftAmount <= 0 || maximumCraftAmount <= 0 ||
-            craftAmount > maximumCraftAmount) {
+                offset > totalSize || routes.size() > MAX_PAGE_SIZE ||
+                routes.size() > totalSize - offset || globalProfileSlot < 1 ||
+                globalProfileSlot > 10 || craftAmount <= 0 || maximumCraftAmount <= 0 ||
+                craftAmount > maximumCraftAmount) {
             throw new IllegalArgumentException("Invalid QIO automation config snapshot bounds");
         }
         this.profileRevision = profileRevision;
@@ -86,49 +85,87 @@ public final class QIOAutomationRecipeConfigSnapshot {
     }
 
     @Nonnull
-    public QIOAutomationRecipeConfigType getType() { return type; }
+    public QIOAutomationRecipeConfigType getType() {
+        return type;
+    }
 
     @Nonnull
-    public UUID getFrequencyUUID() { return frequencyUUID; }
+    public UUID getFrequencyUUID() {
+        return frequencyUUID;
+    }
 
     @Nonnull
-    public UUID getDeviceUUID() { return deviceUUID; }
+    public UUID getDeviceUUID() {
+        return deviceUUID;
+    }
 
     @Nonnull
-    public String getProviderId() { return providerId; }
+    public String getProviderId() {
+        return providerId;
+    }
 
-    public long getProfileRevision() { return profileRevision; }
+    public long getProfileRevision() {
+        return profileRevision;
+    }
 
-    public long getPolicyRevision() { return policyRevision; }
+    public long getPolicyRevision() {
+        return policyRevision;
+    }
 
-    public int getOffset() { return offset; }
+    public int getOffset() {
+        return offset;
+    }
 
-    public int getTotalSize() { return totalSize; }
-
-    @Nonnull
-    public String getQuery() { return query; }
-
-    public boolean isIndividualProfile() { return individualProfile; }
-
-    public int getGlobalProfileSlot() { return globalProfileSlot; }
-
-    @Nonnull
-    public RouteFilterMode getRouteFilterMode() { return routeFilterMode; }
-
-    public boolean isRouteFilterMutable() { return routeFilterMutable; }
-
-    public boolean isEditable() { return editable; }
-
-    public long getCraftAmount() { return craftAmount; }
-
-    public long getMaximumCraftAmount() { return maximumCraftAmount; }
+    public int getTotalSize() {
+        return totalSize;
+    }
 
     @Nonnull
-    public List<Route> getRoutes() { return routes; }
+    public String getQuery() {
+        return query;
+    }
 
-    public boolean hasPreviousPage() { return offset > 0; }
+    public boolean isIndividualProfile() {
+        return individualProfile;
+    }
 
-    public boolean hasNextPage() { return offset + routes.size() < totalSize; }
+    public int getGlobalProfileSlot() {
+        return globalProfileSlot;
+    }
+
+    @Nonnull
+    public RouteFilterMode getRouteFilterMode() {
+        return routeFilterMode;
+    }
+
+    public boolean isRouteFilterMutable() {
+        return routeFilterMutable;
+    }
+
+    public boolean isEditable() {
+        return editable;
+    }
+
+    public long getCraftAmount() {
+        return craftAmount;
+    }
+
+    public long getMaximumCraftAmount() {
+        return maximumCraftAmount;
+    }
+
+    @Nonnull
+    public List<Route> getRoutes() {
+        return routes;
+    }
+
+    public boolean hasPreviousPage() {
+        return offset > 0;
+    }
+
+    public boolean hasNextPage() {
+        return offset + routes.size() < totalSize;
+    }
 
     @Nonnull
     public NBTTagCompound write() {
@@ -158,26 +195,26 @@ public final class QIOAutomationRecipeConfigSnapshot {
 
     @Nonnull
     public static QIOAutomationRecipeConfigSnapshot read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         try {
             if (data.getInteger("schema") != SCHEMA_VERSION ||
-                !data.hasKey("type", NBT.TAG_STRING) ||
-                !data.hasKey("frequencyUUID", NBT.TAG_STRING) ||
-                !data.hasKey("deviceUUID", NBT.TAG_STRING) ||
-                !data.hasKey("providerId", NBT.TAG_STRING) ||
-                !data.hasKey("profileRevision", NBT.TAG_LONG) ||
-                !data.hasKey("policyRevision", NBT.TAG_LONG) ||
-                !data.hasKey("offset", NBT.TAG_INT) ||
-                !data.hasKey("totalSize", NBT.TAG_INT) ||
-                !data.hasKey("query", NBT.TAG_STRING) ||
-                !data.hasKey("individualProfile", NBT.TAG_BYTE) ||
-                !data.hasKey("globalProfileSlot", NBT.TAG_INT) ||
-                !data.hasKey("routeFilterMode", NBT.TAG_STRING) ||
-                !data.hasKey("routeFilterMutable", NBT.TAG_BYTE) ||
-                !data.hasKey("editable", NBT.TAG_BYTE) ||
-                !data.hasKey("craftAmount", NBT.TAG_LONG) ||
-                !data.hasKey("maximumCraftAmount", NBT.TAG_LONG) ||
-                !data.hasKey("routes", NBT.TAG_LIST)) {
+                    !data.hasKey("type", NBT.TAG_STRING) ||
+                    !data.hasKey("frequencyUUID", NBT.TAG_STRING) ||
+                    !data.hasKey("deviceUUID", NBT.TAG_STRING) ||
+                    !data.hasKey("providerId", NBT.TAG_STRING) ||
+                    !data.hasKey("profileRevision", NBT.TAG_LONG) ||
+                    !data.hasKey("policyRevision", NBT.TAG_LONG) ||
+                    !data.hasKey("offset", NBT.TAG_INT) ||
+                    !data.hasKey("totalSize", NBT.TAG_INT) ||
+                    !data.hasKey("query", NBT.TAG_STRING) ||
+                    !data.hasKey("individualProfile", NBT.TAG_BYTE) ||
+                    !data.hasKey("globalProfileSlot", NBT.TAG_INT) ||
+                    !data.hasKey("routeFilterMode", NBT.TAG_STRING) ||
+                    !data.hasKey("routeFilterMutable", NBT.TAG_BYTE) ||
+                    !data.hasKey("editable", NBT.TAG_BYTE) ||
+                    !data.hasKey("craftAmount", NBT.TAG_LONG) ||
+                    !data.hasKey("maximumCraftAmount", NBT.TAG_LONG) ||
+                    !data.hasKey("routes", NBT.TAG_LIST)) {
                 throw new QIOProcessingDataException("QIO automation config snapshot is incomplete");
             }
             NBTTagList storedRoutes = data.getTagList("routes", NBT.TAG_COMPOUND);
@@ -189,16 +226,16 @@ public final class QIOAutomationRecipeConfigSnapshot {
                 routes.add(Route.read(storedRoutes.getCompoundTagAt(index)));
             }
             return new QIOAutomationRecipeConfigSnapshot(
-                  QIOAutomationRecipeConfigType.valueOf(data.getString("type")),
-                  QIOProcessingNbt.readUUID(data, "frequencyUUID"),
-                  QIOProcessingNbt.readUUID(data, "deviceUUID"), data.getString("providerId"),
-                  data.getLong("profileRevision"), data.getLong("policyRevision"),
-                  data.getInteger("offset"), data.getInteger("totalSize"),
-                  data.getString("query"), data.getBoolean("individualProfile"),
-                  data.getInteger("globalProfileSlot"), RouteFilterMode.valueOf(
-                  data.getString("routeFilterMode")), data.getBoolean("routeFilterMutable"),
-                  data.getBoolean("editable"),
-                  data.getLong("craftAmount"), data.getLong("maximumCraftAmount"), routes);
+                    QIOAutomationRecipeConfigType.valueOf(data.getString("type")),
+                    QIOProcessingNbt.readUUID(data, "frequencyUUID"),
+                    QIOProcessingNbt.readUUID(data, "deviceUUID"), data.getString("providerId"),
+                    data.getLong("profileRevision"), data.getLong("policyRevision"),
+                    data.getInteger("offset"), data.getInteger("totalSize"),
+                    data.getString("query"), data.getBoolean("individualProfile"),
+                    data.getInteger("globalProfileSlot"), RouteFilterMode.valueOf(
+                    data.getString("routeFilterMode")), data.getBoolean("routeFilterMutable"),
+                    data.getBoolean("editable"),
+                    data.getLong("craftAmount"), data.getLong("maximumCraftAmount"), routes);
         } catch (QIOProcessingDataException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -239,11 +276,11 @@ public final class QIOAutomationRecipeConfigSnapshot {
         private final boolean craftAmountOverride;
 
         public Route(@Nonnull String productKey, @Nonnull String routeKey,
-              @Nonnull String routeId, @Nonnull String recipeKey,
-              @Nonnull List<MachineResourceStack> inputs,
-              @Nonnull List<MachineResourceStack> outputs, boolean profileEnabled,
-              boolean policyAllowed, int productOrder, int routeOrder, long craftAmount,
-              long maximumCraftAmount, boolean craftAmountOverride) {
+                     @Nonnull String routeId, @Nonnull String recipeKey,
+                     @Nonnull List<MachineResourceStack> inputs,
+                     @Nonnull List<MachineResourceStack> outputs, boolean profileEnabled,
+                     boolean policyAllowed, int productOrder, int routeOrder, long craftAmount,
+                     long maximumCraftAmount, boolean craftAmountOverride) {
             this.productKey = bounded(productKey, "productKey", false);
             this.routeKey = bounded(routeKey, "routeKey", false);
             this.routeId = bounded(routeId, "routeId", false);
@@ -251,7 +288,7 @@ public final class QIOAutomationRecipeConfigSnapshot {
             this.inputs = boundedStacks(inputs, "inputs");
             this.outputs = boundedStacks(outputs, "outputs");
             if (productOrder < 0 || routeOrder < 0 || craftAmount <= 0 ||
-                maximumCraftAmount <= 0 || craftAmount > maximumCraftAmount) {
+                    maximumCraftAmount <= 0 || craftAmount > maximumCraftAmount) {
                 throw new IllegalArgumentException("Invalid QIO automation route profile values");
             }
             this.profileEnabled = profileEnabled;
@@ -263,20 +300,67 @@ public final class QIOAutomationRecipeConfigSnapshot {
             this.craftAmountOverride = craftAmountOverride;
         }
 
-        @Nonnull public String getProductKey() { return productKey; }
-        @Nonnull public String getRouteKey() { return routeKey; }
-        @Nonnull public String getRouteId() { return routeId; }
-        @Nonnull public String getRecipeKey() { return recipeKey; }
-        @Nonnull public List<MachineResourceStack> getInputs() { return inputs; }
-        @Nonnull public List<MachineResourceStack> getOutputs() { return outputs; }
-        public boolean isProfileEnabled() { return profileEnabled; }
-        public boolean isPolicyAllowed() { return policyAllowed; }
-        public boolean isEffectiveEnabled() { return profileEnabled && policyAllowed; }
-        public int getProductOrder() { return productOrder; }
-        public int getRouteOrder() { return routeOrder; }
-        public long getCraftAmount() { return craftAmount; }
-        public long getMaximumCraftAmount() { return maximumCraftAmount; }
-        public boolean hasCraftAmountOverride() { return craftAmountOverride; }
+        @Nonnull
+        public String getProductKey() {
+            return productKey;
+        }
+
+        @Nonnull
+        public String getRouteKey() {
+            return routeKey;
+        }
+
+        @Nonnull
+        public String getRouteId() {
+            return routeId;
+        }
+
+        @Nonnull
+        public String getRecipeKey() {
+            return recipeKey;
+        }
+
+        @Nonnull
+        public List<MachineResourceStack> getInputs() {
+            return inputs;
+        }
+
+        @Nonnull
+        public List<MachineResourceStack> getOutputs() {
+            return outputs;
+        }
+
+        public boolean isProfileEnabled() {
+            return profileEnabled;
+        }
+
+        public boolean isPolicyAllowed() {
+            return policyAllowed;
+        }
+
+        public boolean isEffectiveEnabled() {
+            return profileEnabled && policyAllowed;
+        }
+
+        public int getProductOrder() {
+            return productOrder;
+        }
+
+        public int getRouteOrder() {
+            return routeOrder;
+        }
+
+        public long getCraftAmount() {
+            return craftAmount;
+        }
+
+        public long getMaximumCraftAmount() {
+            return maximumCraftAmount;
+        }
+
+        public boolean hasCraftAmountOverride() {
+            return craftAmountOverride;
+        }
 
         private NBTTagCompound write() {
             NBTTagCompound data = new NBTTagCompound();
@@ -298,32 +382,32 @@ public final class QIOAutomationRecipeConfigSnapshot {
 
         private static Route read(NBTTagCompound data) throws QIOProcessingDataException {
             if (!data.hasKey("productKey", NBT.TAG_STRING) ||
-                !data.hasKey("routeKey", NBT.TAG_STRING) ||
-                !data.hasKey("routeId", NBT.TAG_STRING) ||
-                !data.hasKey("recipeKey", NBT.TAG_STRING) ||
-                !data.hasKey("inputs", NBT.TAG_LIST) ||
-                !data.hasKey("outputs", NBT.TAG_LIST) ||
-                !data.hasKey("profileEnabled", NBT.TAG_BYTE) ||
-                !data.hasKey("policyAllowed", NBT.TAG_BYTE) ||
-                !data.hasKey("productOrder", NBT.TAG_INT) ||
-                !data.hasKey("routeOrder", NBT.TAG_INT) ||
-                !data.hasKey("craftAmount", NBT.TAG_LONG) ||
-                !data.hasKey("maximumCraftAmount", NBT.TAG_LONG) ||
-                !data.hasKey("craftAmountOverride", NBT.TAG_BYTE)) {
+                    !data.hasKey("routeKey", NBT.TAG_STRING) ||
+                    !data.hasKey("routeId", NBT.TAG_STRING) ||
+                    !data.hasKey("recipeKey", NBT.TAG_STRING) ||
+                    !data.hasKey("inputs", NBT.TAG_LIST) ||
+                    !data.hasKey("outputs", NBT.TAG_LIST) ||
+                    !data.hasKey("profileEnabled", NBT.TAG_BYTE) ||
+                    !data.hasKey("policyAllowed", NBT.TAG_BYTE) ||
+                    !data.hasKey("productOrder", NBT.TAG_INT) ||
+                    !data.hasKey("routeOrder", NBT.TAG_INT) ||
+                    !data.hasKey("craftAmount", NBT.TAG_LONG) ||
+                    !data.hasKey("maximumCraftAmount", NBT.TAG_LONG) ||
+                    !data.hasKey("craftAmountOverride", NBT.TAG_BYTE)) {
                 throw new QIOProcessingDataException("QIO automation route snapshot is incomplete");
             }
             return new Route(data.getString("productKey"), data.getString("routeKey"),
-                  data.getString("routeId"), data.getString("recipeKey"),
-                  readStacks(data.getTagList("inputs", NBT.TAG_COMPOUND)),
-                  readStacks(data.getTagList("outputs", NBT.TAG_COMPOUND)),
-                  data.getBoolean("profileEnabled"), data.getBoolean("policyAllowed"),
-                  data.getInteger("productOrder"), data.getInteger("routeOrder"),
-                  data.getLong("craftAmount"), data.getLong("maximumCraftAmount"),
-                  data.getBoolean("craftAmountOverride"));
+                    data.getString("routeId"), data.getString("recipeKey"),
+                    readStacks(data.getTagList("inputs", NBT.TAG_COMPOUND)),
+                    readStacks(data.getTagList("outputs", NBT.TAG_COMPOUND)),
+                    data.getBoolean("profileEnabled"), data.getBoolean("policyAllowed"),
+                    data.getInteger("productOrder"), data.getInteger("routeOrder"),
+                    data.getLong("craftAmount"), data.getLong("maximumCraftAmount"),
+                    data.getBoolean("craftAmountOverride"));
         }
 
         private static List<MachineResourceStack> boundedStacks(
-              List<MachineResourceStack> stacks, String name) {
+                List<MachineResourceStack> stacks, String name) {
             Objects.requireNonNull(stacks, name);
             if (stacks.isEmpty() || stacks.size() > MAX_STACKS_PER_ROUTE) {
                 throw new IllegalArgumentException(name + " has an invalid size");
@@ -340,14 +424,14 @@ public final class QIOAutomationRecipeConfigSnapshot {
         }
 
         private static List<MachineResourceStack> readStacks(NBTTagList stored)
-              throws QIOProcessingDataException {
+                throws QIOProcessingDataException {
             if (stored.tagCount() <= 0 || stored.tagCount() > MAX_STACKS_PER_ROUTE) {
                 throw new QIOProcessingDataException("QIO automation route stack list is invalid");
             }
             List<MachineResourceStack> stacks = new ArrayList<>(stored.tagCount());
             for (int index = 0; index < stored.tagCount(); index++) {
                 MachineResourceStack stack = MachineResourceStack.read(
-                      stored.getCompoundTagAt(index));
+                        stored.getCompoundTagAt(index));
                 if (stack == null) {
                     throw new QIOProcessingDataException("QIO automation route stack is invalid");
                 }

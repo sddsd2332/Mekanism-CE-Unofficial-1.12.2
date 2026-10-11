@@ -1,17 +1,18 @@
 package mekanism.common.content.qio.filter;
 
-import mekanism.common.content.filter.IModIDFilter;
-import mekanism.common.content.qio.QIOResourceEntry;
-import mekanism.common.content.qio.QIOResourceKind;
 import mekanism.api.qio.resource.QIOResourceCodecs;
 import mekanism.api.qio.resource.QIOResourceFamilyMatcher;
+import mekanism.common.content.filter.IModIDFilter;
+import mekanism.common.content.qio.QIOResourceEntry;
 import mekanism.common.content.transporter.TransporterFilter;
 import mekanism.common.lib.WildcardMatcher;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 
-/** Item filter matching the registry namespace with 1.12 wildcard rules. */
+/**
+ * Item filter matching the registry namespace with 1.12 wildcard rules.
+ */
 public class QIOModIDFilter extends QIOFilter implements IModIDFilter {
 
     public static final String TYPE = "modid";
@@ -37,7 +38,7 @@ public class QIOModIDFilter extends QIOFilter implements IModIDFilter {
     @Override
     public boolean matches(ItemStack stack) {
         return hasFilter() && stack != null && !stack.isEmpty() &&
-              WildcardMatcher.matches(modID, MekanismUtils.getModId(stack));
+                WildcardMatcher.matches(modID, MekanismUtils.getModId(stack));
     }
 
     @Override

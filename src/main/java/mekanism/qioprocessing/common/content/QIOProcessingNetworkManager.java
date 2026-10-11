@@ -11,18 +11,12 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
-/** World owner of independently persisted, frequency-level QIO Processing networks. */
+/**
+ * World owner of independently persisted, frequency-level QIO Processing networks.
+ */
+
 /**
  * QIO 处理模块中的 QIOProcessingNetworkManager 类型。
  *
@@ -40,6 +34,7 @@ public final class QIOProcessingNetworkManager {
     private final Set<UUID> dirtyNetworks = new LinkedHashSet<>();
     private final Set<UUID> damagedNetworks = new HashSet<>();
     private final Set<UUID> futureNetworks = new HashSet<>();
+    private final Set<UUID> incompatiblePolicyNetworks = new HashSet<>();
     private final Set<UUID> reportedIsolatedNetworks = new HashSet<>();
     private File requestedWorldDirectory;
     private File worldDirectory;
@@ -118,7 +113,7 @@ public final class QIOProcessingNetworkManager {
     @Nullable
     /** 按工作台配置 UUID 查询所属网络。 */
     public synchronized QIOProcessingNetworkData getByWorkbenchConfigUUID(
-          @Nullable UUID configUUID) {
+            @Nullable UUID configUUID) {
         if (configUUID == null) {
             return null;
         }
@@ -129,7 +124,7 @@ public final class QIOProcessingNetworkManager {
             }
             if (match != null) {
                 throw new IllegalStateException(
-                      "Duplicate QIO workbench configuration UUID " + configUUID);
+                        "Duplicate QIO workbench configuration UUID " + configUUID);
             }
             match = network;
         }
@@ -163,13 +158,16 @@ public final class QIOProcessingNetworkManager {
         if (futureNetworks.contains(frequencyUUID)) {
             return IsolationStatus.FUTURE;
         }
+        if (incompatiblePolicyNetworks.contains(frequencyUUID)) {
+            return IsolationStatus.INCOMPATIBLE_POLICY;
+        }
         return damagedNetworks.contains(frequencyUUID) ? IsolationStatus.DAMAGED : null;
     }
 
     @Nonnull
     /** 获取已加载网络，或使用最新频率身份创建网络。 */
     public synchronized QIOProcessingNetworkData getOrCreate(@Nonnull UUID frequencyUUID,
-          @Nonnull QIOFrequencyIdentitySnapshot identity) {
+                                                             @Nonnull QIOFrequencyIdentitySnapshot identity) {
         requireWritable();
         Objects.requireNonNull(frequencyUUID, "frequencyUUID");
         Objects.requireNonNull(identity, "identity");
@@ -189,7 +187,7 @@ public final class QIOProcessingNetworkManager {
         } else {
             network.updateFrequencyIdentity(identity);
             if (network.getLifecycle() == QIOProcessingNetworkLifecycle.ORPHANED_FREQUENCY &&
-                  network.getFrequencyDeletionBlockers().isEmpty()) {
+                    network.getFrequencyDeletionBlockers().isEmpty()) {
                 // The core frequency removal and this module's tombstone are separate files. If
                 // the core file rolled back, the exact same UUID proves this idle network is live.
                 network.setLifecycle(QIOProcessingNetworkLifecycle.ACTIVE);
@@ -200,18 +198,18 @@ public final class QIOProcessingNetworkManager {
 
     @Nonnull
     private QIOProcessingNetworkData resetDamagedNetwork(UUID frequencyUUID,
-          QIOFrequencyIdentitySnapshot identity) {
+                                                         QIOFrequencyIdentitySnapshot identity) {
         File active = QIOProcessingFileIO.dataFile(networkDirectory, frequencyUUID);
         File backup = QIOProcessingFileIO.backupFile(active);
         File activeArchive = requireDamagedArchive(active, frequencyUUID);
         File backupArchive = requireDamagedArchive(backup, frequencyUUID);
         QIOProcessingNetworkData replacement = new QIOProcessingNetworkData(frequencyUUID,
-              identity);
+                identity);
         try {
             QIOProcessingFileIO.replaceAtomicWithoutBackup(active, replacement.write());
         } catch (IOException e) {
             throw new IllegalStateException("Unable to rebuild damaged QIO Processing network " +
-                  frequencyUUID, e);
+                    frequencyUUID, e);
         }
         networks.put(frequencyUUID, replacement);
         bind(replacement);
@@ -224,18 +222,18 @@ public final class QIOProcessingNetworkManager {
         } catch (IOException e) {
             indexDirty = true;
             Mekanism.logger.warn("Rebuilt damaged QIO Processing network {} but could not " +
-                  "immediately refresh the world index; the next maintenance flush will retry",
-                  frequencyUUID, e);
+                            "immediately refresh the world index; the next maintenance flush will retry",
+                    frequencyUUID, e);
         }
         Mekanism.logger.warn("Reset damaged QIO Processing data for frequency {} ('{}') to an " +
-                    "empty current-format network after an authorized frequency access. Active " +
-                    "archive: {}; backup archive: {}. Saved jobs, buffers, material claims, " +
-                    "transfers, passive operations, recipe/workbench/maintenance configuration, " +
-                    "provider catalog, and central device records were discarded. Core QIO " +
-                    "frequency, inventory, security settings, and machine-local data were not " +
-                    "modified; loaded devices may republish their current records.",
-              frequencyUUID, identity.getName(), archivePath(activeArchive),
-              archivePath(backupArchive));
+                        "empty current-format network after an authorized frequency access. Active " +
+                        "archive: {}; backup archive: {}. Saved jobs, buffers, material claims, " +
+                        "transfers, passive operations, recipe/workbench/maintenance configuration, " +
+                        "provider catalog, and central device records were discarded. Core QIO " +
+                        "frequency, inventory, security settings, and machine-local data were not " +
+                        "modified; loaded devices may republish their current records.",
+                frequencyUUID, identity.getName(), archivePath(activeArchive),
+                archivePath(backupArchive));
         return replacement;
     }
 
@@ -247,7 +245,7 @@ public final class QIOProcessingNetworkManager {
         File archive = QIOProcessingFileIO.quarantine(source, ".damaged");
         if (archive == null) {
             throw new IllegalStateException("Unable to archive damaged QIO Processing data for " +
-                  frequencyUUID + ": " + source);
+                    frequencyUUID + ": " + source);
         }
         return archive;
     }
@@ -258,7 +256,7 @@ public final class QIOProcessingNetworkManager {
             return;
         }
         QIOProcessingNetworkData network = networks.get(Objects.requireNonNull(frequencyUUID,
-              "frequencyUUID"));
+                "frequencyUUID"));
         if (network == null) {
             return;
         }
@@ -267,7 +265,7 @@ public final class QIOProcessingNetworkManager {
             flushNetwork(frequencyUUID);
         } catch (IOException | RuntimeException e) {
             Mekanism.logger.error("Unable to persist deleted QIO frequency tombstone {}",
-                  frequencyUUID, e);
+                    frequencyUUID, e);
         }
     }
 
@@ -289,12 +287,12 @@ public final class QIOProcessingNetworkManager {
     public synchronized void checkpointNetwork(@Nonnull UUID frequencyUUID) throws IOException {
         requireWritable();
         QIOProcessingNetworkData network = networks.get(Objects.requireNonNull(frequencyUUID,
-              "frequencyUUID"));
+                "frequencyUUID"));
         if (network == null) {
             throw new IllegalArgumentException("Unknown QIO Processing network " + frequencyUUID);
         }
         QIOProcessingFileIO.replaceAtomicWithoutBackup(
-              QIOProcessingFileIO.dataFile(networkDirectory, frequencyUUID), network.write());
+                QIOProcessingFileIO.dataFile(networkDirectory, frequencyUUID), network.write());
         // A checkpoint is a durable current generation, not a backup checkpoint. Retain the
         // dirty marker so the next maintenance flush still rotates a recoverable backup.
         dirtyNetworks.add(frequencyUUID);
@@ -304,12 +302,12 @@ public final class QIOProcessingNetworkManager {
     public synchronized void flushNetwork(@Nonnull UUID frequencyUUID) throws IOException {
         requireWritable();
         QIOProcessingNetworkData network = networks.get(Objects.requireNonNull(frequencyUUID,
-              "frequencyUUID"));
+                "frequencyUUID"));
         if (network == null) {
             throw new IllegalArgumentException("Unknown QIO Processing network " + frequencyUUID);
         }
         QIOProcessingFileIO.writeAtomic(QIOProcessingFileIO.dataFile(networkDirectory, frequencyUUID),
-              network.write());
+                network.write());
         dirtyNetworks.remove(frequencyUUID);
         if (indexDirty) {
             writeIndex();
@@ -326,7 +324,7 @@ public final class QIOProcessingNetworkManager {
             pending = new LinkedHashMap<>();
             for (UUID uuid : dirtyNetworks) {
                 QIOProcessingNetworkData network = networks.get(uuid);
-                if (network != null && !damagedNetworks.contains(uuid) && !futureNetworks.contains(uuid)) {
+                if (network != null && getIsolationStatus(uuid) == null) {
                     pending.put(uuid, network);
                 }
             }
@@ -335,7 +333,7 @@ public final class QIOProcessingNetworkManager {
         for (Map.Entry<UUID, QIOProcessingNetworkData> entry : pending.entrySet()) {
             try {
                 QIOProcessingFileIO.writeAtomic(QIOProcessingFileIO.dataFile(networkDirectory,
-                      entry.getKey()), entry.getValue().write());
+                        entry.getKey()), entry.getValue().write());
                 saved.add(entry.getKey());
             } catch (IOException | RuntimeException e) {
                 Mekanism.logger.error("Unable to save QIO Processing network {}", entry.getKey(), e);
@@ -399,7 +397,7 @@ public final class QIOProcessingNetworkManager {
         if (schema > WORLD_INDEX_SCHEMA_VERSION) {
             readOnlyFutureIndex = true;
             Mekanism.logger.error("QIO Processing world index schema {} is newer than supported {}; " +
-                  "network storage will remain read-only", schema, WORLD_INDEX_SCHEMA_VERSION);
+                    "network storage will remain read-only", schema, WORLD_INDEX_SCHEMA_VERSION);
             return false;
         }
         if (schema != WORLD_INDEX_SCHEMA_VERSION) {
@@ -408,7 +406,7 @@ public final class QIOProcessingNetworkManager {
             restoreCurrentIndexBackup();
         } else if (!validCurrentIndex(data)) {
             Mekanism.logger.error("QIO Processing world index is missing or contains invalid " +
-                  "current-schema state; rebuilding index");
+                    "current-schema state; rebuilding index");
             QIOProcessingFileIO.quarantine(indexFile, ".damaged");
             restoreCurrentIndexBackup();
         }
@@ -429,8 +427,8 @@ public final class QIOProcessingNetworkManager {
             if (schema > WORLD_INDEX_SCHEMA_VERSION) {
                 readOnlyFutureIndex = true;
                 Mekanism.logger.error("QIO Processing world-index backup schema {} is newer " +
-                      "than supported {}; network storage will remain read-only", schema,
-                      WORLD_INDEX_SCHEMA_VERSION);
+                                "than supported {}; network storage will remain read-only", schema,
+                        WORLD_INDEX_SCHEMA_VERSION);
                 return false;
             }
             if (schema != WORLD_INDEX_SCHEMA_VERSION || !validCurrentIndex(data)) return false;
@@ -451,13 +449,14 @@ public final class QIOProcessingNetworkManager {
         for (int index = 0; index < entries.tagCount(); index++) {
             NBTTagCompound entry = entries.getCompoundTagAt(index);
             if (!entry.hasKey("frequencyUUID", NBT.TAG_STRING) ||
-                !entry.hasKey("status", NBT.TAG_STRING)) return false;
+                    !entry.hasKey("status", NBT.TAG_STRING)) return false;
             try {
                 UUID uuid = UUID.fromString(entry.getString("frequencyUUID"));
                 String status = entry.getString("status");
                 if (!uuid.toString().equals(entry.getString("frequencyUUID")) ||
-                    !("ACTIVE".equals(status) || "DAMAGED".equals(status) ||
-                      "FUTURE".equals(status)) || !seen.add(uuid)) return false;
+                        !("ACTIVE".equals(status) || "DAMAGED".equals(status) ||
+                                "FUTURE".equals(status) || "INCOMPATIBLE_POLICY".equals(status)) || !seen.add(uuid))
+                    return false;
             } catch (RuntimeException e) {
                 return false;
             }
@@ -477,7 +476,7 @@ public final class QIOProcessingNetworkManager {
                     futureNetworks.add(uuid);
                     damagedNetworks.remove(uuid);
                 } else if (file.getName().contains(".dat.damaged") &&
-                      !futureNetworks.contains(uuid)) {
+                        !futureNetworks.contains(uuid)) {
                     if (QIOProcessingFileIO.dataFile(networkDirectory, uuid).isFile()) {
                         damagedNetworks.remove(uuid);
                     } else {
@@ -492,8 +491,8 @@ public final class QIOProcessingNetworkManager {
         for (File backup : QIOProcessingFileIO.listBackupFiles(networkDirectory)) {
             UUID uuid = QIOProcessingFileIO.parseBackupFileUUID(backup);
             if (uuid == null || futureNetworks.contains(uuid) ||
-                QIOProcessingFileIO.dataFile(networkDirectory, uuid).isFile() ||
-                networks.containsKey(uuid)) {
+                    QIOProcessingFileIO.dataFile(networkDirectory, uuid).isFile() ||
+                    networks.containsKey(uuid)) {
                 continue;
             }
             QIOProcessingNetworkData restored = restoreNetworkBackup(uuid, true);
@@ -508,10 +507,10 @@ public final class QIOProcessingNetworkManager {
             UUID uuid = QIOProcessingFileIO.parseDataFileUUID(file);
             if (uuid == null) {
                 Mekanism.logger.warn("Ignoring QIO Processing file with an invalid UUID name: {}",
-                      file.getName());
+                        file.getName());
                 continue;
             }
-            if (damagedNetworks.contains(uuid) || futureNetworks.contains(uuid)) {
+            if (getIsolationStatus(uuid) != null) {
                 reportIsolation(uuid, getIsolationStatus(uuid), null);
                 continue;
             }
@@ -524,6 +523,7 @@ public final class QIOProcessingNetworkManager {
                     throw new IOException("File is empty");
                 }
                 int schema = readNetworkSchema(data);
+                QIOProcessingNetworkData.requireMachineRecipeTableSchema(schema);
                 if (schema > QIOProcessingNetworkData.SCHEMA_VERSION) {
                     QIOProcessingFileIO.quarantine(file, ".future");
                     markIsolated(uuid, IsolationStatus.FUTURE, null);
@@ -536,12 +536,16 @@ public final class QIOProcessingNetworkManager {
                     network = QIOProcessingNetworkData.read(data, uuid);
                 }
                 registerLoadedNetwork(uuid, network);
+            } catch (QIOIncompatibleRecipePolicyException e) {
+                // Keep both active and backup files byte-for-byte. Falling back to a backup
+                // or getOrCreate's damaged reset could discard transactions or old policies.
+                markIsolated(uuid, IsolationStatus.INCOMPATIBLE_POLICY, e);
             } catch (Exception e) {
                 QIOProcessingFileIO.quarantine(file, ".damaged");
                 QIOProcessingNetworkData restored = restoreNetworkBackup(uuid, false);
                 if (restored != null) {
                     registerLoadedNetwork(uuid, restored);
-                } else if (!futureNetworks.contains(uuid)) {
+                } else if (!futureNetworks.contains(uuid) && !incompatiblePolicyNetworks.contains(uuid)) {
                     markIsolated(uuid, IsolationStatus.DAMAGED, e);
                 }
             }
@@ -550,7 +554,7 @@ public final class QIOProcessingNetworkManager {
 
     @Nullable
     private QIOProcessingNetworkData restoreNetworkBackup(UUID uuid,
-          boolean resetLegacyData) {
+                                                          boolean resetLegacyData) {
         File active = QIOProcessingFileIO.dataFile(networkDirectory, uuid);
         File backup = QIOProcessingFileIO.backupFile(active);
         if (!backup.isFile()) {
@@ -562,6 +566,7 @@ public final class QIOProcessingNetworkManager {
                 throw new IOException("Backup is empty");
             }
             int schema = readNetworkSchema(data);
+            QIOProcessingNetworkData.requireMachineRecipeTableSchema(schema);
             if (schema > QIOProcessingNetworkData.SCHEMA_VERSION) {
                 markIsolated(uuid, IsolationStatus.FUTURE, null);
                 return null;
@@ -571,13 +576,16 @@ public final class QIOProcessingNetworkManager {
             }
             if (schema != QIOProcessingNetworkData.SCHEMA_VERSION) {
                 throw new QIOProcessingDataException(
-                      "Unsupported QIO Processing backup schema " + schema);
+                        "Unsupported QIO Processing backup schema " + schema);
             }
             QIOProcessingNetworkData restored = QIOProcessingNetworkData.read(data, uuid);
             QIOProcessingFileIO.replaceAtomicWithoutBackup(active, data);
             Mekanism.logger.warn("Restored QIO Processing network {} from current-schema backup",
-                  uuid);
+                    uuid);
             return restored;
+        } catch (QIOIncompatibleRecipePolicyException e) {
+            markIsolated(uuid, IsolationStatus.INCOMPATIBLE_POLICY, e);
+            return null;
         } catch (IOException | QIOProcessingDataException | RuntimeException e) {
             if (resetLegacyData) {
                 markIsolated(uuid, IsolationStatus.DAMAGED, e);
@@ -588,7 +596,7 @@ public final class QIOProcessingNetworkManager {
 
     @Nonnull
     private QIOProcessingNetworkData resetLegacyNetwork(UUID uuid, File source,
-          NBTTagCompound data, int schema) throws IOException, QIOProcessingDataException {
+                                                        NBTTagCompound data, int schema) throws IOException, QIOProcessingDataException {
         QIOFrequencyIdentitySnapshot identity = readLegacyIdentity(data, uuid);
         File active = QIOProcessingFileIO.dataFile(networkDirectory, uuid);
         File backup = QIOProcessingFileIO.backupFile(active);
@@ -614,49 +622,49 @@ public final class QIOProcessingNetworkManager {
             } catch (IOException e) {
                 dirtyNetworks.add(uuid);
                 Mekanism.logger.warn("Rebuilt QIO Processing network {} but could not refresh " +
-                      "its current-schema backup; the next dirty flush will retry", uuid, e);
+                        "its current-schema backup; the next dirty flush will retry", uuid, e);
             }
         }
         Mekanism.logger.warn("Reset obsolete QIO Processing data for frequency {} ('{}') from " +
-                    "development schema {} to {}. Active archive: {}; backup archive: {}. " +
-                    "Saved jobs, buffers, material claims, transfers, passive operations, " +
-                    "recipe/workbench/maintenance configuration, provider catalog, and central " +
-                    "device records were discarded. The core QIO frequency, inventory, security " +
-                    "settings, and machine bindings were not modified; loaded devices may " +
-                    "republish their current records.",
-              uuid, identity.getName(), schema, QIOProcessingNetworkData.SCHEMA_VERSION,
-              archivePath(activeArchive), archivePath(backupArchive));
+                        "development schema {} to {}. Active archive: {}; backup archive: {}. " +
+                        "Saved jobs, buffers, material claims, transfers, passive operations, " +
+                        "recipe/workbench/maintenance configuration, provider catalog, and central " +
+                        "device records were discarded. The core QIO frequency, inventory, security " +
+                        "settings, and machine bindings were not modified; loaded devices may " +
+                        "republish their current records.",
+                uuid, identity.getName(), schema, QIOProcessingNetworkData.SCHEMA_VERSION,
+                archivePath(activeArchive), archivePath(backupArchive));
         return replacement;
     }
 
     @Nonnull
     private static QIOFrequencyIdentitySnapshot readLegacyIdentity(NBTTagCompound data,
-          UUID expectedUUID) throws QIOProcessingDataException {
+                                                                   UUID expectedUUID) throws QIOProcessingDataException {
         if (!data.hasKey("frequencyUUID", NBT.TAG_STRING) ||
-            !data.hasKey("lastKnownFrequencyIdentity", NBT.TAG_COMPOUND)) {
+                !data.hasKey("lastKnownFrequencyIdentity", NBT.TAG_COMPOUND)) {
             throw new QIOProcessingDataException(
-                  "Legacy QIO Processing data is missing its frequency identity");
+                    "Legacy QIO Processing data is missing its frequency identity");
         }
         UUID storedUUID = QIOProcessingNbt.readUUID(data, "frequencyUUID");
         if (!expectedUUID.equals(storedUUID)) {
             throw new QIOProcessingDataException(
-                  "Legacy QIO Processing file name and frequency UUID disagree");
+                    "Legacy QIO Processing file name and frequency UUID disagree");
         }
         NBTTagCompound identity = data.getCompoundTag("lastKnownFrequencyIdentity");
         if (!identity.hasKey("name", NBT.TAG_STRING) ||
-            !identity.hasKey("securityMode", NBT.TAG_STRING) ||
-            identity.hasKey("ownerUUID") && !identity.hasKey("ownerUUID", NBT.TAG_STRING)) {
+                !identity.hasKey("securityMode", NBT.TAG_STRING) ||
+                identity.hasKey("ownerUUID") && !identity.hasKey("ownerUUID", NBT.TAG_STRING)) {
             throw new QIOProcessingDataException(
-                  "Legacy QIO Processing frequency identity has invalid field types");
+                    "Legacy QIO Processing frequency identity has invalid field types");
         }
         return QIOFrequencyIdentitySnapshot.read(identity);
     }
 
     private static int readNetworkSchema(NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         if (!data.hasKey("networkDataSchemaVersion", NBT.TAG_INT)) {
             throw new QIOProcessingDataException(
-                  "QIO Processing network schema is missing or has the wrong type");
+                    "QIO Processing network schema is missing or has the wrong type");
         }
         return data.getInteger("networkDataSchemaVersion");
     }
@@ -683,6 +691,7 @@ public final class QIOProcessingNetworkManager {
         bind(network);
         damagedNetworks.remove(uuid);
         futureNetworks.remove(uuid);
+        incompatiblePolicyNetworks.remove(uuid);
         reportedIsolatedNetworks.remove(uuid);
         if (network.wasRepairedOnLoad()) {
             dirtyNetworks.add(uuid);
@@ -690,11 +699,14 @@ public final class QIOProcessingNetworkManager {
     }
 
     private void markIsolated(UUID uuid, IsolationStatus status,
-          @Nullable Throwable cause) {
+                              @Nullable Throwable cause) {
         if (status == IsolationStatus.FUTURE) {
             futureNetworks.add(uuid);
             damagedNetworks.remove(uuid);
-        } else if (!futureNetworks.contains(uuid)) {
+        } else if (status == IsolationStatus.INCOMPATIBLE_POLICY) {
+            incompatiblePolicyNetworks.add(uuid);
+            damagedNetworks.remove(uuid);
+        } else if (!futureNetworks.contains(uuid) && !incompatiblePolicyNetworks.contains(uuid)) {
             damagedNetworks.add(uuid);
         }
         reportIsolation(uuid, getIsolationStatus(uuid), cause);
@@ -703,27 +715,34 @@ public final class QIOProcessingNetworkManager {
     private void reportUnreportedIsolatedNetworks() {
         Set<UUID> isolated = new HashSet<>(damagedNetworks);
         isolated.addAll(futureNetworks);
+        isolated.addAll(incompatiblePolicyNetworks);
         isolated.stream().map(UUID::toString).sorted().map(UUID::fromString).forEach(uuid ->
-              reportIsolation(uuid, getIsolationStatus(uuid), null));
+                reportIsolation(uuid, getIsolationStatus(uuid), null));
     }
 
     private void reportIsolation(UUID uuid, @Nullable IsolationStatus status,
-          @Nullable Throwable cause) {
+                                 @Nullable Throwable cause) {
         if (status == null || !reportedIsolatedNetworks.add(uuid)) {
             return;
         }
         String message;
-        if (status == IsolationStatus.FUTURE) {
+        if (status == IsolationStatus.INCOMPATIBLE_POLICY) {
+            message = "QIO Processing network {} has an incompatible machine recipe policy schema. " +
+                    "It is isolated without rewriting either the active file or its backup. " +
+                    "No policy migration or automatic frequency reset was performed. Jobs, buffers, " +
+                    "claims and transfers remain in the original file. Restore a matching build " +
+                    "or explicitly handle this development policy format before enabling processing.";
+        } else if (status == IsolationStatus.FUTURE) {
             message = "QIO Processing network {} contains newer-schema module data and remains " +
-                  "isolated so it cannot be overwritten or downgraded. Saved central device " +
-                  "records are unavailable. Core QIO frequency, inventory, security data, and " +
-                  "machine-local data were not modified.";
+                    "isolated so it cannot be overwritten or downgraded. Saved central device " +
+                    "records are unavailable. Core QIO frequency, inventory, security data, and " +
+                    "machine-local data were not modified.";
         } else {
             message = "QIO Processing network {} contains damaged current-format module data and " +
-                  "remains isolated. It was not automatically erased because it may contain " +
-                  "jobs, buffers, material claims, or in-flight transfers. Saved central device " +
-                  "records are unavailable. Core QIO frequency, inventory, security data, and " +
-                  "machine-local data were not modified.";
+                    "remains isolated. It was not automatically erased because it may contain " +
+                    "jobs, buffers, material claims, or in-flight transfers. Saved central device " +
+                    "records are unavailable. Core QIO frequency, inventory, security data, and " +
+                    "machine-local data were not modified.";
         }
         if (cause == null) {
             Mekanism.logger.error(message, uuid);
@@ -751,12 +770,14 @@ public final class QIOProcessingNetworkManager {
         Set<UUID> all = new HashSet<>(networks.keySet());
         all.addAll(damagedNetworks);
         all.addAll(futureNetworks);
+        all.addAll(incompatiblePolicyNetworks);
         all.stream().map(UUID::toString).sorted().forEach(raw -> {
             UUID uuid = UUID.fromString(raw);
             NBTTagCompound entry = new NBTTagCompound();
             entry.setString("frequencyUUID", raw);
             entry.setString("status", futureNetworks.contains(uuid) ? "FUTURE" :
-                  damagedNetworks.contains(uuid) ? "DAMAGED" : "ACTIVE");
+                    incompatiblePolicyNetworks.contains(uuid) ? "INCOMPATIBLE_POLICY" :
+                            damagedNetworks.contains(uuid) ? "DAMAGED" : "ACTIVE");
             entries.appendTag(entry);
         });
         data.setTag("networks", entries);
@@ -781,6 +802,7 @@ public final class QIOProcessingNetworkManager {
         dirtyNetworks.clear();
         damagedNetworks.clear();
         futureNetworks.clear();
+        incompatiblePolicyNetworks.clear();
         reportedIsolatedNetworks.clear();
         requestedWorldDirectory = null;
         worldDirectory = null;
@@ -794,7 +816,8 @@ public final class QIOProcessingNetworkManager {
 
     public enum IsolationStatus {
         DAMAGED,
-        FUTURE
+        FUTURE,
+        INCOMPATIBLE_POLICY
     }
 
     public static final class IsolatedNetworkException extends IllegalStateException {
@@ -806,7 +829,7 @@ public final class QIOProcessingNetworkManager {
 
         private IsolatedNetworkException(UUID frequencyUUID, IsolationStatus status) {
             super("QIO Processing network " + frequencyUUID + " is isolated as " + status +
-                  " and cannot be overwritten");
+                    " and cannot be overwritten");
             this.frequencyUUID = frequencyUUID;
             this.status = status;
         }

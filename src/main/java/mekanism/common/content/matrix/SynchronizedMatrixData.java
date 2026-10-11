@@ -15,11 +15,16 @@ import mekanism.common.tile.multiblock.TileEntityInductionProvider;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 
+import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.math.BigDecimal;
 
 public class SynchronizedMatrixData extends SynchronizedData<SynchronizedMatrixData> implements IEnergyContainer {
+
+    @Override
+    protected int getMultiblockRedstoneLevel() {
+        return mekanism.common.util.MekanismUtils.redstoneLevelFromContents(getEnergyPostQueue(), getMaxEnergy());
+    }
 
     private final Map<Coord4D, TileEntityInductionProvider> providers = new LinkedHashMap<>();
     private final Map<Coord4D, TileEntityInductionCell> cells = new LinkedHashMap<>();
@@ -68,7 +73,8 @@ public class SynchronizedMatrixData extends SynchronizedData<SynchronizedMatrixD
             cachedTotal += energy;
             if (cell.hasValidExactEnergy()) exactTotal = exactTotal.add(cell.getExactEnergy());
             else if (Double.isFinite(energy)) exactTotal = exactTotal.add(new BigDecimal(energy));
-            if (Double.isFinite(cell.getMaxEnergy())) exactCapacity = exactCapacity.add(new BigDecimal(cell.getMaxEnergy()));
+            if (Double.isFinite(cell.getMaxEnergy()))
+                exactCapacity = exactCapacity.add(new BigDecimal(cell.getMaxEnergy()));
         }
     }
 
@@ -80,7 +86,9 @@ public class SynchronizedMatrixData extends SynchronizedData<SynchronizedMatrixD
         return energyPostQueue().doubleValue();
     }
 
-    private BigDecimal energyPostQueue() { return exactTotal.add(queuedInput).subtract(queuedOutput); }
+    private BigDecimal energyPostQueue() {
+        return exactTotal.add(queuedInput).subtract(queuedOutput);
+    }
 
     private static double boundedDouble(BigDecimal value) {
         double rounded = value.doubleValue();
@@ -89,12 +97,13 @@ public class SynchronizedMatrixData extends SynchronizedData<SynchronizedMatrixD
 
     public boolean hasValidEnergy() {
         if (!Double.isFinite(cachedTotal) || !Double.isFinite(storageCap) || !Double.isFinite(transferCap) ||
-              cachedTotal < 0 || storageCap < 0 || transferCap < 0 || cachedTotal > storageCap) return false;
+                cachedTotal < 0 || storageCap < 0 || transferCap < 0 || cachedTotal > storageCap) return false;
         for (TileEntityInductionCell cell : cells.values()) {
             if (!cell.hasValidExactEnergy()) return false;
             double energy = cell.getEnergy();
             double capacity = cell.getMaxEnergy();
-            if (!Double.isFinite(energy) || !Double.isFinite(capacity) || energy < 0 || capacity < 0 || energy > capacity) return false;
+            if (!Double.isFinite(energy) || !Double.isFinite(capacity) || energy < 0 || capacity < 0 || energy > capacity)
+                return false;
         }
         for (TileEntityInductionProvider provider : providers.values()) {
             double capacity = provider.getTransferCapacity();
@@ -108,7 +117,9 @@ public class SynchronizedMatrixData extends SynchronizedData<SynchronizedMatrixD
         refreshRateTick();
     }
 
-    /** Saves change to the original cell objects without granting another tick's transfer budget. */
+    /**
+     * Saves change to the original cell objects without granting another tick's transfer budget.
+     */
     public void flushEnergy() {
         if (flushing || queuedInput.signum() == 0 && queuedOutput.signum() == 0) return;
         flushing = true;
@@ -118,7 +129,7 @@ public class SynchronizedMatrixData extends SynchronizedData<SynchronizedMatrixD
                 if (remaining.signum() == 0) break;
                 BigDecimal before = cell.getExactEnergy();
                 BigDecimal change = remaining.signum() > 0 ? remaining.min(new BigDecimal(cell.getMaxEnergy()).subtract(before)) :
-                      remaining.negate().min(before).negate();
+                        remaining.negate().min(before).negate();
                 cell.setExactEnergy(before.add(change));
                 BigDecimal applied = cell.getExactEnergy().subtract(before);
                 remaining = remaining.subtract(applied);
@@ -161,7 +172,9 @@ public class SynchronizedMatrixData extends SynchronizedData<SynchronizedMatrixD
         super.setFormed(formed);
     }
 
-    /** Called before a cell/provider is invalidated or its chunk is unloaded. */
+    /**
+     * Called before a cell/provider is invalidated or its chunk is unloaded.
+     */
     public void internalRemoved() {
         flushEnergy();
         World world = controller.getWorld();
@@ -282,9 +295,12 @@ public class SynchronizedMatrixData extends SynchronizedData<SynchronizedMatrixD
         return new BigDecimal(remainder).compareTo(exact) < 0 ? Math.nextUp(remainder) : remainder;
     }
 
-    /** Returns unaccepted external units, crediting only their configured double conversion. */
+    /**
+     * Returns unaccepted external units, crediting only their configured double conversion.
+     */
     public double insertConverted(double amount, double joulesPerUnit, boolean simulate) {
-        if (!(amount > 0) || !Double.isFinite(amount) || !(joulesPerUnit > 0) || !Double.isFinite(joulesPerUnit)) return amount;
+        if (!(amount > 0) || !Double.isFinite(amount) || !(joulesPerUnit > 0) || !Double.isFinite(joulesPerUnit))
+            return amount;
         BigDecimal requested = new BigDecimal(amount);
         double available = queueEnergyAddition(Double.MAX_VALUE, true);
         double remainder = convertedRemainder(requested, available, joulesPerUnit);
@@ -426,14 +442,16 @@ public class SynchronizedMatrixData extends SynchronizedData<SynchronizedMatrixD
     public double getRemainingInput() {
         long now = refreshRateTick();
         double remaining = 0;
-        for (TileEntityInductionProvider provider : providers.values()) remaining += provider.getRemainingTransfer(now, true);
+        for (TileEntityInductionProvider provider : providers.values())
+            remaining += provider.getRemainingTransfer(now, true);
         return remaining;
     }
 
     public double getRemainingOutput() {
         long now = refreshRateTick();
         double remaining = 0;
-        for (TileEntityInductionProvider provider : providers.values()) remaining += provider.getRemainingTransfer(now, false);
+        for (TileEntityInductionProvider provider : providers.values())
+            remaining += provider.getRemainingTransfer(now, false);
         return remaining;
     }
 

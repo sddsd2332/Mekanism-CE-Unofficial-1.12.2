@@ -21,12 +21,12 @@ public class TranslationButton extends MekanismButton {
     }
 
     public TranslationButton(IGuiWrapper gui, int x, int y, int width, int height, ILangEntry translationHelper, Runnable onPress,
-          @Nullable IHoverable onHover) {
+                             @Nullable IHoverable onHover) {
         this(gui, x, y, width, height, translationHelper, onPress, onHover, null);
     }
 
     public TranslationButton(IGuiWrapper gui, int x, int y, int width, int height, ILangEntry translationHelper, Runnable onPress,
-          @Nullable IHoverable onHover, @Nullable Supplier<EnumColor> colorSupplier) {
+                             @Nullable IHoverable onHover, @Nullable Supplier<EnumColor> colorSupplier) {
         super(gui, x, y, width, height, translationHelper.translate(), onPress, onHover);
         this.colorSupplier = colorSupplier;
         this.onPress = null;
@@ -37,7 +37,7 @@ public class TranslationButton extends MekanismButton {
     }
 
     public TranslationButton(IGuiWrapper gui, int x, int y, int width, int height, ILangEntry translationHelper, GuiElement.IClickable onPress,
-          @Nullable Supplier<EnumColor> colorSupplier) {
+                             @Nullable Supplier<EnumColor> colorSupplier) {
         super(gui, x, y, width, height, translationHelper.translate(), null, null);
         this.colorSupplier = colorSupplier;
         this.onPress = onPress;

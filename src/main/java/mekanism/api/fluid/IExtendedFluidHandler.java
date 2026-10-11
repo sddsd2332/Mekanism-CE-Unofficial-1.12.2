@@ -29,19 +29,19 @@ public interface IExtendedFluidHandler extends IFluidHandler {
     @Nullable
     default FluidStack insertFluid(@Nullable FluidStack stack, Action action) {
         return ExtendedFluidHandlerUtils.insert(stack, null, action, side -> getTanks(), (tank, side) -> getFluidInTank(tank),
-              (tank, fluid, side, act) -> insertFluid(tank, fluid, act));
+                (tank, fluid, side, act) -> insertFluid(tank, fluid, act));
     }
 
     @Nullable
     default FluidStack extractFluid(int amount, Action action) {
         return ExtendedFluidHandlerUtils.extract(amount, null, action, side -> getTanks(), (tank, side) -> getFluidInTank(tank),
-              (tank, amt, side, act) -> extractFluid(tank, amt, act));
+                (tank, amt, side, act) -> extractFluid(tank, amt, act));
     }
 
     @Nullable
     default FluidStack extractFluid(@Nullable FluidStack stack, Action action) {
         return ExtendedFluidHandlerUtils.extract(stack, null, action, side -> getTanks(), (tank, side) -> getFluidInTank(tank),
-              (tank, amt, side, act) -> extractFluid(tank, amt, act));
+                (tank, amt, side, act) -> extractFluid(tank, amt, act));
     }
 
     @Override

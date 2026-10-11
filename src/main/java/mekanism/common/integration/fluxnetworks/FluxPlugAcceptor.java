@@ -5,7 +5,7 @@ import net.minecraft.util.EnumFacing;
 import net.minecraftforge.energy.CapabilityEnergy;
 import sonar.fluxnetworks.common.tileentity.TileFluxPlug;
 
-public class FluxPlugAcceptor extends ForgeAcceptor{
+public class FluxPlugAcceptor extends ForgeAcceptor {
 
     private final TileFluxPlug plug;
 

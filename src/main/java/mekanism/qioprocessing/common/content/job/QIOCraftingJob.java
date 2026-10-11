@@ -5,20 +5,17 @@ import mekanism.qioprocessing.common.content.QIOProcessingNbt;
 import mekanism.qioprocessing.common.content.plan.QIOCraftPlan;
 import mekanism.qioprocessing.common.content.plan.QIOCyclePlanNode;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraftforge.common.util.Constants.NBT;
 import net.minecraft.nbt.NBTTagList;
+import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Objects;
-import java.util.UUID;
-import java.util.LinkedHashMap;
-import java.util.Collections;
-import java.util.Map;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
-/** Persistent runtime envelope for one frequency-level order. */
+/**
+ * Persistent runtime envelope for one frequency-level order.
+ */
+
 /**
  * QIO 处理模块中的 QIOCraftingJob 类型。
  *
@@ -54,23 +51,23 @@ public final class QIOCraftingJob {
 
     /** 创建一个新的 QIO 合成任务。 */
     public QIOCraftingJob(@Nonnull UUID jobId, @Nonnull QIOCraftingJobSource source,
-          @Nullable UUID requester, long basePriority, long enqueueSequence, long createdAtTick,
-          @Nonnull QIOCraftPlan activePlan) {
+                          @Nullable UUID requester, long basePriority, long enqueueSequence, long createdAtTick,
+                          @Nonnull QIOCraftPlan activePlan) {
         this(jobId, source, requester, basePriority, enqueueSequence, createdAtTick, activePlan,
-              QIOCraftingJobState.QUEUED, 0, -1, -1, null, -1, false, 0,
-              activePlan.getRootAmount(), null, null, null, null);
+                QIOCraftingJobState.QUEUED, 0, -1, -1, null, -1, false, 0,
+                activePlan.getRootAmount(), null, null, null, null);
     }
 
     private QIOCraftingJob(UUID jobId, QIOCraftingJobSource source, @Nullable UUID requester,
-          long basePriority, long enqueueSequence, long createdAtTick, QIOCraftPlan activePlan,
-          QIOCraftingJobState state, long runtimeRevision, long readySinceSchedulerClock,
-          long lastDispatchSequence, @Nullable UUID executionSlotToken,
-          long slotAcquiredAtSchedulerClock, boolean cancellationRequested,
-          long deliveredRootAmount, long requestedRootAmount,
-          @Nullable Map<Long, QIOStepRuntime> restoredRuntimes,
-          @Nullable QIOPlanRevisionTransition revisionTransition,
-          @Nullable Map<Long, QIOCycleRuntime> restoredCycleRuntimes,
-          @Nullable String recoveryDiagnostic) {
+                           long basePriority, long enqueueSequence, long createdAtTick, QIOCraftPlan activePlan,
+                           QIOCraftingJobState state, long runtimeRevision, long readySinceSchedulerClock,
+                           long lastDispatchSequence, @Nullable UUID executionSlotToken,
+                           long slotAcquiredAtSchedulerClock, boolean cancellationRequested,
+                           long deliveredRootAmount, long requestedRootAmount,
+                           @Nullable Map<Long, QIOStepRuntime> restoredRuntimes,
+                           @Nullable QIOPlanRevisionTransition revisionTransition,
+                           @Nullable Map<Long, QIOCycleRuntime> restoredCycleRuntimes,
+                           @Nullable String recoveryDiagnostic) {
         this.jobId = Objects.requireNonNull(jobId, "jobId");
         this.source = Objects.requireNonNull(source, "source");
         this.requester = requester;
@@ -93,9 +90,9 @@ public final class QIOCraftingJob {
         this.slotAcquiredAtSchedulerClock = slotAcquiredAtSchedulerClock;
         this.cancellationRequested = cancellationRequested;
         this.deliveredRootAmount = QIOProcessingNbt.requireNonNegative(deliveredRootAmount,
-              "deliveredRootAmount");
+                "deliveredRootAmount");
         this.recoveryDiagnostic = recoveryDiagnostic == null ? null : checkedDiagnostic(
-              recoveryDiagnostic);
+                recoveryDiagnostic);
         if (this.deliveredRootAmount > requestedRootAmount) {
             throw new IllegalArgumentException("Delivered QIO root amount exceeds the request");
         }
@@ -168,16 +165,16 @@ public final class QIOCraftingJob {
     /** 判断任意步骤是否仍有活动操作。 */
     public boolean hasActiveOperations() {
         return stepRuntimes.values().stream().anyMatch(runtime ->
-              runtime.hasActiveAssignments());
+                runtime.hasActiveAssignments());
     }
 
     /** 提交新的计划版本，等待当前操作安全边界后切换。 */
     public void requestReplan(@Nonnull QIOCraftPlan nextPlan) {
         QIOCraftPlan checked = Objects.requireNonNull(nextPlan, "nextPlan");
         if (state.isTerminal() || cancellationRequested || revisionTransition != null ||
-              checked.getRevision() <= activePlan.getRevision() ||
-              !checked.getRootResource().equals(activePlan.getRootResource()) ||
-              checked.getRootAmount() != getRemainingGuaranteedRootAmount()) {
+                checked.getRevision() <= activePlan.getRevision() ||
+                !checked.getRootResource().equals(activePlan.getRootResource()) ||
+                checked.getRootAmount() != getRemainingGuaranteedRootAmount()) {
             throw new IllegalStateException("QIO job cannot begin the requested plan revision");
         }
         revisionTransition = new QIOPlanRevisionTransition(checked);
@@ -221,7 +218,7 @@ public final class QIOCraftingJob {
     /** 判断计划中所有步骤是否已完成。 */
     public boolean areAllStepsComplete() {
         return stepRuntimes.values().stream().allMatch(QIOStepRuntime::isComplete) &&
-              cycleRuntimes.values().stream().allMatch(QIOCycleRuntime::isComplete);
+                cycleRuntimes.values().stream().allMatch(QIOCycleRuntime::isComplete);
     }
 
     @Nonnull
@@ -237,13 +234,13 @@ public final class QIOCraftingJob {
         QIOCycleRuntime runtime = cycleRuntimes.get(cycle.getNodeId());
         QIOStepRuntime member = stepRuntimes.get(memberNodeId);
         return runtime == null || member == null ? 0 :
-              runtime.allowance(cycle, memberNodeId, member);
+                runtime.allowance(cycle, memberNodeId, member);
     }
 
     /** 判断指定节点的所有依赖是否已完成。 */
     public boolean areDependenciesComplete(long nodeId) {
         mekanism.qioprocessing.common.content.plan.QIOPlanStep step = activePlan.getSteps().stream()
-              .filter(candidate -> candidate.getNodeId() == nodeId).findFirst().orElse(null);
+                .filter(candidate -> candidate.getNodeId() == nodeId).findFirst().orElse(null);
         if (step == null) {
             return false;
         }
@@ -264,10 +261,10 @@ public final class QIOCraftingJob {
 
     /** 更新指定步骤操作的执行进度。 */
     public boolean updateStepOperation(long nodeId, @Nonnull UUID operationId,
-          @Nonnull QIOOperationAssignment.State state, long currentTick, long totalTicks,
-          @Nullable String diagnostic) {
+                                       @Nonnull QIOOperationAssignment.State state, long currentTick, long totalTicks,
+                                       @Nullable String diagnostic) {
         if (!requireStepRuntime(nodeId).update(operationId, state, currentTick, totalTicks,
-              diagnostic)) {
+                diagnostic)) {
             return false;
         }
         incrementRuntimeRevision();
@@ -289,7 +286,7 @@ public final class QIOCraftingJob {
 
     /** 记录指定步骤操作失败。 */
     public void failStepOperation(long nodeId, @Nonnull UUID operationId,
-          @Nonnull String diagnostic) {
+                                  @Nonnull String diagnostic) {
         requireStepRuntime(nodeId).fail(operationId, diagnostic);
         incrementRuntimeRevision();
     }
@@ -351,7 +348,7 @@ public final class QIOCraftingJob {
     /** 接受强制恢复后的重新派发。 */
     public void acceptForcedRecoveryRedispatch() {
         if (state != QIOCraftingJobState.OPERATION_CONTAMINATED ||
-            recoveryDiagnostic == null || hasActiveOperations() || cancellationRequested) {
+                recoveryDiagnostic == null || hasActiveOperations() || cancellationRequested) {
             throw new IllegalStateException("QIO job is not ready for recovery redispatch");
         }
         recoveryDiagnostic = null;
@@ -416,7 +413,7 @@ public final class QIOCraftingJob {
 
     /** 推进到可调度状态并记录调度时钟。 */
     public void transitionToRunnable(@Nonnull QIOCraftingJobState nextState,
-          long schedulerClock) {
+                                     long schedulerClock) {
         Objects.requireNonNull(nextState, "nextState");
         if (!isRunnableState(nextState)) {
             throw new IllegalArgumentException("QIO state is not runnable: " + nextState);
@@ -433,7 +430,7 @@ public final class QIOCraftingJob {
     /** 记录一次调度派发序号。 */
     public void recordDispatch(long dispatchSequence) {
         long checkedSequence = QIOProcessingNbt.requireNonNegative(dispatchSequence,
-              "dispatchSequence");
+                "dispatchSequence");
         if (checkedSequence <= lastDispatchSequence) {
             throw new IllegalArgumentException("QIO dispatch sequence must increase");
         }
@@ -461,7 +458,7 @@ public final class QIOCraftingJob {
         }
         executionSlotToken = Objects.requireNonNull(slotToken, "slotToken");
         slotAcquiredAtSchedulerClock = QIOProcessingNbt.requireNonNegative(schedulerClock,
-              "schedulerClock");
+                "schedulerClock");
         incrementRuntimeRevision();
     }
 
@@ -503,13 +500,13 @@ public final class QIOCraftingJob {
         }
         NBTTagList runtimes = new NBTTagList();
         stepRuntimes.values().stream().sorted((left, right) ->
-              Long.compare(left.getNodeId(), right.getNodeId())).forEach(runtime ->
-              runtimes.appendTag(runtime.write()));
+                Long.compare(left.getNodeId(), right.getNodeId())).forEach(runtime ->
+                runtimes.appendTag(runtime.write()));
         data.setTag("stepRuntimes", runtimes);
         NBTTagList cycleList = new NBTTagList();
         cycleRuntimes.values().stream().sorted((left, right) ->
-              Long.compare(left.getCycleNodeId(), right.getCycleNodeId())).forEach(runtime ->
-              cycleList.appendTag(runtime.write()));
+                Long.compare(left.getCycleNodeId(), right.getCycleNodeId())).forEach(runtime ->
+                cycleList.appendTag(runtime.write()));
         data.setTag("cycleRuntimes", cycleList);
         if (executionSlotToken != null) {
             QIOProcessingNbt.writeUUID(data, "executionSlotToken", executionSlotToken);
@@ -523,15 +520,15 @@ public final class QIOCraftingJob {
     public static QIOCraftingJob read(@Nonnull NBTTagCompound data) throws QIOProcessingDataException {
         try {
             if (!data.hasKey("readySinceSchedulerClock", NBT.TAG_LONG) ||
-                  !data.hasKey("lastDispatchSequence", NBT.TAG_LONG)) {
+                    !data.hasKey("lastDispatchSequence", NBT.TAG_LONG)) {
                 throw new QIOProcessingDataException("QIO crafting job is missing scheduler state");
             }
             QIOCraftPlan plan = QIOCraftPlan.read(data.getCompoundTag("activePlan"));
             if (!data.hasKey("stepRuntimes", NBT.TAG_LIST) ||
-                  !data.hasKey("cycleRuntimes", NBT.TAG_LIST) ||
-                  !data.hasKey("requestedRootAmount", NBT.TAG_LONG)) {
+                    !data.hasKey("cycleRuntimes", NBT.TAG_LIST) ||
+                    !data.hasKey("requestedRootAmount", NBT.TAG_LONG)) {
                 throw new QIOProcessingDataException(
-                      "QIO crafting job is missing current-schema runtime state");
+                        "QIO crafting job is missing current-schema runtime state");
             }
             Map<Long, QIOStepRuntime> runtimes = new LinkedHashMap<>();
             NBTTagList storedRuntimes = data.getTagList("stepRuntimes", NBT.TAG_COMPOUND);
@@ -556,25 +553,25 @@ public final class QIOCraftingJob {
                 }
             }
             return new QIOCraftingJob(QIOProcessingNbt.readUUID(data, "jobId"),
-                  QIOProcessingNbt.readEnum(data, "source", QIOCraftingJobSource.class),
-                  QIOProcessingNbt.readOptionalUUID(data, "requester"), data.getLong("basePriority"),
-                  data.getLong("enqueueSequence"), data.getLong("createdAtTick"),
-                  plan,
-                  QIOProcessingNbt.readEnum(data, "state", QIOCraftingJobState.class),
-                  data.getLong("runtimeRevision"), data.getLong("readySinceSchedulerClock"),
-                  data.getLong("lastDispatchSequence"),
-                  data.hasKey("executionSlotToken", NBT.TAG_STRING) ?
-                        QIOProcessingNbt.readUUID(data, "executionSlotToken") : null,
-                  data.hasKey("executionSlotToken", NBT.TAG_STRING) ?
-                        data.getLong("slotAcquiredAtSchedulerClock") : -1,
-                  data.getBoolean("cancellationRequested"),
-                  data.getLong("deliveredRootAmount"),
-                  data.getLong("requestedRootAmount"), runtimes,
-                  data.hasKey("revisionTransition", NBT.TAG_COMPOUND) ?
-                        QIOPlanRevisionTransition.read(data.getCompoundTag("revisionTransition")) : null,
-                  cycleRuntimes,
-                  data.hasKey("recoveryDiagnostic", NBT.TAG_STRING) ?
-                        data.getString("recoveryDiagnostic") : null);
+                    QIOProcessingNbt.readEnum(data, "source", QIOCraftingJobSource.class),
+                    QIOProcessingNbt.readOptionalUUID(data, "requester"), data.getLong("basePriority"),
+                    data.getLong("enqueueSequence"), data.getLong("createdAtTick"),
+                    plan,
+                    QIOProcessingNbt.readEnum(data, "state", QIOCraftingJobState.class),
+                    data.getLong("runtimeRevision"), data.getLong("readySinceSchedulerClock"),
+                    data.getLong("lastDispatchSequence"),
+                    data.hasKey("executionSlotToken", NBT.TAG_STRING) ?
+                            QIOProcessingNbt.readUUID(data, "executionSlotToken") : null,
+                    data.hasKey("executionSlotToken", NBT.TAG_STRING) ?
+                            data.getLong("slotAcquiredAtSchedulerClock") : -1,
+                    data.getBoolean("cancellationRequested"),
+                    data.getLong("deliveredRootAmount"),
+                    data.getLong("requestedRootAmount"), runtimes,
+                    data.hasKey("revisionTransition", NBT.TAG_COMPOUND) ?
+                            QIOPlanRevisionTransition.read(data.getCompoundTag("revisionTransition")) : null,
+                    cycleRuntimes,
+                    data.hasKey("recoveryDiagnostic", NBT.TAG_STRING) ?
+                            data.getString("recoveryDiagnostic") : null);
         } catch (QIOProcessingDataException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -593,7 +590,7 @@ public final class QIOCraftingJob {
 
     private void validateSlotFields() {
         if (executionSlotToken == null && slotAcquiredAtSchedulerClock != -1 ||
-              executionSlotToken != null && slotAcquiredAtSchedulerClock < 0) {
+                executionSlotToken != null && slotAcquiredAtSchedulerClock < 0) {
             throw new IllegalArgumentException("QIO job has inconsistent execution slot fields");
         }
         if (executionSlotToken != null && state.isTerminal()) {
@@ -603,15 +600,15 @@ public final class QIOCraftingJob {
 
     private void validateRevisionTransition() {
         boolean transitionState = state == QIOCraftingJobState.REPLAN_REQUIRED ||
-              state == QIOCraftingJobState.REPLAN_DRAINING;
+                state == QIOCraftingJobState.REPLAN_DRAINING;
         if (transitionState != (revisionTransition != null)) {
             throw new IllegalArgumentException("QIO job replan state and transition disagree");
         }
         if (revisionTransition != null) {
             QIOCraftPlan pending = revisionTransition.getPendingPlan();
             if (pending.getRevision() <= activePlan.getRevision() ||
-                  !pending.getRootResource().equals(activePlan.getRootResource()) ||
-                  pending.getRootAmount() != getRemainingGuaranteedRootAmount()) {
+                    !pending.getRootResource().equals(activePlan.getRootResource()) ||
+                    pending.getRootAmount() != getRemainingGuaranteedRootAmount()) {
                 throw new IllegalArgumentException("QIO pending plan is incompatible with its active plan");
             }
         }
@@ -677,7 +674,7 @@ public final class QIOCraftingJob {
 
     private static boolean isRunnableState(QIOCraftingJobState state) {
         return state == QIOCraftingJobState.WAITING_EXECUTION_SLOT ||
-              state == QIOCraftingJobState.READY;
+                state == QIOCraftingJobState.READY;
     }
 
     private static String checkedDiagnostic(String value) {

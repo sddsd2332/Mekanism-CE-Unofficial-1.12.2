@@ -7,7 +7,7 @@ public interface IGetBackMachine {
 
     int getBlockGuiID(Block block, int metadata);
 
-    default IGuiProvider guiProvider(){
+    default IGuiProvider guiProvider() {
         return Mekanism.proxy;
     }
 }

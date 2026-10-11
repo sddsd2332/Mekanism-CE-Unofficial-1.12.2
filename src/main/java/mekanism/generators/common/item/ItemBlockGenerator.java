@@ -9,8 +9,6 @@ import mekanism.api.functions.ConstantPredicates;
 import mekanism.client.MekKeyHandler;
 import mekanism.client.MekanismClient;
 import mekanism.client.MekanismKeyHandler;
-import mekanism.common.base.ISustainedData;
-import mekanism.common.base.ISustainedInventory;
 import mekanism.common.base.ISustainedTank;
 import mekanism.common.capabilities.ItemCapabilityWrapper;
 import mekanism.common.capabilities.energy.item.RateLimitEnergyHandler;
@@ -20,14 +18,11 @@ import mekanism.common.integration.forgeenergy.ForgeEnergyItemWrapper;
 import mekanism.common.integration.ic2.IC2ItemManager;
 import mekanism.common.integration.redstoneflux.RFIntegration;
 import mekanism.common.integration.tesla.TeslaItemWrapper;
-import mekanism.common.item.interfaces.IItemSustainedInventory;
 import mekanism.common.item.interfaces.IItemBlockPlacementData;
+import mekanism.common.item.interfaces.IItemSustainedInventory;
 import mekanism.common.item.interfaces.ILegacyEnergizedItem;
 import mekanism.common.security.ISecurityItem;
-import mekanism.common.security.ISecurityTile;
 import mekanism.common.security.ISecurityTile.SecurityMode;
-import mekanism.common.tile.prefab.TileEntityBasicBlock;
-import mekanism.common.tile.prefab.TileEntityElectricBlock;
 import mekanism.common.util.*;
 import mekanism.generators.common.block.states.BlockStateGenerator.GeneratorType;
 import net.minecraft.block.Block;
@@ -35,8 +30,8 @@ import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.settings.GameSettings;
 import net.minecraft.client.util.ITooltipFlag;
-import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -69,7 +64,7 @@ import java.util.UUID;
         @Interface(iface = "ic2.api.item.ISpecialElectricItem", modid = MekanismHooks.IC2_MOD_ID)
 })
 public class ItemBlockGenerator extends ItemBlock implements ILegacyEnergizedItem, ISpecialElectricItem, IItemSustainedInventory, ISustainedTank, IEnergyContainerItem,
-      ISecurityItem, IItemBlockPlacementData {
+        ISecurityItem, IItemBlockPlacementData {
 
     public Block metaBlock;
 
@@ -153,7 +148,7 @@ public class ItemBlockGenerator extends ItemBlock implements ILegacyEnergizedIte
     @Override
     public boolean placeBlockAt(@Nonnull ItemStack stack, @Nonnull EntityPlayer player, World world, @Nonnull BlockPos pos, EnumFacing side, float hitX, float hitY,
                                 float hitZ, @Nonnull IBlockState state) {
-        if (MekanismConfig.current().general.destroyDisabledBlocks.val()){
+        if (MekanismConfig.current().general.destroyDisabledBlocks.val()) {
             GeneratorType type = GeneratorType.get(stack);
             if (type != null && !type.isEnabled()) {
                 return false;
@@ -195,7 +190,7 @@ public class ItemBlockGenerator extends ItemBlock implements ILegacyEnergizedIte
 
     @Override
     public void restorePlacementData(@Nonnull ItemStack stack, @Nonnull EntityLivingBase placer, @Nonnull World world, @Nonnull BlockPos pos,
-          @Nonnull TileEntity tileEntity) {
+                                     @Nonnull TileEntity tileEntity) {
         MekanismPlacementData.restoreCommon(stack, placer, tileEntity);
     }
 
@@ -344,9 +339,9 @@ public class ItemBlockGenerator extends ItemBlock implements ILegacyEnergizedIte
 
     @Override
     public void setSecurity(ItemStack stack, SecurityMode mode) {
-        if (getOwnerUUID(stack) == null){
-            ItemDataUtils.removeData(stack,"security");
-        }else {
+        if (getOwnerUUID(stack) == null) {
+            ItemDataUtils.removeData(stack, "security");
+        } else {
             ItemDataUtils.setInt(stack, "security", mode.ordinal());
         }
     }
@@ -368,8 +363,8 @@ public class ItemBlockGenerator extends ItemBlock implements ILegacyEnergizedIte
             return null;
         }
         return new ItemCapabilityWrapper(stack, new TeslaItemWrapper(), new ForgeEnergyItemWrapper(),
-              RateLimitEnergyHandler.create(() -> getEnergyTransfer(stack), () -> getEnergyCapacity(stack),
-                    ConstantPredicates.alwaysTrue(), ConstantPredicates.alwaysFalse()));
+                RateLimitEnergyHandler.create(() -> getEnergyTransfer(stack), () -> getEnergyCapacity(stack),
+                        ConstantPredicates.alwaysTrue(), ConstantPredicates.alwaysFalse()));
     }
 
     private boolean hasEnergyStorage(GeneratorType generatorType) {

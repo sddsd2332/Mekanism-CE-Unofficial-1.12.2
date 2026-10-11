@@ -15,20 +15,20 @@ public class PacketPlayerData implements IMessageHandler<PlayerDataMessage, IMes
 
     @Override
     public IMessage onMessage(PlayerDataMessage message, MessageContext context) {
-        EntityPlayer player =  PacketHandler.getPlayer(context);
+        EntityPlayer player = PacketHandler.getPlayer(context);
         if (player == null) {
             return null;
         }
         PacketHandler.handlePacket(() -> {
-          try {
-              Mekanism.playerState.setFlamethrowerState(message.uuid, message.activeFlamethrower, false);
-              Mekanism.playerState.setJetpackState(message.uuid, message.activeJetpack, false);
-              Mekanism.playerState.setScubaMaskState(message.uuid, message.activeScubaMask, false);
-              Mekanism.playerState.setGravitationalModulationState(message.uuid, message.activeModulator, false);
-          } catch (Exception e) {
-              Mekanism.logger.error("FIXME: Packet handling error", e);
-          }
-        },player);
+            try {
+                Mekanism.playerState.setFlamethrowerState(message.uuid, message.activeFlamethrower, false);
+                Mekanism.playerState.setJetpackState(message.uuid, message.activeJetpack, false);
+                Mekanism.playerState.setScubaMaskState(message.uuid, message.activeScubaMask, false);
+                Mekanism.playerState.setGravitationalModulationState(message.uuid, message.activeModulator, false);
+            } catch (Exception e) {
+                Mekanism.logger.error("FIXME: Packet handling error", e);
+            }
+        }, player);
         return null;
     }
 
@@ -38,7 +38,7 @@ public class PacketPlayerData implements IMessageHandler<PlayerDataMessage, IMes
         private boolean activeFlamethrower;
         private boolean activeJetpack;
         private boolean activeScubaMask;
-        private  boolean activeModulator;
+        private boolean activeModulator;
 
         public PlayerDataMessage() {
         }

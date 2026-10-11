@@ -1,12 +1,12 @@
 package mekanism.client.jei;
 
-import mekanism.client.gui.*;
 import mekanism.client.jei.machine.*;
 import mekanism.client.jei.machine.chemical.*;
 import mekanism.client.jei.machine.other.*;
 import mekanism.common.Mekanism;
 import mekanism.common.MekanismBlocks;
 import mekanism.common.MekanismFluids;
+import mekanism.common.MekanismItems;
 import mekanism.common.base.IFactory.RecipeType;
 import mekanism.common.block.states.BlockStateBasic.BasicBlockType;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
@@ -29,11 +29,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.crafting.FurnaceRecipes;
 import net.minecraft.nbt.NBTTagCompound;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class RecipeRegistryHelper {
@@ -348,6 +344,11 @@ public class RecipeRegistryHelper {
         for (Map.Entry<String, List<ItemStack>> entry : groupedInputs.entrySet()) {
             wrappers.add(new RecyclerRecipeWrapper(sampleRecipes.get(entry.getKey()), entry.getValue()));
         }
+        // Unknown inputs use the machine's dynamic fallback. Keep that rule as a
+        // single JEI-only entry; it is deliberately not inserted into the recipe registry.
+        wrappers.add(new RecyclerRecipeWrapper(
+                RecyclerRecipe.temporary(ItemStack.EMPTY),
+                Collections.singletonList(new ItemStack(MekanismItems.Scrap))));
         registry.addRecipes(wrappers, Recipe.RECYCLER.getJEICategory());
         registerRecipeItem(registry, MachineType.RECYCLER, Recipe.RECYCLER);
     }
@@ -355,7 +356,7 @@ public class RecipeRegistryHelper {
     private static String getRecyclerOutputKey(ChanceOutput2 output) {
         ItemStack stack = output.primaryOutput;
         return stack.getItem().getRegistryName() + "_" + stack.getMetadata() + "_" + stack.getCount() + "_" + output.primaryChance + "_" +
-               (stack.hasTagCompound() ? stack.getTagCompound().toString() : "");
+                (stack.hasTagCompound() ? stack.getTagCompound().toString() : "");
     }
 
     public static void registerAmbientAccumulator(IModRegistry registry) {

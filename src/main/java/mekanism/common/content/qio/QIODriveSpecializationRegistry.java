@@ -12,7 +12,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
-/** Process-wide registry of stable QIO drive specializations. */
+/**
+ * Process-wide registry of stable QIO drive specializations.
+ */
 public final class QIODriveSpecializationRegistry {
 
     public static final ResourceLocation MIXED_ID = new ResourceLocation(Mekanism.MODID, "mixed");
@@ -27,16 +29,16 @@ public final class QIODriveSpecializationRegistry {
 
     private QIODriveSpecializationRegistry() {
         registerBuiltin(QIODriveSpecialization.builder(MIXED_ID).mixed()
-              .translationKey("qio.mekanism.drive_type.mixed"));
+                .translationKey("qio.mekanism.drive_type.mixed"));
         registerBuiltin(QIODriveSpecialization.builder(ITEM_ID)
-              .matcher(QIOResourceFamilyMatcher.family(QIOResourceCodecs.ITEM_FAMILY))
-              .capacityFromDefinition().translationKey("qio.mekanism.drive_type.item"));
+                .matcher(QIOResourceFamilyMatcher.family(QIOResourceCodecs.ITEM_FAMILY))
+                .capacityFromDefinition().translationKey("qio.mekanism.drive_type.item"));
         registerBuiltin(QIODriveSpecialization.builder(FLUID_ID)
-              .matcher(QIOResourceFamilyMatcher.family(QIOResourceCodecs.FLUID_FAMILY))
-              .capacityFromDefinition().translationKey("qio.mekanism.drive_type.fluid"));
+                .matcher(QIOResourceFamilyMatcher.family(QIOResourceCodecs.FLUID_FAMILY))
+                .capacityFromDefinition().translationKey("qio.mekanism.drive_type.fluid"));
         registerBuiltin(QIODriveSpecialization.builder(GAS_ID)
-              .matcher(QIOResourceFamilyMatcher.family(QIOResourceCodecs.GAS_FAMILY))
-              .capacityFromDefinition().translationKey("qio.mekanism.drive_type.gas"));
+                .matcher(QIOResourceFamilyMatcher.family(QIOResourceCodecs.GAS_FAMILY))
+                .capacityFromDefinition().translationKey("qio.mekanism.drive_type.gas"));
     }
 
     private void registerBuiltin(QIODriveSpecialization.Builder builder) {
@@ -67,7 +69,7 @@ public final class QIODriveSpecializationRegistry {
         }
         try {
             return get(registryName.indexOf(':') < 0 ? new ResourceLocation(Mekanism.MODID, registryName) :
-                  new ResourceLocation(registryName));
+                    new ResourceLocation(registryName));
         } catch (RuntimeException ignored) {
             return null;
         }
@@ -86,7 +88,9 @@ public final class QIODriveSpecializationRegistry {
         return revision;
     }
 
-    /** Exact, order-independent sum used by every mixed drive of this definition. */
+    /**
+     * Exact, order-independent sum used by every mixed drive of this definition.
+     */
     @Nonnull
     public synchronized QIOAmount getMixedCountCapacity(@Nonnull QIODriveDefinition definition) {
         Objects.requireNonNull(definition, "definition");
@@ -98,7 +102,7 @@ public final class QIODriveSpecializationRegistry {
         }
         if (total.isZero()) {
             throw new IllegalStateException("No QIO drive specialization contributes capacity for " +
-                  definition.getRegistryName());
+                    definition.getRegistryName());
         }
         return total;
     }

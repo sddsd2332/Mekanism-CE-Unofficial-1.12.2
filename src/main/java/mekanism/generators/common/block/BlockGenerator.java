@@ -14,11 +14,7 @@ import mekanism.common.tile.multiblock.TileEntityMultiblock;
 import mekanism.common.tile.prefab.TileEntityBasicBlock;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
 import mekanism.common.tile.prefab.TileEntityElectricBlock;
-import mekanism.common.util.ItemDataUtils;
-import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.MekanismPlacementData;
-import mekanism.common.util.SecurityUtils;
-import mekanism.common.util.StorageUtils;
+import mekanism.common.util.*;
 import mekanism.generators.common.GeneratorsItems;
 import mekanism.generators.common.MekanismGenerators;
 import mekanism.generators.common.block.states.BlockStateGenerator;
@@ -603,8 +599,8 @@ public abstract class BlockGenerator extends BlockMekanismContainer {
         GeneratorType generatorType = GeneratorType.get(blockState);
         if (generatorType != null && generatorType.hasRedstoneOutput) {
             TileEntity tile = worldIn.getTileEntity(pos);
-            if (tile instanceof IComparatorSupport) {
-                return ((IComparatorSupport) tile).getRedstoneLevel();
+            if (tile instanceof IComparatorSupport support && support.supportsComparator()) {
+                return support.getCurrentRedstoneLevel();
             }
         }
         return 0;

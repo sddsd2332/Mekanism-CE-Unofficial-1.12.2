@@ -27,7 +27,7 @@ public class GuiGasMode extends MekanismImageButton {
     }
 
     public GuiGasMode(IGuiWrapper gui, int x, int y, boolean left, Supplier<GasMode> gasModeSupplier, Runnable onPress,
-          Supplier<List<ITextComponent>> tooltipSupplier) {
+                      Supplier<List<ITextComponent>> tooltipSupplier) {
         super(gui, x, y, 10, IDLE, onPress);
         this.textSide = left ? TextAlignment.RIGHT : TextAlignment.LEFT;
         this.gasModeSupplier = gasModeSupplier;

@@ -42,7 +42,7 @@ import net.minecraftforge.fml.common.FMLCommonHandler;
 
 import javax.annotation.Nonnull;
 
-    public class TileEntityAmbientAccumulator extends TileEntityContainerBlock implements IRedstoneControl,
+public class TileEntityAmbientAccumulator extends TileEntityContainerBlock implements IRedstoneControl,
         IActiveState, ITankManager, ISecurityTile, IComparatorSupport, ISideConfiguration, ISustainedData, IRecipeLookupHandler<AmbientGasRecipe> {
     private final RecipeCacheLookupMonitor<AmbientGasRecipe> recipeCacheLookupMonitor = new RecipeCacheLookupMonitor<>(this);
     public BasicGasTank collectedGas;
@@ -195,14 +195,14 @@ import javax.annotation.Nonnull;
     @Override
     public CachedRecipe<AmbientGasRecipe> createNewCachedRecipe(AmbientGasRecipe recipe, int cacheIndex) {
         return new NoInputCachedRecipe<>(recipe, () -> false,
-              () -> recipe.getInput().ingredient == cachedDimensionId,
-              OutputHelper.getChanceGasOutputHandler(collectedGas, RecipeError.NOT_ENOUGH_OUTPUT_SPACE, accumulatorRecipeRandom()),
-              () -> recipe.getOutput().copy(),
-              output -> output == null || output.getMaxOutput() == null)
-              .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
-              .setActive(this::setActive)
-              .setRequiredTicks(() -> 1)
-              .setBaselineMaxOperations(() -> 1);
+                () -> recipe.getInput().ingredient == cachedDimensionId,
+                OutputHelper.getChanceGasOutputHandler(collectedGas, RecipeError.NOT_ENOUGH_OUTPUT_SPACE, accumulatorRecipeRandom()),
+                () -> recipe.getOutput().copy(),
+                output -> output == null || output.getMaxOutput() == null)
+                .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
+                .setActive(this::setActive)
+                .setRequiredTicks(() -> 1)
+                .setBaselineMaxOperations(() -> 1);
     }
 
     @Override
@@ -299,6 +299,11 @@ import javax.annotation.Nonnull;
     @Override
     public TileComponentSecurity getSecurity() {
         return securityComponent;
+    }
+
+    @Override
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return type == mekanism.api.transmitters.TransmissionType.GAS;
     }
 
     @Override

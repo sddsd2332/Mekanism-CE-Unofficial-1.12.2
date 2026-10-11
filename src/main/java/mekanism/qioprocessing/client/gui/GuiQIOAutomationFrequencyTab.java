@@ -4,7 +4,6 @@ import mekanism.client.SpecialColors;
 import mekanism.client.gui.GuiMekanism;
 import mekanism.client.gui.IGuiWrapper;
 import mekanism.client.gui.element.GuiInsetElement;
-import mekanism.client.gui.element.window.GuiWindow;
 import mekanism.client.render.MekanismRenderer;
 import mekanism.common.inventory.container.MekanismTileContainer;
 import mekanism.common.inventory.container.SelectedWindowData;
@@ -17,7 +16,10 @@ import net.minecraft.util.text.TextComponentTranslation;
 
 import java.util.function.Supplier;
 
-/** Generic machine tab for binding an installed QIO automation upgrade. */
+/**
+ * Generic machine tab for binding an installed QIO automation upgrade.
+ */
+
 /**
  * QIO 处理模块中的 GuiQIOAutomationFrequencyTab 类型。
  *
@@ -27,7 +29,7 @@ import java.util.function.Supplier;
 public final class GuiQIOAutomationFrequencyTab extends GuiInsetElement<QIOAutomationContainerState> {
 
     private static final SelectedWindowData WINDOW_DATA = new SelectedWindowData(
-          QIOProcessingWindowTypes.AUTOMATION_FREQUENCY);
+            QIOProcessingWindowTypes.AUTOMATION_FREQUENCY);
     private final TileEntityContainerBlock tile;
     private final MekanismTileContainer<?> container;
     private final Supplier<GuiQIOAutomationFrequencyTab> elementSupplier;
@@ -36,10 +38,10 @@ public final class GuiQIOAutomationFrequencyTab extends GuiInsetElement<QIOAutom
     private boolean windowOpen;
 
     public GuiQIOAutomationFrequencyTab(IGuiWrapper gui, TileEntityContainerBlock tile,
-          MekanismTileContainer<?> container, QIOAutomationContainerState state,
-          Supplier<GuiQIOAutomationFrequencyTab> elementSupplier) {
+                                        MekanismTileContainer<?> container, QIOAutomationContainerState state,
+                                        Supplier<GuiQIOAutomationFrequencyTab> elementSupplier) {
         super(MekanismUtils.getResource(MekanismUtils.ResourceType.GUI, "frequency.png"),
-              gui, state, gui.getWidth() + 24, 6, 26, 18, false);
+                gui, state, gui.getWidth() + 24, 6, 26, 18, false);
         this.tile = tile;
         this.container = container;
         this.elementSupplier = elementSupplier;
@@ -69,7 +71,7 @@ public final class GuiQIOAutomationFrequencyTab extends GuiInsetElement<QIOAutom
     public void renderToolTip(int mouseX, int mouseY) {
         super.renderToolTip(mouseX, mouseY);
         displayTooltip(new TextComponentTranslation("gui.mekanismqioprocessing.automation_frequency"),
-              mouseX, mouseY);
+                mouseX, mouseY);
     }
 
     @Override
@@ -96,7 +98,7 @@ public final class GuiQIOAutomationFrequencyTab extends GuiInsetElement<QIOAutom
         }
         pendingPinnedOpen = false;
         GuiQIOAutomationFrequencyWindow window = new GuiQIOAutomationFrequencyWindow(gui(), tile,
-              container, dataSource, WINDOW_DATA);
+                container, dataSource, WINDOW_DATA);
         window.setTabListeners(closed -> {
             GuiQIOAutomationFrequencyTab tab = elementSupplier.get();
             tab.windowOpen = false;
@@ -113,14 +115,14 @@ public final class GuiQIOAutomationFrequencyTab extends GuiInsetElement<QIOAutom
 
     private boolean hasOpenWindow() {
         return gui() instanceof GuiMekanism<?> mekanismGui && mekanismGui.getWindows().stream()
-              .anyMatch(window -> window instanceof GuiQIOAutomationFrequencyWindow frequencyWindow &&
-                    frequencyWindow.isFor(tile));
+                .anyMatch(window -> window instanceof GuiQIOAutomationFrequencyWindow frequencyWindow &&
+                        frequencyWindow.isFor(tile));
     }
 
     private boolean shouldShow() {
         if (dataSource.getMode() == null ||
-            dataSource.getState() ==
-                  mekanism.qioprocessing.api.machine.QIOAutomationHost.State.DRAINING_CHANGE) {
+                dataSource.getState() ==
+                        mekanism.qioprocessing.api.machine.QIOAutomationHost.State.DRAINING_CHANGE) {
             return false;
         }
         return QIOAutomationUpgradeSupport.isModeInstalled(tile, dataSource.getMode());

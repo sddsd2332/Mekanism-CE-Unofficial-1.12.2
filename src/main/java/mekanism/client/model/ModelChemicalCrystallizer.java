@@ -138,11 +138,11 @@ public class ModelChemicalCrystallizer extends ModelBase {
         setRotation(Shape1, 0F, 0F, 0F);
     }
 
-    public void render(float size,boolean isEnableGlow) {
+    public void render(float size, boolean isEnableGlow) {
         GlStateManager.pushMatrix();
         GlStateManager.shadeModel(GL11.GL_SMOOTH);
         doRender(size);
-        if (!isEnableGlow){
+        if (!isEnableGlow) {
             Shape1.render(size);
         }
         GlStateManager.popMatrix();

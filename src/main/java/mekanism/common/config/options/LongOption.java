@@ -10,7 +10,9 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.function.LongSupplier;
 import java.util.regex.Pattern;
 
-/** Long-valued Mekanism config option. Forge 1.12 stores it as a validated decimal string. */
+/**
+ * Long-valued Mekanism config option. Forge 1.12 stores it as a validated decimal string.
+ */
 @ParametersAreNonnullByDefault
 public class LongOption extends Option<LongOption> implements LongSupplier {
 
@@ -33,13 +35,13 @@ public class LongOption extends Option<LongOption> implements LongSupplier {
     }
 
     public LongOption(BaseConfig owner, String key, long defaultValue, @Nullable String comment,
-          long min, long max) {
+                      long min, long max) {
         this(owner, key, defaultValue, comment);
         setRange(min, max);
     }
 
     public LongOption(BaseConfig owner, String category, String key, long defaultValue,
-          @Nullable String comment, long min, long max) {
+                      @Nullable String comment, long min, long max) {
         super(owner, category, key, comment);
         this.defaultValue = defaultValue;
         value = defaultValue;
@@ -60,7 +62,7 @@ public class LongOption extends Option<LongOption> implements LongSupplier {
             return;
         }
         Property property = config.get(category, key, Long.toString(defaultValue), comment,
-              DECIMAL_PATTERN);
+                DECIMAL_PATTERN);
         property.setRequiresMcRestart(requiresGameRestart);
         property.setRequiresWorldRestart(requiresWorldRestart);
         long parsed;

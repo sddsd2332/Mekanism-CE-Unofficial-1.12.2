@@ -11,8 +11,8 @@ import mekanism.common.util.LangUtils;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.util.ITooltipFlag;
-import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
@@ -118,7 +118,7 @@ public class ItemBlockCardboardBox extends ItemBlock implements IItemBlockPlacem
 
     @Override
     public void restorePlacementData(@Nonnull ItemStack stack, @Nonnull EntityLivingBase placer, @Nonnull World world, @Nonnull BlockPos pos,
-          @Nonnull TileEntity tileEntity) {
+                                     @Nonnull TileEntity tileEntity) {
         if (tileEntity instanceof TileEntityCardboardBox cardboardBox) {
             cardboardBox.storedData = getBlockData(stack);
         }

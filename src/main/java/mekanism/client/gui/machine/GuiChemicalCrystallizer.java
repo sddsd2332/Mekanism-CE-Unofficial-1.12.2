@@ -1,8 +1,8 @@
 package mekanism.client.gui.machine;
 
-import mekanism.client.gui.GuiConfigurableTile;
 import mekanism.api.gas.Gas;
 import mekanism.api.gas.OreGas;
+import mekanism.client.gui.GuiConfigurableTile;
 import mekanism.client.gui.element.GuiElement;
 import mekanism.client.gui.element.GuiInnerScreen;
 import mekanism.client.gui.element.bar.GuiVerticalPowerBar;
@@ -50,13 +50,13 @@ public class GuiChemicalCrystallizer extends GuiConfigurableTile<TileEntityChemi
     protected void addGuiElements() {
         super.addGuiElements();
         addButton(new GuiVerticalPowerBar(this, tileEntity.getEnergyContainer(), 157, 23))
-              .warning(WarningType.NOT_ENOUGH_ENERGY, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY));
+                .warning(WarningType.NOT_ENOUGH_ENERGY, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY));
         addButton(new GuiEnergyTab(this, tileEntity.getEnergyContainer(), tileEntity::getActive));
         inputGauge = addButton(new GuiGasGauge(this, tileEntity.inputTank, 7, 4)
-              .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_INPUT)));
+                .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_INPUT)));
         addButton(new GuiProgress(tileEntity::getScaledProgress, ProgressType.LARGE_RIGHT, this, 53, 61))
-              .recipeViewerCategories(RecipeViewerRecipeType.CRYSTALLIZING)
-              .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity.getWarningCheck(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT));
+                .recipeViewerCategories(RecipeViewerRecipeType.CRYSTALLIZING)
+                .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity.getWarningCheck(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT));
         addButton(new GuiInnerScreen(this, 31, 13, 115, 42, this::getScreenText).clearFormat().padding(2).spacing(1));
         addButton(new GuiSlot(SlotType.ORE, this, 128, 13).setRenderAboveSlots());
         slotDisplay = addButton(new GuiSequencedSlotDisplay(this, 129, 14, () -> iterStacks));

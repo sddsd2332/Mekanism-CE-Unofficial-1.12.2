@@ -36,8 +36,8 @@ public class GasStack {
         amount = quantity;
     }
 
-    public GasStack(Gas gas){
-        this(gas,1);
+    public GasStack(Gas gas) {
+        this(gas, 1);
     }
 
     private GasStack() {
@@ -49,7 +49,8 @@ public class GasStack {
      * @param nbtTags - tag compound to read from
      * @return GasStack stored in the tag compound
      */
-    @Nullable public static GasStack readFromNBT(NBTTagCompound nbtTags) {
+    @Nullable
+    public static GasStack readFromNBT(NBTTagCompound nbtTags) {
         if (nbtTags == null || nbtTags.isEmpty()) {
             return null;
         }

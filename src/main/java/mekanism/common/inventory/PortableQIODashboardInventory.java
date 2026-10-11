@@ -16,7 +16,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.function.Supplier;
 
-/** Item-backed persistent owner for the portable dashboard crafting windows. */
+/**
+ * Item-backed persistent owner for the portable dashboard crafting windows.
+ */
 public final class PortableQIODashboardInventory implements IQIOCraftingWindowHolder {
 
     private final Supplier<ItemStack> stackSupplier;

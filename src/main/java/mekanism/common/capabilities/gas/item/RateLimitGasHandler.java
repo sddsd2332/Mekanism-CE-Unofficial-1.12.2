@@ -22,12 +22,12 @@ public class RateLimitGasHandler extends ItemStackMekanismGasHandler {
     }
 
     public static RateLimitGasHandler create(IntSupplier rate, IntSupplier capacity, BiPredicate<GasStack, AutomationType> canExtract,
-          BiPredicate<GasStack, AutomationType> canInsert, Predicate<GasStack> isValid) {
+                                             BiPredicate<GasStack, AutomationType> canInsert, Predicate<GasStack> isValid) {
         return create(rate, capacity, canExtract, canInsert, isValid, null);
     }
 
     public static RateLimitGasHandler create(IntSupplier rate, IntSupplier capacity, BiPredicate<GasStack, AutomationType> canExtract,
-          BiPredicate<GasStack, AutomationType> canInsert, Predicate<GasStack> isValid, @Nullable String legacyGasKey) {
+                                             BiPredicate<GasStack, AutomationType> canInsert, Predicate<GasStack> isValid, @Nullable String legacyGasKey) {
         Objects.requireNonNull(rate, "Rate supplier cannot be null");
         Objects.requireNonNull(capacity, "Capacity supplier cannot be null");
         Objects.requireNonNull(canExtract, "Extraction validity check cannot be null");
@@ -75,7 +75,7 @@ public class RateLimitGasHandler extends ItemStackMekanismGasHandler {
         }
 
         public RateLimitGasTank(IntSupplier rate, IntSupplier capacity, BiPredicate<GasStack, AutomationType> canExtract,
-              BiPredicate<GasStack, AutomationType> canInsert, Predicate<GasStack> isValid, @Nullable IContentsListener listener) {
+                                BiPredicate<GasStack, AutomationType> canInsert, Predicate<GasStack> isValid, @Nullable IContentsListener listener) {
             super(capacity, canExtract, canInsert, isValid, listener, null);
             this.rate = rate;
         }
@@ -101,9 +101,9 @@ public class RateLimitGasHandler extends ItemStackMekanismGasHandler {
 
         private GasTankRateLimitGasTank(Supplier<GasTankTier> tier, @Nullable IContentsListener listener) {
             super(() -> tier.get().getOutput(), () -> tier.get().getStorage(),
-                  (stack, automationType) -> isValidForTier(tier.get(), stack),
-                  (stack, automationType) -> isValidForTier(tier.get(), stack),
-                  stack -> isValidForTier(tier.get(), stack), listener);
+                    (stack, automationType) -> isValidForTier(tier.get(), stack),
+                    (stack, automationType) -> isValidForTier(tier.get(), stack),
+                    stack -> isValidForTier(tier.get(), stack), listener);
             this.tier = tier;
         }
 

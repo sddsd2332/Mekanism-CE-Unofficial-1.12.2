@@ -21,7 +21,7 @@ public class TOPFluidElement extends FluidElement implements IElement {
 
     @Override
     public void toBytes(ByteBuf byteBuf) {
-        TileUtils.writeFluidStack(stored,byteBuf);
+        TileUtils.writeFluidStack(stored, byteBuf);
         byteBuf.writeInt(capacity);
     }
 

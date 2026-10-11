@@ -5,7 +5,10 @@ public final class LevelAndMaxMagnitude {
     public static final LevelAndMaxMagnitude BASELINE = new LevelAndMaxMagnitude(RadiationManager.BASELINE, RadiationManager.BASELINE);
 
     public static final LevelAndMaxMagnitude UNAVAILABLE = new LevelAndMaxMagnitude(Double.NaN, Double.NaN);
-    public boolean isAvailable() { return !Double.isNaN(level); }
+
+    public boolean isAvailable() {
+        return !Double.isNaN(level);
+    }
 
     private final double level;
     private final double maxMagnitude;

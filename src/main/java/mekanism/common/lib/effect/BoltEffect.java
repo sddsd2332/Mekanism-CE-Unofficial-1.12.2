@@ -315,9 +315,9 @@ public class BoltEffect {
 
         public static BoltRenderInfo electricity() {
             return new BoltRenderInfo().color(Color.rgbad(0.54F, 0.91F, 1F, 0.8F))
-                  .noise(0.2F, 0.2F)
-                  .branching(0.1F, 0.6F)
-                  .spreader(SegmentSpreader.memory(0.9F));
+                    .noise(0.2F, 0.2F)
+                    .branching(0.1F, 0.6F)
+                    .spreader(SegmentSpreader.memory(0.9F));
         }
 
         public BoltRenderInfo noise(float parallelNoise, float spreadFactor) {

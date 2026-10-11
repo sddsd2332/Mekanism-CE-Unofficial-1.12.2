@@ -46,7 +46,7 @@ public class GuiRedstoneControlTab<TILE extends net.minecraft.tileentity.TileEnt
     protected void drawBackgroundOverlay() {
         if (dataSource.getControlType() == RedstoneControl.PULSE && MekanismRenderer.redstonePulse != null) {
             drawTiledSprite(getButtonX() + 1, getButtonY() + 1, innerHeight - 2, innerWidth - 2, innerHeight - 2, MekanismRenderer.redstonePulse,
-                  TilingDirection.DOWN_RIGHT);
+                    TilingDirection.DOWN_RIGHT);
             MekanismRenderer.resetColor();
         } else {
             super.drawBackgroundOverlay();

@@ -143,7 +143,7 @@ public abstract class GuiGauge<T> extends GuiTexturedElement implements ISupport
         GaugeOverlay gaugeOverlay = getGaugeOverlay();
         MekanismRenderer.bindTexture(getResource());
         GuiUtils.blit(relativeX + 1, relativeY + 1, width - 2, height - 2, 0, 0, gaugeOverlay.getWidth(), gaugeOverlay.getHeight(),
-              gaugeOverlay.getWidth(), gaugeOverlay.getHeight());
+                gaugeOverlay.getWidth(), gaugeOverlay.getHeight());
         MekanismRenderer.resetColor();
     }
 

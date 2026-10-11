@@ -68,7 +68,7 @@ public class GasAndFluidInput extends MachineInput<GasAndFluidInput> {
 
     @Override
     public boolean testEquality(GasAndFluidInput other) {
-       return other.containsType(ingredientFluid) && other.containsType(ingredientGas);
+        return other.containsType(ingredientFluid) && other.containsType(ingredientGas);
     }
 
     public boolean containsType(FluidStack stack) {

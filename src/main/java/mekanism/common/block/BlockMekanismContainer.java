@@ -105,7 +105,7 @@ public abstract class BlockMekanismContainer extends BlockContainer {
     public float getPlayerRelativeBlockHardness(IBlockState state, @Nonnull EntityPlayer player, @Nonnull World world, @Nonnull BlockPos pos) {
         float speed = super.getPlayerRelativeBlockHardness(state, player, world, pos);
         TileEntity tile = world.getTileEntity(pos);
-        if (tile instanceof ITileRadioactive rad && rad.getRadiationScale() > 0) {
+        if (tile instanceof ITileRadioactive rad && rad.hasRadioactiveContents()) {
             return speed / 5F;
         }
         return speed;

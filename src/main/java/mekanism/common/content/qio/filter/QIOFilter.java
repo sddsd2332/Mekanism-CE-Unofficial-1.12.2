@@ -2,29 +2,33 @@ package mekanism.common.content.qio.filter;
 
 import io.netty.buffer.ByteBuf;
 import mekanism.api.TileNetworkList;
+import mekanism.api.gas.GasStack;
+import mekanism.api.qio.resource.QIOResourceCodecs;
+import mekanism.api.qio.resource.QIOResourceDescriptor;
+import mekanism.api.qio.resource.QIOResourceFamilyMatcher;
 import mekanism.common.PacketHandler;
 import mekanism.common.content.filter.IFilter;
 import mekanism.common.content.qio.QIOResourceEntry;
 import mekanism.common.content.qio.QIOResourceKind;
-import mekanism.api.qio.resource.QIOResourceCodecs;
-import mekanism.api.qio.resource.QIOResourceDescriptor;
-import mekanism.api.qio.resource.QIOResourceFamilyMatcher;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.item.ItemStack;
-import mekanism.api.gas.GasStack;
-import net.minecraftforge.fluids.FluidStack;
 import mekanism.common.util.FluidContainerUtils;
 import mekanism.common.util.GasUtils;
+import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NBTTagCompound;
+import net.minecraftforge.fluids.FluidStack;
 
 import javax.annotation.Nullable;
 import java.util.Objects;
 
-/** Base for kind-aware QIO automation filters. */
+/**
+ * Base for kind-aware QIO automation filters.
+ */
 public abstract class QIOFilter implements IFilter {
 
     private static final int DATA_VERSION = 1;
 
-    /** Creates the most specific resource filter represented by a held stack. */
+    /**
+     * Creates the most specific resource filter represented by a held stack.
+     */
     @Nullable
     public static QIOFilter fromItemStack(@Nullable ItemStack stack) {
         if (stack == null || stack.isEmpty()) {
@@ -50,7 +54,9 @@ public abstract class QIOFilter implements IFilter {
 
     public abstract QIOResourceFamilyMatcher getMatcher();
 
-    /** @deprecated A custom matcher is not representable by the legacy enum. */
+    /**
+     * @deprecated A custom matcher is not representable by the legacy enum.
+     */
     @Deprecated
     @Nullable
     public QIOResourceKind getKind() {
@@ -129,7 +135,9 @@ public abstract class QIOFilter implements IFilter {
 
     public abstract String getType();
 
-    /** Whether this filter contains a concrete resource after decoding. */
+    /**
+     * Whether this filter contains a concrete resource after decoding.
+     */
     public abstract boolean hasFilter();
 
     public abstract void writePayload(NBTTagCompound data);

@@ -25,7 +25,7 @@ public class VirtualInventoryContainerSlot extends InventoryContainerSlot implem
     private IGUIWindow window;
 
     public VirtualInventoryContainerSlot(BasicInventorySlot slot, SelectedWindowData windowData, @Nullable SlotOverlay slotOverlay,
-          Consumer<ItemStack> uncheckedSetter) {
+                                         Consumer<ItemStack> uncheckedSetter) {
         super(slot, 0, 0, ContainerSlotType.IGNORED, slotOverlay, null, uncheckedSetter);
         this.windowData = windowData;
     }

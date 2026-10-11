@@ -33,6 +33,10 @@ public interface IRecipeLookupHandler<RECIPE> extends IContentsListener {
 
     interface ConstantUsageRecipeLookupHandler {
 
+        default int getSavedBatchOperations(int cacheIndex) {
+            return 1;
+        }
+
         default long getSavedUsedSoFar(int cacheIndex) {
             return 0;
         }

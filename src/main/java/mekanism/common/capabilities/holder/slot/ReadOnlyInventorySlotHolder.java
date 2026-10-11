@@ -5,13 +5,12 @@ import net.minecraft.util.EnumFacing;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 public class ReadOnlyInventorySlotHolder implements IInventorySlotHolder {
 
-    private final List<IInventorySlot> inventorySlots = new ArrayList<>();
+    private final List<IInventorySlot> inventorySlots = new mekanism.common.util.RevisionedList<>();
 
     ReadOnlyInventorySlotHolder() {
     }

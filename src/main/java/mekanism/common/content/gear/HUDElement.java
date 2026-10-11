@@ -38,7 +38,6 @@ public class HUDElement implements IHUDElement {
     }
 
 
-
     public static HUDElement of(ResourceLocation icon, String text, HUDColor color) {
         return new HUDElement(icon, text, color);
     }

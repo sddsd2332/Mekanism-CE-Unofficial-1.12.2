@@ -228,7 +228,7 @@ public class MekaSuitBloomRenderer implements IBloomEffect {
     }
 
     private static void renderElytraBloom(AbstractClientPlayer player, float limbSwing, float limbSwingAmount,
-          float ageInTicks, float netHeadYaw, float headPitch, float scale) {
+                                          float ageInTicks, float netHeadYaw, float headPitch, float scale) {
         if (!shouldRenderElytraBloom(player)) {
             return;
         }
@@ -256,7 +256,7 @@ public class MekaSuitBloomRenderer implements IBloomEffect {
     }
 
     private static void renderArmorBloom(AbstractClientPlayer player, EntityEquipmentSlot slot, float limbSwing, float limbSwingAmount,
-          float partialTick, float ageInTicks, float netHeadYaw, float headPitch, float scale) {
+                                         float partialTick, float ageInTicks, float netHeadYaw, float headPitch, float scale) {
         ItemStack stack = player.getItemStackFromSlot(slot);
         if (!(stack.getItem() instanceof ItemArmor)) {
             return;

@@ -1,8 +1,8 @@
 package mekanism.common.recipe.machines;
 
+import mekanism.api.fluid.IExtendedFluidTank;
 import mekanism.api.gas.GasStack;
 import mekanism.api.gas.IExtendedGasTank;
-import mekanism.api.fluid.IExtendedFluidTank;
 import mekanism.api.inventory.IInventorySlot;
 import mekanism.common.recipe.cache.IConstantGasRecipe;
 import mekanism.common.recipe.inputs.FarmInput;

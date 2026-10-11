@@ -11,6 +11,11 @@ import java.util.Set;
 public class PathfinderCache {
 
     private static Map<PathData, List<Coord4D>> cachedPaths = new Object2ObjectOpenHashMap<>();
+    private static long revision;
+
+    public static long getRevision() {
+        return revision;
+    }
 
     public static void onChanged(Coord4D location) {
         reset();
@@ -32,7 +37,17 @@ public class PathfinderCache {
     }
 
     public static void reset() {
+        revision++;
         cachedPaths.clear();
+    }
+
+    public static List<Coord4D> getSingleCache(Coord4D start, Coord4D end, EnumFacing side) {
+        return cachedPaths.get(new PathData(start, end, side));
+    }
+
+    public static void removeCachedPath(Coord4D start, Coord4D end, EnumFacing side) {
+        revision++;
+        cachedPaths.remove(new PathData(start, end, side));
     }
 
     public static class PathData {

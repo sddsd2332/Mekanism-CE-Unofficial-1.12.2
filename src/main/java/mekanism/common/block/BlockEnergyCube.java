@@ -16,11 +16,7 @@ import mekanism.common.security.ISecurityTile;
 import mekanism.common.tier.EnergyCubeTier;
 import mekanism.common.tile.TileEntityEnergyCube;
 import mekanism.common.tile.prefab.TileEntityBasicBlock;
-import mekanism.common.util.ItemDataUtils;
-import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.MekanismPlacementData;
-import mekanism.common.util.SecurityUtils;
-import mekanism.common.util.StorageUtils;
+import mekanism.common.util.*;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.BlockStateContainer;
@@ -263,7 +259,7 @@ public class BlockEnergyCube extends BlockMekanismContainer {
     @Deprecated
     public int getComparatorInputOverride(IBlockState state, World world, BlockPos pos) {
         TileEntityEnergyCube tileEntity = (TileEntityEnergyCube) world.getTileEntity(pos);
-        return tileEntity.getRedstoneLevel();
+        return tileEntity.supportsComparator() ? tileEntity.getCurrentRedstoneLevel() : 0;
     }
 
     @Override

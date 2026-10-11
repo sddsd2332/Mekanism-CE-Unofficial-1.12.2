@@ -4,7 +4,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Locale;
 
-/** Fixed responsibilities of the four block and portable QIO Processing terminals. */
+/**
+ * Fixed responsibilities of the four block and portable QIO Processing terminals.
+ */
+
 /**
  * QIO 处理模块中的 QIOProcessingTerminalType 类型。
  *

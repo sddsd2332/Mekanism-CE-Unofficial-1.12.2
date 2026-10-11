@@ -1,12 +1,11 @@
 package mekanism.qioprocessing.common.machine;
 
-import mekanism.api.processing.MachineRecipeProviderRegistry;
-import mekanism.api.processing.MachinePresentationDescriptor;
-import mekanism.api.processing.MachineRecipeRoute;
-import mekanism.api.processing.ProviderConformanceReport;
-import mekanism.api.processing.QIOAutomationMode;
+import mekanism.api.processing.*;
 import mekanism.api.qio.external.QIOFrequencyReference;
+import mekanism.common.Mekanism;
 import mekanism.common.config.MekanismConfig;
+import mekanism.qioprocessing.api.machine.QIOAutomationDeviceLocation;
+import mekanism.qioprocessing.api.machine.QIOAutomationHost;
 import mekanism.qioprocessing.common.content.QIOAutomationUpgradeSupport;
 import mekanism.qioprocessing.common.content.QIOFrequencyIdentitySnapshot;
 import mekanism.qioprocessing.common.content.QIOProcessingNetworkData;
@@ -15,9 +14,7 @@ import mekanism.qioprocessing.common.content.QIOProcessingNetworkManager.Isolate
 import mekanism.qioprocessing.common.content.device.QIOAutomationDeviceDirectoryCleanupService;
 import mekanism.qioprocessing.common.content.device.QIOAutomationDeviceSnapshot;
 import mekanism.qioprocessing.common.execution.QIOProcessingExecutionService;
-import mekanism.qioprocessing.api.machine.QIOAutomationDeviceLocation;
-import mekanism.qioprocessing.api.machine.QIOAutomationHost;
-import mekanism.common.Mekanism;
+import mekanism.qioprocessing.common.util.QIOIdentityWorkRing;
 import net.minecraft.block.Block;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.ResourceLocation;
@@ -30,21 +27,12 @@ import net.minecraftforge.fml.common.gameevent.TickEvent;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.IdentityHashMap;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * Server-side online directory for QIO automation hosts. It never chooses one endpoint when a UUID is duplicated.
  */
+
 /**
  * QIO 处理模块中的 QIOAutomationDeviceRegistry 类型。
  *
@@ -59,12 +47,18 @@ public final class QIOAutomationDeviceRegistry {
     private static final int MAX_ACCESS_CHECKS_PER_TICK = 128;
 
     private final Map<UUID, LinkedHashMap<QIOAutomationDeviceLocation, Endpoint>> byUUID = new LinkedHashMap<>();
-    private final Set<DefaultQIOAutomationHost> pending = Collections.newSetFromMap(new IdentityHashMap<>());
+    private final QIOIdentityWorkRing<DefaultQIOAutomationHost> pending = new QIOIdentityWorkRing<>();
+    private final QIOIdentityWorkRing<Endpoint> diagnostics = new QIOIdentityWorkRing<>();
+    private final QIOIdentityWorkRing<Endpoint> pruning = new QIOIdentityWorkRing<>();
+    private final QIOIdentityWorkRing<Endpoint> access = new QIOIdentityWorkRing<>();
+    private final Map<DefaultQIOAutomationHost, Set<Endpoint>> byHost = new IdentityHashMap<>();
+    private final Map<ChunkKey, Set<Endpoint>> byChunk = new LinkedHashMap<>();
+    private final Map<Integer, Set<Endpoint>> byDimension = new LinkedHashMap<>();
+    private final java.util.NavigableMap<QIOAutomationDeviceLocation, Set<Endpoint>> byLocation = new java.util.TreeMap<>();
+    @Nullable
+    private List<Endpoint> orderedEndpoints;
     private final Set<UUID> quarantinedUUIDs = new LinkedHashSet<>();
     private final Set<UUID> directoryRejectedDevices = new LinkedHashSet<>();
-    private int pendingCursor;
-    private int pruneCursor;
-    private int accessCursor;
 
     private QIOAutomationDeviceRegistry() {
     }
@@ -73,24 +67,34 @@ public final class QIOAutomationDeviceRegistry {
         pending.add(host);
     }
 
-    /** Bridges ordinary Mekanism slot/tank notifications into the QIO execution wake queue. */
+    /**
+     * Bridges ordinary Mekanism slot/tank notifications into the QIO execution wake queue.
+     */
     public void notifyContentsChanged(@Nonnull TileEntity tile) {
         Objects.requireNonNull(tile, "tile");
         if (tile.getWorld() == null || tile.getWorld().isRemote ||
-              QIOAutomationCapabilities.AUTOMATION_HOST == null ||
-              !tile.hasCapability(QIOAutomationCapabilities.AUTOMATION_HOST, null)) {
+                QIOAutomationCapabilities.AUTOMATION_HOST == null ||
+                !tile.hasCapability(QIOAutomationCapabilities.AUTOMATION_HOST, null)) {
             return;
         }
         QIOAutomationHost host = tile.getCapability(
-              QIOAutomationCapabilities.AUTOMATION_HOST, null);
-        if (host instanceof DefaultQIOAutomationHost mutable &&
-              mutable.hasDeferredOutputRecovery()) {
-            trackPending(mutable);
+                QIOAutomationCapabilities.AUTOMATION_HOST, null);
+        if (host instanceof DefaultQIOAutomationHost mutable) notifyContentsChanged(mutable);
+    }
+
+    /**
+     * Component-owned path avoids capability discovery for each slot/tank change.
+     */
+    public void notifyContentsChanged(@Nonnull DefaultQIOAutomationHost host) {
+        TileEntity tile = host.tile();
+        if (tile == null || tile.getWorld() == null || tile.getWorld().isRemote) return;
+        if (host.hasDeferredOutputRecovery()) {
+            trackPending(host);
         }
         QIOFrequencyReference reference = host == null ? null : host.getFrequencyReference();
         if (host != null && reference != null) {
             QIOProcessingExecutionService.INSTANCE.wakeDeviceContents(
-                  reference.getFrequencyUUID(), host.getPersistentDeviceUUID());
+                    reference.getFrequencyUUID(), host.getPersistentDeviceUUID());
         }
     }
 
@@ -112,25 +116,15 @@ public final class QIOAutomationDeviceRegistry {
      * isolated for the management-terminal recovery action.
      */
     private void clearUnownedLegacyDiagnostics() {
-        List<DefaultQIOAutomationHost> candidates = new ArrayList<>();
+        List<Endpoint> candidates;
         synchronized (this) {
-            for (LinkedHashMap<QIOAutomationDeviceLocation, Endpoint> endpoints : byUUID.values()) {
-                for (Endpoint endpoint : endpoints.values()) {
-                    if (candidates.size() >= MAX_PENDING_PER_TICK) {
-                        break;
-                    }
-                    DefaultQIOAutomationHost host = endpoint.host;
-                    if ((host.getState() == QIOAutomationHost.State.DATA_ERROR ||
-                          host.getRecoveryState() == QIOAutomationHost.RecoveryState.QUARANTINED)) {
-                        candidates.add(host);
-                    }
-                }
-                if (candidates.size() >= MAX_PENDING_PER_TICK) {
-                    break;
-                }
-            }
+            candidates = diagnostics.next(MAX_PENDING_PER_TICK);
         }
-        for (DefaultQIOAutomationHost host : candidates) {
+        for (Endpoint endpoint : candidates) {
+            if (!isRegistered(endpoint)) continue;
+            DefaultQIOAutomationHost host = endpoint.host;
+            if (host.getState() != QIOAutomationHost.State.DATA_ERROR &&
+                    host.getRecoveryState() != QIOAutomationHost.RecoveryState.QUARANTINED) continue;
             // The ownership/network check can inspect a full frequency snapshot.  Keep it out of
             // the directory monitor lock so a large recovery scan cannot block registration or
             // duplicate-identity handling for other machines.
@@ -148,16 +142,8 @@ public final class QIOAutomationDeviceRegistry {
         int chunkX = event.getChunk().x;
         int chunkZ = event.getChunk().z;
         synchronized (this) {
-            List<Endpoint> removed = new ArrayList<>();
-            for (LinkedHashMap<QIOAutomationDeviceLocation, Endpoint> endpoints : byUUID.values()) {
-                for (Endpoint endpoint : endpoints.values()) {
-                    QIOAutomationDeviceLocation location = endpoint.location;
-                    if (location.dimension() == event.getWorld().provider.getDimension() &&
-                        location.position().getX() >> 4 == chunkX && location.position().getZ() >> 4 == chunkZ) {
-                        removed.add(endpoint);
-                    }
-                }
-            }
+            List<Endpoint> removed = new ArrayList<>(byChunk.getOrDefault(
+                    new ChunkKey(event.getWorld().provider.getDimension(), chunkX, chunkZ), Collections.emptySet()));
             removed.forEach(endpoint -> unregisterInternal(endpoint.host, endpoint.location));
         }
     }
@@ -169,14 +155,7 @@ public final class QIOAutomationDeviceRegistry {
         }
         int dimension = event.getWorld().provider.getDimension();
         synchronized (this) {
-            List<Endpoint> removed = new ArrayList<>();
-            for (LinkedHashMap<QIOAutomationDeviceLocation, Endpoint> endpoints : byUUID.values()) {
-                for (Endpoint endpoint : endpoints.values()) {
-                    if (endpoint.location.dimension() == dimension) {
-                        removed.add(endpoint);
-                    }
-                }
-            }
+            List<Endpoint> removed = new ArrayList<>(byDimension.getOrDefault(dimension, Collections.emptySet()));
             removed.forEach(endpoint -> unregisterInternal(endpoint.host, endpoint.location));
             pending.removeIf(host -> host.tile() != null && host.tile().getWorld() == event.getWorld());
         }
@@ -189,12 +168,8 @@ public final class QIOAutomationDeviceRegistry {
         }
         int dimension = event.getWorld().provider.getDimension();
         synchronized (this) {
-            for (LinkedHashMap<QIOAutomationDeviceLocation, Endpoint> endpoints : byUUID.values()) {
-                for (Endpoint endpoint : endpoints.values()) {
-                    if (endpoint.location.dimension() == dimension) {
-                        endpoint.host.confirmCompletedOperationsPersisted();
-                    }
-                }
+            for (Endpoint endpoint : new ArrayList<>(byDimension.getOrDefault(dimension, Collections.emptySet()))) {
+                endpoint.host.confirmCompletedOperationsPersisted();
             }
         }
     }
@@ -211,9 +186,9 @@ public final class QIOAutomationDeviceRegistry {
             QIOAutomationUpgradeSupport.reconcile(tile, endpoint.host);
         }
         return endpoint.host.getState() == QIOAutomationHost.State.ACTIVE &&
-              !endpoint.host.isManagementPaused() &&
-              QIOAutomationUpgradeSupport.isModeInstalled(tile, endpoint.host.getEnabledMode()) &&
-              validateEndpointForRegistration(endpoint.host, tile) ? endpoint.host : null;
+                !endpoint.host.isManagementPaused() &&
+                QIOAutomationUpgradeSupport.isModeInstalled(tile, endpoint.host.getEnabledMode()) &&
+                validateEndpointForRegistration(endpoint.host, tile) ? endpoint.host : null;
     }
 
     @Nullable
@@ -229,10 +204,10 @@ public final class QIOAutomationDeviceRegistry {
         }
         boolean draining = endpoint.host.getState() == QIOAutomationHost.State.DRAINING_CHANGE;
         return isOperational(endpoint.host) && tile != null &&
-              (draining || QIOAutomationUpgradeSupport.isModeInstalled(tile, endpoint.host.getEnabledMode())) &&
-              validateEndpointForRegistration(endpoint.host, tile) &&
-              !tile.isInvalid() && tile.getWorld() != null && !tile.getWorld().isRemote ?
-              new LoadedDevice(endpoint.host, tile, endpoint.location) : null;
+                (draining || QIOAutomationUpgradeSupport.isModeInstalled(tile, endpoint.host.getEnabledMode())) &&
+                validateEndpointForRegistration(endpoint.host, tile) &&
+                !tile.isInvalid() && tile.getWorld() != null && !tile.getWorld().isRemote ?
+                new LoadedDevice(endpoint.host, tile, endpoint.location) : null;
     }
 
     /**
@@ -249,22 +224,18 @@ public final class QIOAutomationDeviceRegistry {
         Endpoint endpoint = endpoints.values().iterator().next();
         TileEntity tile = endpoint.host.tile();
         return tile != null && !tile.isInvalid() && tile.getWorld() != null &&
-              !tile.getWorld().isRemote &&
-              tile.getWorld().isBlockLoaded(endpoint.location.position(), false) &&
-              tile.getWorld().getTileEntity(endpoint.location.position()) == tile ?
-              new LoadedDevice(endpoint.host, tile, endpoint.location) : null;
+                !tile.getWorld().isRemote &&
+                tile.getWorld().isBlockLoaded(endpoint.location.position(), false) &&
+                tile.getWorld().getTileEntity(endpoint.location.position()) == tile ?
+                new LoadedDevice(endpoint.host, tile, endpoint.location) : null;
     }
 
-    /** Publishes an already registered host immediately after an explicit recovery. */
+    /**
+     * Publishes an already registered host immediately after an explicit recovery.
+     */
     public synchronized void refreshHost(@Nonnull DefaultQIOAutomationHost host) {
-        for (LinkedHashMap<QIOAutomationDeviceLocation, Endpoint> endpoints : byUUID.values()) {
-            for (Endpoint endpoint : endpoints.values()) {
-                if (endpoint.host == host) {
-                    publishSnapshot(endpoint);
-                    return;
-                }
-            }
-        }
+        for (Endpoint endpoint : new ArrayList<>(byHost.getOrDefault(host, Collections.emptySet())))
+            publishSnapshot(endpoint);
     }
 
     @Nonnull
@@ -288,14 +259,14 @@ public final class QIOAutomationDeviceRegistry {
      * persistent UUID belongs to another loaded machine.
      */
     synchronized boolean isRecoveryIdentityUnique(@Nonnull UUID deviceUUID,
-          @Nonnull DefaultQIOAutomationHost host) {
+                                                  @Nonnull DefaultQIOAutomationHost host) {
         LinkedHashMap<QIOAutomationDeviceLocation, Endpoint> endpoints = byUUID.get(
-              Objects.requireNonNull(deviceUUID, "deviceUUID"));
+                Objects.requireNonNull(deviceUUID, "deviceUUID"));
         if (endpoints == null || endpoints.isEmpty()) {
             return true;
         }
         return endpoints.size() == 1 && endpoints.values().iterator().next().host ==
-              Objects.requireNonNull(host, "host");
+                Objects.requireNonNull(host, "host");
     }
 
     @Nonnull
@@ -303,21 +274,26 @@ public final class QIOAutomationDeviceRegistry {
         return getLoadedDevices(mode, false);
     }
 
-    /** Includes draining devices so their already-owned operations can settle. */
+    /**
+     * Includes draining devices so their already-owned operations can settle.
+     */
     @Nonnull
     public synchronized List<LoadedDevice> getOperationalDevices(
-          @Nonnull QIOAutomationMode mode) {
+            @Nonnull QIOAutomationMode mode) {
         return getLoadedDevices(mode, true);
     }
 
     private List<LoadedDevice> getLoadedDevices(QIOAutomationMode mode,
-          boolean includeDraining) {
+                                                boolean includeDraining) {
         List<LoadedDevice> devices = new ArrayList<>();
-        for (Map.Entry<UUID, LinkedHashMap<QIOAutomationDeviceLocation, Endpoint>> entry : byUUID.entrySet()) {
-            if (quarantinedUUIDs.contains(entry.getKey()) || entry.getValue().size() != 1) {
+        // A complete result requires visiting candidates, but its stable location order is
+        // maintained at registration time instead of sorted again for each caller.
+        for (Endpoint endpoint : orderedEndpoints()) {
+            Map<QIOAutomationDeviceLocation, Endpoint> endpoints = byUUID.get(endpoint.host.getPersistentDeviceUUID());
+            if (!isRegistered(endpoint) || endpoints == null ||
+                    quarantinedUUIDs.contains(endpoint.host.getPersistentDeviceUUID()) || endpoints.size() != 1) {
                 continue;
             }
-            Endpoint endpoint = entry.getValue().values().iterator().next();
             TileEntity endpointTile = endpoint.host.tile();
             if (endpointTile != null) {
                 QIOAutomationUpgradeSupport.reconcile(endpointTile, endpoint.host);
@@ -326,40 +302,32 @@ public final class QIOAutomationDeviceRegistry {
             QIOAutomationHost.State hostState = endpoint.host.getState();
             boolean draining = includeDraining && hostState == QIOAutomationHost.State.DRAINING_CHANGE;
             boolean endpointValid = tile != null &&
-                  validateEndpointForRegistration(endpoint.host, tile);
+                    validateEndpointForRegistration(endpoint.host, tile);
             if ((hostState == QIOAutomationHost.State.ACTIVE || draining) &&
-                !endpoint.host.isManagementPaused() && endpoint.host.getEnabledMode() == mode &&
-                (draining || QIOAutomationUpgradeSupport.isModeInstalled(tile, mode)) &&
-                endpointValid &&
-                tile != null && !tile.isInvalid() && tile.getWorld() != null && !tile.getWorld().isRemote) {
+                    !endpoint.host.isManagementPaused() && endpoint.host.getEnabledMode() == mode &&
+                    (draining || QIOAutomationUpgradeSupport.isModeInstalled(tile, mode)) &&
+                    endpointValid &&
+                    tile != null && !tile.isInvalid() && tile.getWorld() != null && !tile.getWorld().isRemote) {
                 devices.add(new LoadedDevice(endpoint.host, tile, endpoint.location));
             }
         }
-        devices.sort((first, second) -> first.location.compareTo(second.location));
         return Collections.unmodifiableList(devices);
     }
 
     private static boolean isOperational(DefaultQIOAutomationHost host) {
         return host.getState() == QIOAutomationHost.State.ACTIVE ||
-              host.getState() == QIOAutomationHost.State.DRAINING_CHANGE;
+                host.getState() == QIOAutomationHost.State.DRAINING_CHANGE;
     }
 
     private static boolean isLoadedInvalidation(@Nullable TileEntity tile) {
         return tile != null && tile.getWorld() != null && !tile.getWorld().isRemote &&
-              tile.getWorld().isBlockLoaded(tile.getPos(), false) &&
-              (tile.isInvalid() || tile.getWorld().getTileEntity(tile.getPos()) != tile);
+                tile.getWorld().isBlockLoaded(tile.getPos(), false) &&
+                (tile.isInvalid() || tile.getWorld().getTileEntity(tile.getPos()) != tile);
     }
 
     public synchronized void unregister(@Nonnull DefaultQIOAutomationHost host) {
         pending.remove(host);
-        List<Endpoint> matches = new ArrayList<>();
-        for (LinkedHashMap<QIOAutomationDeviceLocation, Endpoint> endpoints : byUUID.values()) {
-            for (Endpoint endpoint : endpoints.values()) {
-                if (endpoint.host == host) {
-                    matches.add(endpoint);
-                }
-            }
-        }
+        List<Endpoint> matches = new ArrayList<>(byHost.getOrDefault(host, Collections.emptySet()));
         boolean removed = isLoadedInvalidation(host.tile());
         matches.forEach(endpoint -> {
             if (removed) {
@@ -371,17 +339,23 @@ public final class QIOAutomationDeviceRegistry {
     }
 
     public synchronized void shutdown() {
-        QIOAutomationTileTickService.INSTANCE.clearHosts();
         byUUID.clear();
         pending.clear();
         quarantinedUUIDs.clear();
         directoryRejectedDevices.clear();
-        pendingCursor = 0;
-        pruneCursor = 0;
-        accessCursor = 0;
+        diagnostics.clear();
+        pruning.clear();
+        access.clear();
+        byHost.clear();
+        byChunk.clear();
+        byDimension.clear();
+        byLocation.clear();
+        orderedEndpoints = null;
     }
 
-    /** Explicitly clears a quarantine only after every endpoint has a distinct identity. */
+    /**
+     * Explicitly clears a quarantine only after every endpoint has a distinct identity.
+     */
     public synchronized boolean acknowledgeIdentityRecovery(@Nonnull UUID oldUUID, @Nonnull DefaultQIOAutomationHost host) {
         if (!quarantinedUUIDs.contains(oldUUID)) {
             return false;
@@ -405,20 +379,15 @@ public final class QIOAutomationDeviceRegistry {
             if (pending.isEmpty()) {
                 return;
             }
-            candidates = new ArrayList<>(pending);
+            candidates = pending.drain(MAX_PENDING_PER_TICK);
         }
-        int processed = 0;
         for (DefaultQIOAutomationHost host : candidates) {
-            if (processed++ >= MAX_PENDING_PER_TICK) {
-                break;
-            }
             TileEntity tile = host.tile();
             if (tile == null || tile.isInvalid() || tile.getWorld() == null || tile.getWorld().isRemote) {
-                synchronized (this) {
-                    pending.remove(host);
-                }
                 continue;
             }
+            if (!tile.getWorld().isBlockLoaded(tile.getPos(), false) ||
+                    tile.getWorld().getTileEntity(tile.getPos()) != tile) continue;
             DefaultQIOAutomationHost.DeferredOutputRecoveryResult recovery;
             try {
                 recovery = host.attemptDeferredOutputRecovery();
@@ -427,11 +396,13 @@ public final class QIOAutomationDeviceRegistry {
                 // restoring its custom inventory. Recovery must never escape into the
                 // server tick; keep the host pending and retry against the next stable view.
                 host.markRetryPending();
+                trackPending(host);
                 Mekanism.logger.warn("Unable to inspect deferred QIO output recovery for {}",
-                      host.getPersistentDeviceUUID(), e);
+                        host.getPersistentDeviceUUID(), e);
                 continue;
             }
             if (recovery == DefaultQIOAutomationHost.DeferredOutputRecoveryResult.RETRY_LATER) {
+                trackPending(host);
                 continue;
             }
             // A blocked deferred handoff is a quarantined, ownership-bearing record. Keep it
@@ -439,20 +410,18 @@ public final class QIOAutomationDeviceRegistry {
             // baseline recoverable; removing it here used to make a valid post-load recovery
             // depend on an unrelated output-service tick.
             boolean retryRecovery = recovery == DefaultQIOAutomationHost.DeferredOutputRecoveryResult.BLOCKED &&
-                  host.hasDeferredOutputRecovery();
+                    host.hasDeferredOutputRecovery();
             try {
                 register(host, tile.getWorld(), tile.getPos());
             } catch (RuntimeException e) {
                 // Provider/configuration code is addon-owned. One malformed endpoint must not
                 // abort the server tick or lose the pending recovery record.
-                Mekanism.logger.warn("Unable to register QIO automation device {}", 
-                      host.getPersistentDeviceUUID(), e);
+                Mekanism.logger.warn("Unable to register QIO automation device {}",
+                        host.getPersistentDeviceUUID(), e);
                 retryRecovery = true;
             }
             synchronized (this) {
-                if (!retryRecovery) {
-                    pending.remove(host);
-                }
+                if (retryRecovery) pending.add(host);
             }
         }
     }
@@ -461,12 +430,13 @@ public final class QIOAutomationDeviceRegistry {
         QIOAutomationDeviceLocation location = QIOAutomationDeviceLocation.of(world, position);
         synchronized (this) {
             LinkedHashMap<QIOAutomationDeviceLocation, Endpoint> endpoints =
-                  byUUID.computeIfAbsent(host.getPersistentDeviceUUID(), ignored -> new LinkedHashMap<>());
+                    byUUID.computeIfAbsent(host.getPersistentDeviceUUID(), ignored -> new LinkedHashMap<>());
             Endpoint atLocation = endpoints.get(location);
             if (atLocation != null && atLocation.host != host) {
                 TileEntity current = world.getTileEntity(position);
                 if (current != atLocation.host.tile()) {
                     endpoints.remove(location);
+                    unindex(atLocation);
                 } else {
                     atLocation.host.quarantineIdentityConflict();
                     host.quarantineIdentityConflict();
@@ -475,8 +445,9 @@ public final class QIOAutomationDeviceRegistry {
                 }
             }
             Endpoint endpoint = atLocation != null && atLocation.host == host ? atLocation :
-                  new Endpoint(host, location);
+                    new Endpoint(host, location);
             endpoints.put(location, endpoint);
+            if (endpoint != atLocation) index(endpoint);
             QIOAutomationUpgradeSupport.reconcile(host.tile(), host);
             if (!validateEndpointForRegistration(host, host.tile())) {
                 // Keep the endpoint visible for diagnostics/offline management, but do not let
@@ -496,18 +467,18 @@ public final class QIOAutomationDeviceRegistry {
     }
 
     static boolean validateEndpointForRegistration(@Nonnull DefaultQIOAutomationHost host,
-          @Nullable TileEntity tile) {
+                                                   @Nullable TileEntity tile) {
         if (host.getEnabledMode() == null) {
             return true;
         }
         MachineRecipeProviderRegistry.BoundProvider provider =
-              MachineRecipeProviderRegistry.find(tile);
+                MachineRecipeProviderRegistry.find(tile);
         if (provider == null) {
             return false;
         }
         try {
             ProviderConformanceReport report = provider.validateQIOEndpointConformance(
-                  host.getEnabledMode());
+                    host.getEnabledMode());
             if (!report.isConformant()) {
                 return false;
             }
@@ -520,24 +491,17 @@ public final class QIOAutomationDeviceRegistry {
     }
 
     private void pruneStaleEndpoints() {
-        List<Endpoint> candidates = new ArrayList<>();
+        List<Endpoint> candidates;
         synchronized (this) {
-            for (LinkedHashMap<QIOAutomationDeviceLocation, Endpoint> endpoints : byUUID.values()) {
-                candidates.addAll(endpoints.values());
-            }
+            candidates = pruning.next(MAX_PRUNE_PER_TICK);
         }
-        if (candidates.isEmpty()) {
-            return;
-        }
-        int start = pruneCursor % candidates.size();
-        int checked = 0;
-        for (int offset = 0; offset < candidates.size() && checked++ < MAX_PRUNE_PER_TICK; offset++) {
-            Endpoint endpoint = candidates.get((start + offset) % candidates.size());
+        for (Endpoint endpoint : candidates) {
+            if (!isRegistered(endpoint)) continue;
             TileEntity tile = endpoint.host.tile();
             if (tile == null || tile.getWorld() == null ||
-                tile.getWorld().provider.getDimension() != endpoint.location.dimension() ||
-                !endpoint.location.position().equals(tile.getPos()) ||
-                !tile.getWorld().isBlockLoaded(tile.getPos(), false)) {
+                    tile.getWorld().provider.getDimension() != endpoint.location.dimension() ||
+                    !endpoint.location.position().equals(tile.getPos()) ||
+                    !tile.getWorld().isBlockLoaded(tile.getPos(), false)) {
                 synchronized (this) {
                     unregisterInternal(endpoint.host, endpoint.location);
                 }
@@ -553,55 +517,39 @@ public final class QIOAutomationDeviceRegistry {
                 }
             }
         }
-        pruneCursor = start + checked;
     }
 
     private void refreshFrequencyAccess() {
-        List<Endpoint> candidates = new ArrayList<>();
+        List<Endpoint> candidates;
         synchronized (this) {
-            for (LinkedHashMap<QIOAutomationDeviceLocation, Endpoint> endpoints : byUUID.values()) {
-                if (endpoints.size() == 1) {
-                    candidates.addAll(endpoints.values());
-                }
-            }
+            candidates = access.next(MAX_ACCESS_CHECKS_PER_TICK);
         }
-        if (candidates.isEmpty()) {
-            accessCursor = 0;
-            return;
-        }
-        candidates.sort((first, second) -> first.location.compareTo(second.location));
-        int start = Math.floorMod(accessCursor, candidates.size());
-        int checked = 0;
-        for (int offset = 0; offset < candidates.size() && checked < MAX_ACCESS_CHECKS_PER_TICK;
-             offset++, checked++) {
-            Endpoint endpoint = candidates.get((start + offset) % candidates.size());
-            if (!quarantinedUUIDs.contains(endpoint.host.getPersistentDeviceUUID()) &&
-                endpoint.host.getState() != QIOAutomationHost.State.IDENTITY_CONFLICT) {
+        for (Endpoint endpoint : candidates) {
+            if (isUniqueAccessCandidate(endpoint)) {
                 QIOAutomationUpgradeSupport.reconcile(endpoint.host.tile(), endpoint.host);
                 QIOAutomationBindingService.refreshAccess(endpoint.host);
                 publishSnapshot(endpoint);
             }
         }
-        accessCursor = start + checked;
     }
 
     private void publishSnapshot(Endpoint endpoint) {
         TileEntity tile = endpoint.host.tile();
         if (tile == null || tile.isInvalid() || tile.getWorld() == null ||
-            tile.getWorld().isRemote ||
-            !tile.getWorld().isBlockLoaded(endpoint.location.position(), false) ||
-            tile.getWorld().getTileEntity(endpoint.location.position()) != tile) {
+                tile.getWorld().isRemote ||
+                !tile.getWorld().isBlockLoaded(endpoint.location.position(), false) ||
+                tile.getWorld().getTileEntity(endpoint.location.position()) != tile) {
             publishOffline(endpoint);
             return;
         }
         if (!QIOAutomationUpgradeSupport.isModeInstalled(tile,
-              endpoint.host.getEnabledMode())) {
+                endpoint.host.getEnabledMode())) {
             forgetPublished(endpoint);
             return;
         }
         QIOFrequencyReference reference = endpoint.host.getFrequencyReference();
         UUID frequencyUUID = reference == null || endpoint.host.getEnabledMode() == null ? null :
-              reference.getFrequencyUUID();
+                reference.getFrequencyUUID();
         if (!java.util.Objects.equals(endpoint.publishedFrequencyUUID, frequencyUUID)) {
             forgetPublished(endpoint);
             endpoint.publishedFrequencyUUID = frequencyUUID;
@@ -618,45 +566,45 @@ public final class QIOAutomationDeviceRegistry {
         }
         try {
             QIOProcessingNetworkData network = QIOProcessingNetworkManager.INSTANCE.getOrCreate(
-                  frequencyUUID, new QIOFrequencyIdentitySnapshot(reference.getFrequencyName(),
-                        reference.getOwnerUUID(), reference.getSecurityMode()));
+                    frequencyUUID, new QIOFrequencyIdentitySnapshot(reference.getFrequencyName(),
+                            reference.getOwnerUUID(), reference.getSecurityMode()));
             String providerId = provider == null ? "unknown:provider" :
-                  provider.id().toString();
+                    provider.id().toString();
             String profileScopeId = provider == null ? providerId :
-                  QIOAutomationRecipeProfileScope.resolve(provider);
+                    QIOAutomationRecipeProfileScope.resolve(provider);
             int providerRevision = provider == null ? 0 :
-                  Math.max(0, provider.getConfigurationRevision());
+                    Math.max(0, provider.getConfigurationRevision());
             List<MachineRecipeRoute> providerRoutes = provider == null ?
-                  Collections.emptyList() : provider.getRecipeRoutes();
+                    Collections.emptyList() : provider.getRecipeRoutes();
             MachinePresentationDescriptor presentation = provider == null ?
-                  MachinePresentationDescriptor.fallback(tile) : provider.getPresentation();
+                    MachinePresentationDescriptor.fallback(tile) : provider.getPresentation();
             QIOAutomationMode mode = endpoint.host.getEnabledMode();
             boolean publishableRoutes = !providerRoutes.isEmpty() &&
-                  hasPublishableRoutes(provider, mode);
+                    hasPublishableRoutes(provider, mode);
             QIOAutomationDeviceSnapshot snapshot = new QIOAutomationDeviceSnapshot(
-                   endpoint.host.getPersistentDeviceUUID(), endpoint.location,
-                  QIOAutomationDeviceSnapshot.Kind.AUTOMATION_MACHINE,
-                  blockId == null ? "minecraft:air" : blockId.toString(),
-                  Math.max(0, tile.getBlockMetadata()),
-                  presentation, providerId, profileScopeId,
-                  mode.name(), endpoint.host.getState().name(), true,
-                  Math.max(0, tile.getWorld().getTotalWorldTime()),
-                  endpoint.host.getConfigurationRevision(),
-                  providerRevision, providerRoutes.size(),
-                   endpoint.host.getActivitySnapshots().size(),
+                    endpoint.host.getPersistentDeviceUUID(), endpoint.location,
+                    QIOAutomationDeviceSnapshot.Kind.AUTOMATION_MACHINE,
+                    blockId == null ? "minecraft:air" : blockId.toString(),
+                    Math.max(0, tile.getBlockMetadata()),
+                    presentation, providerId, profileScopeId,
+                    mode.name(), endpoint.host.getState().name(), true,
+                    Math.max(0, tile.getWorld().getTotalWorldTime()),
+                    endpoint.host.getConfigurationRevision(),
+                    providerRevision, providerRoutes.size(),
+                    endpoint.host.getActivitySnapshots().size(),
                     endpoint.host.isManagementPaused(), endpoint.host.getRecoveryDiagnostic())
-                  .withRecoveryState(endpoint.host.getRecoveryState());
+                    .withRecoveryState(endpoint.host.getRecoveryState());
             network.observeAutomationDevice(snapshot,
-                  MekanismConfig.current().qioProcessing.deviceRecordsPerFrequency.val());
+                    MekanismConfig.current().qioProcessing.deviceRecordsPerFrequency.val());
             RoutePublicationAction routeAction = routePublicationAction(publishableRoutes,
-                  endpoint.shouldPublishRoutes(frequencyUUID, mode, profileScopeId,
-                        providerRevision, providerRoutes.size()));
+                    endpoint.shouldPublishRoutes(frequencyUUID, mode, profileScopeId,
+                            providerRevision, providerRoutes.size()));
             if (routeAction == RoutePublicationAction.PUBLISH) {
                 network.observeAutomationDeviceRoutes(endpoint.host.getPersistentDeviceUUID(),
-                      mode, profileScopeId, provider.id(), providerRoutes,
-                      MekanismConfig.current().qioProcessing.providerRoutesPerFrequency.val());
+                        mode, profileScopeId, provider.id(), providerRoutes,
+                        MekanismConfig.current().qioProcessing.providerRoutesPerFrequency.val());
                 endpoint.markRoutesPublished(frequencyUUID, mode, profileScopeId,
-                      providerRevision, providerRoutes.size());
+                        providerRevision, providerRoutes.size());
             } else if (routeAction == RoutePublicationAction.FORGET) {
                 network.forgetAutomationDeviceRoutes(endpoint.host.getPersistentDeviceUUID());
                 endpoint.clearPublishedRoutes();
@@ -667,25 +615,25 @@ public final class QIOAutomationDeviceRegistry {
         } catch (RuntimeException e) {
             if (directoryRejectedDevices.add(endpoint.host.getPersistentDeviceUUID())) {
                 Mekanism.logger.warn("Unable to publish QIO automation device {} to frequency {}",
-                      endpoint.host.getPersistentDeviceUUID(), frequencyUUID, e);
+                        endpoint.host.getPersistentDeviceUUID(), frequencyUUID, e);
             }
         }
     }
 
     static boolean hasPublishableRoutes(
-          @Nullable MachineRecipeProviderRegistry.BoundProvider provider,
-          @Nullable QIOAutomationMode mode) {
+            @Nullable MachineRecipeProviderRegistry.BoundProvider provider,
+            @Nullable QIOAutomationMode mode) {
         return provider != null && mode != null && mode != QIOAutomationMode.OUTPUT_ONLY &&
-              provider.validateQIOConformance(mode).isConformant();
+                provider.validateQIOConformance(mode).isConformant();
     }
 
     static RoutePublicationAction routePublicationAction(boolean publishableRoutes,
-          boolean publicationChanged) {
+                                                         boolean publicationChanged) {
         if (!publishableRoutes) {
             return RoutePublicationAction.FORGET;
         }
         return publicationChanged ? RoutePublicationAction.PUBLISH :
-              RoutePublicationAction.RETAIN;
+                RoutePublicationAction.RETAIN;
     }
 
     enum RoutePublicationAction {
@@ -703,9 +651,9 @@ public final class QIOAutomationDeviceRegistry {
         if (network != null) {
             TileEntity tile = endpoint.host.tile();
             long currentTick = tile != null && tile.getWorld() != null ?
-                  Math.max(0, tile.getWorld().getTotalWorldTime()) : 0;
+                    Math.max(0, tile.getWorld().getTotalWorldTime()) : 0;
             network.markAutomationDeviceOffline(endpoint.host.getPersistentDeviceUUID(),
-                  endpoint.location, currentTick);
+                    endpoint.location, currentTick);
         }
         endpoint.publishedFrequencyUUID = null;
         endpoint.clearPublishedRoutes();
@@ -715,10 +663,10 @@ public final class QIOAutomationDeviceRegistry {
         UUID frequencyUUID = endpoint.publishedFrequencyUUID;
         if (frequencyUUID != null) {
             QIOProcessingNetworkData network =
-                  QIOProcessingNetworkManager.INSTANCE.get(frequencyUUID);
+                    QIOProcessingNetworkManager.INSTANCE.get(frequencyUUID);
             if (network != null) {
                 network.forgetAutomationDeviceMembership(
-                      endpoint.host.getPersistentDeviceUUID(), endpoint.location);
+                        endpoint.host.getPersistentDeviceUUID(), endpoint.location);
             }
         }
         endpoint.publishedFrequencyUUID = null;
@@ -732,6 +680,7 @@ public final class QIOAutomationDeviceRegistry {
             if (endpoint != null && endpoint.host == host) {
                 publishOffline(endpoint);
                 endpoints.remove(location);
+                unindex(endpoint);
             }
             if (endpoints.isEmpty()) {
                 byUUID.remove(host.getPersistentDeviceUUID());
@@ -740,18 +689,97 @@ public final class QIOAutomationDeviceRegistry {
     }
 
     private void unregisterRemovedInternal(DefaultQIOAutomationHost host,
-          QIOAutomationDeviceLocation location) {
+                                           QIOAutomationDeviceLocation location) {
         LinkedHashMap<QIOAutomationDeviceLocation, Endpoint> endpoints =
-              byUUID.get(host.getPersistentDeviceUUID());
+                byUUID.get(host.getPersistentDeviceUUID());
         if (endpoints != null) {
             Endpoint endpoint = endpoints.get(location);
             if (endpoint != null && endpoint.host == host) {
                 forgetPublished(endpoint);
                 endpoints.remove(location);
+                unindex(endpoint);
             }
             if (endpoints.isEmpty()) {
                 byUUID.remove(host.getPersistentDeviceUUID());
             }
+        }
+    }
+
+    private synchronized boolean isRegistered(Endpoint endpoint) {
+        Set<Endpoint> entries = byHost.get(endpoint.host);
+        return entries != null && entries.contains(endpoint);
+    }
+
+    private synchronized boolean isUniqueAccessCandidate(Endpoint endpoint) {
+        Map<QIOAutomationDeviceLocation, Endpoint> entries = byUUID.get(endpoint.host.getPersistentDeviceUUID());
+        return isRegistered(endpoint) && entries != null && entries.size() == 1 &&
+                !quarantinedUUIDs.contains(endpoint.host.getPersistentDeviceUUID()) &&
+                endpoint.host.getState() != QIOAutomationHost.State.IDENTITY_CONFLICT;
+    }
+
+    /**
+     * Called only while owning this registry's monitor, alongside byUUID mutations.
+     */
+    private void index(Endpoint endpoint) {
+        diagnostics.add(endpoint);
+        pruning.add(endpoint);
+        access.add(endpoint);
+        byHost.computeIfAbsent(endpoint.host, ignored -> new LinkedHashSet<>()).add(endpoint);
+        byChunk.computeIfAbsent(ChunkKey.of(endpoint.location), ignored -> new LinkedHashSet<>()).add(endpoint);
+        byDimension.computeIfAbsent(endpoint.location.dimension(), ignored -> new LinkedHashSet<>()).add(endpoint);
+        byLocation.computeIfAbsent(endpoint.location, ignored -> new LinkedHashSet<>()).add(endpoint);
+        orderedEndpoints = null;
+    }
+
+    private void unindex(Endpoint endpoint) {
+        diagnostics.remove(endpoint);
+        pruning.remove(endpoint);
+        access.remove(endpoint);
+        removeIndex(byHost, endpoint.host, endpoint);
+        removeIndex(byChunk, ChunkKey.of(endpoint.location), endpoint);
+        removeIndex(byDimension, endpoint.location.dimension(), endpoint);
+        removeIndex(byLocation, endpoint.location, endpoint);
+        orderedEndpoints = null;
+    }
+
+    private List<Endpoint> orderedEndpoints() {
+        if (orderedEndpoints == null) {
+            List<Endpoint> snapshot = new ArrayList<>();
+            for (Set<Endpoint> endpoints : byLocation.values()) snapshot.addAll(endpoints);
+            orderedEndpoints = Collections.unmodifiableList(snapshot);
+        }
+        return orderedEndpoints;
+    }
+
+    private static <K> void removeIndex(Map<K, Set<Endpoint>> index, K key, Endpoint endpoint) {
+        Set<Endpoint> entries = index.get(key);
+        if (entries != null) {
+            entries.remove(endpoint);
+            if (entries.isEmpty()) index.remove(key);
+        }
+    }
+
+    private static final class ChunkKey {
+        final int dimension, x, z;
+
+        ChunkKey(int dimension, int x, int z) {
+            this.dimension = dimension;
+            this.x = x;
+            this.z = z;
+        }
+
+        static ChunkKey of(QIOAutomationDeviceLocation location) {
+            return new ChunkKey(location.dimension(), location.position().getX() >> 4, location.position().getZ() >> 4);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof ChunkKey key && dimension == key.dimension && x == key.x && z == key.z;
+        }
+
+        @Override
+        public int hashCode() {
+            return (dimension * 31 + x) * 31 + z;
         }
     }
 
@@ -776,14 +804,14 @@ public final class QIOAutomationDeviceRegistry {
         }
 
         private boolean shouldPublishRoutes(UUID frequencyUUID, QIOAutomationMode mode,
-              String profileScopeId, int providerRevision, int currentRouteCount) {
+                                            String profileScopeId, int providerRevision, int currentRouteCount) {
             return !frequencyUUID.equals(routeFrequencyUUID) || mode != routeMode ||
-                  !profileScopeId.equals(routeProfileScopeId) ||
-                  providerRevision != routeProviderRevision || currentRouteCount != routeCount;
+                    !profileScopeId.equals(routeProfileScopeId) ||
+                    providerRevision != routeProviderRevision || currentRouteCount != routeCount;
         }
 
         private void markRoutesPublished(UUID frequencyUUID, QIOAutomationMode mode,
-              String profileScopeId, int providerRevision, int currentRouteCount) {
+                                         String profileScopeId, int providerRevision, int currentRouteCount) {
             routeFrequencyUUID = frequencyUUID;
             routeMode = mode;
             routeProfileScopeId = profileScopeId;

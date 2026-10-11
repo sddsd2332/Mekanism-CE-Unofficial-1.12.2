@@ -95,7 +95,7 @@ public class ModelFluidTank extends ModelBase {
         GlStateManager.pushMatrix();
         GlStateManager.shadeModel(GL11.GL_SMOOTH);
         doRender(size);
-        if (!isEnableGlow){
+        if (!isEnableGlow) {
             MekanismRenderer.color(tier.getBaseTier());
             doRenderGlass(size);
             MekanismRenderer.resetColor();
@@ -117,6 +117,7 @@ public class ModelFluidTank extends ModelBase {
             GlStateManager.popMatrix();
         }
     }
+
     private void doRender(float size) {
         Base.render(size);
         PoleFL.render(size);

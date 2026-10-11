@@ -1,6 +1,7 @@
 package mekanism.qioprocessing.common.content.profile;
 
 import mekanism.api.processing.QIOAutomationMode;
+import mekanism.qioprocessing.common.content.QIOIncompatibleRecipePolicyException;
 import mekanism.qioprocessing.common.content.QIOProcessingDataException;
 import mekanism.qioprocessing.common.content.QIOProcessingNbt;
 import mekanism.qioprocessing.common.content.profile.QIOAutomationRecipeProfile.RouteFilterMode;
@@ -9,16 +10,12 @@ import net.minecraft.nbt.NBTTagList;
 import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
-/** Persistent global-slot and per-machine automation recipe profiles for one QIO frequency. */
+/**
+ * Persistent global-slot and per-machine automation recipe profiles for one QIO frequency.
+ */
+
 /**
  * QIO 处理模块中的 QIOAutomationRecipeProfileCatalog 类型。
  *
@@ -29,7 +26,8 @@ public final class QIOAutomationRecipeProfileCatalog {
 
     public static final int MIN_GLOBAL_SLOT = 1;
     public static final int MAX_GLOBAL_SLOT = 10;
-    private static final int SCHEMA_VERSION = 2;
+    private static final int SCHEMA_VERSION = 3;
+    private static final String FREQUENCY_SCOPE = "mekanismqioprocessing:frequency";
     private static final int MAX_PROFILES = 1_000_000;
     private static final int MAX_SELECTIONS = 1_000_000;
     private static final int MAX_PROFILE_SCOPE_ID_LENGTH = 1_536;
@@ -44,33 +42,33 @@ public final class QIOAutomationRecipeProfileCatalog {
 
     @Nonnull
     public Selection getSelection(@Nonnull UUID deviceUUID, @Nonnull QIOAutomationMode mode,
-          @Nonnull String profileScopeId) {
+                                  @Nonnull String profileScopeId) {
         SelectionState state = selections.get(SelectionKey.create(deviceUUID, mode,
-              profileScopeId));
+                profileScopeId));
         return state == null ? Selection.defaults(mode) : state.snapshot();
     }
 
     @Nonnull
     public QIOAutomationRecipeProfile getActiveProfile(@Nonnull UUID deviceUUID,
-          @Nonnull QIOAutomationMode mode, @Nonnull String profileScopeId) {
+                                                       @Nonnull QIOAutomationMode mode, @Nonnull String profileScopeId) {
         Selection selection = getSelection(deviceUUID, mode, profileScopeId);
         QIOAutomationRecipeProfile profile = profiles.get(ProfileKey.active(deviceUUID, mode,
-              profileScopeId, selection));
+                profileScopeId, selection));
         return profile == null ? new QIOAutomationRecipeProfile(selection.filterMode) : profile;
     }
 
     public boolean toggleProfileMode(@Nonnull UUID deviceUUID, @Nonnull QIOAutomationMode mode,
-          @Nonnull String profileScopeId) {
+                                     @Nonnull String profileScopeId) {
         SelectionKey key = SelectionKey.create(deviceUUID, mode, profileScopeId);
         SelectionState state = selections.computeIfAbsent(key, ignored ->
-              SelectionState.defaults(mode));
+                SelectionState.defaults(mode));
         boolean individual = !state.individual;
         if (individual) {
-            ProfileKey individualKey = ProfileKey.individual(deviceUUID, mode, profileScopeId,
-                  state.filterMode);
+            ProfileKey individualKey = ProfileKey.individual(state.ensureIndividualIdentity(), mode, profileScopeId,
+                    state.filterMode);
             profiles.computeIfAbsent(individualKey, ignored -> globalProfile(mode,
-                  profileScopeId,
-                  state.filterMode, state.globalSlot).copy());
+                    profileScopeId,
+                    state.filterMode, state.globalSlot).copyForFamily(profileScopeId));
         }
         state.individual = individual;
         incrementRevision();
@@ -78,13 +76,13 @@ public final class QIOAutomationRecipeProfileCatalog {
     }
 
     public boolean cycleGlobalSlot(@Nonnull UUID deviceUUID, @Nonnull QIOAutomationMode mode,
-          @Nonnull String profileScopeId, int direction) {
+                                   @Nonnull String profileScopeId, int direction) {
         if (direction == 0) {
             return false;
         }
         SelectionKey key = SelectionKey.create(deviceUUID, mode, profileScopeId);
         SelectionState state = selections.computeIfAbsent(key, ignored ->
-              SelectionState.defaults(mode));
+                SelectionState.defaults(mode));
         if (state.individual) {
             return false;
         }
@@ -104,20 +102,20 @@ public final class QIOAutomationRecipeProfileCatalog {
     }
 
     public boolean toggleRouteFilterMode(@Nonnull UUID deviceUUID,
-          @Nonnull QIOAutomationMode mode, @Nonnull String profileScopeId) {
+                                         @Nonnull QIOAutomationMode mode, @Nonnull String profileScopeId) {
         if (mode != QIOAutomationMode.SCHEDULED) {
             return false;
         }
         SelectionKey key = SelectionKey.create(deviceUUID, mode, profileScopeId);
         SelectionState state = selections.computeIfAbsent(key, ignored ->
-              SelectionState.defaults(mode));
+                SelectionState.defaults(mode));
         RouteFilterMode next = state.filterMode.next();
         if (state.individual) {
-            ProfileKey individual = ProfileKey.individual(deviceUUID, mode, profileScopeId,
-                  next);
+            ProfileKey individual = ProfileKey.individual(state.ensureIndividualIdentity(), mode, profileScopeId,
+                    next);
             profiles.computeIfAbsent(individual, ignored -> globalProfile(mode,
-                  profileScopeId,
-                  next, state.globalSlot).copy());
+                    profileScopeId,
+                    next, state.globalSlot).copyForFamily(profileScopeId));
         }
         state.filterMode = next;
         incrementRevision();
@@ -125,143 +123,137 @@ public final class QIOAutomationRecipeProfileCatalog {
     }
 
     public boolean setRouteEnabled(@Nonnull UUID deviceUUID, @Nonnull QIOAutomationMode mode,
-          @Nonnull String profileScopeId, @Nonnull QIOAutomationRecipeProfileLayout layout,
-          @Nonnull String routeKey, boolean enabled) {
+                                   @Nonnull String profileScopeId, @Nonnull QIOAutomationRecipeProfileLayout layout,
+                                   @Nonnull String routeKey, boolean enabled) {
         if (layout.getRoute(routeKey) == null) {
             return false;
         }
         return mutateProfile(deviceUUID, mode, profileScopeId,
-              profile -> profile.setRouteEnabled(routeKey, enabled));
+                profile -> profile.setRouteEnabled(routeKey, enabled));
     }
 
     public boolean toggleRoute(@Nonnull UUID deviceUUID, @Nonnull QIOAutomationMode mode,
-          @Nonnull String profileScopeId, @Nonnull QIOAutomationRecipeProfileLayout layout,
-          @Nonnull String routeKey) {
+                               @Nonnull String profileScopeId, @Nonnull QIOAutomationRecipeProfileLayout layout,
+                               @Nonnull String routeKey) {
         if (layout.getRoute(routeKey) == null) {
             return false;
         }
         QIOAutomationRecipeProfile profile = mutableActiveProfile(deviceUUID, mode,
-              profileScopeId);
+                profileScopeId);
         boolean changed = profile.setRouteEnabled(routeKey, !profile.isRouteEnabled(routeKey));
         return finishMutation(changed);
     }
 
     public boolean toggleProduct(@Nonnull UUID deviceUUID, @Nonnull QIOAutomationMode mode,
-          @Nonnull String profileScopeId, @Nonnull QIOAutomationRecipeProfileLayout layout,
-          @Nonnull String productKey) {
+                                 @Nonnull String profileScopeId, @Nonnull QIOAutomationRecipeProfileLayout layout,
+                                 @Nonnull String productKey) {
         List<String> routes = layout.getDefaultRouteOrder(productKey);
         if (routes.isEmpty()) {
             return false;
         }
         QIOAutomationRecipeProfile profile = mutableActiveProfile(deviceUUID, mode,
-              profileScopeId);
+                profileScopeId);
         boolean allDisabled = routes.stream().noneMatch(profile::isRouteEnabled);
         return finishMutation(profile.setRoutesEnabled(routes, allDisabled));
     }
 
     public boolean setProductEnabled(@Nonnull UUID deviceUUID, @Nonnull QIOAutomationMode mode,
-          @Nonnull String profileScopeId, @Nonnull QIOAutomationRecipeProfileLayout layout,
-          @Nonnull String productKey, boolean enabled) {
+                                     @Nonnull String profileScopeId, @Nonnull QIOAutomationRecipeProfileLayout layout,
+                                     @Nonnull String productKey, boolean enabled) {
         List<String> routes = layout.getDefaultRouteOrder(productKey);
         return routes.isEmpty() ? false : mutateProfile(deviceUUID, mode, profileScopeId,
-              profile -> profile.setRoutesEnabled(routes, enabled));
+                profile -> profile.setRoutesEnabled(routes, enabled));
     }
 
     public boolean setAllRoutesEnabled(@Nonnull UUID deviceUUID, @Nonnull QIOAutomationMode mode,
-          @Nonnull String profileScopeId, @Nonnull QIOAutomationRecipeProfileLayout layout,
-          boolean enabled) {
+                                       @Nonnull String profileScopeId, @Nonnull QIOAutomationRecipeProfileLayout layout,
+                                       boolean enabled) {
         return mutateProfile(deviceUUID, mode, profileScopeId,
-              profile -> profile.setRoutesEnabled(layout.getRouteKeys(), enabled));
+                profile -> profile.setRoutesEnabled(layout.getRouteKeys(), enabled));
     }
 
     public boolean moveProduct(@Nonnull UUID deviceUUID, @Nonnull QIOAutomationMode mode,
-          @Nonnull String profileScopeId, @Nonnull QIOAutomationRecipeProfileLayout layout,
-          @Nonnull String productKey, int direction, boolean edge, boolean top) {
+                               @Nonnull String profileScopeId, @Nonnull QIOAutomationRecipeProfileLayout layout,
+                               @Nonnull String productKey, int direction, boolean edge, boolean top) {
         if (!layout.getDefaultProductOrder().contains(productKey)) {
             return false;
         }
         return mutateProfile(deviceUUID, mode, profileScopeId, profile -> edge ?
-              profile.moveProductToEdge(layout.getDefaultProductOrder(), productKey, top) :
-              profile.moveProduct(layout.getDefaultProductOrder(), productKey, direction));
+                profile.moveProductToEdge(layout.getDefaultProductOrder(), productKey, top) :
+                profile.moveProduct(layout.getDefaultProductOrder(), productKey, direction));
     }
 
     public boolean moveRoute(@Nonnull UUID deviceUUID, @Nonnull QIOAutomationMode mode,
-          @Nonnull String profileScopeId, @Nonnull QIOAutomationRecipeProfileLayout layout,
-          @Nonnull String productKey, @Nonnull String routeKey, int direction,
-          boolean edge, boolean top) {
+                             @Nonnull String profileScopeId, @Nonnull QIOAutomationRecipeProfileLayout layout,
+                             @Nonnull String productKey, @Nonnull String routeKey, int direction,
+                             boolean edge, boolean top) {
         List<String> routes = layout.getDefaultRouteOrder(productKey);
         if (!routes.contains(routeKey)) {
             return false;
         }
         return mutateProfile(deviceUUID, mode, profileScopeId, profile -> edge ?
-              profile.moveRouteToEdge(productKey, routes, routeKey, top) :
-              profile.moveRoute(productKey, routes, routeKey, direction));
+                profile.moveRouteToEdge(productKey, routes, routeKey, top) :
+                profile.moveRoute(productKey, routes, routeKey, direction));
     }
 
     public boolean setCraftAmount(@Nonnull UUID deviceUUID, @Nonnull QIOAutomationMode mode,
-          @Nonnull String profileScopeId, @Nonnull QIOAutomationRecipeProfileLayout layout,
-          long amount) {
+                                  @Nonnull String profileScopeId, @Nonnull QIOAutomationRecipeProfileLayout layout,
+                                  long amount) {
         return mutateProfile(deviceUUID, mode, profileScopeId,
-              profile -> profile.setCraftAmount(amount, layout.getMaximumCraftAmount()));
+                profile -> profile.setCraftAmount(layout.getRecipeFamily(), amount));
     }
 
     public boolean setRouteCraftAmount(@Nonnull UUID deviceUUID,
-          @Nonnull QIOAutomationMode mode, @Nonnull String profileScopeId,
-          @Nonnull QIOAutomationRecipeProfileLayout layout, @Nonnull String routeKey,
-          long amount) {
+                                       @Nonnull QIOAutomationMode mode, @Nonnull String profileScopeId,
+                                       @Nonnull QIOAutomationRecipeProfileLayout layout, @Nonnull String routeKey,
+                                       long amount) {
         QIOAutomationRecipeProfileLayout.Route route = layout.getRoute(routeKey);
         return route != null && mutateProfile(deviceUUID, mode, profileScopeId,
-              profile -> profile.setRouteCraftAmount(routeKey, amount,
-                    route.getMaximumCraftAmount()));
+                profile -> profile.setRouteCraftAmount(routeKey, amount,
+                        QIOAutomationRecipeProfile.MAX_CRAFT_AMOUNT));
     }
 
     public boolean clearRouteCraftAmount(@Nonnull UUID deviceUUID,
-          @Nonnull QIOAutomationMode mode, @Nonnull String profileScopeId,
-          @Nonnull QIOAutomationRecipeProfileLayout layout, @Nonnull String routeKey) {
+                                         @Nonnull QIOAutomationMode mode, @Nonnull String profileScopeId,
+                                         @Nonnull QIOAutomationRecipeProfileLayout layout, @Nonnull String routeKey) {
         return layout.getRoute(routeKey) != null && mutateProfile(deviceUUID, mode,
-              profileScopeId,
-              profile -> profile.clearRouteCraftAmount(routeKey));
+                profileScopeId,
+                profile -> profile.clearRouteCraftAmount(routeKey));
     }
 
     public boolean resetProduct(@Nonnull UUID deviceUUID, @Nonnull QIOAutomationMode mode,
-          @Nonnull String profileScopeId, @Nonnull QIOAutomationRecipeProfileLayout layout,
-          @Nonnull String productKey) {
+                                @Nonnull String profileScopeId, @Nonnull QIOAutomationRecipeProfileLayout layout,
+                                @Nonnull String productKey) {
         List<String> routes = layout.getDefaultRouteOrder(productKey);
         return !routes.isEmpty() && mutateProfile(deviceUUID, mode, profileScopeId,
-              profile -> profile.resetProduct(productKey, routes,
-                    layout.getDefaultProductOrder()));
+                profile -> profile.resetProduct(productKey, routes,
+                        layout.getDefaultProductOrder()));
     }
 
     public boolean resetAll(@Nonnull UUID deviceUUID, @Nonnull QIOAutomationMode mode,
-          @Nonnull String profileScopeId) {
-        return mutateProfile(deviceUUID, mode, profileScopeId,
-              QIOAutomationRecipeProfile::resetAll);
-    }
-
-    public boolean pruneActive(@Nonnull UUID deviceUUID, @Nonnull QIOAutomationMode mode,
-          @Nonnull String profileScopeId, @Nonnull QIOAutomationRecipeProfileLayout layout) {
-        ProfileKey key = activeKey(deviceUUID, mode, profileScopeId);
-        QIOAutomationRecipeProfile profile = profiles.get(key);
-        return profile != null && finishMutation(profile.prune(layout));
+                            @Nonnull String profileScopeId, @Nonnull QIOAutomationRecipeProfileLayout layout) {
+        return mutateProfile(deviceUUID, mode, profileScopeId, profile -> profile.reset(layout));
     }
 
     /** Applies one configuration-card snapshot as a single catalog revision. */
     public boolean replaceSelectionAndActiveProfile(@Nonnull UUID deviceUUID,
-          @Nonnull QIOAutomationMode mode, @Nonnull String profileScopeId,
-          boolean individual, int globalSlot, @Nonnull RouteFilterMode filterMode,
-          @Nonnull QIOAutomationRecipeProfile profile) {
+                                                    @Nonnull QIOAutomationMode mode, @Nonnull String profileScopeId,
+                                                    boolean individual, int globalSlot, @Nonnull RouteFilterMode filterMode,
+                                                    @Nonnull QIOAutomationRecipeProfile profile,
+                                                    @Nonnull QIOAutomationRecipeProfileLayout layout) {
         Objects.requireNonNull(profile, "profile");
+        Objects.requireNonNull(layout, "layout");
         requireConfigurableMode(mode);
         if (globalSlot < MIN_GLOBAL_SLOT || globalSlot > MAX_GLOBAL_SLOT ||
-            mode == QIOAutomationMode.PASSIVE && filterMode != RouteFilterMode.WHITELIST ||
-            profile.getRouteFilterMode() != filterMode) {
+                mode == QIOAutomationMode.PASSIVE && filterMode != RouteFilterMode.WHITELIST ||
+                profile.getRouteFilterMode() != filterMode) {
             throw new IllegalArgumentException("Invalid imported QIO automation profile selection");
         }
         SelectionKey selectionKey = SelectionKey.create(deviceUUID, mode, profileScopeId);
         SelectionState state = selections.get(selectionKey);
         Selection current = state == null ? Selection.defaults(mode) : state.snapshot();
         boolean selectionChanged = current.individual != individual ||
-              current.globalSlot != globalSlot || current.filterMode != filterMode;
+                current.globalSlot != globalSlot || current.filterMode != filterMode;
         if (selectionChanged) {
             if (state == null) {
                 state = SelectionState.defaults(mode);
@@ -272,20 +264,12 @@ public final class QIOAutomationRecipeProfileCatalog {
             state.filterMode = filterMode;
         }
 
-        ProfileKey profileKey = individual ? ProfileKey.individual(deviceUUID, mode,
-              profileScopeId, filterMode) : ProfileKey.global(mode, profileScopeId, filterMode,
-              globalSlot);
-        QIOAutomationRecipeProfile existing = profiles.get(profileKey);
-        boolean profileChanged;
-        if (profile.isEmpty()) {
-            profileChanged = existing != null;
-            profiles.remove(profileKey);
-        } else if (existing == null) {
-            profiles.put(profileKey, profile.copy());
-            profileChanged = true;
-        } else {
-            profileChanged = existing.replaceWith(profile);
-        }
+        ProfileKey profileKey = individual ? ProfileKey.individual(state.ensureIndividualIdentity(), mode,
+                profileScopeId, filterMode) : ProfileKey.global(mode, profileScopeId, filterMode,
+                globalSlot);
+        QIOAutomationRecipeProfile existing = profiles.computeIfAbsent(profileKey,
+                ignored -> new QIOAutomationRecipeProfile(filterMode));
+        boolean profileChanged = existing.mergeProjection(profile, layout);
         return finishMutation(selectionChanged || profileChanged);
     }
 
@@ -313,18 +297,22 @@ public final class QIOAutomationRecipeProfileCatalog {
 
     @Nonnull
     public static QIOAutomationRecipeProfileCatalog read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         Objects.requireNonNull(data, "data");
         try {
-            if (data.getInteger("schema") != SCHEMA_VERSION ||
-                !data.hasKey("revision", NBT.TAG_LONG) ||
-                !data.hasKey("profiles", NBT.TAG_LIST) ||
-                !data.hasKey("selections", NBT.TAG_LIST)) {
+            if (data.getInteger("schema") != SCHEMA_VERSION) {
+                throw new QIOIncompatibleRecipePolicyException("Unsupported QIO machine recipe table schema " +
+                        data.getInteger("schema") + "; expected " + SCHEMA_VERSION +
+                        ". Old machine-scoped policies are not migrated; preserve the frequency backup.");
+            }
+            if (!data.hasKey("revision", NBT.TAG_LONG) ||
+                    !data.hasKey("profiles", NBT.TAG_LIST) ||
+                    !data.hasKey("selections", NBT.TAG_LIST)) {
                 throw new QIOProcessingDataException("QIO automation profile catalog is incomplete");
             }
             QIOAutomationRecipeProfileCatalog catalog = new QIOAutomationRecipeProfileCatalog();
             catalog.revision = QIOProcessingNbt.requireNonNegative(data.getLong("revision"),
-                  "automationProfileRevision");
+                    "automationProfileRevision");
             NBTTagList storedProfiles = data.getTagList("profiles", NBT.TAG_COMPOUND);
             if (storedProfiles.tagCount() > MAX_PROFILES) {
                 throw new QIOProcessingDataException("QIO automation profile catalog is too large");
@@ -333,8 +321,8 @@ public final class QIOAutomationRecipeProfileCatalog {
                 NBTTagCompound stored = storedProfiles.getCompoundTagAt(index);
                 ProfileKey key = ProfileKey.read(stored);
                 if (!stored.hasKey("profile", NBT.TAG_COMPOUND) ||
-                    catalog.profiles.put(key, QIOAutomationRecipeProfile.read(
-                          stored.getCompoundTag("profile"), key.filterMode)) != null) {
+                        catalog.profiles.put(key, QIOAutomationRecipeProfile.read(
+                                stored.getCompoundTag("profile"), key.filterMode)) != null) {
                     throw new QIOProcessingDataException("Duplicate or incomplete QIO automation profile");
                 }
             }
@@ -350,6 +338,17 @@ public final class QIOAutomationRecipeProfileCatalog {
                     throw new QIOProcessingDataException("Duplicate QIO automation profile selection");
                 }
             }
+            java.util.Set<UUID> individualOwners = new java.util.HashSet<>();
+            for (Map.Entry<SelectionKey, SelectionState> entry : catalog.selections.entrySet()) {
+                SelectionState state = entry.getValue();
+                if (state.individualProfileUUID != null && !individualOwners.add(state.individualProfileUUID)) {
+                    throw new QIOProcessingDataException("Individual configuration UUID has multiple owners");
+                }
+                if (state.individual && !catalog.profiles.containsKey(ProfileKey.active(
+                        entry.getKey().deviceUUID, entry.getKey().mode, FREQUENCY_SCOPE, state.snapshot()))) {
+                    throw new QIOProcessingDataException("Individual configuration is missing its profile");
+                }
+            }
             return catalog;
         } catch (QIOProcessingDataException e) {
             throw e;
@@ -359,10 +358,10 @@ public final class QIOAutomationRecipeProfileCatalog {
     }
 
     private boolean mutateProfile(UUID deviceUUID, QIOAutomationMode mode,
-          String profileScopeId,
-          java.util.function.Predicate<QIOAutomationRecipeProfile> mutation) {
+                                  String profileScopeId,
+                                  java.util.function.Predicate<QIOAutomationRecipeProfile> mutation) {
         return finishMutation(mutation.test(mutableActiveProfile(deviceUUID, mode,
-              profileScopeId)));
+                profileScopeId)));
     }
 
     private boolean finishMutation(boolean changed) {
@@ -373,20 +372,20 @@ public final class QIOAutomationRecipeProfileCatalog {
     }
 
     private QIOAutomationRecipeProfile mutableActiveProfile(UUID deviceUUID,
-          QIOAutomationMode mode, String profileScopeId) {
+                                                            QIOAutomationMode mode, String profileScopeId) {
         ProfileKey key = activeKey(deviceUUID, mode, profileScopeId);
         return profiles.computeIfAbsent(key, ignored -> new QIOAutomationRecipeProfile(
-              key.filterMode));
+                key.filterMode));
     }
 
     private ProfileKey activeKey(UUID deviceUUID, QIOAutomationMode mode,
-          String profileScopeId) {
+                                 String profileScopeId) {
         Selection selection = getSelection(deviceUUID, mode, profileScopeId);
         return ProfileKey.active(deviceUUID, mode, profileScopeId, selection);
     }
 
     private QIOAutomationRecipeProfile globalProfile(QIOAutomationMode mode,
-          String profileScopeId, RouteFilterMode filterMode, int globalSlot) {
+                                                     String profileScopeId, RouteFilterMode filterMode, int globalSlot) {
         ProfileKey key = ProfileKey.global(mode, profileScopeId, filterMode, globalSlot);
         return profiles.computeIfAbsent(key, ignored -> new QIOAutomationRecipeProfile(filterMode));
     }
@@ -401,7 +400,7 @@ public final class QIOAutomationRecipeProfileCatalog {
     @Nonnull
     public static RouteFilterMode defaultFilterMode(@Nonnull QIOAutomationMode mode) {
         return mode == QIOAutomationMode.PASSIVE ? RouteFilterMode.WHITELIST :
-              RouteFilterMode.BLACKLIST;
+                RouteFilterMode.BLACKLIST;
     }
 
     private static String checkedProfileScopeId(String profileScopeId) {
@@ -417,15 +416,22 @@ public final class QIOAutomationRecipeProfileCatalog {
         private final boolean individual;
         private final int globalSlot;
         private final RouteFilterMode filterMode;
+        private final UUID individualProfileUUID;
 
-        private Selection(boolean individual, int globalSlot, RouteFilterMode filterMode) {
+        private Selection(boolean individual, int globalSlot, RouteFilterMode filterMode,
+                          UUID individualProfileUUID) {
             this.individual = individual;
             this.globalSlot = globalSlot;
             this.filterMode = filterMode;
+            this.individualProfileUUID = individualProfileUUID;
+        }
+
+        public UUID getIndividualProfileUUID() {
+            return individualProfileUUID;
         }
 
         private static Selection defaults(QIOAutomationMode mode) {
-            return new Selection(false, MIN_GLOBAL_SLOT, defaultFilterMode(mode));
+            return new Selection(false, MIN_GLOBAL_SLOT, defaultFilterMode(mode), null);
         }
 
         public boolean isIndividual() {
@@ -447,6 +453,7 @@ public final class QIOAutomationRecipeProfileCatalog {
         private boolean individual;
         private int globalSlot;
         private RouteFilterMode filterMode;
+        private UUID individualProfileUUID;
 
         private SelectionState(boolean individual, int globalSlot, RouteFilterMode filterMode) {
             this.individual = individual;
@@ -459,24 +466,37 @@ public final class QIOAutomationRecipeProfileCatalog {
         }
 
         private Selection snapshot() {
-            return new Selection(individual, globalSlot, filterMode);
+            return new Selection(individual, globalSlot, filterMode, individualProfileUUID);
+        }
+
+        private UUID ensureIndividualIdentity() {
+            if (individualProfileUUID == null) individualProfileUUID = UUID.randomUUID();
+            return individualProfileUUID;
         }
 
         private void write(NBTTagCompound data) {
+            if (individualProfileUUID != null) {
+                QIOProcessingNbt.writeUUID(data, "individualProfileUUID", individualProfileUUID);
+            }
             data.setBoolean("individual", individual);
             data.setInteger("globalSlot", globalSlot);
             data.setString("filterMode", filterMode.name());
         }
 
         private static SelectionState read(NBTTagCompound data, QIOAutomationMode mode)
-              throws QIOProcessingDataException {
+                throws QIOProcessingDataException {
             int slot = data.getInteger("globalSlot");
             RouteFilterMode filter = RouteFilterMode.valueOf(data.getString("filterMode"));
             if (slot < MIN_GLOBAL_SLOT || slot > MAX_GLOBAL_SLOT ||
-                mode == QIOAutomationMode.PASSIVE && filter != RouteFilterMode.WHITELIST) {
+                    mode == QIOAutomationMode.PASSIVE && filter != RouteFilterMode.WHITELIST) {
                 throw new QIOProcessingDataException("Invalid QIO automation profile selection");
             }
-            return new SelectionState(data.getBoolean("individual"), slot, filter);
+            SelectionState state = new SelectionState(data.getBoolean("individual"), slot, filter);
+            state.individualProfileUUID = QIOProcessingNbt.readOptionalUUID(data, "individualProfileUUID");
+            if (state.individual && state.individualProfileUUID == null) {
+                throw new QIOProcessingDataException("Individual QIO policy has no configuration UUID");
+            }
+            return state;
         }
     }
 
@@ -487,14 +507,15 @@ public final class QIOAutomationRecipeProfileCatalog {
         private final String profileScopeId;
 
         private SelectionKey(UUID deviceUUID, QIOAutomationMode mode,
-              String profileScopeId) {
+                             String profileScopeId) {
             this.deviceUUID = Objects.requireNonNull(deviceUUID, "deviceUUID");
             this.mode = requireConfigurableMode(mode);
-            this.profileScopeId = checkedProfileScopeId(profileScopeId);
+            checkedProfileScopeId(profileScopeId);
+            this.profileScopeId = FREQUENCY_SCOPE;
         }
 
         private static SelectionKey create(UUID deviceUUID, QIOAutomationMode mode,
-              String profileScopeId) {
+                                           String profileScopeId) {
             return new SelectionKey(deviceUUID, mode, profileScopeId);
         }
 
@@ -507,10 +528,11 @@ public final class QIOAutomationRecipeProfileCatalog {
         }
 
         private static SelectionKey read(NBTTagCompound data)
-              throws QIOProcessingDataException {
+                throws QIOProcessingDataException {
+            requireFrequencyScope(data);
             return create(QIOProcessingNbt.readUUID(data, "deviceUUID"),
-                  QIOAutomationMode.valueOf(data.getString("mode")),
-                  data.getString("profileScopeId"));
+                    QIOAutomationMode.valueOf(data.getString("mode")),
+                    data.getString("profileScopeId"));
         }
 
         @Override
@@ -519,13 +541,13 @@ public final class QIOAutomationRecipeProfileCatalog {
             if (scope != 0) return scope;
             int modeOrder = mode.compareTo(other.mode);
             return modeOrder != 0 ? modeOrder : deviceUUID.toString().compareTo(
-                  other.deviceUUID.toString());
+                    other.deviceUUID.toString());
         }
 
         @Override
         public boolean equals(Object obj) {
             return obj instanceof SelectionKey other && deviceUUID.equals(other.deviceUUID) &&
-                  mode == other.mode && profileScopeId.equals(other.profileScopeId);
+                    mode == other.mode && profileScopeId.equals(other.profileScopeId);
         }
 
         @Override
@@ -544,36 +566,37 @@ public final class QIOAutomationRecipeProfileCatalog {
         private final UUID deviceUUID;
 
         private ProfileKey(QIOAutomationMode mode, String profileScopeId,
-              RouteFilterMode filterMode, boolean individual, int globalSlot, UUID deviceUUID) {
+                           RouteFilterMode filterMode, boolean individual, int globalSlot, UUID deviceUUID) {
             this.mode = requireConfigurableMode(mode);
-            this.profileScopeId = checkedProfileScopeId(profileScopeId);
+            checkedProfileScopeId(profileScopeId);
+            this.profileScopeId = FREQUENCY_SCOPE;
             this.filterMode = Objects.requireNonNull(filterMode, "filterMode");
             this.individual = individual;
             this.globalSlot = globalSlot;
             this.deviceUUID = deviceUUID;
             if (mode == QIOAutomationMode.PASSIVE && filterMode != RouteFilterMode.WHITELIST ||
-                individual != (deviceUUID != null) || individual && globalSlot != 0 ||
-                !individual && (globalSlot < MIN_GLOBAL_SLOT || globalSlot > MAX_GLOBAL_SLOT)) {
+                    individual != (deviceUUID != null) || individual && globalSlot != 0 ||
+                    !individual && (globalSlot < MIN_GLOBAL_SLOT || globalSlot > MAX_GLOBAL_SLOT)) {
                 throw new IllegalArgumentException("Invalid QIO automation profile identity");
             }
         }
 
         private static ProfileKey active(UUID deviceUUID, QIOAutomationMode mode,
-              String profileScopeId, Selection selection) {
-            return selection.individual ? individual(deviceUUID, mode, profileScopeId,
-                  selection.filterMode) : global(mode, profileScopeId, selection.filterMode,
-                  selection.globalSlot);
+                                         String profileScopeId, Selection selection) {
+            return selection.individual ? individual(selection.individualProfileUUID, mode, profileScopeId,
+                    selection.filterMode) : global(mode, profileScopeId, selection.filterMode,
+                    selection.globalSlot);
         }
 
         private static ProfileKey global(QIOAutomationMode mode, String profileScopeId,
-              RouteFilterMode filterMode, int slot) {
+                                         RouteFilterMode filterMode, int slot) {
             return new ProfileKey(mode, profileScopeId, filterMode, false, slot, null);
         }
 
         private static ProfileKey individual(UUID deviceUUID, QIOAutomationMode mode,
-              String profileScopeId, RouteFilterMode filterMode) {
+                                             String profileScopeId, RouteFilterMode filterMode) {
             return new ProfileKey(mode, profileScopeId, filterMode, true, 0,
-                  Objects.requireNonNull(deviceUUID, "deviceUUID"));
+                    Objects.requireNonNull(deviceUUID, "profileUUID"));
         }
 
         private NBTTagCompound write() {
@@ -584,19 +607,20 @@ public final class QIOAutomationRecipeProfileCatalog {
             data.setBoolean("individual", individual);
             data.setInteger("globalSlot", globalSlot);
             if (deviceUUID != null) {
-                QIOProcessingNbt.writeUUID(data, "deviceUUID", deviceUUID);
+                QIOProcessingNbt.writeUUID(data, "profileUUID", deviceUUID);
             }
             return data;
         }
 
         private static ProfileKey read(NBTTagCompound data)
-              throws QIOProcessingDataException {
+                throws QIOProcessingDataException {
+            requireFrequencyScope(data);
             boolean individual = data.getBoolean("individual");
             return new ProfileKey(QIOAutomationMode.valueOf(data.getString("mode")),
-                  data.getString("profileScopeId"), RouteFilterMode.valueOf(
-                  data.getString("filterMode")), individual,
-                  data.getInteger("globalSlot"), individual ?
-                  QIOProcessingNbt.readUUID(data, "deviceUUID") : null);
+                    data.getString("profileScopeId"), RouteFilterMode.valueOf(
+                    data.getString("filterMode")), individual,
+                    data.getInteger("globalSlot"), individual ?
+                    QIOProcessingNbt.readUUID(data, "profileUUID") : null);
         }
 
         @Override
@@ -610,22 +634,28 @@ public final class QIOAutomationRecipeProfileCatalog {
             int scope = Boolean.compare(individual, other.individual);
             if (scope != 0) return scope;
             return individual ? deviceUUID.toString().compareTo(other.deviceUUID.toString()) :
-                  Integer.compare(globalSlot, other.globalSlot);
+                    Integer.compare(globalSlot, other.globalSlot);
         }
 
         @Override
         public boolean equals(Object obj) {
             return obj instanceof ProfileKey other && mode == other.mode &&
-                  profileScopeId.equals(other.profileScopeId) &&
-                  filterMode == other.filterMode &&
-                  individual == other.individual && globalSlot == other.globalSlot &&
-                  Objects.equals(deviceUUID, other.deviceUUID);
+                    profileScopeId.equals(other.profileScopeId) &&
+                    filterMode == other.filterMode &&
+                    individual == other.individual && globalSlot == other.globalSlot &&
+                    Objects.equals(deviceUUID, other.deviceUUID);
         }
 
         @Override
         public int hashCode() {
             return Objects.hash(mode, profileScopeId, filterMode, individual, globalSlot,
-                  deviceUUID);
+                    deviceUUID);
+        }
+    }
+
+    private static void requireFrequencyScope(NBTTagCompound data) throws QIOProcessingDataException {
+        if (!FREQUENCY_SCOPE.equals(data.getString("profileScopeId"))) {
+            throw new QIOProcessingDataException("Noncanonical scope in frequency recipe table");
         }
     }
 

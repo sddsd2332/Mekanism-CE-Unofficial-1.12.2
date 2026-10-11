@@ -14,11 +14,7 @@ import net.minecraft.util.EnumFacing;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
-import java.util.IdentityHashMap;
+import java.util.*;
 import java.util.function.BiPredicate;
 
 public abstract class SynchronizedData<T extends SynchronizedData<T>> implements IMekanismInventory {
@@ -49,6 +45,9 @@ public abstract class SynchronizedData<T extends SynchronizedData<T>> implements
 
     public boolean destroyed;
     private boolean formed;
+    // Runtime derived state. Never copied/merged with persistent inventory ownership.
+    private volatile int currentRedstoneLevel;
+    private long comparatorSampleTick = Long.MIN_VALUE;
     private final Set<TileEntityStructuralGlass> structuralGlass = Collections.newSetFromMap(new IdentityHashMap<>());
 
     public Set<Coord4D> internalLocations = new ObjectOpenHashSet<>();
@@ -115,8 +114,30 @@ public abstract class SynchronizedData<T extends SynchronizedData<T>> implements
         return formed && !destroyed;
     }
 
+    public int getCurrentRedstoneLevel() {
+        return isFormed() ? currentRedstoneLevel : 0;
+    }
+
+    /**
+     * Server tick only. All valves share one sample; legacy public contents can change
+     * without a listener, so sample once each tick rather than relying on dirty callbacks.
+     * Changes after the sample are observed next tick. Block reads never trigger sampling.
+     */
+    public final void refreshComparatorLevel(long gameTime) {
+        if (comparatorSampleTick != gameTime) {
+            comparatorSampleTick = gameTime;
+            currentRedstoneLevel = isFormed() ? getMultiblockRedstoneLevel() : 0;
+        }
+    }
+
+    protected int getMultiblockRedstoneLevel() {
+        return 0;
+    }
+
     public void setFormed(boolean formed) {
         this.formed = formed;
+        comparatorSampleTick = Long.MIN_VALUE;
+        currentRedstoneLevel = isFormed() ? getMultiblockRedstoneLevel() : 0;
         if (!formed) {
             for (TileEntityStructuralGlass glass : structuralGlass) glass.clearController(this);
             structuralGlass.clear();
@@ -128,7 +149,9 @@ public abstract class SynchronizedData<T extends SynchronizedData<T>> implements
         structuralGlass.add(glass);
     }
 
-    /** Claims ownership of structure-wide processing for the given server tick. */
+    /**
+     * Claims ownership of structure-wide processing for the given server tick.
+     */
     public boolean tryClaimServerTick(long gameTime) {
         if (lastServerTick == gameTime) {
             return false;

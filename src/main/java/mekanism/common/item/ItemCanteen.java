@@ -110,8 +110,8 @@ public class ItemCanteen extends ItemMekanism implements ILegacyGasItem {
     @Override
     public ICapabilityProvider initCapabilities(ItemStack stack, NBTTagCompound nbt) {
         return new ItemCapabilityWrapper(stack, RateLimitGasHandler.create(() -> getGasTransferRate(stack), () -> getGasCapacity(stack),
-              mekanism.api.functions.ConstantPredicates.notExternal(), mekanism.api.functions.ConstantPredicates.alwaysTrueBi(),
-              gasStack -> gasStack != null && gasStack.getGas() == MekanismFluids.NutritionalPaste, "stored"));
+                mekanism.api.functions.ConstantPredicates.notExternal(), mekanism.api.functions.ConstantPredicates.alwaysTrueBi(),
+                gasStack -> gasStack != null && gasStack.getGas() == MekanismFluids.NutritionalPaste, "stored"));
     }
 
 

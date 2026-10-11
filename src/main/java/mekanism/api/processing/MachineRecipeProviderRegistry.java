@@ -4,17 +4,7 @@ import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.ResourceLocation;
 
 import javax.annotation.Nullable;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Deque;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -25,26 +15,26 @@ public final class MachineRecipeProviderRegistry {
     private static final Map<ResourceLocation, Entry<?>> ENTRIES = new LinkedHashMap<>();
     private static final Map<Class<?>, Entry<?>> RESOLUTION_CACHE = new ConcurrentHashMap<>();
     private static final Entry<TileEntity> NO_ENTRY = new Entry<>(new ResourceLocation("mekanism", "missing"), TileEntity.class,
-          new MachineRecipeProvider<TileEntity>() {
-          }, Integer.MIN_VALUE);
+            new MachineRecipeProvider<TileEntity>() {
+            }, Integer.MIN_VALUE);
     private static volatile List<Entry<?>> snapshot = Collections.emptyList();
 
     private MachineRecipeProviderRegistry() {
     }
 
     public static <TILE extends TileEntity> void register(ResourceLocation id, Class<TILE> tileClass,
-          MachineRecipeProvider<? super TILE> provider) {
+                                                          MachineRecipeProvider<? super TILE> provider) {
         register(id, tileClass, provider, 0);
     }
 
     public static synchronized <TILE extends TileEntity> void register(ResourceLocation id, Class<TILE> tileClass,
-          MachineRecipeProvider<? super TILE> provider, int priority) {
+                                                                       MachineRecipeProvider<? super TILE> provider, int priority) {
         Objects.requireNonNull(id, "Provider id cannot be null");
         if (ENTRIES.containsKey(id)) {
             throw new IllegalArgumentException("Duplicate machine recipe provider id: " + id);
         }
         ENTRIES.put(id, new Entry<>(id, Objects.requireNonNull(tileClass, "Tile class cannot be null"),
-              Objects.requireNonNull(provider, "Provider cannot be null"), priority));
+                Objects.requireNonNull(provider, "Provider cannot be null"), priority));
         rebuildSnapshot();
     }
 
@@ -82,7 +72,7 @@ public final class MachineRecipeProviderRegistry {
             }
             int distance = inheritanceDistance(actualClass, candidate.tileClass);
             if (best == null || candidate.priority > best.priority || candidate.priority == best.priority && distance < bestDistance ||
-                  candidate.priority == best.priority && distance == bestDistance && candidate.id.toString().compareTo(best.id.toString()) < 0) {
+                    candidate.priority == best.priority && distance == bestDistance && candidate.id.toString().compareTo(best.id.toString()) < 0) {
                 best = candidate;
                 bestDistance = distance;
             }
@@ -167,7 +157,7 @@ public final class MachineRecipeProviderRegistry {
             try {
                 MachinePresentationDescriptor presentation = entry.getPresentation(tile);
                 return presentation == null ? fallback :
-                      MachinePresentationDescriptor.read(presentation.write());
+                        MachinePresentationDescriptor.read(presentation.write());
             } catch (RuntimeException ignored) {
                 return fallback;
             }
@@ -181,9 +171,9 @@ public final class MachineRecipeProviderRegistry {
                 for (int index = 0; index < checked.length(); index++) {
                     char character = checked.charAt(index);
                     if (!(character >= 'a' && character <= 'z') &&
-                        !(character >= '0' && character <= '9') &&
-                        character != '_' && character != '-' && character != '.' &&
-                        character != '/') return "";
+                            !(character >= '0' && character <= '9') &&
+                            character != '_' && character != '-' && character != '.' &&
+                            character != '/') return "";
                 }
                 return checked;
             } catch (RuntimeException ignored) {
@@ -201,7 +191,7 @@ public final class MachineRecipeProviderRegistry {
          * recipe routes may be empty while a template-driven machine is not configured.
          */
         public ProviderConformanceReport validateQIOEndpointConformance(
-              QIOAutomationMode mode) {
+                QIOAutomationMode mode) {
             Objects.requireNonNull(mode, "QIO automation mode cannot be null");
             List<String> errors = new ArrayList<>();
             validateEndpointStructure(mode, getPorts(), errors);
@@ -209,7 +199,7 @@ public final class MachineRecipeProviderRegistry {
         }
 
         private void validateEndpointStructure(QIOAutomationMode mode,
-              List<MachinePort> ports, List<String> errors) {
+                                               List<MachinePort> ports, List<String> errors) {
             ProviderConformanceDescriptor descriptor = getQIOConformance();
             if (!descriptor.isRegistered()) {
                 errors.add("provider has no explicit QIO conformance declaration");
@@ -293,7 +283,7 @@ public final class MachineRecipeProviderRegistry {
         }
 
         private static void validateRoutes(List<MachineRecipeRoute> routes, Map<String, MachinePort> portsById,
-              List<String> errors) {
+                                           List<String> errors) {
             if (routes.isEmpty()) {
                 errors.add("processing provider exposes no recipe routes");
                 return;
@@ -308,7 +298,7 @@ public final class MachineRecipeProviderRegistry {
                     errors.add("duplicate recipe key " + route.recipeKey());
                 }
                 validateConfigurationStacks(route.configurationInputs(), portsById,
-                      route.routeId(), errors);
+                        route.routeId(), errors);
                 validateRouteStacks(route.inputs(), portsById, true, route.routeId(), errors);
                 validateRouteStacks(route.guaranteedOutputs(), portsById, false, route.routeId(), errors);
                 validateRouteStacks(route.optionalOutputs(), portsById, false, route.routeId(), errors);
@@ -316,38 +306,38 @@ public final class MachineRecipeProviderRegistry {
         }
 
         private static void validateConfigurationStacks(List<MachineResourceStack> stacks,
-              Map<String, MachinePort> portsById, String routeId, List<String> errors) {
+                                                        Map<String, MachinePort> portsById, String routeId, List<String> errors) {
             Set<String> referencedPorts = new HashSet<>();
             for (MachineResourceStack stack : stacks) {
                 MachinePort port = portsById.get(stack.portId());
                 if (!referencedPorts.add(stack.portId())) {
                     errors.add("route " + routeId + " repeats configuration port " +
-                          stack.portId());
+                            stack.portId());
                 } else if (port == null) {
                     errors.add("route " + routeId + " references missing configuration port " +
-                          stack.portId());
+                            stack.portId());
                 } else if (!port.isConfiguration()) {
                     errors.add("route " + routeId + " uses a processing port as configuration " +
-                          stack.portId());
+                            stack.portId());
                 } else if (!stack.isResolved()) {
                     errors.add("route " + routeId + " uses an unresolved resource codec for port " +
-                          stack.portId());
+                            stack.portId());
                 } else if (!port.acceptsResource(stack)) {
                     errors.add("route " + routeId + " uses an incompatible resource for port " +
-                          stack.portId());
+                            stack.portId());
                 }
             }
         }
 
         private static void validateRouteStacks(List<MachineResourceStack> stacks, Map<String, MachinePort> portsById,
-              boolean input, String routeId, List<String> errors) {
+                                                boolean input, String routeId, List<String> errors) {
             for (MachineResourceStack stack : stacks) {
                 MachinePort port = portsById.get(stack.portId());
                 if (port == null) {
                     errors.add("route " + routeId + " references missing port " + stack.portId());
                 } else if (port.isConfiguration()) {
                     errors.add("route " + routeId + " uses configuration port " + stack.portId() +
-                          (input ? " as a consumable input" : " as an output"));
+                            (input ? " as a consumable input" : " as an output"));
                 } else if (!stack.isResolved()) {
                     errors.add("route " + routeId + " uses an unresolved resource codec for port " + stack.portId());
                 } else if (!port.acceptsResource(stack)) {
@@ -360,7 +350,7 @@ public final class MachineRecipeProviderRegistry {
 
         private static <T> List<T> immutableCopy(@Nullable List<T> values) {
             return values == null || values.isEmpty() ? Collections.emptyList() :
-                  Collections.unmodifiableList(new ArrayList<>(values));
+                    Collections.unmodifiableList(new ArrayList<>(values));
         }
     }
 

@@ -49,8 +49,8 @@ import java.util.List;
 public class QIODriveArrayModel implements IBakedModel {
 
     private static final float[][] DRIVE_PLACEMENTS = {
-          {0, 6F / 16}, {-2F / 16, 6F / 16}, {-4F / 16, 6F / 16}, {-7F / 16, 6F / 16}, {-9F / 16, 6F / 16}, {-11F / 16, 6F / 16},
-          {0, 0}, {-2F / 16, 0}, {-4F / 16, 0}, {-7F / 16, 0}, {-9F / 16, 0}, {-11F / 16, 0}
+            {0, 6F / 16}, {-2F / 16, 6F / 16}, {-4F / 16, 6F / 16}, {-7F / 16, 6F / 16}, {-9F / 16, 6F / 16}, {-11F / 16, 6F / 16},
+            {0, 0}, {-2F / 16, 0}, {-4F / 16, 0}, {-7F / 16, 0}, {-9F / 16, 0}, {-11F / 16, 0}
     };
 
     private final IBakedModel baseModel;
@@ -69,7 +69,9 @@ public class QIODriveArrayModel implements IBakedModel {
         this.fixedStatus = fixedStatus;
     }
 
-    /** Bakes the four reusable drive-state models in the requested vertex format. */
+    /**
+     * Bakes the four reusable drive-state models in the requested vertex format.
+     */
     @Nonnull
     public static IBakedModel[] bakeDriveModels(VertexFormat format) {
         IBakedModel[] models = new IBakedModel[DriveStatus.values().length];
@@ -166,7 +168,7 @@ public class QIODriveArrayModel implements IBakedModel {
             }
         }
         return new BakedQuad(data, source.getTintIndex(), rotateFace(source.getFace(), facing), source.getSprite(),
-              source.shouldApplyDiffuseLighting(), format);
+                source.shouldApplyDiffuseLighting(), format);
     }
 
     static float[] rotatePosition(float x, float y, float z, EnumFacing facing) {
@@ -208,9 +210,9 @@ public class QIODriveArrayModel implements IBakedModel {
             return null;
         }
         EnumFacing rotated = EnumFacing.getFacingFromVector(
-              rotateVector(face.getXOffset(), face.getYOffset(), face.getZOffset(), facing)[0],
-              rotateVector(face.getXOffset(), face.getYOffset(), face.getZOffset(), facing)[1],
-              rotateVector(face.getXOffset(), face.getYOffset(), face.getZOffset(), facing)[2]);
+                rotateVector(face.getXOffset(), face.getYOffset(), face.getZOffset(), facing)[0],
+                rotateVector(face.getXOffset(), face.getYOffset(), face.getZOffset(), facing)[1],
+                rotateVector(face.getXOffset(), face.getYOffset(), face.getZOffset(), facing)[2]);
         return rotated == null ? face : rotated;
     }
 
@@ -263,7 +265,7 @@ public class QIODriveArrayModel implements IBakedModel {
         @Nonnull
         @Override
         public IBakedModel handleItemState(@Nonnull IBakedModel originalModel, @Nonnull ItemStack stack, @Nullable World world,
-              @Nullable EntityLivingBase entity) {
+                                           @Nullable EntityLivingBase entity) {
             long statusData = getItemStatusData(stack);
             return statusData == 0 ? originalModel : new QIODriveArrayModel(baseModel, driveModels, statusData);
         }
@@ -301,7 +303,7 @@ public class QIODriveArrayModel implements IBakedModel {
                 boolean countUnlimited = driveItem.hasUnlimitedCountCapacity(drive);
                 boolean typesUnlimited = driveItem.hasUnlimitedTypeCapacity(drive);
                 if (capacity <= 0 || (!countUnlimited && !expandedCapacity && metadata.getStorageUnits() >= capacity) ||
-                      (!typesUnlimited && metadata.getTypes() >= typeCapacity)) {
+                        (!typesUnlimited && metadata.getTypes() >= typeCapacity)) {
                     status = DriveStatus.FULL;
                 } else if (!countUnlimited && !expandedCapacity && metadata.getStorageUnits() >= capacity - capacity / 4) {
                     status = DriveStatus.NEAR_FULL;

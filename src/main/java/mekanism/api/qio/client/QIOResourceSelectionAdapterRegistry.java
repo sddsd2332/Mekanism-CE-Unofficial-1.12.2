@@ -9,21 +9,16 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
-/** Client-only registry of addon resource selection adapters, keyed by codec id. */
+/**
+ * Client-only registry of addon resource selection adapters, keyed by codec id.
+ */
 @SideOnly(Side.CLIENT)
 public final class QIOResourceSelectionAdapterRegistry {
 
     public static final QIOResourceSelectionAdapterRegistry INSTANCE =
-          new QIOResourceSelectionAdapterRegistry();
+            new QIOResourceSelectionAdapterRegistry();
 
     private static final int MAX_CANDIDATES = 32;
 
@@ -32,20 +27,22 @@ public final class QIOResourceSelectionAdapterRegistry {
     private QIOResourceSelectionAdapterRegistry() {
     }
 
-    /** Registers an adapter after its common codec. Duplicate codec ownership fails. */
+    /**
+     * Registers an adapter after its common codec. Duplicate codec ownership fails.
+     */
     @Nonnull
     public synchronized QIOResourceSelectionAdapter register(
-          @Nonnull QIOResourceSelectionAdapter adapter) {
+            @Nonnull QIOResourceSelectionAdapter adapter) {
         Objects.requireNonNull(adapter, "QIO resource selection adapter cannot be null");
         ResourceLocation codecId = Objects.requireNonNull(adapter.getCodecId(),
-              "QIO resource selection adapter codec id cannot be null");
+                "QIO resource selection adapter codec id cannot be null");
         if (!QIOResourceCodecRegistry.INSTANCE.isRegistered(codecId)) {
             throw new IllegalArgumentException(
-                  "A QIO codec must be registered before its selection adapter: " + codecId);
+                    "A QIO codec must be registered before its selection adapter: " + codecId);
         }
         if (adapters.putIfAbsent(codecId, adapter) != null) {
             throw new IllegalArgumentException(
-                  "Duplicate QIO resource selection adapter registered: " + codecId);
+                    "Duplicate QIO resource selection adapter registered: " + codecId);
         }
         return adapter;
     }
@@ -55,10 +52,12 @@ public final class QIOResourceSelectionAdapterRegistry {
         return codecId == null ? null : adapters.get(codecId);
     }
 
-    /** Returns every valid codec candidate. Callers must reject ambiguous results. */
+    /**
+     * Returns every valid codec candidate. Callers must reject ambiguous results.
+     */
     @Nonnull
     public synchronized List<QIOResourceDescriptor> getIngredientCandidates(
-          @Nonnull Object ingredient) {
+            @Nonnull Object ingredient) {
         Objects.requireNonNull(ingredient, "QIO selection ingredient cannot be null");
         Set<QIOResourceDescriptor> candidates = new LinkedHashSet<>();
         for (QIOResourceSelectionAdapter adapter : adapters.values()) {
@@ -73,10 +72,12 @@ public final class QIOResourceSelectionAdapterRegistry {
         return Collections.unmodifiableList(new ArrayList<>(candidates));
     }
 
-    /** Returns every valid resource represented by the current container state. */
+    /**
+     * Returns every valid resource represented by the current container state.
+     */
     @Nonnull
     public synchronized List<QIOResourceDescriptor> getContainedResourceCandidates(
-          @Nonnull ItemStack container) {
+            @Nonnull ItemStack container) {
         Objects.requireNonNull(container, "QIO selection container cannot be null");
         if (container.isEmpty()) {
             return Collections.emptyList();
@@ -108,9 +109,9 @@ public final class QIOResourceSelectionAdapterRegistry {
     }
 
     private static void addCandidate(Set<QIOResourceDescriptor> candidates,
-          QIOResourceSelectionAdapter adapter, @Nullable QIOResourceDescriptor descriptor) {
+                                     QIOResourceSelectionAdapter adapter, @Nullable QIOResourceDescriptor descriptor) {
         if (descriptor != null && descriptor.isResolved() &&
-              adapter.getCodecId().equals(descriptor.getCodecId())) {
+                adapter.getCodecId().equals(descriptor.getCodecId())) {
             candidates.add(descriptor);
         }
     }

@@ -20,7 +20,10 @@ import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
 
 import java.util.UUID;
 
-/** Session-bound mutation of a terminal-local interaction preference. */
+/**
+ * Session-bound mutation of a terminal-local interaction preference.
+ */
+
 /**
  * QIO 处理模块中的 PacketQIOProcessingTerminalPreference 类型。
  *
@@ -28,7 +31,7 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class PacketQIOProcessingTerminalPreference implements
-      IMessageHandler<PacketQIOProcessingTerminalPreference.Message, IMessage> {
+        IMessageHandler<PacketQIOProcessingTerminalPreference.Message, IMessage> {
 
     @Override
     public IMessage onMessage(Message message, MessageContext context) {
@@ -44,54 +47,54 @@ public final class PacketQIOProcessingTerminalPreference implements
 
     private static void handle(Message message, EntityPlayer player) {
         if (!(player.openContainer instanceof QIOProcessingTerminalSessionContainer holder) ||
-            player.openContainer.windowId != message.windowId ||
-            !player.openContainer.canInteractWith(player)) {
+                player.openContainer.windowId != message.windowId ||
+                !player.openContainer.canInteractWith(player)) {
             return;
         }
         QIOProcessingTerminalSession session = holder.getTerminalSession();
         if (session == null || session.validate(message.sessionNonce,
-              player.getUniqueID(), message.targetKind, message.terminalType,
-              message.terminalUUID, message.expectedTargetRevision,
-              session.getFrequencyUUID(), session.getAccessRevision()) !=
-              QIOProcessingTerminalSession.Validation.ACCEPTED ||
-            message.terminalType != QIOProcessingTerminalType.SMART_PROCESSING) {
+                player.getUniqueID(), message.targetKind, message.terminalType,
+                message.terminalUUID, message.expectedTargetRevision,
+                session.getFrequencyUUID(), session.getAccessRevision()) !=
+                QIOProcessingTerminalSession.Validation.ACCEPTED ||
+                message.terminalType != QIOProcessingTerminalType.SMART_PROCESSING) {
             return;
         }
         if (message.targetKind == QIOProcessingTerminalSession.TargetKind.BLOCK &&
-            player.openContainer instanceof QIOBlockTerminalContainer container &&
-            container.getTerminalTile() instanceof TileEntityQIOSmartProcessingTerminal terminal &&
-            terminal.getConfigurationRevision() == message.expectedTargetRevision) {
+                player.openContainer instanceof QIOBlockTerminalContainer container &&
+                container.getTerminalTile() instanceof TileEntityQIOSmartProcessingTerminal terminal &&
+                terminal.getConfigurationRevision() == message.expectedTargetRevision) {
             terminal.toggleShiftClickIntoFrequency();
             container.acceptAuthorizedBindingChange(message.expectedTargetRevision,
-                  terminal.getConfigurationRevision());
+                    terminal.getConfigurationRevision());
         } else if (message.targetKind ==
-              QIOProcessingTerminalSession.TargetKind.PORTABLE_ITEM &&
-              player.openContainer instanceof QIOPortableTerminalContainer container) {
+                QIOProcessingTerminalSession.TargetKind.PORTABLE_ITEM &&
+                player.openContainer instanceof QIOPortableTerminalContainer container) {
             mutatePortable(message, player, container);
         }
     }
 
     private static void mutatePortable(Message message, EntityPlayer player,
-          QIOPortableTerminalContainer container) {
+                                       QIOPortableTerminalContainer container) {
         ItemStack stack = container.getPortableStack();
         if (stack.isEmpty() ||
-            !(stack.getItem() instanceof ItemPortableQIOProcessingTerminal item) ||
-            item.getTerminalType() != QIOProcessingTerminalType.SMART_PROCESSING) {
+                !(stack.getItem() instanceof ItemPortableQIOProcessingTerminal item) ||
+                item.getTerminalType() != QIOProcessingTerminalType.SMART_PROCESSING) {
             return;
         }
         try {
             PortableQIOProcessingTerminalData data =
-                  PortableQIOProcessingTerminalData.read(stack);
+                    PortableQIOProcessingTerminalData.read(stack);
             if (data == null || data.getGeneration() != message.expectedTargetRevision ||
-                !data.getTerminalUUID().equals(message.terminalUUID)) {
+                    !data.getTerminalUUID().equals(message.terminalUUID)) {
                 return;
             }
             PortableQIOProcessingTerminalData updated =
-                  data.withShiftClickIntoFrequency(!data.shiftClickIntoFrequency());
+                    data.withShiftClickIntoFrequency(!data.shiftClickIntoFrequency());
             updated.writeTo(stack);
             player.inventory.markDirty();
             container.acceptAuthorizedMutation(message.expectedTargetRevision,
-                  updated.getGeneration());
+                    updated.getGeneration());
         } catch (QIOProcessingDataException ignored) {
         }
     }
@@ -110,9 +113,9 @@ public final class PacketQIOProcessingTerminalPreference implements
         }
 
         private Message(int windowId, UUID sessionNonce,
-              QIOProcessingTerminalSession.TargetKind targetKind,
-              QIOProcessingTerminalType terminalType, UUID terminalUUID,
-              long expectedTargetRevision) {
+                        QIOProcessingTerminalSession.TargetKind targetKind,
+                        QIOProcessingTerminalType terminalType, UUID terminalUUID,
+                        long expectedTargetRevision) {
             this.windowId = windowId;
             this.sessionNonce = sessionNonce;
             this.targetKind = targetKind;
@@ -123,18 +126,18 @@ public final class PacketQIOProcessingTerminalPreference implements
         }
 
         public static Message create(int windowId,
-              QIOProcessingTerminalContainerState state) {
+                                     QIOProcessingTerminalContainerState state) {
             return state == null || !state.isValid() ? new Message() :
-                  new Message(windowId, state.getSessionNonce(), state.getTargetKind(),
-                        state.getTerminalType(), state.getTerminalUUID(),
-                        state.getTargetRevision());
+                    new Message(windowId, state.getSessionNonce(), state.getTargetKind(),
+                            state.getTerminalType(), state.getTerminalUUID(),
+                            state.getTargetRevision());
         }
 
         static Message create(int windowId, QIOProcessingTerminalSession session) {
             return session == null ? new Message() : new Message(windowId,
-                  session.getSessionNonce(), session.getTargetKind(),
-                  session.getTerminalType(), session.getTerminalUUID(),
-                  session.getTargetRevision());
+                    session.getSessionNonce(), session.getTargetKind(),
+                    session.getTerminalType(), session.getTerminalUUID(),
+                    session.getTargetRevision());
         }
 
         @Override
@@ -156,7 +159,7 @@ public final class PacketQIOProcessingTerminalPreference implements
                 int kindOrdinal = buffer.readUnsignedByte();
                 int typeOrdinal = buffer.readUnsignedByte();
                 if (kindOrdinal >= QIOProcessingTerminalSession.TargetKind.values().length ||
-                    typeOrdinal >= QIOProcessingTerminalType.values().length) {
+                        typeOrdinal >= QIOProcessingTerminalType.values().length) {
                     return;
                 }
                 targetKind = QIOProcessingTerminalSession.TargetKind.values()[kindOrdinal];
@@ -175,8 +178,8 @@ public final class PacketQIOProcessingTerminalPreference implements
 
         private boolean structurallyValid() {
             return windowId >= 0 && sessionNonce != null && targetKind != null &&
-                  terminalType == QIOProcessingTerminalType.SMART_PROCESSING &&
-                  terminalUUID != null && expectedTargetRevision >= 0;
+                    terminalType == QIOProcessingTerminalType.SMART_PROCESSING &&
+                    terminalUUID != null && expectedTargetRevision >= 0;
         }
 
         private static void writeUUID(ByteBuf buffer, UUID uuid) {

@@ -26,8 +26,8 @@ public class OneInputCachedRecipe<INPUT, OUTPUT, INGREDIENT, RECIPE> extends Cac
     private OUTPUT output;
 
     public OneInputCachedRecipe(RECIPE recipe, BooleanSupplier recheckAllErrors, IInputHandler<INPUT, INGREDIENT> inputHandler,
-          IOutputHandler<OUTPUT> outputHandler, Supplier<INGREDIENT> inputSupplier, Predicate<INPUT> recipeTest,
-          Function<INPUT, OUTPUT> outputGetter, Predicate<INPUT> inputEmptyCheck, Predicate<OUTPUT> outputEmptyCheck) {
+                                IOutputHandler<OUTPUT> outputHandler, Supplier<INGREDIENT> inputSupplier, Predicate<INPUT> recipeTest,
+                                Function<INPUT, OUTPUT> outputGetter, Predicate<INPUT> inputEmptyCheck, Predicate<OUTPUT> outputEmptyCheck) {
         super(recipe, recheckAllErrors);
         this.inputHandler = Objects.requireNonNull(inputHandler);
         this.outputHandler = Objects.requireNonNull(outputHandler);
@@ -42,7 +42,7 @@ public class OneInputCachedRecipe<INPUT, OUTPUT, INGREDIENT, RECIPE> extends Cac
     protected void calculateOperationsThisTick(OperationTracker tracker) {
         super.calculateOperationsThisTick(tracker);
         CachedRecipeHelper.oneInputCalculateOperationsThisTick(tracker, inputHandler, inputSupplier, input -> this.input = input, outputHandler, outputGetter,
-              output -> this.output = output, inputEmptyCheck);
+                output -> this.output = output, inputEmptyCheck);
     }
 
     @Override

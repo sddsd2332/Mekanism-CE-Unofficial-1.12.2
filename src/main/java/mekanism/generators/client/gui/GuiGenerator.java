@@ -47,8 +47,8 @@ public abstract class GuiGenerator<TILE extends TileEntityGenerator, CONTAINER e
 
     protected List<ITextComponent> getEnergyTabText(double production) {
         return Arrays.asList(
-              new TextComponentString(LangUtils.localize("gui.producing") + ": " + MekanismUtils.getEnergyDisplay(production) + "/t"),
-              new TextComponentString(LangUtils.localize("gui.maxOutput") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getMaxOutput()) + "/t")
+                new TextComponentString(LangUtils.localize("gui.producing") + ": " + MekanismUtils.getEnergyDisplay(production) + "/t"),
+                new TextComponentString(LangUtils.localize("gui.maxOutput") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getMaxOutput()) + "/t")
         );
     }
 

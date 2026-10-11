@@ -213,9 +213,9 @@ public abstract class Frequency {
         }
         if (obj instanceof Frequency frequency) {
             return Objects.equals(frequencyType, frequency.frequencyType)
-                  && (frequencyType == FrequencyType.SECURITY || getSecurity() == frequency.getSecurity())
-                  && Objects.equals(name, frequency.name)
-                  && Objects.equals(ownerUUID, frequency.ownerUUID);
+                    && (frequencyType == FrequencyType.SECURITY || getSecurity() == frequency.getSecurity())
+                    && Objects.equals(name, frequency.name)
+                    && Objects.equals(ownerUUID, frequency.ownerUUID);
         }
         return false;
     }
@@ -284,8 +284,8 @@ public abstract class Frequency {
             }
             if (obj instanceof FrequencyIdentity other) {
                 return Objects.equals(key, other.key)
-                      && securityMode == other.securityMode
-                      && Objects.equals(ownerUUID, other.ownerUUID);
+                        && securityMode == other.securityMode
+                        && Objects.equals(ownerUUID, other.ownerUUID);
             }
             return false;
         }

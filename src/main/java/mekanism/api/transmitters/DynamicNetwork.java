@@ -37,6 +37,11 @@ public abstract class DynamicNetwork<ACCEPTOR, NETWORK extends DynamicNetwork<AC
     protected boolean firstUpdate = true;
     protected World world = null;
     private Set<DelayQueue> updateQueue = new LinkedHashSet<>();
+    protected long acceptorRevision;
+
+    protected final void invalidateAcceptorSnapshot() {
+        acceptorRevision++;
+    }
 
     public void addNewTransmitters(Collection<IGridTransmitter<ACCEPTOR, NETWORK, BUFFER>> newTransmitters) {
         transmittersToAdd.addAll(newTransmitters);
@@ -44,7 +49,9 @@ public abstract class DynamicNetwork<ACCEPTOR, NETWORK extends DynamicNetwork<AC
 
     public void commit() {
         if (!transmittersToAdd.isEmpty()) {
-            transmittersToAdd.forEach(transmitter -> {
+            Set<IGridTransmitter<ACCEPTOR, NETWORK, BUFFER>> additions = transmittersToAdd;
+            transmittersToAdd = new ReferenceOpenHashSet<>();
+            additions.forEach(transmitter -> {
                 if (transmitter.isValid()) {
                     if (world == null) {
                         world = transmitter.world();
@@ -55,18 +62,24 @@ public abstract class DynamicNetwork<ACCEPTOR, NETWORK extends DynamicNetwork<AC
                     }
 
                     transmitter.setTransmitterNetwork((NETWORK) this);
-                    absorbBuffer(transmitter);
-                    transmitters.add(transmitter);
+                    if (transmitters.add(transmitter)) {
+                        packetRange = null;
+                        // Admit capacity before absorbing persisted contents, exactly once per member.
+                        doubleCapacity += Math.max(0, transmitter.getCapacity());
+                        capacity = (int) Math.min(Integer.MAX_VALUE, doubleCapacity);
+                        absorbBuffer(transmitter);
+                    }
                 }
             });
             updateCapacity();
             clampBuffer();
-            queueClientUpdate(transmittersToAdd);
-            transmittersToAdd.clear();
+            queueClientUpdate(additions);
         }
 
         if (!changedAcceptors.isEmpty()) {
-            changedAcceptors.forEach((transmitter, value) -> {
+            Map<IGridTransmitter<ACCEPTOR, NETWORK, BUFFER>, EnumSet<EnumFacing>> changes = changedAcceptors;
+            changedAcceptors = new Reference2ObjectOpenHashMap<>();
+            changes.forEach((transmitter, value) -> {
                 if (transmitter.isValid()) {
                     //Update all the changed directions
                     for (EnumFacing side : value) {
@@ -74,11 +87,11 @@ public abstract class DynamicNetwork<ACCEPTOR, NETWORK extends DynamicNetwork<AC
                     }
                 }
             });
-            changedAcceptors.clear();
         }
     }
 
     public void updateTransmitterOnSide(IGridTransmitter<ACCEPTOR, NETWORK, BUFFER> transmitter, EnumFacing side) {
+        invalidateAcceptorSnapshot();
         ACCEPTOR acceptor = transmitter.getAcceptor(side);
         Coord4D acceptorCoord = transmitter.coord().offset(side);
         EnumSet<EnumFacing> directions = acceptorDirections.get(acceptorCoord);
@@ -142,6 +155,7 @@ public abstract class DynamicNetwork<ACCEPTOR, NETWORK extends DynamicNetwork<AC
 
 
     public void acceptorChanged(IGridTransmitter<ACCEPTOR, NETWORK, BUFFER> transmitter, EnumFacing side) {
+        invalidateAcceptorSnapshot();
         EnumSet<EnumFacing> directions = changedAcceptors.get(transmitter);
         if (directions != null) {
             directions.add(side);
@@ -152,6 +166,9 @@ public abstract class DynamicNetwork<ACCEPTOR, NETWORK extends DynamicNetwork<AC
     }
 
     public void adoptTransmittersAndAcceptorsFrom(NETWORK net) {
+        packetRange = null;
+        invalidateAcceptorSnapshot();
+        if (world == null) world = net.world;
         net.transmitters.forEach(transmitter -> {
             transmitter.setTransmitterNetwork((NETWORK) this);
             transmitters.add(transmitter);
@@ -165,9 +182,13 @@ public abstract class DynamicNetwork<ACCEPTOR, NETWORK extends DynamicNetwork<AC
             if (acceptorDirections.containsKey(coord)) {
                 acceptorDirections.get(coord).addAll(value);
             } else {
-                acceptorDirections.put(coord, value);
+                acceptorDirections.put(coord, value.clone());
             }
         });
+        net.changedAcceptors.forEach((transmitter, sides) ->
+                changedAcceptors.computeIfAbsent(transmitter, ignored -> EnumSet.noneOf(EnumFacing.class)).addAll(sides));
+        if (!changedAcceptors.isEmpty()) TransmitterNetworkRegistry.registerChangedNetwork(this);
+        updateCapacity();
     }
 
     public Range4D getPacketRange() {
@@ -221,6 +242,11 @@ public abstract class DynamicNetwork<ACCEPTOR, NETWORK extends DynamicNetwork<AC
     }
 
     public void deregister() {
+        packetRange = null;
+        invalidateAcceptorSnapshot();
+        possibleAcceptors.clear();
+        acceptorDirections.clear();
+        changedAcceptors.clear();
         transmitters.clear();
         transmittersToAdd.clear();
         transmittersAdded.clear();
@@ -337,15 +363,26 @@ public abstract class DynamicNetwork<ACCEPTOR, NETWORK extends DynamicNetwork<AC
     }
 
     public boolean addTransmitter(IGridTransmitter<ACCEPTOR, NETWORK, BUFFER> transmitter) {
+        packetRange = null;
         return transmitters.add(transmitter);
     }
 
     public boolean removeTransmitter(IGridTransmitter<ACCEPTOR, NETWORK, BUFFER> transmitter) {
+        packetRange = null;
+        invalidateAcceptorSnapshot();
         boolean removed = transmitters.remove(transmitter);
         if (transmitters.isEmpty()) {
             deregister();
         }
         return removed;
+    }
+
+    /**
+     * Transfer ownership of a departing member's persisted contents before removing it.
+     */
+    public void detachTransmitter(IGridTransmitter<ACCEPTOR, NETWORK, BUFFER> transmitter) {
+        transmitter.takeShare();
+        removeTransmitter(transmitter);
     }
 
     public IGridTransmitter<ACCEPTOR, NETWORK, BUFFER> firstTransmitter() {

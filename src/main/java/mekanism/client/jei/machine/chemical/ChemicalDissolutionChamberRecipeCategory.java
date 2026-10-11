@@ -28,7 +28,7 @@ public class ChemicalDissolutionChamberRecipeCategory<WRAPPER extends ChemicalDi
 
     public ChemicalDissolutionChamberRecipeCategory(IGuiHelper helper) {
         super(helper, "mekanism:gui/Null.png",
-              Recipe.CHEMICAL_DISSOLUTION_CHAMBER.getJEICategory(), "gui.chemicalDissolutionChamber.short", 4, 4, 169, 78, ProgressType.LARGE_RIGHT);
+                Recipe.CHEMICAL_DISSOLUTION_CHAMBER.getJEICategory(), "gui.chemicalDissolutionChamber.short", 4, 4, 169, 78, ProgressType.LARGE_RIGHT);
     }
 
     @Override

@@ -40,12 +40,12 @@ public class GuiOredictionificator extends GuiConfigurableTile<TileEntityOredict
         scrollBar = addButton(new GuiScrollBar(this, 213, 17, 90, () -> tileEntity.getFilterManager().count(), () -> FILTER_COUNT));
         addButton(new GuiProgress(() -> tileEntity.didProcess, ProgressType.LARGE_RIGHT, this, 94, 119));
         addButton(new TranslationButton(this, 10, 86, 202, 20, MekanismLang.BUTTON_NEW_FILTER,
-              () -> addWindow(GuiOredictionificatorFilter.create(this, tileEntity))));
+                () -> addWindow(GuiOredictionificatorFilter.create(this, tileEntity))));
         for (int i = 0; i < FILTER_COUNT; i++) {
             addButton(new GuiOredictionificatorFilterRow(this, tileEntity, 10, 18 + i * 22, 202, 22, i, () -> scrollBar.getCurrentSelection()));
         }
         trackWarning(WarningType.INVALID_OREDICTIONIFICATOR_FILTER,
-              () -> tileEntity.getFilterManager().anyEnabledMatch(filter -> filter.filter == null || filter.filter.isEmpty()));
+                () -> tileEntity.getFilterManager().anyEnabledMatch(filter -> filter.filter == null || filter.filter.isEmpty()));
     }
 
     @Override

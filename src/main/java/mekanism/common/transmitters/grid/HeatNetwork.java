@@ -1,5 +1,6 @@
 package mekanism.common.transmitters.grid;
 
+import mekanism.api.Coord4D;
 import mekanism.api.heat.HeatAPI;
 import mekanism.api.heat.HeatAPI.HeatTransfer;
 import mekanism.api.heat.IHeatHandler;
@@ -12,11 +13,7 @@ import mekanism.common.util.UnitDisplayUtils.TemperatureUnit;
 import net.minecraft.util.EnumFacing;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 public class HeatNetwork extends DynamicNetwork<IHeatHandler, HeatNetwork, Void> {
 
@@ -29,6 +26,7 @@ public class HeatNetwork extends DynamicNetwork<IHeatHandler, HeatNetwork, Void>
     public double heatTransferred = 0;
 
     private List<TileEntityThermodynamicConductor> conductorSnapshot = Collections.emptyList();
+    private final java.util.Set<Coord4D> conductorPositions = new java.util.HashSet<>();
     private double[] lastConductorHeat = new double[0];
     private int snapshotTransmitterCount = -1;
     private boolean snapshotDirty = true;
@@ -49,7 +47,9 @@ public class HeatNetwork extends DynamicNetwork<IHeatHandler, HeatNetwork, Void>
         register();
     }
 
-    /** Wakes an idle network after heat, acceptors, or topology changed. */
+    /**
+     * Wakes an idle network after heat, acceptors, or topology changed.
+     */
     public void wakeUp() {
         sleeping = false;
         quietTicks = 0;
@@ -110,6 +110,7 @@ public class HeatNetwork extends DynamicNetwork<IHeatHandler, HeatNetwork, Void>
     public void deregister() {
         super.deregister();
         conductorSnapshot = Collections.emptyList();
+        conductorPositions.clear();
         lastConductorHeat = new double[0];
         snapshotTransmitterCount = 0;
         snapshotDirty = false;
@@ -216,7 +217,9 @@ public class HeatNetwork extends DynamicNetwork<IHeatHandler, HeatNetwork, Void>
         // The count check also catches direct additions/removals through the legacy public transmitter set.
         if (snapshotDirty || snapshotTransmitterCount != transmitters.size()) {
             List<TileEntityThermodynamicConductor> snapshot = new ArrayList<>(transmitters.size());
+            conductorPositions.clear();
             for (IGridTransmitter<IHeatHandler, HeatNetwork, Void> transmitter : transmitters) {
+                if (transmitter != null) conductorPositions.add(transmitter.coord());
                 if (transmitter instanceof TransmitterImpl<?, ?, ?> imp && imp.getTileEntity() instanceof TileEntityThermodynamicConductor conductor) {
                     snapshot.add(conductor);
                 }
@@ -229,6 +232,11 @@ public class HeatNetwork extends DynamicNetwork<IHeatHandler, HeatNetwork, Void>
             wakeUp();
         }
         return conductorSnapshot;
+    }
+
+    public boolean containsTransmitterAt(Coord4D position) {
+        getConductorSnapshot();
+        return conductorPositions.contains(position);
     }
 
     boolean shouldRunServerSimulation() {

@@ -12,7 +12,6 @@ import mekanism.common.block.states.BlockStateBasic;
 import mekanism.common.block.states.BlockStateBasic.BasicBlock;
 import mekanism.common.block.states.BlockStateBasic.BasicBlockType;
 import mekanism.common.block.states.BlockStateFacing;
-import mekanism.common.content.boiler.SynchronizedBoilerData;
 import mekanism.common.content.tank.DynamicFluidTank;
 import mekanism.common.integration.wrenches.Wrenches;
 import mekanism.common.inventory.BinMekanismInventory;
@@ -25,11 +24,7 @@ import mekanism.common.tile.TileEntitySecurityDesk;
 import mekanism.common.tile.TileEntitySuperheatingElement;
 import mekanism.common.tile.multiblock.*;
 import mekanism.common.tile.prefab.TileEntityBasicBlock;
-import mekanism.common.util.FluidUtils;
-import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.MekanismPlacementData;
-import mekanism.common.util.SecurityUtils;
-import mekanism.common.util.StorageUtils;
+import mekanism.common.util.*;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.properties.PropertyEnum;
@@ -645,8 +640,8 @@ public abstract class BlockBasic extends BlockTileDrops {
         BasicBlockType basicBlockType = BasicBlockType.get(blockState);
         if (basicBlockType != null && basicBlockType.hasRedstoneOutput) {
             TileEntity tile = worldIn.getTileEntity(pos);
-            if (tile instanceof IComparatorSupport support) {
-                return support.getRedstoneLevel();
+            if (tile instanceof IComparatorSupport support && support.supportsComparator()) {
+                return support.getCurrentRedstoneLevel();
             }
         }
         return 0;

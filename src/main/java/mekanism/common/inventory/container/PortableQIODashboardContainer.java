@@ -1,32 +1,33 @@
 package mekanism.common.inventory.container;
 
+import mekanism.common.Mekanism;
 import mekanism.common.content.qio.QIOFrequency;
 import mekanism.common.frequency.Frequency.FrequencyIdentity;
 import mekanism.common.frequency.FrequencyType;
 import mekanism.common.frequency.IFrequencyItem;
-import mekanism.common.inventory.container.slot.HotBarSlot;
-import mekanism.common.inventory.container.item.ItemStackSlotAccess;
-import mekanism.common.inventory.container.item.IItemStackBackedContainer;
-import mekanism.common.inventory.container.sync.FrequencyContainerSync;
 import mekanism.common.inventory.PortableQIODashboardInventory;
+import mekanism.common.inventory.container.item.IItemStackBackedContainer;
+import mekanism.common.inventory.container.item.ItemStackSlotAccess;
+import mekanism.common.inventory.container.slot.HotBarSlot;
+import mekanism.common.inventory.container.sync.FrequencyContainerSync;
 import mekanism.common.item.ItemPortableQIODashboard;
-import mekanism.common.util.SecurityUtils;
-import mekanism.common.util.ItemDataUtils;
-import mekanism.common.Mekanism;
 import mekanism.common.network.qio.PacketQIOPortableGui;
+import mekanism.common.util.ItemDataUtils;
+import mekanism.common.util.SecurityUtils;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.entity.player.InventoryPlayer;
-import net.minecraft.inventory.Slot;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumHand;
 
 import javax.annotation.Nonnull;
 import java.util.function.Supplier;
 
-/** Item-backed viewer container for the portable Dashboard. */
+/**
+ * Item-backed viewer container for the portable Dashboard.
+ */
 public class PortableQIODashboardContainer extends QIOItemViewerContainer
-      implements IItemStackBackedContainer {
+        implements IItemStackBackedContainer {
 
     private final EnumHand hand;
     private final ItemStackSlotAccess itemAccess;
@@ -153,7 +154,7 @@ public class PortableQIODashboardContainer extends QIOItemViewerContainer
     public boolean canInteractWith(@Nonnull EntityPlayer player) {
         ItemStack current = getStack();
         return !isKilled() && itemAccess.isOriginalStackPresent() && isValidStack(current) &&
-              (player.world.isRemote || SecurityUtils.canAccess(player, current)) && super.canInteractWith(player);
+                (player.world.isRemote || SecurityUtils.canAccess(player, current)) && super.canInteractWith(player);
     }
 
     @Override
@@ -182,7 +183,7 @@ public class PortableQIODashboardContainer extends QIOItemViewerContainer
                 return ItemStack.EMPTY;
             }
             if (hand == EnumHand.MAIN_HAND && dragType >= 0 && dragType < hotBarSlots.size() &&
-                  !hotBarSlots.get(dragType).canTakeStack(player)) {
+                    !hotBarSlots.get(dragType).canTakeStack(player)) {
                 // Block number-key swaps targeting the fixed backing slot.
                 return ItemStack.EMPTY;
             }

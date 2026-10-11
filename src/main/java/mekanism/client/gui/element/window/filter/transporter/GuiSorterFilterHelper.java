@@ -68,35 +68,35 @@ interface GuiSorterFilterHelper extends GuiFilterHelper<TileEntityLogisticalSort
             filter.color = TransporterUtils.decrement(filter.color);
         }, () -> Collections.singletonList(getSorterFilter().color != null ? getSorterFilter().color.getColoredName() : LangUtils.localize("gui.none"))));
         addSorterChild(new MekanismImageButton(gui(), relativeX + 148, relativeY + 18, 11,
-              MekanismUtils.getResource(ResourceType.GUI_BUTTON, "default.png"),
-              () -> getSorterFilter().allowDefault = !getSorterFilter().allowDefault,
-              (element, mouseX, mouseY) -> element.displayTooltip(MekanismLang.FILTER_ALLOW_DEFAULT.translate(), mouseX, mouseY)));
+                MekanismUtils.getResource(ResourceType.GUI_BUTTON, "default.png"),
+                () -> getSorterFilter().allowDefault = !getSorterFilter().allowDefault,
+                (element, mouseX, mouseY) -> element.displayTooltip(MekanismLang.FILTER_ALLOW_DEFAULT.translate(), mouseX, mouseY)));
     }
 
     default void addSorterSizeControls(BiConsumer<GuiTextField, GuiTextField> rangeSetter) {
         int relativeX = getRelativeX();
         int relativeY = getRelativeY();
         GuiTextField minField = new GuiTextField(gui(), 3, relativeX + 174, relativeY + 31, 20, 11)
-              .setMaxLength(2)
-              .setInputValidator(this::isDigitOrTextKey);
+                .setMaxLength(2)
+                .setInputValidator(this::isDigitOrTextKey);
         minField.setText(Integer.toString(getFilterMin()));
         addSorterChild(minField);
         GuiTextField maxField = new GuiTextField(gui(), 4, relativeX + 174, relativeY + 43, 20, 11)
-              .setMaxLength(2)
-              .setInputValidator(this::isDigitOrTextKey);
+                .setMaxLength(2)
+                .setInputValidator(this::isDigitOrTextKey);
         maxField.setText(Integer.toString(getFilterMax()));
         addSorterChild(maxField);
         rangeSetter.accept(minField, maxField);
         addSorterChild(new TooltipToggleButton(gui(), relativeX + 148, relativeY + 56, 11, 14,
-              MekanismUtils.getResource(ResourceType.GUI_BUTTON, "silk_touch.png"),
-              () -> getSorterTile().singleItem && getFilterSizeMode(),
-              () -> setFilterSizeMode(!getFilterSizeMode()),
-              new TextComponentString(getSizeModeTooltip()), MekanismLang.SORTER_SIZE_MODE.translate()));
+                MekanismUtils.getResource(ResourceType.GUI_BUTTON, "silk_touch.png"),
+                () -> getSorterTile().singleItem && getFilterSizeMode(),
+                () -> setFilterSizeMode(!getFilterSizeMode()),
+                new TextComponentString(getSizeModeTooltip()), MekanismLang.SORTER_SIZE_MODE.translate()));
     }
 
     default boolean isDigitOrTextKey(char c, int keyCode) {
         return Character.isDigit(c) || keyCode == Keyboard.KEY_BACK || keyCode == Keyboard.KEY_DELETE || keyCode == Keyboard.KEY_LEFT ||
-              keyCode == Keyboard.KEY_RIGHT || keyCode == Keyboard.KEY_HOME || keyCode == Keyboard.KEY_END;
+                keyCode == Keyboard.KEY_RIGHT || keyCode == Keyboard.KEY_HOME || keyCode == Keyboard.KEY_END;
     }
 
     default boolean validateSorterFields(GuiTextField minField, GuiTextField maxField, Function<String, Boolean> errorHandler) {
@@ -122,7 +122,7 @@ interface GuiSorterFilterHelper extends GuiFilterHelper<TileEntityLogisticalSort
 
     default List<ITextComponent> addSorterSizeScreenText(List<ITextComponent> list) {
         list.add(new TextComponentString(LangUtils.localize("gui.itemFilter.min") + ": " + getFilterMin() + "  " +
-              LangUtils.localize("gui.itemFilter.max") + ": " + getFilterMax()));
+                LangUtils.localize("gui.itemFilter.max") + ": " + getFilterMax()));
         String sizeMode = LangUtils.transOnOff(getFilterSizeMode());
         if (getSorterTile().singleItem && getFilterSizeMode()) {
             sizeMode = EnumColor.RED + sizeMode + "!";

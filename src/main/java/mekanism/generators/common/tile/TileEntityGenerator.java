@@ -70,7 +70,6 @@ public abstract class TileEntityGenerator extends TileEntityEffectsBlock impleme
     }
 
 
-
     @Override
     public double getMaxOutput() {
         return output;

@@ -105,7 +105,7 @@ public class GasConversionHandler {
      * @param itemStack - itemstack to check with.
      * @param needed    The max amount we need for legacy gas containers so that we do not return a value that is too large, thus making it so it thinks there is no room.
      * @return fuel ticks
-    */
+     */
     @Nullable
     public static GasStack getItemGas(ItemStack itemStack, int needed, BiFunction<Gas, Integer, GasStack> getIfValid) {
         GasStack extractableGas = GasInventorySlot.getExtractableGas(itemStack, needed, getIfValid);
@@ -136,7 +136,7 @@ public class GasConversionHandler {
             return stacks;
         }
         //TODO: Maybe check for duplicates if things are in oredict and not? For the most part things assume there are no duplication at the moment
-        ingredients.forEach(ingredient ->   stacks.addAll(ingredient.getMatching()));
+        ingredients.forEach(ingredient -> stacks.addAll(ingredient.getMatching()));
         return stacks;
     }
 

@@ -12,7 +12,9 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.text.TextComponentTranslation;
 
-/** In-place filter editor shared by QIO automation components. */
+/**
+ * In-place filter editor shared by QIO automation components.
+ */
 public class GuiQIOFilterListWindow extends GuiWindow {
 
     private final TileEntityQIOFilterHandler tile;
@@ -22,9 +24,9 @@ public class GuiQIOFilterListWindow extends GuiWindow {
         this.tile = tile;
         interactionStrategy = InteractionStrategy.NONE;
         addChild(new MekanismButton(gui, relativeX + 7, relativeY + 19, 99, 18,
-              new TextComponentTranslation("gui.qio.filter.add"), this::addHeldFilter, null));
+                new TextComponentTranslation("gui.qio.filter.add"), this::addHeldFilter, null));
         addChild(new MekanismButton(gui, relativeX + 108, relativeY + 19, 53, 18,
-              new TextComponentTranslation("gui.qio.filter.clear"), () -> PacketQIOComponentConfig.clearFilter(tile), null));
+                new TextComponentTranslation("gui.qio.filter.clear"), () -> PacketQIOComponentConfig.clearFilter(tile), null));
         addChild(new GuiElementHolder(gui, relativeX + 6, relativeY + 40, 156, 98));
         addChild(new GuiQIOFilterList(gui, relativeX + 7, relativeY + 41, 154, tile));
     }

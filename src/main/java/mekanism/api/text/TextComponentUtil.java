@@ -4,11 +4,7 @@ import mekanism.api.EnumColor;
 import net.minecraft.block.Block;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-import net.minecraft.util.text.ITextComponent;
-import net.minecraft.util.text.Style;
-import net.minecraft.util.text.TextComponentString;
-import net.minecraft.util.text.TextComponentTranslation;
-import net.minecraft.util.text.TextFormatting;
+import net.minecraft.util.text.*;
 import net.minecraft.util.text.event.ClickEvent;
 import net.minecraft.util.text.event.HoverEvent;
 import net.minecraftforge.fluids.Fluid;
@@ -17,7 +13,9 @@ import net.minecraftforge.fluids.FluidStack;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Backport of the modern smart translation argument handling. */
+/**
+ * Backport of the modern smart translation argument handling.
+ */
 public final class TextComponentUtil {
 
     private TextComponentUtil() {
@@ -97,7 +95,7 @@ public final class TextComponentUtil {
         if (hasCachedStyle) {
             Object lastComponent = components[components.length - 1];
             args.add(lastComponent instanceof EnumColor ?
-                  new TextComponentTranslation(((EnumColor) lastComponent).getTranslationKey()) : lastComponent);
+                    new TextComponentTranslation(((EnumColor) lastComponent).getTranslationKey()) : lastComponent);
         }
         return new TextComponentTranslation(key, args.toArray());
     }

@@ -8,9 +8,12 @@ import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL14;
 
-import java.awt.Color;
+import java.awt.*;
 
-/** Supergiant-style animated selection frame for QIO resource and recipe grids. */
+/**
+ * Supergiant-style animated selection frame for QIO resource and recipe grids.
+ */
+
 /**
  * QIO 处理模块中的 QIOGuiSelectionRenderer 类型。
  *
@@ -39,7 +42,7 @@ final class QIOGuiSelectionRenderer {
             GlStateManager.disableDepth();
             GlStateManager.enableBlend();
             GlStateManager.tryBlendFuncSeparate(GL11.GL_SRC_ALPHA,
-                  GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ZERO);
+                    GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ZERO);
             GlStateManager.translate(0F, 0F, 180F);
 
             Tessellator tessellator = Tessellator.getInstance();
@@ -47,9 +50,9 @@ final class QIOGuiSelectionRenderer {
             buffer.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_COLOR);
             for (int index = 0; index < pixels; index++) {
                 int color = Color.HSBtoRGB(hue(index, pixels, phase), SATURATION,
-                      BRIGHTNESS);
+                        BRIGHTNESS);
                 addBorderPixel(buffer, x, y, width, height, index,
-                      color >> 16 & 0xFF, color >> 8 & 0xFF, color & 0xFF);
+                        color >> 16 & 0xFF, color >> 8 & 0xFF, color & 0xFF);
             }
             tessellator.draw();
         } finally {
@@ -92,7 +95,7 @@ final class QIOGuiSelectionRenderer {
     }
 
     private static void addBorderPixel(BufferBuilder buffer, int x, int y, int width,
-          int height, int index, int red, int green, int blue) {
+                                       int height, int index, int red, int green, int blue) {
         int left = x + pixelX(width, height, index);
         int top = y + pixelY(width, height, index);
         buffer.pos(left, top + 1, 0).color(red, green, blue, BORDER_ALPHA).endVertex();
@@ -133,8 +136,8 @@ final class QIOGuiSelectionRenderer {
         private final int blendDestinationAlpha;
 
         private RenderState(boolean texture, boolean lighting, boolean depth, boolean blend,
-              int blendSourceRgb, int blendDestinationRgb, int blendSourceAlpha,
-              int blendDestinationAlpha) {
+                            int blendSourceRgb, int blendDestinationRgb, int blendSourceAlpha,
+                            int blendDestinationAlpha) {
             this.texture = texture;
             this.lighting = lighting;
             this.depth = depth;
@@ -147,16 +150,16 @@ final class QIOGuiSelectionRenderer {
 
         private static RenderState capture() {
             return new RenderState(GL11.glIsEnabled(GL11.GL_TEXTURE_2D),
-                  GL11.glIsEnabled(GL11.GL_LIGHTING), GL11.glIsEnabled(GL11.GL_DEPTH_TEST),
-                  GL11.glIsEnabled(GL11.GL_BLEND), GL11.glGetInteger(GL14.GL_BLEND_SRC_RGB),
-                  GL11.glGetInteger(GL14.GL_BLEND_DST_RGB),
-                  GL11.glGetInteger(GL14.GL_BLEND_SRC_ALPHA),
-                  GL11.glGetInteger(GL14.GL_BLEND_DST_ALPHA));
+                    GL11.glIsEnabled(GL11.GL_LIGHTING), GL11.glIsEnabled(GL11.GL_DEPTH_TEST),
+                    GL11.glIsEnabled(GL11.GL_BLEND), GL11.glGetInteger(GL14.GL_BLEND_SRC_RGB),
+                    GL11.glGetInteger(GL14.GL_BLEND_DST_RGB),
+                    GL11.glGetInteger(GL14.GL_BLEND_SRC_ALPHA),
+                    GL11.glGetInteger(GL14.GL_BLEND_DST_ALPHA));
         }
 
         private void restore() {
             GlStateManager.tryBlendFuncSeparate(blendSourceRgb, blendDestinationRgb,
-                  blendSourceAlpha, blendDestinationAlpha);
+                    blendSourceAlpha, blendDestinationAlpha);
             setTexture(texture);
             setLighting(lighting);
             setDepth(depth);

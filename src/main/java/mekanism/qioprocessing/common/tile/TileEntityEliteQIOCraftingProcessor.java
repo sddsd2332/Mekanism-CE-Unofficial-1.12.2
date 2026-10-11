@@ -13,6 +13,6 @@ public class TileEntityEliteQIOCraftingProcessor extends TieredQIOCraftingProces
 
     public TileEntityEliteQIOCraftingProcessor() {
         super("EliteQIOCraftingProcessor", QIOProcessingProcessorHosts.ELITE_HOST_ID,
-              QIOCraftingProcessorRegistry.ELITE_ID);
+                QIOCraftingProcessorRegistry.ELITE_ID);
     }
 }

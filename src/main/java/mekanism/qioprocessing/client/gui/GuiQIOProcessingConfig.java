@@ -5,8 +5,8 @@ import mekanism.common.config.MekanismConfig;
 import mekanism.common.util.LangUtils;
 import mekanism.qioprocessing.common.MekanismQIOProcessing;
 import net.minecraft.client.gui.GuiScreen;
-import net.minecraftforge.common.config.ConfigElement;
 import net.minecraftforge.common.config.ConfigCategory;
+import net.minecraftforge.common.config.ConfigElement;
 import net.minecraftforge.common.config.Configuration;
 import net.minecraftforge.fml.client.config.DummyConfigElement.DummyCategoryElement;
 import net.minecraftforge.fml.client.config.GuiConfig;
@@ -21,11 +21,11 @@ import java.util.List;
 public class GuiQIOProcessingConfig extends GuiConfig {
 
     private static final String TRANSLATION_PREFIX =
-          "mekanism.configgui.ctgy.qio_processing.";
+            "mekanism.configgui.ctgy.qio_processing.";
 
     public GuiQIOProcessingConfig(GuiScreen parent) {
         super(parent, getConfigElements(), MekanismQIOProcessing.MODID,
-              MekanismQIOProcessing.MODID, false, false, "Mekanism QIO Processing");
+                MekanismQIOProcessing.MODID, false, false, "Mekanism QIO Processing");
     }
 
     private static List<IConfigElement> getConfigElements() {
@@ -48,10 +48,10 @@ public class GuiQIOProcessingConfig extends GuiConfig {
     }
 
     private static DummyCategoryElement category(Configuration configuration,
-          String categoryName) {
+                                                 String categoryName) {
         String translationKey = TRANSLATION_PREFIX + categoryName;
         ConfigCategory category = configuration.getCategory(categoryName);
         return new DummyCategoryElement(LangUtils.localize(translationKey), translationKey,
-              new ConfigElement(category).getChildElements());
+                new ConfigElement(category).getChildElements());
     }
 }

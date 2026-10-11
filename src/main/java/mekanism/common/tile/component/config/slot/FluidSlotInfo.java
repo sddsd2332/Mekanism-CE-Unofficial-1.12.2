@@ -26,7 +26,7 @@ public class FluidSlotInfo extends BaseSlotInfo {
     }
 
     public FluidSlotInfo(boolean canInput, boolean canOutput, List<IExtendedFluidTank> tanks, List<IExtendedFluidTank> inputTanks,
-          List<IExtendedFluidTank> outputTanks) {
+                         List<IExtendedFluidTank> outputTanks) {
         super(canInput, canOutput);
         this.tanks = Collections.unmodifiableList(new ArrayList<>(tanks));
         this.inputTanks = Collections.unmodifiableList(new ArrayList<>(inputTanks));
@@ -68,7 +68,7 @@ public class FluidSlotInfo extends BaseSlotInfo {
     }
 
     private static List<IExtendedFluidTank> getInputTanks(boolean canInput, boolean canOutput, List<IExtendedFluidTank> tanks,
-          List<IExtendedFluidTank> outputTanks) {
+                                                          List<IExtendedFluidTank> outputTanks) {
         if (!canInput) {
             return Collections.emptyList();
         }

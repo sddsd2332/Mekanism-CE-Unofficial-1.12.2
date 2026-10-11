@@ -12,7 +12,9 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Server-side access point for dashboard-independent QIO automation. */
+/**
+ * Server-side access point for dashboard-independent QIO automation.
+ */
 public final class QIOFrequencyStorageAccess implements IQIOFrequencyStorageAccess {
 
     public static final QIOFrequencyStorageAccess INSTANCE = new QIOFrequencyStorageAccess();
@@ -22,26 +24,28 @@ public final class QIOFrequencyStorageAccess implements IQIOFrequencyStorageAcce
 
     @Nonnull
     public QIOFrequencyReference createReference(@Nonnull QIOFrequency frequency,
-          @Nullable UUID bindingPlayerUUID) {
+                                                 @Nullable UUID bindingPlayerUUID) {
         Objects.requireNonNull(frequency, "frequency");
         return new QIOFrequencyReference(frequency.getFrequencyUUID(), frequency.getName(),
-              frequency.getOwner(), frequency.getSecurity(), bindingPlayerUUID);
+                frequency.getOwner(), frequency.getSecurity(), bindingPlayerUUID);
     }
 
     @Nullable
     @Override
     public IQIOStorageView open(@Nonnull QIOFrequencyReference reference,
-          @Nullable UUID requester) {
+                                @Nullable UUID requester) {
         Objects.requireNonNull(reference, "reference");
         QIOFrequency frequency = resolve(reference);
         if (frequency == null || !isAccessible(reference, frequency, requester)) {
             return null;
         }
         return new QIOStorageViewImpl(frequency,
-              () -> isAccessible(reference, frequency, requester), null, null);
+                () -> isAccessible(reference, frequency, requester), null, null);
     }
 
-    /** Performs the same identity and security check as {@link #open} without allocating a view. */
+    /**
+     * Performs the same identity and security check as {@link #open} without allocating a view.
+     */
     public boolean canAccess(@Nonnull QIOFrequencyReference reference, @Nullable UUID requester) {
         Objects.requireNonNull(reference, "reference");
         QIOFrequency frequency = resolve(reference);
@@ -51,7 +55,7 @@ public final class QIOFrequencyStorageAccess implements IQIOFrequencyStorageAcce
     @Nullable
     private QIOFrequency resolve(QIOFrequencyReference reference) {
         FrequencyManager<QIOFrequency> manager = FrequencyType.QIO.getManager(
-              reference.getOwnerUUID(), reference.getSecurityMode());
+                reference.getOwnerUUID(), reference.getSecurityMode());
         if (manager == null) {
             return null;
         }
@@ -60,20 +64,20 @@ public final class QIOFrequencyStorageAccess implements IQIOFrequencyStorageAcce
     }
 
     private boolean isAccessible(QIOFrequencyReference reference, QIOFrequency frequency,
-          @Nullable UUID requester) {
+                                 @Nullable UUID requester) {
         return QIOStorageManager.isLoaded() && matches(reference, frequency) &&
-              resolve(reference) == frequency &&
-              SecurityUtils.canAccess(frequency.getSecurity(),
-                    reference.getBindingPlayerUUID(), frequency.getOwner()) &&
-              SecurityUtils.canAccess(frequency.getSecurity(), requester, frequency.getOwner());
+                resolve(reference) == frequency &&
+                SecurityUtils.canAccess(frequency.getSecurity(),
+                        reference.getBindingPlayerUUID(), frequency.getOwner()) &&
+                SecurityUtils.canAccess(frequency.getSecurity(), requester, frequency.getOwner());
     }
 
     private static boolean matches(QIOFrequencyReference reference,
-          @Nullable QIOFrequency frequency) {
+                                   @Nullable QIOFrequency frequency) {
         return frequency != null && frequency.isValid() && !frequency.isRemoved() &&
-              reference.getFrequencyUUID().equals(frequency.getFrequencyUUID()) &&
-              reference.getFrequencyName().equals(frequency.getName()) &&
-              Objects.equals(reference.getOwnerUUID(), frequency.getOwner()) &&
-              reference.getSecurityMode() == frequency.getSecurity();
+                reference.getFrequencyUUID().equals(frequency.getFrequencyUUID()) &&
+                reference.getFrequencyName().equals(frequency.getName()) &&
+                Objects.equals(reference.getOwnerUUID(), frequency.getOwner()) &&
+                reference.getSecurityMode() == frequency.getSecurity();
     }
 }

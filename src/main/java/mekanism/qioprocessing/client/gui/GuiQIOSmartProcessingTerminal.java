@@ -1,16 +1,18 @@
 package mekanism.qioprocessing.client.gui;
 
 import mekanism.client.gui.element.tab.GuiSecurityTab;
+import mekanism.client.gui.element.window.GuiWindow;
 import mekanism.client.gui.qio.GuiQIOViewerScreen;
 import mekanism.common.content.qio.QIOFrequency;
 import mekanism.qioprocessing.common.inventory.container.ContainerQIOSmartProcessingTerminal;
 import mekanism.qioprocessing.common.tile.TileEntityQIOSmartProcessingTerminal;
-import mekanism.client.gui.element.window.GuiWindow;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
-/** QIO viewer screen with three persistent manual crafting windows. */
+/**
+ * QIO viewer screen with three persistent manual crafting windows.
+ */
 @SideOnly(Side.CLIENT)
 /**
  * QIO 处理模块中的 GuiQIOSmartProcessingTerminal 类型。
@@ -19,13 +21,14 @@ import net.minecraftforge.fml.relauncher.SideOnly;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class GuiQIOSmartProcessingTerminal extends
-      GuiQIOViewerScreen<ContainerQIOSmartProcessingTerminal> {
+        GuiQIOViewerScreen<ContainerQIOSmartProcessingTerminal> {
 
     private final TileEntityQIOSmartProcessingTerminal tile;
     private final ContainerQIOSmartProcessingTerminal container;
     private GuiQIOSmartProcessingOrderTab orderTab;
+
     public GuiQIOSmartProcessingTerminal(InventoryPlayer inventory,
-          TileEntityQIOSmartProcessingTerminal tile) {
+                                         TileEntityQIOSmartProcessingTerminal tile) {
         super(new ContainerQIOSmartProcessingTerminal(inventory, tile));
         this.tile = tile;
         container = (ContainerQIOSmartProcessingTerminal) inventorySlots;
@@ -41,9 +44,9 @@ public final class GuiQIOSmartProcessingTerminal extends
     protected void addGuiElements() {
         super.addGuiElements();
         frequencyTab = addButton(new GuiQIOProcessingTerminalFrequencyTab(this,
-              container, () -> frequencyTab));
+                container, () -> frequencyTab));
         orderTab = addButton(new GuiQIOSmartProcessingOrderTab(this,
-              () -> orderTab, () -> container));
+                () -> orderTab, () -> container));
         addButton(new GuiSecurityTab<>(this, tile));
     }
 
@@ -59,7 +62,7 @@ public final class GuiQIOSmartProcessingTerminal extends
 
     @Override
     protected GuiQIOViewerScreen<ContainerQIOSmartProcessingTerminal> recreate(
-          ContainerQIOSmartProcessingTerminal container) {
+            ContainerQIOSmartProcessingTerminal container) {
         return new GuiQIOSmartProcessingTerminal(container);
     }
 

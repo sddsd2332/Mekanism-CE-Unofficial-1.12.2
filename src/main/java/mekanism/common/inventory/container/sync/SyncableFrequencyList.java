@@ -14,7 +14,7 @@ import java.util.function.Supplier;
 public class SyncableFrequencyList<FREQ extends Frequency> implements ISyncableData {
 
     public static <FREQ extends Frequency> SyncableFrequencyList<FREQ> create(FrequencyType<FREQ> type, Supplier<? extends Collection<FREQ>> getter,
-          Consumer<List<FREQ>> setter) {
+                                                                              Consumer<List<FREQ>> setter) {
         return new SyncableFrequencyList<>(type, getter, setter);
     }
 

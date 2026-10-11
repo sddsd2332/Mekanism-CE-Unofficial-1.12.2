@@ -9,8 +9,6 @@ import mekanism.client.MekKeyHandler;
 import mekanism.client.MekanismClient;
 import mekanism.client.MekanismKeyHandler;
 import mekanism.common.Mekanism;
-import mekanism.common.base.ISideConfiguration;
-import mekanism.common.base.ISustainedInventory;
 import mekanism.common.base.ITierItem;
 import mekanism.common.capabilities.ItemCapabilityWrapper;
 import mekanism.common.capabilities.energy.item.RateLimitEnergyHandler;
@@ -20,11 +18,10 @@ import mekanism.common.integration.forgeenergy.ForgeEnergyItemWrapper;
 import mekanism.common.integration.ic2.IC2ItemManager;
 import mekanism.common.integration.redstoneflux.RFIntegration;
 import mekanism.common.integration.tesla.TeslaItemWrapper;
-import mekanism.common.item.interfaces.IItemSustainedInventory;
 import mekanism.common.item.interfaces.IItemBlockPlacementData;
+import mekanism.common.item.interfaces.IItemSustainedInventory;
 import mekanism.common.item.interfaces.ILegacyEnergizedItem;
 import mekanism.common.security.ISecurityItem;
-import mekanism.common.security.ISecurityTile;
 import mekanism.common.security.ISecurityTile.SecurityMode;
 import mekanism.common.tier.BaseTier;
 import mekanism.common.tier.EnergyCubeTier;
@@ -32,18 +29,15 @@ import mekanism.common.tile.TileEntityEnergyCube;
 import mekanism.common.tile.component.config.DataType;
 import mekanism.common.util.*;
 import net.minecraft.block.Block;
-import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.settings.GameSettings;
 import net.minecraft.client.util.ITooltipFlag;
-import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.world.World;
@@ -63,7 +57,7 @@ import java.util.UUID;
         @Interface(iface = "ic2.api.item.ISpecialElectricItem", modid = MekanismHooks.IC2_MOD_ID)
 })
 public class ItemBlockEnergyCube extends ItemBlock implements ILegacyEnergizedItem, ISpecialElectricItem, IItemSustainedInventory, IEnergyContainerItem, ISecurityItem,
-      ITierItem, IItemBlockPlacementData {
+        ITierItem, IItemBlockPlacementData {
 
     public Block metaBlock;
 
@@ -115,7 +109,7 @@ public class ItemBlockEnergyCube extends ItemBlock implements ILegacyEnergizedIt
 
     @Override
     public void restorePlacementData(@Nonnull ItemStack stack, @Nonnull EntityLivingBase placer, @Nonnull World world, @Nonnull BlockPos pos,
-          @Nonnull TileEntity tileEntity) {
+                                     @Nonnull TileEntity tileEntity) {
         if (!(tileEntity instanceof TileEntityEnergyCube energyCube)) {
             return;
         }
@@ -327,6 +321,6 @@ public class ItemBlockEnergyCube extends ItemBlock implements ILegacyEnergizedIt
     @Override
     public ICapabilityProvider initCapabilities(ItemStack stack, NBTTagCompound nbt) {
         return new ItemCapabilityWrapper(stack, new TeslaItemWrapper(), new ForgeEnergyItemWrapper(),
-              RateLimitEnergyHandler.create(() -> EnergyCubeTier.values()[getBaseTier(stack).ordinal()]));
+                RateLimitEnergyHandler.create(() -> EnergyCubeTier.values()[getBaseTier(stack).ordinal()]));
     }
 }

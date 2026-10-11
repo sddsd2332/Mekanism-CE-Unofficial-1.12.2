@@ -8,8 +8,8 @@ import mekanism.client.gui.element.window.GuiWindow;
 import mekanism.common.inventory.container.SelectedWindowData;
 import mekanism.qioprocessing.api.resource.PortableResourceDescriptor;
 import mekanism.qioprocessing.common.content.maintenance.QIOMaintenanceRule;
-import mekanism.qioprocessing.common.inventory.container.QIOProcessingTerminalContainerState;
 import mekanism.qioprocessing.common.inventory.container.QIOMaintenanceResourcePageContainer;
+import mekanism.qioprocessing.common.inventory.container.QIOProcessingTerminalContainerState;
 import mekanism.qioprocessing.common.inventory.container.QIOSmartProcessingClientCache;
 import mekanism.qioprocessing.common.network.PacketQIOMaintenanceResourcePageRequest;
 import mekanism.qioprocessing.common.network.QIOProcessingPacketHandler;
@@ -18,13 +18,12 @@ import mekanism.qioprocessing.common.terminal.QIOSmartProcessingResourceFilter;
 import net.minecraft.util.text.TextComponentTranslation;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
-/** Resource picker and compact target/batch editor for one maintenance rule. */
+/**
+ * Resource picker and compact target/batch editor for one maintenance rule.
+ */
+
 /**
  * QIO 处理模块中的 GuiQIOMaintenanceRuleWindow 类型。
  *
@@ -52,11 +51,15 @@ final class GuiQIOMaintenanceRuleWindow extends GuiWindow {
     private final List<GuiQIOSmartProcessingFilterTab> filterTabs = new ArrayList<>();
     private final SessionKey openedSession;
     private QIOSmartProcessingResourceFilter selectedFilter =
-          QIOSmartProcessingResourceFilter.ALL;
-    @Nullable private QIOSmartProcessingResourceEntry selected;
-    @Nullable private QIOMaintenanceRule editingRule;
-    @Nullable private Pending pending;
-    @Nullable private UUID requestId;
+            QIOSmartProcessingResourceFilter.ALL;
+    @Nullable
+    private QIOSmartProcessingResourceEntry selected;
+    @Nullable
+    private QIOMaintenanceRule editingRule;
+    @Nullable
+    private Pending pending;
+    @Nullable
+    private UUID requestId;
     private long clientTick;
     private long searchEditedAt = Long.MIN_VALUE;
     private long lastCatalogRequestTick = Long.MIN_VALUE;
@@ -64,10 +67,10 @@ final class GuiQIOMaintenanceRuleWindow extends GuiWindow {
     private boolean closed;
 
     GuiQIOMaintenanceRuleWindow(IGuiWrapper gui, int x, int y,
-          GuiQIOMaintenanceRulesPanel owner, QIOMaintenanceResourcePageContainer container,
-          @Nullable QIOMaintenanceRule initialRule,
-          @Nullable PortableResourceDescriptor initialResource,
-          SelectedWindowData windowData) {
+                                GuiQIOMaintenanceRulesPanel owner, QIOMaintenanceResourcePageContainer container,
+                                @Nullable QIOMaintenanceRule initialRule,
+                                @Nullable PortableResourceDescriptor initialResource,
+                                SelectedWindowData windowData) {
         super(gui, x, y, 220, 190, windowData);
         this.owner = Objects.requireNonNull(owner, "owner");
         this.container = Objects.requireNonNull(container, "container");
@@ -76,45 +79,45 @@ final class GuiQIOMaintenanceRuleWindow extends GuiWindow {
         interactionStrategy = InteractionStrategy.ALL;
 
         searchField = addChild(new GuiTextField(gui, this, relativeX + 7, relativeY + 18,
-              206, 12).setMaxLength(64).setBackground(BackgroundType.ELEMENT_HOLDER)
-              .setResponder(ignored -> {
-                  searchDirty = true;
-                  searchEditedAt = clientTick;
-              }));
+                206, 12).setMaxLength(64).setBackground(BackgroundType.ELEMENT_HOLDER)
+                .setResponder(ignored -> {
+                    searchDirty = true;
+                    searchEditedAt = clientTick;
+                }));
         grid = addChild(new GuiQIOSmartProcessingResourceGrid(gui, relativeX + 2,
-              relativeY + 33, COLUMNS, ROWS, container::getMaintenanceResourceClientCache,
-              this::selectedResource, this::selectResource).rotatingSelection());
+                relativeY + 33, COLUMNS, ROWS, container::getMaintenanceResourceClientCache,
+                this::selectedResource, this::selectResource).rotatingSelection());
         targetField = addChild(numberField(gui, relativeX + 64, relativeY + 127));
         batchField = addChild(numberField(gui, relativeX + 64, relativeY + 145));
         confirmButton = addChild(new MekanismButton(gui, relativeX + 121, relativeY + 127,
-              92, 32, new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.maintenance_confirm"), this::confirm, null));
+                92, 32, new TextComponentTranslation(
+                "gui.mekanismqioprocessing.maintenance_confirm"), this::confirm, null));
         deleteButton = addChild(new MekanismButton(gui, relativeX + 7, relativeY + 163,
-              206, 14, new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.rule_delete"), this::delete, null));
+                206, 14, new TextComponentTranslation(
+                "gui.mekanismqioprocessing.rule_delete"), this::delete, null));
 
         QIOSmartProcessingResourceFilter[] filters = QIOSmartProcessingResourceFilter.values();
         for (int index = 0; index < filters.length; index++) {
             QIOSmartProcessingResourceFilter filter = filters[index];
             filterTabs.add(addChild(new GuiQIOSmartProcessingFilterTab(gui, filter,
-                  relativeX - 26, relativeY + 20 + index * 28,
-                  () -> selectFilter(filter))));
+                    relativeX - 26, relativeY + 20 + index * 28,
+                    () -> selectFilter(filter))));
         }
         updateFilterTabs();
         targetField.setTextSilently(initialRule == null ? "1" :
-              Long.toString(initialRule.getTargetAmount()));
+                Long.toString(initialRule.getTargetAmount()));
         batchField.setTextSilently(initialRule == null ? "1" :
-              Long.toString(initialRule.getMaximumSingleRequest()));
+                Long.toString(initialRule.getMaximumSingleRequest()));
         if (openedSession != null) {
             QIOSmartProcessingClientCache cache = cache();
             cache.beginSession(openedSession.nonce);
             sendPage(0);
         }
         PortableResourceDescriptor openedResource = initialRule == null ? initialResource :
-              initialRule.getResource();
+                initialRule.getResource();
         if (openedResource != null) {
             selected = new QIOSmartProcessingResourceEntry(openedResource, 0, 0,
-                  0, 0, true, false);
+                    0, 0, true, false);
         }
         editingRule = initialRule;
         updateButtons();
@@ -159,20 +162,20 @@ final class GuiQIOMaintenanceRuleWindow extends GuiWindow {
     public void renderForeground(int mouseX, int mouseY) {
         super.renderForeground(mouseX, mouseY);
         drawTitleText(new TextComponentTranslation(
-              "gui.mekanismqioprocessing.maintenance_rule_title"), 5);
+                "gui.mekanismqioprocessing.maintenance_rule_title"), 5);
         drawScaledScrollingString(new TextComponentTranslation(
-              "gui.mekanismqioprocessing.maintenance_target"), 8, 130,
-              mekanism.client.render.IFancyFontRenderer.TextAlignment.LEFT, 0x404040, 52, 1,
-              false, 1F, getTimeOpened());
+                        "gui.mekanismqioprocessing.maintenance_target"), 8, 130,
+                mekanism.client.render.IFancyFontRenderer.TextAlignment.LEFT, 0x404040, 52, 1,
+                false, 1F, getTimeOpened());
         drawScaledScrollingString(new TextComponentTranslation(
-              "gui.mekanismqioprocessing.maintenance_batch"), 8, 148,
-              mekanism.client.render.IFancyFontRenderer.TextAlignment.LEFT, 0x404040, 52, 1,
-              false, 1F, getTimeOpened());
+                        "gui.mekanismqioprocessing.maintenance_batch"), 8, 148,
+                mekanism.client.render.IFancyFontRenderer.TextAlignment.LEFT, 0x404040, 52, 1,
+                false, 1F, getTimeOpened());
         if (searchField.isEmpty() && !searchField.isFocused()) {
             drawScaledScrollingString(new TextComponentTranslation(
-                  "gui.mekanismqioprocessing.config_search"), 9, 21,
-                  mekanism.client.render.IFancyFontRenderer.TextAlignment.LEFT, 0x707070, 200, 0,
-                  false, 0.72F, getTimeOpened());
+                            "gui.mekanismqioprocessing.config_search"), 9, 21,
+                    mekanism.client.render.IFancyFontRenderer.TextAlignment.LEFT, 0x707070, 200, 0,
+                    false, 0.72F, getTimeOpened());
         }
     }
 
@@ -187,7 +190,7 @@ final class GuiQIOMaintenanceRuleWindow extends GuiWindow {
 
     private GuiTextField numberField(IGuiWrapper gui, int x, int y) {
         return new GuiTextField(gui, x, y, 52, 14).setMaxLength(19)
-              .setInputValidator(Character::isDigit);
+                .setInputValidator(Character::isDigit);
     }
 
     private QIOSmartProcessingClientCache cache() {
@@ -202,10 +205,10 @@ final class GuiQIOMaintenanceRuleWindow extends GuiWindow {
             return;
         }
         QIOProcessingPacketHandler.INSTANCE.sendToServer(
-              PacketQIOMaintenanceResourcePageRequest.Message.create(
-                    container.getTerminalWindowId(), state, requestId,
-                    selectedFilter, normalizedSearch(), offset, PAGE_SIZE,
-                    cache().getSourceRevision()));
+                PacketQIOMaintenanceResourcePageRequest.Message.create(
+                        container.getTerminalWindowId(), state, requestId,
+                        selectedFilter, normalizedSearch(), offset, PAGE_SIZE,
+                        cache().getSourceRevision()));
         pending = new Pending(cache().getPageGeneration(), clientTick);
         lastCatalogRequestTick = clientTick;
     }
@@ -303,10 +306,10 @@ final class GuiQIOMaintenanceRuleWindow extends GuiWindow {
 
     private void updateButtons() {
         confirmButton.active = selected != null && state.isValid() &&
-              state.getFrequencyUUID() != null && positive(targetField) && positive(batchField);
+                state.getFrequencyUUID() != null && positive(targetField) && positive(batchField);
         deleteButton.visible = editingRule != null;
         deleteButton.active = editingRule != null && state.isValid() &&
-              state.getFrequencyUUID() != null;
+                state.getFrequencyUUID() != null;
     }
 
     private static boolean positive(GuiTextField field) {
@@ -335,7 +338,7 @@ final class GuiQIOMaintenanceRuleWindow extends GuiWindow {
         private final long accessRevision;
 
         private SessionKey(UUID nonce, UUID terminalUUID, long targetRevision, UUID frequency,
-              long accessRevision) {
+                           long accessRevision) {
             this.nonce = nonce;
             this.terminalUUID = terminalUUID;
             this.targetRevision = targetRevision;
@@ -346,15 +349,15 @@ final class GuiQIOMaintenanceRuleWindow extends GuiWindow {
         @Nullable
         private static SessionKey capture(QIOProcessingTerminalContainerState state) {
             return state.isValid() ? new SessionKey(state.getSessionNonce(), state.getTerminalUUID(),
-                  state.getTargetRevision(), state.getFrequencyUUID(), state.getAccessRevision()) : null;
+                    state.getTargetRevision(), state.getFrequencyUUID(), state.getAccessRevision()) : null;
         }
 
         @Override
         public boolean equals(Object obj) {
             if (!(obj instanceof SessionKey other)) return false;
             return targetRevision == other.targetRevision && accessRevision == other.accessRevision &&
-                  Objects.equals(nonce, other.nonce) && Objects.equals(terminalUUID, other.terminalUUID) &&
-                  Objects.equals(frequency, other.frequency);
+                    Objects.equals(nonce, other.nonce) && Objects.equals(terminalUUID, other.terminalUUID) &&
+                    Objects.equals(frequency, other.frequency);
         }
 
         @Override

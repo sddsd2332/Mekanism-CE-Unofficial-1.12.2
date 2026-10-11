@@ -11,7 +11,6 @@ import mekanism.common.inventory.slot.EnergyInventorySlot;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
-import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
@@ -96,7 +95,7 @@ public class TileEntityWindGenerator extends TileEntityGenerator implements IBou
         return energySlot.isEmpty() && (isBlacklistDimension || !getActive() || getEnergyContainer().getNeeded() <= 0);
     }
 
-    public double getEnergyAdd(){
+    public double getEnergyAdd() {
         return MekanismConfig.current().generators.windGenerationMin.val() * currentMultiplier;
     }
 
@@ -192,7 +191,7 @@ public class TileEntityWindGenerator extends TileEntityGenerator implements IBou
 
     public static AxisAlignedBB getRenderBoundingBox(BlockPos pos) {
         return new AxisAlignedBB(pos.getX() - RENDER_HORIZONTAL_RADIUS, pos.getY(), pos.getZ() - RENDER_HORIZONTAL_RADIUS,
-              pos.getX() + RENDER_HORIZONTAL_RADIUS + 1D, pos.getY() + RENDER_HEIGHT, pos.getZ() + RENDER_HORIZONTAL_RADIUS + 1D);
+                pos.getX() + RENDER_HORIZONTAL_RADIUS + 1D, pos.getY() + RENDER_HEIGHT, pos.getZ() + RENDER_HORIZONTAL_RADIUS + 1D);
     }
 
     @Override
@@ -239,7 +238,8 @@ public class TileEntityWindGenerator extends TileEntityGenerator implements IBou
     public boolean isBlacklistDimension() {
         return isBlacklistDimension;
     }
-@Override
+
+    @Override
     @SideOnly(Side.CLIENT)
     public Class<?> getSelectionWireframeModelClass() {
         return mekanism.generators.client.model.ModelWindGenerator.class;

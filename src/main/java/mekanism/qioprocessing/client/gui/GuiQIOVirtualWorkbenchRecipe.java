@@ -15,7 +15,10 @@ import java.util.Objects;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 
-/** Read-only 3x3 workbench pattern, progress arrow and large primary output. */
+/**
+ * Read-only 3x3 workbench pattern, progress arrow and large primary output.
+ */
+
 /**
  * QIO 处理模块中的 GuiQIOVirtualWorkbenchRecipe 类型。
  *
@@ -42,14 +45,14 @@ final class GuiQIOVirtualWorkbenchRecipe extends GuiElement implements IJEIIngre
     private final boolean compact;
 
     GuiQIOVirtualWorkbenchRecipe(IGuiWrapper gui, int x, int y,
-          Supplier<QIOProcessorDisplaySnapshot.Lane> laneSupplier,
-          DoubleSupplier progressSupplier) {
+                                 Supplier<QIOProcessorDisplaySnapshot.Lane> laneSupplier,
+                                 DoubleSupplier progressSupplier) {
         this(gui, x, y, laneSupplier, progressSupplier, false);
     }
 
     GuiQIOVirtualWorkbenchRecipe(IGuiWrapper gui, int x, int y,
-          Supplier<QIOProcessorDisplaySnapshot.Lane> laneSupplier,
-          DoubleSupplier progressSupplier, boolean compact) {
+                                 Supplier<QIOProcessorDisplaySnapshot.Lane> laneSupplier,
+                                 DoubleSupplier progressSupplier, boolean compact) {
         super(gui, x, y, compact ? COMPACT_WIDTH : WIDTH, HEIGHT);
         this.laneSupplier = Objects.requireNonNull(laneSupplier, "laneSupplier");
         Objects.requireNonNull(progressSupplier, "progressSupplier");
@@ -58,15 +61,15 @@ final class GuiQIOVirtualWorkbenchRecipe extends GuiElement implements IJEIIngre
             final int index = slot;
             int gridX = compact ? COMPACT_GRID_X : NORMAL_GRID_X;
             addChild(displaySlot(gui, relativeX + gridX + slot % 3 * 18,
-                  relativeY + slot / 3 * 18, () -> gridStack(index)));
+                    relativeY + slot / 3 * 18, () -> gridStack(index)));
         }
         addChild(new GuiProgress(progressSupplier::getAsDouble, ProgressType.RIGHT,
-              gui, relativeX + (compact ? COMPACT_PROGRESS_X : NORMAL_PROGRESS_X), relativeY + PROGRESS_Y)
-              .recipeViewerCrafting());
+                gui, relativeX + (compact ? COMPACT_PROGRESS_X : NORMAL_PROGRESS_X), relativeY + PROGRESS_Y)
+                .recipeViewerCrafting());
         int outputX = compact ? COMPACT_OUTPUT_X : OUTPUT_X;
         int outputY = compact ? COMPACT_OUTPUT_Y : OUTPUT_Y;
         addChild(new GuiSlot(SlotType.OUTPUT, gui, relativeX + outputX,
-              relativeY + outputY) {
+                relativeY + outputY) {
             @Override
             protected void drawContents() {
                 ItemStack output = outputStack();
@@ -108,7 +111,7 @@ final class GuiQIOVirtualWorkbenchRecipe extends GuiElement implements IJEIIngre
         int outputX = compact ? COMPACT_OUTPUT_X : OUTPUT_X;
         int outputY = compact ? COMPACT_OUTPUT_Y : OUTPUT_Y;
         if (localX >= outputX && localX < outputX + outputWidth &&
-              localY >= outputY && localY < outputY + outputHeight) {
+                localY >= outputY && localY < outputY + outputHeight) {
             ItemStack output = outputStack();
             return output.isEmpty() ? null : output;
         }
@@ -116,7 +119,7 @@ final class GuiQIOVirtualWorkbenchRecipe extends GuiElement implements IJEIIngre
     }
 
     private GuiSlot displaySlot(IGuiWrapper gui, int x, int y,
-          Supplier<ItemStack> stackSupplier) {
+                                Supplier<ItemStack> stackSupplier) {
         return new GuiSlot(SlotType.NORMAL, gui, x, y) {
             @Override
             public void renderToolTip(int mouseX, int mouseY) {

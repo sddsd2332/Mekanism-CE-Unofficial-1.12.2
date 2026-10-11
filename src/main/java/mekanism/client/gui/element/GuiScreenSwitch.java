@@ -19,7 +19,7 @@ public class GuiScreenSwitch extends GuiInnerScreen {
     private final GuiElement.IClickable onToggle;
 
     public GuiScreenSwitch(IGuiWrapper gui, int x, int y, int width, ITextComponent buttonName, BooleanSupplier stateSupplier,
-          GuiElement.IClickable onToggle) {
+                           GuiElement.IClickable onToggle) {
         super(gui, x, y, width, BUTTON_SIZE_Y * 2 + 6, () -> Collections.singletonList(buttonName));
         this.stateSupplier = stateSupplier;
         this.onToggle = onToggle;
@@ -35,9 +35,9 @@ public class GuiScreenSwitch extends GuiInnerScreen {
         int buttonXOffset = width - 2 - BUTTON_SIZE_X;
         MekanismRenderer.bindTexture(GuiDigitalSwitch.SWITCH);
         GuiUtils.blit(relativeX + buttonXOffset, relativeY + 2, 0, stateSupplier.getAsBoolean() ? 0 : BUTTON_SIZE_Y, BUTTON_SIZE_X, BUTTON_SIZE_Y,
-              BUTTON_SIZE_X, BUTTON_SIZE_Y * 2);
+                BUTTON_SIZE_X, BUTTON_SIZE_Y * 2);
         GuiUtils.blit(relativeX + buttonXOffset, relativeY + 2 + BUTTON_SIZE_Y + 1, 0, stateSupplier.getAsBoolean() ? BUTTON_SIZE_Y : 0, BUTTON_SIZE_X,
-              BUTTON_SIZE_Y, BUTTON_SIZE_X, BUTTON_SIZE_Y * 2);
+                BUTTON_SIZE_Y, BUTTON_SIZE_X, BUTTON_SIZE_Y * 2);
     }
 
     @Override
@@ -45,9 +45,9 @@ public class GuiScreenSwitch extends GuiInnerScreen {
         super.renderForeground(mouseX, mouseY);
         int buttonXOffset = width - 2 - BUTTON_SIZE_X;
         drawScaledScrollingString(MekanismLang.ON.translate(), buttonXOffset, 2, TextAlignment.CENTER, 0x101010, BUTTON_SIZE_X, 1, false, 0.5F,
-              GuiElement.getMillis());
+                GuiElement.getMillis());
         drawScaledScrollingString(MekanismLang.OFF.translate(), buttonXOffset, 11, TextAlignment.CENTER, 0x101010, BUTTON_SIZE_X, 1, false, 0.5F,
-              GuiElement.getMillis());
+                GuiElement.getMillis());
     }
 
     @Override

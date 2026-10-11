@@ -203,7 +203,7 @@ public class GasInventorySlot extends GasHandlerInventorySlot {
         IGasItem gasItem = getLegacyGasItem(stack);
         GasStack stored = getLegacyGas(gasItem, stack);
         if (gasItem != null && gasItem.canReceiveGas(stack, gasStack.getGas()) &&
-            (stored == null || stored.amount != getLegacyMaxGas(gasItem, stack))) {
+                (stored == null || stored.amount != getLegacyMaxGas(gasItem, stack))) {
             ItemStack target = doTransfer ? stack : stack.getCount() > 1 ? StackUtils.size(stack, 1) : stack.copy();
             return gasItem.addGas(target, gasStack.copy());
         }
@@ -446,7 +446,7 @@ public class GasInventorySlot extends GasHandlerInventorySlot {
         Objects.requireNonNull(gasTank, "Gas tank cannot be null");
         Objects.requireNonNull(modeSupplier, "Mode supplier cannot be null");
         return new GasInventorySlot(gasTank, getFillExtractPredicate(gasTank, GasInventorySlot::getCapability),
-              stack -> !modeSupplier.getAsBoolean() && fillInsertCheck(gasTank, stack, GasInventorySlot::getCapability), GAS_ITEM_VALIDATOR, listener, x, y);
+                stack -> !modeSupplier.getAsBoolean() && fillInsertCheck(gasTank, stack, GasInventorySlot::getCapability), GAS_ITEM_VALIDATOR, listener, x, y);
     }
 
     /**
@@ -455,7 +455,7 @@ public class GasInventorySlot extends GasHandlerInventorySlot {
     public static GasInventorySlot fill(IExtendedGasTank gasTank, @Nullable IContentsListener listener, int x, int y) {
         Objects.requireNonNull(gasTank, "Gas tank cannot be null");
         return new GasInventorySlot(gasTank, getFillExtractPredicate(gasTank, GasInventorySlot::getCapability),
-              stack -> fillInsertCheck(gasTank, stack, GasInventorySlot::getCapability), GAS_ITEM_VALIDATOR, listener, x, y);
+                stack -> fillInsertCheck(gasTank, stack, GasInventorySlot::getCapability), GAS_ITEM_VALIDATOR, listener, x, y);
     }
 
     public static boolean fillExtractCheck(IExtendedGasTank gasTank, ItemStack stack) {
@@ -714,8 +714,8 @@ public class GasInventorySlot extends GasHandlerInventorySlot {
         Objects.requireNonNull(gasTank, "Gas tank cannot be null");
         Objects.requireNonNull(worldSupplier, "World supplier cannot be null");
         return new GasInventorySlot(gasTank, worldSupplier, getFillOrConvertExtractPredicate(gasTank, GasInventorySlot::getCapability, worldSupplier),
-              getFillOrConvertInsertPredicate(gasTank, GasInventorySlot::getCapability, worldSupplier),
-              getFillOrConvertValidator(gasTank, worldSupplier), listener, x, y);
+                getFillOrConvertInsertPredicate(gasTank, GasInventorySlot::getCapability, worldSupplier),
+                getFillOrConvertValidator(gasTank, worldSupplier), listener, x, y);
     }
 
     @Override
@@ -870,7 +870,7 @@ public class GasInventorySlot extends GasHandlerInventorySlot {
     }
 
     private static boolean transferSingleItemGasToTankAndMove(IInventorySlot slot, IInventorySlot outputSlot, ItemStack stack,
-          @Nullable IGasHandler gasHandler, IExtendedGasTank gasTank) {
+                                                              @Nullable IGasHandler gasHandler, IExtendedGasTank gasTank) {
         int tanks = getTankCount(stack, gasHandler);
         for (int tank = 0; tank < tanks; tank++) {
             GasStack gasStack = getGasInTank(stack, gasHandler, tank);
@@ -905,7 +905,7 @@ public class GasInventorySlot extends GasHandlerInventorySlot {
     }
 
     private static boolean fillSingleItemFromGasTankAndMove(IInventorySlot slot, IInventorySlot outputSlot, ItemStack stack,
-          @Nullable IGasHandler gasHandler, IExtendedGasTank gasTank) {
+                                                            @Nullable IGasHandler gasHandler, IExtendedGasTank gasTank) {
         GasStack storedGas = gasTank.getGas();
         if (storedGas == null) {
             return false;
@@ -1004,22 +1004,22 @@ public class GasInventorySlot extends GasHandlerInventorySlot {
     }
 
     protected GasInventorySlot(IExtendedGasTank gasTank, Predicate<ItemStack> canExtract, Predicate<ItemStack> canInsert,
-          @Nullable IContentsListener listener, int x, int y) {
+                               @Nullable IContentsListener listener, int x, int y) {
         this(gasTank, canExtract, canInsert, GAS_ITEM_VALIDATOR, listener, x, y);
     }
 
     protected GasInventorySlot(IExtendedGasTank gasTank, Predicate<ItemStack> canExtract, Predicate<ItemStack> canInsert,
-          Predicate<ItemStack> validator, @Nullable IContentsListener listener, int x, int y) {
+                               Predicate<ItemStack> validator, @Nullable IContentsListener listener, int x, int y) {
         super(gasTank, canExtract, canInsert, validator, listener, x, y);
     }
 
     protected GasInventorySlot(IExtendedGasTank gasTank, Supplier<?> worldSupplier, Predicate<ItemStack> canExtract,
-          Predicate<ItemStack> canInsert, @Nullable IContentsListener listener, int x, int y) {
+                               Predicate<ItemStack> canInsert, @Nullable IContentsListener listener, int x, int y) {
         this(gasTank, worldSupplier, canExtract, canInsert, GAS_ITEM_VALIDATOR, listener, x, y);
     }
 
     protected GasInventorySlot(IExtendedGasTank gasTank, Supplier<?> worldSupplier, Predicate<ItemStack> canExtract,
-          Predicate<ItemStack> canInsert, Predicate<ItemStack> validator, @Nullable IContentsListener listener, int x, int y) {
+                               Predicate<ItemStack> canInsert, Predicate<ItemStack> validator, @Nullable IContentsListener listener, int x, int y) {
         super(gasTank, worldSupplier, canExtract, canInsert, validator, listener, x, y);
     }
 }

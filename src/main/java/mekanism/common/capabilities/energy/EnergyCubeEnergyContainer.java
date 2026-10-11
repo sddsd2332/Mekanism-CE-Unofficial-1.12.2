@@ -18,7 +18,7 @@ import java.util.function.Supplier;
 public class EnergyCubeEnergyContainer extends MachineEnergyContainer {
 
     public static EnergyCubeEnergyContainer create(Supplier<EnergyCubeTier> tier, DoubleSupplier stored, DoubleConsumer setter,
-          @Nullable IContentsListener listener) {
+                                                   @Nullable IContentsListener listener) {
         Objects.requireNonNull(tier, "Energy cube tier supplier cannot be null");
         Objects.requireNonNull(stored, "Stored energy supplier cannot be null");
         Objects.requireNonNull(setter, "Stored energy setter cannot be null");

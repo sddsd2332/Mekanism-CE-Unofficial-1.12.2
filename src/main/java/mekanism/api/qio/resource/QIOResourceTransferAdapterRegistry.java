@@ -4,14 +4,11 @@ import net.minecraft.util.ResourceLocation;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
-/** Registry of explicit adjacent-storage transfer adapters, keyed by codec id. */
+/**
+ * Registry of explicit adjacent-storage transfer adapters, keyed by codec id.
+ */
 public final class QIOResourceTransferAdapterRegistry {
 
     public static final QIOResourceTransferAdapterRegistry INSTANCE = new QIOResourceTransferAdapterRegistry();

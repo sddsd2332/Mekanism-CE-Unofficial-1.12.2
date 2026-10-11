@@ -32,7 +32,7 @@ public enum ToolsItem {
     GLOWSTONE_CHESTPLATE("GlowstoneChestplate", new ItemMekanismArmor(Materials.GLOWSTONE, 1, EntityEquipmentSlot.CHEST)),
     GLOWSTONE_LEGGINGS("GlowstoneLeggings", new ItemMekanismArmor(Materials.GLOWSTONE, 2, EntityEquipmentSlot.LEGS)),
     GLOWSTONE_BOOTS("GlowstoneBoots", new ItemMekanismArmor(Materials.GLOWSTONE, 3, EntityEquipmentSlot.FEET)),
-    GLOWSTONE_SHIELD("GlowstoneShield",new ItemMekanismShield(Materials.GLOWSTONE,MekanismConfig.current().tools.toolGLOWSTONE.maxShieldUses.val())),
+    GLOWSTONE_SHIELD("GlowstoneShield", new ItemMekanismShield(Materials.GLOWSTONE, MekanismConfig.current().tools.toolGLOWSTONE.maxShieldUses.val())),
 
     BRONZE_PICKAXE("BronzePickaxe", new ItemMekanismPickaxe(Materials.BRONZE)),
     BRONZE_AXE("BronzeAxe", new ItemMekanismAxe(Materials.BRONZE)),
@@ -44,7 +44,7 @@ public enum ToolsItem {
     BRONZE_CHESTPLATE("BronzeChestplate", new ItemMekanismArmor(Materials.BRONZE, 1, EntityEquipmentSlot.CHEST)),
     BRONZE_LEGGINGS("BronzeLeggings", new ItemMekanismArmor(Materials.BRONZE, 2, EntityEquipmentSlot.LEGS)),
     BRONZE_BOOTS("BronzeBoots", new ItemMekanismArmor(Materials.BRONZE, 3, EntityEquipmentSlot.FEET)),
-    BRONZE_SHIELD("BronzeShield",new ItemMekanismShield(Materials.BRONZE,MekanismConfig.current().tools.toolBRONZE.maxShieldUses.val())),
+    BRONZE_SHIELD("BronzeShield", new ItemMekanismShield(Materials.BRONZE, MekanismConfig.current().tools.toolBRONZE.maxShieldUses.val())),
 
     OSMIUM_PICKAXE("OsmiumPickaxe", new ItemMekanismPickaxe(Materials.OSMIUM)),
     OSMIUM_AXE("OsmiumAxe", new ItemMekanismAxe(Materials.OSMIUM)),
@@ -56,7 +56,7 @@ public enum ToolsItem {
     OSMIUM_CHESTPLATE("OsmiumChestplate", new ItemMekanismArmor(Materials.OSMIUM, 1, EntityEquipmentSlot.CHEST)),
     OSMIUM_LEGGINGS("OsmiumLeggings", new ItemMekanismArmor(Materials.OSMIUM, 2, EntityEquipmentSlot.LEGS)),
     OSMIUM_BOOTS("OsmiumBoots", new ItemMekanismArmor(Materials.OSMIUM, 3, EntityEquipmentSlot.FEET)),
-    OSMIUM_SHIELD("OsmiumShield",new ItemMekanismShield(Materials.OSMIUM,MekanismConfig.current().tools.toolOSMIUM.maxShieldUses.val())),
+    OSMIUM_SHIELD("OsmiumShield", new ItemMekanismShield(Materials.OSMIUM, MekanismConfig.current().tools.toolOSMIUM.maxShieldUses.val())),
 
     OBSIDIAN_PICKAXE("ObsidianPickaxe", new ItemMekanismPickaxe(Materials.OBSIDIAN)),
     OBSIDIAN_AXE("ObsidianAxe", new ItemMekanismAxe(Materials.OBSIDIAN)),
@@ -68,7 +68,7 @@ public enum ToolsItem {
     OBSIDIAN_CHESTPLATE("ObsidianChestplate", new ItemMekanismArmor(Materials.OBSIDIAN, 1, EntityEquipmentSlot.CHEST)),
     OBSIDIAN_LEGGINGS("ObsidianLeggings", new ItemMekanismArmor(Materials.OBSIDIAN, 2, EntityEquipmentSlot.LEGS)),
     OBSIDIAN_BOOTS("ObsidianBoots", new ItemMekanismArmor(Materials.OBSIDIAN, 3, EntityEquipmentSlot.FEET)),
-    OBSIDIAN_SHIELD("ObsidianShield",new ItemMekanismShield(Materials.OBSIDIAN,MekanismConfig.current().tools.toolOBSIDIAN.maxShieldUses.val())),
+    OBSIDIAN_SHIELD("ObsidianShield", new ItemMekanismShield(Materials.OBSIDIAN, MekanismConfig.current().tools.toolOBSIDIAN.maxShieldUses.val())),
 
     LAPIS_LAZULI_PICKAXE("LapisLazuliPickaxe", new ItemMekanismPickaxe(Materials.LAZULI)),
     LAPIS_LAZULI_AXE("LapisLazuliAxe", new ItemMekanismAxe(Materials.LAZULI)),
@@ -80,7 +80,7 @@ public enum ToolsItem {
     LAPIS_LAZULI_CHESTPLATE("LapisLazuliChestplate", new ItemMekanismArmor(Materials.LAZULI, 1, EntityEquipmentSlot.CHEST)),
     LAPIS_LAZULI_LEGGINGS("LapisLazuliLeggings", new ItemMekanismArmor(Materials.LAZULI, 2, EntityEquipmentSlot.LEGS)),
     LAPIS_LAZULI_BOOTS("LapisLazuliBoots", new ItemMekanismArmor(Materials.LAZULI, 3, EntityEquipmentSlot.FEET)),
-    LAPIS_SHIELD("LapisShield",new ItemMekanismShield(Materials.LAZULI,MekanismConfig.current().tools.toolLAZULI.maxShieldUses.val())),
+    LAPIS_SHIELD("LapisShield", new ItemMekanismShield(Materials.LAZULI, MekanismConfig.current().tools.toolLAZULI.maxShieldUses.val())),
 
     STEEL_PICKAXE("SteelPickaxe", new ItemMekanismPickaxe(Materials.STEEL)),
     STEEL_AXE("SteelAxe", new ItemMekanismAxe(Materials.STEEL)),
@@ -92,21 +92,21 @@ public enum ToolsItem {
     STEEL_CHESTPLATE("SteelChestplate", new ItemMekanismArmor(Materials.STEEL, 1, EntityEquipmentSlot.CHEST)),
     STEEL_LEGGINGS("SteelLeggings", new ItemMekanismArmor(Materials.STEEL, 2, EntityEquipmentSlot.LEGS)),
     STEEL_BOOTS("SteelBoots", new ItemMekanismArmor(Materials.STEEL, 3, EntityEquipmentSlot.FEET)),
-    STEEL_SHIELD("SteelShield",new ItemMekanismShield(Materials.STEEL,MekanismConfig.current().tools.toolSTEEL.maxShieldUses.val()));
+    STEEL_SHIELD("SteelShield", new ItemMekanismShield(Materials.STEEL, MekanismConfig.current().tools.toolSTEEL.maxShieldUses.val()));
 
     public static final List<ToolsItem> BRONZE_SET = Arrays.asList(BRONZE_PICKAXE, BRONZE_AXE, BRONZE_SHOVEL, BRONZE_HOE, BRONZE_SWORD, BRONZE_PAXEL, BRONZE_HELMET,
-            BRONZE_CHESTPLATE, BRONZE_LEGGINGS, BRONZE_BOOTS,BRONZE_SHIELD);
+            BRONZE_CHESTPLATE, BRONZE_LEGGINGS, BRONZE_BOOTS, BRONZE_SHIELD);
     public static final List<ToolsItem> OSMIUM_SET = Arrays.asList(OSMIUM_PICKAXE, OSMIUM_AXE, OSMIUM_SHOVEL, OSMIUM_HOE, OSMIUM_SWORD, OSMIUM_PAXEL, OSMIUM_HELMET,
-            OSMIUM_CHESTPLATE, OSMIUM_LEGGINGS, OSMIUM_BOOTS,OSMIUM_SHIELD);
+            OSMIUM_CHESTPLATE, OSMIUM_LEGGINGS, OSMIUM_BOOTS, OSMIUM_SHIELD);
     public static final List<ToolsItem> OBSIDIAN_SET = Arrays.asList(OBSIDIAN_PICKAXE, OBSIDIAN_AXE, OBSIDIAN_SHOVEL, OBSIDIAN_HOE, OBSIDIAN_SWORD, OBSIDIAN_PAXEL,
-            OBSIDIAN_HELMET, OBSIDIAN_CHESTPLATE, OBSIDIAN_LEGGINGS, OBSIDIAN_BOOTS,OBSIDIAN_SHIELD);
+            OBSIDIAN_HELMET, OBSIDIAN_CHESTPLATE, OBSIDIAN_LEGGINGS, OBSIDIAN_BOOTS, OBSIDIAN_SHIELD);
     public static final List<ToolsItem> GLOWSTONE_SET = Arrays.asList(GLOWSTONE_PICKAXE, GLOWSTONE_AXE, GLOWSTONE_SHOVEL, GLOWSTONE_HOE, GLOWSTONE_SWORD, GLOWSTONE_PAXEL,
-            GLOWSTONE_HELMET, GLOWSTONE_CHESTPLATE, GLOWSTONE_LEGGINGS, GLOWSTONE_BOOTS,GLOWSTONE_SHIELD);
+            GLOWSTONE_HELMET, GLOWSTONE_CHESTPLATE, GLOWSTONE_LEGGINGS, GLOWSTONE_BOOTS, GLOWSTONE_SHIELD);
     public static final List<ToolsItem> STEEL_SET = Arrays.asList(STEEL_PICKAXE, STEEL_AXE, STEEL_SHOVEL, STEEL_HOE, STEEL_SWORD, STEEL_PAXEL, STEEL_HELMET,
-            STEEL_CHESTPLATE, STEEL_LEGGINGS, STEEL_BOOTS,STEEL_SHIELD);
+            STEEL_CHESTPLATE, STEEL_LEGGINGS, STEEL_BOOTS, STEEL_SHIELD);
     //Unused but for consistency if something needs it
     public static final List<ToolsItem> LAPIS_LAZULI_SET = Arrays.asList(LAPIS_LAZULI_PICKAXE, LAPIS_LAZULI_AXE, LAPIS_LAZULI_SHOVEL, LAPIS_LAZULI_HOE, LAPIS_LAZULI_SWORD,
-            LAPIS_LAZULI_PAXEL, LAPIS_LAZULI_HELMET, LAPIS_LAZULI_CHESTPLATE, LAPIS_LAZULI_LEGGINGS, LAPIS_LAZULI_BOOTS,LAPIS_SHIELD);
+            LAPIS_LAZULI_PAXEL, LAPIS_LAZULI_HELMET, LAPIS_LAZULI_CHESTPLATE, LAPIS_LAZULI_LEGGINGS, LAPIS_LAZULI_BOOTS, LAPIS_SHIELD);
 
     @Nonnull
     private Item item;

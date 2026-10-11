@@ -62,7 +62,7 @@ public class ModuleLocomotiveBoostingUnit implements ICustomModule<ModuleLocomot
             if (player.isInWater()) {
                 boost /= 5F; // throttle if we're in the water
             }
-            moveRelative(player,boost, new Vec3d(0,0,1));
+            moveRelative(player, boost, new Vec3d(0, 0, 1));
             return true;
         }
         return false;
@@ -93,7 +93,7 @@ public class ModuleLocomotiveBoostingUnit implements ICustomModule<ModuleLocomot
 
         SprintBoost(float boost) {
             this.boost = boost;
-            this.label =  new TextComponentGroup().getString(Float.toString(boost));
+            this.label = new TextComponentGroup().getString(Float.toString(boost));
         }
 
         @Override

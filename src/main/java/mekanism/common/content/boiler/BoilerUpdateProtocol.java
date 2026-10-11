@@ -190,7 +190,7 @@ public class BoilerUpdateProtocol extends UpdateProtocol<SynchronizedBoilerData>
         structureFound.updateHeatCapacity();
         structureFound.clampStoredSubstancesToCapacity();
         boolean hot = HeatAPI.isFinite(structureFound.getTemperature()) &&
-              structureFound.getTemperature() >= SynchronizedBoilerData.BASE_BOIL_TEMP - 0.01F;
+                structureFound.getTemperature() >= SynchronizedBoilerData.BASE_BOIL_TEMP - 0.01F;
         structureFound.clientHot = hot;
         if (structureFound.inventoryID != null) {
             SynchronizedBoilerData.hotMap.put(structureFound.inventoryID, hot);

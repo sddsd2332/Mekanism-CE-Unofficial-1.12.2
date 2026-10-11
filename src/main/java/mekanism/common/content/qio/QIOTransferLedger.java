@@ -14,7 +14,9 @@ import java.util.function.BooleanSupplier;
 import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 
-/** Frequency-owned persistent receipts for cross-storage insertions. Called under the QIO frequency lock. */
+/**
+ * Frequency-owned persistent receipts for cross-storage insertions. Called under the QIO frequency lock.
+ */
 final class QIOTransferLedger {
 
     private static final String RECEIPTS = "qioTransferReceipts";
@@ -23,9 +25,9 @@ final class QIOTransferLedger {
 
     @Nonnull
     QIOTransferResult submitReconciled(@Nonnull UUID transferId, @Nonnull String digest,
-          long requestedAmount, @Nonnull QIOAmount expectedStored,
-          @Nonnull Supplier<QIOAmount> currentStored, @Nonnull LongUnaryOperator insertion,
-          @Nonnull BooleanSupplier persistence) {
+                                       long requestedAmount, @Nonnull QIOAmount expectedStored,
+                                       @Nonnull Supplier<QIOAmount> currentStored, @Nonnull LongUnaryOperator insertion,
+                                       @Nonnull BooleanSupplier persistence) {
         Objects.requireNonNull(transferId, "Transfer id cannot be null");
         Objects.requireNonNull(digest, "Transfer digest cannot be null");
         Objects.requireNonNull(expectedStored, "Expected stored amount cannot be null");
@@ -34,23 +36,23 @@ final class QIOTransferLedger {
         Objects.requireNonNull(persistence, "Persistence barrier cannot be null");
         if (requestedAmount <= 0 || digest.isEmpty()) {
             return new QIOTransferResult(transferId, QIOTransferResult.Status.INVALID_REQUEST,
-                  Math.max(1, requestedAmount), 0);
+                    Math.max(1, requestedAmount), 0);
         }
         Receipt existing = receipts.get(transferId);
         if (existing != null && !existing.digest.equals(digest)) {
             return new QIOTransferResult(transferId,
-                  QIOTransferResult.Status.TRANSFER_ID_CONFLICT, requestedAmount, 0);
+                    QIOTransferResult.Status.TRANSFER_ID_CONFLICT, requestedAmount, 0);
         }
         QIOAmount current = Objects.requireNonNull(currentStored.get(),
-              "Current stored amount cannot be null");
+                "Current stored amount cannot be null");
         long transferred = existing == null ? requestedAmount : existing.transferredAmount;
         QIOAmount target = expectedStored.add(transferred);
         boolean atBaseline = current.equals(expectedStored);
         boolean atTarget = current.equals(target);
         if (!atBaseline && !atTarget) {
             return new QIOTransferResult(transferId,
-                  QIOTransferResult.Status.RECONCILIATION_CONFLICT,
-                  existing == null ? requestedAmount : existing.requestedAmount, 0);
+                    QIOTransferResult.Status.RECONCILIATION_CONFLICT,
+                    existing == null ? requestedAmount : existing.requestedAmount, 0);
         }
 
         long alreadyInserted = atTarget ? transferred : 0;
@@ -60,11 +62,11 @@ final class QIOTransferLedger {
         if (existing == null && atTarget) {
             if (!persistence.getAsBoolean()) {
                 return new QIOTransferResult(transferId, QIOTransferResult.Status.FAILED,
-                      requestedAmount, 0);
+                        requestedAmount, 0);
             }
             receipts.put(transferId, new Receipt(digest, requestedAmount, requestedAmount));
             return new QIOTransferResult(transferId, QIOTransferResult.Status.REPLAYED,
-                  requestedAmount, requestedAmount);
+                    requestedAmount, requestedAmount);
         }
 
         long missing = transferred - alreadyInserted;
@@ -75,28 +77,28 @@ final class QIOTransferLedger {
             }
             if (inserted == 0) {
                 return new QIOTransferResult(transferId, QIOTransferResult.Status.NO_CAPACITY,
-                      existing == null ? requestedAmount : existing.requestedAmount, 0);
+                        existing == null ? requestedAmount : existing.requestedAmount, 0);
             }
             if (!persistence.getAsBoolean()) {
                 return new QIOTransferResult(transferId, QIOTransferResult.Status.FAILED,
-                      existing == null ? requestedAmount : existing.requestedAmount, 0);
+                        existing == null ? requestedAmount : existing.requestedAmount, 0);
             }
             if (inserted != missing) {
                 return new QIOTransferResult(transferId, QIOTransferResult.Status.FAILED,
-                      existing == null ? requestedAmount : existing.requestedAmount, 0);
+                        existing == null ? requestedAmount : existing.requestedAmount, 0);
             }
         } else if (!persistence.getAsBoolean()) {
             return new QIOTransferResult(transferId, QIOTransferResult.Status.FAILED,
-                  existing == null ? requestedAmount : existing.requestedAmount, 0);
+                    existing == null ? requestedAmount : existing.requestedAmount, 0);
         }
 
         if (existing != null) {
             return new QIOTransferResult(transferId, QIOTransferResult.Status.REPLAYED,
-                  existing.requestedAmount, existing.transferredAmount);
+                    existing.requestedAmount, existing.transferredAmount);
         }
         receipts.put(transferId, new Receipt(digest, requestedAmount, requestedAmount));
         return new QIOTransferResult(transferId, QIOTransferResult.Status.APPLIED,
-              requestedAmount, requestedAmount);
+                requestedAmount, requestedAmount);
     }
 
     void write(NBTTagCompound data) {
@@ -125,8 +127,8 @@ final class QIOTransferLedger {
                 long requested = receipt.getLong("requestedAmount");
                 long transferred = receipt.getLong("transferredAmount");
                 if (!receipt.hasKey("reconcilable", NBT.TAG_BYTE) ||
-                      !receipt.getBoolean("reconcilable") || digest.isEmpty() || requested <= 0 ||
-                      transferred <= 0 || transferred > requested) {
+                        !receipt.getBoolean("reconcilable") || digest.isEmpty() || requested <= 0 ||
+                        transferred <= 0 || transferred > requested) {
                     throw new IllegalArgumentException("Invalid QIO transfer receipt");
                 }
                 receipts.putIfAbsent(transferId, new Receipt(digest, requested, transferred));
@@ -136,7 +138,7 @@ final class QIOTransferLedger {
         }
         if (list.tagCount() > MAX_RECEIPTS) {
             QIOLog.LOGGER.error("QIO transfer receipt count {} exceeds the supported limit {}; excess receipts were isolated",
-                  list.tagCount(), MAX_RECEIPTS);
+                    list.tagCount(), MAX_RECEIPTS);
         }
     }
 
@@ -155,6 +157,7 @@ final class QIOTransferLedger {
         private final String digest;
         private final long requestedAmount;
         private final long transferredAmount;
+
         private Receipt(String digest, long requestedAmount, long transferredAmount) {
             this.digest = digest;
             this.requestedAmount = requestedAmount;

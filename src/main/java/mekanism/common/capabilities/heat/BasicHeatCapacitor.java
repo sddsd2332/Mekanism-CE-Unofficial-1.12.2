@@ -25,7 +25,7 @@ public class BasicHeatCapacitor implements IHeatCapacitor {
     }
 
     public static BasicHeatCapacitor create(double heatCapacity, double inverseConductionCoefficient, double inverseInsulationCoefficient,
-          @Nullable DoubleSupplier ambientTempSupplier, @Nullable IContentsListener listener) {
+                                            @Nullable DoubleSupplier ambientTempSupplier, @Nullable IContentsListener listener) {
         if (!HeatAPI.isFinite(heatCapacity) || heatCapacity < 1) {
             throw new IllegalArgumentException("Heat capacity must be at least one");
         }
@@ -39,7 +39,7 @@ public class BasicHeatCapacitor implements IHeatCapacitor {
     }
 
     protected BasicHeatCapacitor(double heatCapacity, double inverseConductionCoefficient, double inverseInsulationCoefficient,
-          @Nullable DoubleSupplier ambientTempSupplier, @Nullable IContentsListener listener) {
+                                 @Nullable DoubleSupplier ambientTempSupplier, @Nullable IContentsListener listener) {
         this.heatCapacity = Math.min(HeatAPI.MAX_HEAT, heatCapacity);
         this.inverseConductionCoefficient = HeatAPI.sanitizeInverseConduction(inverseConductionCoefficient);
         this.inverseInsulationCoefficient = HeatAPI.sanitizeInverseInsulation(inverseInsulationCoefficient);

@@ -76,7 +76,7 @@ public interface ISidedHeatHandler extends IHeatHandler {
             double capacity = getHeatCapacity(capacitor, side);
             if (HeatAPI.isFinite(capacity) && capacity > 0) {
                 double contribution = HeatAPI.sanitizeTemperature(getTemperature(capacitor, side)) *
-                      (HeatAPI.getCapacityWeight(capacity, maxCapacity) / totalWeight);
+                        (HeatAPI.getCapacityWeight(capacity, maxCapacity) / totalWeight);
                 if (!HeatAPI.isFinite(contribution) || contribution >= HeatAPI.MAX_HEAT - sum) {
                     return HeatAPI.MAX_HEAT;
                 }
@@ -112,7 +112,7 @@ public interface ISidedHeatHandler extends IHeatHandler {
             double capacity = getHeatCapacity(capacitor, side);
             if (HeatAPI.isFinite(capacity) && capacity > 0) {
                 double contribution = HeatAPI.sanitizeInverseConduction(getInverseConduction(capacitor, side)) *
-                      (HeatAPI.getCapacityWeight(capacity, maxCapacity) / totalWeight);
+                        (HeatAPI.getCapacityWeight(capacity, maxCapacity) / totalWeight);
                 if (!HeatAPI.isFinite(contribution) || contribution >= HeatAPI.MAX_HEAT - sum) {
                     return HeatAPI.MAX_HEAT;
                 }

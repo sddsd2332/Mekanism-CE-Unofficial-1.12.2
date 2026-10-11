@@ -1,6 +1,8 @@
 package mekanism.common.content.qio;
 
-/** Built-in registered drive specializations. */
+/**
+ * Built-in registered drive specializations.
+ */
 public final class QIODriveSpecializations {
 
     public static final QIODriveSpecialization MIXED = required(QIODriveSpecializationRegistry.MIXED_ID);

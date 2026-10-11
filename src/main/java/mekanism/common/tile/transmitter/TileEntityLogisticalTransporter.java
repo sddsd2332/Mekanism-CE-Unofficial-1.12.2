@@ -390,7 +390,7 @@ public class TileEntityLogisticalTransporter extends TileEntityTransmitter<TileE
             IItemHandler handler = handlers.get(side);
             if (handler == null) {
                 handler = cursedHandlers.computeIfAbsent(side, s -> new CursedTransporterItemHandler(getTransmitter(), Coord4D.get(TileEntityLogisticalTransporter.this).offset(s),
-                      () -> world == null ? -1 : world.getTotalWorldTime(), () -> exposesInsertCap(s)));
+                        () -> world == null ? -1 : world.getTotalWorldTime(), () -> exposesInsertCap(s)));
                 handlers.put(side, handler);
             }
             return CapabilityItemHandler.ITEM_HANDLER_CAPABILITY.cast(handler);

@@ -45,13 +45,21 @@ import java.util.Map;
 @MethodsReturnNonnullByDefault
 public interface IRadiationManager {
 
-    /** Explicit world identity. Unavailable environmental queries return NaN, never baseline. */
+    /**
+     * Explicit world identity. Unavailable environmental queries return NaN, never baseline.
+     */
     double getRadiationLevel(World world, BlockPos pos);
+
     boolean radiate(World world, BlockPos pos, double magnitude);
+
     boolean dumpRadiation(World world, BlockPos pos, GasStack stack);
+
     List<IRadiationSource> getRadiationSources(World world);
+
     List<IRadiationSource> getRadiationSources(World world, int chunkX, int chunkZ);
+
     void removeRadiationSource(World world, BlockPos pos);
+
     void removeRadiationSources(World world, int chunkX, int chunkZ);
 
     /**
@@ -235,14 +243,12 @@ public interface IRadiationManager {
      *
      * @param coord Location to dump radiation at.
      * @param stack Stack to check.
-     *
      * @return {@code true} if the stack was radioactive and radiation got dumped.
-     *
      * @apiNote If radiation is disabled this should return {@code false} so callers that clear radioactive contents do not silently void them.
      */
     boolean dumpRadiation(Coord4D coord, GasStack stack);
 
-    default void dumpRadiation(BlockPos pos, World world, GasStack stack){
+    default void dumpRadiation(BlockPos pos, World world, GasStack stack) {
         dumpRadiation(world, pos, stack);
     }
 }

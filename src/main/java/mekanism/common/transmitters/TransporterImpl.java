@@ -1,11 +1,7 @@
 package mekanism.common.transmitters;
 
 import io.netty.buffer.ByteBuf;
-import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
-import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
-import it.unimi.dsi.fastutil.ints.IntSet;
-import it.unimi.dsi.fastutil.ints.IntSets;
+import it.unimi.dsi.fastutil.ints.*;
 import mekanism.api.Coord4D;
 import mekanism.api.EnumColor;
 import mekanism.api.TileNetworkList;
@@ -151,6 +147,7 @@ public class TransporterImpl extends TransmitterImpl<TileEntity, InventoryNetwor
                     }
                 }
 
+                int prevProgress = stack.progress;
                 stack.progress += getSpeed();
                 if (stack.progress >= 100) {
                     Coord4D prevSet = null;
@@ -178,7 +175,7 @@ public class TransporterImpl extends TransmitterImpl<TileEntity, InventoryNetwor
                                 TileEntity tile = next.getTileEntity(world());
                                 if (tile != null) {
                                     TransitResponse response = InventoryUtils.putStackInInventory(tile, TransitRequest.getFromTransport(stack), stack.getSide(this),
-                                          stack.getPathType() == Path.HOME);
+                                            stack.getPathType() == Path.HOME);
                                     // Nothing was rejected; remove the stack from the prediction tracker and
                                     // schedule this stack for deletion. Continue the loop thereafter
                                     ItemStack rejected = response.getRejected(stack.itemStack);
@@ -202,13 +199,27 @@ public class TransporterImpl extends TransmitterImpl<TileEntity, InventoryNetwor
                     } else {
                         stack.progress = 50;
                     }
-                } else if (stack.progress == 50) {
+                } else if (prevProgress < 50 && stack.progress >= 50) {
                     boolean tryRecalculate;
                     if (stack.isFinal(this)) {
                         tryRecalculate = checkPath(stack, Path.DEST, false) || checkPath(stack, Path.HOME, true) || stack.getPathType() == Path.NONE;
                     } else {
                         Coord4D next = stack.getNext(this);
-                        tryRecalculate = next == null || !stack.canInsertToTransporter(next.getTileEntity(world()), stack.getSide(this));
+                        if (next == null) {
+                            tryRecalculate = true;
+                        } else {
+                            EnumFacing nextSide = stack.getSide(this);
+                            TileEntity nextTile = next.getTileEntity(world());
+                            ILogisticalTransporter nextTransporter = CapabilityUtils.getCapability(nextTile,
+                                    Capabilities.LOGISTICAL_TRANSPORTER_CAPABILITY, nextSide.getOpposite());
+                            if (nextTransporter == null && stack.getPathType() == Path.NONE && stack.getPath().size() == 2) {
+                                // Single-transporter idle paths can point at an inventory. Let the stack
+                                // reach that connection before turning around instead of rerouting at the center.
+                                tryRecalculate = !getTileEntity().getConnectionType(nextSide).canSendTo();
+                            } else {
+                                tryRecalculate = !stack.canInsertToTransporter(nextTile, nextSide);
+                            }
+                        }
                     }
                     if (tryRecalculate && !recalculate(stackId, stack, null)) {
                         deletes = addDelete(deletes, stackId);
@@ -261,6 +272,7 @@ public class TransporterImpl extends TransmitterImpl<TileEntity, InventoryNetwor
                     if (!response.isEmpty()) {
                         response.useAll();
                         delay = 10;
+                        delayCount = 0;
                     } else {
                         delayCount++;
                         delay = Math.min(40, (int) Math.exp(delayCount));

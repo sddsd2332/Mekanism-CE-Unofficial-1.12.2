@@ -47,7 +47,9 @@ public interface IOcclusionCulling {
     int OCCLUSION_AABB_MAX_RAY_BUDGET = 64;
     @SideOnly(Side.CLIENT)
     double OCCLUSION_AABB_EXPAND_EPSILON = 0.02D;
-    /** Visible results may be reused briefly when doing so can only cause extra rendering. */
+    /**
+     * Visible results may be reused briefly when doing so can only cause extra rendering.
+     */
     @SideOnly(Side.CLIENT)
     int OCCLUSION_VISIBLE_RESULT_CACHE_TICKS = 2;
     @SideOnly(Side.CLIENT)
@@ -153,7 +155,7 @@ public interface IOcclusionCulling {
         // Reusing a visible result can only render an object which has since become
         // hidden. Never reuse a stale "culled" result, as that could hide geometry.
         if (!entry.culled && cullingIsVisibleResultCacheFresh(entry.tick, worldTime)
-              && cullingIsCameraClose(entry.eyePos, entry.lookVec, eyePos, lookVec)) {
+                && cullingIsCameraClose(entry.eyePos, entry.lookVec, eyePos, lookVec)) {
             return false;
         }
         return null;
@@ -180,8 +182,8 @@ public interface IOcclusionCulling {
     @SideOnly(Side.CLIENT)
     static boolean cullingIsCameraClose(Vec3d cachedEye, Vec3d cachedLook, Vec3d eye, Vec3d look) {
         if (cachedEye == null || cachedLook == null || eye == null || look == null
-              || !Double.isFinite(cachedEye.x) || !Double.isFinite(cachedEye.y) || !Double.isFinite(cachedEye.z)
-              || !Double.isFinite(eye.x) || !Double.isFinite(eye.y) || !Double.isFinite(eye.z)) {
+                || !Double.isFinite(cachedEye.x) || !Double.isFinite(cachedEye.y) || !Double.isFinite(cachedEye.z)
+                || !Double.isFinite(eye.x) || !Double.isFinite(eye.y) || !Double.isFinite(eye.z)) {
             return false;
         }
         if (cachedEye.squareDistanceTo(eye) > OCCLUSION_VISIBLE_CAMERA_POSITION_EPSILON * OCCLUSION_VISIBLE_CAMERA_POSITION_EPSILON) {
@@ -190,7 +192,7 @@ public interface IOcclusionCulling {
         double cachedLength = cachedLook.lengthSquared();
         double currentLength = look.lengthSquared();
         if (!Double.isFinite(cachedLength) || !Double.isFinite(currentLength)
-              || cachedLength <= 1.0E-8D || currentLength <= 1.0E-8D) {
+                || cachedLength <= 1.0E-8D || currentLength <= 1.0E-8D) {
             return false;
         }
         return cachedLook.dotProduct(look) / Math.sqrt(cachedLength * currentLength) >= OCCLUSION_VISIBLE_CAMERA_LOOK_DOT;
@@ -223,13 +225,13 @@ public interface IOcclusionCulling {
             return false;
         }
         return Double.compare(first.minX, second.minX) == 0 && Double.compare(first.minY, second.minY) == 0
-              && Double.compare(first.minZ, second.minZ) == 0 && Double.compare(first.maxX, second.maxX) == 0
-              && Double.compare(first.maxY, second.maxY) == 0 && Double.compare(first.maxZ, second.maxZ) == 0;
+                && Double.compare(first.minZ, second.minZ) == 0 && Double.compare(first.maxX, second.maxX) == 0
+                && Double.compare(first.maxY, second.maxY) == 0 && Double.compare(first.maxZ, second.maxZ) == 0;
     }
 
     static boolean cullingIsBeyondRenderDistance(double distanceSquared, double maxDistanceSquared) {
         return Double.isFinite(distanceSquared) && Double.isFinite(maxDistanceSquared) && maxDistanceSquared >= 0 &&
-              distanceSquared > maxDistanceSquared;
+                distanceSquared > maxDistanceSquared;
     }
 
     @SideOnly(Side.CLIENT)
@@ -246,7 +248,7 @@ public interface IOcclusionCulling {
         AxisAlignedBB renderBounds = cullingGetRenderBounds();
         CacheEntry entry = OCCLUSION_CACHE.get(this);
         if (entry != null && entry.world == world && cullingIsSampleCacheFresh(entry.tick, worldTime)
-              && cullingAreSameBounds(entry.renderBounds, renderBounds) && !entry.points.isEmpty()) {
+                && cullingAreSameBounds(entry.renderBounds, renderBounds) && !entry.points.isEmpty()) {
             return entry.points;
         }
 
@@ -331,8 +333,8 @@ public interface IOcclusionCulling {
     @SideOnly(Side.CLIENT)
     default List<Vec3d> cullingGetAabbOcclusionSamplePoints(@Nullable AxisAlignedBB bounds) {
         if (bounds == null || !Double.isFinite(bounds.minX) || !Double.isFinite(bounds.minY) || !Double.isFinite(bounds.minZ)
-              || !Double.isFinite(bounds.maxX) || !Double.isFinite(bounds.maxY) || !Double.isFinite(bounds.maxZ)
-              || bounds.maxX <= bounds.minX || bounds.maxY <= bounds.minY || bounds.maxZ <= bounds.minZ) {
+                || !Double.isFinite(bounds.maxX) || !Double.isFinite(bounds.maxY) || !Double.isFinite(bounds.maxZ)
+                || bounds.maxX <= bounds.minX || bounds.maxY <= bounds.minY || bounds.maxZ <= bounds.minZ) {
             return Collections.emptyList();
         }
         double insetX = Math.min(BOUNDING_EDGE_PROBE_MIN, (bounds.maxX - bounds.minX) * 0.25D);
@@ -347,7 +349,7 @@ public interface IOcclusionCulling {
 
         List<Vec3d> points = new ArrayList<>(9);
         points.add(new Vec3d((bounds.minX + bounds.maxX) * 0.5D, (bounds.minY + bounds.maxY) * 0.5D,
-              (bounds.minZ + bounds.maxZ) * 0.5D));
+                (bounds.minZ + bounds.maxZ) * 0.5D));
         points.add(new Vec3d(xMin, yMin, zMin));
         points.add(new Vec3d(xMin, yMin, zMax));
         points.add(new Vec3d(xMin, yMax, zMin));

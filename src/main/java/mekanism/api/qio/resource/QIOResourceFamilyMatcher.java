@@ -8,25 +8,23 @@ import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
-/** Immutable exact matcher for a bounded set of resource families and codec ids. */
+/**
+ * Immutable exact matcher for a bounded set of resource families and codec ids.
+ */
 public final class QIOResourceFamilyMatcher {
 
     private static final int MAX_ENTRIES = 64;
     private static final QIOResourceFamilyMatcher ANY = new QIOResourceFamilyMatcher(true,
-          Collections.emptySet(), Collections.emptySet());
+            Collections.emptySet(), Collections.emptySet());
 
     private final boolean any;
     private final Set<String> families;
     private final Set<ResourceLocation> codecIds;
 
     private QIOResourceFamilyMatcher(boolean any, Collection<String> families,
-          Collection<ResourceLocation> codecIds) {
+                                     Collection<ResourceLocation> codecIds) {
         this.any = any;
         LinkedHashSet<String> checkedFamilies = new LinkedHashSet<>();
         for (String family : Objects.requireNonNull(families, "families")) {
@@ -63,7 +61,7 @@ public final class QIOResourceFamilyMatcher {
 
     @Nonnull
     public static QIOResourceFamilyMatcher of(@Nonnull Collection<String> families,
-          @Nonnull Collection<ResourceLocation> codecIds) {
+                                              @Nonnull Collection<ResourceLocation> codecIds) {
         return new QIOResourceFamilyMatcher(false, families, codecIds);
     }
 
@@ -72,7 +70,9 @@ public final class QIOResourceFamilyMatcher {
         return accepts(descriptor.getFamily(), descriptor.getCodecId());
     }
 
-    /** Matches already persisted metadata without requiring its codec to be installed. */
+    /**
+     * Matches already persisted metadata without requiring its codec to be installed.
+     */
     public boolean accepts(@Nullable String family, @Nullable ResourceLocation codecId) {
         return any || codecId != null && codecIds.contains(codecId) || family != null && families.contains(family);
     }
@@ -100,7 +100,7 @@ public final class QIOResourceFamilyMatcher {
         data.setTag("families", storedFamilies);
         NBTTagList storedCodecs = new NBTTagList();
         codecIds.stream().map(ResourceLocation::toString).sorted()
-              .forEach(codec -> storedCodecs.appendTag(new NBTTagString(codec)));
+                .forEach(codec -> storedCodecs.appendTag(new NBTTagString(codec)));
         data.setTag("codecs", storedCodecs);
         return data;
     }

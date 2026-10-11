@@ -1,10 +1,9 @@
 package mekanism.common.content.qio.filter;
 
 import mekanism.api.gas.GasStack;
-import mekanism.common.content.qio.QIOResourceEntry;
-import mekanism.common.content.qio.QIOResourceKind;
 import mekanism.api.qio.resource.QIOResourceCodecs;
 import mekanism.api.qio.resource.QIOResourceFamilyMatcher;
+import mekanism.common.content.qio.QIOResourceEntry;
 import net.minecraft.nbt.NBTTagCompound;
 
 public class QIOGasFilter extends QIOFilter {
@@ -31,7 +30,8 @@ public class QIOGasFilter extends QIOFilter {
         this.gas = gas == null || gas.getGas() == null ? null : new GasStack(gas.getGas(), 1);
     }
 
-    @Override public QIOResourceFamilyMatcher getMatcher() {
+    @Override
+    public QIOResourceFamilyMatcher getMatcher() {
         return QIOResourceFamilyMatcher.family(QIOResourceCodecs.GAS_FAMILY);
     }
 
@@ -46,9 +46,15 @@ public class QIOGasFilter extends QIOFilter {
         return gas != null && stack != null && gas.isGasEqual(stack);
     }
 
-    @Override public String getType() { return TYPE; }
+    @Override
+    public String getType() {
+        return TYPE;
+    }
 
-    @Override public boolean hasFilter() { return gas != null && gas.getGas() != null; }
+    @Override
+    public boolean hasFilter() {
+        return gas != null && gas.getGas() != null;
+    }
 
     @Override
     public void writePayload(NBTTagCompound data) {

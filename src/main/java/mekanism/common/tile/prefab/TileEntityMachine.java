@@ -35,7 +35,7 @@ public abstract class TileEntityMachine extends TileEntityEffectsBlock implement
      */
     private RedstoneControl controlType = RedstoneControl.DISABLED;
 
-    public TileEntityMachine(String sound, String name, double energyStorge,double energUsage,int upgradeSlot) {
+    public TileEntityMachine(String sound, String name, double energyStorge, double energUsage, int upgradeSlot) {
         super(sound, name, energyStorge);
         energyPerTick = BASE_ENERGY_PER_TICK = energUsage;
         upgradeComponent = new TileComponentUpgrade(this);
@@ -43,7 +43,7 @@ public abstract class TileEntityMachine extends TileEntityEffectsBlock implement
     }
 
     public TileEntityMachine(String sound, MachineType type, int upgradeSlot) {
-        this(sound, type.getBlockName(), type.getStorage(),type.getUsage(),upgradeSlot);
+        this(sound, type.getBlockName(), type.getStorage(), type.getUsage(), upgradeSlot);
     }
 
     @Override

@@ -6,7 +6,6 @@ import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.capabilities.energy.MachineEnergyContainer;
 import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
 import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
-import mekanism.common.config.MekanismConfig;
 import mekanism.common.inventory.slot.EnergyInventorySlot;
 import mekanism.common.inventory.slot.InputInventorySlot;
 import mekanism.common.inventory.slot.OutputInventorySlot;
@@ -41,10 +40,10 @@ public abstract class TileEntityChanceMachine2<RECIPE extends Chance2MachineReci
         extends TileEntityUpgradeableMachine<ItemStackInput, ChanceOutput2, RECIPE> {
 
     private static final List<RecipeError> TRACKED_ERROR_TYPES = Arrays.asList(
-          RecipeError.NOT_ENOUGH_ENERGY,
-          RecipeError.NOT_ENOUGH_INPUT,
-          RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
-          RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
+            RecipeError.NOT_ENOUGH_ENERGY,
+            RecipeError.NOT_ENOUGH_INPUT,
+            RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
+            RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
     );
     private static final String[] methods = new String[]{"getEnergy", "getProgress", "isActive", "facing", "canOperate", "getMaxEnergy", "getEnergyNeeded"};
     private final java.util.Random recipeRandom = new java.util.Random();
@@ -71,7 +70,7 @@ public abstract class TileEntityChanceMachine2<RECIPE extends Chance2MachineReci
         IContentsListener recipeCacheListener = getRecipeCacheListener();
         IContentsListener recipeCacheChangeListener = getRecipeCacheChangeListener(listener);
         inputSlot = builder.addSlot(InputInventorySlot.at(this::isInputItemValid, recipeCacheListener, 56, 17)
-              .setAutoPullValidator((stack, side) -> canAutoPullInput(stack)));
+                .setAutoPullValidator((stack, side) -> canAutoPullInput(stack)));
         inputSlot.tracksWarnings(slot -> slot.warning(WarningType.NO_MATCHING_RECIPE, getWarningCheck(RecipeError.NOT_ENOUGH_INPUT)));
         energySlot = builder.addSlot(EnergyInventorySlot.fillOrConvert(getMainEnergyContainer(), this::getWorld, listener, 56, 53));
         outputSlot = builder.addSlot(OutputInventorySlot.at(recipeCacheChangeListener, 116, 35));
@@ -80,7 +79,7 @@ public abstract class TileEntityChanceMachine2<RECIPE extends Chance2MachineReci
     }
 
     protected boolean isInputItemValid(@Nonnull ItemStack itemstack) {
-        return RecipeHandler.isInRecipe(itemstack, getRecipes()) || MekanismConfig.current().mekce.EnableAddArrItemRecyclerRecipe.val();
+        return !itemstack.isEmpty();
     }
 
     @Nonnull
@@ -126,8 +125,12 @@ public abstract class TileEntityChanceMachine2<RECIPE extends Chance2MachineReci
     }
 
     private boolean canAutoPullInput(ItemStack stack) {
-        RECIPE recipe = RecipeHandler.getChance2Recipe(new ItemStackInput(getSimulatedStackWithInsert(0, stack)), getRecipes());
+        RECIPE recipe = getRecipeForInput(getSimulatedStackWithInsert(inputSlot, stack));
         return recipe != null && recipe.getOutput().applyOutputs(outputSlot, false);
+    }
+
+    protected RECIPE getRecipeForInput(ItemStack stack) {
+        return RecipeHandler.getChance2Recipe(new ItemStackInput(stack), getRecipes());
     }
 
     /**
@@ -147,23 +150,23 @@ public abstract class TileEntityChanceMachine2<RECIPE extends Chance2MachineReci
     @Override
     public CachedRecipe<RECIPE> createNewCachedRecipe(RECIPE recipe, int cacheIndex) {
         return new OneInputCachedRecipe<>(recipe, this::shouldRecheckAllRecipeErrors,
-              InputHelper.getInputHandler(inputSlot, RecipeError.NOT_ENOUGH_INPUT),
-              OutputHelper.getOutputHandlerChance2(outputSlot, RecipeError.NOT_ENOUGH_OUTPUT_SPACE, chanceRecipeRandom()),
-              () -> recipe.getInput().ingredient,
-              input -> mekanism.common.recipe.inputs.MachineInput.inputContains(input, recipe.getInput().ingredient),
-              input -> recipe.getOutput().copy(), ItemStack::isEmpty, output -> false)
-              .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
-              .setActive(active -> {
-                  if (active || prevEnergy >= getEnergy()) {
-                      setActive(active);
-                  }
-              })
-              .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
-              .setRequiredTicks(() -> ticksRequired)
-              .setBaselineMaxOperations(() -> getBaselineMaxOperations(energyPerTick, true))
-              .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
-              .setErrorsChanged(this::onRecipeErrorsChanged)
-              .setOnFinish(this::onCachedRecipeFinish);
+                InputHelper.getInputHandler(inputSlot, RecipeError.NOT_ENOUGH_INPUT),
+                OutputHelper.getOutputHandlerChance2(outputSlot, RecipeError.NOT_ENOUGH_OUTPUT_SPACE, chanceRecipeRandom()),
+                () -> recipe.getInput().ingredient,
+                input -> mekanism.common.recipe.inputs.MachineInput.inputContains(input, recipe.getInput().ingredient),
+                input -> recipe.getOutput().copy(), ItemStack::isEmpty, output -> false)
+                .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
+                .setActive(active -> {
+                    if (active || prevEnergy >= getEnergy()) {
+                        setActive(active);
+                    }
+                })
+                .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
+                .setRequiredTicks(() -> ticksRequired)
+                .setBaselineMaxOperations(() -> getBaselineMaxOperations(energyPerTick, true))
+                .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
+                .setErrorsChanged(this::onRecipeErrorsChanged)
+                .setOnFinish(this::onCachedRecipeFinish);
     }
 
     @Override
@@ -171,7 +174,7 @@ public abstract class TileEntityChanceMachine2<RECIPE extends Chance2MachineReci
         refreshRecipeLookupCache();
         ItemStackInput input = getInput();
         if (cachedRecipe == null || !input.testEquality(cachedRecipe.getInput())) {
-            cachedRecipe = RecipeHandler.getChance2Recipe(input, getRecipes());
+            cachedRecipe = getRecipeForInput(input.ingredient);
         }
         return cachedRecipe;
     }
@@ -243,7 +246,8 @@ public abstract class TileEntityChanceMachine2<RECIPE extends Chance2MachineReci
             default -> throw new NoSuchMethodException();
         };
     }
-@Override
+
+    @Override
     protected boolean shouldDumpRadiation() {
         return false;
     }

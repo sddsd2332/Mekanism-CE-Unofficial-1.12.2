@@ -5,8 +5,8 @@ import mekanism.common.Mekanism;
 import mekanism.common.PacketHandler;
 import mekanism.common.content.qio.QIOAmount;
 import mekanism.common.content.qio.QIOCapacitySummary;
-import mekanism.common.content.qio.QIOResourceEntry;
 import mekanism.common.content.qio.QIONetworkResourceLimits;
+import mekanism.common.content.qio.QIOResourceEntry;
 import mekanism.common.inventory.container.QIOItemViewerContainer;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
@@ -14,8 +14,6 @@ import net.minecraft.inventory.Container;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessageHandler;
 import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -66,13 +64,13 @@ public class PacketQIOViewerData implements IMessageHandler<PacketQIOViewerData.
     }
 
     public static void sendBatch(EntityPlayerMP player, int windowId, List<QIOResourceEntry> entries, long totalCountCapacity,
-          int totalTypeCapacity) {
+                                 int totalTypeCapacity) {
         sendBatch(player, windowId, entries, new QIOCapacitySummary(QIOAmount.of(totalCountCapacity),
-              QIOAmount.of(totalTypeCapacity), 0, 0));
+                QIOAmount.of(totalTypeCapacity), 0, 0));
     }
 
     public static void sendBatch(EntityPlayerMP player, int windowId, List<QIOResourceEntry> entries,
-          QIOCapacitySummary capacitySummary) {
+                                 QIOCapacitySummary capacitySummary) {
         if (player == null || windowId < 0) {
             return;
         }
@@ -81,15 +79,17 @@ public class PacketQIOViewerData implements IMessageHandler<PacketQIOViewerData.
         }
     }
 
-    /** Builds bounded packets for tests and alternative transports. */
+    /**
+     * Builds bounded packets for tests and alternative transports.
+     */
     public static List<Message> createBatchMessages(int windowId, List<QIOResourceEntry> entries, long totalCountCapacity,
-          int totalTypeCapacity) {
+                                                    int totalTypeCapacity) {
         return createBatchMessages(windowId, entries, new QIOCapacitySummary(QIOAmount.of(totalCountCapacity),
-              QIOAmount.of(totalTypeCapacity), 0, 0));
+                QIOAmount.of(totalTypeCapacity), 0, 0));
     }
 
     public static List<Message> createBatchMessages(int windowId, List<QIOResourceEntry> entries,
-          QIOCapacitySummary capacitySummary) {
+                                                    QIOCapacitySummary capacitySummary) {
         List<QIOResourceEntry> snapshot = entries == null ? Collections.emptyList() : entries;
         if (snapshot.isEmpty()) {
             return Collections.singletonList(Message.batch(windowId, Collections.emptyList(), capacitySummary, true));
@@ -97,7 +97,7 @@ public class PacketQIOViewerData implements IMessageHandler<PacketQIOViewerData.
         List<List<QIOResourceEntry>> chunks = chunkEntries(snapshot);
         if (chunks.isEmpty()) {
             return Collections.singletonList(Message.batch(windowId, Collections.emptyList(),
-                  capacitySummary, true));
+                    capacitySummary, true));
         }
         List<Message> messages = new ArrayList<>(chunks.size());
         for (int index = 0; index < chunks.size(); index++) {
@@ -107,13 +107,13 @@ public class PacketQIOViewerData implements IMessageHandler<PacketQIOViewerData.
     }
 
     public static void sendUpdate(EntityPlayerMP player, int windowId, List<QIOResourceEntry> entries, long totalCountCapacity,
-          int totalTypeCapacity) {
+                                  int totalTypeCapacity) {
         sendUpdate(player, windowId, entries, new QIOCapacitySummary(QIOAmount.of(totalCountCapacity),
-              QIOAmount.of(totalTypeCapacity), 0, 0));
+                QIOAmount.of(totalTypeCapacity), 0, 0));
     }
 
     public static void sendUpdate(EntityPlayerMP player, int windowId, List<QIOResourceEntry> entries,
-          QIOCapacitySummary capacitySummary) {
+                                  QIOCapacitySummary capacitySummary) {
         if (player == null || windowId < 0) {
             return;
         }
@@ -123,13 +123,13 @@ public class PacketQIOViewerData implements IMessageHandler<PacketQIOViewerData.
     }
 
     public static List<Message> createUpdateMessages(int windowId, List<QIOResourceEntry> entries, long totalCountCapacity,
-          int totalTypeCapacity) {
+                                                     int totalTypeCapacity) {
         return createUpdateMessages(windowId, entries, new QIOCapacitySummary(QIOAmount.of(totalCountCapacity),
-              QIOAmount.of(totalTypeCapacity), 0, 0));
+                QIOAmount.of(totalTypeCapacity), 0, 0));
     }
 
     public static List<Message> createUpdateMessages(int windowId, List<QIOResourceEntry> entries,
-          QIOCapacitySummary capacitySummary) {
+                                                     QIOCapacitySummary capacitySummary) {
         List<QIOResourceEntry> updates = entries == null ? Collections.emptyList() : entries;
         if (updates.isEmpty()) {
             return Collections.singletonList(Message.update(windowId, Collections.emptyList(), capacitySummary));
@@ -163,7 +163,7 @@ public class PacketQIOViewerData implements IMessageHandler<PacketQIOViewerData.
                 continue;
             }
             if (!current.isEmpty() && (current.size() >= MAX_ENTRIES ||
-                  currentBytes + entryBytes > MAX_PACKET_BYTES)) {
+                    currentBytes + entryBytes > MAX_PACKET_BYTES)) {
                 chunks.add(current);
                 current = new ArrayList<>();
                 currentBytes = PACKET_HEADER_BUDGET;
@@ -183,7 +183,9 @@ public class PacketQIOViewerData implements IMessageHandler<PacketQIOViewerData.
         }
     }
 
-    /** Returns the current QIO viewer window or {@code -1} when the player is not viewing QIO. */
+    /**
+     * Returns the current QIO viewer window or {@code -1} when the player is not viewing QIO.
+     */
     public static int getViewerWindowId(@Nullable EntityPlayerMP player) {
         if (player == null) {
             return -1;
@@ -216,7 +218,7 @@ public class PacketQIOViewerData implements IMessageHandler<PacketQIOViewerData.
         }
 
         private Message(int windowId, Mode mode, @Nonnull List<QIOResourceEntry> entries, QIOCapacitySummary capacitySummary,
-              boolean firstBatchChunk) {
+                        boolean firstBatchChunk) {
             this.windowId = windowId;
             this.mode = mode;
             this.entries = new ArrayList<>(entries.size());
@@ -232,23 +234,23 @@ public class PacketQIOViewerData implements IMessageHandler<PacketQIOViewerData.
 
         public static Message batch(int windowId, List<QIOResourceEntry> entries, long totalCountCapacity, int totalTypeCapacity) {
             return batch(windowId, entries, new QIOCapacitySummary(QIOAmount.of(totalCountCapacity),
-                  QIOAmount.of(totalTypeCapacity), 0, 0), true);
+                    QIOAmount.of(totalTypeCapacity), 0, 0), true);
         }
 
         private static Message batch(int windowId, List<QIOResourceEntry> entries, QIOCapacitySummary capacitySummary,
-              boolean firstBatchChunk) {
+                                     boolean firstBatchChunk) {
             return new Message(windowId, Mode.BATCH, entries == null ? Collections.emptyList() : entries,
-                  capacitySummary, firstBatchChunk);
+                    capacitySummary, firstBatchChunk);
         }
 
         public static Message update(int windowId, List<QIOResourceEntry> entries, long totalCountCapacity, int totalTypeCapacity) {
             return update(windowId, entries, new QIOCapacitySummary(QIOAmount.of(totalCountCapacity),
-                  QIOAmount.of(totalTypeCapacity), 0, 0));
+                    QIOAmount.of(totalTypeCapacity), 0, 0));
         }
 
         public static Message update(int windowId, List<QIOResourceEntry> entries, QIOCapacitySummary capacitySummary) {
             return new Message(windowId, Mode.UPDATE, entries == null ? Collections.emptyList() : entries,
-                  capacitySummary, false);
+                    capacitySummary, false);
         }
 
         public static Message kill(int windowId) {

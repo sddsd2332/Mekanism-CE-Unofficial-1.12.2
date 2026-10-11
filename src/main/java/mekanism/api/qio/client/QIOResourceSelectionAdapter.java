@@ -25,13 +25,17 @@ public interface QIOResourceSelectionAdapter {
     @Nonnull
     ResourceLocation getCodecId();
 
-    /** Returns a descriptor when this codec understands the supplied recipe-viewer ingredient. */
+    /**
+     * Returns a descriptor when this codec understands the supplied recipe-viewer ingredient.
+     */
     @Nullable
     default QIOResourceDescriptor fromIngredient(@Nonnull Object ingredient) {
         return null;
     }
 
-    /** Returns the resources of this codec represented by the current container state. */
+    /**
+     * Returns the resources of this codec represented by the current container state.
+     */
     @Nonnull
     default List<QIOResourceDescriptor> getContainedResources(@Nonnull ItemStack container) {
         return Collections.emptyList();

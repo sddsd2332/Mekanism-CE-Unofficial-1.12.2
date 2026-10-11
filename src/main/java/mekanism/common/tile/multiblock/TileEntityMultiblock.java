@@ -14,8 +14,8 @@ import mekanism.common.util.MekanismUtils;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTBase;
+import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumHand;
@@ -37,6 +37,21 @@ public abstract class TileEntityMultiblock<T extends SynchronizedData<T>> extend
      */
     @Nullable
     public T structure;
+
+    private int observedComparatorLevel = -1;
+
+    /**
+     * Each loaded comparator valve notifies its own neighbors when the shared sample changes.
+     */
+    protected final void updateSharedComparatorSignal() {
+        if (!hasEnabledComparator()) return;
+        if (structure != null) structure.refreshComparatorLevel(world.getTotalWorldTime());
+        int level = structure == null ? 0 : structure.getCurrentRedstoneLevel();
+        if (level != observedComparatorLevel) {
+            observedComparatorLevel = level;
+            updateComparatorOutputLevelSync();
+        }
+    }
 
     /**
      * Whether or not to send this multiblock's structure in the next update packet.
@@ -69,9 +84,13 @@ public abstract class TileEntityMultiblock<T extends SynchronizedData<T>> extend
     @Nullable
     public String cachedID = null;
 
-    /** World time represented by cachedData, used to choose the newest replica after chunk loading. */
+    /**
+     * World time represented by cachedData, used to choose the newest replica after chunk loading.
+     */
     public long cachedDataTimestamp = Long.MIN_VALUE;
-    /** 0 is a legacy replica, 1 is a manager-owned reference, -1 is an unreadable reference. */
+    /**
+     * 0 is a legacy replica, 1 is a manager-owned reference, -1 is an unreadable reference.
+     */
     public int cacheFormat;
     private NBTBase unreadableCacheReference;
     private boolean cacheRetry;
@@ -189,6 +208,15 @@ public abstract class TileEntityMultiblock<T extends SynchronizedData<T>> extend
         return false;
     }
 
+    /**
+     * Multiblock comparator output is owned by its formed structure/valves,
+     * not by the casing's local container views. Concrete comparator valves
+     * override this with their actual input transmission.
+     */
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return false;
+    }
+
     @Override
     public void doUpdate() {
         if (!isRemote() && (structure == null || !structure.didTick)) {
@@ -209,10 +237,12 @@ public abstract class TileEntityMultiblock<T extends SynchronizedData<T>> extend
         }
         long gameTime = world.getTotalWorldTime();
         return structure.inventoryID == null ? structure.tryClaimServerTick(gameTime) :
-              getManager().tryClaimServerTick(world, structure.inventoryID, gameTime);
+                getManager().tryClaimServerTick(world, structure.inventoryID, gameTime);
     }
 
-    /** Synchronizes both this tile's persisted replica and the manager's canonical runtime cache. */
+    /**
+     * Synchronizes both this tile's persisted replica and the manager's canonical runtime cache.
+     */
     public void syncCachedDataFromStructure() {
         if (structure != null && structure.inventoryID != null) {
             cachedData.sync(structure);
@@ -226,7 +256,9 @@ public abstract class TileEntityMultiblock<T extends SynchronizedData<T>> extend
         }
     }
 
-    /** Keeps the runtime cache current once per structure tick without copying every casing replica. */
+    /**
+     * Keeps the runtime cache current once per structure tick without copying every casing replica.
+     */
     private void syncCanonicalCacheFromStructure() {
         if (structure == null || structure.inventoryID == null || world == null) {
             return;
@@ -336,7 +368,7 @@ public abstract class TileEntityMultiblock<T extends SynchronizedData<T>> extend
             if (nbtTags.hasKey("managedCache")) {
                 NBTTagCompound reference = nbtTags.getCompoundTag("managedCache");
                 if (nbtTags.hasKey("managedCache", 10) && reference.hasKey("version", 3) && reference.getInteger("version") == 1 &&
-                      reference.hasKey("id", 8) && isValidCacheID(reference.getString("id"))) {
+                        reference.hasKey("id", 8) && isValidCacheID(reference.getString("id"))) {
                     cacheFormat = 1;
                     cachedID = UUID.fromString(reference.getString("id")).toString();
                 } else {
@@ -466,14 +498,14 @@ public abstract class TileEntityMultiblock<T extends SynchronizedData<T>> extend
     public boolean canInsertItem(int slotID, @Nonnull ItemStack itemstack, @Nonnull EnumFacing side) {
         IInventorySlot slot = getInventorySlot(slotID);
         return slot != null && canInsertItem(slot, itemstack, side) &&
-              slot.insertItem(itemstack, Action.SIMULATE, AutomationType.EXTERNAL).getCount() < itemstack.getCount();
+                slot.insertItem(itemstack, Action.SIMULATE, AutomationType.EXTERNAL).getCount() < itemstack.getCount();
     }
 
     @Override
     public boolean canExtractItem(int slotID, @Nonnull ItemStack itemstack, @Nonnull EnumFacing side) {
         IInventorySlot slot = getInventorySlot(slotID);
         return slot != null && canExtractItem(slot, itemstack, side) &&
-              !slot.extractItem(itemstack.getCount(), Action.SIMULATE, AutomationType.EXTERNAL).isEmpty();
+                !slot.extractItem(itemstack.getCount(), Action.SIMULATE, AutomationType.EXTERNAL).isEmpty();
     }
 
     @Override
@@ -489,7 +521,7 @@ public abstract class TileEntityMultiblock<T extends SynchronizedData<T>> extend
             IntBounds bounds = resolveClientStructureBounds();
             if (bounds != null) {
                 return new AxisAlignedBB(bounds.minX, bounds.minY, bounds.minZ,
-                      bounds.maxX + 1D, bounds.maxY + 1D, bounds.maxZ + 1D);
+                        bounds.maxX + 1D, bounds.maxY + 1D, bounds.maxZ + 1D);
             }
         }
         return new AxisAlignedBB(getPos());

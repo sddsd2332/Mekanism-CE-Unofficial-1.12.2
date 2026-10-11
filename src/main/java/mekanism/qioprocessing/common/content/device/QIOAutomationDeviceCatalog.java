@@ -9,16 +9,12 @@ import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
-/** Persistent online/offline device directory owned by one QIO processing frequency. */
+/**
+ * Persistent online/offline device directory owned by one QIO processing frequency.
+ */
+
 /**
  * QIO 处理模块中的 QIOAutomationDeviceCatalog 类型。
  *
@@ -56,7 +52,7 @@ public final class QIOAutomationDeviceCatalog {
     /** Returns only records whose persisted coordinate belongs to one chunk. */
     @Nonnull
     public List<QIOAutomationDeviceSnapshot> getDevicesInChunk(int dimension, int chunkX,
-          int chunkZ) {
+                                                               int chunkZ) {
         List<UUID> ids = devicesByChunk.get(new ChunkKey(dimension, chunkX, chunkZ));
         if (ids == null || ids.isEmpty()) {
             return Collections.emptyList();
@@ -94,12 +90,12 @@ public final class QIOAutomationDeviceCatalog {
     }
 
     public boolean markOffline(@Nonnull UUID deviceUUID,
-          @Nonnull QIOAutomationDeviceLocation expectedLocation, long currentTick) {
+                               @Nonnull QIOAutomationDeviceLocation expectedLocation, long currentTick) {
         QIOAutomationDeviceSnapshot existing = devices.get(
-              Objects.requireNonNull(deviceUUID, "deviceUUID"));
+                Objects.requireNonNull(deviceUUID, "deviceUUID"));
         if (existing == null || !existing.getLocation().equals(
-              Objects.requireNonNull(expectedLocation, "expectedLocation")) ||
-              !existing.isOnline()) {
+                Objects.requireNonNull(expectedLocation, "expectedLocation")) ||
+                !existing.isOnline()) {
             return false;
         }
         devices.put(deviceUUID, existing.offline(currentTick));
@@ -127,7 +123,7 @@ public final class QIOAutomationDeviceCatalog {
             throw new IllegalStateException("QIO automation device directory revision changed");
         }
         QIOAutomationDeviceSnapshot existing = devices.get(
-              Objects.requireNonNull(deviceUUID, "deviceUUID"));
+                Objects.requireNonNull(deviceUUID, "deviceUUID"));
         if (existing == null) {
             return false;
         }
@@ -146,11 +142,11 @@ public final class QIOAutomationDeviceCatalog {
      * of the same persistent UUID at another position.
      */
     public boolean removeAtLocation(@Nonnull UUID deviceUUID,
-          @Nonnull QIOAutomationDeviceLocation expectedLocation) {
+                                    @Nonnull QIOAutomationDeviceLocation expectedLocation) {
         QIOAutomationDeviceSnapshot existing = devices.get(
-              Objects.requireNonNull(deviceUUID, "deviceUUID"));
+                Objects.requireNonNull(deviceUUID, "deviceUUID"));
         if (existing == null || !existing.getLocation().equals(
-              Objects.requireNonNull(expectedLocation, "expectedLocation"))) {
+                Objects.requireNonNull(expectedLocation, "expectedLocation"))) {
             return false;
         }
         devices.remove(deviceUUID);
@@ -171,21 +167,21 @@ public final class QIOAutomationDeviceCatalog {
 
     @Nonnull
     public static QIOAutomationDeviceCatalog read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         try {
             QIOAutomationDeviceCatalog catalog = new QIOAutomationDeviceCatalog();
             catalog.revision = QIOProcessingNbt.requireNonNegative(data.getLong("revision"),
-                  "automationDeviceDirectoryRevision");
+                    "automationDeviceDirectoryRevision");
             NBTTagList devices = data.getTagList("devices", NBT.TAG_COMPOUND);
             if (devices.tagCount() > MAX_PERSISTED_DEVICES) {
                 throw new QIOProcessingDataException("QIO automation device directory is too large");
             }
             for (int index = 0; index < devices.tagCount(); index++) {
                 QIOAutomationDeviceSnapshot snapshot = QIOAutomationDeviceSnapshot.read(
-                      devices.getCompoundTagAt(index));
+                        devices.getCompoundTagAt(index));
                 if (catalog.devices.put(snapshot.getDeviceUUID(), snapshot) != null) {
                     throw new QIOProcessingDataException("Duplicate QIO automation device snapshot " +
-                          snapshot.getDeviceUUID());
+                            snapshot.getDeviceUUID());
                 }
                 catalog.index(snapshot);
             }
@@ -206,7 +202,7 @@ public final class QIOAutomationDeviceCatalog {
 
     private void index(QIOAutomationDeviceSnapshot snapshot) {
         devicesByChunk.computeIfAbsent(ChunkKey.of(snapshot.getLocation()),
-              ignored -> new ArrayList<>()).add(snapshot.getDeviceUUID());
+                ignored -> new ArrayList<>()).add(snapshot.getDeviceUUID());
     }
 
     private void unindex(QIOAutomationDeviceSnapshot snapshot) {
@@ -234,14 +230,14 @@ public final class QIOAutomationDeviceCatalog {
 
         private static ChunkKey of(QIOAutomationDeviceLocation location) {
             return new ChunkKey(location.dimension(), location.position().getX() >> 4,
-                  location.position().getZ() >> 4);
+                    location.position().getZ() >> 4);
         }
 
         @Override
         public boolean equals(Object obj) {
             return this == obj || obj instanceof ChunkKey other &&
-                  dimension == other.dimension && chunkX == other.chunkX &&
-                  chunkZ == other.chunkZ;
+                    dimension == other.dimension && chunkX == other.chunkX &&
+                    chunkZ == other.chunkZ;
         }
 
         @Override

@@ -13,7 +13,6 @@ import java.util.Objects;
  * Base abstraction for providing functionality and required data to radials.
  *
  * @param <MODE> Radial Mode.
- *
  * @since 10.3.2
  */
 @NothingNullByDefault
@@ -39,7 +38,6 @@ public abstract class RadialData<MODE extends IRadialMode> {
      * Tries to get a nested mode from the given identifier. In the majority of cases this will return {@code null}.
      *
      * @param identifier Identifier of child radial data.
-     *
      * @return Nested mode or {@code null} if this radial data doesn't support nested modes or there is no child with the matching name.
      */
     @Nullable
@@ -62,7 +60,6 @@ public abstract class RadialData<MODE extends IRadialMode> {
      * Gets the default (fallback) mode from the list of currently available modes.
      *
      * @param modes List of currently available modes.
-     *
      * @return Default mode or {@code null} if there is no default.
      */
     @Nullable
@@ -76,7 +73,6 @@ public abstract class RadialData<MODE extends IRadialMode> {
      *
      * @param modes List of currently available modes. May not be used if there is a more efficient index lookup possible.
      * @param mode  Mode to lookup.
-     *
      * @return Index of mode in the list of modes or {@code -1} if the mode is not part of this radial data.
      */
     public int index(List<MODE> modes, MODE mode) {
@@ -89,9 +85,7 @@ public abstract class RadialData<MODE extends IRadialMode> {
      *
      * @param modes List of currently available modes. May not be used if there is a more efficient index lookup possible.
      * @param mode  Mode to lookup.
-     *
      * @return Index of mode in the list of modes or {@code -1} if the mode is not part of this radial data.
-     *
      * @apiNote Helper for {@link #index(List, IRadialMode)} that returns {@code -1} when the given mode is {@code null} to cut down on nesting if statements.
      */
     public final int indexNullable(List<MODE> modes, @Nullable MODE mode) {
@@ -102,10 +96,8 @@ public abstract class RadialData<MODE extends IRadialMode> {
      * Tries to get the corresponding integer network representation for the given mode.
      *
      * @param mode Unchecked mode.
-     *
      * @return An integer corresponding to the network representation of the given object or {@code -1} if the object is of the wrong type or there is no network
      * representation.
-     *
      * @apiNote Helper for {@link #getNetworkRepresentation(IRadialMode)} that tries to validate the type matches the type of the current radial data.
      */
     public int tryGetNetworkRepresentation(IRadialMode mode) {
@@ -116,9 +108,7 @@ public abstract class RadialData<MODE extends IRadialMode> {
      * Get the corresponding integer network representation for the given mode.
      *
      * @param mode Mode.
-     *
      * @return An integer corresponding to the network representation of the given object or {@code -1} if  there is no network representation.
-     *
      * @implNote When implementing this method, if you are not extending {@link ClassBasedRadialData} it is important to also override
      * {@link #tryGetNetworkRepresentation(IRadialMode)}.
      */
@@ -130,7 +120,6 @@ public abstract class RadialData<MODE extends IRadialMode> {
      * Gets the mode corresponding to the given integer network representation.
      *
      * @param networkRepresentation Network representation
-     *
      * @return Mode or {@code null} if no matching mode could be found.
      */
     @Nullable

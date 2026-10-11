@@ -20,7 +20,7 @@ public class GasTankSpec extends GenericTankSpec<GasStack> {
     final IntSupplier capacity;
 
     public GasTankSpec(IntSupplier rate, IntSupplier capacity, BiPredicate<GasStack, AutomationType> canExtract,
-          TriPredicate<GasStack, AutomationType, ItemStack> canInsert, Predicate<GasStack> isValid, Predicate<ItemStack> supportsStack) {
+                       TriPredicate<GasStack, AutomationType, ItemStack> canInsert, Predicate<GasStack> isValid, Predicate<ItemStack> supportsStack) {
         super(canExtract, canInsert, isValid, supportsStack);
         this.rate = rate;
         this.capacity = capacity;
@@ -36,7 +36,7 @@ public class GasTankSpec extends GenericTankSpec<GasStack> {
 
     public static GasTankSpec create(IntSupplier rate, IntSupplier capacity) {
         return new GasTankSpec(rate, capacity, ConstantPredicates.alwaysTrueBi(), ConstantPredicates.alwaysTrueTri(), ConstantPredicates.alwaysTrue(),
-              ConstantPredicates.alwaysTrue());
+                ConstantPredicates.alwaysTrue());
     }
 
     public static GasTankSpec createFillOnly(IntSupplier rate, IntSupplier capacity, Predicate<GasStack> isValid) {
@@ -51,10 +51,10 @@ public class GasTankSpec extends GenericTankSpec<GasStack> {
     public interface TankFromSpecCreator<TANK extends IExtendedGasTank> {
 
         TANK create(IntSupplier rate, IntSupplier capacity, BiPredicate<GasStack, AutomationType> canExtract,
-              BiPredicate<GasStack, AutomationType> canInsert, Predicate<GasStack> isValid, @Nullable IContentsListener listener);
+                    BiPredicate<GasStack, AutomationType> canInsert, Predicate<GasStack> isValid, @Nullable IContentsListener listener);
 
         default TANK create(IntSupplier rate, IntSupplier capacity, BiPredicate<GasStack, AutomationType> canExtract,
-              BiPredicate<GasStack, AutomationType> canInsert, Predicate<GasStack> isValid) {
+                            BiPredicate<GasStack, AutomationType> canInsert, Predicate<GasStack> isValid) {
             return create(rate, capacity, canExtract, canInsert, isValid, null);
         }
     }

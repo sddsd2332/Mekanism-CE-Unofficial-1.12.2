@@ -5,7 +5,7 @@ import mekanism.client.recipe_viewer.GhostIngredientHandler;
 import mekanism.client.recipe_viewer.interfaces.IRecipeViewerGhostTarget.IGhostIngredientConsumer;
 import mezz.jei.api.gui.IGhostIngredientHandler;
 
-import java.awt.Rectangle;
+import java.awt.*;
 import java.util.List;
 
 public class JeiGhostIngredientHandler<GUI extends GuiMekanism<?>> implements IGhostIngredientHandler<GUI> {

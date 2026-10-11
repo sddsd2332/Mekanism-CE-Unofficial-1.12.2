@@ -16,7 +16,8 @@ public enum ProgressType {
     FLAME(13, 13, true, false, "flame.png"),
     INSTALLING(10, 14, true, "installing.png"),
     UNINSTALLING(12, 12, true, "uninstalling.png"),
-    DOWN(8, 20, true, "down.png");
+    DOWN(8, 20, true, "down.png"),
+    UP(8, 20, true, "up.png");
 
     private final int width;
     private final int height;
@@ -89,6 +90,7 @@ public enum ProgressType {
     }
 
     public boolean isReverse() {
-        return this == SMALL_LEFT || this == LARGE_LEFT;
+        // UP arrows point up, so their fill grows bottom-to-top (tail to tip).
+        return this == SMALL_LEFT || this == LARGE_LEFT || this == UP;
     }
 }

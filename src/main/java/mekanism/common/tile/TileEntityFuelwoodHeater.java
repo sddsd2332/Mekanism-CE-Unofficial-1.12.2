@@ -1,7 +1,9 @@
 package mekanism.common.tile;
 
 import io.netty.buffer.ByteBuf;
-import mekanism.api.*;
+import mekanism.api.IContentsListener;
+import mekanism.api.RelativeSide;
+import mekanism.api.TileNetworkList;
 import mekanism.api.heat.HeatAPI;
 import mekanism.api.heat.HeatAPI.HeatTransfer;
 import mekanism.common.Mekanism;

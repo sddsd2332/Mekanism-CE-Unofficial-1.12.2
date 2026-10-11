@@ -47,10 +47,10 @@ import java.util.Map;
 public class TileEntityChemicalOxidizer extends TileEntityBasicMachine<ItemStackInput, GasOutput, OxidationRecipe> implements ISustainedData, ITankManager {
 
     private static final List<RecipeError> TRACKED_ERROR_TYPES = Arrays.asList(
-          RecipeError.NOT_ENOUGH_ENERGY,
-          RecipeError.NOT_ENOUGH_INPUT,
-          RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
-          RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
+            RecipeError.NOT_ENOUGH_ENERGY,
+            RecipeError.NOT_ENOUGH_INPUT,
+            RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
+            RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
     );
     public static final int MAX_GAS = 10000;
     public BasicGasTank gasTank;
@@ -82,7 +82,7 @@ public class TileEntityChemicalOxidizer extends TileEntityBasicMachine<ItemStack
     protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
         InventorySlotHelper builder = createInventorySlotHelper();
         inputSlot = builder.addSlot(InputInventorySlot.at(stack -> RecipeHandler.getOxidizerRecipe(new ItemStackInput(stack)) != null, getRecipeCacheListener(), 26, 36)
-              .setAutoPullValidator((stack, side) -> canAutoPullInput(stack)));
+                .setAutoPullValidator((stack, side) -> canAutoPullInput(stack)));
         inputSlot.tracksWarnings(slot -> slot.warning(mekanism.common.inventory.warning.WarningTracker.WarningType.NO_MATCHING_RECIPE, getWarningCheck(RecipeError.NOT_ENOUGH_INPUT)));
         gasSlot = builder.addSlot(GasInventorySlot.drain(gasTank, listener, 152, 55));
         energySlot = builder.addSlot(EnergyInventorySlot.fillOrConvert(getMainEnergyContainer(), this::getWorld, listener, 152, 14));
@@ -122,12 +122,13 @@ public class TileEntityChemicalOxidizer extends TileEntityBasicMachine<ItemStack
     protected boolean isAsyncUpdateIdle() {
         return inputSlot.isEmpty() && energySlot.isEmpty() && gasSlot.isEmpty() && isEmptyRecipeStateSettled();
     }
+
     @Override
-    public void addTileSyncTask(){
+    public void addTileSyncTask() {
     }
 
     @Override
-    protected void setFinish(){
+    protected void setFinish() {
         markNoUpdateSync();
     }
 
@@ -188,29 +189,29 @@ public class TileEntityChemicalOxidizer extends TileEntityBasicMachine<ItemStack
     }
 
     private boolean canAutoPullInput(ItemStack stack) {
-        OxidationRecipe recipe = RecipeHandler.getOxidizerRecipe(new ItemStackInput(getSimulatedStackWithInsert(0, stack)));
+        OxidationRecipe recipe = RecipeHandler.getOxidizerRecipe(new ItemStackInput(getSimulatedStackWithInsert(inputSlot, stack)));
         return recipe != null && recipe.getOutput().applyOutputs(gasTank, false, 1);
     }
 
     @Override
     public CachedRecipe<OxidationRecipe> createNewCachedRecipe(OxidationRecipe recipe, int cacheIndex) {
         return new OneInputCachedRecipe<>(recipe, this::shouldRecheckAllRecipeErrors,
-              InputHelper.getInputHandler(inputSlot, RecipeError.NOT_ENOUGH_INPUT),
-              OutputHelper.getGasOutputHandler(gasTank, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
-              () -> recipe.getInput().ingredient, input -> mekanism.common.recipe.inputs.MachineInput.inputContains(input, recipe.getInput().ingredient),
-              input -> recipe.getOutput().output.copy(), ItemStack::isEmpty, output -> output == null || output.amount <= 0)
-              .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
-              .setActive(active -> {
-                  if (active || prevEnergy >= getEnergy()) {
-                      setActive(active);
-                  }
-              })
-              .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
-              .setRequiredTicks(() -> ticksRequired)
-              .setBaselineMaxOperations(() -> getBaselineMaxOperations(energyPerTick, true))
-              .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
-              .setErrorsChanged(this::onRecipeErrorsChanged)
-              .setOnFinish(this::onCachedRecipeFinish);
+                InputHelper.getInputHandler(inputSlot, RecipeError.NOT_ENOUGH_INPUT),
+                OutputHelper.getGasOutputHandler(gasTank, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
+                () -> recipe.getInput().ingredient, input -> mekanism.common.recipe.inputs.MachineInput.inputContains(input, recipe.getInput().ingredient),
+                input -> recipe.getOutput().output.copy(), ItemStack::isEmpty, output -> output == null || output.amount <= 0)
+                .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
+                .setActive(active -> {
+                    if (active || prevEnergy >= getEnergy()) {
+                        setActive(active);
+                    }
+                })
+                .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
+                .setRequiredTicks(() -> ticksRequired)
+                .setBaselineMaxOperations(() -> getBaselineMaxOperations(energyPerTick, true))
+                .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
+                .setErrorsChanged(this::onRecipeErrorsChanged)
+                .setOnFinish(this::onCachedRecipeFinish);
     }
 
     private GasStack getCurrentOutput() {
@@ -246,7 +247,7 @@ public class TileEntityChemicalOxidizer extends TileEntityBasicMachine<ItemStack
     }
 
     @Override
-   public void writeCustomNBT(NBTTagCompound nbtTags) {
+    public void writeCustomNBT(NBTTagCompound nbtTags) {
         super.writeCustomNBT(nbtTags);
     }
 

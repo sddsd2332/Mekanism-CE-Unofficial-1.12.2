@@ -11,7 +11,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.UUID;
 
-/** Shared exact target checks for every block-terminal container shape. */
+/**
+ * Shared exact target checks for every block-terminal container shape.
+ */
+
 /**
  * QIO 处理模块中的 QIOBlockTerminalSessionTarget 类型。
  *
@@ -25,7 +28,7 @@ final class QIOBlockTerminalSessionTarget {
     private final QIOProcessingTerminalSession session;
 
     QIOBlockTerminalSessionTarget(@Nonnull InventoryPlayer inventory,
-          @Nonnull QIOProcessingTerminal terminal, boolean remote) {
+                                  @Nonnull QIOProcessingTerminal terminal, boolean remote) {
         this.terminal = terminal;
         if (!remote) {
             // Clear a diagnostic before capturing the session revision.  Recovery also resets a
@@ -47,29 +50,29 @@ final class QIOBlockTerminalSessionTarget {
         }
         QIOFrequencyReference reference = terminal.getFrequencyReference();
         long accessRevision = QIOProcessingFrequencyAccess.getAccessibleRevision(reference,
-              player.getUniqueID());
+                player.getUniqueID());
         UUID frequencyUUID = accessRevision < 0 || reference == null ? null :
-              reference.getFrequencyUUID();
+                reference.getFrequencyUUID();
         return session.validate(session.getSessionNonce(), player.getUniqueID(),
-              QIOProcessingTerminalSession.TargetKind.BLOCK,
-              terminal.getTerminalType(), terminal.getPersistentTerminalUUID(),
-              terminal.getConfigurationRevision(), frequencyUUID,
-              accessRevision < 0 ? -1 : accessRevision) ==
-              QIOProcessingTerminalSession.Validation.ACCEPTED;
+                QIOProcessingTerminalSession.TargetKind.BLOCK,
+                terminal.getTerminalType(), terminal.getPersistentTerminalUUID(),
+                terminal.getConfigurationRevision(), frequencyUUID,
+                accessRevision < 0 ? -1 : accessRevision) ==
+                QIOProcessingTerminalSession.Validation.ACCEPTED;
     }
 
     boolean acceptMutation(long expectedRevision, long updatedRevision) {
         if (session == null || session.getTargetRevision() != expectedRevision ||
-            terminal.getConfigurationRevision() != updatedRevision) {
+                terminal.getConfigurationRevision() != updatedRevision) {
             return false;
         }
         QIOFrequencyReference reference = terminal.getFrequencyReference();
         long accessRevision = QIOProcessingFrequencyAccess.getAccessibleRevision(reference,
-              session.getPlayerUUID());
+                session.getPlayerUUID());
         UUID frequencyUUID = accessRevision < 0 || reference == null ? null :
-              reference.getFrequencyUUID();
+                reference.getFrequencyUUID();
         session.rebind(expectedRevision, updatedRevision, frequencyUUID,
-              accessRevision < 0 ? -1 : accessRevision);
+                accessRevision < 0 ? -1 : accessRevision);
         return true;
     }
 
@@ -80,17 +83,17 @@ final class QIOBlockTerminalSessionTarget {
     }
 
     private static QIOProcessingTerminalSession createSession(InventoryPlayer inventory,
-          QIOProcessingTerminal terminal) {
+                                                              QIOProcessingTerminal terminal) {
         QIOFrequencyReference reference = terminal.getFrequencyReference();
         UUID playerUUID = inventory.player.getUniqueID();
         long accessRevision = QIOProcessingFrequencyAccess.getAccessibleRevision(reference,
-              playerUUID);
+                playerUUID);
         UUID frequencyUUID = accessRevision < 0 || reference == null ? null :
-              reference.getFrequencyUUID();
+                reference.getFrequencyUUID();
         return new QIOProcessingTerminalSession(playerUUID,
-              QIOProcessingTerminalSession.TargetKind.BLOCK,
-              terminal.getTerminalType(), terminal.getPersistentTerminalUUID(),
-              terminal.getConfigurationRevision(), frequencyUUID,
-              accessRevision < 0 ? -1 : accessRevision);
+                QIOProcessingTerminalSession.TargetKind.BLOCK,
+                terminal.getTerminalType(), terminal.getPersistentTerminalUUID(),
+                terminal.getConfigurationRevision(), frequencyUUID,
+                accessRevision < 0 ? -1 : accessRevision);
     }
 }

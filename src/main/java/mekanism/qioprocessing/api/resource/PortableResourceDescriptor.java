@@ -46,7 +46,7 @@ public final class PortableResourceDescriptor implements Comparable<PortableReso
 
     @Nonnull
     public static PortableResourceDescriptor named(@Nonnull Kind kind, @Nonnull String registryName,
-          int metadata, @Nullable NBTTagCompound tag) {
+                                                   int metadata, @Nullable NBTTagCompound tag) {
         return new PortableResourceDescriptor(legacyDescriptor(kind, registryName, metadata, tag, null));
     }
 
@@ -69,7 +69,7 @@ public final class PortableResourceDescriptor implements Comparable<PortableReso
         NBTTagCompound payload = descriptor.getPayload();
         payload.removeTag("ForgeCaps");
         return new PortableResourceDescriptor(QIOResourceDescriptor.persisted(descriptor.getCodecId(),
-              descriptor.getFamily(), descriptor.getCodecVersion(), descriptor.getStorageUnitsPerUnit(), payload));
+                descriptor.getFamily(), descriptor.getCodecVersion(), descriptor.getStorageUnitsPerUnit(), payload));
     }
 
     @Nonnull
@@ -170,7 +170,7 @@ public final class PortableResourceDescriptor implements Comparable<PortableReso
         NBTTagCompound payload = descriptor.getPayload();
         payload.removeTag("ForgeCaps");
         return new PortableResourceDescriptor(QIOResourceDescriptor.persisted(descriptor.getCodecId(),
-              descriptor.getFamily(), descriptor.getCodecVersion(), descriptor.getStorageUnitsPerUnit(), payload));
+                descriptor.getFamily(), descriptor.getCodecVersion(), descriptor.getStorageUnitsPerUnit(), payload));
     }
 
     public boolean hasCapabilities() {
@@ -218,7 +218,7 @@ public final class PortableResourceDescriptor implements Comparable<PortableReso
         NBTTagCompound tag = data.hasKey("tag", 10) ? data.getCompoundTag("tag") : null;
         NBTTagCompound capabilities = data.hasKey("capabilities", 10) ? data.getCompoundTag("capabilities") : null;
         return new PortableResourceDescriptor(legacyDescriptor(kind, data.getString("registryName"),
-              kind == Kind.ITEM ? data.getInteger("metadata") : 0, tag, capabilities));
+                kind == Kind.ITEM ? data.getInteger("metadata") : 0, tag, capabilities));
     }
 
     @Override
@@ -229,7 +229,7 @@ public final class PortableResourceDescriptor implements Comparable<PortableReso
     @Override
     public boolean equals(Object obj) {
         return this == obj || obj instanceof PortableResourceDescriptor other &&
-              descriptor.equals(other.descriptor);
+                descriptor.equals(other.descriptor);
     }
 
     @Override
@@ -243,7 +243,7 @@ public final class PortableResourceDescriptor implements Comparable<PortableReso
     }
 
     private static QIOResourceDescriptor legacyDescriptor(Kind kind, String registryName, int metadata,
-          @Nullable NBTTagCompound tag, @Nullable NBTTagCompound capabilities) {
+                                                          @Nullable NBTTagCompound tag, @Nullable NBTTagCompound capabilities) {
         Objects.requireNonNull(kind, "kind");
         if (kind == Kind.CUSTOM) {
             throw new IllegalArgumentException("Custom resources must be created from a QIO descriptor");
@@ -260,18 +260,18 @@ public final class PortableResourceDescriptor implements Comparable<PortableReso
             if (tag != null && !tag.isEmpty()) payload.setTag("tag", tag.copy());
             if (capabilities != null && !capabilities.isEmpty()) payload.setTag("ForgeCaps", capabilities.copy());
             return QIOResourceDescriptor.persisted(QIOResourceCodecs.ITEM_STACK_ID,
-                  QIOResourceCodecs.ITEM_FAMILY, 1, QIOResourceCodecs.ITEM_STACK.getStorageUnitsPerUnit(), payload);
+                    QIOResourceCodecs.ITEM_FAMILY, 1, QIOResourceCodecs.ITEM_STACK.getStorageUnitsPerUnit(), payload);
         }
         if (kind == Kind.FLUID) {
             payload.setString("FluidName", name);
             payload.setInteger("Amount", 1);
             if (tag != null && !tag.isEmpty()) payload.setTag("Tag", tag.copy());
             return QIOResourceDescriptor.persisted(QIOResourceCodecs.FLUID_STACK_ID,
-                  QIOResourceCodecs.FLUID_FAMILY, 1, QIOResourceCodecs.FLUID_STACK.getStorageUnitsPerUnit(), payload);
+                    QIOResourceCodecs.FLUID_FAMILY, 1, QIOResourceCodecs.FLUID_STACK.getStorageUnitsPerUnit(), payload);
         }
         payload.setString("gasName", name);
         payload.setInteger("amount", 1);
         return QIOResourceDescriptor.persisted(QIOResourceCodecs.GAS_STACK_ID,
-              QIOResourceCodecs.GAS_FAMILY, 1, QIOResourceCodecs.GAS_STACK.getStorageUnitsPerUnit(), payload);
+                QIOResourceCodecs.GAS_FAMILY, 1, QIOResourceCodecs.GAS_STACK.getStorageUnitsPerUnit(), payload);
     }
 }

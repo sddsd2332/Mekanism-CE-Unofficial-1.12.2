@@ -35,7 +35,8 @@ public final class ResourceSnapshotRegistry implements AutoCloseable {
     private boolean closed;
 
     public void checkOwner() {
-        if (Thread.currentThread() != owner || closed) throw new IllegalStateException("Recipe resource capture/restore requires its live server session");
+        if (Thread.currentThread() != owner || closed)
+            throw new IllegalStateException("Recipe resource capture/restore requires its live server session");
     }
 
     private static ResourceType type(ResourceType.Kind kind, String name) {
@@ -43,7 +44,9 @@ public final class ResourceSnapshotRegistry implements AutoCloseable {
         return new ResourceType(id, kind, name);
     }
 
-    /** Input matching excludes capabilities and never initializes or copies an ItemStack. */
+    /**
+     * Input matching excludes capabilities and never initializes or copies an ItemStack.
+     */
     public ResourceIdentity captureIngredient(ItemStack stack) {
         checkOwner();
         if (stack == null || stack.isEmpty()) return ResourceIdentity.EMPTY;
@@ -51,7 +54,8 @@ public final class ResourceSnapshotRegistry implements AutoCloseable {
         ResourceType type = itemTypes.get(item);
         if (type == null) {
             type = type(ResourceType.Kind.ITEM, Objects.toString(item.getRegistryName(), "unregistered-item"));
-            itemTypes.put(item, type); items.put(type.getId(), item);
+            itemTypes.put(item, type);
+            items.put(type.getId(), item);
         }
         return new ResourceIdentity(type, stack.getItemDamage(), stack.getMetadata(), NbtSnapshotCodec.freeze(stack.getTagCompound()), null);
     }
@@ -63,14 +67,15 @@ public final class ResourceSnapshotRegistry implements AutoCloseable {
         ResourceType type = itemTypes.get(item);
         if (type == null) {
             type = type(ResourceType.Kind.ITEM, Objects.toString(item.getRegistryName(), "unregistered-item"));
-            itemTypes.put(item, type); items.put(type.getId(), item);
+            itemTypes.put(item, type);
+            items.put(type.getId(), item);
         }
         // Forge serializes capabilities here on the server thread. No ItemStack
         // copy or live capability provider is retained in the detached value.
         NBTTagCompound serialized = stack.serializeNBT();
         FrozenNbt capabilities = serialized.hasKey("ForgeCaps", 10) ? NbtSnapshotCodec.freeze(serialized.getCompoundTag("ForgeCaps")) : null;
         ResourceIdentity identity = new ResourceIdentity(type, stack.getItemDamage(), stack.getMetadata(),
-              NbtSnapshotCodec.freeze(stack.getTagCompound()), capabilities);
+                NbtSnapshotCodec.freeze(stack.getTagCompound()), capabilities);
         return ResourceSnapshot.of(identity, stack.getCount(), stack.getMaxStackSize());
     }
 
@@ -81,7 +86,8 @@ public final class ResourceSnapshotRegistry implements AutoCloseable {
         ResourceType type = fluidTypes.get(fluid);
         if (type == null) {
             type = type(ResourceType.Kind.FLUID, fluid.getName());
-            fluidTypes.put(fluid, type); fluids.put(type.getId(), fluid);
+            fluidTypes.put(fluid, type);
+            fluids.put(type.getId(), fluid);
         }
         return ResourceSnapshot.of(new ResourceIdentity(type, 0, 0, NbtSnapshotCodec.freeze(stack.tag), null), stack.amount, 0);
     }
@@ -93,7 +99,8 @@ public final class ResourceSnapshotRegistry implements AutoCloseable {
         ResourceType type = gasTypes.get(gas);
         if (type == null) {
             type = type(ResourceType.Kind.GAS, gas.getName());
-            gasTypes.put(gas, type); gases.put(type.getId(), gas);
+            gasTypes.put(gas, type);
+            gases.put(type.getId(), gas);
         }
         return ResourceSnapshot.of(new ResourceIdentity(type, 0, 0, null, null), stack.amount, 0);
     }
@@ -105,7 +112,8 @@ public final class ResourceSnapshotRegistry implements AutoCloseable {
         ResourceType type = infusionTypes.get(infusion);
         if (type == null) {
             type = type(ResourceType.Kind.INFUSION, infusion.name);
-            infusionTypes.put(infusion, type); infusions.put(type.getId(), infusion);
+            infusionTypes.put(infusion, type);
+            infusions.put(type.getId(), infusion);
         }
         return ResourceSnapshot.of(new ResourceIdentity(type, 0, 0, null, null), storage.getAmount(), 0);
     }
@@ -117,7 +125,7 @@ public final class ResourceSnapshotRegistry implements AutoCloseable {
         ResourceIdentity identity = value.getIdentity();
         Item item = Objects.requireNonNull(items.get(identity.getType().getId()), "Item belongs to another planning session");
         ItemStack stack = new ItemStack(item, Math.toIntExact(value.getAmount()), identity.getDamage(),
-              (NBTTagCompound) NbtSnapshotCodec.thaw(identity.getCapabilities()));
+                (NBTTagCompound) NbtSnapshotCodec.thaw(identity.getCapabilities()));
         stack.setTagCompound((NBTTagCompound) NbtSnapshotCodec.thaw(identity.getTag()));
         return stack;
     }
@@ -129,7 +137,7 @@ public final class ResourceSnapshotRegistry implements AutoCloseable {
         require(value, ResourceType.Kind.FLUID);
         ResourceIdentity identity = value.getIdentity();
         return new FluidStack(Objects.requireNonNull(fluids.get(identity.getType().getId()), "Fluid belongs to another planning session"),
-              Math.toIntExact(value.getAmount()), (NBTTagCompound) NbtSnapshotCodec.thaw(identity.getTag()));
+                Math.toIntExact(value.getAmount()), (NBTTagCompound) NbtSnapshotCodec.thaw(identity.getTag()));
     }
 
     @Nullable
@@ -138,7 +146,7 @@ public final class ResourceSnapshotRegistry implements AutoCloseable {
         if (value.isEmpty()) return null;
         require(value, ResourceType.Kind.GAS);
         return new GasStack(Objects.requireNonNull(gases.get(value.getIdentity().getType().getId()), "Gas belongs to another planning session"),
-              Math.toIntExact(value.getAmount()));
+                Math.toIntExact(value.getAmount()));
     }
 
     public InfuseStorage infusion(ResourceSnapshot value) {
@@ -146,16 +154,25 @@ public final class ResourceSnapshotRegistry implements AutoCloseable {
         if (value.isEmpty()) return new InfuseStorage();
         require(value, ResourceType.Kind.INFUSION);
         return new InfuseStorage(Objects.requireNonNull(infusions.get(value.getIdentity().getType().getId()), "Infusion belongs to another planning session"),
-              Math.toIntExact(value.getAmount()));
+                Math.toIntExact(value.getAmount()));
     }
 
     private static void require(ResourceSnapshot value, ResourceType.Kind kind) {
-        if (value.getIdentity().getType().getKind() != kind) throw new IllegalArgumentException("Wrong resource kind for " + kind);
+        if (value.getIdentity().getType().getKind() != kind)
+            throw new IllegalArgumentException("Wrong resource kind for " + kind);
     }
 
-    @Override public void close() {
+    @Override
+    public void close() {
         checkOwner();
-        itemTypes.clear(); fluidTypes.clear(); gasTypes.clear(); infusionTypes.clear();
-        items.clear(); fluids.clear(); gases.clear(); infusions.clear(); closed = true;
+        itemTypes.clear();
+        fluidTypes.clear();
+        gasTypes.clear();
+        infusionTypes.clear();
+        items.clear();
+        fluids.clear();
+        gases.clear();
+        infusions.clear();
+        closed = true;
     }
 }

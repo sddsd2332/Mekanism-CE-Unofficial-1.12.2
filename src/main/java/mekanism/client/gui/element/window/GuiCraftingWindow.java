@@ -14,7 +14,9 @@ import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Floating 3x3 crafting window used by both QIO dashboards. */
+/**
+ * Floating 3x3 crafting window used by both QIO dashboards.
+ */
 public class GuiCraftingWindow extends GuiWindow {
 
     private final List<GuiVirtualSlot> slots = new ArrayList<>(10);
@@ -29,7 +31,7 @@ public class GuiCraftingWindow extends GuiWindow {
         for (int row = 0; row < 3; row++) {
             for (int column = 0; column < 3; column++) {
                 GuiVirtualSlot slot = addChild(new GuiVirtualSlot(SlotType.NORMAL, gui,
-                      relativeX + 8 + column * 18, relativeY + 18 + row * 18));
+                        relativeX + 8 + column * 18, relativeY + 18 + row * 18));
                 slot.updateVirtualSlot(this, container.getCraftingWindowSlot(index, row * 3 + column));
                 slots.add(slot);
             }
@@ -39,8 +41,8 @@ public class GuiCraftingWindow extends GuiWindow {
         output.updateVirtualSlot(this, container.getCraftingWindowSlot(index, 9));
         slots.add(output);
         addChild(new MekanismImageButton(gui, relativeX + width - 20, relativeY + height - 20, 14,
-              getButtonLocation("clear_sides"), () -> container.clearCraftingWindow(index, net.minecraft.client.gui.GuiScreen.isShiftKeyDown()),
-              getOnHover(MekanismLang.CRAFTING_WINDOW_CLEAR)));
+                getButtonLocation("clear_sides"), () -> container.clearCraftingWindow(index, net.minecraft.client.gui.GuiScreen.isShiftKeyDown()),
+                getOnHover(MekanismLang.CRAFTING_WINDOW_CLEAR)));
     }
 
     public void updateContainer(@Nonnull IQIOItemViewerContainer container) {

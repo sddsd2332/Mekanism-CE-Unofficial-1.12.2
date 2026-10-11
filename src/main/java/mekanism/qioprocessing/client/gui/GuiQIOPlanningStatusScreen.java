@@ -9,14 +9,13 @@ import net.minecraft.util.text.TextComponentTranslation;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
+import java.util.*;
 import java.util.function.Supplier;
 
-/** Compact planning status display with one optional, horizontally scrolling detail row. */
+/**
+ * Compact planning status display with one optional, horizontally scrolling detail row.
+ */
+
 /**
  * QIO 处理模块中的 GuiQIOPlanningStatusScreen 类型。
  *
@@ -35,10 +34,14 @@ public final class GuiQIOPlanningStatusScreen extends GuiInnerScreen {
     private long marqueeStartedAt;
 
     public GuiQIOPlanningStatusScreen(IGuiWrapper gui, int x, int y, int width, int height,
-          boolean centerVertically, Supplier<Content> contentSupplier) {
+                                      boolean centerVertically, Supplier<Content> contentSupplier) {
         super(gui, x, y, width, height);
         this.centerVertically = centerVertically;
         this.contentSupplier = Objects.requireNonNull(contentSupplier, "contentSupplier");
+        tooltip(() -> {
+            Content content = this.contentSupplier.get();
+            return content == null ? Collections.emptyList() : QIOPlanningMetricsTooltip.lines(content.metrics);
+        });
     }
 
     @Override
@@ -57,27 +60,27 @@ public final class GuiQIOPlanningStatusScreen extends GuiInnerScreen {
 
         int lineHeight = getFont().FONT_HEIGHT;
         float drawY = centerVertically ?
-              relativeY + Math.max(0, (getHeight() - rows * lineHeight) / 2F) :
-              relativeY + PADDING;
+                relativeY + Math.max(0, (getHeight() - rows * lineHeight) / 2F) :
+                relativeY + PADDING;
         float minX = relativeX + PADDING;
         float maxX = relativeX + getWidth() - PADDING;
         for (ITextComponent line : content.lines) {
             drawScaledScrollingString(line, minX, drawY, maxX, drawY + lineHeight,
-                  TextAlignment.LEFT, screenTextColor(), false, TEXT_SCALE, getTimeOpened());
+                    TextAlignment.LEFT, screenTextColor(), false, TEXT_SCALE, getTimeOpened());
             drawY += lineHeight;
         }
         if (content.detail != null) {
             String nextKey = (content.detailPrefix == null ? "" :
-                  content.detailPrefix.getFormattedText()) + '\u0000' +
-                  content.detail.getFormattedText() + '\u0000' + (maxX - minX);
+                    content.detailPrefix.getFormattedText()) + '\u0000' +
+                    content.detail.getFormattedText() + '\u0000' + (maxX - minX);
             long now = getMillis();
             if (!nextKey.equals(marqueeKey)) {
                 marqueeKey = nextKey;
                 marqueeStartedAt = now;
             }
             gui().drawPrefixedMarqueeString(content.detailPrefix, content.detail,
-                  minX, drawY, maxX, drawY + lineHeight, screenTextColor(), false,
-                  TEXT_SCALE, DETAIL_GAP, Math.max(0, now - marqueeStartedAt));
+                    minX, drawY, maxX, drawY + lineHeight, screenTextColor(), false,
+                    TEXT_SCALE, DETAIL_GAP, Math.max(0, now - marqueeStartedAt));
         } else {
             resetMarquee();
         }
@@ -90,31 +93,39 @@ public final class GuiQIOPlanningStatusScreen extends GuiInnerScreen {
 
     static ITextComponent duration(long nanos, boolean pending) {
         return pending ? new TextComponentTranslation(
-              "gui.mekanismqioprocessing.order_planning_time_pending") :
-              new TextComponentString(formatDuration(nanos));
+                "gui.mekanismqioprocessing.order_planning_time_pending") :
+                new TextComponentString(formatDuration(nanos));
     }
 
     static ITextComponent detailedTimings(QIOSmartProcessingPreviewSnapshot snapshot,
-          boolean pending) {
-        return new TextComponentTranslation("gui.mekanismqioprocessing.order_timing_details",
-              new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.order_main_preparation_time",
-                    duration(snapshot.getMainThreadPreparationNanos(), false)),
-              new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.order_route_preparation_time",
-                    duration(snapshot.getRoutePreparationNanos(), pending)),
-              new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.order_scheduling_time",
-                    duration(snapshot.getSchedulingNanos(), pending)),
-              new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.order_total_time",
-                    duration(snapshot.getTotalNanos(), pending)));
+                                          boolean pending) {
+        return new TextComponentTranslation("gui.mekanismqioprocessing.order_timing_details_v3",
+                new TextComponentTranslation(
+                        "gui.mekanismqioprocessing.order_main_preparation_time",
+                        duration(snapshot.getMainThreadPreparationNanos(), false)),
+                new TextComponentTranslation(
+                        "gui.mekanismqioprocessing.order_route_preparation_time",
+                        duration(snapshot.getRoutePreparationNanos(), pending)),
+                new TextComponentTranslation(
+                        "gui.mekanismqioprocessing.order_scheduling_time",
+                        duration(snapshot.getSchedulingNanos(), pending)),
+                new TextComponentTranslation(
+                        "gui.mekanismqioprocessing.order_worker_time",
+                        duration(snapshot.getWorkerNanos(), pending)),
+                new TextComponentTranslation("gui.mekanismqioprocessing.order_validation_wait_time",
+                        duration(snapshot.getValidationWaitNanos(), pending)),
+                new TextComponentTranslation(
+                        "gui.mekanismqioprocessing.order_completion_wait_time",
+                        duration(snapshot.getCompletionWaitNanos(), pending)),
+                new TextComponentTranslation(
+                        "gui.mekanismqioprocessing.order_total_time",
+                        duration(snapshot.getTotalNanos(), pending)));
     }
 
     static ITextComponent appendDetail(ITextComponent detail, @Nullable ITextComponent extra) {
         if (extra == null || extra.getFormattedText().isEmpty()) return detail;
         return new TextComponentString(detail.getFormattedText() + "  " +
-              extra.getFormattedText());
+                extra.getFormattedText());
     }
 
     private static String formatDuration(long nanos) {
@@ -128,11 +139,20 @@ public final class GuiQIOPlanningStatusScreen extends GuiInnerScreen {
     public static final class Content {
 
         private final List<ITextComponent> lines;
-        @Nullable private final ITextComponent detailPrefix;
-        @Nullable private final ITextComponent detail;
+        @Nullable
+        private final ITextComponent detailPrefix;
+        @Nullable
+        private final ITextComponent detail;
+        private mekanism.qioprocessing.common.planning.QIOPlanningMetrics.Snapshot metrics =
+                mekanism.qioprocessing.common.planning.QIOPlanningMetrics.Snapshot.EMPTY;
+
+        Content withMetrics(mekanism.qioprocessing.common.planning.QIOPlanningMetrics.Snapshot metrics) {
+            this.metrics = metrics;
+            return this;
+        }
 
         private Content(List<ITextComponent> lines, @Nullable ITextComponent detailPrefix,
-              @Nullable ITextComponent detail) {
+                        @Nullable ITextComponent detail) {
             this.lines = Collections.unmodifiableList(new ArrayList<>(lines));
             this.detailPrefix = detailPrefix;
             this.detail = detail;
@@ -143,10 +163,10 @@ public final class GuiQIOPlanningStatusScreen extends GuiInnerScreen {
         }
 
         static Content detail(@Nonnull List<ITextComponent> lines,
-              @Nonnull ITextComponent detailPrefix, @Nonnull ITextComponent detail) {
+                              @Nonnull ITextComponent detailPrefix, @Nonnull ITextComponent detail) {
             return new Content(Objects.requireNonNull(lines, "lines"),
-                  Objects.requireNonNull(detailPrefix, "detailPrefix"),
-                  Objects.requireNonNull(detail, "detail"));
+                    Objects.requireNonNull(detailPrefix, "detailPrefix"),
+                    Objects.requireNonNull(detail, "detail"));
         }
     }
 }

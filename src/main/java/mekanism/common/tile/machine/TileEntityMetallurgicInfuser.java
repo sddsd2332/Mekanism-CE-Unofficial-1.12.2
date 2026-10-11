@@ -49,14 +49,14 @@ import java.util.List;
 import java.util.Map;
 
 public class TileEntityMetallurgicInfuser extends TileEntityUpgradeableMachine<InfusionInput, ItemStackOutput, MetallurgicInfuserRecipe> implements ISustainedData,
-      IHasDumpButton {
+        IHasDumpButton {
 
     private static final List<RecipeError> TRACKED_ERROR_TYPES = Arrays.asList(
-          RecipeError.NOT_ENOUGH_ENERGY,
-          RecipeError.NOT_ENOUGH_INPUT,
-          RecipeError.NOT_ENOUGH_SECONDARY_INPUT,
-          RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
-          RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
+            RecipeError.NOT_ENOUGH_ENERGY,
+            RecipeError.NOT_ENOUGH_INPUT,
+            RecipeError.NOT_ENOUGH_SECONDARY_INPUT,
+            RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
+            RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
     );
     private static final String[] methods = new String[]{"getEnergy", "getProgress", "facing", "canOperate", "getMaxEnergy", "getEnergyNeeded", "getInfuse",
             "getInfuseNeeded"};
@@ -97,13 +97,14 @@ public class TileEntityMetallurgicInfuser extends TileEntityUpgradeableMachine<I
         extraSlot = builder.addSlot(InputInventorySlot.at(this::isInfuseInputValid, listener, 17, 35));
         extraSlot.setSlotType(ContainerSlotType.EXTRA);
         inputSlot = builder.addSlot(InputInventorySlot.at(this::isRecipeInputValid, recipeCacheListener, 51, 43)
-              .setAutoPullValidator((stack, side) -> canAutoPullInput(stack)));
+                .setAutoPullValidator((stack, side) -> canAutoPullInput(stack)));
         inputSlot.tracksWarnings(slot -> slot.warning(WarningType.NO_MATCHING_RECIPE, getWarningCheck(RecipeError.NOT_ENOUGH_INPUT)));
         outputSlot = builder.addSlot(OutputInventorySlot.at(recipeCacheChangeListener, 109, 43));
         outputSlot.tracksWarnings(slot -> slot.warning(WarningType.NO_SPACE_IN_OUTPUT, getWarningCheck(RecipeError.NOT_ENOUGH_OUTPUT_SPACE)));
         energySlot = builder.addSlot(EnergyInventorySlot.fillOrConvert(getMainEnergyContainer(), this::getWorld, listener, 143, 35));
         return builder.build();
     }
+
     @Override
     public void onAsyncUpdateServer() {
         super.onAsyncUpdateServer();
@@ -112,7 +113,7 @@ public class TileEntityMetallurgicInfuser extends TileEntityUpgradeableMachine<I
         if (!infuseInput.isEmpty()) {
             InfuseObject pendingInfuseInput = InfuseRegistry.getObject(infuseInput);
             int operations = infuseStored.getSupportedConversionOperations(pendingInfuseInput, MAX_INFUSE, infuseInput.getCount(),
-                  MekanismConfig.current().general.bulkSlotItemConversion.val());
+                    MekanismConfig.current().general.bulkSlotItemConversion.val());
             if (operations > 0) {
                 infuseStored.increase(pendingInfuseInput, operations);
                 MekanismUtils.logMismatchedStackSize(extraSlot.shrinkStack(operations, Action.EXECUTE), operations);
@@ -253,26 +254,26 @@ public class TileEntityMetallurgicInfuser extends TileEntityUpgradeableMachine<I
     @Override
     public CachedRecipe<MetallurgicInfuserRecipe> createNewCachedRecipe(MetallurgicInfuserRecipe recipe, int cacheIndex) {
         return new TwoInputCachedRecipe<>(recipe, this::shouldRecheckAllRecipeErrors,
-              InputHelper.getInputHandler(inputSlot, RecipeError.NOT_ENOUGH_INPUT),
-              InputHelper.getInfuseInputHandler(infuseStored, RecipeError.NOT_ENOUGH_SECONDARY_INPUT),
-              OutputHelper.getOutputHandler(outputSlot, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
-              () -> recipe.getInput().inputStack, () -> recipe.getInput().infuse,
-              (item, infuse) -> MachineInput.inputContains(item, recipe.getInput().inputStack)
-                    && infuse.getType() == recipe.getInput().infuse.getType(),
-              (item, infuse) -> recipe.getOutput().output.copy(), ItemStack::isEmpty,
-              infuse -> infuse == null || infuse.getType() == null || infuse.getAmount() <= 0, ItemStack::isEmpty)
-              .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
-              .setActive(active -> {
-                  if (active || prevEnergy >= getEnergy()) {
-                      setActive(active);
-                  }
-              })
-              .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
-              .setRequiredTicks(() -> ticksRequired)
-              .setBaselineMaxOperations(() -> getBaselineMaxOperations(energyPerTick, true))
-              .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
-              .setErrorsChanged(this::onRecipeErrorsChanged)
-              .setOnFinish(this::onCachedRecipeFinish);
+                InputHelper.getInputHandler(inputSlot, RecipeError.NOT_ENOUGH_INPUT),
+                InputHelper.getInfuseInputHandler(infuseStored, RecipeError.NOT_ENOUGH_SECONDARY_INPUT),
+                OutputHelper.getOutputHandler(outputSlot, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
+                () -> recipe.getInput().inputStack, () -> recipe.getInput().infuse,
+                (item, infuse) -> MachineInput.inputContains(item, recipe.getInput().inputStack)
+                        && infuse.getType() == recipe.getInput().infuse.getType(),
+                (item, infuse) -> recipe.getOutput().output.copy(), ItemStack::isEmpty,
+                infuse -> infuse == null || infuse.getType() == null || infuse.getAmount() <= 0, ItemStack::isEmpty)
+                .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
+                .setActive(active -> {
+                    if (active || prevEnergy >= getEnergy()) {
+                        setActive(active);
+                    }
+                })
+                .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
+                .setRequiredTicks(() -> ticksRequired)
+                .setBaselineMaxOperations(() -> getBaselineMaxOperations(energyPerTick, true))
+                .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
+                .setErrorsChanged(this::onRecipeErrorsChanged)
+                .setOnFinish(this::onCachedRecipeFinish);
     }
 
     @Override
@@ -302,11 +303,11 @@ public class TileEntityMetallurgicInfuser extends TileEntityUpgradeableMachine<I
 
     private boolean canAutoPullInput(ItemStack stack) {
         MetallurgicInfuserRecipe recipe = getRecipeForInsertedInput(stack);
-        return recipe != null && canOutputToSlot(SLOT_OUTPUT, recipe.getOutput().output);
+        return recipe != null && canOutputToSlot(outputSlot, recipe.getOutput().output);
     }
 
     private MetallurgicInfuserRecipe getRecipeForInsertedInput(ItemStack stack) {
-        return RecipeHandler.getMetallurgicInfuserRecipe(new InfusionInput(infuseStored, getSimulatedStackWithInsert(SLOT_INPUT, stack)));
+        return RecipeHandler.getMetallurgicInfuserRecipe(new InfusionInput(infuseStored, getSimulatedStackWithInsert(inputSlot, stack)));
     }
 
     private ItemStack getCurrentOutput() {

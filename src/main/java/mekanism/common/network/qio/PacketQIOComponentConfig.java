@@ -4,13 +4,13 @@ import io.netty.buffer.ByteBuf;
 import mekanism.api.Coord4D;
 import mekanism.common.Mekanism;
 import mekanism.common.PacketHandler;
-import mekanism.common.tile.qio.TileEntityQIOFilterHandler;
-import mekanism.common.tile.qio.TileEntityQIOExporter;
-import mekanism.common.tile.qio.TileEntityQIORedstoneAdapter;
-import mekanism.common.tile.qio.TileEntityQIODashboard;
+import mekanism.common.content.qio.QIONetworkResourceLimits;
 import mekanism.common.content.qio.filter.QIOFilter;
 import mekanism.common.content.qio.filter.QIOResourceFilter;
-import mekanism.common.content.qio.QIONetworkResourceLimits;
+import mekanism.common.tile.qio.TileEntityQIODashboard;
+import mekanism.common.tile.qio.TileEntityQIOExporter;
+import mekanism.common.tile.qio.TileEntityQIOFilterHandler;
+import mekanism.common.tile.qio.TileEntityQIORedstoneAdapter;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
@@ -20,7 +20,9 @@ import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
 
 import javax.annotation.Nullable;
 
-/** Validated configuration changes for QIO automation components. */
+/**
+ * Validated configuration changes for QIO automation components.
+ */
 public class PacketQIOComponentConfig implements IMessageHandler<PacketQIOComponentConfig.Message, IMessage> {
 
     @Override
@@ -283,7 +285,7 @@ public class PacketQIOComponentConfig implements IMessageHandler<PacketQIOCompon
         }
 
         private static boolean isRequestValid(@Nullable Coord4D coord, @Nullable ConfigAction action, long value,
-              @Nullable NBTTagCompound filterData, int index) {
+                                              @Nullable NBTTagCompound filterData, int index) {
             if (coord == null || action == null) {
                 return false;
             }
@@ -315,9 +317,9 @@ public class PacketQIOComponentConfig implements IMessageHandler<PacketQIOCompon
             }
             if (filter instanceof QIOResourceFilter) {
                 mekanism.api.qio.resource.QIOResourceDescriptor descriptor =
-                      ((QIOResourceFilter) filter).getDescriptor();
+                        ((QIOResourceFilter) filter).getDescriptor();
                 return descriptor != null && descriptor.isResolved() &&
-                      QIONetworkResourceLimits.isSafeDescriptorPayload(descriptor.getPayload());
+                        QIONetworkResourceLimits.isSafeDescriptorPayload(descriptor.getPayload());
             }
             return true;
         }

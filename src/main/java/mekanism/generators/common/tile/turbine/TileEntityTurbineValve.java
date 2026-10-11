@@ -45,7 +45,6 @@ public class TileEntityTurbineValve extends TileEntityTurbineCasing implements I
     public TurbineFluidTank fluidTank;
     private CapabilityWrapperManager<IEnergyWrapper, TeslaIntegration> teslaManager = new CapabilityWrapperManager<>(IEnergyWrapper.class, TeslaIntegration.class);
     private CapabilityWrapperManager<IEnergyWrapper, ForgeEnergyIntegration> forgeEnergyManager = new CapabilityWrapperManager<>(IEnergyWrapper.class, ForgeEnergyIntegration.class);
-    private int currentRedstoneLevel;
 
     public TileEntityTurbineValve() {
         super("TurbineValve");
@@ -56,18 +55,18 @@ public class TileEntityTurbineValve extends TileEntityTurbineCasing implements I
     @Override
     protected IFluidTankHolder getInitialFluidTanks(IContentsListener listener) {
         return ProxiedFluidTankHolder.create(
-              side -> isFormed(),
-              side -> false,
-              side -> isFormed() ? Collections.singletonList(fluidTank) : Collections.emptyList()
+                side -> isFormed(),
+                side -> false,
+                side -> isFormed() ? Collections.singletonList(fluidTank) : Collections.emptyList()
         );
     }
 
     @Override
     protected IEnergyContainerHolder getInitialEnergyContainers(IContentsListener listener) {
         return ProxiedEnergyContainerHolder.create(
-              side -> false,
-              side -> side != null && sideIsOutput(side),
-              side -> structure == null || !structure.isFormed() ? Collections.emptyList() : structure.getEnergyContainers(side)
+                side -> false,
+                side -> side != null && sideIsOutput(side),
+                side -> structure == null || !structure.isFormed() ? Collections.emptyList() : structure.getEnergyContainers(side)
         );
     }
 
@@ -89,11 +88,7 @@ public class TileEntityTurbineValve extends TileEntityTurbineCasing implements I
         if (structure != null && structure.isFormed()) {
             CableUtils.emit(this);
         }
-        int newRedstoneLevel = getRedstoneLevel();
-        if (newRedstoneLevel != currentRedstoneLevel) {
-            updateComparatorOutputLevelSync();
-            currentRedstoneLevel = newRedstoneLevel;
-        }
+        updateSharedComparatorSignal();
     }
 
     @Override
@@ -369,7 +364,18 @@ public class TileEntityTurbineValve extends TileEntityTurbineCasing implements I
     }
 
     @Override
-    public int getRedstoneLevel() {
-        return MekanismUtils.redstoneLevelFromContents(fluidTank.getFluidAmount(), fluidTank.getCapacity());
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return type == mekanism.api.transmitters.TransmissionType.FLUID;
     }
+
+    @Override
+    public int getRedstoneLevel() {
+        return structure == null ? 0 : structure.getCurrentRedstoneLevel();
+    }
+
+    @Override
+    public int getCurrentRedstoneLevel() {
+        return supportsComparator() ? getRedstoneLevel() : 0;
+    }
+
 }

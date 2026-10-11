@@ -10,7 +10,10 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
-/** Deterministically binds logical candidate units to exact QIO resources. */
+/**
+ * Deterministically binds logical candidate units to exact QIO resources.
+ */
+
 /**
  * QIO 处理模块中的 QIOCandidateClaimResolver 类型。
  *
@@ -24,31 +27,31 @@ final class QIOCandidateClaimResolver {
 
     @Nonnull
     static Map<PortableResourceDescriptor, Long> resolve(
-          @Nonnull QIOPlanMaterialRequirements requirements,
-          @Nonnull Map<PortableResourceDescriptor, Long> currentlyClaimed,
-          @Nonnull Map<PortableResourceDescriptor, Long> currentlyBacked,
-          @Nonnull Map<PortableResourceDescriptor, Long> available) {
+            @Nonnull QIOPlanMaterialRequirements requirements,
+            @Nonnull Map<PortableResourceDescriptor, Long> currentlyClaimed,
+            @Nonnull Map<PortableResourceDescriptor, Long> currentlyBacked,
+            @Nonnull Map<PortableResourceDescriptor, Long> available) {
         Objects.requireNonNull(requirements, "requirements");
         Map<PortableResourceDescriptor, Long> ownedPool = new LinkedHashMap<>(
-              currentlyClaimed);
+                currentlyClaimed);
         Map<PortableResourceDescriptor, Long> backedPool = new LinkedHashMap<>(
-              currentlyBacked);
+                currentlyBacked);
         Map<PortableResourceDescriptor, Long> availablePool = new LinkedHashMap<>(available);
         Map<PortableResourceDescriptor, Long> target = new LinkedHashMap<>();
         for (Map.Entry<PortableResourceDescriptor, Long> exact :
-              requirements.getExactAmounts().entrySet()) {
+                requirements.getExactAmounts().entrySet()) {
             long granted = takeExactAmount(exact.getKey(), exact.getValue(), ownedPool,
-                  backedPool, availablePool);
+                    backedPool, availablePool);
             if (granted > 0) target.put(exact.getKey(), granted);
         }
         for (QIOCandidateRequirement requirement :
-              requirements.getCandidateRequirements()) {
+                requirements.getCandidateRequirements()) {
             long remainingUnits = requirement.getRequiredUnits();
             for (QIOCandidateOption option : requirement.getOptions()) {
                 if (remainingUnits == 0) break;
                 long amountPerUnit = option.getAmountPerUnit();
                 long ownedUnits = Math.min(remainingUnits,
-                      backedPool.getOrDefault(option.getResource(), 0L) / amountPerUnit);
+                        backedPool.getOrDefault(option.getResource(), 0L) / amountPerUnit);
                 if (ownedUnits > 0) {
                     long amount = Math.multiplyExact(ownedUnits, amountPerUnit);
                     consume(backedPool, option.getResource(), amount);
@@ -56,7 +59,7 @@ final class QIOCandidateClaimResolver {
                     remainingUnits -= ownedUnits;
                 }
                 long availableUnits = Math.min(remainingUnits,
-                      availablePool.getOrDefault(option.getResource(), 0L) / amountPerUnit);
+                        availablePool.getOrDefault(option.getResource(), 0L) / amountPerUnit);
                 if (availableUnits > 0) {
                     long amount = Math.multiplyExact(availableUnits, amountPerUnit);
                     consume(availablePool, option.getResource(), amount);
@@ -69,9 +72,9 @@ final class QIOCandidateClaimResolver {
     }
 
     private static long takeExactAmount(PortableResourceDescriptor resource, long requested,
-          Map<PortableResourceDescriptor, Long> claimed,
-          Map<PortableResourceDescriptor, Long> backed,
-          Map<PortableResourceDescriptor, Long> available) {
+                                        Map<PortableResourceDescriptor, Long> claimed,
+                                        Map<PortableResourceDescriptor, Long> backed,
+                                        Map<PortableResourceDescriptor, Long> available) {
         long fromOwned = Math.min(requested, claimed.getOrDefault(resource, 0L));
         consume(claimed, resource, fromOwned);
         consume(backed, resource, Math.min(fromOwned, backed.getOrDefault(resource, 0L)));
@@ -82,7 +85,7 @@ final class QIOCandidateClaimResolver {
     }
 
     private static void consume(Map<PortableResourceDescriptor, Long> pool,
-          PortableResourceDescriptor resource, long amount) {
+                                PortableResourceDescriptor resource, long amount) {
         if (amount <= 0) return;
         long stored = pool.getOrDefault(resource, 0L);
         if (stored == amount) pool.remove(resource);

@@ -9,18 +9,15 @@ import mekanism.client.recipe_viewer.interfaces.IRecipeViewerGhostTarget;
 import mekanism.client.recipe_viewer.interfaces.IRecipeViewerGhostTarget.IGhostIngredientConsumer;
 import mekanism.common.lib.collection.LRU;
 
-import java.awt.Rectangle;
-import java.util.ArrayList;
-import java.util.Collections;
+import java.awt.*;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
 import java.util.function.BiFunction;
 
 public class GhostIngredientHandler {
 
     public static <INGREDIENT, TARGET> List<TARGET> getTargetsTyped(GuiMekanism<?> gui, INGREDIENT ingredient,
-          BiFunction<IGhostIngredientConsumer, INGREDIENT, Object> supportedIngredient, TargetCreator<TARGET> targetCreator) {
+                                                                    BiFunction<IGhostIngredientConsumer, INGREDIENT, Object> supportedIngredient, TargetCreator<TARGET> targetCreator) {
         boolean hasTargets = false;
         int depth = 0;
         Map<Integer, List<TargetInfo<TARGET>>> depthBasedTargets = new TreeMap<>();
@@ -65,7 +62,7 @@ public class GhostIngredientHandler {
     }
 
     private static <INGREDIENT, TARGET> List<TargetInfo<TARGET>> getTargets(List<? extends Widget> children, INGREDIENT ingredient,
-          BiFunction<IGhostIngredientConsumer, INGREDIENT, Object> supportedIngredient, TargetCreator<TARGET> targetCreator) {
+                                                                            BiFunction<IGhostIngredientConsumer, INGREDIENT, Object> supportedIngredient, TargetCreator<TARGET> targetCreator) {
         List<TargetInfo<TARGET>> ghostTargets = new ArrayList<>();
         for (Widget child : children) {
             if (!child.visible) {
@@ -80,7 +77,7 @@ public class GhostIngredientHandler {
                     Object supported = supportedIngredient.apply(ghostHandler, ingredient);
                     if (supported != null) {
                         ghostTargets.add(new TargetInfo<>(ghostTarget, ghostHandler, child.getX(), child.getY(), child.getWidth(), child.getHeight(), supported,
-                              targetCreator));
+                                targetCreator));
                     }
                 }
             }
@@ -216,7 +213,7 @@ public class GhostIngredientHandler {
         private final Object supported;
 
         private TargetInfo(IRecipeViewerGhostTarget ghostTarget, IGhostIngredientConsumer ghostHandler, int x, int y, int width, int height, Object supported,
-              TargetCreator<TARGET> targetCreator) {
+                           TargetCreator<TARGET> targetCreator) {
             this.ghostHandler = ghostHandler;
             this.targetCreator = targetCreator;
             this.supported = supported;

@@ -9,7 +9,9 @@ import javax.annotation.Nonnull;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/** Compact 26.2-style enum dropdown used by the QIO viewer. */
+/**
+ * Compact 26.2-style enum dropdown used by the QIO viewer.
+ */
 public class GuiDropdown<TYPE extends Enum<TYPE> & GuiDropdown.IDropdownOption> extends GuiTexturedElement {
 
     private static final int ELEMENT_HEIGHT = 12;
@@ -20,7 +22,7 @@ public class GuiDropdown<TYPE extends Enum<TYPE> & GuiDropdown.IDropdownOption> 
     private long openedAt;
 
     public GuiDropdown(IGuiWrapper gui, int x, int y, int width, Class<TYPE> enumClass,
-          Supplier<TYPE> current, Consumer<TYPE> handler) {
+                       Supplier<TYPE> current, Consumer<TYPE> handler) {
         super(GuiInnerScreen.SCREEN, gui, x, y, width, ELEMENT_HEIGHT);
         this.current = current;
         this.handler = handler;
@@ -50,7 +52,7 @@ public class GuiDropdown<TYPE extends Enum<TYPE> & GuiDropdown.IDropdownOption> 
             int hovered = getHoveredIndex(mouseX, mouseY);
             if (hovered >= 0) {
                 GuiUtils.fill(relativeX + 1, relativeY + ELEMENT_HEIGHT + hovered * 10,
-                      relativeX + width - 1, relativeY + ELEMENT_HEIGHT + hovered * 10 + 10, 0x603CFE9A);
+                        relativeX + width - 1, relativeY + ELEMENT_HEIGHT + hovered * 10 + 10, 0x603CFE9A);
             }
         }
     }
@@ -68,7 +70,7 @@ public class GuiDropdown<TYPE extends Enum<TYPE> & GuiDropdown.IDropdownOption> 
 
     private void drawOption(TYPE option, int y, long visibleSince) {
         drawScaledScrollingString(option.getShortName(), 0, y, TextAlignment.LEFT, screenTextColor(), width, 3,
-              false, 0.8F, visibleSince);
+                false, 0.8F, visibleSince);
     }
 
     @Override

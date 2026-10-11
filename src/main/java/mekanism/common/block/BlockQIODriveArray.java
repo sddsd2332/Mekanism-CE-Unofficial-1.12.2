@@ -5,15 +5,15 @@ import mekanism.common.MekanismBlocks;
 import mekanism.common.QIOGuiConstants;
 import mekanism.common.block.property.PropertyDriveStatus;
 import mekanism.common.block.states.BlockStateFacing;
-import mekanism.common.block.states.BlockStateQIODriveArray;
 import mekanism.common.block.states.BlockStateQIOComponent;
-import mekanism.common.security.ISecurityTile;
+import mekanism.common.block.states.BlockStateQIODriveArray;
 import mekanism.common.item.ItemBlockQIOComponent;
-import mekanism.common.tile.qio.TileEntityQIODriveArray;
-import mekanism.common.tile.qio.TileEntityQIOComponent;
+import mekanism.common.security.ISecurityTile;
 import mekanism.common.tile.prefab.TileEntityBasicBlock;
-import mekanism.common.util.MekanismUtils;
+import mekanism.common.tile.qio.TileEntityQIOComponent;
+import mekanism.common.tile.qio.TileEntityQIODriveArray;
 import mekanism.common.util.MekanismPlacementData;
+import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.SecurityUtils;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.BlockStateContainer;
@@ -35,7 +35,9 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 
 import javax.annotation.Nonnull;
 
-/** Block container for the QIO drive array. */
+/**
+ * Block container for the QIO drive array.
+ */
 public class BlockQIODriveArray extends BlockMekanismContainer {
 
     public BlockQIODriveArray() {
@@ -83,7 +85,7 @@ public class BlockQIODriveArray extends BlockMekanismContainer {
             state = state.withProperty(BlockStateFacing.facingProperty, ((TileEntityBasicBlock) tile).facing);
         }
         return tile instanceof TileEntityQIOComponent
-              ? state.withProperty(BlockStateQIOComponent.activeProperty, ((TileEntityQIOComponent) tile).isActive()) : state;
+                ? state.withProperty(BlockStateQIOComponent.activeProperty, ((TileEntityQIOComponent) tile).isActive()) : state;
     }
 
     @Override
@@ -95,7 +97,7 @@ public class BlockQIODriveArray extends BlockMekanismContainer {
             ((TileEntityBasicBlock) tile).setFacing(facing);
         }
         if (tile instanceof ISecurityTile && placer instanceof EntityPlayer &&
-              ((ISecurityTile) tile).getSecurity().getOwnerUUID() == null) {
+                ((ISecurityTile) tile).getSecurity().getOwnerUUID() == null) {
             ((ISecurityTile) tile).getSecurity().setOwnerUUID(((EntityPlayer) placer).getUniqueID());
         }
         MekanismPlacementData.apply(world, pos, placer, stack);
@@ -114,7 +116,7 @@ public class BlockQIODriveArray extends BlockMekanismContainer {
 
     @Override
     public boolean onBlockActivated(World world, BlockPos pos, IBlockState state, EntityPlayer player, EnumHand hand,
-          EnumFacing side, float hitX, float hitY, float hitZ) {
+                                    EnumFacing side, float hitX, float hitY, float hitZ) {
         if (world.isRemote) {
             return true;
         }

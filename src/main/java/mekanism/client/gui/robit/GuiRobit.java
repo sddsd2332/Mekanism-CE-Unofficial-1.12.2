@@ -40,15 +40,15 @@ public abstract class GuiRobit<CONTAINER extends Container> extends GuiMekanism<
     protected void addRobitNavigation() {
         addButton(GuiSideHolder.create(this, xSize, 6, 106, false, false, SpecialColors.TAB_ROBIT_MENU));
         addButton(new MekanismImageButton(this, xSize + 3, 10, 18, getButtonLocation("main"),
-              () -> openGui(GUI_MAIN), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit")))));
+                () -> openGui(GUI_MAIN), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit")))));
         addButton(new MekanismImageButton(this, xSize + 3, 30, 18, getButtonLocation("crafting"),
-              () -> openGui(GUI_CRAFTING), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.crafting")))));
+                () -> openGui(GUI_CRAFTING), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.crafting")))));
         addButton(new MekanismImageButton(this, xSize + 3, 50, 18, getButtonLocation("inventory"),
-              () -> openGui(GUI_INVENTORY), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.inventory")))));
+                () -> openGui(GUI_INVENTORY), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.inventory")))));
         addButton(new MekanismImageButton(this, xSize + 3, 70, 18, getButtonLocation("smelting"),
-              () -> openGui(GUI_SMELTING), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.smelting")))));
+                () -> openGui(GUI_SMELTING), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.smelting")))));
         addButton(new MekanismImageButton(this, xSize + 3, 90, 18, getButtonLocation("repair"),
-              () -> openGui(GUI_REPAIR), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.repair")))));
+                () -> openGui(GUI_REPAIR), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.robit.repair")))));
     }
 
     protected void openGui(int guiId) {

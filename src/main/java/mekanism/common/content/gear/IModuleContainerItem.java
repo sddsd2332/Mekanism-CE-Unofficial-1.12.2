@@ -83,7 +83,7 @@ public interface IModuleContainerItem extends IItemHUDProvider {
         }
     }
 
-    default void setAllModule(ItemStack stack){
+    default void setAllModule(ItemStack stack) {
         for (ModuleData<?> module : ModuleHelper.get().getAll()) {
             if (ModuleHelper.get().getSupported(stack).contains(module)) {
                 setModule(stack, module);

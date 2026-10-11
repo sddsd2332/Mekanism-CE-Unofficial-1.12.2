@@ -1,9 +1,9 @@
 package mekanism.api.processing;
 
-import net.minecraft.item.ItemStack;
-import net.minecraftforge.fluids.FluidStack;
 import mekanism.api.gas.GasStack;
 import mekanism.api.qio.resource.QIOResourceDescriptor;
+import net.minecraft.item.ItemStack;
+import net.minecraftforge.fluids.FluidStack;
 
 import javax.annotation.Nonnull;
 import java.nio.charset.StandardCharsets;
@@ -47,7 +47,7 @@ public final class MachineRecipeRoute {
         }
         recipeKey = builder.recipeKey == null || builder.recipeKey.isEmpty() ? createRecipeKey() : builder.recipeKey;
         logicalRecipeKey = builder.logicalRecipeKey == null || builder.logicalRecipeKey.isEmpty() ?
-              recipeKey : builder.logicalRecipeKey;
+                recipeKey : builder.logicalRecipeKey;
     }
 
     public static Builder builder(String routeId) {
@@ -62,7 +62,9 @@ public final class MachineRecipeRoute {
         return recipeKey;
     }
 
-    /** Stable recipe identity shared by all physical factory-lane expansions. */
+    /**
+     * Stable recipe identity shared by all physical factory-lane expansions.
+     */
     public String logicalRecipeKey() {
         return logicalRecipeKey;
     }
@@ -79,7 +81,9 @@ public final class MachineRecipeRoute {
         return configurationInputs;
     }
 
-    /** Alias for integrations that describe persistent recipe inputs as retained inputs. */
+    /**
+     * Alias for integrations that describe persistent recipe inputs as retained inputs.
+     */
     public List<MachineResourceStack> retainedInputs() {
         return configurationInputs;
     }
@@ -170,7 +174,7 @@ public final class MachineRecipeRoute {
 
         public Builder logicalRecipeKey(@Nonnull String logicalRecipeKey) {
             this.logicalRecipeKey = Objects.requireNonNull(logicalRecipeKey,
-                  "Logical recipe key cannot be null");
+                    "Logical recipe key cannot be null");
             return this;
         }
 
@@ -185,7 +189,7 @@ public final class MachineRecipeRoute {
 
         public Builder configurationInput(MachineResourceStack stack) {
             configurationInputs.add(Objects.requireNonNull(stack,
-                  "Configuration input cannot be null"));
+                    "Configuration input cannot be null"));
             return this;
         }
 

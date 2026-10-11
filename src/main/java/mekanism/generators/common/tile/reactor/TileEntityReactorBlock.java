@@ -1,8 +1,8 @@
 package mekanism.generators.common.tile.reactor;
 
 import mekanism.api.Coord4D;
-import mekanism.common.tile.prefab.TileEntityElectricBlock;
 import mekanism.common.capabilities.Capabilities;
+import mekanism.common.tile.prefab.TileEntityElectricBlock;
 import mekanism.common.util.InventoryUtils;
 import mekanism.generators.common.FusionReactor;
 import net.minecraft.util.EnumFacing;
@@ -62,9 +62,9 @@ public abstract class TileEntityReactorBlock extends TileEntityElectricBlock {
     }
 
     @Override
-    public void onUpdateServer(){
+    public void onUpdateServer() {
         super.onUpdateServer();
-        if (ticker == 5 && !attempted && (getReactor() == null || !getReactor().isFormed())){
+        if (ticker == 5 && !attempted && (getReactor() == null || !getReactor().isFormed())) {
             updateController();
         }
     }

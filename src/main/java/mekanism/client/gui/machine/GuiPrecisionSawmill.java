@@ -32,14 +32,14 @@ public class GuiPrecisionSawmill extends GuiConfigurableTile<TileEntityPrecision
         super.addGuiElements();
         addButton(new GuiUpArrow(this, 60, 38));
         addButton(new GuiVerticalPowerBar(this, tileEntity.getEnergyContainer(), 164, 15))
-              .warning(WarningType.NOT_ENOUGH_ENERGY, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY));
+                .warning(WarningType.NOT_ENOUGH_ENERGY, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY));
         addButton(new GuiEnergyTab(this, tileEntity.getEnergyContainer(), tileEntity::getActive));
         addButton(new GuiSlot(SlotType.OUTPUT_WIDE, this, 111, 30)
-              .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_OUTPUT_SPACE))
-              .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity.getWarningCheck(TileEntityPrecisionSawmill.NOT_ENOUGH_SPACE_SECONDARY_OUTPUT_ERROR)));
+                .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_OUTPUT_SPACE))
+                .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity.getWarningCheck(TileEntityPrecisionSawmill.NOT_ENOUGH_SPACE_SECONDARY_OUTPUT_ERROR)));
         addButton(new GuiProgress(tileEntity::getScaledProgress, ProgressType.BAR, this, 78, 38))
-              .recipeViewerCategories(RecipeViewerRecipeType.SAWING)
-              .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity.getWarningCheck(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT));
+                .recipeViewerCategories(RecipeViewerRecipeType.SAWING)
+                .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity.getWarningCheck(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT));
     }
 
     @Override

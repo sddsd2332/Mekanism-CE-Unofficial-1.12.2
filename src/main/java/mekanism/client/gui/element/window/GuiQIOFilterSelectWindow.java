@@ -11,7 +11,9 @@ import mekanism.common.tile.qio.TileEntityQIOFilterHandler;
 import net.minecraft.util.text.ITextComponent;
 import net.minecraft.util.text.TextComponentTranslation;
 
-/** Filter selector with one codec-aware exact-resource entry. */
+/**
+ * Filter selector with one codec-aware exact-resource entry.
+ */
 public class GuiQIOFilterSelectWindow extends GuiWindow {
 
     private final TileEntityQIOFilterHandler tile;
@@ -28,19 +30,19 @@ public class GuiQIOFilterSelectWindow extends GuiWindow {
 
     private void addResourceButton(ITextComponent label, int y) {
         addChild(new MekanismButton(gui(), relativeX + 12, relativeY + y, 128, 20,
-              label,
-              () -> {
-                  IGuiWrapper parent = gui();
-                  parent.addWindow(new GuiQIOResourceFilterWindow(parent, tile));
-                  close();
-              }, null));
+                label,
+                () -> {
+                    IGuiWrapper parent = gui();
+                    parent.addWindow(new GuiQIOResourceFilterWindow(parent, tile));
+                    close();
+                }, null));
     }
 
     private void addTextButton(boolean oreDictionary, ITextComponent label, int y) {
         addChild(new MekanismButton(gui(), relativeX + 12, relativeY + y, 128, 20, label, () -> {
             IGuiWrapper parent = gui();
             parent.addWindow(new GuiQIOTextFilterWindow(parent, tile,
-                  oreDictionary ? new QIOOreDictFilter() : new QIOModIDFilter(), -1));
+                    oreDictionary ? new QIOOreDictFilter() : new QIOModIDFilter(), -1));
             close();
         }, null));
     }

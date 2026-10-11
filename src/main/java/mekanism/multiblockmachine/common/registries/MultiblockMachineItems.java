@@ -23,7 +23,7 @@ public class MultiblockMachineItems {
         registry.register(init(gas_adsorption_fractionation_module, "gas_adsorption_fractionation_module"));
         registry.register(init(high_frequency_fusion_molding_module, "high_frequency_fusion_molding_module"));
         registry.register(init(LaserLenses, "LaserLenses"));
-        registry.register(init(advanced_electrolysis_core,"advanced_electrolysis_core"));
+        registry.register(init(advanced_electrolysis_core, "advanced_electrolysis_core"));
         registry.register(init(ThreadUpgrade, "ThreadUpgrade"));
     }
 

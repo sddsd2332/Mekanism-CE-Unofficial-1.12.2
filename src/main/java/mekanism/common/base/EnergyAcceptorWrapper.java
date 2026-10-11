@@ -94,12 +94,26 @@ public abstract class EnergyAcceptorWrapper implements IStrictEnergyAcceptor {
 
     public abstract boolean needsEnergy(EnumFacing side);
 
+    /**
+     * Unknown integrations never receive a persistent resolution token.
+     */
+    @Nullable
+    public Object managedCacheToken(TileEntity tile, EnumFacing side) {
+        return null;
+    }
+
     public static class MekanismAcceptor extends EnergyAcceptorWrapper {
 
         private IStrictEnergyAcceptor acceptor;
 
         public MekanismAcceptor(IStrictEnergyAcceptor mekAcceptor) {
             acceptor = mekAcceptor;
+        }
+
+        @Override
+        public Object managedCacheToken(TileEntity tile, EnumFacing side) {
+            return getClass() == MekanismAcceptor.class && tile instanceof mekanism.common.tile.prefab.TileEntityContainerBlock container ?
+                    container.getManagedEnergyAcceptorToken(side, acceptor) : null;
         }
 
         @Override

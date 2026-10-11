@@ -5,11 +5,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.Future;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -35,11 +31,11 @@ public final class LegacyIndexLoader implements AutoCloseable {
         this.reader = reader;
         AtomicLong threadId = new AtomicLong();
         executor = new ThreadPoolExecutor(workers, workers, 0, TimeUnit.MILLISECONDS,
-              new ArrayBlockingQueue<>(queueCapacity), runnable -> {
-                  Thread thread = new Thread(runnable, "Mekanism-legacy-multiblock-" + threadId.incrementAndGet());
-                  thread.setDaemon(true);
-                  return thread;
-              }, new ThreadPoolExecutor.AbortPolicy());
+                new ArrayBlockingQueue<>(queueCapacity), runnable -> {
+            Thread thread = new Thread(runnable, "Mekanism-legacy-multiblock-" + threadId.incrementAndGet());
+            thread.setDaemon(true);
+            return thread;
+        }, new ThreadPoolExecutor.AbortPolicy());
     }
 
     public synchronized Handle open(Path resolvedFile) {
@@ -111,7 +107,7 @@ public final class LegacyIndexLoader implements AutoCloseable {
         }
     }
 
-    public enum State { LOADING, READY, FAILED, CLOSED }
+    public enum State {LOADING, READY, FAILED, CLOSED}
 
     public final class Handle implements AutoCloseable {
         public final Path file;
@@ -132,7 +128,9 @@ public final class LegacyIndexLoader implements AutoCloseable {
             return state;
         }
 
-        /** Guarded access prevents LOADING/FAILED from being mistaken for an empty index. */
+        /**
+         * Guarded access prevents LOADING/FAILED from being mistaken for an empty index.
+         */
         public synchronized LegacyMultiblockIndex index() {
             if (state != State.READY) throw new IllegalStateException("Legacy index is " + state, failure);
             return index;
@@ -142,9 +140,16 @@ public final class LegacyIndexLoader implements AutoCloseable {
             return failure;
         }
 
-        /** -1 means not started (queue) or not completed (reader), including pre-read rejection. */
-        public synchronized long queueNanos() { return queueNanos; }
-        public synchronized long readNanos() { return readNanos; }
+        /**
+         * -1 means not started (queue) or not completed (reader), including pre-read rejection.
+         */
+        public synchronized long queueNanos() {
+            return queueNanos;
+        }
+
+        public synchronized long readNanos() {
+            return readNanos;
+        }
 
         private synchronized void fail(IOException error) {
             if (state != State.CLOSED) {

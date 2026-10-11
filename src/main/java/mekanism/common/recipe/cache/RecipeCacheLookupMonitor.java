@@ -43,10 +43,12 @@ public class RecipeCacheLookupMonitor<RECIPE> implements ICachedRecipeHolder<REC
         shouldUnpause = true;
     }
 
-    /** A wake arriving during processing stays pending for the next server tick. */
+    /**
+     * A wake arriving during processing stays pending for the next server tick.
+     */
     public final boolean canSkipProcessing() {
         return !needsProcessingCheck && cachedRecipeVersion == RecipeHandler.getGlobalRecipeVersion() &&
-              !CommonWorldTickHandler.flushTagAndRecipeCaches;
+                !CommonWorldTickHandler.flushTagAndRecipeCaches;
     }
 
     public double updateAndProcess(IEnergyContainer energyContainer) {
@@ -80,11 +82,13 @@ public class RecipeCacheLookupMonitor<RECIPE> implements ICachedRecipeHolder<REC
         if (cachedIndexMatches(cacheIndex)) {
             ICachedRecipeHolder.super.loadSavedData(cached, cacheIndex);
             if (cached instanceof ItemStackConstantGasCachedRecipe<?, ?> constantGasCached &&
-                handler instanceof IRecipeLookupHandler.ConstantUsageRecipeLookupHandler constantUsageHandler) {
+                    handler instanceof IRecipeLookupHandler.ConstantUsageRecipeLookupHandler constantUsageHandler) {
                 constantGasCached.loadSavedUsageSoFar(constantUsageHandler.getSavedUsedSoFar(cacheIndex));
+                constantGasCached.loadSavedBatchOperations(constantUsageHandler.getSavedBatchOperations(cacheIndex));
             } else if (cached instanceof ItemStackConstantFarmCachedRecipe<?> constantFarmCached &&
-                handler instanceof IRecipeLookupHandler.ConstantUsageRecipeLookupHandler constantUsageHandler) {
+                    handler instanceof IRecipeLookupHandler.ConstantUsageRecipeLookupHandler constantUsageHandler) {
                 constantFarmCached.loadSavedUsageSoFar(constantUsageHandler.getSavedUsedSoFar(cacheIndex));
+                constantFarmCached.loadSavedBatchOperations(constantUsageHandler.getSavedBatchOperations(cacheIndex));
             }
         }
     }

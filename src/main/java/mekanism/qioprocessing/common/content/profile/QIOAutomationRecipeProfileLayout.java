@@ -6,18 +6,12 @@ import mekanism.qioprocessing.api.resource.PortableResourceDescriptor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
-/** Stable product grouping and default ordering for one provider route directory. */
+/**
+ * Stable product grouping and default ordering for one provider route directory.
+ */
+
 /**
  * QIO 处理模块中的 QIOAutomationRecipeProfileLayout 类型。
  *
@@ -26,6 +20,7 @@ import java.util.Set;
  */
 public final class QIOAutomationRecipeProfileLayout {
 
+    private final String recipeFamily;
     private final List<String> defaultProductOrder;
     private final Map<String, List<String>> defaultRoutesByProduct;
     private final Map<String, Route> routesByKey;
@@ -33,40 +28,46 @@ public final class QIOAutomationRecipeProfileLayout {
     private final long maximumCraftAmount;
 
     public QIOAutomationRecipeProfileLayout(@Nonnull Collection<MachineRecipeRoute> source) {
+        this("", source);
+    }
+
+    public QIOAutomationRecipeProfileLayout(@Nonnull String recipeFamily,
+                                            @Nonnull Collection<MachineRecipeRoute> source) {
+        this.recipeFamily = Objects.requireNonNull(recipeFamily, "recipeFamily");
         Objects.requireNonNull(source, "source");
         Map<String, MachineRecipeRoute> logical = new LinkedHashMap<>();
         for (MachineRecipeRoute route : source) {
             if (route != null) {
-                logical.putIfAbsent(routeKey(route.routeId(), route.logicalRecipeKey()), route);
+                logical.putIfAbsent(routeKey(recipeFamily, route.routeId(), route.logicalRecipeKey()), route);
             }
         }
         List<Route> routes = new ArrayList<>(logical.size());
         for (MachineRecipeRoute route : logical.values()) {
-            routes.add(new Route(route));
+            routes.add(new Route(recipeFamily, route));
         }
         routes.sort(Comparator.comparing(Route::getProductKey)
-              .thenComparing(Route::getRouteId)
-              .thenComparing(Route::getRecipeKey));
+                .thenComparing(Route::getRouteId)
+                .thenComparing(Route::getRecipeKey));
 
         Map<String, List<String>> grouped = new LinkedHashMap<>();
         Map<String, Route> indexed = new LinkedHashMap<>();
         long maximum = QIOAutomationRecipeProfile.MAX_CRAFT_AMOUNT;
         for (Route route : routes) {
             grouped.computeIfAbsent(route.productKey, ignored -> new ArrayList<>())
-                  .add(route.routeKey);
+                    .add(route.routeKey);
             indexed.put(route.routeKey, route);
             maximum = Math.min(maximum, route.maximumCraftAmount);
         }
         List<String> products = new ArrayList<>(grouped.keySet());
         Map<String, List<String>> immutableGroups = new LinkedHashMap<>();
         grouped.forEach((key, value) -> immutableGroups.put(key,
-              Collections.unmodifiableList(new ArrayList<>(value))));
+                Collections.unmodifiableList(new ArrayList<>(value))));
         defaultProductOrder = Collections.unmodifiableList(products);
         defaultRoutesByProduct = Collections.unmodifiableMap(immutableGroups);
         routesByKey = Collections.unmodifiableMap(indexed);
         routeKeys = Collections.unmodifiableSet(new LinkedHashSet<>(indexed.keySet()));
         maximumCraftAmount = Math.max(QIOAutomationRecipeProfile.DEFAULT_CRAFT_AMOUNT,
-              maximum);
+                maximum);
     }
 
     @Nonnull
@@ -98,17 +99,21 @@ public final class QIOAutomationRecipeProfileLayout {
     }
 
     public boolean contains(@Nonnull String routeId, @Nonnull String recipeKey) {
-        return routesByKey.containsKey(routeKey(routeId, recipeKey));
+        return routesByKey.containsKey(routeKey(recipeFamily, routeId, recipeKey));
+    }
+
+    public String getRecipeFamily() {
+        return recipeFamily;
     }
 
     @Nonnull
     public List<Route> ordered(@Nonnull QIOAutomationRecipeProfile profile,
-          boolean enabledOnly) {
+                               boolean enabledOnly) {
         Objects.requireNonNull(profile, "profile");
         List<Route> ordered = new ArrayList<>(routesByKey.size());
         for (String productKey : profile.getCurrentProductOrder(defaultProductOrder)) {
             for (String routeKey : profile.getCurrentRouteOrder(productKey,
-                  getDefaultRouteOrder(productKey))) {
+                    getDefaultRouteOrder(productKey))) {
                 Route route = routesByKey.get(routeKey);
                 if (route != null && (!enabledOnly || profile.isRouteEnabled(routeKey))) {
                     ordered.add(route);
@@ -125,6 +130,19 @@ public final class QIOAutomationRecipeProfileLayout {
         return checkedRoute.length() + ":" + checkedRoute + checkedRecipe;
     }
 
+    /** A frequency-wide policy key, separate from the physical provider/port/lane identity. */
+    @Nonnull
+    public static String routeKey(@Nonnull String recipeFamily, @Nonnull String routeId,
+                                  @Nonnull String recipeKey) {
+        String family = Objects.requireNonNull(recipeFamily, "recipeFamily");
+        String route = routeKey(routeId, recipeKey);
+        return family.isEmpty() ? route : family.length() + ":" + family + route;
+    }
+
+    public static String productKey(String family, String product) {
+        return family.isEmpty() ? product : family.length() + ":" + family + product;
+    }
+
     @Nonnull
     public static PortableResourceDescriptor describe(@Nonnull MachineResourceStack stack) {
         Objects.requireNonNull(stack, "stack");
@@ -139,11 +157,15 @@ public final class QIOAutomationRecipeProfileLayout {
         private final String productKey;
         private final long maximumCraftAmount;
 
-        private Route(MachineRecipeRoute route) {
+        private Route(String recipeFamily, MachineRecipeRoute route) {
             this.route = Objects.requireNonNull(route, "route");
-            routeKey = routeKey(route.routeId(), route.logicalRecipeKey());
-            product = describe(route.guaranteedOutputs().get(0));
-            productKey = product.toString();
+            routeKey = routeKey(recipeFamily, route.routeId(), route.logicalRecipeKey());
+            // Planning snapshots canonicalize output maps by descriptor; use the same
+            // primary product in both direct machine and retained management views.
+            product = route.guaranteedOutputs().stream().map(QIOAutomationRecipeProfileLayout::describe)
+                    .min(Comparator.naturalOrder()).orElseThrow(() ->
+                            new IllegalArgumentException("Recipe route has no guaranteed product"));
+            productKey = productKey(recipeFamily, product.toString());
             long maximum = QIOAutomationRecipeProfile.MAX_CRAFT_AMOUNT;
             List<MachineResourceStack> stacks = new ArrayList<>();
             stacks.addAll(route.inputs());

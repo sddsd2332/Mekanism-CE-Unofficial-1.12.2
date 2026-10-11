@@ -13,7 +13,9 @@ import java.util.Objects;
 public class RadiationSource implements IRadiationSource {
 
     private final Coord4D pos;
-    /** In Sv/h */
+    /**
+     * In Sv/h
+     */
     private double magnitude;
 
     public RadiationSource(Coord4D pos, double magnitude) {
@@ -47,7 +49,7 @@ public class RadiationSource implements IRadiationSource {
     @Nullable
     public static RadiationSource load(NBTTagCompound tag) {
         if (!tag.hasKey("x", 99) || !tag.hasKey("y", 99) || !tag.hasKey("z", 99) ||
-            !tag.hasKey("dimensionId", 99) || !tag.hasKey(NBTConstants.RADIATION, 99)) {
+                !tag.hasKey("dimensionId", 99) || !tag.hasKey(NBTConstants.RADIATION, 99)) {
             return null;
         }
         double magnitude = tag.getDouble(NBTConstants.RADIATION);

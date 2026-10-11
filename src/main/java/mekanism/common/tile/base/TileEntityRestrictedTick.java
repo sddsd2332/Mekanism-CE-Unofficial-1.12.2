@@ -1,6 +1,5 @@
 package mekanism.common.tile.base;
 
-import mekanism.api.Coord4D;
 import mekanism.api.MekanismAPI;
 import mekanism.api.NBTConstants;
 import mekanism.api.gas.IGasHandler;
@@ -28,9 +27,6 @@ public abstract class TileEntityRestrictedTick extends TileEntitySynchronized im
         lastUpdateWorldTick = currentTick;
         doRestrictedTick();
         ticksExisted++;
-        if (!isRemote()) {
-            updateRadiationScale();
-        }
     }
 
     public abstract void doRestrictedTick();
@@ -58,21 +54,20 @@ public abstract class TileEntityRestrictedTick extends TileEntitySynchronized im
         }
     }
 
-    private void updateRadiationScale() {
-        if (shouldDumpRadiation()) {
-            if (this instanceof IGasHandler handler) {
-                float scale = ITileRadioactive.calculateRadiationScale(handler, this, getPos());
-                if (Math.abs(scale - radiationScale) > 0.05F) {
-                    radiationScale = scale;
-                    markNoUpdateSync();
-                }
-            }
+    @Override
+    public float getRadiationScale() {
+        if (!MekanismAPI.getRadiationManager().isRadiationEnabled()) {
+            return 0;
         }
+        if (this instanceof IGasHandler handler) {
+            return ITileRadioactive.calculateRadiationScale(handler, this, getPos());
+        }
+        return radiationScale;
     }
 
     @Override
-    public float getRadiationScale() {
-        return MekanismAPI.getRadiationManager().isRadiationEnabled() ? radiationScale : 0;
+    public boolean hasRadioactiveContents() {
+        return this instanceof IGasHandler handler && ITileRadioactive.hasRadioactiveContents(handler);
     }
 
     @Override

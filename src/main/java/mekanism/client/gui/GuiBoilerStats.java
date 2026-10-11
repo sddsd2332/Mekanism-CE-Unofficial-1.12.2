@@ -33,7 +33,7 @@ public class GuiBoilerStats extends GuiMekanismTile<TileEntityBoilerCasing, Cont
         super.addGuiElements();
         addButton(new GuiBoilerTab(this, tileEntity, BoilerTab.MAIN));
         addButton(new GuiHeatTab(this, () -> Collections.singletonList(new TextComponentString(LangUtils.localize("gui.dissipated") + ": " +
-              getEnvironmentLoss() + "/t"))));
+                getEnvironmentLoss() + "/t"))));
         boilGraph = addButton(new GuiGraph(this, 7, 82, 162, 38, data -> LangUtils.localize("gui.boilRate") + ": " + data + " mB/t"));
         maxGraph = addButton(new GuiGraph(this, 7, 121, 162, 38, data -> LangUtils.localize("gui.maxBoil") + ": " + data + " mB/t"));
         maxGraph.enableFixedScale(getBoilCapacity());

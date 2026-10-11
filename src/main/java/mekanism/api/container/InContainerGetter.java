@@ -13,7 +13,6 @@ public interface InContainerGetter<STORED> {
     /**
      * @param container Container index of the container to query.
      * @param side      The side we are interacting with the handler from (null for internal).
-     *
      * @return The object stored in the given container.
      */
     @Nullable

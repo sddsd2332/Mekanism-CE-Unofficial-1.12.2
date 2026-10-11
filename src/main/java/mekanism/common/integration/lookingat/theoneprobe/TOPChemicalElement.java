@@ -30,6 +30,7 @@ public abstract class TOPChemicalElement extends ChemicalElement implements IEle
         public GasElement(ByteBuf buf) {
             this(TileUtils.readGasStack2(buf), buf.readInt());
         }
+
         @Override
         public int getID() {
             return TOPProvider.GAS_ELEMENT_ID;

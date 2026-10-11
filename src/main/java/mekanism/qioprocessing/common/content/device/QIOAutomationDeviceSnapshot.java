@@ -1,7 +1,7 @@
 package mekanism.qioprocessing.common.content.device;
 
-import mekanism.api.processing.QIOAutomationMode;
 import mekanism.api.processing.MachinePresentationDescriptor;
+import mekanism.api.processing.QIOAutomationMode;
 import mekanism.qioprocessing.api.machine.QIOAutomationDeviceLocation;
 import mekanism.qioprocessing.api.machine.QIOAutomationHost;
 import mekanism.qioprocessing.common.content.QIOProcessingDataException;
@@ -14,7 +14,10 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Persistent last-known management view of one QIO Processing device. */
+/**
+ * Persistent last-known management view of one QIO Processing device.
+ */
+
 /**
  * QIO 处理模块中的 QIOAutomationDeviceSnapshot 类型。
  *
@@ -59,124 +62,124 @@ public final class QIOAutomationDeviceSnapshot {
     private final String diagnostic;
 
     public QIOAutomationDeviceSnapshot(@Nonnull UUID deviceUUID,
-          @Nonnull QIOAutomationDeviceLocation location, @Nonnull String blockId,
-          int blockMetadata, @Nonnull String providerId, @Nonnull QIOAutomationMode mode,
-          @Nonnull QIOAutomationHost.State state, boolean online, long lastSeenTick,
-          long configurationRevision, int providerConfigurationRevision, int routeCount,
-          int activeOperationCount, @Nullable String diagnostic) {
+                                       @Nonnull QIOAutomationDeviceLocation location, @Nonnull String blockId,
+                                       int blockMetadata, @Nonnull String providerId, @Nonnull QIOAutomationMode mode,
+                                       @Nonnull QIOAutomationHost.State state, boolean online, long lastSeenTick,
+                                       long configurationRevision, int providerConfigurationRevision, int routeCount,
+                                       int activeOperationCount, @Nullable String diagnostic) {
         this(deviceUUID, location, Kind.AUTOMATION_MACHINE, blockId, blockMetadata,
-              legacyPresentation(blockId, blockMetadata), providerId, providerId,
-              mode.name(), state.name(), online, lastSeenTick,
-              configurationRevision, providerConfigurationRevision, routeCount,
-              activeOperationCount, false, diagnostic);
+                legacyPresentation(blockId, blockMetadata), providerId, providerId,
+                mode.name(), state.name(), online, lastSeenTick,
+                configurationRevision, providerConfigurationRevision, routeCount,
+                activeOperationCount, false, diagnostic);
     }
 
     public QIOAutomationDeviceSnapshot(@Nonnull UUID deviceUUID,
-          @Nonnull QIOAutomationDeviceLocation location, @Nonnull String blockId,
-          int blockMetadata, @Nonnull String providerId, @Nonnull String profileScopeId,
-          @Nonnull QIOAutomationMode mode, @Nonnull QIOAutomationHost.State state,
-          boolean online, long lastSeenTick, long configurationRevision,
-          int providerConfigurationRevision, int routeCount, int activeOperationCount,
-          @Nullable String diagnostic) {
+                                       @Nonnull QIOAutomationDeviceLocation location, @Nonnull String blockId,
+                                       int blockMetadata, @Nonnull String providerId, @Nonnull String profileScopeId,
+                                       @Nonnull QIOAutomationMode mode, @Nonnull QIOAutomationHost.State state,
+                                       boolean online, long lastSeenTick, long configurationRevision,
+                                       int providerConfigurationRevision, int routeCount, int activeOperationCount,
+                                       @Nullable String diagnostic) {
         this(deviceUUID, location, Kind.AUTOMATION_MACHINE, blockId, blockMetadata,
-              legacyPresentation(blockId, blockMetadata), providerId, profileScopeId,
-              mode.name(), state.name(), online, lastSeenTick,
-              configurationRevision, providerConfigurationRevision, routeCount,
-              activeOperationCount, false, diagnostic);
+                legacyPresentation(blockId, blockMetadata), providerId, profileScopeId,
+                mode.name(), state.name(), online, lastSeenTick,
+                configurationRevision, providerConfigurationRevision, routeCount,
+                activeOperationCount, false, diagnostic);
     }
 
     public QIOAutomationDeviceSnapshot(@Nonnull UUID deviceUUID,
-          @Nonnull QIOAutomationDeviceLocation location, @Nonnull Kind kind,
-          @Nonnull String blockId, int blockMetadata, @Nonnull String implementationId,
-          @Nonnull String modeName, @Nonnull String stateName, boolean online,
-          long lastSeenTick, long configurationRevision,
-          int providerConfigurationRevision, long routeCount,
-          int activeOperationCount, @Nullable String diagnostic) {
+                                       @Nonnull QIOAutomationDeviceLocation location, @Nonnull Kind kind,
+                                       @Nonnull String blockId, int blockMetadata, @Nonnull String implementationId,
+                                       @Nonnull String modeName, @Nonnull String stateName, boolean online,
+                                       long lastSeenTick, long configurationRevision,
+                                       int providerConfigurationRevision, long routeCount,
+                                       int activeOperationCount, @Nullable String diagnostic) {
         this(deviceUUID, location, kind, blockId, blockMetadata,
-              legacyPresentation(blockId, blockMetadata), implementationId,
-              implementationId, modeName, stateName, online, lastSeenTick,
-              configurationRevision,
-              providerConfigurationRevision, routeCount, activeOperationCount, false,
-              diagnostic);
+                legacyPresentation(blockId, blockMetadata), implementationId,
+                implementationId, modeName, stateName, online, lastSeenTick,
+                configurationRevision,
+                providerConfigurationRevision, routeCount, activeOperationCount, false,
+                diagnostic);
     }
 
     public QIOAutomationDeviceSnapshot(@Nonnull UUID deviceUUID,
-          @Nonnull QIOAutomationDeviceLocation location, @Nonnull Kind kind,
-          @Nonnull String blockId, int blockMetadata, @Nonnull String implementationId,
-          @Nonnull String modeName, @Nonnull String stateName, boolean online,
-          long lastSeenTick, long configurationRevision,
-          int providerConfigurationRevision, long routeCount,
-          int activeOperationCount, boolean managementPaused, @Nullable String diagnostic) {
+                                       @Nonnull QIOAutomationDeviceLocation location, @Nonnull Kind kind,
+                                       @Nonnull String blockId, int blockMetadata, @Nonnull String implementationId,
+                                       @Nonnull String modeName, @Nonnull String stateName, boolean online,
+                                       long lastSeenTick, long configurationRevision,
+                                       int providerConfigurationRevision, long routeCount,
+                                       int activeOperationCount, boolean managementPaused, @Nullable String diagnostic) {
         this(deviceUUID, location, kind, blockId, blockMetadata,
-              legacyPresentation(blockId, blockMetadata), implementationId,
-              implementationId, modeName, stateName, online, lastSeenTick,
-              configurationRevision, providerConfigurationRevision, routeCount,
-              activeOperationCount, managementPaused, diagnostic);
+                legacyPresentation(blockId, blockMetadata), implementationId,
+                implementationId, modeName, stateName, online, lastSeenTick,
+                configurationRevision, providerConfigurationRevision, routeCount,
+                activeOperationCount, managementPaused, diagnostic);
     }
 
     public QIOAutomationDeviceSnapshot(@Nonnull UUID deviceUUID,
-          @Nonnull QIOAutomationDeviceLocation location, @Nonnull Kind kind,
-          @Nonnull String blockId, int blockMetadata, @Nonnull String implementationId,
-          @Nonnull String profileScopeId, @Nonnull String modeName,
-          @Nonnull String stateName, boolean online, long lastSeenTick,
-          long configurationRevision, int providerConfigurationRevision, long routeCount,
-          int activeOperationCount, boolean managementPaused, @Nullable String diagnostic) {
+                                       @Nonnull QIOAutomationDeviceLocation location, @Nonnull Kind kind,
+                                       @Nonnull String blockId, int blockMetadata, @Nonnull String implementationId,
+                                       @Nonnull String profileScopeId, @Nonnull String modeName,
+                                       @Nonnull String stateName, boolean online, long lastSeenTick,
+                                       long configurationRevision, int providerConfigurationRevision, long routeCount,
+                                       int activeOperationCount, boolean managementPaused, @Nullable String diagnostic) {
         this(deviceUUID, location, kind, blockId, blockMetadata,
-              legacyPresentation(blockId, blockMetadata), implementationId,
-              profileScopeId, modeName, stateName, online, lastSeenTick,
-              configurationRevision, providerConfigurationRevision, routeCount,
-              activeOperationCount, managementPaused, false, false, 0, null, diagnostic);
+                legacyPresentation(blockId, blockMetadata), implementationId,
+                profileScopeId, modeName, stateName, online, lastSeenTick,
+                configurationRevision, providerConfigurationRevision, routeCount,
+                activeOperationCount, managementPaused, false, false, 0, null, diagnostic);
     }
 
     public QIOAutomationDeviceSnapshot(@Nonnull UUID deviceUUID,
-          @Nonnull QIOAutomationDeviceLocation location, @Nonnull Kind kind,
-          @Nonnull String blockId, int blockMetadata,
-          @Nonnull MachinePresentationDescriptor presentation,
-          @Nonnull String implementationId, @Nonnull String profileScopeId,
-          @Nonnull String modeName, @Nonnull String stateName, boolean online,
-          long lastSeenTick, long configurationRevision,
-          int providerConfigurationRevision, long routeCount,
-          int activeOperationCount, boolean managementPaused,
-          @Nullable String diagnostic) {
+                                       @Nonnull QIOAutomationDeviceLocation location, @Nonnull Kind kind,
+                                       @Nonnull String blockId, int blockMetadata,
+                                       @Nonnull MachinePresentationDescriptor presentation,
+                                       @Nonnull String implementationId, @Nonnull String profileScopeId,
+                                       @Nonnull String modeName, @Nonnull String stateName, boolean online,
+                                       long lastSeenTick, long configurationRevision,
+                                       int providerConfigurationRevision, long routeCount,
+                                       int activeOperationCount, boolean managementPaused,
+                                       @Nullable String diagnostic) {
         this(deviceUUID, location, kind, blockId, blockMetadata, presentation,
-              implementationId, profileScopeId, modeName, stateName, online,
-              lastSeenTick, configurationRevision, providerConfigurationRevision,
-              routeCount, activeOperationCount, managementPaused, false, false, 0,
-              null, diagnostic);
+                implementationId, profileScopeId, modeName, stateName, online,
+                lastSeenTick, configurationRevision, providerConfigurationRevision,
+                routeCount, activeOperationCount, managementPaused, false, false, 0,
+                null, diagnostic);
     }
 
     private QIOAutomationDeviceSnapshot(@Nonnull UUID deviceUUID,
-          @Nonnull QIOAutomationDeviceLocation location, @Nonnull Kind kind,
-          @Nonnull String blockId, int blockMetadata,
-          @Nonnull MachinePresentationDescriptor presentation,
-          @Nonnull String implementationId,
-          @Nonnull String profileScopeId, @Nonnull String modeName,
-          @Nonnull String stateName, boolean online, long lastSeenTick,
-          long configurationRevision, int providerConfigurationRevision, long routeCount,
-           int activeOperationCount, boolean managementPaused, boolean recipeProfileAvailable,
-           boolean individualRecipeProfile, int globalRecipeProfileSlot,
-           @Nullable RouteFilterMode recipeRouteFilterMode, @Nullable String diagnostic) {
+                                        @Nonnull QIOAutomationDeviceLocation location, @Nonnull Kind kind,
+                                        @Nonnull String blockId, int blockMetadata,
+                                        @Nonnull MachinePresentationDescriptor presentation,
+                                        @Nonnull String implementationId,
+                                        @Nonnull String profileScopeId, @Nonnull String modeName,
+                                        @Nonnull String stateName, boolean online, long lastSeenTick,
+                                        long configurationRevision, int providerConfigurationRevision, long routeCount,
+                                        int activeOperationCount, boolean managementPaused, boolean recipeProfileAvailable,
+                                        boolean individualRecipeProfile, int globalRecipeProfileSlot,
+                                        @Nullable RouteFilterMode recipeRouteFilterMode, @Nullable String diagnostic) {
         this(deviceUUID, location, kind, blockId, blockMetadata, presentation,
-              implementationId, profileScopeId, modeName, stateName, online, lastSeenTick,
-              configurationRevision, providerConfigurationRevision, routeCount,
-              activeOperationCount, managementPaused, recipeProfileAvailable,
-              individualRecipeProfile, globalRecipeProfileSlot, recipeRouteFilterMode,
-              QIOAutomationHost.RecoveryState.NONE, diagnostic);
+                implementationId, profileScopeId, modeName, stateName, online, lastSeenTick,
+                configurationRevision, providerConfigurationRevision, routeCount,
+                activeOperationCount, managementPaused, recipeProfileAvailable,
+                individualRecipeProfile, globalRecipeProfileSlot, recipeRouteFilterMode,
+                QIOAutomationHost.RecoveryState.NONE, diagnostic);
     }
 
     private QIOAutomationDeviceSnapshot(@Nonnull UUID deviceUUID,
-           @Nonnull QIOAutomationDeviceLocation location, @Nonnull Kind kind,
-           @Nonnull String blockId, int blockMetadata,
-           @Nonnull MachinePresentationDescriptor presentation,
-           @Nonnull String implementationId, @Nonnull String profileScopeId,
-           @Nonnull String modeName, @Nonnull String stateName, boolean online,
-           long lastSeenTick, long configurationRevision,
-           int providerConfigurationRevision, long routeCount,
-           int activeOperationCount, boolean managementPaused, boolean recipeProfileAvailable,
-           boolean individualRecipeProfile, int globalRecipeProfileSlot,
-           @Nullable RouteFilterMode recipeRouteFilterMode,
-           @Nonnull QIOAutomationHost.RecoveryState recoveryState,
-           @Nullable String diagnostic) {
+                                        @Nonnull QIOAutomationDeviceLocation location, @Nonnull Kind kind,
+                                        @Nonnull String blockId, int blockMetadata,
+                                        @Nonnull MachinePresentationDescriptor presentation,
+                                        @Nonnull String implementationId, @Nonnull String profileScopeId,
+                                        @Nonnull String modeName, @Nonnull String stateName, boolean online,
+                                        long lastSeenTick, long configurationRevision,
+                                        int providerConfigurationRevision, long routeCount,
+                                        int activeOperationCount, boolean managementPaused, boolean recipeProfileAvailable,
+                                        boolean individualRecipeProfile, int globalRecipeProfileSlot,
+                                        @Nullable RouteFilterMode recipeRouteFilterMode,
+                                        @Nonnull QIOAutomationHost.RecoveryState recoveryState,
+                                        @Nullable String diagnostic) {
         this.deviceUUID = Objects.requireNonNull(deviceUUID, "deviceUUID");
         this.location = Objects.requireNonNull(location, "location");
         this.kind = Objects.requireNonNull(kind, "kind");
@@ -186,7 +189,7 @@ public final class QIOAutomationDeviceSnapshot {
         }
         this.blockMetadata = blockMetadata;
         this.presentation = MachinePresentationDescriptor.read(
-              Objects.requireNonNull(presentation, "presentation").write());
+                Objects.requireNonNull(presentation, "presentation").write());
         this.providerId = requireId(implementationId, "implementationId");
         this.profileScopeId = requireProfileScopeId(profileScopeId);
         this.modeName = requireId(modeName, "modeName");
@@ -194,7 +197,7 @@ public final class QIOAutomationDeviceSnapshot {
         this.online = online;
         this.lastSeenTick = QIOProcessingNbt.requireNonNegative(lastSeenTick, "lastSeenTick");
         this.configurationRevision = QIOProcessingNbt.requireNonNegative(configurationRevision,
-              "configurationRevision");
+                "configurationRevision");
         if (providerConfigurationRevision < 0 || routeCount < 0 || activeOperationCount < 0) {
             throw new IllegalArgumentException("Negative QIO device snapshot counters");
         }
@@ -204,17 +207,17 @@ public final class QIOAutomationDeviceSnapshot {
         this.managementPaused = managementPaused;
         if (recipeProfileAvailable) {
             if (kind != Kind.AUTOMATION_MACHINE || globalRecipeProfileSlot < 1 ||
-                globalRecipeProfileSlot > 10 || recipeRouteFilterMode == null) {
+                    globalRecipeProfileSlot > 10 || recipeRouteFilterMode == null) {
                 throw new IllegalArgumentException("Invalid QIO recipe profile selection");
             }
             QIOAutomationMode mode = QIOAutomationMode.valueOf(this.modeName);
             if (mode == QIOAutomationMode.OUTPUT_ONLY ||
-                mode == QIOAutomationMode.PASSIVE &&
-                      recipeRouteFilterMode != RouteFilterMode.WHITELIST) {
+                    mode == QIOAutomationMode.PASSIVE &&
+                            recipeRouteFilterMode != RouteFilterMode.WHITELIST) {
                 throw new IllegalArgumentException("Invalid QIO recipe profile mode");
             }
         } else if (individualRecipeProfile || globalRecipeProfileSlot != 0 ||
-                   recipeRouteFilterMode != null) {
+                recipeRouteFilterMode != null) {
             throw new IllegalArgumentException("Unexpected QIO recipe profile selection");
         }
         this.recipeProfileAvailable = recipeProfileAvailable;
@@ -267,13 +270,13 @@ public final class QIOAutomationDeviceSnapshot {
     @Nullable
     public QIOAutomationMode getMode() {
         return kind == Kind.AUTOMATION_MACHINE ?
-              QIOAutomationMode.valueOf(modeName) : null;
+                QIOAutomationMode.valueOf(modeName) : null;
     }
 
     @Nullable
     public QIOAutomationHost.State getState() {
         return kind == Kind.AUTOMATION_MACHINE ?
-              QIOAutomationHost.State.valueOf(stateName) : null;
+                QIOAutomationHost.State.valueOf(stateName) : null;
     }
 
     @Nonnull
@@ -343,81 +346,81 @@ public final class QIOAutomationDeviceSnapshot {
 
     public boolean hasRecoveryPending() {
         return recoveryState != QIOAutomationHost.RecoveryState.NONE ||
-              !diagnostic.isEmpty();
+                !diagnostic.isEmpty();
     }
 
     /** Returns a defensive copy with the server-side recovery marker attached. */
     @Nonnull
     public QIOAutomationDeviceSnapshot withRecoveryState(
-          @Nonnull QIOAutomationHost.RecoveryState recoveryState) {
+            @Nonnull QIOAutomationHost.RecoveryState recoveryState) {
         return new QIOAutomationDeviceSnapshot(deviceUUID, location, kind, blockId,
-              blockMetadata, presentation, providerId, profileScopeId, modeName,
-              stateName, online, lastSeenTick, configurationRevision,
-              providerConfigurationRevision, routeCount, activeOperationCount,
-              managementPaused, recipeProfileAvailable, individualRecipeProfile,
-              globalRecipeProfileSlot, recipeRouteFilterMode,
-              Objects.requireNonNull(recoveryState, "recoveryState"), diagnostic);
+                blockMetadata, presentation, providerId, profileScopeId, modeName,
+                stateName, online, lastSeenTick, configurationRevision,
+                providerConfigurationRevision, routeCount, activeOperationCount,
+                managementPaused, recipeProfileAvailable, individualRecipeProfile,
+                globalRecipeProfileSlot, recipeRouteFilterMode,
+                Objects.requireNonNull(recoveryState, "recoveryState"), diagnostic);
     }
 
     @Nonnull
     public QIOAutomationDeviceSnapshot withRecipeProfileSelection(boolean individual,
-          int globalSlot, @Nonnull RouteFilterMode filterMode) {
+                                                                  int globalSlot, @Nonnull RouteFilterMode filterMode) {
         return new QIOAutomationDeviceSnapshot(deviceUUID, location, kind, blockId,
-              blockMetadata, presentation, providerId, profileScopeId, modeName,
-              stateName, online,
-              lastSeenTick, configurationRevision, providerConfigurationRevision, routeCount,
-              activeOperationCount, managementPaused, true, individual, globalSlot,
-              Objects.requireNonNull(filterMode, "filterMode"), diagnostic)
-              .withRecoveryState(recoveryState);
+                blockMetadata, presentation, providerId, profileScopeId, modeName,
+                stateName, online,
+                lastSeenTick, configurationRevision, providerConfigurationRevision, routeCount,
+                activeOperationCount, managementPaused, true, individual, globalSlot,
+                Objects.requireNonNull(filterMode, "filterMode"), diagnostic)
+                .withRecoveryState(recoveryState);
     }
 
     @Nonnull
     public QIOAutomationDeviceSnapshot offline(long currentTick) {
         long seen = Math.max(lastSeenTick,
-              QIOProcessingNbt.requireNonNegative(currentTick, "currentTick"));
+                QIOProcessingNbt.requireNonNegative(currentTick, "currentTick"));
         return new QIOAutomationDeviceSnapshot(deviceUUID, location, kind, blockId,
-              blockMetadata, presentation, providerId, profileScopeId, modeName,
-              stateName, false, seen,
-              configurationRevision,
-              providerConfigurationRevision, routeCount, activeOperationCount,
-              managementPaused, recipeProfileAvailable, individualRecipeProfile,
-              globalRecipeProfileSlot, recipeRouteFilterMode, diagnostic)
-              .withRecoveryState(recoveryState);
+                blockMetadata, presentation, providerId, profileScopeId, modeName,
+                stateName, false, seen,
+                configurationRevision,
+                providerConfigurationRevision, routeCount, activeOperationCount,
+                managementPaused, recipeProfileAvailable, individualRecipeProfile,
+                globalRecipeProfileSlot, recipeRouteFilterMode, diagnostic)
+                .withRecoveryState(recoveryState);
     }
 
     @Nonnull
     public QIOAutomationDeviceSnapshot withManagementState(boolean paused,
-          long updatedConfigurationRevision, long currentTick) {
+                                                           long updatedConfigurationRevision, long currentTick) {
         return new QIOAutomationDeviceSnapshot(deviceUUID, location, kind, blockId,
-              blockMetadata, presentation, providerId, profileScopeId, modeName,
-              stateName, true,
-              Math.max(lastSeenTick, QIOProcessingNbt.requireNonNegative(currentTick,
-                    "currentTick")), updatedConfigurationRevision,
-              providerConfigurationRevision, routeCount, activeOperationCount, paused,
-              recipeProfileAvailable, individualRecipeProfile, globalRecipeProfileSlot,
-              recipeRouteFilterMode, diagnostic)
-              .withRecoveryState(recoveryState);
+                blockMetadata, presentation, providerId, profileScopeId, modeName,
+                stateName, true,
+                Math.max(lastSeenTick, QIOProcessingNbt.requireNonNegative(currentTick,
+                        "currentTick")), updatedConfigurationRevision,
+                providerConfigurationRevision, routeCount, activeOperationCount, paused,
+                recipeProfileAvailable, individualRecipeProfile, globalRecipeProfileSlot,
+                recipeRouteFilterMode, diagnostic)
+                .withRecoveryState(recoveryState);
     }
 
     /** Ignores lastSeen while a device remains online to avoid periodic persistence churn. */
     public boolean sameLiveObservation(@Nullable QIOAutomationDeviceSnapshot other) {
         return other != null && online && other.online && deviceUUID.equals(other.deviceUUID) &&
-              location.equals(other.location) && blockId.equals(other.blockId) &&
-              blockMetadata == other.blockMetadata && providerId.equals(other.providerId) &&
-              presentation.equals(other.presentation) &&
-              profileScopeId.equals(other.profileScopeId) &&
-              kind == other.kind && modeName.equals(other.modeName) &&
-              stateName.equals(other.stateName) &&
-              configurationRevision == other.configurationRevision &&
-              providerConfigurationRevision == other.providerConfigurationRevision &&
-              routeCount == other.routeCount && activeOperationCount == other.activeOperationCount &&
-              managementPaused == other.managementPaused &&
-               recipeProfileAvailable == other.recipeProfileAvailable &&
-               individualRecipeProfile == other.individualRecipeProfile &&
-               globalRecipeProfileSlot == other.globalRecipeProfileSlot &&
-               recipeRouteFilterMode == other.recipeRouteFilterMode &&
-               recoveryState == other.recoveryState &&
-               diagnostic.equals(other.diagnostic);
+                location.equals(other.location) && blockId.equals(other.blockId) &&
+                blockMetadata == other.blockMetadata && providerId.equals(other.providerId) &&
+                presentation.equals(other.presentation) &&
+                profileScopeId.equals(other.profileScopeId) &&
+                kind == other.kind && modeName.equals(other.modeName) &&
+                stateName.equals(other.stateName) &&
+                configurationRevision == other.configurationRevision &&
+                providerConfigurationRevision == other.providerConfigurationRevision &&
+                routeCount == other.routeCount && activeOperationCount == other.activeOperationCount &&
+                managementPaused == other.managementPaused &&
+                recipeProfileAvailable == other.recipeProfileAvailable &&
+                individualRecipeProfile == other.individualRecipeProfile &&
+                globalRecipeProfileSlot == other.globalRecipeProfileSlot &&
+                recipeRouteFilterMode == other.recipeRouteFilterMode &&
+                recoveryState == other.recoveryState &&
+                diagnostic.equals(other.diagnostic);
     }
 
     @Nonnull
@@ -444,7 +447,7 @@ public final class QIOAutomationDeviceSnapshot {
         data.setBoolean("individualRecipeProfile", individualRecipeProfile);
         data.setInteger("globalRecipeProfileSlot", globalRecipeProfileSlot);
         data.setString("recipeRouteFilterMode", recipeRouteFilterMode == null ? "" :
-              recipeRouteFilterMode.name());
+                recipeRouteFilterMode.name());
         if (recoveryState != QIOAutomationHost.RecoveryState.NONE) {
             data.setString("recoveryState", recoveryState.name());
         }
@@ -456,56 +459,56 @@ public final class QIOAutomationDeviceSnapshot {
 
     @Nonnull
     public static QIOAutomationDeviceSnapshot read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         try {
             if (!data.hasKey("kind", net.minecraftforge.common.util.Constants.NBT.TAG_STRING) ||
-                  !data.hasKey("routeCount", net.minecraftforge.common.util.Constants.NBT.TAG_LONG) ||
-                  !data.hasKey("profileScopeId",
-                        net.minecraftforge.common.util.Constants.NBT.TAG_STRING) ||
-                  !data.hasKey("recipeProfileAvailable",
-                        net.minecraftforge.common.util.Constants.NBT.TAG_BYTE) ||
-                  !data.hasKey("individualRecipeProfile",
-                        net.minecraftforge.common.util.Constants.NBT.TAG_BYTE) ||
-                  !data.hasKey("globalRecipeProfileSlot",
-                        net.minecraftforge.common.util.Constants.NBT.TAG_INT) ||
-                  !data.hasKey("recipeRouteFilterMode",
-                        net.minecraftforge.common.util.Constants.NBT.TAG_STRING)) {
+                    !data.hasKey("routeCount", net.minecraftforge.common.util.Constants.NBT.TAG_LONG) ||
+                    !data.hasKey("profileScopeId",
+                            net.minecraftforge.common.util.Constants.NBT.TAG_STRING) ||
+                    !data.hasKey("recipeProfileAvailable",
+                            net.minecraftforge.common.util.Constants.NBT.TAG_BYTE) ||
+                    !data.hasKey("individualRecipeProfile",
+                            net.minecraftforge.common.util.Constants.NBT.TAG_BYTE) ||
+                    !data.hasKey("globalRecipeProfileSlot",
+                            net.minecraftforge.common.util.Constants.NBT.TAG_INT) ||
+                    !data.hasKey("recipeRouteFilterMode",
+                            net.minecraftforge.common.util.Constants.NBT.TAG_STRING)) {
                 throw new QIOProcessingDataException(
-                      "QIO automation device snapshot is missing current-schema fields");
+                        "QIO automation device snapshot is missing current-schema fields");
             }
             Kind kind = QIOProcessingNbt.readEnum(data, "kind", Kind.class);
             long routeCount = data.getLong("routeCount");
             boolean profileAvailable = data.getBoolean("recipeProfileAvailable");
             RouteFilterMode filterMode = profileAvailable ? RouteFilterMode.valueOf(
-                  data.getString("recipeRouteFilterMode")) : null;
+                    data.getString("recipeRouteFilterMode")) : null;
             MachinePresentationDescriptor presentation = readPresentation(data,
-                  data.getString("blockId"), data.getInteger("blockMetadata"));
+                    data.getString("blockId"), data.getInteger("blockMetadata"));
             QIOAutomationDeviceSnapshot snapshot = new QIOAutomationDeviceSnapshot(
-                  QIOProcessingNbt.readUUID(data, "deviceUUID"),
-                  QIOAutomationDeviceLocation.read(data.getCompoundTag("location")),
-                  kind, data.getString("blockId"), data.getInteger("blockMetadata"),
-                  presentation, data.getString("providerId"),
-                  data.getString("profileScopeId"),
-                  data.getString("mode"), data.getString("state"),
-                  data.getBoolean("online"), data.getLong("lastSeenTick"),
-                  data.getLong("configurationRevision"),
-                  data.getInteger("providerConfigurationRevision"),
-                  routeCount, data.getInteger("activeOperationCount"),
-                  data.getBoolean("managementPaused"),
-                  profileAvailable, data.getBoolean("individualRecipeProfile"),
-                  data.getInteger("globalRecipeProfileSlot"), filterMode,
-                  data.getString("diagnostic"));
+                    QIOProcessingNbt.readUUID(data, "deviceUUID"),
+                    QIOAutomationDeviceLocation.read(data.getCompoundTag("location")),
+                    kind, data.getString("blockId"), data.getInteger("blockMetadata"),
+                    presentation, data.getString("providerId"),
+                    data.getString("profileScopeId"),
+                    data.getString("mode"), data.getString("state"),
+                    data.getBoolean("online"), data.getLong("lastSeenTick"),
+                    data.getLong("configurationRevision"),
+                    data.getInteger("providerConfigurationRevision"),
+                    routeCount, data.getInteger("activeOperationCount"),
+                    data.getBoolean("managementPaused"),
+                    profileAvailable, data.getBoolean("individualRecipeProfile"),
+                    data.getInteger("globalRecipeProfileSlot"), filterMode,
+                    data.getString("diagnostic"));
             QIOAutomationHost.RecoveryState recoveryState = data.hasKey("recoveryState",
-                  net.minecraftforge.common.util.Constants.NBT.TAG_STRING) ?
-                  QIOAutomationHost.RecoveryState.valueOf(data.getString("recoveryState")) :
-                  (data.hasKey("diagnostic", net.minecraftforge.common.util.Constants.NBT.TAG_STRING) &&
-                        !data.getString("diagnostic").isEmpty() ||
-                        "DATA_ERROR".equals(data.getString("state")) ?
-                        QIOAutomationHost.RecoveryState.QUARANTINED :
-                        QIOAutomationHost.RecoveryState.NONE);
+                    net.minecraftforge.common.util.Constants.NBT.TAG_STRING) ?
+                    QIOAutomationHost.RecoveryState.valueOf(data.getString("recoveryState")) :
+                    (data.hasKey("diagnostic", net.minecraftforge.common.util.Constants.NBT.TAG_STRING) &&
+                            !data.getString("diagnostic").isEmpty() ||
+                            "DATA_ERROR".equals(data.getString("state")) ?
+                            QIOAutomationHost.RecoveryState.QUARANTINED :
+                            QIOAutomationHost.RecoveryState.NONE);
             if (recoveryState == QIOAutomationHost.RecoveryState.NONE &&
-                  ("DATA_ERROR".equals(data.getString("state")) ||
-                        !data.getString("diagnostic").isEmpty())) {
+                    ("DATA_ERROR".equals(data.getString("state")) ||
+                            !data.getString("diagnostic").isEmpty())) {
                 recoveryState = QIOAutomationHost.RecoveryState.QUARANTINED;
             }
             return snapshot.withRecoveryState(recoveryState);
@@ -520,18 +523,18 @@ public final class QIOAutomationDeviceSnapshot {
         String checked = Objects.requireNonNull(value, name).trim();
         if (checked.isEmpty() || checked.length() > MAX_ID_LENGTH) {
             throw new IllegalArgumentException(name + " must contain 1.." + MAX_ID_LENGTH +
-                  " characters");
+                    " characters");
         }
         return checked;
     }
 
     private static MachinePresentationDescriptor readPresentation(NBTTagCompound data,
-          String blockId, int blockMetadata) {
+                                                                  String blockId, int blockMetadata) {
         if (data.hasKey("presentation",
-              net.minecraftforge.common.util.Constants.NBT.TAG_COMPOUND)) {
+                net.minecraftforge.common.util.Constants.NBT.TAG_COMPOUND)) {
             try {
                 return MachinePresentationDescriptor.read(
-                      data.getCompoundTag("presentation"));
+                        data.getCompoundTag("presentation"));
             } catch (RuntimeException ignored) {
                 // A damaged optional presentation must not discard the device directory.
             }
@@ -540,7 +543,7 @@ public final class QIOAutomationDeviceSnapshot {
     }
 
     private static MachinePresentationDescriptor legacyPresentation(String blockId,
-          int blockMetadata) {
+                                                                    int blockMetadata) {
         return MachinePresentationDescriptor.of(blockId, blockMetadata, null);
     }
 
@@ -548,8 +551,8 @@ public final class QIOAutomationDeviceSnapshot {
         String checked = Objects.requireNonNull(value, "profileScopeId").trim();
         if (checked.isEmpty() || checked.length() > MAX_PROFILE_SCOPE_ID_LENGTH) {
             throw new IllegalArgumentException(
-                  "profileScopeId must contain 1.." + MAX_PROFILE_SCOPE_ID_LENGTH +
-                        " characters");
+                    "profileScopeId must contain 1.." + MAX_PROFILE_SCOPE_ID_LENGTH +
+                            " characters");
         }
         return checked;
     }

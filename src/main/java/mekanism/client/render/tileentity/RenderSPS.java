@@ -83,10 +83,10 @@ public class RenderSPS extends TileEntitySpecialRenderer<TileEntitySPSCasing> {
                 int count = 1 + Math.max(0, (start.level - 1) / 2);
                 float size = 0.01F * start.level;
                 BoltEffect bolt = new BoltEffect(BoltRenderInfo.ELECTRICITY, start.localStart, renderCenter, 15)
-                      .count(count)
-                      .size(size)
-                      .lifespan(8)
-                      .spawn(SpawnFunction.delay(4));
+                        .count(count)
+                        .size(size)
+                        .lifespan(8)
+                        .spawn(SpawnFunction.delay(4));
                 bolts.update(start.ownerKey, bolt, partialTick);
             }
 
@@ -95,9 +95,9 @@ public class RenderSPS extends TileEntitySpecialRenderer<TileEntitySPSCasing> {
                 Vec3d end = getRandomInnerWallPoint(bounds, side);
                 Vec3d localEnd = end.subtract(tile.getPos().getX(), tile.getPos().getY(), tile.getPos().getZ());
                 BoltEffect bolt = new BoltEffect(BoltRenderInfo.ELECTRICITY, renderCenter, localEnd, 15)
-                      .size(0.01F * getBoundedScale((float) energyScale, 0.5F, 5F))
-                      .lifespan(8)
-                      .spawn(SpawnFunction.NO_DELAY);
+                        .size(0.01F * getBoundedScale((float) energyScale, 0.5F, 5F))
+                        .lifespan(8)
+                        .spawn(SpawnFunction.NO_DELAY);
                 bolts.update(Objects.hash(side, end), bolt, partialTick);
             }
             targetEffectCount = (int) getBoundedScale((float) energyScale, 10, 120);
@@ -174,9 +174,9 @@ public class RenderSPS extends TileEntitySpecialRenderer<TileEntitySPSCasing> {
                     continue;
                 }
                 Vec3d start = new Vec3d(
-                      coilPos.x + 0.5D + inner.getXOffset() * 0.5D,
-                      coilPos.y + 0.5D + inner.getYOffset() * 0.5D,
-                      coilPos.z + 0.5D + inner.getZOffset() * 0.5D);
+                        coilPos.x + 0.5D + inner.getXOffset() * 0.5D,
+                        coilPos.y + 0.5D + inner.getYOffset() * 0.5D,
+                        coilPos.z + 0.5D + inner.getZOffset() * 0.5D);
                 int level = multiblock.getRenderCoilLevel(coilPos);
                 starts.add(new ArcStart(start.subtract(tile.getPos().getX(), tile.getPos().getY(), tile.getPos().getZ()), coilPos.hashCode(), level));
             }
@@ -203,9 +203,9 @@ public class RenderSPS extends TileEntitySpecialRenderer<TileEntitySPSCasing> {
                         continue;
                     }
                     Vec3d start = new Vec3d(
-                          coilPos.getX() + 0.5D + inner.getXOffset() * 0.5D,
-                          coilPos.getY() + 0.5D + inner.getYOffset() * 0.5D,
-                          coilPos.getZ() + 0.5D + inner.getZOffset() * 0.5D);
+                            coilPos.getX() + 0.5D + inner.getXOffset() * 0.5D,
+                            coilPos.getY() + 0.5D + inner.getYOffset() * 0.5D,
+                            coilPos.getZ() + 0.5D + inner.getZOffset() * 0.5D);
                     Coord4D coord = new Coord4D(coilPos, tile.getWorld());
                     int level = multiblock.getRenderCoilLevel(coord);
                     starts.add(new ArcStart(start.subtract(tile.getPos().getX(), tile.getPos().getY(), tile.getPos().getZ()), coord.hashCode(), level));

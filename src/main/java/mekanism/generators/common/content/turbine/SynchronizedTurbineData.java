@@ -17,6 +17,11 @@ import java.util.Map;
 
 public class SynchronizedTurbineData extends SynchronizedData<SynchronizedTurbineData> implements IEnergyContainer {
 
+    @Override
+    protected int getMultiblockRedstoneLevel() {
+        return mekanism.common.util.MekanismUtils.redstoneLevelFromContents(getSteamAmount(), getFluidCapacity());
+    }
+
     public static final float ROTATION_THRESHOLD = 0.001F;
     public static Map<String, Float> clientRotationMap = new Object2ObjectOpenHashMap<>();
 

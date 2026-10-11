@@ -29,9 +29,9 @@ public class GasTankUpgradeData extends TierUpgradeData {
     public final NBTTagCompound fillSlot;
 
     public GasTankUpgradeData(@Nonnull BaseTier upgradeTier, @Nonnull EnumFacing facing, @Nonnull EnumFacing clientFacing, int ticker,
-          boolean redstone, boolean redstoneLastTick, boolean doAutoSync, @Nonnull RedstoneControl controlType,
-          @Nonnull GasMode dumping, @Nullable GasStack stored, int currentGasAmount, int currentRedstoneLevel,
-          @Nonnull NBTTagCompound componentData, @Nonnull NBTTagCompound drainSlot, @Nonnull NBTTagCompound fillSlot) {
+                              boolean redstone, boolean redstoneLastTick, boolean doAutoSync, @Nonnull RedstoneControl controlType,
+                              @Nonnull GasMode dumping, @Nullable GasStack stored, int currentGasAmount, int currentRedstoneLevel,
+                              @Nonnull NBTTagCompound componentData, @Nonnull NBTTagCompound drainSlot, @Nonnull NBTTagCompound fillSlot) {
         super(upgradeTier);
         this.facing = facing;
         this.clientFacing = clientFacing;

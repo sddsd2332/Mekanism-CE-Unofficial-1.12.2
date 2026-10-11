@@ -12,15 +12,15 @@ import mekanism.common.util.StackUtils;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.EnumFacing;
-import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.common.util.Constants.NBT;
+import net.minecraftforge.fluids.FluidStack;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import java.io.IOException;
 
 public abstract class MultiblockCache<T extends SynchronizedData<T>> implements IMekanismInventory {
 
@@ -35,14 +35,16 @@ public abstract class MultiblockCache<T extends SynchronizedData<T>> implements 
 
     public abstract void save(NBTTagCompound nbtTags);
 
-    /** Validate detached previews before any source inventory is consumed or tombstoned. */
+    /**
+     * Validate detached previews before any source inventory is consumed or tombstoned.
+     */
     public void validateMerge(MultiblockCache<T> incoming) throws IOException {
         requireMerge(getClass() == incoming.getClass(), "Mismatched cache types");
         // Old empty caches may predate inventory-slot serialization. Extending only the detached
         // preview with empty slots makes the existing slot-wise merge well-defined.
         ensureInventorySlots(Math.max(inventorySlots.size(), incoming.inventorySlots.size()));
         requireMerge(StackUtils.getMergeRejects(getInventorySlots(null), incoming.getInventorySlots(null)).isEmpty(),
-              "Merged items do not fit; source inventories are retained");
+                "Merged items do not fit; source inventories are retained");
     }
 
     public void validateCapacity(T target) throws IOException {
@@ -75,7 +77,7 @@ public abstract class MultiblockCache<T extends SynchronizedData<T>> implements 
 
     protected static void validateSum(double current, double incoming, double maximum, String field) throws IOException {
         requireMerge(Double.isFinite(current) && Double.isFinite(incoming) && current >= 0 && incoming >= 0 &&
-              current <= maximum - incoming, "Merged " + field + " exceeds supported range");
+                current <= maximum - incoming, "Merged " + field + " exceeds supported range");
     }
 
     protected static void validateAmount(int amount, int capacity, String field) throws IOException {

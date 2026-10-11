@@ -113,9 +113,10 @@ public class Gas {
         return radioactivity;
     }
 
-    public boolean isRegisterFluid(){
+    public boolean isRegisterFluid() {
         return isRegisterFluid;
     }
+
     /**
      * Sets this gas's "visible" state to a new value. Setting it to 'false' will treat this gas as an internal gas, and it will not be displayed or accessed by other
      * mods.

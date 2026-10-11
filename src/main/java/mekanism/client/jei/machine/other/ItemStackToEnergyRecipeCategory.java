@@ -58,6 +58,7 @@ public class ItemStackToEnergyRecipeCategory<WRAPPER extends ItemStackToEnergyRe
             public double getProgress() {
                 return (double) timer.getValue() / 20F;
             }
+
             @Override
             public boolean isGuiInJei() {
                 return true;

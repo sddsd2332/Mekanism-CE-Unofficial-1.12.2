@@ -7,8 +7,8 @@ import mekanism.common.PacketHandler;
 import mekanism.common.content.teleporter.TeleporterFrequency;
 import mekanism.common.frequency.Frequency.FrequencyIdentity;
 import mekanism.common.frequency.FrequencyType;
-import mekanism.common.item.ItemPortableTeleporter;
 import mekanism.common.inventory.container.item.ItemStackSlotAccess;
+import mekanism.common.item.ItemPortableTeleporter;
 import mekanism.common.network.PacketPortableTeleporter.PortableTeleporterMessage;
 import mekanism.common.network.PacketPortalFX.PortalFXMessage;
 import mekanism.common.tile.TileEntityTeleporter;
@@ -41,8 +41,8 @@ public class PacketPortableTeleporter implements IMessageHandler<PortableTelepor
             ItemStack itemstack = ItemStackSlotAccess.getStack(player.inventory, message.currentHand, message.itemSlot);
             World world = player.world;
             if (itemstack.isEmpty() || !(itemstack.getItem() instanceof ItemPortableTeleporter teleporterItem) ||
-                  !SecurityUtils.canAccess(player, itemstack) || message.identity == null ||
-                  !message.identity.equals(teleporterItem.getFrequency(itemstack))) {
+                    !SecurityUtils.canAccess(player, itemstack) || message.identity == null ||
+                    !message.identity.equals(teleporterItem.getFrequency(itemstack))) {
                 return;
             }
             TeleporterFrequency found = FrequencyType.TELEPORTER.getFrequency(message.identity, player.getUniqueID());
@@ -122,7 +122,7 @@ public class PacketPortableTeleporter implements IMessageHandler<PortableTelepor
                 int handOrdinal = buffer.readInt();
                 itemSlot = buffer.readInt();
                 if (typeOrdinal < 0 || typeOrdinal >= PortableTeleporterPacketType.values().length ||
-                      handOrdinal < 0 || handOrdinal >= EnumHand.values().length) {
+                        handOrdinal < 0 || handOrdinal >= EnumHand.values().length) {
                     return;
                 }
                 packetType = PortableTeleporterPacketType.values()[typeOrdinal];

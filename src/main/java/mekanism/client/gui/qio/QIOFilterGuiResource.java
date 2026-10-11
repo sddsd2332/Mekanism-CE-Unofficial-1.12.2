@@ -24,7 +24,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** Shared presentation of exact QIO filters, including addon codec renderers. */
+/**
+ * Shared presentation of exact QIO filters, including addon codec renderers.
+ */
 public final class QIOFilterGuiResource {
 
     private QIOFilterGuiResource() {
@@ -36,12 +38,12 @@ public final class QIOFilterGuiResource {
     }
 
     public static void render(@Nonnull IGuiWrapper gui, @Nullable QIOFilter filter,
-          int x, int y, int size) {
+                              int x, int y, int size) {
         render(gui, descriptor(filter), x, y, size);
     }
 
     public static void render(@Nonnull IGuiWrapper gui, @Nullable QIOResourceDescriptor descriptor,
-          int x, int y, int size) {
+                              int x, int y, int size) {
         if (descriptor == null || size <= 0) {
             return;
         }
@@ -125,8 +127,8 @@ public final class QIOFilterGuiResource {
     public static String typeName(@Nullable QIOResourceDescriptor descriptor) {
         QIOResourceKind kind = QIOResourceKind.fromDescriptor(descriptor);
         return kind == null ? descriptor == null ? LangUtils.localize("gui.qio.filter.unknown") :
-              descriptor.getCodecId().toString() :
-              LangUtils.localize("gui.qio.resource." + kind.getSerializedName());
+                descriptor.getCodecId().toString() :
+                LangUtils.localize("gui.qio.resource." + kind.getSerializedName());
     }
 
     @Nonnull
@@ -192,7 +194,7 @@ public final class QIOFilterGuiResource {
     }
 
     private static boolean renderRegistered(QIOResourceDescriptor descriptor,
-          int x, int y, int size) {
+                                            int x, int y, int size) {
         RendererResolution resolved = resolveRenderer(descriptor);
         if (resolved == null) {
             return false;
@@ -216,10 +218,10 @@ public final class QIOFilterGuiResource {
     }
 
     private static void renderUnknown(IGuiWrapper gui, QIOResourceDescriptor descriptor,
-          int x, int y, int size) {
+                                      int x, int y, int size) {
         int hash = descriptor.hashCode();
         int color = 0xFF000000 | (80 + (hash & 0x7F)) << 16 |
-              (80 + ((hash >>> 8) & 0x7F)) << 8 | 80 + ((hash >>> 16) & 0x7F);
+                (80 + ((hash >>> 8) & 0x7F)) << 8 | 80 + ((hash >>> 16) & 0x7F);
         int inset = Math.max(1, size / 8);
         GuiUtils.fill(x + inset, y + inset, x + size - inset, y + size - inset, color);
         drawMarker(gui, "?", x, y, size);
@@ -234,7 +236,7 @@ public final class QIOFilterGuiResource {
         int width = font.getStringWidth(marker);
         GlStateManager.pushMatrix();
         GlStateManager.translate(x + (size - width * scale) / 2F,
-              y + (size - font.FONT_HEIGHT * scale) / 2F, 100);
+                y + (size - font.FONT_HEIGHT * scale) / 2F, 100);
         GlStateManager.scale(scale, scale, scale);
         font.drawString(marker, 0, 0, 0xFFFFFFFF);
         GlStateManager.popMatrix();

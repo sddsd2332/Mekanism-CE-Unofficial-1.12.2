@@ -29,7 +29,7 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class PacketQIOMaintenanceRulePageData implements
-      IMessageHandler<PacketQIOMaintenanceRulePageData.Message, IMessage> {
+        IMessageHandler<PacketQIOMaintenanceRulePageData.Message, IMessage> {
 
     public static final int MAX_WIRE_PAGE_SIZE = 1_024;
 
@@ -41,17 +41,17 @@ public final class PacketQIOMaintenanceRulePageData implements
         }
         PacketHandler.handlePacket(() -> {
             if (!message.valid ||
-                !(player.openContainer instanceof QIOMaintenanceRulePageContainer container) ||
-                player.openContainer.windowId != message.windowId) {
+                    !(player.openContainer instanceof QIOMaintenanceRulePageContainer container) ||
+                    player.openContainer.windowId != message.windowId) {
                 return;
             }
             QIOProcessingTerminalContainerState state = container.getTerminalState();
             if (state.matches(message.sessionNonce, message.terminalUUID,
-                  message.targetRevision, message.frequencyUUID,
-                  message.accessRevision)) {
+                    message.targetRevision, message.frequencyUUID,
+                    message.accessRevision)) {
                 container.getMaintenanceRuleClientCache().applyPage(message.sessionNonce,
-                      message.sourceRevision, message.offset, message.totalSize,
-                      message.rules, message.nextCursor);
+                        message.sourceRevision, message.offset, message.totalSize,
+                        message.rules, message.nextCursor);
             }
         }, player);
         return null;
@@ -77,7 +77,7 @@ public final class PacketQIOMaintenanceRulePageData implements
         }
 
         private Message(int windowId, QIOProcessingTerminalSession session,
-              QIOPage<QIOMaintenanceRule> page) {
+                        QIOPage<QIOMaintenanceRule> page) {
             this.windowId = windowId;
             sessionNonce = session.getSessionNonce();
             terminalUUID = session.getTerminalUUID();
@@ -93,10 +93,10 @@ public final class PacketQIOMaintenanceRulePageData implements
         }
 
         public static Message create(int windowId,
-              @Nonnull QIOProcessingTerminalSession session,
-              @Nonnull QIOPage<QIOMaintenanceRule> page) {
+                                     @Nonnull QIOProcessingTerminalSession session,
+                                     @Nonnull QIOPage<QIOMaintenanceRule> page) {
             return session.getFrequencyUUID() == null ? new Message() :
-                  new Message(windowId, session, page);
+                    new Message(windowId, session, page);
         }
 
         @Override
@@ -136,7 +136,7 @@ public final class PacketQIOMaintenanceRulePageData implements
                 nextCursor = buffer.readBoolean() ? QIOPageCursor.read(buffer) : null;
                 int count = buffer.readInt();
                 if (count < 0 || count > MAX_WIRE_PAGE_SIZE || totalSize < 0 ||
-                    offset < 0 || offset > totalSize || count > totalSize - offset) {
+                        offset < 0 || offset > totalSize || count > totalSize - offset) {
                     return;
                 }
                 List<QIOMaintenanceRule> decoded = new ArrayList<>(count);
@@ -165,19 +165,19 @@ public final class PacketQIOMaintenanceRulePageData implements
 
         private boolean structurallyValid() {
             if (windowId < 0 || sessionNonce == null || terminalUUID == null ||
-                targetRevision < 0 || frequencyUUID == null || accessRevision < 0 ||
-                sourceRevision < 0 || offset < 0 || totalSize < 0 ||
-                offset > totalSize || rules.size() > MAX_WIRE_PAGE_SIZE ||
-                rules.size() > totalSize - offset) {
+                    targetRevision < 0 || frequencyUUID == null || accessRevision < 0 ||
+                    sourceRevision < 0 || offset < 0 || totalSize < 0 ||
+                    offset > totalSize || rules.size() > MAX_WIRE_PAGE_SIZE ||
+                    rules.size() > totalSize - offset) {
                 return false;
             }
             if (nextCursor == null) {
                 return offset + rules.size() == totalSize;
             }
             return sessionNonce.equals(nextCursor.getSessionNonce()) &&
-                  sourceRevision == nextCursor.getSourceRevision() &&
-                  nextCursor.getOffset() == offset + rules.size() &&
-                  nextCursor.getOffset() < totalSize;
+                    sourceRevision == nextCursor.getSourceRevision() &&
+                    nextCursor.getOffset() == offset + rules.size() &&
+                    nextCursor.getOffset() < totalSize;
         }
 
         private static void writeUUID(ByteBuf buffer, UUID uuid) {

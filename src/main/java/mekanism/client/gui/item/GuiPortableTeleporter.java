@@ -1,8 +1,8 @@
 package mekanism.client.gui.item;
 
-import mekanism.client.gui.GuiTeleporterBase;
 import mekanism.client.ClientTickHandler;
 import mekanism.client.MekanismClient;
+import mekanism.client.gui.GuiTeleporterBase;
 import mekanism.client.gui.element.bar.GuiVerticalPowerBar;
 import mekanism.client.gui.element.button.MekanismButton;
 import mekanism.client.gui.warning.WarningTracker.WarningType;
@@ -15,9 +15,7 @@ import mekanism.common.inventory.container.item.PortableTeleporterContainer;
 import mekanism.common.item.ItemPortableTeleporter;
 import mekanism.common.network.PacketSetItemFrequency.SetItemFrequencyMessage;
 import mekanism.common.security.IOwnerItem;
-import mekanism.common.security.ISecurityTile.SecurityMode;
 import mekanism.common.util.LangUtils;
-import mekanism.common.util.StorageUtils;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumHand;
@@ -59,9 +57,9 @@ public class GuiPortableTeleporter extends GuiTeleporterBase<PortableTeleporterC
     protected void addGuiElements() {
         super.addGuiElements();
         addButton(new GuiVerticalPowerBar(this, container.getEnergyStorage(), 158, 26)
-              .warning(WarningType.NOT_ENOUGH_ENERGY, () -> getStatus() == 4));
+                .warning(WarningType.NOT_ENOUGH_ENERGY, () -> getStatus() == 4));
         teleportButton = addButton(new MekanismButton(this, 42, 147, 92, 20, new TextComponentString(LangUtils.localize("gui.teleport")),
-              this::teleport, null));
+                this::teleport, null));
         updateButtons();
     }
 

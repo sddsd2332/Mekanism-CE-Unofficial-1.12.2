@@ -68,7 +68,7 @@ public class TileEntityUniversalCable extends TileEntityTransmitter<EnergyAccept
 
     public TileEntityUniversalCable() {
         addCapabilityResolver(energyHandlerManager = new EnergyHandlerManager(ProxiedEnergyContainerHolder.create(
-              this::canInsertEnergyContainer, this::canExtractEnergyContainer, this::getEnergyContainers
+                this::canInsertEnergyContainer, this::canExtractEnergyContainer, this::getEnergyContainers
         ), new DynamicStrictEnergyHandler(this::getEnergyContainers, this::canExtractEnergyContainer, this::canInsertEnergyContainer, null)));
     }
 
@@ -97,25 +97,26 @@ public class TileEntityUniversalCable extends TileEntityTransmitter<EnergyAccept
             return;
         }
 
-        updateShare();
 
         if (nextTransfer > 0) {
             nextTransfer--;
             return;
         }
 
-        List<EnumFacing> sides = getConnections(ConnectionType.PULL);
-        if (sides.isEmpty()) {
+        byte sides = getPullConnectionMask();
+        if (sides == 0) {
             nextTransfer = 40;
             return;
         }
 
         boolean successAtLeastOnce = false;
 
-        TileEntity[] connected = CableUtils.getConnectedTileEntities(sides, getPos(), getWorld());
-        double maxDraw = tier.getCableCapacity();
-        for (EnumFacing side : sides) {
-            TileEntity outputter = connected[side.ordinal()];
+        if (getMaxEnergy() - getEnergy() < 0.0001) return;
+        for (EnumFacing side : EnumFacing.VALUES) {
+            if (!connectionMapContainsSide(sides, side)) continue;
+            double maxDraw = Math.min(tier.getCableCapacity(), getMaxEnergy() - getEnergy());
+            if (maxDraw < 0.0001) break;
+            TileEntity outputter = MekanismUtils.getTileEntity(world, pos.offset(side));
             if (outputter == null) {
                 continue;
             }
@@ -126,7 +127,7 @@ public class TileEntityUniversalCable extends TileEntityTransmitter<EnergyAccept
             IEnergyStorage forgeStorage;
             EnumFacing accessSide = side.getOpposite();
             if ((strictOutputter = CapabilityUtils.getCapability(outputter, Capabilities.ENERGY_OUTPUTTER_CAPABILITY, accessSide)) != null &&
-                strictOutputter.canOutputEnergy(accessSide)) {
+                    strictOutputter.canOutputEnergy(accessSide)) {
                 double received = draw(strictOutputter.pullEnergy(accessSide, maxDraw, true));
                 if (received > 0) {
                     strictOutputter.pullEnergy(accessSide, received, false);
@@ -182,21 +183,19 @@ public class TileEntityUniversalCable extends TileEntityTransmitter<EnergyAccept
 
     @Override
     public void updateShare() {
-        if (getTransmitter().hasTransmitterNetwork() && getTransmitter().getTransmitterNetworkSize() > 0) {
+        if (!unloaded && getTransmitter().hasTransmitterNetwork() && getTransmitter().getTransmitterNetworkSize() > 0) {
             double last = getSaveShare();
             if (last != lastWrite) {
                 lastWrite = last;
-                markChunkDirty();
-                //markDirty();
-//                this.world.markChunkDirty(this.pos, this);
             }
+        } else {
+            lastWrite = buffer.amount;
         }
     }
 
     private double getSaveShare() {
         if (getTransmitter().hasTransmitterNetwork()) {
-            EnergyNetwork transmitterNetwork = getTransmitter().getTransmitterNetwork();
-            return EnergyNetwork.round(transmitterNetwork.getBufferAmount() * (1F / transmitterNetwork.transmittersSize()));
+            return getTransmitter().getTransmitterNetwork().getSaveShare(getTransmitter());
         }
         return buffer.amount;
     }
@@ -218,6 +217,7 @@ public class TileEntityUniversalCable extends TileEntityTransmitter<EnergyAccept
 
     @Override
     public void writeCustomNBT(NBTTagCompound nbtTags) {
+        updateShare();
         super.writeCustomNBT(nbtTags);
         nbtTags.setDouble("cacheEnergy", lastWrite);
         nbtTags.setInteger("tier", tier.ordinal());
@@ -255,8 +255,9 @@ public class TileEntityUniversalCable extends TileEntityTransmitter<EnergyAccept
 
     @Override
     public void takeShare() {
+        updateShare();
         if (getTransmitter().hasTransmitterNetwork()) {
-            getTransmitter().getTransmitterNetwork().shrinkBuffer(lastWrite);
+            lastWrite = getTransmitter().getTransmitterNetwork().shrinkBuffer(lastWrite);
             setLocalBufferAmount(lastWrite);
         }
     }
@@ -383,7 +384,9 @@ public class TileEntityUniversalCable extends TileEntityTransmitter<EnergyAccept
     }
 
     private void setLocalBufferAmount(double energy) {
+        double previous = buffer.amount;
         buffer.setAmountClamped(energy, getCapacity());
+        if (Double.compare(previous, buffer.amount) != 0) markChunkDirty();
     }
 
     @Override
@@ -436,7 +439,7 @@ public class TileEntityUniversalCable extends TileEntityTransmitter<EnergyAccept
     @Override
     public boolean hasCapability(@Nonnull Capability<?> capability, EnumFacing facing) {
         return canResolveTesla(capability, facing) || capability == CapabilityEnergy.ENERGY && hasEnergyContainer(facing) ||
-              super.hasCapability(capability, facing);
+                super.hasCapability(capability, facing);
     }
 
     @Override
@@ -455,8 +458,8 @@ public class TileEntityUniversalCable extends TileEntityTransmitter<EnergyAccept
 
     private boolean canResolveTesla(@Nonnull Capability<?> capability, @Nullable EnumFacing side) {
         return MekanismUtils.useTesla() && (capability == Capabilities.TESLA_HOLDER_CAPABILITY && hasEnergyContainer(side) ||
-               capability == Capabilities.TESLA_CONSUMER_CAPABILITY && side != null && canReceiveEnergy(side) ||
-               capability == Capabilities.TESLA_PRODUCER_CAPABILITY && side != null && canOutputEnergy(side));
+                capability == Capabilities.TESLA_CONSUMER_CAPABILITY && side != null && canReceiveEnergy(side) ||
+                capability == Capabilities.TESLA_PRODUCER_CAPABILITY && side != null && canOutputEnergy(side));
     }
 
     private boolean canInsertEnergyContainer(@Nullable EnumFacing side) {

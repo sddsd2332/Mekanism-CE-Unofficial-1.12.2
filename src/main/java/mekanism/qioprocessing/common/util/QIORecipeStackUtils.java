@@ -25,7 +25,25 @@ public final class QIORecipeStackUtils {
     private QIORecipeStackUtils() {
     }
 
-    /** Returns a mutable recipe-selection copy without serializing ForgeCaps. */
+    /**
+     * Concrete workbench input/output copy, including ForgeCaps; call only on the game thread.
+     */
+    @Nonnull
+    public static ItemStack copyComplete(@Nullable ItemStack stack) {
+        return stack == null || stack.isEmpty() ? ItemStack.EMPTY : stack.copy();
+    }
+
+    @Nonnull
+    public static ItemStack copyComplete(@Nullable ItemStack stack, int count) {
+        if (count <= 0) return ItemStack.EMPTY;
+        ItemStack copy = copyComplete(stack);
+        if (!copy.isEmpty()) copy.setCount(count);
+        return copy;
+    }
+
+    /**
+     * Returns a mutable recipe-selection copy without serializing ForgeCaps.
+     */
     @Nonnull
     public static ItemStack copyForRecipeSelection(@Nullable ItemStack stack) {
         if (stack == null || stack.isEmpty()) {
@@ -34,7 +52,9 @@ public final class QIORecipeStackUtils {
         return copyForRecipeSelection(stack, stack.getCount());
     }
 
-    /** Returns a recipe-selection copy with the requested count. */
+    /**
+     * Returns a recipe-selection copy with the requested count.
+     */
     @Nonnull
     public static ItemStack copyForRecipeSelection(@Nullable ItemStack stack, int count) {
         if (stack == null || stack.isEmpty() || count <= 0) {
@@ -73,7 +93,9 @@ public final class QIORecipeStackUtils {
         return data;
     }
 
-    /** Reads a recipe-selection stack while explicitly dropping any persisted ForgeCaps. */
+    /**
+     * Reads a recipe-selection stack while explicitly dropping any persisted ForgeCaps.
+     */
     @Nonnull
     public static ItemStack readForRecipeSelection(@Nullable NBTTagCompound data) {
         if (data == null || data.isEmpty()) {
@@ -132,9 +154,11 @@ public final class QIORecipeStackUtils {
         }
     }
 
-    /** Compares item, metadata, and ordinary NBT while ignoring stack count and capabilities. */
+    /**
+     * Compares item, metadata, and ordinary NBT while ignoring stack count and capabilities.
+     */
     public static boolean sameRecipeSelection(@Nullable ItemStack first,
-          @Nullable ItemStack second) {
+                                              @Nullable ItemStack second) {
         if (first == null || second == null) {
             return first == second;
         }
@@ -142,15 +166,17 @@ public final class QIORecipeStackUtils {
             return first.isEmpty() && second.isEmpty();
         }
         return first.getItem() == second.getItem() &&
-              first.getMetadata() == second.getMetadata() &&
-              Objects.equals(first.getTagCompound(), second.getTagCompound());
+                first.getMetadata() == second.getMetadata() &&
+                Objects.equals(first.getTagCompound(), second.getTagCompound());
     }
 
-    /** Compares stable recipe fields and stack count while ignoring capabilities. */
+    /**
+     * Compares stable recipe fields and stack count while ignoring capabilities.
+     */
     public static boolean sameRecipeSelectionWithCount(@Nullable ItemStack first,
-          @Nullable ItemStack second) {
+                                                       @Nullable ItemStack second) {
         return sameRecipeSelection(first, second) &&
-              (first == null || second == null || first.isEmpty() ||
-                    first.getCount() == second.getCount());
+                (first == null || second == null || first.isEmpty() ||
+                        first.getCount() == second.getCount());
     }
 }

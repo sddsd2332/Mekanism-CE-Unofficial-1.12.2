@@ -1,7 +1,10 @@
 package mekanism.generators.common.tile.reactor;
 
 import io.netty.buffer.ByteBuf;
-import mekanism.api.*;
+import mekanism.api.EnumColor;
+import mekanism.api.IConfigurable;
+import mekanism.api.IContentsListener;
+import mekanism.api.TileNetworkList;
 import mekanism.api.fluid.IExtendedFluidTank;
 import mekanism.api.gas.IExtendedGasTank;
 import mekanism.api.inventory.IInventorySlot;
@@ -20,7 +23,6 @@ import mekanism.common.capabilities.holder.slot.ProxiedInventorySlotHolder;
 import mekanism.common.util.*;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumActionResult;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.text.TextComponentString;
@@ -50,41 +52,41 @@ public class TileEntityReactorPort extends TileEntityReactorBlock implements ICo
     @Override
     protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
         return ProxiedInventorySlotHolder.create(
-              side -> getReactor() != null && getReactor().isFormed(),
-              side -> getReactor() != null && getReactor().isFormed(),
-              side -> {
-                  IInventorySlot slot = getHohlraumSlot();
-                  return slot == null ? Collections.emptyList() : Collections.singletonList(slot);
-              }
+                side -> getReactor() != null && getReactor().isFormed(),
+                side -> getReactor() != null && getReactor().isFormed(),
+                side -> {
+                    IInventorySlot slot = getHohlraumSlot();
+                    return slot == null ? Collections.emptyList() : Collections.singletonList(slot);
+                }
         );
     }
 
     @Override
     protected IFluidTankHolder getInitialFluidTanks(IContentsListener listener) {
         return ProxiedFluidTankHolder.create(
-              side -> getReactor() != null && getReactor().isFormed() && !fluidEject,
-              side -> getReactor() != null && getReactor().isFormed() && fluidEject,
-              this::getReactorFluidTanks,
-              this::getReactorFluidTanksForInsert,
-              this::getReactorFluidTanksForExtract
+                side -> getReactor() != null && getReactor().isFormed() && !fluidEject,
+                side -> getReactor() != null && getReactor().isFormed() && fluidEject,
+                this::getReactorFluidTanks,
+                this::getReactorFluidTanksForInsert,
+                this::getReactorFluidTanksForExtract
         );
     }
 
     @Override
     protected IGasTankHolder getInitialGasTanks(IContentsListener listener) {
         return ProxiedGasTankHolder.create(
-              side -> getReactor() != null && getReactor().isFormed() && !fluidEject,
-              side -> false,
-              this::getReactorGasTanks
+                side -> getReactor() != null && getReactor().isFormed() && !fluidEject,
+                side -> false,
+                this::getReactorGasTanks
         );
     }
 
     @Override
     protected IEnergyContainerHolder getInitialEnergyContainers(IContentsListener listener) {
         return ProxiedEnergyContainerHolder.create(
-              side -> false,
-              side -> getReactor() != null && getReactor().isFormed() && fluidEject,
-              side -> getReactor() != null && getReactor().isFormed() ? Collections.singletonList(this) : Collections.emptyList()
+                side -> false,
+                side -> getReactor() != null && getReactor().isFormed() && fluidEject,
+                side -> getReactor() != null && getReactor().isFormed() ? Collections.singletonList(this) : Collections.emptyList()
         );
     }
 
@@ -102,15 +104,15 @@ public class TileEntityReactorPort extends TileEntityReactorBlock implements ICo
 
     private List<IExtendedGasTank> getReactorGasTanks(EnumFacing side) {
         return getReactor() == null ? Collections.emptyList() :
-              Arrays.asList(getReactor().getDeuteriumTank(), getReactor().getTritiumTank(), getReactor().getFuelTank());
+                Arrays.asList(getReactor().getDeuteriumTank(), getReactor().getTritiumTank(), getReactor().getFuelTank());
     }
 
     @Override
     protected IHeatCapacitorHolder getInitialHeatCapacitors(IContentsListener listener) {
         return ProxiedHeatCapacitorHolder.create(
-              side -> getReactor() != null && getReactor().isFormed(),
-              side -> getReactor() != null && getReactor().isFormed(),
-              side -> getReactor() == null ? Collections.emptyList() : Collections.singletonList(getReactor().getHeatCapacitor())
+                side -> getReactor() != null && getReactor().isFormed(),
+                side -> getReactor() != null && getReactor().isFormed(),
+                side -> getReactor() == null ? Collections.emptyList() : Collections.singletonList(getReactor().getHeatCapacitor())
         );
     }
 
@@ -127,7 +129,7 @@ public class TileEntityReactorPort extends TileEntityReactorBlock implements ICo
 
 
     @Override
-   public void writeCustomNBT(NBTTagCompound nbtTags) {
+    public void writeCustomNBT(NBTTagCompound nbtTags) {
         super.writeCustomNBT(nbtTags);
         nbtTags.setBoolean("fluidEject", fluidEject);
     }
@@ -146,7 +148,7 @@ public class TileEntityReactorPort extends TileEntityReactorBlock implements ICo
     }
 
     @Override
-    public void onUpdateServer(){
+    public void onUpdateServer() {
         super.onUpdateServer();
         CableUtils.emit(this);
         if (fluidEject && getReactor() != null && getReactor().getSteamTank().getFluid() != null) {
@@ -161,8 +163,6 @@ public class TileEntityReactorPort extends TileEntityReactorBlock implements ICo
             });
         }
     }
-
-
 
 
     @Override

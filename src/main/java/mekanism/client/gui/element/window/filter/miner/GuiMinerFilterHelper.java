@@ -47,33 +47,33 @@ public interface GuiMinerFilterHelper extends GuiFilterHelper<TileEntityDigitalM
 
     default void addMinerDefaults(int slotOffset) {
         addMinerChild(new GuiSlot(SlotType.NORMAL, gui(), getRelativeX() + 148, getRelativeY() + slotOffset).setRenderHover(true)
-              .stored(() -> getMinerFilter().replaceStack).click((element, mouseX, mouseY) -> {
-                  handleReplaceSlotClick();
-                  return true;
-              }).setGhostHandler(new IGhostBlockItemConsumer() {
-                  @Override
-                  public ItemStack supportedTarget(Object ingredient) {
-                      ItemStack stack = IGhostBlockItemConsumer.super.supportedTarget(ingredient);
-                      return stack != null && Block.getBlockFromItem(stack.getItem()) != Blocks.BEDROCK ? stack : null;
-                  }
+                .stored(() -> getMinerFilter().replaceStack).click((element, mouseX, mouseY) -> {
+                    handleReplaceSlotClick();
+                    return true;
+                }).setGhostHandler(new IGhostBlockItemConsumer() {
+                    @Override
+                    public ItemStack supportedTarget(Object ingredient) {
+                        ItemStack stack = IGhostBlockItemConsumer.super.supportedTarget(ingredient);
+                        return stack != null && Block.getBlockFromItem(stack.getItem()) != Blocks.BEDROCK ? stack : null;
+                    }
 
-                  @Override
-                  public void accept(Object ingredient) {
-                      getMinerFilter().replaceStack = StackUtils.size((ItemStack) ingredient, 1);
-                  }
-              }));
+                    @Override
+                    public void accept(Object ingredient) {
+                        getMinerFilter().replaceStack = StackUtils.size((ItemStack) ingredient, 1);
+                    }
+                }));
         addMinerChild(new TooltipToggleButton(gui(), getRelativeX() + 148, getRelativeY() + 45, 14, 16,
-              MekanismUtils.getResource(ResourceType.GUI_BUTTON, "exclamation.png"),
-              () -> getMinerFilter().requireStack,
-              () -> getMinerFilter().requireStack = !getMinerFilter().requireStack,
-              MekanismLang.MINER_REQUIRE_REPLACE.translate(), MekanismLang.MINER_REQUIRE_REPLACE_INVERSE.translate()));
+                MekanismUtils.getResource(ResourceType.GUI_BUTTON, "exclamation.png"),
+                () -> getMinerFilter().requireStack,
+                () -> getMinerFilter().requireStack = !getMinerFilter().requireStack,
+                MekanismLang.MINER_REQUIRE_REPLACE.translate(), MekanismLang.MINER_REQUIRE_REPLACE_INVERSE.translate()));
     }
 
     default void handleReplaceSlotClick() {
         ItemStack stack = mekanism.client.gui.element.GuiElement.minecraft.player.inventory.getItemStack();
         ItemStack toUse = null;
         if (!stack.isEmpty() && !Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) && stack.getItem() instanceof ItemBlock &&
-              Block.getBlockFromItem(stack.getItem()) != Blocks.BEDROCK) {
+                Block.getBlockFromItem(stack.getItem()) != Blocks.BEDROCK) {
             toUse = stack.copy();
             toUse.setCount(1);
         } else if (stack.isEmpty() && Keyboard.isKeyDown(Keyboard.KEY_LSHIFT)) {

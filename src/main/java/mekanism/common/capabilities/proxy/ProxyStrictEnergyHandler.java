@@ -6,14 +6,34 @@ import mekanism.common.capabilities.holder.IHolder;
 import net.minecraft.util.EnumFacing;
 
 import javax.annotation.Nullable;
+import java.util.List;
 
 public class ProxyStrictEnergyHandler extends ProxyHandler implements IStrictEnergyHandler, IStrictEnergyStorage, IStrictEnergyAcceptor, IStrictEnergyOutputter {
 
+    private static final ClassValue<Boolean> DEFAULT_CONTAINER_READS = new ClassValue<Boolean>() {
+        @Override
+        protected Boolean computeValue(Class<?> type) {
+            try {
+                return type.getMethod("getEnergyContainerCount", EnumFacing.class).getDeclaringClass() == IMekanismStrictEnergyHandler.class &&
+                        type.getMethod("getEnergyContainer", int.class, EnumFacing.class).getDeclaringClass() == IMekanismStrictEnergyHandler.class &&
+                        type.getMethod("getEnergy", int.class, EnumFacing.class).getDeclaringClass() == IMekanismStrictEnergyHandler.class &&
+                        type.getMethod("getMaxEnergy", int.class, EnumFacing.class).getDeclaringClass() == IMekanismStrictEnergyHandler.class;
+            } catch (ReflectiveOperationException | SecurityException unavailable) {
+                return false;
+            }
+        }
+    };
+
     private final ISidedStrictEnergyHandler energyHandler;
+    @Nullable
+    private final IMekanismStrictEnergyHandler directContainerReads;
 
     public ProxyStrictEnergyHandler(ISidedStrictEnergyHandler energyHandler, @Nullable EnumFacing side, @Nullable IHolder holder) {
         super(side, holder);
         this.energyHandler = energyHandler;
+        directContainerReads = getClass() == ProxyStrictEnergyHandler.class &&
+                energyHandler instanceof IMekanismStrictEnergyHandler nativeHandler && DEFAULT_CONTAINER_READS.get(energyHandler.getClass())
+                ? nativeHandler : null;
     }
 
     @Override
@@ -66,6 +86,11 @@ public class ProxyStrictEnergyHandler extends ProxyHandler implements IStrictEne
     @Override
     public double getEnergy() {
         double energy = 0;
+        if (directContainerReads != null) {
+            for (IEnergyContainer container : directContainerReads.getEnergyContainers(side))
+                if (container != null) energy += container.getEnergy();
+            return energy;
+        }
         for (int container = 0; container < getEnergyContainerCount(); container++) {
             energy += getEnergy(container);
         }
@@ -88,10 +113,30 @@ public class ProxyStrictEnergyHandler extends ProxyHandler implements IStrictEne
     @Override
     public double getMaxEnergy() {
         double maxEnergy = 0;
+        if (directContainerReads != null) {
+            for (IEnergyContainer container : directContainerReads.getEnergyContainers(side))
+                if (container != null) maxEnergy += container.getMaxEnergy();
+            return maxEnergy;
+        }
         for (int container = 0; container < getEnergyContainerCount(); container++) {
             maxEnergy += getMaxEnergy(container);
         }
         return maxEnergy;
+    }
+
+    /**
+     * Legacy aggregate bridge: reuse one live view, as modern bulk energy access does.
+     * Keep max-then-stored summation and subtraction; summing per-container clamped needs
+     * changes double rounding and the behavior of overfull/custom containers.
+     */
+    @Override
+    public double getNeedEnergy() {
+        if (directContainerReads == null) return getMaxEnergy() - getEnergy();
+        List<IEnergyContainer> containers = directContainerReads.getEnergyContainers(side);
+        double capacity = 0, stored = 0;
+        for (IEnergyContainer container : containers) if (container != null) capacity += container.getMaxEnergy();
+        for (IEnergyContainer container : containers) if (container != null) stored += container.getEnergy();
+        return capacity - stored;
     }
 
     @Override

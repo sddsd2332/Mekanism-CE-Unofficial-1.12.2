@@ -26,7 +26,7 @@ public class ColorButton extends MekanismButton {
     }
 
     public ColorButton(IGuiWrapper gui, int x, int y, int width, int height, Supplier<EnumColor> colorSupplier, Runnable onLeftClick, Runnable onRightClick,
-          Supplier<List<String>> tooltipSupplier) {
+                       Supplier<List<String>> tooltipSupplier) {
         super(gui, x, y, width, height, new TextComponentGroup(), onLeftClick, onRightClick, null);
         this.colorSupplier = colorSupplier;
         this.tooltipSupplier = tooltipSupplier == null ? this::getDefaultTooltip : tooltipSupplier;
@@ -38,7 +38,7 @@ public class ColorButton extends MekanismButton {
         EnumColor color = colorSupplier.get();
         if (color != null) {
             GuiUtils.fill(getButtonX(), getButtonY(), getButtonX() + getButtonWidth(), getButtonY() + getButtonHeight(),
-                  Color.rgb(color.rgbCode).argb());
+                    Color.rgb(color.rgbCode).argb());
         }
     }
 

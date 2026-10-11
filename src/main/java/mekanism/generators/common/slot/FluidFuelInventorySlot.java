@@ -28,22 +28,22 @@ public class FluidFuelInventorySlot extends FluidInventorySlot {
     }
 
     public static FluidFuelInventorySlot forFuel(IExtendedFluidTank fluidTank, ToIntFunction<ItemStack> fuelValue, IntFunction<FluidStack> fuelCreator,
-          @Nullable IContentsListener listener, int x, int y) {
+                                                 @Nullable IContentsListener listener, int x, int y) {
         Objects.requireNonNull(fluidTank, "Fluid tank cannot be null");
         Objects.requireNonNull(fuelValue, "Fuel value calculator cannot be null");
         Objects.requireNonNull(fuelCreator, "Fuel fluid stack creator cannot be null");
         return new FluidFuelInventorySlot(fluidTank, fuelValue, fuelCreator,
-              stack -> fillOrBurnExtractCheck(fluidTank, stack, fuelValue),
-              stack -> fillOrBurnInsertCheck(fluidTank, stack, fuelValue),
-              listener, x, y);
+                stack -> fillOrBurnExtractCheck(fluidTank, stack, fuelValue),
+                stack -> fillOrBurnInsertCheck(fluidTank, stack, fuelValue),
+                listener, x, y);
     }
 
     private final ToIntFunction<ItemStack> fuelValue;
     private final IntFunction<FluidStack> fuelCreator;
 
     private FluidFuelInventorySlot(IExtendedFluidTank fluidTank, ToIntFunction<ItemStack> fuelValue, IntFunction<FluidStack> fuelCreator,
-          java.util.function.Predicate<ItemStack> canExtract, java.util.function.Predicate<ItemStack> canInsert,
-          @Nullable IContentsListener listener, int x, int y) {
+                                   java.util.function.Predicate<ItemStack> canExtract, java.util.function.Predicate<ItemStack> canInsert,
+                                   @Nullable IContentsListener listener, int x, int y) {
         super(fluidTank, canExtract, canInsert, alwaysTrue, listener, x, y);
         this.fuelValue = fuelValue;
         this.fuelCreator = fuelCreator;

@@ -135,7 +135,7 @@ public class ModuleExcavationEscalationUnit implements ICustomModule<ModuleExcav
         private final EnumColor color;
         private final int efficiency;
 
-        ExcavationMode(ILangEntry langEntry,int efficiency, EnumColor color, String texture) {
+        ExcavationMode(ILangEntry langEntry, int efficiency, EnumColor color, String texture) {
             this.langEntry = langEntry;
             this.efficiency = efficiency;
             this.color = color;

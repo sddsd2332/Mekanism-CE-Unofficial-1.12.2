@@ -6,18 +6,15 @@ import mekanism.api.qio.external.QIOFrequencyReference;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
-/** Core-owned listener registry used by modules with frequency-level persistent state. */
+/**
+ * Core-owned listener registry used by modules with frequency-level persistent state.
+ */
 public final class QIOFrequencyLifecycleRegistry {
 
     private static final Set<IQIOFrequencyLifecycleListener> LISTENERS =
-          Collections.newSetFromMap(new IdentityHashMap<>());
+            Collections.newSetFromMap(new IdentityHashMap<>());
 
     private QIOFrequencyLifecycleRegistry() {
     }
@@ -32,7 +29,7 @@ public final class QIOFrequencyLifecycleRegistry {
 
     @Nonnull
     public static QIOFrequencyDeleteCheck beforeDelete(@Nonnull QIOFrequencyReference reference,
-          @Nullable UUID requester) {
+                                                       @Nullable UUID requester) {
         List<String> blockers = new ArrayList<>();
         for (IQIOFrequencyLifecycleListener listener : snapshot()) {
             try {
@@ -48,11 +45,11 @@ public final class QIOFrequencyLifecycleRegistry {
             }
         }
         return blockers.isEmpty() ? QIOFrequencyDeleteCheck.allowed() :
-              QIOFrequencyDeleteCheck.blocked(blockers);
+                QIOFrequencyDeleteCheck.blocked(blockers);
     }
 
     public static void afterDelete(@Nonnull QIOFrequencyReference reference,
-          @Nullable UUID requester) {
+                                   @Nullable UUID requester) {
         for (IQIOFrequencyLifecycleListener listener : snapshot()) {
             try {
                 listener.afterDelete(reference, requester);

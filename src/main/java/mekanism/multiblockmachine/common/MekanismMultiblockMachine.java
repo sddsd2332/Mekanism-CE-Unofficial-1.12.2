@@ -7,9 +7,9 @@ import mekanism.common.Version;
 import mekanism.common.base.IModule;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.network.PacketSimpleGui;
+import mekanism.multiblockmachine.common.processing.MultiblockMachineRecipeProviders;
 import mekanism.multiblockmachine.common.registries.MultiblockMachineBlocks;
 import mekanism.multiblockmachine.common.registries.MultiblockMachineItems;
-import mekanism.multiblockmachine.common.processing.MultiblockMachineRecipeProviders;
 import net.minecraft.block.Block;
 import net.minecraft.item.Item;
 import net.minecraft.item.crafting.IRecipe;
@@ -24,7 +24,7 @@ import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.network.NetworkRegistry;
 
-@Mod(modid = MekanismMultiblockMachine.MODID, useMetadata = true, guiFactory = "mekanism.multiblockmachine.client.gui.MultiblockMachineGuiFactory",customProperties = {
+@Mod(modid = MekanismMultiblockMachine.MODID, useMetadata = true, guiFactory = "mekanism.multiblockmachine.client.gui.MultiblockMachineGuiFactory", customProperties = {
         @Mod.CustomProperty(k = "license", v = "EUPL-1.2"),
         @Mod.CustomProperty(k = "issueTrackerUrl", v = "https://github.com/sddsd2332/Mekanism-CE-Unofficial-1.12.2/issues"),
         @Mod.CustomProperty(k = "iconFile", v = "assets/mekanism/icon.png"),
@@ -110,7 +110,7 @@ public class MekanismMultiblockMachine implements IModule {
 
     @SubscribeEvent
     public void onConfigChanged(ConfigChangedEvent.OnConfigChangedEvent event) {
-        if (event.getModID().equals(MekanismMultiblockMachine.MODID)|| event.getModID().equals(Mekanism.MODID)) {
+        if (event.getModID().equals(MekanismMultiblockMachine.MODID) || event.getModID().equals(Mekanism.MODID)) {
             proxy.loadConfiguration();
         }
     }

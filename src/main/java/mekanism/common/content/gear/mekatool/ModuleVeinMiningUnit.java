@@ -155,7 +155,7 @@ public class ModuleVeinMiningUnit implements ICustomModule<ModuleVeinMiningUnit>
                                 Vec3d start = new Vec3d(blockPos.getX() + 0.5D, blockPos.getY() + 0.5D, blockPos.getZ() + 0.5D);
                                 Vec3d end = new Vec3d(immutablePos.getX() + 0.5D, immutablePos.getY() + 0.5D, immutablePos.getZ() + 0.5D);
                                 Mekanism.packetHandler.sendToAllTracking(new LightningRenderMessage(LightningPreset.TOOL_AOE, Objects.hash(blockPos, immutablePos), start, end, 10),
-                                      world.provider.getDimension(), blockPos.getX(), blockPos.getY(), blockPos.getZ());
+                                        world.provider.getDimension(), blockPos.getX(), blockPos.getY(), blockPos.getZ());
                             }
                         }
                     }

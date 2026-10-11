@@ -187,8 +187,8 @@ public class ItemJetpack extends ItemArmor implements ILegacyGasItem, ISpecialAr
     @Override
     public ICapabilityProvider initCapabilities(ItemStack stack, NBTTagCompound nbt) {
         return new ItemCapabilityWrapper(stack, RateLimitGasHandler.create(() -> getGasTransferRate(stack), () -> getGasCapacity(stack),
-              mekanism.api.functions.ConstantPredicates.notExternal(), mekanism.api.functions.ConstantPredicates.alwaysTrueBi(),
-              gasStack -> gasStack != null && gasStack.getGas() == MekanismFluids.Hydrogen, "stored"));
+                mekanism.api.functions.ConstantPredicates.notExternal(), mekanism.api.functions.ConstantPredicates.alwaysTrueBi(),
+                gasStack -> gasStack != null && gasStack.getGas() == MekanismFluids.Hydrogen, "stored"));
     }
 
 
@@ -256,7 +256,7 @@ public class ItemJetpack extends ItemArmor implements ILegacyGasItem, ISpecialAr
         JetpackMode newMode = mode.adjust(shift);
         if (mode != newMode) {
             setMode(stack, newMode);
-            displayChange.sendMessage(player,()->new TextComponentGroup().translation("jetpack.mekanism.mode_change").string(newMode.getName()));
+            displayChange.sendMessage(player, () -> new TextComponentGroup().translation("jetpack.mekanism.mode_change").string(newMode.getName()));
         }
     }
 

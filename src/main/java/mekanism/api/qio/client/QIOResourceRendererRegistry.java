@@ -13,7 +13,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
-/** Client-only registry of QIO resource presentations, keyed by the owning codec id. */
+/**
+ * Client-only registry of QIO resource presentations, keyed by the owning codec id.
+ */
 @SideOnly(Side.CLIENT)
 public final class QIOResourceRendererRegistry {
 
@@ -24,22 +26,24 @@ public final class QIOResourceRendererRegistry {
     private QIOResourceRendererRegistry() {
     }
 
-    /** Registers a renderer after its common codec has been registered. Duplicate ids fail. */
+    /**
+     * Registers a renderer after its common codec has been registered. Duplicate ids fail.
+     */
     @Nonnull
     public synchronized <T> QIOResourceRenderer<T> register(@Nonnull QIOResourceRenderer<T> renderer) {
         Objects.requireNonNull(renderer, "QIO resource renderer cannot be null");
         ResourceLocation codecId = Objects.requireNonNull(renderer.getCodecId(),
-              "QIO resource renderer codec id cannot be null");
+                "QIO resource renderer codec id cannot be null");
         Class<T> valueClass = Objects.requireNonNull(renderer.getValueClass(),
-              "QIO resource renderer value class cannot be null");
+                "QIO resource renderer value class cannot be null");
         QIOResourceCodec<?> codec = QIOResourceCodecRegistry.INSTANCE.get(codecId);
         if (codec == null) {
             throw new IllegalArgumentException("A QIO codec must be registered before its client renderer: " +
-                  codecId);
+                    codecId);
         }
         if (!codec.getValueClass().equals(valueClass)) {
             throw new IllegalArgumentException("QIO renderer value class does not match codec " + codecId +
-                  ": " + valueClass.getName() + " != " + codec.getValueClass().getName());
+                    ": " + valueClass.getName() + " != " + codec.getValueClass().getName());
         }
         if (renderers.putIfAbsent(codecId, renderer) != null) {
             throw new IllegalArgumentException("Duplicate QIO resource renderer registered: " + codecId);

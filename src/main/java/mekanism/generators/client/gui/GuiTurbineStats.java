@@ -35,8 +35,8 @@ public class GuiTurbineStats extends GuiMekanismTile<TileEntityTurbineCasing, Co
             double maxEnergy = data != null && data.isFormed() ? tileEntity.getMaxEnergy() : 0;
             double producing = data != null && data.isFormed() ? getProductionRate(data) : 0;
             return Arrays.asList(
-                  new TextComponentString(LangUtils.localize("gui.storing") + ": " + MekanismUtils.getEnergyDisplay(storing, maxEnergy)),
-                  new TextComponentString(LangUtils.localize("gui.producing") + ": " + MekanismUtils.getEnergyDisplay(producing) + "/t")
+                    new TextComponentString(LangUtils.localize("gui.storing") + ": " + MekanismUtils.getEnergyDisplay(storing, maxEnergy)),
+                    new TextComponentString(LangUtils.localize("gui.producing") + ": " + MekanismUtils.getEnergyDisplay(producing) + "/t")
             );
         }));
     }
@@ -52,25 +52,25 @@ public class GuiTurbineStats extends GuiMekanismTile<TileEntityTurbineCasing, Co
             int vents = data.vents;
             drawScrollingString(new TextComponentString(LangUtils.localize("gui.tankVolume") + ": " + lowerVolume), 0, 26, TextAlignment.LEFT, titleTextColor(), 6, false);
             boolean dispersersLimiting = lowerVolume * dispersers * MekanismConfig.current().generators.turbineDisperserGasFlow.val()
-                  < vents * MekanismConfig.current().generators.turbineVentGasFlow.val();
+                    < vents * MekanismConfig.current().generators.turbineVentGasFlow.val();
             boolean ventsLimiting = lowerVolume * dispersers * MekanismConfig.current().generators.turbineDisperserGasFlow.val()
-                  > vents * MekanismConfig.current().generators.turbineVentGasFlow.val();
+                    > vents * MekanismConfig.current().generators.turbineVentGasFlow.val();
             drawScrollingString(new TextComponentString(LangUtils.localize("gui.steamFlow")), 0, 40, TextAlignment.LEFT, subheadingTextColor(), 6, false);
             drawScrollingString(new TextComponentString(LangUtils.localize("gui.dispersers") + ": " + dispersers + (dispersersLimiting ? limiting.getFormattedText() : "")),
-                  4, 49, TextAlignment.LEFT, titleTextColor(), xSize - 4, 6, false);
+                    4, 49, TextAlignment.LEFT, titleTextColor(), xSize - 4, 6, false);
             drawScrollingString(new TextComponentString(LangUtils.localize("gui.vents") + ": " + vents + (ventsLimiting ? limiting.getFormattedText() : "")),
-                  4, 58, TextAlignment.LEFT, titleTextColor(), xSize - 4, 6, false);
+                    4, 58, TextAlignment.LEFT, titleTextColor(), xSize - 4, 6, false);
             int coils = data.coils;
             int blades = data.blades;
             drawScrollingString(new TextComponentString(LangUtils.localize("gui.production")), 0, 72, TextAlignment.LEFT, subheadingTextColor(), 6, false);
             drawScrollingString(new TextComponentString(LangUtils.localize("gui.blades") + ": " + blades + (coils * 4 > blades ? limiting.getFormattedText() : "")),
-                  4, 81, TextAlignment.LEFT, titleTextColor(), xSize - 4, 6, false);
+                    4, 81, TextAlignment.LEFT, titleTextColor(), xSize - 4, 6, false);
             drawScrollingString(new TextComponentString(LangUtils.localize("gui.coils") + ": " + coils + (coils * 4 < blades ? limiting.getFormattedText() : "")),
-                  4, 90, TextAlignment.LEFT, titleTextColor(), xSize - 4, 6, false);
+                    4, 90, TextAlignment.LEFT, titleTextColor(), xSize - 4, 6, false);
             drawScrollingString(new TextComponentString(LangUtils.localize("gui.maxProduction") + ": " +
-                  MekanismUtils.getEnergyDisplay(getMaxFlowRate(data) * getEnergyMultiplier(data))), 0, 104, TextAlignment.LEFT, titleTextColor(), 6, false);
+                    MekanismUtils.getEnergyDisplay(getMaxFlowRate(data) * getEnergyMultiplier(data))), 0, 104, TextAlignment.LEFT, titleTextColor(), 6, false);
             drawScrollingString(new TextComponentString(LangUtils.localize("gui.maxWaterOutput") + ": " +
-                  data.condensers * MekanismConfig.current().generators.condenserRate.val() + " mB/t"), 0, 113, TextAlignment.LEFT, titleTextColor(), 6, false);
+                    data.condensers * MekanismConfig.current().generators.condenserRate.val() + " mB/t"), 0, 113, TextAlignment.LEFT, titleTextColor(), 6, false);
         }
         super.drawForegroundText(mouseX, mouseY);
     }
@@ -81,11 +81,11 @@ public class GuiTurbineStats extends GuiMekanismTile<TileEntityTurbineCasing, Co
 
     private double getEnergyMultiplier(SynchronizedTurbineData data) {
         return (MekanismConfig.current().general.maxEnergyPerSteam.val() / TurbineUpdateProtocol.MAX_BLADES) *
-              Math.min(data.blades, data.coils * MekanismConfig.current().generators.turbineBladesPerCoil.val());
+                Math.min(data.blades, data.coils * MekanismConfig.current().generators.turbineBladesPerCoil.val());
     }
 
     private double getMaxFlowRate(SynchronizedTurbineData data) {
         return Math.min(data.lowerVolume * data.clientDispersers * MekanismConfig.current().generators.turbineDisperserGasFlow.val(),
-              data.vents * MekanismConfig.current().generators.turbineVentGasFlow.val());
+                data.vents * MekanismConfig.current().generators.turbineVentGasFlow.val());
     }
 }

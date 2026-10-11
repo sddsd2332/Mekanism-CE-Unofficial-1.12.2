@@ -26,7 +26,7 @@ public class ChemicalCrystallizerRecipeCategory<WRAPPER extends ChemicalCrystall
 
     public ChemicalCrystallizerRecipeCategory(IGuiHelper helper) {
         super(helper, "mekanism:gui/Null.png", Recipe.CHEMICAL_CRYSTALLIZER.getJEICategory(),
-              "tile.MachineBlock2.ChemicalCrystallizer.name", 5, 3, 147, 79, ProgressType.LARGE_RIGHT);
+                "tile.MachineBlock2.ChemicalCrystallizer.name", 5, 3, 147, 79, ProgressType.LARGE_RIGHT);
     }
 
     @Override

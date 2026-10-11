@@ -13,8 +13,9 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 public class BloomRenderHeatGenerator extends BloomEffect<TileEntityHeatGenerator> {
 
     private final TileEntityHeatGenerator tile;
+
     public BloomRenderHeatGenerator(TileEntityHeatGenerator tile) {
-        super(tile,180, 0, 270, 90);
+        super(tile, 180, 0, 270, 90);
         this.tile = tile;
     }
 

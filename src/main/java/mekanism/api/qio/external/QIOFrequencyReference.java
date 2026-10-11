@@ -9,7 +9,9 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Immutable identity used to reopen one exact QIO frequency without a dashboard. */
+/**
+ * Immutable identity used to reopen one exact QIO frequency without a dashboard.
+ */
 public final class QIOFrequencyReference {
 
     private static final String FREQUENCY_UUID = "frequencyUUID";
@@ -28,8 +30,8 @@ public final class QIOFrequencyReference {
     private final UUID bindingPlayerUUID;
 
     public QIOFrequencyReference(@Nonnull UUID frequencyUUID, @Nonnull String frequencyName,
-          @Nullable UUID ownerUUID, @Nonnull SecurityMode securityMode,
-          @Nullable UUID bindingPlayerUUID) {
+                                 @Nullable UUID ownerUUID, @Nonnull SecurityMode securityMode,
+                                 @Nullable UUID bindingPlayerUUID) {
         this.frequencyUUID = Objects.requireNonNull(frequencyUUID, "frequencyUUID");
         this.frequencyName = Objects.requireNonNull(frequencyName, "frequencyName");
         this.ownerUUID = ownerUUID;
@@ -83,19 +85,19 @@ public final class QIOFrequencyReference {
     public static QIOFrequencyReference read(@Nonnull NBTTagCompound data) {
         Objects.requireNonNull(data, "data");
         if (!data.hasKey(FREQUENCY_UUID, NBT.TAG_STRING) ||
-              !data.hasKey(LAST_KNOWN_IDENTITY, NBT.TAG_COMPOUND)) {
+                !data.hasKey(LAST_KNOWN_IDENTITY, NBT.TAG_COMPOUND)) {
             throw new IllegalArgumentException("QIO frequency reference is missing its identity");
         }
         NBTTagCompound identity = data.getCompoundTag(LAST_KNOWN_IDENTITY);
         if (!identity.hasKey(FREQUENCY_NAME, NBT.TAG_STRING) ||
-              !identity.hasKey(SECURITY_MODE, NBT.TAG_STRING)) {
+                !identity.hasKey(SECURITY_MODE, NBT.TAG_STRING)) {
             throw new IllegalArgumentException("QIO frequency reference has an incomplete identity");
         }
         try {
             return new QIOFrequencyReference(UUID.fromString(data.getString(FREQUENCY_UUID)),
-                  identity.getString(FREQUENCY_NAME), readOptionalUUID(identity, OWNER_UUID),
-                  SecurityMode.valueOf(identity.getString(SECURITY_MODE)),
-                  readOptionalUUID(data, BINDING_PLAYER_UUID));
+                    identity.getString(FREQUENCY_NAME), readOptionalUUID(identity, OWNER_UUID),
+                    SecurityMode.valueOf(identity.getString(SECURITY_MODE)),
+                    readOptionalUUID(data, BINDING_PLAYER_UUID));
         } catch (RuntimeException e) {
             throw new IllegalArgumentException("Invalid QIO frequency reference", e);
         }
@@ -115,8 +117,8 @@ public final class QIOFrequencyReference {
             return false;
         }
         return frequencyUUID.equals(other.frequencyUUID) && frequencyName.equals(other.frequencyName) &&
-              Objects.equals(ownerUUID, other.ownerUUID) && securityMode == other.securityMode &&
-              Objects.equals(bindingPlayerUUID, other.bindingPlayerUUID);
+                Objects.equals(ownerUUID, other.ownerUUID) && securityMode == other.securityMode &&
+                Objects.equals(bindingPlayerUUID, other.bindingPlayerUUID);
     }
 
     @Override

@@ -45,7 +45,7 @@ public class ItemHDPEElytra extends ItemMekanism implements ElytraMixinHelp {
     @Override
     @SideOnly(Side.CLIENT)
     public void addInformation(@Nonnull ItemStack itemstack, World world, @Nonnull List<String> list, @Nonnull ITooltipFlag flag) {
-        if (!Mekanism.hooks.MekanismMixinHelp){
+        if (!Mekanism.hooks.MekanismMixinHelp) {
             list.add(EnumColor.DARK_RED + LangUtils.localize("need.installation.mod") + ".");
         }
     }

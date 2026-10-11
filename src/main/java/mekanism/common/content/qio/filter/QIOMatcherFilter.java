@@ -6,9 +6,10 @@ import mekanism.common.content.qio.QIOResourceEntry;
 import net.minecraft.nbt.NBTTagCompound;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
-/** Matches every resource accepted by a persisted family/codec matcher. */
+/**
+ * Matches every resource accepted by a persisted family/codec matcher.
+ */
 public class QIOMatcherFilter extends QIOFilter {
 
     public static final String TYPE = "matcher";

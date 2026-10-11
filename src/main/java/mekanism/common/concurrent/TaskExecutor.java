@@ -16,6 +16,8 @@ import net.minecraftforge.fml.relauncher.Side;
 
 import java.util.Queue;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.LockSupport;
 
 /**
@@ -25,6 +27,10 @@ import java.util.concurrent.locks.LockSupport;
 public class TaskExecutor {
 
     public static final int THREAD_COUNT = Math.min(Math.max(Runtime.getRuntime().availableProcessors() / 4, 4), 8);
+    // A controlled direct/runner comparison can use the same core jar. Read once;
+    // backend switching while machine tickets are pending is deliberately unsupported.
+    private static final boolean MACHINE_RUNNERS_ENABLED =
+            !"direct".equals(System.getProperty("mekanism.machine.dispatch", "runner"));
 
     public static final ThreadPoolExecutor THREAD_POOL = new ThreadPoolExecutor(THREAD_COUNT, THREAD_COUNT,
             5000, TimeUnit.MILLISECONDS,
@@ -52,9 +58,12 @@ public class TaskExecutor {
     private final Queue<Action> mainThreadActions = Queues.createConcurrentQueue();
     private final Queue<TileEntitySynchronized> requireUpdateTEQueue = Queues.createConcurrentQueue();
     private final Queue<TileEntitySynchronized> requireMarkNoUpdateTEQueue = Queues.createConcurrentQueue();
+    private final Queue<TileEntitySynchronized> requireSaveTEQueue = Queues.createConcurrentQueue();
     private final Queue<TileEntitySynchronized> requireUpdateComparatorOutputLevel = Queues.createConcurrentQueue();
 
     private final TaskSubmitter submitter = new TaskSubmitter();
+    private final MachineTaskDispatcher machineTasks = new MachineTaskDispatcher(THREAD_COUNT, this::execute);
+    private final LongAdder directMachineSubmissions = new LongAdder();
 
     private volatile boolean inTick = false;
     private volatile boolean shouldUseForkJoinPool = false;
@@ -72,7 +81,7 @@ public class TaskExecutor {
         switch (event.phase) {
             case START -> {
                 inTick = true;
-                submitter.unpark();
+                submitter.wakeForWork();
             }
             default -> {
                 inTick = false;
@@ -179,7 +188,7 @@ public class TaskExecutor {
     }
 
     private void updateTileEntity() {
-        if (requireUpdateTEQueue.isEmpty() && requireMarkNoUpdateTEQueue.isEmpty() && requireUpdateComparatorOutputLevel.isEmpty()) {
+        if (requireUpdateTEQueue.isEmpty() && requireMarkNoUpdateTEQueue.isEmpty() && requireSaveTEQueue.isEmpty() && requireUpdateComparatorOutputLevel.isEmpty()) {
             return;
         }
 
@@ -197,10 +206,15 @@ public class TaskExecutor {
         toUpdate.forEach(TileEntitySynchronized::markNoUpdate);
 
         toUpdate.clear();
+        while ((tile = requireSaveTEQueue.poll()) != null) toUpdate.add(tile);
+        toUpdate.forEach(TileEntitySynchronized::markForSave);
+
+        // updateComparatorOutputLevelSync() uses a per-tile CAS before enqueueing,
+        // so this queue is already coalesced. Avoid a second ReferenceOpenHashSet
+        // pass and consume each pending tile directly.
         while ((tile = requireUpdateComparatorOutputLevel.poll()) != null) {
-            toUpdate.add(tile);
+            tile.updateComparatorOutputLevel();
         }
-        toUpdate.forEach(TileEntitySynchronized::updateComparatorOutputLevel);
     }
 
     /**
@@ -213,6 +227,65 @@ public class TaskExecutor {
     }
 
     /**
+     * Dispatches ordinary machine work through immediate runners in the selected pool during a server tick.
+     * Register completion before dispatch, including when a worker immediately produces more work.
+     * Outside the tick, preserve the existing queued submission boundary.
+     */
+    public ActionExecutor addMachineTask(final Action action) {
+        if (!inTick) {
+            return addTask(action);
+        }
+        ActionExecutor executor = new ActionExecutor(action);
+        submitted.offer(executor);
+        try {
+            if (MACHINE_RUNNERS_ENABLED) {
+                machineTasks.submit(executor);
+            } else {
+                directMachineSubmissions.increment();
+                execute(executor);
+            }
+        } catch (RuntimeException | Error failure) {
+            // The barrier may already have taken this entry. Release it without executing
+            // rejected machine work on the caller thread, and propagate the dispatch failure.
+            executor.completeWithoutExecution();
+            throw failure;
+        }
+        return executor;
+    }
+
+    /**
+     * Cheap aggregate counts for boundary diagnostics; no per-machine timing probes.
+     */
+    public MachineDispatchStats getMachineDispatchStats() {
+        return machineTasks.snapshot(directMachineSubmissions.sum(), MACHINE_RUNNERS_ENABLED);
+    }
+
+    public static final class MachineDispatchStats {
+        public final boolean runnersEnabled;
+        public final long machineRequests;
+        public final long runnerSubmissions;
+        public final long directSubmissions;
+        public final long runnerDispatchFailures;
+        public final int liveRunners;
+        public final long runnerIdleMicros;
+
+        MachineDispatchStats(boolean runnersEnabled, long machineRequests, long runnerSubmissions,
+                             long directSubmissions, long runnerDispatchFailures, int liveRunners, long runnerIdleMicros) {
+            this.runnersEnabled = runnersEnabled;
+            this.machineRequests = machineRequests;
+            this.runnerSubmissions = runnerSubmissions;
+            this.directSubmissions = directSubmissions;
+            this.runnerDispatchFailures = runnerDispatchFailures;
+            this.liveRunners = liveRunners;
+            this.runnerIdleMicros = runnerIdleMicros;
+        }
+    }
+
+    public void addTESaveTask(TileEntitySynchronized tile) {
+        requireSaveTEQueue.offer(tile);
+    }
+
+    /**
      * <p>添加一个异步操作引用，这个操作必定在本 Tick 结束前执行完毕。</p>
      *
      * @param action   要执行的异步任务
@@ -222,7 +295,7 @@ public class TaskExecutor {
         ActionExecutor actionExecutor = new ActionExecutor(action, priority);
         executors.offer(actionExecutor);
         if (inTick) {
-            submitter.unpark();
+            submitter.requestWork();
         }
 
         return actionExecutor;
@@ -239,7 +312,7 @@ public class TaskExecutor {
             executor = group.offer(new ActionExecutor(action));
         }
         if (inTick) {
-            submitter.unpark();
+            submitter.requestWork();
         }
         return executor;
     }
@@ -248,7 +321,7 @@ public class TaskExecutor {
     public <T> ForkJoinTask<T> submitForkJoinTask(final ForkJoinTask<T> task) {
         forkJoinTasks.offer(task);
         if (inTick) {
-            submitter.unpark();
+            submitter.requestWork();
         }
         return task;
     }
@@ -274,7 +347,7 @@ public class TaskExecutor {
         requireUpdateComparatorOutputLevel.offer(te);
     }
 
-    private void execute(final ActionExecutor executor) {
+    protected void execute(final ActionExecutor executor) {
         if (shouldUseForkJoinPool) {
             FORK_JOIN_POOL.execute(executor);
         } else {
@@ -334,39 +407,57 @@ public class TaskExecutor {
     }
 
     public class TaskSubmitter implements Runnable {
-        public Thread thread = null;
+        public volatile Thread thread = null;
+        private final CoalescingWakeup wakeup = new CoalescingWakeup();
+        private final AtomicBoolean wakeRequested = new AtomicBoolean();
 
-        public void start() {
+        public synchronized void start() {
             if (thread != null && thread.isAlive()) {
-                thread.interrupt();
+                return;
             }
+            wakeup.cancel();
+            wakeRequested.set(false);
             thread = new Thread(this);
             thread.setName("MEK-TaskSubmitter");
             thread.start();
         }
 
-        public void unpark() {
-            if (thread != null) {
-                LockSupport.unpark(thread);
-            }
+        public void wakeForWork() {
+            if (hasWork()) requestWork();
+        }
+
+        public void requestWork() {
+            // Publish at most one wake request while the submitter drains or waits. The queues
+            // remain authoritative, so a failed signal is harmless and the next loop observes it.
+            if (wakeRequested.compareAndSet(false, true)) wakeup.signal(thread);
+        }
+
+        private boolean hasWork() {
+            return inTick && (!executors.isEmpty() || !forkJoinTasks.isEmpty() || hasPendingExecuteGroupTasks());
         }
 
         @Override
         public void run() {
             while (!Thread.currentThread().isInterrupted()) {
-                if (inTick) {
-                    if (!executors.isEmpty() || hasPendingExecuteGroupTasks() || !forkJoinTasks.isEmpty()) {
-                        try {
-                            submitTask();
-                        } catch (Throwable e) {
-                            Mekanism.logger.error("Task submitter failed while dispatching work", e);
-                            LockSupport.parkNanos(1_000_000L);
-                        }
-                    } else {
-                        LockSupport.park();
+                if (hasWork()) {
+                    try {
+                        wakeRequested.set(false);
+                        submitTask();
+                    } catch (Throwable e) {
+                        Mekanism.logger.error("Task submitter failed while dispatching work", e);
+                        LockSupport.parkNanos(1_000_000L);
                     }
                 } else {
-                    LockSupport.park();
+                    // Publish the sleep intent BEFORE checking work again. A producer either
+                    // leaves visible work for this check or deposits a permit before park.
+                    // Re-arm before the indefinite park to close the producer/park race.
+                    wakeup.arm();
+                    wakeRequested.set(false);
+                    if (!hasWork() && !Thread.currentThread().isInterrupted()) {
+                        wakeup.arm();
+                        if (!hasWork()) LockSupport.park();
+                    }
+                    wakeup.cancel();
                 }
             }
         }

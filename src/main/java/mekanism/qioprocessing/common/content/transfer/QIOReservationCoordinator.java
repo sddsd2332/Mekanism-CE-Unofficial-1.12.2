@@ -1,12 +1,6 @@
 package mekanism.qioprocessing.common.content.transfer;
 
-import mekanism.api.qio.external.IQIOStorageView;
-import mekanism.api.qio.external.QIOClaimBacking;
-import mekanism.api.qio.external.QIOClaimRequest;
-import mekanism.api.qio.external.QIOClaimResult;
-import mekanism.api.qio.external.QIOResourceClaim;
-import mekanism.api.qio.external.QIOStorageEntry;
-import mekanism.api.qio.external.QIOStorageSnapshot;
+import mekanism.api.qio.external.*;
 import mekanism.qioprocessing.api.resource.PortableResourceDescriptor;
 import mekanism.qioprocessing.common.MekanismQIOProcessing;
 import mekanism.qioprocessing.common.content.QIOProcessingNetworkData;
@@ -24,7 +18,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Converts a complete logical claim into a durable job-owned resource buffer. */
+/**
+ * Converts a complete logical claim into a durable job-owned resource buffer.
+ */
+
 /**
  * QIO 处理模块中的 QIOReservationCoordinator 类型。
  *
@@ -54,9 +51,9 @@ public final class QIOReservationCoordinator {
      */
     @Nonnull
     public static Outcome reserve(@Nonnull QIOProcessingNetworkData network,
-          @Nonnull UUID jobId, @Nonnull IQIOStorageView view,
-          @Nonnull QIOMaterialClaimCoordinator.PersistenceBarrier persistenceBarrier)
-          throws IOException {
+                                  @Nonnull UUID jobId, @Nonnull IQIOStorageView view,
+                                  @Nonnull QIOMaterialClaimCoordinator.PersistenceBarrier persistenceBarrier)
+            throws IOException {
         Objects.requireNonNull(network, "network");
         Objects.requireNonNull(jobId, "jobId");
         Objects.requireNonNull(view, "view");
@@ -64,11 +61,11 @@ public final class QIOReservationCoordinator {
         QIOCraftingJob job = requireJob(network, jobId);
         QIOMaterialCommitment commitment = requireCommitment(network, jobId);
         if (job.getState() == QIOCraftingJobState.READY &&
-              commitment.getState() == QIOMaterialCommitment.State.CONSUMED) {
+                commitment.getState() == QIOMaterialCommitment.State.CONSUMED) {
             return Outcome.READY;
         }
         if (job.getState() != QIOCraftingJobState.RESERVING ||
-              job.getExecutionSlotToken() == null || !commitment.isFullyCommitted()) {
+                job.getExecutionSlotToken() == null || !commitment.isFullyCommitted()) {
             throw new IllegalStateException("QIO job is not ready to convert its claim into a reservation");
         }
 
@@ -96,15 +93,15 @@ public final class QIOReservationCoordinator {
             QIOStorageSnapshot snapshot = view.getSnapshot();
             QIOResourceClaim claim = view.getClaim(commitment.getClaimId());
             Map<PortableResourceDescriptor, UUID> bindings = resolveBindings(view, snapshot,
-                  claim, commitment.getCommittedAmounts());
+                    claim, commitment.getCommittedAmounts());
             if (bindings == null || !claimMatches(claim, job,
-                  commitment, bindings)) {
+                    commitment, bindings)) {
                 network.releaseExecutionSlot(jobId, QIOCraftingJobState.WAITING_ACCESS);
                 persistenceBarrier.persist(network);
                 return Outcome.WAITING_ACCESS;
             }
             Map<PortableResourceDescriptor, Long> backed = readBackedAmounts(view, job,
-                  commitment, bindings);
+                    commitment, bindings);
             if (backed == null) {
                 network.releaseExecutionSlot(jobId, QIOCraftingJobState.WAITING_ACCESS);
                 persistenceBarrier.persist(network);
@@ -117,16 +114,16 @@ public final class QIOReservationCoordinator {
                 return Outcome.WAITING_MATERIALS;
             }
             Map<PortableResourceDescriptor, BigInteger> baselines = resolveBaselines(view,
-                  commitment.getCommittedAmounts(), bindings);
+                    commitment.getCommittedAmounts(), bindings);
             if (baselines == null) {
                 network.releaseExecutionSlot(jobId, QIOCraftingJobState.WAITING_ACCESS);
                 persistenceBarrier.persist(network);
                 return Outcome.WAITING_ACCESS;
             }
             transfer = QIODurableTransferRecord.qioToJob(UUID.randomUUID(), UUID.randomUUID(),
-                  network.getFrequencyUUID(), jobId, job.getActivePlan().getRevision(),
-                  commitment.getCommittedAmounts(), bindings, baselines,
-                  snapshot.getContentsRevision(), snapshot.getClaimRevision());
+                    network.getFrequencyUUID(), jobId, job.getActivePlan().getRevision(),
+                    commitment.getCommittedAmounts(), bindings, baselines,
+                    snapshot.getContentsRevision(), snapshot.getClaimRevision());
             network.addDurableTransfer(transfer);
             persistenceBarrier.persist(network);
         }
@@ -134,17 +131,17 @@ public final class QIOReservationCoordinator {
         if (transfer.getPhase() == QIODurableTransferRecord.Phase.PREPARED) {
             if (!view.isValid() || !network.getFrequencyUUID().equals(view.getFrequencyUUID())) {
                 network.abortPreparedReservation(transfer.getTransferId(),
-                      QIOCraftingJobState.WAITING_ACCESS);
+                        QIOCraftingJobState.WAITING_ACCESS);
                 persistenceBarrier.persist(network);
                 return Outcome.WAITING_ACCESS;
             }
             Map<UUID, Long> resolved = resolveAmounts(transfer);
             Map<UUID, BigInteger> baselines = resolveBaselines(transfer);
             QIOClaimRequest consume = QIOClaimRequest.consumeReconciled(
-                  transfer.getRequestId(), transfer.getTransferId(), commitment.getClaimId(),
-                  MekanismQIOProcessing.MODID, job.getClaimOwnerId(),
-                  transfer.getExpectedContentsRevision(), transfer.getExpectedClaimRevision(),
-                  resolved, baselines);
+                    transfer.getRequestId(), transfer.getTransferId(), commitment.getClaimId(),
+                    MekanismQIOProcessing.MODID, job.getClaimOwnerId(),
+                    transfer.getExpectedContentsRevision(), transfer.getExpectedClaimRevision(),
+                    resolved, baselines);
             QIOClaimResult result = view.submitClaim(consume);
             if (result.isSuccess() && !result.getConsumedAmounts().equals(resolved)) {
                 // A successful core consume is ownership-changing. Keep the PREPARED record and slot
@@ -153,31 +150,31 @@ public final class QIOReservationCoordinator {
             }
             if (!result.isSuccess()) {
                 boolean stillOwned = claimMatches(view.getClaim(commitment.getClaimId()), job,
-                      commitment, transfer.getQIOResourceUUIDs());
+                        commitment, transfer.getQIOResourceUUIDs());
                 if (stillOwned) {
                     Map<PortableResourceDescriptor, Long> backed = readBackedAmounts(view, job,
-                          commitment, transfer.getQIOResourceUUIDs());
+                            commitment, transfer.getQIOResourceUUIDs());
                     if (backed == null) {
                         network.abortPreparedReservation(transfer.getTransferId(),
-                              QIOCraftingJobState.WAITING_ACCESS);
+                                QIOCraftingJobState.WAITING_ACCESS);
                         persistenceBarrier.persist(network);
                         return Outcome.WAITING_ACCESS;
                     }
                     if (!backed.equals(commitment.getCommittedAmounts())) {
                         network.applyActiveClaim(jobId, backed, view.getClaimRevision());
                         network.abortPreparedReservation(transfer.getTransferId(),
-                              QIOCraftingJobState.WAITING_MATERIALS);
+                                QIOCraftingJobState.WAITING_MATERIALS);
                         persistenceBarrier.persist(network);
                         return Outcome.WAITING_MATERIALS;
                     }
                 }
                 network.abortPreparedReservation(transfer.getTransferId(), stillOwned ?
-                      QIOCraftingJobState.WAITING_EXECUTION_SLOT : QIOCraftingJobState.WAITING_ACCESS);
+                        QIOCraftingJobState.WAITING_EXECUTION_SLOT : QIOCraftingJobState.WAITING_ACCESS);
                 persistenceBarrier.persist(network);
                 return stillOwned ? Outcome.RETRY_REQUIRED : Outcome.WAITING_ACCESS;
             }
             network.markReservationSourceDebited(transfer.getTransferId(),
-                  result.getRequestId() + "/" + result.getStatus(), result.getClaimRevision());
+                    result.getRequestId() + "/" + result.getStatus(), result.getClaimRevision());
             persistenceBarrier.persist(network);
         }
 
@@ -194,8 +191,8 @@ public final class QIOReservationCoordinator {
 
     @Nullable
     private static Map<PortableResourceDescriptor, UUID> resolveBindings(IQIOStorageView view,
-          QIOStorageSnapshot snapshot, @Nullable QIOResourceClaim claim,
-          Map<PortableResourceDescriptor, Long> resources) {
+                                                                         QIOStorageSnapshot snapshot, @Nullable QIOResourceClaim claim,
+                                                                         Map<PortableResourceDescriptor, Long> resources) {
         Map<PortableResourceDescriptor, UUID> available = new LinkedHashMap<>();
         for (QIOStorageEntry entry : snapshot.getEntries()) {
             PortableResourceDescriptor descriptor = PortableResourceDescriptor.fromStorageEntry(entry);
@@ -211,7 +208,7 @@ public final class QIOReservationCoordinator {
                     return null;
                 }
                 PortableResourceDescriptor descriptor =
-                      PortableResourceDescriptor.fromStorageEntry(entry);
+                        PortableResourceDescriptor.fromStorageEntry(entry);
                 UUID previous = available.put(descriptor, resourceUUID);
                 if (previous != null && !previous.equals(resourceUUID)) {
                     return null;
@@ -231,12 +228,12 @@ public final class QIOReservationCoordinator {
 
     @Nullable
     private static Map<PortableResourceDescriptor, Long> readBackedAmounts(IQIOStorageView view,
-          QIOCraftingJob job, QIOMaterialCommitment commitment,
-          Map<PortableResourceDescriptor, UUID> bindings) {
+                                                                           QIOCraftingJob job, QIOMaterialCommitment commitment,
+                                                                           Map<PortableResourceDescriptor, UUID> bindings) {
         QIOClaimBacking backing = view.getClaimBacking(commitment.getClaimId());
         if (backing == null || backing.getContentsRevision() != view.getContentsRevision() ||
-              backing.getClaimRevision() != view.getClaimRevision() ||
-              !claimMatches(backing.getClaim(), job, commitment, bindings)) {
+                backing.getClaimRevision() != view.getClaimRevision() ||
+                !claimMatches(backing.getClaim(), job, commitment, bindings)) {
             return null;
         }
         Map<PortableResourceDescriptor, Long> translated = new LinkedHashMap<>();
@@ -250,11 +247,11 @@ public final class QIOReservationCoordinator {
     }
 
     private static boolean claimMatches(@Nullable QIOResourceClaim claim, QIOCraftingJob job,
-          QIOMaterialCommitment commitment,
-          Map<PortableResourceDescriptor, UUID> bindings) {
+                                        QIOMaterialCommitment commitment,
+                                        Map<PortableResourceDescriptor, UUID> bindings) {
         return claim != null && MekanismQIOProcessing.MODID.equals(claim.getOwnerNamespace()) &&
-              job.getClaimOwnerId().equals(claim.getOwnerId()) &&
-              claim.getResourceAmounts().equals(resolveAmounts(commitment.getCommittedAmounts(), bindings));
+                job.getClaimOwnerId().equals(claim.getOwnerId()) &&
+                claim.getResourceAmounts().equals(resolveAmounts(commitment.getCommittedAmounts(), bindings));
     }
 
     @Nonnull
@@ -264,15 +261,15 @@ public final class QIOReservationCoordinator {
 
     @Nullable
     private static Map<PortableResourceDescriptor, BigInteger> resolveBaselines(
-          IQIOStorageView view, Map<PortableResourceDescriptor, Long> resources,
-          Map<PortableResourceDescriptor, UUID> bindings) {
+            IQIOStorageView view, Map<PortableResourceDescriptor, Long> resources,
+            Map<PortableResourceDescriptor, UUID> bindings) {
         Map<PortableResourceDescriptor, BigInteger> baselines = new LinkedHashMap<>();
         for (Map.Entry<PortableResourceDescriptor, Long> resource : resources.entrySet()) {
             UUID uuid = bindings.get(resource.getKey());
             QIOStorageEntry entry = uuid == null ? null : view.getResource(uuid);
             if (entry == null || !resource.getKey().equals(
-                  PortableResourceDescriptor.fromStorageEntry(entry)) ||
-                  entry.getExactStoredAmount().compareTo(BigInteger.valueOf(resource.getValue())) < 0) {
+                    PortableResourceDescriptor.fromStorageEntry(entry)) ||
+                    entry.getExactStoredAmount().compareTo(BigInteger.valueOf(resource.getValue())) < 0) {
                 return null;
             }
             baselines.put(resource.getKey(), entry.getExactStoredAmount());
@@ -284,7 +281,7 @@ public final class QIOReservationCoordinator {
     private static Map<UUID, BigInteger> resolveBaselines(QIODurableTransferRecord transfer) {
         Map<UUID, BigInteger> resolved = new LinkedHashMap<>();
         for (Map.Entry<PortableResourceDescriptor, BigInteger> entry :
-              transfer.getQIOBaselines().entrySet()) {
+                transfer.getQIOBaselines().entrySet()) {
             UUID uuid = transfer.getQIOResourceUUIDs().get(entry.getKey());
             if (uuid == null || resolved.put(uuid, entry.getValue()) != null) {
                 return new LinkedHashMap<>();
@@ -295,7 +292,7 @@ public final class QIOReservationCoordinator {
 
     @Nonnull
     private static Map<UUID, Long> resolveAmounts(Map<PortableResourceDescriptor, Long> resources,
-          Map<PortableResourceDescriptor, UUID> bindings) {
+                                                  Map<PortableResourceDescriptor, UUID> bindings) {
         Map<UUID, Long> resolved = new LinkedHashMap<>();
         for (Map.Entry<PortableResourceDescriptor, Long> entry : resources.entrySet()) {
             UUID uuid = bindings.get(entry.getKey());
@@ -315,7 +312,7 @@ public final class QIOReservationCoordinator {
     }
 
     private static QIOMaterialCommitment requireCommitment(QIOProcessingNetworkData network,
-          UUID jobId) {
+                                                           UUID jobId) {
         QIOMaterialCommitment commitment = network.getCommitment(jobId);
         if (commitment == null) {
             throw new IllegalArgumentException("Unknown QIO material commitment for job " + jobId);

@@ -6,7 +6,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Stateless revision-aware pagination shared by all terminal directories. */
+/**
+ * Stateless revision-aware pagination shared by all terminal directories.
+ */
+
 /**
  * QIO 处理模块中的 QIOPagination 类型。
  *
@@ -20,15 +23,15 @@ public final class QIOPagination {
 
     @Nonnull
     public static <T> QIOPage<T> page(@Nonnull List<T> orderedSource,
-          long sourceRevision, @Nonnull UUID sessionNonce,
-          @Nullable QIOPageCursor cursor, int requestedPageSize, int maximumPageSize) {
+                                      long sourceRevision, @Nonnull UUID sessionNonce,
+                                      @Nullable QIOPageCursor cursor, int requestedPageSize, int maximumPageSize) {
         Objects.requireNonNull(orderedSource, "orderedSource");
         Objects.requireNonNull(sessionNonce, "sessionNonce");
         if (sourceRevision < 0) {
             throw new IllegalArgumentException("sourceRevision cannot be negative");
         }
         if (maximumPageSize <= 0 || requestedPageSize <= 0 ||
-            requestedPageSize > maximumPageSize) {
+                requestedPageSize > maximumPageSize) {
             throw new IllegalArgumentException("Invalid QIO terminal page size");
         }
         int offset = 0;
@@ -46,8 +49,8 @@ public final class QIOPagination {
         }
         int end = Math.min(orderedSource.size(), offset + requestedPageSize);
         QIOPageCursor next = end < orderedSource.size() ?
-              new QIOPageCursor(sessionNonce, sourceRevision, end) : null;
+                new QIOPageCursor(sessionNonce, sourceRevision, end) : null;
         return new QIOPage<>(sourceRevision, offset, orderedSource.size(),
-              orderedSource.subList(offset, end), next);
+                orderedSource.subList(offset, end), next);
     }
 }

@@ -6,7 +6,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** Immutable bounded page returned by a terminal directory service. */
+/**
+ * Immutable bounded page returned by a terminal directory service.
+ */
+
 /**
  * QIO 处理模块中的 QIOPage 类型。
  *
@@ -23,7 +26,7 @@ public final class QIOPage<T> {
     private final QIOPageCursor nextCursor;
 
     QIOPage(long sourceRevision, int offset, int totalSize, List<T> entries,
-          @Nullable QIOPageCursor nextCursor) {
+            @Nullable QIOPageCursor nextCursor) {
         this.sourceRevision = sourceRevision;
         this.offset = offset;
         this.totalSize = totalSize;

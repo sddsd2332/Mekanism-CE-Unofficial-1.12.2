@@ -36,7 +36,7 @@ import java.util.function.Function;
  */
 public final class RecipeHandler {
 
-    private static int globalRecipeVersion;
+    private static volatile int globalRecipeVersion;
 
     public static <INPUT extends MachineInput<INPUT>, OUTPUT extends MachineOutput<OUTPUT>, RECIPE extends MachineRecipe<INPUT, OUTPUT, RECIPE>>
     void addRecipe(@Nonnull Recipe<INPUT, OUTPUT, RECIPE> recipeMap, @Nonnull RECIPE recipe) {
@@ -916,7 +916,9 @@ public final class RecipeHandler {
             recipes.put(recipe.getInput(), recipe);
         }
 
-        /** High-version-style lazy input cache for this recipe category. */
+        /**
+         * High-version-style lazy input cache for this recipe category.
+         */
         @Nullable
         public RECIPE findRecipe(@Nonnull INPUT input) {
             return inputCache.findFirstRecipe(input, recipes.values());
@@ -1122,7 +1124,7 @@ public final class RecipeHandler {
             private boolean conflictsRotaryInput(RotaryInput input, INPUT existingKey) {
                 if (existingKey instanceof RotaryInput existingInput) {
                     return input.fluidInput != null && existingInput.fluidInput != null && input.fluidInput.isFluidEqual(existingInput.fluidInput) ||
-                           input.gasInput != null && existingInput.gasInput != null && input.gasInput.isGasEqual(existingInput.gasInput);
+                            input.gasInput != null && existingInput.gasInput != null && input.gasInput.isGasEqual(existingInput.gasInput);
                 }
                 return false;
             }

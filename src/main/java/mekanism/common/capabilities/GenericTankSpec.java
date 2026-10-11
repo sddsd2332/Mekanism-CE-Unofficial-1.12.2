@@ -15,7 +15,7 @@ public abstract class GenericTankSpec<TYPE> {
     private final Predicate<ItemStack> supportsStack;
 
     protected GenericTankSpec(BiPredicate<TYPE, AutomationType> canExtract, TriPredicate<TYPE, AutomationType, ItemStack> canInsert,
-          Predicate<TYPE> isValid, Predicate<ItemStack> supportsStack) {
+                              Predicate<TYPE> isValid, Predicate<ItemStack> supportsStack) {
         this.isValid = isValid;
         this.canExtract = canExtract;
         this.canInsert = canInsert;

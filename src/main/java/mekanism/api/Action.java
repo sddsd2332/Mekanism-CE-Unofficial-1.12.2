@@ -28,7 +28,6 @@ public enum Action {
      * Helper to combines this action with a boolean based execution. This allows easily compounding actions.
      *
      * @param execute {@code true} if it should execute if this action already is an execute action.
-     *
      * @return Compounded action.
      */
     public Action combine(boolean execute) {
@@ -39,7 +38,6 @@ public enum Action {
      * Helper to get an action based on a boolean representing execution.
      *
      * @param execute {@code true} for {@link #EXECUTE}.
-     *
      * @return Action.
      */
     public static Action get(boolean execute) {
@@ -51,7 +49,6 @@ public enum Action {
      * Helper ot get an action from the corresponding FluidAction.
      *
      * @param action FluidAction.
-     *
      * @return Action.
      */
     public static Action fromFluidAction(boolean action) {

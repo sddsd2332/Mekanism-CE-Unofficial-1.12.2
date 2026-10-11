@@ -9,7 +9,9 @@ import mekanism.common.inventory.container.QIOItemViewerContainer;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.util.ResourceLocation;
 
-/** Controls whether inventory shift-click prioritizes QIO or an open crafting window. */
+/**
+ * Controls whether inventory shift-click prioritizes QIO or an open crafting window.
+ */
 public class GuiTargetDirectionTab extends GuiInsetElement<QIOItemViewerContainer> {
 
     private static final ResourceLocation INTO_FREQUENCY = MekanismUtils.getResource(MekanismUtils.ResourceType.GUI_BUTTON, "crafting_out.png");
@@ -38,6 +40,6 @@ public class GuiTargetDirectionTab extends GuiInsetElement<QIOItemViewerContaine
     public void renderToolTip(int mouseX, int mouseY) {
         super.renderToolTip(mouseX, mouseY);
         displayTooltip((dataSource.shiftClickIntoFrequency() ? MekanismLang.QIO_TRANSFER_TO_FREQUENCY :
-              MekanismLang.QIO_TRANSFER_TO_WINDOW).translate(), mouseX, mouseY);
+                MekanismLang.QIO_TRANSFER_TO_WINDOW).translate(), mouseX, mouseY);
     }
 }

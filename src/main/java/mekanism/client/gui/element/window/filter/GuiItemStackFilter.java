@@ -56,7 +56,7 @@ public abstract class GuiItemStackFilter<FILTER extends IItemStackFilter, TILE e
     protected ItemStack getCarriedSingleItem(boolean blockOnly) {
         ItemStack stack = minecraft.player.inventory.getItemStack();
         if (!stack.isEmpty() && !Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) && (!blockOnly || stack.getItem() instanceof ItemBlock &&
-              Block.getBlockFromItem(stack.getItem()) != Blocks.BEDROCK)) {
+                Block.getBlockFromItem(stack.getItem()) != Blocks.BEDROCK)) {
             ItemStack toUse = stack.copy();
             toUse.setCount(1);
             return toUse;
@@ -80,7 +80,7 @@ public abstract class GuiItemStackFilter<FILTER extends IItemStackFilter, TILE e
             public ItemStack supportedTarget(Object ingredient) {
                 ItemStack stack = IGhostItemConsumer.super.supportedTarget(ingredient);
                 return stack != null && (!isBlockFilter() || stack.getItem() instanceof ItemBlock &&
-                      Block.getBlockFromItem(stack.getItem()) != Blocks.BEDROCK) ? stack : null;
+                        Block.getBlockFromItem(stack.getItem()) != Blocks.BEDROCK) ? stack : null;
             }
 
             @Override

@@ -31,7 +31,7 @@ public class GuiAmbientAccumulator extends GuiConfigurableTile<TileEntityAmbient
     protected void addGuiElements() {
         super.addGuiElements();
         addButton(new GuiInnerScreen(this, 7, 13, 80, 65, this::getScreenText).clearFormat().padding(1).clearSpacing().textScale(0.8F)
-              .recipeViewerCategories(RecipeViewerRecipeType.AMBIENT_ACCUMULATOR));
+                .recipeViewerCategories(RecipeViewerRecipeType.AMBIENT_ACCUMULATOR));
         addButton(new GuiGasGauge(this, tileEntity.collectedGas, GuiGasGauge.Type.WIDE, 102, 13).withColor(GuiGasGauge.GaugeColor.ORANGE));
     }
 

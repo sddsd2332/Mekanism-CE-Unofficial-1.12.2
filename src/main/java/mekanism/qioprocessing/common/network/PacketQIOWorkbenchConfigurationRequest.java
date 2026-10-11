@@ -5,21 +5,14 @@ import mekanism.common.PacketHandler;
 import mekanism.qioprocessing.common.content.QIOProcessingDataException;
 import mekanism.qioprocessing.common.content.QIOProcessingNetworkAccess;
 import mekanism.qioprocessing.common.content.QIOProcessingNetworkData;
-import mekanism.qioprocessing.common.content.workbench.QIOWorkbenchConfigurationMutation;
 import mekanism.qioprocessing.common.content.workbench.QIOWorkbenchClosureMode;
+import mekanism.qioprocessing.common.content.workbench.QIOWorkbenchConfigurationMutation;
 import mekanism.qioprocessing.common.inventory.container.QIOProcessingTerminalContainerState;
 import mekanism.qioprocessing.common.inventory.container.QIOProcessingTerminalFrequencyContainer;
 import mekanism.qioprocessing.common.inventory.container.QIOWorkbenchConfigurationContainer;
 import mekanism.qioprocessing.common.inventory.container.QIOWorkbenchConfigurationContainer.RequestStream;
-import mekanism.qioprocessing.common.terminal.QIOProcessingTerminalSession;
-import mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType;
-import mekanism.qioprocessing.common.terminal.QIOWorkbenchConfigurationService;
-import mekanism.qioprocessing.common.planning.QIOWorkbenchRecipeCatalog.TargetedRecipeLookupBusyException;
+import mekanism.qioprocessing.common.terminal.*;
 import mekanism.qioprocessing.common.terminal.QIOWorkbenchConfigurationService.Context;
-import mekanism.qioprocessing.common.terminal.QIOWorkbenchConfigurationSnapshot;
-import mekanism.qioprocessing.common.terminal.QIOWorkbenchCopyPreview;
-import mekanism.qioprocessing.common.terminal.QIOWorkbenchCopyService;
-import mekanism.qioprocessing.common.terminal.QIOWorkbenchClosureService;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.nbt.NBTTagCompound;
@@ -31,7 +24,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.UUID;
 
-/** Session-bound workbench browse, mutation, and copy requests. */
+/**
+ * Session-bound workbench browse, mutation, and copy requests.
+ */
+
 /**
  * QIO 处理模块中的 PacketQIOWorkbenchConfigurationRequest 类型。
  *
@@ -39,7 +35,7 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class PacketQIOWorkbenchConfigurationRequest implements
-      IMessageHandler<PacketQIOWorkbenchConfigurationRequest.Message, IMessage> {
+        IMessageHandler<PacketQIOWorkbenchConfigurationRequest.Message, IMessage> {
 
     public enum Operation {
         PRODUCTS,
@@ -49,7 +45,10 @@ public final class PacketQIOWorkbenchConfigurationRequest implements
         COPY_PREVIEW,
         COPY_CONFIRM,
         CLOSURE_PREVIEW,
-        CLOSURE_CONFIRM
+        CLOSURE_CONFIRM,
+        CLOSURE_QUERY,
+        CLOSURE_CANCEL,
+        CLOSURE_RESUME
     }
 
     @Override
@@ -64,111 +63,151 @@ public final class PacketQIOWorkbenchConfigurationRequest implements
 
     private static void handle(Message message, EntityPlayer player) {
         if (!(player instanceof EntityPlayerMP playerMP) ||
-            !(player.openContainer instanceof QIOWorkbenchConfigurationContainer container) ||
-            !(player.openContainer instanceof QIOProcessingTerminalFrequencyContainer frequency) ||
-            player.openContainer.windowId != message.windowId ||
-            !player.openContainer.canInteractWith(player) ||
-            !container.tryRequestWorkbenchConfiguration(player.world.getTotalWorldTime(),
-                  requestStream(message.operation))) {
+                !(player.openContainer instanceof QIOWorkbenchConfigurationContainer container) ||
+                !(player.openContainer instanceof QIOProcessingTerminalFrequencyContainer frequency) ||
+                player.openContainer.windowId != message.windowId ||
+                !player.openContainer.canInteractWith(player) ||
+                !container.tryRequestWorkbenchConfiguration(player.world.getTotalWorldTime(),
+                        requestStream(message.operation))) {
             return;
         }
         QIOProcessingTerminalSession session = container.getTerminalSession();
         if (session == null || session.getTerminalType() != QIOProcessingTerminalType.MANAGEMENT ||
-            session.getFrequencyUUID() == null ||
-            session.validate(message.sessionNonce, player.getUniqueID(),
-                  session.getTargetKind(), QIOProcessingTerminalType.MANAGEMENT,
-                  message.terminalUUID, message.expectedTargetRevision,
-                  session.getFrequencyUUID(), session.getAccessRevision()) !=
-                  QIOProcessingTerminalSession.Validation.ACCEPTED) {
+                session.getFrequencyUUID() == null ||
+                session.validate(message.sessionNonce, player.getUniqueID(),
+                        session.getTargetKind(), QIOProcessingTerminalType.MANAGEMENT,
+                        message.terminalUUID, message.expectedTargetRevision,
+                        session.getFrequencyUUID(), session.getAccessRevision()) !=
+                        QIOProcessingTerminalSession.Validation.ACCEPTED) {
             return;
         }
         QIOProcessingNetworkData network = QIOProcessingNetworkAccess.getOrCreate(
-              frequency, session, player);
-        if (network == null) return;
+                frequency, session, player);
+        if (network == null) {
+            QIOProcessingPacketHandler.INSTANCE.sendTo(
+                    PacketQIOWorkbenchConfigurationData.Message.create(message.windowId, session,
+                            message.requestId, message.operation,
+                            PacketQIOWorkbenchConfigurationData.Status.UNAVAILABLE, null, null),
+                    playerMP);
+            return;
+        }
+        // A long-lived result subscriber must not retain the request's live ItemStack payload.
+        Message replyIdentity = new Message();
+        replyIdentity.windowId = message.windowId;
+        replyIdentity.sessionNonce = message.sessionNonce;
+        replyIdentity.requestId = message.requestId;
+        replyIdentity.operation = message.operation;
         PacketQIOWorkbenchConfigurationData.Status status =
-              PacketQIOWorkbenchConfigurationData.Status.UNAVAILABLE;
+                PacketQIOWorkbenchConfigurationData.Status.UNAVAILABLE;
         QIOWorkbenchConfigurationSnapshot snapshot = null;
         QIOWorkbenchCopyPreview copyPreview = null;
         try {
             Context workbench = QIOWorkbenchConfigurationService.open(session, network,
-                  session.getAccessRevision(), player.getUniqueID(), player.world);
+                    session.getAccessRevision(), player.getUniqueID(), player.world);
             switch (message.operation) {
                 case PRODUCTS -> {
                     snapshot = QIOWorkbenchConfigurationService.products(workbench,
-                          message.offset, message.pageSize, message.query);
+                            message.offset, message.pageSize, message.query);
                     status = PacketQIOWorkbenchConfigurationData.Status.OK;
                 }
                 case RECIPES -> {
                     snapshot = QIOWorkbenchConfigurationService.recipes(workbench,
-                          message.productKey, message.offset, message.pageSize);
+                            message.productKey, message.offset, message.pageSize);
                     status = PacketQIOWorkbenchConfigurationData.Status.OK;
                 }
                 case CANDIDATES -> {
                     snapshot = QIOWorkbenchConfigurationService.candidates(workbench,
-                          message.productKey, message.recipeId, message.recipeSignature,
-                          message.ingredientSlot, message.offset, message.pageSize);
+                            message.productKey, message.recipeId, message.recipeSignature,
+                            message.ingredientSlot, message.offset, message.pageSize);
                     status = PacketQIOWorkbenchConfigurationData.Status.OK;
                 }
                 case MUTATE -> status = mutationStatus(
-                      QIOWorkbenchConfigurationService.mutate(workbench,
-                            message.expectedConfigurationRevision,
-                            message.expectedCatalogRevision, message.mutation));
+                        QIOWorkbenchConfigurationService.mutate(workbench,
+                                message.expectedConfigurationRevision,
+                                message.expectedCatalogRevision, message.mutation));
                 case COPY_PREVIEW -> {
                     QIOWorkbenchCopyService.PreviewResult result =
-                          QIOWorkbenchCopyService.preview(workbench, session,
-                                player.getUniqueID(), message.sourceConfigUUID,
-                                player.world.getTotalWorldTime());
+                            QIOWorkbenchCopyService.preview(workbench, session,
+                                    player.getUniqueID(), message.sourceConfigUUID,
+                                    player.world.getTotalWorldTime());
                     status = copyStatus(result.getStatus());
                     copyPreview = result.getPreview();
                 }
                 case COPY_CONFIRM -> {
                     QIOWorkbenchCopyService.ConfirmResult result =
-                          QIOWorkbenchCopyService.confirm(workbench, session,
-                                player.getUniqueID(), message.confirmationNonce,
-                                player.world.getTotalWorldTime());
+                            QIOWorkbenchCopyService.confirm(workbench, session,
+                                    player.getUniqueID(), message.confirmationNonce,
+                                    player.world.getTotalWorldTime());
                     status = copyStatus(result.getStatus());
                 }
                 case CLOSURE_PREVIEW -> {
+                    UUID messageOwner = player.getUniqueID();
                     QIOWorkbenchClosureService.preview(workbench, session,
-                          player.getUniqueID(), message.expectedConfigurationRevision,
-                          message.expectedCatalogRevision, message.mutation,
-                          message.closureMode, message.skipCyclicRecipes, player.world,
-                          player.world.getTotalWorldTime(), result ->
-                                QIOProcessingPacketHandler.INSTANCE.sendTo(
-                                      PacketQIOWorkbenchConfigurationData.Message.create(
-                                            message.windowId, session, message.requestId,
-                                            message.operation,
-                                            closureStatus(result.getStatus()), null, null,
-                                            result.getPreview()), playerMP));
+                            player.getUniqueID(), message.expectedConfigurationRevision,
+                            message.expectedCatalogRevision, message.mutation,
+                            message.closureMode, message.skipCyclicRecipes, player.world,
+                            player.world.getTotalWorldTime(), result -> replyClosure(replyIdentity, messageOwner, result));
+                    return;
+                }
+                case CLOSURE_QUERY, CLOSURE_CANCEL -> {
+                    mekanism.qioprocessing.common.terminal.QIOWorkbenchEncodingJobService jobs =
+                            mekanism.qioprocessing.common.terminal.QIOWorkbenchEncodingJobService.INSTANCE;
+                    QIOWorkbenchClosureService.PreviewResult result = message.operation == Operation.CLOSURE_QUERY ?
+                            jobs.query(workbench, session, player.getUniqueID(), message.confirmationNonce) :
+                            jobs.cancel(workbench, session, player.getUniqueID(), message.confirmationNonce);
+                    replyClosure(message, player.getUniqueID(), result);
+                    return;
+                }
+                case CLOSURE_RESUME -> {
+                    UUID messageOwner = player.getUniqueID();
+                    mekanism.qioprocessing.common.terminal.QIOWorkbenchEncodingJobService.INSTANCE.resume(
+                            workbench, session, messageOwner, message.confirmationNonce, player.world,
+                            result -> replyClosure(replyIdentity, messageOwner, result));
                     return;
                 }
                 case CLOSURE_CONFIRM -> {
                     QIOWorkbenchClosureService.ConfirmResult result =
-                          QIOWorkbenchClosureService.confirm(workbench, session,
-                                player.getUniqueID(), message.confirmationNonce,
-                                player.world, player.world.getTotalWorldTime());
+                            QIOWorkbenchClosureService.confirm(workbench, session,
+                                    player.getUniqueID(), message.confirmationNonce,
+                                    player.world, player.world.getTotalWorldTime());
                     status = closureStatus(result.getStatus());
                 }
             }
-        } catch (TargetedRecipeLookupBusyException ignored) {
-            // A bounded targeted lookup is deliberately retriable; do not turn it into a
-            // permanent invalid-target response on the client.
-            status = PacketQIOWorkbenchConfigurationData.Status.BUSY;
+        } catch (QIOWorkbenchConfigurationService.CoreUnavailable unavailable) {
+            status = PacketQIOWorkbenchConfigurationData.Status.UNAVAILABLE;
             snapshot = null;
             copyPreview = null;
-        } catch (IllegalArgumentException | IllegalStateException | SecurityException ignored) {
+        } catch (IllegalArgumentException | IllegalStateException | SecurityException failure) {
+            mekanism.common.Mekanism.logger.debug("[QIO Workbench] Configuration request {} failed for product {} recipe {}",
+                    message.operation, message.productKey, message.recipeId, failure);
             status = PacketQIOWorkbenchConfigurationData.Status.INVALID_TARGET;
             snapshot = null;
             copyPreview = null;
         }
         QIOProcessingPacketHandler.INSTANCE.sendTo(
-              PacketQIOWorkbenchConfigurationData.Message.create(message.windowId, session,
-                    message.requestId, message.operation, status, snapshot, copyPreview),
-              playerMP);
+                PacketQIOWorkbenchConfigurationData.Message.create(message.windowId, session,
+                        message.requestId, message.operation, status, snapshot, copyPreview),
+                playerMP);
+    }
+
+    /** Resolve a fresh connection at delivery; no player, World or original window is retained by a job. */
+    private static void replyClosure(Message message, UUID owner, QIOWorkbenchClosureService.PreviewResult result) {
+        net.minecraft.server.MinecraftServer server = net.minecraftforge.fml.common.FMLCommonHandler.instance().getMinecraftServerInstance();
+        if (server == null) return;
+        EntityPlayerMP player = server.getPlayerList().getPlayerByUUID(owner);
+        if (player == null || !(player.openContainer instanceof QIOWorkbenchConfigurationContainer container) ||
+                player.openContainer.windowId != message.windowId || !player.openContainer.canInteractWith(player))
+            return;
+        QIOProcessingTerminalSession session = container.getTerminalSession();
+        if (session == null || !session.getSessionNonce().equals(message.sessionNonce) ||
+                !session.getPlayerUUID().equals(owner)) return;
+        QIOProcessingPacketHandler.INSTANCE.sendTo(PacketQIOWorkbenchConfigurationData.Message.create(
+                message.windowId, session, message.requestId, message.operation, closureStatus(result.getStatus()),
+                null, null, result.getPreview()), player);
     }
 
     private static PacketQIOWorkbenchConfigurationData.Status mutationStatus(
-          QIOWorkbenchConfigurationService.MutationStatus status) {
+            QIOWorkbenchConfigurationService.MutationStatus status) {
         return switch (status) {
             case APPLIED -> PacketQIOWorkbenchConfigurationData.Status.APPLIED;
             case UNCHANGED -> PacketQIOWorkbenchConfigurationData.Status.UNCHANGED;
@@ -184,12 +223,12 @@ public final class PacketQIOWorkbenchConfigurationRequest implements
     }
 
     private static PacketQIOWorkbenchConfigurationData.Status copyStatus(
-          QIOWorkbenchCopyService.Status status) {
+            QIOWorkbenchCopyService.Status status) {
         return PacketQIOWorkbenchConfigurationData.Status.valueOf(status.name());
     }
 
     private static PacketQIOWorkbenchConfigurationData.Status closureStatus(
-          QIOWorkbenchClosureService.Status status) {
+            QIOWorkbenchClosureService.Status status) {
         return PacketQIOWorkbenchConfigurationData.Status.valueOf(status.name());
     }
 
@@ -198,8 +237,8 @@ public final class PacketQIOWorkbenchConfigurationRequest implements
             case PRODUCTS -> RequestStream.PRODUCTS;
             case RECIPES -> RequestStream.RECIPES;
             case CANDIDATES -> RequestStream.CANDIDATES;
-            case MUTATE, COPY_PREVIEW, COPY_CONFIRM, CLOSURE_PREVIEW, CLOSURE_CONFIRM ->
-                  RequestStream.COMMANDS;
+            case MUTATE, COPY_PREVIEW, COPY_CONFIRM, CLOSURE_PREVIEW, CLOSURE_CONFIRM, CLOSURE_QUERY, CLOSURE_CANCEL,
+                 CLOSURE_RESUME -> RequestStream.COMMANDS;
         };
     }
 
@@ -220,9 +259,12 @@ public final class PacketQIOWorkbenchConfigurationRequest implements
         private int ingredientSlot = -1;
         private long expectedConfigurationRevision = -1;
         private long expectedCatalogRevision = -1;
-        @Nullable private QIOWorkbenchConfigurationMutation mutation;
-        @Nullable private UUID sourceConfigUUID;
-        @Nullable private UUID confirmationNonce;
+        @Nullable
+        private QIOWorkbenchConfigurationMutation mutation;
+        @Nullable
+        private UUID sourceConfigUUID;
+        @Nullable
+        private UUID confirmationNonce;
         private QIOWorkbenchClosureMode closureMode = QIOWorkbenchClosureMode.NONE;
         private boolean skipCyclicRecipes;
         private boolean valid;
@@ -231,14 +273,14 @@ public final class PacketQIOWorkbenchConfigurationRequest implements
         }
 
         private Message(int windowId, QIOProcessingTerminalContainerState state,
-              UUID requestId, Operation operation, int offset, int pageSize, String query,
-              String productKey, String recipeId, String recipeSignature,
-              int ingredientSlot, long expectedConfigurationRevision,
-              long expectedCatalogRevision,
-              @Nullable QIOWorkbenchConfigurationMutation mutation,
-              @Nullable UUID sourceConfigUUID, @Nullable UUID confirmationNonce,
-              @Nullable QIOWorkbenchClosureMode closureMode,
-              boolean skipCyclicRecipes) {
+                        UUID requestId, Operation operation, int offset, int pageSize, String query,
+                        String productKey, String recipeId, String recipeSignature,
+                        int ingredientSlot, long expectedConfigurationRevision,
+                        long expectedCatalogRevision,
+                        @Nullable QIOWorkbenchConfigurationMutation mutation,
+                        @Nullable UUID sourceConfigUUID, @Nullable UUID confirmationNonce,
+                        @Nullable QIOWorkbenchClosureMode closureMode,
+                        boolean skipCyclicRecipes) {
             this.windowId = windowId;
             if (state != null && state.isValid()) {
                 sessionNonce = state.getSessionNonce();
@@ -266,79 +308,88 @@ public final class PacketQIOWorkbenchConfigurationRequest implements
 
         @Nonnull
         public static Message products(int windowId,
-              QIOProcessingTerminalContainerState state, UUID requestId, int offset,
-              int pageSize, String query) {
+                                       QIOProcessingTerminalContainerState state, UUID requestId, int offset,
+                                       int pageSize, String query) {
             return new Message(windowId, state, requestId, Operation.PRODUCTS, offset,
-                  pageSize, query, "", "", "", -1, -1, -1, null, null, null, null,
-                  false);
+                    pageSize, query, "", "", "", -1, -1, -1, null, null, null, null,
+                    false);
         }
 
         @Nonnull
         public static Message recipes(int windowId,
-              QIOProcessingTerminalContainerState state, UUID requestId, String productKey,
-              int offset, int pageSize) {
+                                      QIOProcessingTerminalContainerState state, UUID requestId, String productKey,
+                                      int offset, int pageSize) {
             return new Message(windowId, state, requestId, Operation.RECIPES, offset,
-                  pageSize, "", productKey, "", "", -1, -1, -1, null, null, null, null,
-                  false);
+                    pageSize, "", productKey, "", "", -1, -1, -1, null, null, null, null,
+                    false);
         }
 
         @Nonnull
         public static Message candidates(int windowId,
-              QIOProcessingTerminalContainerState state, UUID requestId, String productKey,
-              String recipeId, String recipeSignature, int ingredientSlot, int offset,
-              int pageSize) {
+                                         QIOProcessingTerminalContainerState state, UUID requestId, String productKey,
+                                         String recipeId, String recipeSignature, int ingredientSlot, int offset,
+                                         int pageSize) {
             return new Message(windowId, state, requestId, Operation.CANDIDATES, offset,
-                  pageSize, "", productKey, recipeId, recipeSignature, ingredientSlot,
-                  -1, -1, null, null, null, null, false);
+                    pageSize, "", productKey, recipeId, recipeSignature, ingredientSlot,
+                    -1, -1, null, null, null, null, false);
         }
 
         @Nonnull
         public static Message mutate(int windowId,
-              QIOProcessingTerminalContainerState state, UUID requestId,
-              long expectedConfigurationRevision, long expectedCatalogRevision,
-              QIOWorkbenchConfigurationMutation mutation) {
+                                     QIOProcessingTerminalContainerState state, UUID requestId,
+                                     long expectedConfigurationRevision, long expectedCatalogRevision,
+                                     QIOWorkbenchConfigurationMutation mutation) {
             return new Message(windowId, state, requestId, Operation.MUTATE, 0, 0, "",
-                  "", "", "", -1, expectedConfigurationRevision,
-                  expectedCatalogRevision, mutation, null, null, null, false);
+                    "", "", "", -1, expectedConfigurationRevision,
+                    expectedCatalogRevision, mutation, null, null, null, false);
         }
 
         @Nonnull
         public static Message copyPreview(int windowId,
-              QIOProcessingTerminalContainerState state, UUID requestId,
-              UUID sourceConfigUUID) {
+                                          QIOProcessingTerminalContainerState state, UUID requestId,
+                                          UUID sourceConfigUUID) {
             return new Message(windowId, state, requestId, Operation.COPY_PREVIEW, 0, 0,
-                  "", "", "", "", -1, -1, -1, null, sourceConfigUUID, null, null,
-                  false);
+                    "", "", "", "", -1, -1, -1, null, sourceConfigUUID, null, null,
+                    false);
         }
 
         @Nonnull
         public static Message copyConfirm(int windowId,
-              QIOProcessingTerminalContainerState state, UUID requestId,
-              UUID confirmationNonce) {
+                                          QIOProcessingTerminalContainerState state, UUID requestId,
+                                          UUID confirmationNonce) {
             return new Message(windowId, state, requestId, Operation.COPY_CONFIRM, 0, 0,
-                  "", "", "", "", -1, -1, -1, null, null, confirmationNonce, null,
-                  false);
+                    "", "", "", "", -1, -1, -1, null, null, confirmationNonce, null,
+                    false);
         }
 
         @Nonnull
         public static Message closurePreview(int windowId,
-              QIOProcessingTerminalContainerState state, UUID requestId,
-              long expectedConfigurationRevision, long expectedCatalogRevision,
-              QIOWorkbenchConfigurationMutation mutation,
-              QIOWorkbenchClosureMode closureMode, boolean skipCyclicRecipes) {
+                                             QIOProcessingTerminalContainerState state, UUID requestId,
+                                             long expectedConfigurationRevision, long expectedCatalogRevision,
+                                             QIOWorkbenchConfigurationMutation mutation,
+                                             QIOWorkbenchClosureMode closureMode, boolean skipCyclicRecipes) {
             return new Message(windowId, state, requestId, Operation.CLOSURE_PREVIEW,
-                  0, 0, "", "", "", "", -1, expectedConfigurationRevision,
-                  expectedCatalogRevision, mutation, null, null, closureMode,
-                  skipCyclicRecipes);
+                    0, 0, "", "", "", "", -1, expectedConfigurationRevision,
+                    expectedCatalogRevision, mutation, null, null, closureMode,
+                    skipCyclicRecipes);
         }
 
         @Nonnull
         public static Message closureConfirm(int windowId,
-              QIOProcessingTerminalContainerState state, UUID requestId,
-              UUID confirmationNonce) {
+                                             QIOProcessingTerminalContainerState state, UUID requestId,
+                                             UUID confirmationNonce) {
             return new Message(windowId, state, requestId, Operation.CLOSURE_CONFIRM,
-                  0, 0, "", "", "", "", -1, -1, -1, null, null,
-                  confirmationNonce, QIOWorkbenchClosureMode.NONE, false);
+                    0, 0, "", "", "", "", -1, -1, -1, null, null,
+                    confirmationNonce, QIOWorkbenchClosureMode.NONE, false);
+        }
+
+        public static Message closureJob(int windowId, QIOProcessingTerminalContainerState state, UUID requestId,
+                                         Operation operation, @Nullable UUID jobId) {
+            if (operation != Operation.CLOSURE_QUERY && operation != Operation.CLOSURE_CANCEL && operation != Operation.CLOSURE_RESUME) {
+                throw new IllegalArgumentException("Not a job operation");
+            }
+            return new Message(windowId, state, requestId, operation, 0, 0, "", "", "", "", -1,
+                    -1, -1, null, null, jobId, QIOWorkbenchClosureMode.NONE, false);
         }
 
         @Override
@@ -388,9 +439,9 @@ public final class PacketQIOWorkbenchConfigurationRequest implements
                 expectedConfigurationRevision = buffer.readLong();
                 expectedCatalogRevision = buffer.readLong();
                 NBTTagCompound storedMutation = buffer.readBoolean() ?
-                      PacketHandler.readNBT(buffer) : null;
+                        PacketHandler.readNBT(buffer) : null;
                 mutation = storedMutation == null ? null :
-                      QIOWorkbenchConfigurationMutation.read(storedMutation);
+                        QIOWorkbenchConfigurationMutation.read(storedMutation);
                 sourceConfigUUID = readOptionalUUID(buffer);
                 confirmationNonce = readOptionalUUID(buffer);
                 int closureModeIndex = buffer.readUnsignedByte();
@@ -403,76 +454,81 @@ public final class PacketQIOWorkbenchConfigurationRequest implements
             }
         }
 
-        public boolean isValid() { return valid; }
-        public boolean isSkipCyclicRecipes() { return skipCyclicRecipes; }
+        public boolean isValid() {
+            return valid;
+        }
+
+        public boolean isSkipCyclicRecipes() {
+            return skipCyclicRecipes;
+        }
 
         private boolean shape() {
             if (windowId < 0 || sessionNonce == null || terminalUUID == null ||
-                expectedTargetRevision < 0 || requestId == null || operation == null ||
-                offset < 0 || pageSize < 0 || query == null ||
-                query.length() > QIOWorkbenchConfigurationService.MAX_QUERY_LENGTH ||
-                productKey == null || productKey.length() > 64 || recipeId == null ||
-                recipeId.length() > 256 || recipeSignature == null ||
-                recipeSignature.length() > 64) {
+                    expectedTargetRevision < 0 || requestId == null || operation == null ||
+                    offset < 0 || pageSize < 0 || query == null ||
+                    query.length() > QIOWorkbenchConfigurationService.MAX_QUERY_LENGTH ||
+                    productKey == null || productKey.length() > 64 || recipeId == null ||
+                    recipeId.length() > 256 || recipeSignature == null ||
+                    recipeSignature.length() > 64) {
                 return false;
             }
             return switch (operation) {
                 case PRODUCTS -> page() && productKey.isEmpty() && recipeId.isEmpty() &&
-                      recipeSignature.isEmpty() && ingredientSlot == -1 &&
-                      noMutationOrCopy();
+                        recipeSignature.isEmpty() && ingredientSlot == -1 &&
+                        noMutationOrCopy();
                 case RECIPES -> page() && hash(productKey) && query.isEmpty() &&
-                      recipeId.isEmpty() && recipeSignature.isEmpty() && ingredientSlot == -1 &&
-                      noMutationOrCopy();
+                        recipeId.isEmpty() && recipeSignature.isEmpty() && ingredientSlot == -1 &&
+                        noMutationOrCopy();
                 case CANDIDATES -> page() && hash(productKey) && query.isEmpty() &&
-                      !recipeId.isEmpty() && hash(recipeSignature) && ingredientSlot >= 0 &&
-                      ingredientSlot < 9 && noMutationOrCopy();
+                        !recipeId.isEmpty() && hash(recipeSignature) && ingredientSlot >= 0 &&
+                        ingredientSlot < 9 && noMutationOrCopy();
                 case MUTATE -> offset == 0 && pageSize == 0 && query.isEmpty() &&
-                      productKey.isEmpty() && recipeId.isEmpty() && recipeSignature.isEmpty() &&
-                      ingredientSlot == -1 && expectedConfigurationRevision >= 0 &&
-                      expectedCatalogRevision >= 0 && mutation != null &&
-                      sourceConfigUUID == null && confirmationNonce == null &&
-                      closureMode == QIOWorkbenchClosureMode.NONE && !skipCyclicRecipes;
+                        productKey.isEmpty() && recipeId.isEmpty() && recipeSignature.isEmpty() &&
+                        ingredientSlot == -1 && expectedConfigurationRevision >= 0 &&
+                        expectedCatalogRevision >= 0 && mutation != null &&
+                        sourceConfigUUID == null && confirmationNonce == null &&
+                        closureMode == QIOWorkbenchClosureMode.NONE && !skipCyclicRecipes;
                 case COPY_PREVIEW -> emptyAction() && sourceConfigUUID != null &&
-                      confirmationNonce == null;
+                        confirmationNonce == null;
                 case COPY_CONFIRM -> emptyAction() && sourceConfigUUID == null &&
-                      confirmationNonce != null;
+                        confirmationNonce != null;
                 case CLOSURE_PREVIEW -> offset == 0 && pageSize == 0 && query.isEmpty() &&
-                      productKey.isEmpty() && recipeId.isEmpty() &&
-                      recipeSignature.isEmpty() && ingredientSlot == -1 &&
-                      expectedConfigurationRevision >= 0 && expectedCatalogRevision >= 0 &&
-                      mutation != null && (mutation.getAction() ==
-                            QIOWorkbenchConfigurationMutation.Action.ENCODE_PATTERN ||
-                            mutation.getAction() ==
-                                  QIOWorkbenchConfigurationMutation.Action.ENCODE_TARGETS) &&
-                      sourceConfigUUID == null && confirmationNonce == null &&
-                      closureMode != QIOWorkbenchClosureMode.NONE;
-                case CLOSURE_CONFIRM -> emptyAction() && sourceConfigUUID == null &&
-                      confirmationNonce != null && closureMode == QIOWorkbenchClosureMode.NONE;
+                        productKey.isEmpty() && recipeId.isEmpty() &&
+                        recipeSignature.isEmpty() && ingredientSlot == -1 &&
+                        expectedConfigurationRevision >= 0 && expectedCatalogRevision >= 0 &&
+                        mutation != null && (mutation.getAction() ==
+                        QIOWorkbenchConfigurationMutation.Action.ENCODE_PATTERN ||
+                        mutation.getAction() ==
+                                QIOWorkbenchConfigurationMutation.Action.ENCODE_TARGETS) &&
+                        sourceConfigUUID == null && confirmationNonce == null;
+                case CLOSURE_QUERY -> emptyAction() && sourceConfigUUID == null;
+                case CLOSURE_CANCEL, CLOSURE_RESUME, CLOSURE_CONFIRM -> emptyAction() && sourceConfigUUID == null &&
+                        confirmationNonce != null && closureMode == QIOWorkbenchClosureMode.NONE;
             };
         }
 
         private boolean page() {
             return pageSize > 0 && pageSize <= QIOWorkbenchConfigurationSnapshot.MAX_PAGE_SIZE &&
-                  expectedConfigurationRevision == -1 && expectedCatalogRevision == -1;
+                    expectedConfigurationRevision == -1 && expectedCatalogRevision == -1;
         }
 
         private boolean noMutationOrCopy() {
             return mutation == null && sourceConfigUUID == null && confirmationNonce == null &&
-                  closureMode == QIOWorkbenchClosureMode.NONE && !skipCyclicRecipes;
+                    closureMode == QIOWorkbenchClosureMode.NONE && !skipCyclicRecipes;
         }
 
         private boolean emptyAction() {
             return offset == 0 && pageSize == 0 && query.isEmpty() && productKey.isEmpty() &&
-                  recipeId.isEmpty() && recipeSignature.isEmpty() && ingredientSlot == -1 &&
-                  expectedConfigurationRevision == -1 && expectedCatalogRevision == -1 &&
-                  mutation == null && closureMode == QIOWorkbenchClosureMode.NONE &&
-                  !skipCyclicRecipes;
+                    recipeId.isEmpty() && recipeSignature.isEmpty() && ingredientSlot == -1 &&
+                    expectedConfigurationRevision == -1 && expectedCatalogRevision == -1 &&
+                    mutation == null && closureMode == QIOWorkbenchClosureMode.NONE &&
+                    !skipCyclicRecipes;
         }
 
         private static boolean hash(String value) {
             return value.length() == 64 && value.chars().allMatch(character ->
-                  character >= '0' && character <= '9' ||
-                        character >= 'a' && character <= 'f');
+                    character >= '0' && character <= '9' ||
+                            character >= 'a' && character <= 'f');
         }
 
         private static void writeUUID(ByteBuf buffer, UUID uuid) {

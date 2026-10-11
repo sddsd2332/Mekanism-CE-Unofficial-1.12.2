@@ -16,7 +16,6 @@ public interface ContainerInteraction<TYPE> {
      * @param stack     Object being interacted with. This must not be modified by the handler.
      * @param side      The side we are interacting with the handler from (null for internal).
      * @param action    The action to perform, either {@link Action#EXECUTE} or {@link Action#SIMULATE}.
-     *
      * @return Result of the interaction, for example the result of an insert or extraction.
      */
     @Nullable

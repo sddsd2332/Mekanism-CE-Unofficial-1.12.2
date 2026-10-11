@@ -41,17 +41,17 @@ public class GuiLaserAmplifier extends GuiMekanismTile<TileEntityLaserAmplifier,
         addButton(new GuiEnergyTab(this, this::getEnergyTabText));
         addButton(new GuiAmplifierTab(this, tileEntity));
         timerField = addButton(new GuiTextField(this, 0, 96, 28, 36, 11)
-              .setMaxLength(4)
-              .setInputValidator(this::isTimerInput)
-              .setEnterHandler(this::setTime));
+                .setMaxLength(4)
+                .setInputValidator(this::isTimerInput)
+                .setEnterHandler(this::setTime));
         minField = addButton(new GuiTextField(this, 1, 96, 43, 72, 11)
-              .setMaxLength(10)
-              .setInputValidator(this::isEnergyInput)
-              .setEnterHandler(this::setMinThreshold));
+                .setMaxLength(10)
+                .setInputValidator(this::isEnergyInput)
+                .setEnterHandler(this::setMinThreshold));
         maxField = addButton(new GuiTextField(this, 2, 96, 58, 72, 11)
-              .setMaxLength(10)
-              .setInputValidator(this::isEnergyInput)
-              .setEnterHandler(this::setMaxThreshold));
+                .setMaxLength(10)
+                .setInputValidator(this::isEnergyInput)
+                .setEnterHandler(this::setMaxThreshold));
     }
 
     @Override
@@ -62,15 +62,15 @@ public class GuiLaserAmplifier extends GuiMekanismTile<TileEntityLaserAmplifier,
         ITextComponent delay = new TextComponentString(tileEntity.getDelay() > 0 ? LangUtils.localize("gui.delay") + ": " + tileEntity.getDelay() + "t" : LangUtils.localize("gui.noDelay"));
         drawScaledScrollingString(delay, start, 30, TextAlignment.LEFT, titleTextColor(), timerField.getRelativeX() - start, 2, false, 1, GuiElement.getMillis());
         drawScaledScrollingString(new TextComponentString(LangUtils.localize("gui.min") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getMinThreshold())),
-              start, 45, TextAlignment.LEFT, titleTextColor(), minField.getRelativeX() - start, 2, false, 1, GuiElement.getMillis());
+                start, 45, TextAlignment.LEFT, titleTextColor(), minField.getRelativeX() - start, 2, false, 1, GuiElement.getMillis());
         drawScaledScrollingString(new TextComponentString(LangUtils.localize("gui.max") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getMaxThreshold())),
-              start, 60, TextAlignment.LEFT, titleTextColor(), maxField.getRelativeX() - start, 2, false, 1, GuiElement.getMillis());
+                start, 60, TextAlignment.LEFT, titleTextColor(), maxField.getRelativeX() - start, 2, false, 1, GuiElement.getMillis());
         super.drawForegroundText(mouseX, mouseY);
     }
 
     private List<ITextComponent> getEnergyTabText() {
         return Collections.singletonList(new TextComponentString(LangUtils.localize("gui.storing") + ": " +
-              MekanismUtils.getEnergyDisplay(tileEntity.getEnergy(), tileEntity.getMaxEnergy())));
+                MekanismUtils.getEnergyDisplay(tileEntity.getEnergy(), tileEntity.getMaxEnergy())));
     }
 
     private boolean isTimerInput(char c, int keyCode) {

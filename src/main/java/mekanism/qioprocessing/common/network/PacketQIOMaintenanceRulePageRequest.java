@@ -2,17 +2,13 @@ package mekanism.qioprocessing.common.network;
 
 import io.netty.buffer.ByteBuf;
 import mekanism.common.PacketHandler;
-import mekanism.qioprocessing.common.content.QIOProcessingNetworkData;
 import mekanism.qioprocessing.common.content.QIOProcessingNetworkAccess;
+import mekanism.qioprocessing.common.content.QIOProcessingNetworkData;
 import mekanism.qioprocessing.common.content.maintenance.QIOMaintenanceRule;
 import mekanism.qioprocessing.common.inventory.container.QIOMaintenanceRulePageContainer;
-import mekanism.qioprocessing.common.inventory.container.QIOProcessingTerminalFrequencyContainer;
 import mekanism.qioprocessing.common.inventory.container.QIOProcessingTerminalContainerState;
-import mekanism.qioprocessing.common.terminal.QIOMaintenanceRuleService;
-import mekanism.qioprocessing.common.terminal.QIOPage;
-import mekanism.qioprocessing.common.terminal.QIOPageCursor;
-import mekanism.qioprocessing.common.terminal.QIOProcessingTerminalSession;
-import mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType;
+import mekanism.qioprocessing.common.inventory.container.QIOProcessingTerminalFrequencyContainer;
+import mekanism.qioprocessing.common.terminal.*;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
@@ -29,7 +25,7 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class PacketQIOMaintenanceRulePageRequest implements
-      IMessageHandler<PacketQIOMaintenanceRulePageRequest.Message, IMessage> {
+        IMessageHandler<PacketQIOMaintenanceRulePageRequest.Message, IMessage> {
 
     @Override
     public IMessage onMessage(Message message, MessageContext context) {
@@ -45,42 +41,42 @@ public final class PacketQIOMaintenanceRulePageRequest implements
 
     private static void handle(Message message, EntityPlayer player) {
         if (!(player instanceof EntityPlayerMP playerMP) ||
-            !(player.openContainer instanceof QIOMaintenanceRulePageContainer container) ||
-            !(player.openContainer instanceof QIOProcessingTerminalFrequencyContainer frequencyContainer) ||
-            player.openContainer.windowId != message.windowId ||
-            !player.openContainer.canInteractWith(player)) {
+                !(player.openContainer instanceof QIOMaintenanceRulePageContainer container) ||
+                !(player.openContainer instanceof QIOProcessingTerminalFrequencyContainer frequencyContainer) ||
+                player.openContainer.windowId != message.windowId ||
+                !player.openContainer.canInteractWith(player)) {
             return;
         }
         QIOProcessingTerminalSession session = container.getTerminalSession();
         if (!validSession(message, player, session) ||
-            !container.tryRequestMaintenanceRulePage(player.world.getTotalWorldTime())) {
+                !container.tryRequestMaintenanceRulePage(player.world.getTotalWorldTime())) {
             return;
         }
         QIOProcessingNetworkData network = QIOProcessingNetworkAccess.getOrCreate(
-              frequencyContainer, session, player);
+                frequencyContainer, session, player);
         if (network == null) {
             return;
         }
         try {
             QIOPage<QIOMaintenanceRule> page = QIOMaintenanceRuleService.getPage(
-                  session, network, session.getAccessRevision(), message.cursor,
-                  message.requestedPageSize);
+                    session, network, session.getAccessRevision(), message.cursor,
+                    message.requestedPageSize);
             QIOProcessingPacketHandler.INSTANCE.sendTo(
-                  PacketQIOMaintenanceRulePageData.Message.create(message.windowId,
-                        session, page), playerMP);
+                    PacketQIOMaintenanceRulePageData.Message.create(message.windowId,
+                            session, page), playerMP);
         } catch (IllegalArgumentException | IllegalStateException | SecurityException ignored) {
         }
     }
 
     private static boolean validSession(Message message, EntityPlayer player,
-          QIOProcessingTerminalSession session) {
+                                        QIOProcessingTerminalSession session) {
         return session != null && session.getFrequencyUUID() != null &&
-              session.getTerminalType() == QIOProcessingTerminalType.MAINTENANCE &&
-              session.validate(message.sessionNonce, player.getUniqueID(),
-                    session.getTargetKind(), QIOProcessingTerminalType.MAINTENANCE,
-                    message.terminalUUID, message.expectedTargetRevision,
-                    session.getFrequencyUUID(), session.getAccessRevision()) ==
-                    QIOProcessingTerminalSession.Validation.ACCEPTED;
+                session.getTerminalType() == QIOProcessingTerminalType.MAINTENANCE &&
+                session.validate(message.sessionNonce, player.getUniqueID(),
+                        session.getTargetKind(), QIOProcessingTerminalType.MAINTENANCE,
+                        message.terminalUUID, message.expectedTargetRevision,
+                        session.getFrequencyUUID(), session.getAccessRevision()) ==
+                        QIOProcessingTerminalSession.Validation.ACCEPTED;
     }
 
     public static final class Message implements IMessage {
@@ -98,8 +94,8 @@ public final class PacketQIOMaintenanceRulePageRequest implements
         }
 
         private Message(int windowId, UUID sessionNonce, UUID terminalUUID,
-              long expectedTargetRevision, int requestedPageSize,
-              @Nullable QIOPageCursor cursor) {
+                        long expectedTargetRevision, int requestedPageSize,
+                        @Nullable QIOPageCursor cursor) {
             this.windowId = windowId;
             this.sessionNonce = sessionNonce;
             this.terminalUUID = terminalUUID;
@@ -110,18 +106,18 @@ public final class PacketQIOMaintenanceRulePageRequest implements
         }
 
         public static Message create(int windowId,
-              QIOProcessingTerminalContainerState state, int requestedPageSize,
-              @Nullable QIOPageCursor cursor) {
+                                     QIOProcessingTerminalContainerState state, int requestedPageSize,
+                                     @Nullable QIOPageCursor cursor) {
             return state == null || !state.isValid() ? new Message() :
-                  new Message(windowId, state.getSessionNonce(), state.getTerminalUUID(),
-                        state.getTargetRevision(), requestedPageSize, cursor);
+                    new Message(windowId, state.getSessionNonce(), state.getTerminalUUID(),
+                            state.getTargetRevision(), requestedPageSize, cursor);
         }
 
         static Message create(int windowId, QIOProcessingTerminalSession session,
-              int requestedPageSize, @Nullable QIOPageCursor cursor) {
+                              int requestedPageSize, @Nullable QIOPageCursor cursor) {
             return session == null ? new Message() : new Message(windowId,
-                  session.getSessionNonce(), session.getTerminalUUID(),
-                  session.getTargetRevision(), requestedPageSize, cursor);
+                    session.getSessionNonce(), session.getTerminalUUID(),
+                    session.getTargetRevision(), requestedPageSize, cursor);
         }
 
         @Override
@@ -158,9 +154,9 @@ public final class PacketQIOMaintenanceRulePageRequest implements
 
         private boolean structurallyValid() {
             return windowId >= 0 && sessionNonce != null && terminalUUID != null &&
-                  expectedTargetRevision >= 0 && requestedPageSize > 0 &&
-                  requestedPageSize <= PacketQIOMaintenanceRulePageData.MAX_WIRE_PAGE_SIZE &&
-                  (cursor == null || sessionNonce.equals(cursor.getSessionNonce()));
+                    expectedTargetRevision >= 0 && requestedPageSize > 0 &&
+                    requestedPageSize <= PacketQIOMaintenanceRulePageData.MAX_WIRE_PAGE_SIZE &&
+                    (cursor == null || sessionNonce.equals(cursor.getSessionNonce()));
         }
 
         private static void writeUUID(ByteBuf buffer, UUID uuid) {

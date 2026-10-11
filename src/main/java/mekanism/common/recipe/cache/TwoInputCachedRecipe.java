@@ -28,9 +28,9 @@ public class TwoInputCachedRecipe<INPUT_A, INPUT_B, OUTPUT, INGREDIENT_A, INGRED
     private OUTPUT output;
 
     public TwoInputCachedRecipe(RECIPE recipe, BooleanSupplier recheckAllErrors, IInputHandler<INPUT_A, INGREDIENT_A> inputHandler,
-          IInputHandler<INPUT_B, INGREDIENT_B> secondaryInputHandler, IOutputHandler<OUTPUT> outputHandler, Supplier<INGREDIENT_A> inputSupplier,
-          Supplier<INGREDIENT_B> secondaryInputSupplier, BiPredicate<INPUT_A, INPUT_B> recipeTest, BiFunction<INPUT_A, INPUT_B, OUTPUT> outputGetter,
-          Predicate<INPUT_A> inputEmptyCheck, Predicate<INPUT_B> secondaryInputEmptyCheck, Predicate<OUTPUT> outputEmptyCheck) {
+                                IInputHandler<INPUT_B, INGREDIENT_B> secondaryInputHandler, IOutputHandler<OUTPUT> outputHandler, Supplier<INGREDIENT_A> inputSupplier,
+                                Supplier<INGREDIENT_B> secondaryInputSupplier, BiPredicate<INPUT_A, INPUT_B> recipeTest, BiFunction<INPUT_A, INPUT_B, OUTPUT> outputGetter,
+                                Predicate<INPUT_A> inputEmptyCheck, Predicate<INPUT_B> secondaryInputEmptyCheck, Predicate<OUTPUT> outputEmptyCheck) {
         super(recipe, recheckAllErrors);
         this.inputHandler = Objects.requireNonNull(inputHandler);
         this.secondaryInputHandler = Objects.requireNonNull(secondaryInputHandler);
@@ -66,7 +66,7 @@ public class TwoInputCachedRecipe<INPUT_A, INPUT_B, OUTPUT, INGREDIENT_A, INGRED
     @Override
     protected void finishProcessing(int operations) {
         if (input != null && secondaryInput != null && output != null && !inputEmptyCheck.test(input) && !secondaryInputEmptyCheck.test(secondaryInput)
-              && !outputEmptyCheck.test(output)) {
+                && !outputEmptyCheck.test(output)) {
             inputHandler.use(input, operations);
             secondaryInputHandler.use(secondaryInput, operations);
             outputHandler.handleOutput(output, operations);

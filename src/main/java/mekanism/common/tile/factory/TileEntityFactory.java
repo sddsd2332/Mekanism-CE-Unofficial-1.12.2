@@ -11,7 +11,6 @@ import mekanism.api.gas.GasStack;
 import mekanism.api.infuse.InfuseObject;
 import mekanism.api.infuse.InfuseRegistry;
 import mekanism.api.inventory.IInventorySlot;
-import mekanism.api.math.MathUtils;
 import mekanism.api.transmitters.TransmissionType;
 import mekanism.common.*;
 import mekanism.common.base.*;
@@ -64,7 +63,6 @@ import mekanism.common.upgrade.IUpgradeData;
 import mekanism.common.util.*;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
-import net.minecraft.inventory.Container;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -118,15 +116,15 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
     private static final String LEGACY_GAS_OUTPUT_TANK_KEY = "gasOutTank";
     private static final String[] methods = new String[]{"getEnergy", "getProgress", "facing", "canOperate", "getMaxEnergy", "getEnergyNeeded"};
     private static final List<RecipeError> FACTORY_ERROR_TYPES = Arrays.asList(
-          RecipeError.NOT_ENOUGH_ENERGY,
-          RecipeError.NOT_ENOUGH_INPUT,
-          RecipeError.NOT_ENOUGH_SECONDARY_INPUT,
-          RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
-          RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
+            RecipeError.NOT_ENOUGH_ENERGY,
+            RecipeError.NOT_ENOUGH_INPUT,
+            RecipeError.NOT_ENOUGH_SECONDARY_INPUT,
+            RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
+            RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
     );
     private static final Set<RecipeError> FACTORY_GLOBAL_ERROR_TYPES = new java.util.HashSet<>(Arrays.asList(
-          RecipeError.NOT_ENOUGH_ENERGY,
-          RecipeError.NOT_ENOUGH_SECONDARY_INPUT
+            RecipeError.NOT_ENOUGH_ENERGY,
+            RecipeError.NOT_ENOUGH_SECONDARY_INPUT
     ));
     private static final int BASE_MAX_TANK = 10000;
     /**
@@ -200,7 +198,9 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
     private IOutputHandler<ItemStack>[] itemOutputHandlers;
     private IOutputHandler<ChanceOutput>[] chanceOutputHandlers;
     private IOutputHandler<ChanceOutput2>[] chance2OutputHandlers;
-    /** One probability source per process, so that lanes no longer share a process-wide source. */
+    /**
+     * One probability source per process, so that lanes no longer share a process-wide source.
+     */
     private java.util.Random[] processRecipeRandoms;
     private boolean processRecipeRandomsSeeded;
     private IOutputHandler<GasStack> gasOutputHandler;
@@ -236,14 +236,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
             if (usesStatisticalSecondaryFuel()) {
                 return gasUsageSampler.sample(gasPerTickMeanMultiplier);
             }
-            long baseRemaining = baseTotalUsage - usedSoFar;
-            int remainingTicks = getTicksRequired(null) - operatingTicks;
-            if (baseRemaining < remainingTicks) {
-                return 0;
-            } else if (baseRemaining == remainingTicks) {
-                return 1;
-            }
-            return Math.max(MathUtils.clampToLong(baseRemaining / (double) remainingTicks), 0);
+            return SecondaryFuelUsage.constantUse(baseTotalUsage, usedSoFar, getTicksRequired(null), operatingTicks);
         };
         initializeRecipeTypeState(recipeType);
         configComponent = new TileComponentConfig(this, TransmissionType.ITEM, TransmissionType.ENERGY, TransmissionType.GAS, TransmissionType.FLUID);
@@ -397,7 +390,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
 
     private void addSharedInventorySlots(InventorySlotHelper builder, IContentsListener listener) {
         extraSlot = builder.addSlot(FactoryExtraInventorySlot.create(this, this::isValidExtraSlotItem, this::isValidStoredExtraSlotItem,
-              markAllMonitorsChanged(listener), EXTRA_SLOT_X, getExtraSlotY()));
+                markAllMonitorsChanged(listener), EXTRA_SLOT_X, getExtraSlotY()));
         extraSlot.setSlotType(ContainerSlotType.EXTRA);
         extraSlot.setEnabledSupplier(this::isExtraSlotVisible);
         extraSlot.setPositionSuppliers(() -> EXTRA_SLOT_X, this::getExtraSlotY);
@@ -406,12 +399,12 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
     }
 
     private void addProcessSlots(InventorySlotHelper builder, IContentsListener listener, OutputInventorySlot[] outputSlots,
-          OutputInventorySlot[] secondaryOutputSlots, int processCount) {
+                                 OutputInventorySlot[] secondaryOutputSlots, int processCount) {
         for (int process = 0; process < processCount; process++) {
             int processNumber = process;
             FactoryInputInventorySlot inputSlot = FactoryInputInventorySlot.create(this, processNumber, outputSlots[processNumber],
-                  secondaryOutputSlots[processNumber],
-                  markRecipeCacheChanged(listener, processNumber), getProcessSlotX(processNumber), PROCESS_INPUT_SLOT_Y);
+                    secondaryOutputSlots[processNumber],
+                    markRecipeCacheChanged(listener, processNumber), getProcessSlotX(processNumber), PROCESS_INPUT_SLOT_Y);
             inputSlot.setEnabledSupplier(() -> isInputSlotVisible(processNumber));
             inputSlot.setPositionSuppliers(() -> getProcessSlotX(processNumber), () -> PROCESS_INPUT_SLOT_Y);
             inputSlot.tracksWarnings(slot -> slot.warning(WarningType.NO_MATCHING_RECIPE, getWarningCheck(RecipeError.NOT_ENOUGH_INPUT, processNumber)));
@@ -435,9 +428,9 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
             itemInputHandlers[processNumber] = InputHelper.getInputHandler(inputSlot, RecipeError.NOT_ENOUGH_INPUT, this::depleteRecipeInput);
             itemOutputHandlers[processNumber] = OutputHelper.getOutputHandler(outputSlot, RecipeError.NOT_ENOUGH_OUTPUT_SPACE);
             chanceOutputHandlers[processNumber] = OutputHelper.getOutputHandler(outputSlot, secondaryOutputSlot, RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
-                  processRecipeRandom(processNumber));
+                    processRecipeRandom(processNumber));
             chance2OutputHandlers[processNumber] = OutputHelper.getOutputHandlerChance2(outputSlot, RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
-                  processRecipeRandom(processNumber));
+                    processRecipeRandom(processNumber));
             pressurizedOutputHandlers[processNumber] = OutputHelper.getOutputHandler(outputSlot, gasOutTank, RecipeError.NOT_ENOUGH_OUTPUT_SPACE);
         }
     }
@@ -456,7 +449,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
             }
         }
         return processRecipeRandoms == null || process < 0 || process >= processRecipeRandoms.length
-              ? new java.util.Random() : processRecipeRandoms[process];
+                ? new java.util.Random() : processRecipeRandoms[process];
     }
 
     private int getProcessOutputSlotY(boolean secondary) {
@@ -872,9 +865,9 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
             return null;
         }
         return new FactoryUpgradeData(upgradeTier, facing, clientFacing, ticker, redstone, redstoneLastTick, doAutoSync, electricityStored.get(), isActive,
-              prevEnergy, getControlType(), writeUpgradeComponentData(), recipeType, isSorting(), progress, usedSoFar, infuseStored, energySlot.getStack(),
-              extraSlot.getStack(), getUpgradeInputStacks(), getUpgradeOutputStacks(), getUpgradeSecondaryOutputStacks(), gasTank.getGas(), gasOutTank.getGas(),
-              fluidTank.getFluid());
+                prevEnergy, getControlType(), writeUpgradeComponentData(), recipeType, isSorting(), progress, usedSoFar, infuseStored, energySlot.getStack(),
+                extraSlot.getStack(), getUpgradeInputStacks(), getUpgradeOutputStacks(), getUpgradeSecondaryOutputStacks(), gasTank.getGas(), gasOutTank.getGas(),
+                fluidTank.getFluid());
     }
 
     @Nonnull
@@ -1037,23 +1030,26 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
     protected boolean supportsAsyncIdleSkipping() {
         Class<?> type = getClass();
         return type == TileEntityBasicFactory.class || type == TileEntityAdvancedFactory.class ||
-              type == TileEntityEliteFactory.class || type == TileEntityUltimateFactory.class;
+                type == TileEntityEliteFactory.class || type == TileEntityUltimateFactory.class;
     }
 
     @Override
     protected boolean isAsyncUpdateIdle() {
         // Only the simple item modes have no secondary-fuel or environmental work.
         switch (recipeType) {
-            case SMELTING, ENRICHING, CRUSHING, STAMPING, ROLLING, BRUSHED, TURNING -> { }
-            default -> { return false; }
+            case SMELTING, ENRICHING, CRUSHING, STAMPING, ROLLING, BRUSHED, TURNING -> {
+            }
+            default -> {
+                return false;
+            }
         }
         if (getActive() || lastUsage != 0 || prevEnergy != getEnergy() || !energySlot.isEmpty() ||
-              !extraSlot.isEmpty() || areRecipeCachesInvalid()) {
+                !extraSlot.isEmpty() || areRecipeCachesInvalid()) {
             return false;
         }
         for (ProcessInfo process : processInfoSlots) {
             if (!process.inputSlot().isEmpty() || progress[process.process()] != 0 || activeStates[process.process()] ||
-                  !getRecipeCacheLookupMonitor(process).canSkipProcessing()) {
+                    !getRecipeCacheLookupMonitor(process).canSkipProcessing()) {
                 return false;
             }
         }
@@ -1385,9 +1381,9 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
     }
 
     public boolean inputProducesOutput(int process, ItemStack fallbackInput, IInventorySlot outputSlot, @Nullable IInventorySlot secondaryOutputSlot,
-          boolean updateCache) {
+                                       boolean updateCache) {
         return isValidProcess(process) && (outputSlot.isEmpty() ||
-              getRecipeForInput(getProcessInfo(process), fallbackInput, outputSlot, secondaryOutputSlot, updateCache) != null);
+                getRecipeForInput(getProcessInfo(process), fallbackInput, outputSlot, secondaryOutputSlot, updateCache) != null);
     }
 
     private boolean inputProducesOutput(ProcessInfo processInfo, ItemStack fallbackInput, boolean updateCache) {
@@ -1410,12 +1406,12 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
         }
         MachineRecipe<?, ?, ?> recipe = cachedRecipe.getRecipe();
         return recipeMatchesCurrentInput(recipe, inputStack, getExtraStack()) &&
-              recipeMatchesOutputSlots(recipe, processInfo.outputSlot(), getSecondaryOutputSlotForRecipe(processInfo));
+                recipeMatchesOutputSlots(recipe, processInfo.outputSlot(), getSecondaryOutputSlotForRecipe(processInfo));
     }
 
     @Nullable
     private MachineRecipe<?, ?, ?> getRecipeForInput(ProcessInfo processInfo, ItemStack fallbackInput, @Nullable IInventorySlot outputSlot,
-          @Nullable IInventorySlot secondaryOutputSlot, boolean updateCache) {
+                                                     @Nullable IInventorySlot secondaryOutputSlot, boolean updateCache) {
         if (!areRecipeCachesInvalid()) {
             MachineRecipe<?, ?, ?> recipe = getValidCachedRecipeForInput(processInfo, fallbackInput);
             if (recipe != null) {
@@ -1427,7 +1423,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
 
     @Nullable
     private MachineRecipe<?, ?, ?> getMatchingCachedRecipe(ProcessInfo processInfo, MachineRecipe<?, ?, ?> recipe, @Nullable IInventorySlot outputSlot,
-          @Nullable IInventorySlot secondaryOutputSlot, boolean updateCache) {
+                                                           @Nullable IInventorySlot secondaryOutputSlot, boolean updateCache) {
         if (!recipeMatchesOutputSlots(recipe, outputSlot, secondaryOutputSlot)) {
             return null;
         }
@@ -1457,7 +1453,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
 
     @Nullable
     private MachineRecipe<?, ?, ?> findRecipe(ProcessInfo processInfo, ItemStack fallbackInput, @Nullable IInventorySlot outputSlot,
-          @Nullable IInventorySlot secondaryOutputSlot) {
+                                              @Nullable IInventorySlot secondaryOutputSlot) {
         MachineRecipe<?, ?, ?> recipe = findRecipeForInput(fallbackInput, getExtraStack());
         return recipe != null && recipeMatchesOutputSlots(recipe, outputSlot, secondaryOutputSlot) ? recipe : null;
     }
@@ -1586,7 +1582,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
     private void handleInfusionExtraSlot(ItemStack extra) {
         InfuseObject pendingInfusionInput = InfuseRegistry.getObject(extra);
         int operations = infuseStored.getSupportedConversionOperations(pendingInfusionInput, maxInfuse, extra.getCount(),
-              MekanismConfig.current().general.bulkSlotItemConversion.val());
+                MekanismConfig.current().general.bulkSlotItemConversion.val());
         if (operations > 0) {
             infuseStored.increase(pendingInfusionInput, operations);
             MekanismUtils.logMismatchedStackSize(extraSlot.shrinkStack(operations, Action.EXECUTE), operations);
@@ -1805,14 +1801,14 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
     @SuppressWarnings({"unchecked", "rawtypes"})
     private CachedRecipe<MachineRecipe<?, ?, ?>> setupFactoryCachedRecipe(CachedRecipe<? extends MachineRecipe<?, ?, ?>> cachedRecipe, ProcessInfo processInfo) {
         return (CachedRecipe) cachedRecipe
-              .setCanHolderFunction(() -> MekanismUtils.canFunction(this) && hasSecondaryFuelForRecipeTick())
-              .setErrorsChanged(errors -> onRecipeErrorsChanged(processInfo, errors))
-              .setActive(active -> setActiveState(processInfo, active))
-              .setEnergyRequirements(() -> getProcessEnergyPerTick(cachedRecipe.getRecipe()), getMainEnergyContainer())
-              .setRequiredTicks(() -> getTicksRequired(cachedRecipe.getRecipe()))
-              .setBaselineMaxOperations(() -> getOperationsPerTick(cachedRecipe.getRecipe()))
-              .setOperatingTicksChanged(ticks -> setProgress(processInfo, ticks))
-              .setOnFinish(this::markNoUpdateSync);
+                .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
+                .setErrorsChanged(errors -> onRecipeErrorsChanged(processInfo, errors))
+                .setActive(active -> setActiveState(processInfo, active))
+                .setEnergyRequirements(() -> getProcessEnergyPerTick(cachedRecipe.getRecipe()), getMainEnergyContainer())
+                .setRequiredTicks(() -> getTicksRequired(cachedRecipe.getRecipe()))
+                .setBaselineMaxOperations(() -> getOperationsPerTick(cachedRecipe.getRecipe()))
+                .setOperatingTicksChanged(ticks -> setProgress(processInfo, ticks))
+                .setOnFinish(this::markNoUpdateSync);
     }
 
     private boolean shouldRecheckAllRecipeErrors(int checkOffset) {
@@ -2048,7 +2044,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
         for (int tagCount = 0; tagCount < storedItems.tagCount(); tagCount++) {
             NBTTagCompound tagCompound = storedItems.getCompoundTagAt(tagCount);
             if (tagCompound.getByte(NBTConstants.SLOT) == FACTORY_INVENTORY_VERSION_MARKER_SLOT &&
-                  tagCompound.getInteger(FACTORY_INVENTORY_VERSION_KEY) >= FACTORY_INVENTORY_VERSION) {
+                    tagCompound.getInteger(FACTORY_INVENTORY_VERSION_KEY) >= FACTORY_INVENTORY_VERSION) {
                 return true;
             }
         }
@@ -2266,11 +2262,8 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
     }
 
     public int getRecipeGasUsagePerOperation() {
-        if (!usesStatisticalSecondaryFuel()) {
-            return Math.max(1, MathUtils.clampToInt(baseTotalUsage));
-        }
-        double usage = 3D * Math.max(1, Math.ceil(Math.max(secondaryEnergyPerTick, 0))) * Math.max(1, getTicksRequired());
-        return Math.max(1, MathUtils.clampToInt(usage));
+        return ItemStackConstantGasCachedRecipe.getGasUsagePerOperation(usesStatisticalSecondaryFuel(),
+                baseTotalUsage, gasPerTickMeanMultiplier, getTicksRequired(null));
     }
 
     private ProcessInfo getProcessInfo(int process) {
@@ -2634,8 +2627,13 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
     }
 
     @Override
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return type == mekanism.api.transmitters.TransmissionType.ITEM;
+    }
+
+    @Override
     public int getRedstoneLevel() {
-        return Container.calcRedstoneFromInventory(this);
+        return getInventoryComparatorLevel();
     }
 
 
@@ -2711,6 +2709,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
     private boolean isTransmissionSupported(TransmissionType type) {
         return configComponent.supports(type);
     }
+
     private enum FactoryRecipeHandler {
         ADVANCED {
             @Override
@@ -2761,7 +2760,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
 
             @Override
             boolean usesStatisticalSecondaryFuel(TileEntityFactory factory) {
-                return supportsGasUpgrade(factory);
+                return supportsGasUpgrade(factory) && SecondaryFuelUsage.isRandomized(factory);
             }
 
             @Override
@@ -2787,7 +2786,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
             @Override
             boolean recipeMatchesCurrentInput(TileEntityFactory factory, MachineRecipe<?, ?, ?> recipe, ItemStack input, ItemStack extra) {
                 return super.recipeMatchesCurrentInput(factory, recipe, input, extra) &&
-                      recipeMatchesGasInput(factory, (AdvancedMachineInput) recipe.recipeInput);
+                        recipeMatchesGasInput(factory, (AdvancedMachineInput) recipe.recipeInput);
             }
 
             @Override
@@ -2808,7 +2807,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
                         factory.constantGasInputHandler,
                         factory.getItemOutputHandler(processInfo),
                         factory.gasUsageMultiplier,
-                      used -> factory.setSavedUsedSoFar(processInfo, used)), processInfo);
+                        used -> factory.setSavedUsedSoFar(processInfo, used)), processInfo);
             }
         },
         DOUBLE {
@@ -2846,7 +2845,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
             @Override
             boolean recipeMatchesCurrentInput(TileEntityFactory factory, MachineRecipe<?, ?, ?> recipe, ItemStack input, ItemStack extra) {
                 return super.recipeMatchesCurrentInput(factory, recipe, input, extra) &&
-                      recipeMatchesDoubleExtraInput((DoubleMachineInput) recipe.recipeInput, extra);
+                        recipeMatchesDoubleExtraInput((DoubleMachineInput) recipe.recipeInput, extra);
             }
 
             @Override
@@ -2863,13 +2862,13 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
             CachedRecipe<MachineRecipe<?, ?, ?>> createCachedRecipe(TileEntityFactory factory, ProcessInfo processInfo, MachineRecipe<?, ?, ?> recipe) {
                 DoubleMachineRecipe<?> doubleRecipe = (DoubleMachineRecipe<?>) recipe;
                 return factory.setupFactoryCachedRecipe(new TwoInputCachedRecipe<>(doubleRecipe, factory.getRecheckAllRecipeErrors(processInfo),
-                      factory.getItemInputHandler(processInfo),
-                      factory.extraItemInputHandler,
-                      factory.getItemOutputHandler(processInfo),
-                      () -> doubleRecipe.getInput().itemStack, () -> doubleRecipe.getInput().extraStack,
-                      (input, secondary) -> MachineInput.inputContains(input, doubleRecipe.getInput().itemStack)
-                            && MachineInput.inputContains(secondary, doubleRecipe.getInput().extraStack),
-                      (input, secondary) -> doubleRecipe.getOutput().output.copy(), ItemStack::isEmpty, ItemStack::isEmpty, ItemStack::isEmpty), processInfo);
+                        factory.getItemInputHandler(processInfo),
+                        factory.extraItemInputHandler,
+                        factory.getItemOutputHandler(processInfo),
+                        () -> doubleRecipe.getInput().itemStack, () -> doubleRecipe.getInput().extraStack,
+                        (input, secondary) -> MachineInput.inputContains(input, doubleRecipe.getInput().itemStack)
+                                && MachineInput.inputContains(secondary, doubleRecipe.getInput().extraStack),
+                        (input, secondary) -> doubleRecipe.getOutput().output.copy(), ItemStack::isEmpty, ItemStack::isEmpty, ItemStack::isEmpty), processInfo);
             }
         },
         CHANCE {
@@ -2891,7 +2890,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
             @Override
             boolean recipeMatchesOutputSlots(MachineRecipe<?, ?, ?> recipe, @Nullable IInventorySlot outputSlot, @Nullable IInventorySlot secondaryOutputSlot) {
                 return super.recipeMatchesOutputSlots(recipe, outputSlot, secondaryOutputSlot) &&
-                      recipeMatchesSecondaryOutputSlot(recipe, secondaryOutputSlot);
+                        recipeMatchesSecondaryOutputSlot(recipe, secondaryOutputSlot);
             }
 
             @Override
@@ -2908,10 +2907,19 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
             CachedRecipe<MachineRecipe<?, ?, ?>> createCachedRecipe(TileEntityFactory factory, ProcessInfo processInfo, MachineRecipe<?, ?, ?> recipe) {
                 ChanceMachineRecipe<?> chanceRecipe = (ChanceMachineRecipe<?>) recipe;
                 return factory.setupFactoryCachedRecipe(new OneInputCachedRecipe<>(chanceRecipe, factory.getRecheckAllRecipeErrors(processInfo),
-                      factory.getItemInputHandler(processInfo),
-                      factory.getChanceOutputHandler(processInfo),
-                      () -> chanceRecipe.getInput().ingredient, input -> MachineInput.inputContains(input, chanceRecipe.getInput().ingredient),
-                      input -> chanceRecipe.getOutput().copy(), ItemStack::isEmpty, output -> false), processInfo);
+                        factory.getItemInputHandler(processInfo),
+                        factory.getChanceOutputHandler(processInfo),
+                        () -> chanceRecipe.getInput().ingredient, input -> MachineInput.inputContains(input, chanceRecipe.getInput().ingredient),
+                        input -> chanceRecipe.getOutput().copy(), ItemStack::isEmpty, output -> false), processInfo);
+            }
+
+            @Override
+            boolean recipeMatchesCurrentInput(TileEntityFactory factory, MachineRecipe<?, ?, ?> recipe, ItemStack input, ItemStack extra) {
+                if (recipe instanceof RecyclerRecipe recyclerRecipe && recyclerRecipe.isTemporary()) {
+                    return recyclerRecipe.getInput().ingredient.isItemEqual(input)
+                            && ItemStack.areItemStackTagsEqual(recyclerRecipe.getInput().ingredient, input);
+                }
+                return super.recipeMatchesCurrentInput(factory, recipe, input, extra);
             }
         },
         CHANCE2 {
@@ -2930,7 +2938,16 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
 
             @Override
             MachineRecipe<?, ?, ?> findRecipe(TileEntityFactory factory, ItemStack input, ItemStack extra) {
-                return getFactoryRecipe(factory, new ItemStackInput(input));
+                RecyclerRecipe recipe = getFactoryRecipe(factory, new ItemStackInput(input)) instanceof RecyclerRecipe recycler
+                        ? recycler : null;
+                return factory.recipeType == RecipeType.RECYCLER && recipe == null && !input.isEmpty()
+                        ? RecyclerRecipe.temporary(input.copy()) : recipe;
+            }
+
+            @Override
+            boolean isItemValid(TileEntityFactory factory, ItemStack stack) {
+                return factory.recipeType == RecipeType.RECYCLER ? !stack.isEmpty() :
+                        super.isItemValid(factory, stack);
             }
 
             @Override
@@ -2942,10 +2959,10 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
             CachedRecipe<MachineRecipe<?, ?, ?>> createCachedRecipe(TileEntityFactory factory, ProcessInfo processInfo, MachineRecipe<?, ?, ?> recipe) {
                 Chance2MachineRecipe<?> chanceRecipe = (Chance2MachineRecipe<?>) recipe;
                 return factory.setupFactoryCachedRecipe(new OneInputCachedRecipe<>(chanceRecipe, factory.getRecheckAllRecipeErrors(processInfo),
-                      factory.getItemInputHandler(processInfo),
-                      factory.getChance2OutputHandler(processInfo),
-                      () -> chanceRecipe.getInput().ingredient, input -> MachineInput.inputContains(input, chanceRecipe.getInput().ingredient),
-                      input -> chanceRecipe.getOutput().copy(), ItemStack::isEmpty, output -> false), processInfo);
+                        factory.getItemInputHandler(processInfo),
+                        factory.getChance2OutputHandler(processInfo),
+                        () -> chanceRecipe.getInput().ingredient, input -> MachineInput.inputContains(input, chanceRecipe.getInput().ingredient),
+                        input -> chanceRecipe.getOutput().copy(), ItemStack::isEmpty, output -> false), processInfo);
             }
         },
         INFUSING {
@@ -2962,7 +2979,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
             @Override
             boolean isItemValid(TileEntityFactory factory, ItemStack stack) {
                 return factory.infuseStored.getType() == null ? hasRecipeForItemInput(factory, stack)
-                      : RecipeHandler.getMetallurgicInfuserRecipe(new InfusionInput(factory.infuseStored, stack)) != null;
+                        : RecipeHandler.getMetallurgicInfuserRecipe(new InfusionInput(factory.infuseStored, stack)) != null;
             }
 
             @Override
@@ -2992,7 +3009,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
             @Override
             boolean hasLegacyProcessInfuseWarning(TileEntityFactory factory, ProcessInfo processInfo) {
                 return factory.hasTrackedWarning(RecipeError.NOT_ENOUGH_SECONDARY_INPUT, processInfo) ||
-                      factory.infuseStored.getAmount() == 0 && !processInfo.inputSlot().isEmpty();
+                        factory.infuseStored.getAmount() == 0 && !processInfo.inputSlot().isEmpty();
             }
 
             @Override
@@ -3013,7 +3030,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
             @Override
             boolean recipeMatchesCurrentInput(TileEntityFactory factory, MachineRecipe<?, ?, ?> recipe, ItemStack input, ItemStack extra) {
                 return super.recipeMatchesCurrentInput(factory, recipe, input, extra) &&
-                      recipeMatchesInfusionInput(factory, (InfusionInput) recipe.recipeInput);
+                        recipeMatchesInfusionInput(factory, (InfusionInput) recipe.recipeInput);
             }
 
             @Override
@@ -3030,14 +3047,14 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
             CachedRecipe<MachineRecipe<?, ?, ?>> createCachedRecipe(TileEntityFactory factory, ProcessInfo processInfo, MachineRecipe<?, ?, ?> recipe) {
                 MetallurgicInfuserRecipe infuserRecipe = (MetallurgicInfuserRecipe) recipe;
                 return factory.setupFactoryCachedRecipe(new TwoInputCachedRecipe<>(infuserRecipe, factory.getRecheckAllRecipeErrors(processInfo),
-                      factory.getItemInputHandler(processInfo),
-                      factory.infuseInputHandler,
-                      factory.getItemOutputHandler(processInfo),
-                      () -> infuserRecipe.getInput().inputStack, () -> infuserRecipe.getInput().infuse,
-                      (input, infuse) -> MachineInput.inputContains(input, infuserRecipe.getInput().inputStack)
-                            && infuse.getType() == infuserRecipe.getInput().infuse.getType(),
-                      (input, infuse) -> infuserRecipe.getOutput().output.copy(), ItemStack::isEmpty,
-                      infuse -> infuse == null || infuse.getType() == null || infuse.getAmount() <= 0, ItemStack::isEmpty), processInfo);
+                        factory.getItemInputHandler(processInfo),
+                        factory.infuseInputHandler,
+                        factory.getItemOutputHandler(processInfo),
+                        () -> infuserRecipe.getInput().inputStack, () -> infuserRecipe.getInput().infuse,
+                        (input, infuse) -> MachineInput.inputContains(input, infuserRecipe.getInput().inputStack)
+                                && infuse.getType() == infuserRecipe.getInput().infuse.getType(),
+                        (input, infuse) -> infuserRecipe.getOutput().output.copy(), ItemStack::isEmpty,
+                        infuse -> infuse == null || infuse.getType() == null || infuse.getAmount() <= 0, ItemStack::isEmpty), processInfo);
             }
         },
         PRESSURIZED {
@@ -3232,7 +3249,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
             @Override
             boolean recipeMatchesCurrentInput(TileEntityFactory factory, MachineRecipe<?, ?, ?> recipe, ItemStack input, ItemStack extra) {
                 return super.recipeMatchesCurrentInput(factory, recipe, input, extra) &&
-                      recipeMatchesPressurizedInputs(factory, (PressurizedInput) recipe.recipeInput);
+                        recipeMatchesPressurizedInputs(factory, (PressurizedInput) recipe.recipeInput);
             }
 
             @Override
@@ -3243,16 +3260,16 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
             @Override
             boolean canOperate(TileEntityFactory factory, ProcessInfo processInfo, MachineRecipe<?, ?, ?> recipe) {
                 return ((PressurizedRecipe) recipe).canOperate(processInfo.inputSlot(), factory.fluidTank, factory.gasTank, factory.gasOutTank,
-                      processInfo.outputSlot());
+                        processInfo.outputSlot());
             }
 
             @Override
             CachedRecipe<MachineRecipe<?, ?, ?>> createCachedRecipe(TileEntityFactory factory, ProcessInfo processInfo, MachineRecipe<?, ?, ?> recipe) {
                 return factory.setupFactoryCachedRecipe(new PressurizedReactionCachedRecipe((PressurizedRecipe) recipe, factory.getRecheckAllRecipeErrors(processInfo),
-                      factory.getItemInputHandler(processInfo),
-                      factory.fluidInputHandler,
-                      factory.secondaryGasInputHandler,
-                      factory.getPressurizedOutputHandler(processInfo)), processInfo);
+                        factory.getItemInputHandler(processInfo),
+                        factory.fluidInputHandler,
+                        factory.secondaryGasInputHandler,
+                        factory.getPressurizedOutputHandler(processInfo)), processInfo);
             }
         },
         NUCLEOSYNTHESIZER {
@@ -3326,7 +3343,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
             @Override
             boolean recipeMatchesCurrentInput(TileEntityFactory factory, MachineRecipe<?, ?, ?> recipe, ItemStack input, ItemStack extra) {
                 return super.recipeMatchesCurrentInput(factory, recipe, input, extra) &&
-                      recipeMatchesGasInput(factory, (NucleosynthesizerInput) recipe.recipeInput);
+                        recipeMatchesGasInput(factory, (NucleosynthesizerInput) recipe.recipeInput);
             }
 
             @Override
@@ -3343,14 +3360,14 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
             CachedRecipe<MachineRecipe<?, ?, ?>> createCachedRecipe(TileEntityFactory factory, ProcessInfo processInfo, MachineRecipe<?, ?, ?> recipe) {
                 NucleosynthesizerRecipe nucleosynthesizerRecipe = (NucleosynthesizerRecipe) recipe;
                 return factory.setupFactoryCachedRecipe(new TwoInputCachedRecipe<>(nucleosynthesizerRecipe, factory.getRecheckAllRecipeErrors(processInfo),
-                      factory.getItemInputHandler(processInfo),
-                      factory.secondaryGasInputHandler,
-                      factory.getItemOutputHandler(processInfo),
-                      () -> nucleosynthesizerRecipe.getInput().getSolid(), () -> nucleosynthesizerRecipe.getInput().getGas(),
-                      (input, gas) -> MachineInput.inputContains(input, nucleosynthesizerRecipe.getInput().getSolid())
-                            && gas != null && gas.isGasEqual(nucleosynthesizerRecipe.getInput().getGas()),
-                      (input, gas) -> nucleosynthesizerRecipe.getOutput().output.copy(), ItemStack::isEmpty,
-                      gas -> gas == null || gas.amount <= 0, ItemStack::isEmpty), processInfo);
+                        factory.getItemInputHandler(processInfo),
+                        factory.secondaryGasInputHandler,
+                        factory.getItemOutputHandler(processInfo),
+                        () -> nucleosynthesizerRecipe.getInput().getSolid(), () -> nucleosynthesizerRecipe.getInput().getGas(),
+                        (input, gas) -> MachineInput.inputContains(input, nucleosynthesizerRecipe.getInput().getSolid())
+                                && gas != null && gas.isGasEqual(nucleosynthesizerRecipe.getInput().getGas()),
+                        (input, gas) -> nucleosynthesizerRecipe.getOutput().output.copy(), ItemStack::isEmpty,
+                        gas -> gas == null || gas.amount <= 0, ItemStack::isEmpty), processInfo);
             }
         },
         BASIC {
@@ -3381,10 +3398,10 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
             CachedRecipe<MachineRecipe<?, ?, ?>> createCachedRecipe(TileEntityFactory factory, ProcessInfo processInfo, MachineRecipe<?, ?, ?> recipe) {
                 BasicMachineRecipe<?> basicRecipe = (BasicMachineRecipe<?>) recipe;
                 return factory.setupFactoryCachedRecipe(new OneInputCachedRecipe<>(basicRecipe, factory.getRecheckAllRecipeErrors(processInfo),
-                      factory.getItemInputHandler(processInfo),
-                      factory.getItemOutputHandler(processInfo),
-                      () -> basicRecipe.getInput().ingredient, input -> MachineInput.inputContains(input, basicRecipe.getInput().ingredient),
-                      input -> basicRecipe.getOutput().output.copy(), ItemStack::isEmpty, ItemStack::isEmpty), processInfo);
+                        factory.getItemInputHandler(processInfo),
+                        factory.getItemOutputHandler(processInfo),
+                        () -> basicRecipe.getInput().ingredient, input -> MachineInput.inputContains(input, basicRecipe.getInput().ingredient),
+                        input -> basicRecipe.getOutput().output.copy(), ItemStack::isEmpty, ItemStack::isEmpty), processInfo);
             }
         };
 
@@ -3455,10 +3472,15 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
         private static class FactoryInputMatcherCache {
             private final RecipeHandler.Recipe<?, ?, ?> recipeRegistry;
             private Map<Item, List<Object>> inputMatchers;
+            private Map<Item, Boolean> inputMatcherCacheable;
             private Map<Item, List<AdvancedMachineInput>> advancedInputMatchers;
             private Map<Item, List<DoubleMachineInput>> doubleExtraMatchers;
             private int recipeSize = -1;
             private int recipeVersion = -1;
+            // Pure ingredient membership only. Dynamic canInsert/output/extra-input
+            // checks remain live. Each processing thread retains at most eight identities.
+            private final ThreadLocal<InputMatchMemo> inputMatchMemo =
+                    ThreadLocal.withInitial(InputMatchMemo::new);
 
             private FactoryInputMatcherCache(RecipeHandler.Recipe<?, ?, ?> recipeRegistry) {
                 this.recipeRegistry = recipeRegistry;
@@ -3507,27 +3529,167 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
                 if (matchers == null || matchers.isEmpty()) {
                     return false;
                 }
+                boolean cacheable = inputMatcherCacheable.getOrDefault(stack.getItem(), Boolean.TRUE);
+                InputMatchMemo memo = inputMatchMemo.get();
+                int generation = RecipeHandler.getGlobalRecipeVersion();
+                if (memo.generation != generation) {
+                    memo.generation = generation;
+                    memo.matches.clear();
+                    memo.lastKey = null;
+                    memo.lastMatch = null;
+                }
+                if (cacheable) {
+                    InputMatch cached = memo.get(stack);
+                    if (cached != null) return cached.result;
+                }
+                Object matched = findMatchingInput(matchers, stack);
+                boolean result = matched != null;
+                if (cacheable) {
+                    memo.put(stack, new InputMatch(result, matched));
+                }
+                return result;
+            }
+
+            @Nullable
+            private static Object findMatchingInput(List<Object> matchers, ItemStack stack) {
                 for (Object matcher : matchers) {
                     if (matcher instanceof AdvancedMachineInput input && MachineInput.inputItemMatches(input.itemStack, stack)) {
-                        return true;
+                        return matcher;
                     }
                     if (matcher instanceof ItemStackInput input && MachineInput.inputItemMatches(input.ingredient, stack)) {
-                        return true;
+                        return matcher;
                     }
                     if (matcher instanceof DoubleMachineInput input && MachineInput.inputItemMatches(input.itemStack, stack)) {
-                        return true;
+                        return matcher;
                     }
                     if (matcher instanceof InfusionInput input && MachineInput.inputItemMatches(input.inputStack, stack)) {
-                        return true;
+                        return matcher;
                     }
                     if (matcher instanceof NucleosynthesizerInput input && MachineInput.inputItemMatches(input.getSolid(), stack)) {
-                        return true;
+                        return matcher;
                     }
                     if (matcher instanceof PressurizedInput input && MachineInput.inputItemMatches(input.getSolid(), stack)) {
-                        return true;
+                        return matcher;
                     }
                 }
-                return false;
+                return null;
+            }
+
+            private static boolean matchesInput(List<Object> matchers, ItemStack stack) {
+                return findMatchingInput(matchers, stack) != null;
+            }
+
+            @Nullable
+            private static ItemStack inputDefinition(Object matcher) {
+                if (matcher instanceof AdvancedMachineInput input) return input.itemStack;
+                if (matcher instanceof ItemStackInput input) return input.ingredient;
+                if (matcher instanceof DoubleMachineInput input) return input.itemStack;
+                if (matcher instanceof InfusionInput input) return input.inputStack;
+                if (matcher instanceof NucleosynthesizerInput input) return input.getSolid();
+                if (matcher instanceof PressurizedInput input) return input.getSolid();
+                return null;
+            }
+
+            @Nullable
+            private MachineRecipe<?, ?, ?> getCachedRecipe(MachineInput<?> input) {
+                ItemStack primary = inputStack(input);
+                if (primary.isEmpty()) return null;
+                rebuildIfNeeded();
+                if (!inputMatcherCacheable.getOrDefault(primary.getItem(), Boolean.TRUE)) return null;
+                InputMatchMemo memo = inputMatchMemo.get();
+                if (memo.generation != RecipeHandler.getGlobalRecipeVersion()) return null;
+                InputMatch match = memo.get(primary);
+                if (match == null || match.matcher == null || !input.isInstance(match.matcher) || !input.equals(match.matcher)) {
+                    return null;
+                }
+                Object recipe = recipeRegistry.get().get(match.matcher);
+                return recipe instanceof MachineRecipe<?, ?, ?> machineRecipe ? machineRecipe.copy() : null;
+            }
+
+            private static ItemStack inputStack(MachineInput<?> input) {
+                if (input instanceof AdvancedMachineInput value) return value.itemStack;
+                if (input instanceof ItemStackInput value) return value.ingredient;
+                if (input instanceof DoubleMachineInput value) return value.itemStack;
+                if (input instanceof InfusionInput value) return value.inputStack;
+                if (input instanceof NucleosynthesizerInput value) return value.getSolid();
+                if (input instanceof PressurizedInput value) return value.getSolid();
+                return ItemStack.EMPTY;
+            }
+
+            private static final class InputMatchMemo {
+                int generation = -1;
+                @Nullable
+                InputMatchKey lastKey;
+                @Nullable
+                InputMatch lastMatch;
+                final LinkedHashMap<InputMatchKey, InputMatch> matches = new LinkedHashMap<>(16, 0.75F, true) {
+                    @Override
+                    protected boolean removeEldestEntry(Map.Entry<InputMatchKey, InputMatch> eldest) {
+                        return size() > 32;
+                    }
+                };
+
+                @Nullable
+                InputMatch get(ItemStack stack) {
+                    if (lastKey != null && lastKey.matches(stack)) {
+                        return lastMatch;
+                    }
+                    InputMatchKey key = new InputMatchKey(stack);
+                    InputMatch match = matches.get(key);
+                    lastKey = key;
+                    lastMatch = match;
+                    return match;
+                }
+
+                void put(ItemStack stack, InputMatch match) {
+                    InputMatchKey key = new InputMatchKey(stack);
+                    matches.put(key, match);
+                    lastKey = key;
+                    lastMatch = match;
+                }
+            }
+
+            private static final class InputMatch {
+                final boolean result;
+                @Nullable
+                final Object matcher;
+
+                private InputMatch(boolean result, @Nullable Object matcher) {
+                    this.result = result;
+                    this.matcher = matcher;
+                }
+            }
+
+            private static final class InputMatchKey {
+                final Item item;
+                final int metadata;
+                @Nullable
+                final NBTTagCompound tag;
+                final int hashCode;
+
+                InputMatchKey(ItemStack stack) {
+                    item = stack.getItem();
+                    metadata = stack.getMetadata();
+                    tag = stack.hasTagCompound() ? stack.getTagCompound().copy() : null;
+                    hashCode = tag == null ? 31 * (31 + System.identityHashCode(item)) + metadata :
+                            Objects.hash(System.identityHashCode(item), metadata, tag);
+                }
+
+                @Override
+                public int hashCode() {
+                    return hashCode;
+                }
+
+                @Override
+                public boolean equals(Object other) {
+                    if (!(other instanceof InputMatchKey key)) return false;
+                    return item == key.item && metadata == key.metadata && Objects.equals(tag, key.tag);
+                }
+
+                boolean matches(ItemStack stack) {
+                    return item == stack.getItem() && metadata == stack.getMetadata() &&
+                            Objects.equals(tag, stack.hasTagCompound() ? stack.getTagCompound() : null);
+                }
             }
 
             private void rebuildIfNeeded() {
@@ -3537,6 +3699,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
                     return;
                 }
                 Map<Item, List<Object>> rebuiltInputMatchers = new HashMap<>();
+                Map<Item, Boolean> rebuiltInputMatcherCacheable = new HashMap<>();
                 Map<Item, List<AdvancedMachineInput>> rebuiltAdvancedInputMatchers = new HashMap<>();
                 Map<Item, List<DoubleMachineInput>> rebuiltDoubleExtraMatchers = new HashMap<>();
                 for (Object obj : recipeRegistry.get().entrySet()) {
@@ -3557,7 +3720,19 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
                         addInputMatcher(rebuiltInputMatchers, input.getSolid(), key);
                     }
                 }
+                for (Map.Entry<Item, List<Object>> entry : rebuiltInputMatchers.entrySet()) {
+                    boolean cacheable = true;
+                    for (Object matcher : entry.getValue()) {
+                        ItemStack definition = inputDefinition(matcher);
+                        if (definition == null || MachineInput.hasCustomItemMatcher(definition)) {
+                            cacheable = false;
+                            break;
+                        }
+                    }
+                    rebuiltInputMatcherCacheable.put(entry.getKey(), cacheable);
+                }
                 inputMatchers = rebuiltInputMatchers;
+                inputMatcherCacheable = rebuiltInputMatcherCacheable;
                 advancedInputMatchers = rebuiltAdvancedInputMatchers;
                 doubleExtraMatchers = rebuiltDoubleExtraMatchers;
                 recipeSize = currentRecipeSize;
@@ -3795,7 +3970,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
         void initializeRecipeTypeState(TileEntityFactory factory) {
             RecipeType type = factory.recipeType;
             factory.BASE_MAX_ENERGY = factory.maxEnergy = factory.getProcessCount() * Math.max((usesRecipeExtraEnergy() ? 1D : 0.5D) * type.getEnergyStorage(),
-                  type.getEnergyUsage());
+                    type.getEnergyUsage());
             factory.BASE_ENERGY_PER_TICK = factory.energyPerTick = type.getEnergyUsage();
             factory.upgradeComponent.setSupported(Upgrade.GAS, supportsGasUpgrade(factory));
             factory.secondaryEnergyPerTick = getSecondaryEnergyPerTick(factory);
@@ -3820,7 +3995,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
 
         int getSecondaryEnergyThisTick(TileEntityFactory factory) {
             return usesStatisticalSecondaryFuel(factory) ? factory.secondaryEnergySampler.sample(factory.secondaryEnergyPerTick)
-                  : ceilSecondaryEnergyPerTick(factory.secondaryEnergyPerTick);
+                    : ceilSecondaryEnergyPerTick(factory.secondaryEnergyPerTick);
         }
 
         double getSecondaryEnergyPerTick(TileEntityFactory factory) {
@@ -3828,10 +4003,16 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
         }
 
         void updateSecondaryUsageTracking(TileEntityFactory factory) {
-            factory.baseTotalUsage = MekanismUtils.getBaseUsage(factory, factory.BASE_TICKS_REQUIRED);
+            // Used both on recipe-type initialization and on speed/gas upgrade changes.
+            // Keep the actual sampler aligned with the upgraded secondary-fuel checks.
+            factory.gasPerTickMeanMultiplier = MekanismUtils.getGasPerTickMeanMultiplier(factory);
+            factory.baseTotalUsage = SecondaryFuelUsage.fixedTotal(factory, factory.BASE_TICKS_REQUIRED);
         }
 
         boolean hasRecipeForItemInput(TileEntityFactory factory, @Nonnull ItemStack stack) {
+            if (factory.recipeType == RecipeType.RECYCLER) {
+                return !stack.isEmpty();
+            }
             return getInputMatcherCache(factory.recipeType).hasRecipeForInput(stack);
         }
 
@@ -3904,6 +4085,10 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
         @Nullable
         @SuppressWarnings({"rawtypes", "unchecked"})
         MachineRecipe<?, ?, ?> getFactoryRecipe(TileEntityFactory factory, MachineInput<?> input) {
+            MachineRecipe<?, ?, ?> cached = getInputMatcherCache(factory.recipeType).getCachedRecipe(input);
+            if (cached != null) {
+                return cached;
+            }
             return RecipeHandler.getRecipe((MachineInput) input, (RecipeHandler.Recipe) getRecipeRegistry(factory));
         }
 
@@ -3954,7 +4139,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
 
         boolean recipeMatchesPressurizedInputs(TileEntityFactory factory, PressurizedInput input) {
             return (factory.gasTank.getGas() == null || factory.gasTank.getGas().isGasEqual(input.getGas())) &&
-                  (factory.fluidTank.getFluid() == null || factory.fluidTank.getFluid().isFluidEqual(input.getFluid()));
+                    (factory.fluidTank.getFluid() == null || factory.fluidTank.getFluid().isFluidEqual(input.getFluid()));
         }
 
         boolean hasPartialPressurizedRecipeInput(TileEntityFactory factory, ItemStack itemstack, @Nullable FluidStack fluidStack, @Nullable GasStack gasStack) {
@@ -4003,7 +4188,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
         boolean recipeMatchesPressurizedGasInsertion(TileEntityFactory factory, ItemStack itemStack, @Nullable FluidStack fluidStack, GasStack gasStack) {
             for (PressurizedInput input : RecipeHandler.Recipe.PRESSURIZED_REACTION_CHAMBER.get().keySet()) {
                 if (input.containsType(gasStack) && recipeMatchesOptionalPressurizedItem(factory, input, itemStack) &&
-                      recipeMatchesOptionalPressurizedFluid(input, fluidStack)) {
+                        recipeMatchesOptionalPressurizedFluid(input, fluidStack)) {
                     return true;
                 }
             }
@@ -4013,7 +4198,7 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
         boolean recipeMatchesPressurizedFluidInsertion(TileEntityFactory factory, ItemStack itemStack, FluidStack fluidStack, @Nullable GasStack gasStack) {
             for (PressurizedInput input : RecipeHandler.Recipe.PRESSURIZED_REACTION_CHAMBER.get().keySet()) {
                 if (input.containsType(fluidStack) && recipeMatchesOptionalPressurizedItem(factory, input, itemStack) &&
-                      recipeMatchesOptionalPressurizedGas(input, gasStack)) {
+                        recipeMatchesOptionalPressurizedGas(input, gasStack)) {
                     return true;
                 }
             }
@@ -4376,7 +4561,8 @@ public class TileEntityFactory extends TileEntityMachine implements IComputerInt
     }
 
     @Desugar
-    private record ProcessInfo(int process, @Nonnull FactoryInputInventorySlot inputSlot, @Nonnull IInventorySlot outputSlot,
+    private record ProcessInfo(int process, @Nonnull FactoryInputInventorySlot inputSlot,
+                               @Nonnull IInventorySlot outputSlot,
                                @Nullable IInventorySlot secondaryOutputSlot) {
     }
 

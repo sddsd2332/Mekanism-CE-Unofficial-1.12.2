@@ -14,7 +14,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Durable old-plan drain and new-claim intent for one plan revision change. */
+/**
+ * Durable old-plan drain and new-claim intent for one plan revision change.
+ */
+
 /**
  * QIO 处理模块中的 QIOPlanRevisionTransition 类型。
  *
@@ -22,26 +25,30 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class QIOPlanRevisionTransition {
-    public enum ClaimMode { CREATE, REASSIGN, RELEASE }
+    public enum ClaimMode {CREATE, REASSIGN, RELEASE}
+
     private static final int MAX_RESOURCES = 65_536;
     private final QIOCraftPlan pendingPlan;
     private final UUID targetClaimId;
-    @Nullable private ClaimMode claimMode;
-    @Nullable private UUID requestId;
-    @Nullable private UUID sourceClaimId;
+    @Nullable
+    private ClaimMode claimMode;
+    @Nullable
+    private UUID requestId;
+    @Nullable
+    private UUID sourceClaimId;
     private long expectedContentsRevision = -1;
     private long expectedClaimRevision = -1;
     private Map<PortableResourceDescriptor, Long> targetClaimAmounts = Collections.emptyMap();
 
     public QIOPlanRevisionTransition(@Nonnull QIOCraftPlan pendingPlan) {
         this(pendingPlan, UUID.randomUUID(), null, null, null, -1, -1,
-              Collections.emptyMap());
+                Collections.emptyMap());
     }
 
     private QIOPlanRevisionTransition(QIOCraftPlan pendingPlan, UUID targetClaimId,
-          @Nullable ClaimMode claimMode, @Nullable UUID requestId,
-          @Nullable UUID sourceClaimId, long expectedContentsRevision,
-          long expectedClaimRevision, Map<PortableResourceDescriptor, Long> targetClaimAmounts) {
+                                      @Nullable ClaimMode claimMode, @Nullable UUID requestId,
+                                      @Nullable UUID sourceClaimId, long expectedContentsRevision,
+                                      long expectedClaimRevision, Map<PortableResourceDescriptor, Long> targetClaimAmounts) {
         this.pendingPlan = Objects.requireNonNull(pendingPlan, "pendingPlan");
         this.targetClaimId = Objects.requireNonNull(targetClaimId, "targetClaimId");
         this.claimMode = claimMode;
@@ -50,34 +57,66 @@ public final class QIOPlanRevisionTransition {
         this.expectedContentsRevision = expectedContentsRevision;
         this.expectedClaimRevision = expectedClaimRevision;
         this.targetClaimAmounts = QIOProcessingNbt.copyAmounts(targetClaimAmounts, true,
-              "replan target claim amounts");
+                "replan target claim amounts");
         validateIntent();
     }
 
-    @Nonnull public QIOCraftPlan getPendingPlan() { return pendingPlan; }
-    @Nonnull public UUID getTargetClaimId() { return targetClaimId; }
-    @Nullable public ClaimMode getClaimMode() { return claimMode; }
-    @Nullable public UUID getRequestId() { return requestId; }
-    @Nullable public UUID getSourceClaimId() { return sourceClaimId; }
-    public long getExpectedContentsRevision() { return expectedContentsRevision; }
-    public long getExpectedClaimRevision() { return expectedClaimRevision; }
-    @Nonnull public Map<PortableResourceDescriptor, Long> getTargetClaimAmounts() { return targetClaimAmounts; }
-    public boolean hasClaimIntent() { return claimMode != null; }
+    @Nonnull
+    public QIOCraftPlan getPendingPlan() {
+        return pendingPlan;
+    }
+
+    @Nonnull
+    public UUID getTargetClaimId() {
+        return targetClaimId;
+    }
+
+    @Nullable
+    public ClaimMode getClaimMode() {
+        return claimMode;
+    }
+
+    @Nullable
+    public UUID getRequestId() {
+        return requestId;
+    }
+
+    @Nullable
+    public UUID getSourceClaimId() {
+        return sourceClaimId;
+    }
+
+    public long getExpectedContentsRevision() {
+        return expectedContentsRevision;
+    }
+
+    public long getExpectedClaimRevision() {
+        return expectedClaimRevision;
+    }
+
+    @Nonnull
+    public Map<PortableResourceDescriptor, Long> getTargetClaimAmounts() {
+        return targetClaimAmounts;
+    }
+
+    public boolean hasClaimIntent() {
+        return claimMode != null;
+    }
 
     public void prepareClaim(@Nonnull ClaimMode mode, @Nonnull UUID requestId,
-          @Nullable UUID sourceClaimId, long expectedContentsRevision,
-          long expectedClaimRevision,
-          @Nonnull Map<PortableResourceDescriptor, Long> targetClaimAmounts) {
+                             @Nullable UUID sourceClaimId, long expectedContentsRevision,
+                             long expectedClaimRevision,
+                             @Nonnull Map<PortableResourceDescriptor, Long> targetClaimAmounts) {
         if (hasClaimIntent()) throw new IllegalStateException("A replan claim intent is already prepared");
         this.claimMode = Objects.requireNonNull(mode, "mode");
         this.requestId = Objects.requireNonNull(requestId, "requestId");
         this.sourceClaimId = sourceClaimId;
         this.expectedContentsRevision = QIOProcessingNbt.requireNonNegative(
-              expectedContentsRevision, "expectedContentsRevision");
+                expectedContentsRevision, "expectedContentsRevision");
         this.expectedClaimRevision = QIOProcessingNbt.requireNonNegative(
-              expectedClaimRevision, "expectedClaimRevision");
+                expectedClaimRevision, "expectedClaimRevision");
         this.targetClaimAmounts = QIOProcessingNbt.copyAmounts(targetClaimAmounts, true,
-              "replan target claim amounts");
+                "replan target claim amounts");
         validateIntent();
     }
 
@@ -108,20 +147,20 @@ public final class QIOPlanRevisionTransition {
 
     @Nonnull
     public static QIOPlanRevisionTransition read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         try {
             ClaimMode mode = data.hasKey("claimMode", NBT.TAG_STRING) ?
-                  QIOProcessingNbt.readEnum(data, "claimMode", ClaimMode.class) : null;
+                    QIOProcessingNbt.readEnum(data, "claimMode", ClaimMode.class) : null;
             return new QIOPlanRevisionTransition(
-                  QIOCraftPlan.read(data.getCompoundTag("pendingPlan")),
-                  QIOProcessingNbt.readUUID(data, "targetClaimId"), mode,
-                  mode == null ? null : QIOProcessingNbt.readUUID(data, "requestId"),
-                  data.hasKey("sourceClaimId", NBT.TAG_STRING) ?
-                        QIOProcessingNbt.readUUID(data, "sourceClaimId") : null,
-                  mode == null ? -1 : data.getLong("expectedContentsRevision"),
-                  mode == null ? -1 : data.getLong("expectedClaimRevision"),
-                  mode == null ? Collections.emptyMap() :
-                        QIOProcessingNbt.readAmounts(data, "targetClaimAmounts", MAX_RESOURCES));
+                    QIOCraftPlan.read(data.getCompoundTag("pendingPlan")),
+                    QIOProcessingNbt.readUUID(data, "targetClaimId"), mode,
+                    mode == null ? null : QIOProcessingNbt.readUUID(data, "requestId"),
+                    data.hasKey("sourceClaimId", NBT.TAG_STRING) ?
+                            QIOProcessingNbt.readUUID(data, "sourceClaimId") : null,
+                    mode == null ? -1 : data.getLong("expectedContentsRevision"),
+                    mode == null ? -1 : data.getLong("expectedClaimRevision"),
+                    mode == null ? Collections.emptyMap() :
+                            QIOProcessingNbt.readAmounts(data, "targetClaimAmounts", MAX_RESOURCES));
         } catch (QIOProcessingDataException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -132,7 +171,7 @@ public final class QIOPlanRevisionTransition {
     private void validateIntent() {
         if (claimMode == null) {
             if (requestId != null || sourceClaimId != null || expectedContentsRevision != -1 ||
-                  expectedClaimRevision != -1 || !targetClaimAmounts.isEmpty()) {
+                    expectedClaimRevision != -1 || !targetClaimAmounts.isEmpty()) {
                 throw new IllegalArgumentException("Unprepared replan transition contains claim intent data");
             }
             return;
@@ -141,7 +180,7 @@ public final class QIOPlanRevisionTransition {
             throw new IllegalArgumentException("Prepared replan transition has an incomplete claim intent");
         }
         if (claimMode == ClaimMode.REASSIGN && sourceClaimId == null ||
-              claimMode != ClaimMode.REASSIGN && sourceClaimId != null) {
+                claimMode != ClaimMode.REASSIGN && sourceClaimId != null) {
             throw new IllegalArgumentException("Replan claim source does not match its mode");
         }
         if (claimMode != ClaimMode.RELEASE && targetClaimAmounts.isEmpty()) {

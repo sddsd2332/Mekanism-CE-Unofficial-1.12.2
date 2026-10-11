@@ -5,7 +5,10 @@ import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import mekanism.api.*;
 import mekanism.common.Mekanism;
 import mekanism.common.Upgrade;
-import mekanism.common.base.*;
+import mekanism.common.base.IComparatorSupport;
+import mekanism.common.base.IRedstoneControl;
+import mekanism.common.base.ISustainedTank;
+import mekanism.common.base.IUpgradeTile;
 import mekanism.common.block.states.BlockStateMachine;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.capabilities.Capabilities;
@@ -99,7 +102,7 @@ public class TileEntityFluidicPlenisher extends TileEntityElectricBlock implemen
     protected IEnergyContainerHolder getInitialEnergyContainers(IContentsListener listener) {
         EnergyContainerHelper builder = createEnergyContainerHelper();
         builder.addContainer(energyContainer = MachineEnergyContainer.input(this::getEnergy, this::setEnergy, this::getMaxEnergy, () -> energyPerTick, listener),
-              RelativeSide.BACK);
+                RelativeSide.BACK);
         return builder.build();
     }
 
@@ -123,7 +126,7 @@ public class TileEntityFluidicPlenisher extends TileEntityElectricBlock implemen
 
         double clientEnergyUsed = 0;
         if (MekanismUtils.canFunction(this) && fluidTank.getFluid() != null && fluidTank.getFluid().getFluid().canBePlacedInWorld() &&
-              Double.compare(energyContainer.extract(energyPerTick, Action.SIMULATE, AutomationType.INTERNAL), energyPerTick) == 0) {
+                Double.compare(energyContainer.extract(energyPerTick, Action.SIMULATE, AutomationType.INTERNAL), energyPerTick) == 0) {
             if (!finishedCalc) {
                 clientEnergyUsed = energyContainer.extract(energyPerTick, Action.EXECUTE, AutomationType.INTERNAL);
             }
@@ -419,10 +422,16 @@ public class TileEntityFluidicPlenisher extends TileEntityElectricBlock implemen
     }
 
     @Override
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return type == mekanism.api.transmitters.TransmissionType.FLUID;
+    }
+
+    @Override
     public int getRedstoneLevel() {
         return MekanismUtils.redstoneLevelFromContents(fluidTank.getFluidAmount(), fluidTank.getCapacity());
     }
-public boolean usedEnergy() {
+
+    public boolean usedEnergy() {
         return usedEnergy;
     }
 

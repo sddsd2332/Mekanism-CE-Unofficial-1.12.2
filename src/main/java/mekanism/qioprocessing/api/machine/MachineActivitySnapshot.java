@@ -8,7 +8,10 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Immutable server-authoritative progress sample for one machine lane. */
+/**
+ * Immutable server-authoritative progress sample for one machine lane.
+ */
+
 /**
  * QIO 处理模块中的 MachineActivitySnapshot 类型。
  *
@@ -61,7 +64,7 @@ public final class MachineActivitySnapshot {
      * @param blockedReason 阻塞原因，可为 null
      */
     public MachineActivitySnapshot(long laneId, @Nullable UUID operationId, @Nonnull String recipeKey,
-          @Nonnull State state, long currentTick, long totalTicks, long sampledAt, @Nullable String blockedReason) {
+                                   @Nonnull State state, long currentTick, long totalTicks, long sampledAt, @Nullable String blockedReason) {
         if (laneId < 0 || currentTick < 0 || totalTicks < 0 || sampledAt < 0 || currentTick > totalTicks && totalTicks > 0) {
             throw new IllegalArgumentException("Invalid machine activity counters");
         }
@@ -153,11 +156,11 @@ public final class MachineActivitySnapshot {
         Objects.requireNonNull(data, "Activity snapshot data cannot be null");
         try {
             UUID operationId = data.hasKey(OPERATION_ID, NBT.TAG_STRING) ?
-                  parseUUID(data.getString(OPERATION_ID)) : null;
+                    parseUUID(data.getString(OPERATION_ID)) : null;
             return new MachineActivitySnapshot(data.getLong(LANE_ID), operationId, data.getString(RECIPE_KEY),
-                  State.valueOf(data.getString(STATE)), data.getLong(CURRENT_TICK), data.getLong(TOTAL_TICKS),
-                  data.getLong(SAMPLED_AT),
-                  data.hasKey(BLOCKED_REASON, NBT.TAG_STRING) ? data.getString(BLOCKED_REASON) : null);
+                    State.valueOf(data.getString(STATE)), data.getLong(CURRENT_TICK), data.getLong(TOTAL_TICKS),
+                    data.getLong(SAMPLED_AT),
+                    data.hasKey(BLOCKED_REASON, NBT.TAG_STRING) ? data.getString(BLOCKED_REASON) : null);
         } catch (RuntimeException e) {
             throw new IllegalArgumentException("Invalid machine activity snapshot", e);
         }
@@ -180,8 +183,8 @@ public final class MachineActivitySnapshot {
             return false;
         }
         return laneId == other.laneId && currentTick == other.currentTick && totalTicks == other.totalTicks &&
-              sampledAt == other.sampledAt && Objects.equals(operationId, other.operationId) &&
-              recipeKey.equals(other.recipeKey) && state == other.state && Objects.equals(blockedReason, other.blockedReason);
+                sampledAt == other.sampledAt && Objects.equals(operationId, other.operationId) &&
+                recipeKey.equals(other.recipeKey) && state == other.state && Objects.equals(blockedReason, other.blockedReason);
     }
 
     @Override

@@ -313,12 +313,12 @@ public class MekRecipesCommand extends CraftTweakerCommand {
                 for (FarmRecipe recipe : Recipe.ORGANIC_FARM.get().values()) {
                     List<FarmChanceOutput> chanceOutputs = recipe.getOutput().getChanceOutputs();
                     String itemOutputs = chanceOutputs.stream()
-                          .map(FarmChanceOutput::getOutput)
-                          .map(RecipeInfoHelper::getItemName)
-                          .collect(Collectors.joining(", ", "[", "]"));
+                            .map(FarmChanceOutput::getOutput)
+                            .map(RecipeInfoHelper::getItemName)
+                            .collect(Collectors.joining(", ", "[", "]"));
                     String chances = chanceOutputs.stream()
-                          .map(output -> Double.toString(output.getChance()))
-                          .collect(Collectors.joining(", ", "[", "]"));
+                            .map(output -> Double.toString(output.getChance()))
+                            .collect(Collectors.joining(", ", "[", "]"));
                     CraftTweakerAPI.logCommand(String.format("mods.mekanism.organicfarm.addRecipe(%s, %s, %s, %s, %s)",
                             RecipeInfoHelper.getItemName(recipe.getInput().itemStack),
                             recipe.getInput().isGasInput() ? RecipeInfoHelper.getGasName(recipe.getInput().gasInput) : RecipeInfoHelper.getFluidName(recipe.getInput().fluidInput),

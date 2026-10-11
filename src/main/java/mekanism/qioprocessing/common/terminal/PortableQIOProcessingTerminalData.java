@@ -14,7 +14,10 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Versioned identity and binding data owned by one portable processing terminal stack. */
+/**
+ * Versioned identity and binding data owned by one portable processing terminal stack.
+ */
+
 /**
  * QIO 处理模块中的 PortableQIOProcessingTerminalData 类型。
  *
@@ -36,9 +39,9 @@ public final class PortableQIOProcessingTerminalData {
     private final boolean shiftClickIntoFrequency;
 
     private PortableQIOProcessingTerminalData(@Nonnull UUID terminalUUID, long generation,
-          @Nonnull UUID ownerUUID, @Nonnull SecurityMode securityMode,
-          @Nullable QIOFrequencyReference frequencyReference,
-          boolean shiftClickIntoFrequency) {
+                                              @Nonnull UUID ownerUUID, @Nonnull SecurityMode securityMode,
+                                              @Nullable QIOFrequencyReference frequencyReference,
+                                              boolean shiftClickIntoFrequency) {
         this.terminalUUID = Objects.requireNonNull(terminalUUID, "terminalUUID");
         this.generation = QIOProcessingNbt.requireNonNegative(generation, "itemDataGeneration");
         this.ownerUUID = Objects.requireNonNull(ownerUUID, "ownerUUID");
@@ -51,7 +54,7 @@ public final class PortableQIOProcessingTerminalData {
     @Nonnull
     public static PortableQIOProcessingTerminalData create(@Nonnull UUID ownerUUID) {
         return new PortableQIOProcessingTerminalData(UUID.randomUUID(), 0,
-              ownerUUID, SecurityMode.PUBLIC, null, true);
+                ownerUUID, SecurityMode.PUBLIC, null, true);
     }
 
     @Nonnull
@@ -95,27 +98,27 @@ public final class PortableQIOProcessingTerminalData {
     public PortableQIOProcessingTerminalData withSecurity(@Nonnull SecurityMode updatedMode) {
         Objects.requireNonNull(updatedMode, "updatedMode");
         return securityMode == updatedMode ? this :
-              updated(ownerUUID, updatedMode, frequencyReference, shiftClickIntoFrequency);
+                updated(ownerUUID, updatedMode, frequencyReference, shiftClickIntoFrequency);
     }
 
     @Nonnull
     public PortableQIOProcessingTerminalData withFrequency(
-          @Nullable QIOFrequencyReference updatedReference) {
+            @Nullable QIOFrequencyReference updatedReference) {
         return Objects.equals(frequencyReference, updatedReference) ? this :
-              updated(ownerUUID, securityMode, updatedReference, shiftClickIntoFrequency);
+                updated(ownerUUID, securityMode, updatedReference, shiftClickIntoFrequency);
     }
 
     @Nonnull
     public PortableQIOProcessingTerminalData withShiftClickIntoFrequency(boolean value) {
         return shiftClickIntoFrequency == value ? this :
-              updated(ownerUUID, securityMode, frequencyReference, value);
+                updated(ownerUUID, securityMode, frequencyReference, value);
     }
 
     /** Advances generation for a retained payload changed by another terminal component. */
     @Nonnull
     public PortableQIOProcessingTerminalData advanceGeneration() {
         return updated(ownerUUID, securityMode, frequencyReference,
-              shiftClickIntoFrequency);
+                shiftClickIntoFrequency);
     }
 
     public void writeTo(@Nonnull ItemStack stack) {
@@ -124,9 +127,9 @@ public final class PortableQIOProcessingTerminalData {
             throw new IllegalArgumentException("Portable terminal stack cannot be empty");
         }
         NBTTagCompound root = stack.hasTagCompound() ? stack.getTagCompound() :
-              new NBTTagCompound();
+                new NBTTagCompound();
         NBTTagCompound data = root.hasKey(ROOT_KEY, NBT.TAG_COMPOUND) ?
-              root.getCompoundTag(ROOT_KEY).copy() : new NBTTagCompound();
+                root.getCompoundTag(ROOT_KEY).copy() : new NBTTagCompound();
         data.setInteger("portableItemSchemaVersion", SCHEMA_VERSION);
         QIOProcessingNbt.writeUUID(data, "portableTerminalUUID", terminalUUID);
         data.setLong("itemDataGeneration", generation);
@@ -144,38 +147,38 @@ public final class PortableQIOProcessingTerminalData {
 
     @Nullable
     public static PortableQIOProcessingTerminalData read(@Nonnull ItemStack stack)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         Objects.requireNonNull(stack, "stack");
         if (stack.isEmpty() || !stack.hasTagCompound() ||
-            !stack.getTagCompound().hasKey(ROOT_KEY, NBT.TAG_COMPOUND)) {
+                !stack.getTagCompound().hasKey(ROOT_KEY, NBT.TAG_COMPOUND)) {
             return null;
         }
         NBTTagCompound data = stack.getTagCompound().getCompoundTag(ROOT_KEY);
         try {
             if (!data.hasKey("portableItemSchemaVersion", NBT.TAG_INT) ||
-                data.getInteger("portableItemSchemaVersion") != SCHEMA_VERSION) {
+                    data.getInteger("portableItemSchemaVersion") != SCHEMA_VERSION) {
                 throw new QIOProcessingDataException("Unsupported portable QIO terminal schema " +
-                      data.getInteger("portableItemSchemaVersion"));
+                        data.getInteger("portableItemSchemaVersion"));
             }
             if (!data.hasKey("portableTerminalUUID", NBT.TAG_STRING) ||
-                !data.hasKey("itemDataGeneration", NBT.TAG_LONG) ||
-                !data.hasKey("ownerUUID", NBT.TAG_STRING) ||
-                !data.hasKey("securityMode", NBT.TAG_STRING) ||
-                !data.hasKey("shiftClickIntoFrequency", NBT.TAG_BYTE)) {
+                    !data.hasKey("itemDataGeneration", NBT.TAG_LONG) ||
+                    !data.hasKey("ownerUUID", NBT.TAG_STRING) ||
+                    !data.hasKey("securityMode", NBT.TAG_STRING) ||
+                    !data.hasKey("shiftClickIntoFrequency", NBT.TAG_BYTE)) {
                 throw new QIOProcessingDataException("Portable QIO terminal identity is incomplete");
             }
             UUID terminalUUID = QIOProcessingNbt.readUUID(data, "portableTerminalUUID");
             long generation = QIOProcessingNbt.requireNonNegative(
-                  data.getLong("itemDataGeneration"), "itemDataGeneration");
+                    data.getLong("itemDataGeneration"), "itemDataGeneration");
             UUID ownerUUID = QIOProcessingNbt.readUUID(data, "ownerUUID");
             SecurityMode securityMode = QIOProcessingNbt.readEnum(data, "securityMode",
-                  SecurityMode.class);
+                    SecurityMode.class);
             QIOFrequencyReference reference = data.hasKey("frequencyReference", NBT.TAG_COMPOUND) ?
-                  QIOFrequencyReference.read(data.getCompoundTag("frequencyReference")) : null;
+                    QIOFrequencyReference.read(data.getCompoundTag("frequencyReference")) : null;
             validateCraftingWindows(data);
             boolean shiftClick = data.getBoolean("shiftClickIntoFrequency");
             return new PortableQIOProcessingTerminalData(terminalUUID, generation,
-                  ownerUUID, securityMode, reference, shiftClick);
+                    ownerUUID, securityMode, reference, shiftClick);
         } catch (QIOProcessingDataException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -185,13 +188,13 @@ public final class PortableQIOProcessingTerminalData {
 
     @Nonnull
     private PortableQIOProcessingTerminalData updated(UUID updatedOwnerUUID,
-          SecurityMode updatedMode, @Nullable QIOFrequencyReference updatedReference,
-          boolean updatedShiftClick) {
+                                                      SecurityMode updatedMode, @Nullable QIOFrequencyReference updatedReference,
+                                                      boolean updatedShiftClick) {
         if (generation == Long.MAX_VALUE) {
             throw new IllegalStateException("Portable QIO terminal generation exhausted");
         }
         return new PortableQIOProcessingTerminalData(terminalUUID, generation + 1,
-              updatedOwnerUUID, updatedMode, updatedReference, updatedShiftClick);
+                updatedOwnerUUID, updatedMode, updatedReference, updatedShiftClick);
     }
 
     private static void validateReference(@Nullable QIOFrequencyReference reference) {
@@ -200,13 +203,13 @@ public final class PortableQIOProcessingTerminalData {
         }
         String name = reference.getFrequencyName();
         if (name.isEmpty() || name.length() > MAX_FREQUENCY_NAME_LENGTH ||
-            reference.getBindingPlayerUUID() == null) {
+                reference.getBindingPlayerUUID() == null) {
             throw new IllegalArgumentException("Portable terminal frequency reference is invalid");
         }
     }
 
     private static void validateCraftingWindows(NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         if (!data.hasKey("craftingWindows")) {
             return;
         }

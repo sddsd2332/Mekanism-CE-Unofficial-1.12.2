@@ -5,16 +5,16 @@ import net.minecraft.client.model.ModelBox;
 import net.minecraft.client.model.ModelRenderer;
 
 public class ModelMekaToolRight extends ModelBase {
-     ModelRenderer mekatool_right;
-     ModelRenderer mekatool_right_arm_barrel4_r1;
-     ModelRenderer mekatool_right_arm_barrel3_r1;
-     ModelRenderer mekatool_right_arm_barrel_sight_led_r1;
-     ModelRenderer mekatool_right_arm_barrel_scope_r1;
-     ModelRenderer mekatool_right_arm_barrel_heatsink_r1;
-     ModelRenderer mekatool_right_arm_barrel2_r1;
-     ModelRenderer mekatool_right_arm_cartridge2_r1;
-     ModelRenderer mekatool_right_arm_cartridge1_r1;
-     ModelRenderer override_mekatool_chest_right_arm_exo_brace4_r1;
+    ModelRenderer mekatool_right;
+    ModelRenderer mekatool_right_arm_barrel4_r1;
+    ModelRenderer mekatool_right_arm_barrel3_r1;
+    ModelRenderer mekatool_right_arm_barrel_sight_led_r1;
+    ModelRenderer mekatool_right_arm_barrel_scope_r1;
+    ModelRenderer mekatool_right_arm_barrel_heatsink_r1;
+    ModelRenderer mekatool_right_arm_barrel2_r1;
+    ModelRenderer mekatool_right_arm_cartridge2_r1;
+    ModelRenderer mekatool_right_arm_cartridge1_r1;
+    ModelRenderer override_mekatool_chest_right_arm_exo_brace4_r1;
 
     public ModelMekaToolRight() {
         textureWidth = 64;

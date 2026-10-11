@@ -5,9 +5,9 @@ import mekanism.api.Coord4D;
 import mekanism.api.IContentsListener;
 import mekanism.api.MekanismAPI;
 import mekanism.api.TileNetworkList;
-import mekanism.common.capabilities.holder.heat.IHeatCapacitorHolder;
 import mekanism.client.sound.SoundHandler;
 import mekanism.common.Mekanism;
+import mekanism.common.capabilities.holder.heat.IHeatCapacitorHolder;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.lib.radiation.RadiationManager;
 import mekanism.common.multiblock.MultiblockCache;
@@ -113,7 +113,8 @@ public class TileEntityFissionReactorCasing extends TileEntityMultiblock<Synchro
             return;
         }
         if (!RadiationManager.INSTANCE.canCreateMeltdown(world)) {
-            if (world.getTotalWorldTime() % 1200 == 0) Mekanism.logger.error("Cannot release fission contents: world radiation/meltdown attachment unavailable at {}", pos);
+            if (world.getTotalWorldTime() % 1200 == 0)
+                Mekanism.logger.error("Cannot release fission contents: world radiation/meltdown attachment unavailable at {}", pos);
             return;
         }
         BlockPos minPos = structure.minLocation.getPos();

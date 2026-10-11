@@ -1,10 +1,10 @@
 package mekanism.common.lib.radiation;
 
 import baubles.api.BaublesApi;
-import mekanism.api.radiation.IRadiationSource;
-import mekanism.api.radiation.capability.IRadiationShielding;
 import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasStack;
+import mekanism.api.radiation.IRadiationSource;
+import mekanism.api.radiation.capability.IRadiationShielding;
 import mekanism.common.Mekanism;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.config.MekanismConfig;
@@ -20,7 +20,7 @@ public final class RadiationUtil {
 
     private static final int TICKS_PER_SECOND = 20;
     private static final EntityEquipmentSlot[] ARMOR_SLOTS = {
-          EntityEquipmentSlot.HEAD, EntityEquipmentSlot.CHEST, EntityEquipmentSlot.LEGS, EntityEquipmentSlot.FEET
+            EntityEquipmentSlot.HEAD, EntityEquipmentSlot.CHEST, EntityEquipmentSlot.LEGS, EntityEquipmentSlot.FEET
     };
 
     private RadiationUtil() {
@@ -28,7 +28,7 @@ public final class RadiationUtil {
 
     public static long getDecayTime(double magnitude, boolean source) {
         double decayRate = source ? MekanismConfig.current().general.radiationSourceDecayRate.val()
-                                  : MekanismConfig.current().general.radiationTargetDecayRate.val();
+                : MekanismConfig.current().general.radiationTargetDecayRate.val();
         return getDecayTime(magnitude, decayRate);
     }
 
@@ -104,7 +104,7 @@ public final class RadiationUtil {
 
     public static boolean canDecayInWasteBarrel(GasStack stack) {
         return stack != null && stack.getGas() != null && stack.getGas().isRadiation() &&
-               !isWasteBarrelDecayBlacklisted(stack.getGas());
+                !isWasteBarrelDecayBlacklisted(stack.getGas());
     }
 
     public static boolean isWasteBarrelDecayBlacklisted(Gas gas) {

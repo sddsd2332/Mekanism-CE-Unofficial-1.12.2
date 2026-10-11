@@ -4,7 +4,10 @@ import mekanism.qioprocessing.api.resource.PortableResourceDescriptor;
 
 import javax.annotation.Nonnull;
 
-/** Resource-kind filter used by the smart-processing production catalog. */
+/**
+ * Resource-kind filter used by the smart-processing production catalog.
+ */
+
 /**
  * QIO 处理模块中的 QIOSmartProcessingResourceFilter 类型。
  *

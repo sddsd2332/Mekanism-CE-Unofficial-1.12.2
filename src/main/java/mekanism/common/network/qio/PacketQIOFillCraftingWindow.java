@@ -21,7 +21,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-/** JEI-to-server crafting transfer request. */
+/**
+ * JEI-to-server crafting transfer request.
+ */
 public class PacketQIOFillCraftingWindow implements IMessageHandler<PacketQIOFillCraftingWindow.Message, IMessage> {
 
     private static final int MAX_TARGETS = 9;
@@ -72,7 +74,7 @@ public class PacketQIOFillCraftingWindow implements IMessageHandler<PacketQIOFil
         }
 
         public Message(int windowId, @Nullable ResourceLocation recipeId, boolean maxTransfer,
-              Byte2ObjectMap<List<SingularHashedItemSource>> sources) {
+                       Byte2ObjectMap<List<SingularHashedItemSource>> sources) {
             this.windowId = windowId;
             this.recipeId = recipeId;
             this.maxTransfer = maxTransfer;
@@ -158,14 +160,16 @@ public class PacketQIOFillCraftingWindow implements IMessageHandler<PacketQIOFil
         }
     }
 
-    /** Source-compatible name used by the original 1.12 QIO port. */
+    /**
+     * Source-compatible name used by the original 1.12 QIO port.
+     */
     public static class QIOFillCraftingWindowMessage extends Message {
         public QIOFillCraftingWindowMessage() {
             super();
         }
 
         public QIOFillCraftingWindowMessage(int windowId, @Nullable ResourceLocation recipeId, boolean maxTransfer,
-              Byte2ObjectMap<List<SingularHashedItemSource>> sources) {
+                                            Byte2ObjectMap<List<SingularHashedItemSource>> sources) {
             super(windowId, recipeId, maxTransfer, sources);
         }
     }

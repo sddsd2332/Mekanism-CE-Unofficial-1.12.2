@@ -79,7 +79,7 @@ public class RenderTickHandler {
     public static void tickRadiationOverlay(EntityPlayer player) {
         double severity = 0;
         if (RadiationManager.INSTANCE.isRadiationEnabled() && MekanismUtils.isPlayingMode(player) &&
-            player.hasCapability(Capabilities.RADIATION_ENTITY_CAPABILITY, null)) {
+                player.hasCapability(Capabilities.RADIATION_ENTITY_CAPABILITY, null)) {
             IRadiationEntity radiation = player.getCapability(Capabilities.RADIATION_ENTITY_CAPABILITY, null);
             if (radiation != null) {
                 severity = RadiationManager.RadiationScale.getScaledDoseSeverity(radiation.getRadiation()) * 0.8;

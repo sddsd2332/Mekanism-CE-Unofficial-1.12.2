@@ -1,7 +1,7 @@
 package mekanism.generators.common;
 
-import mekanism.common.Mekanism;
 import mekanism.common.CommonProxy;
+import mekanism.common.Mekanism;
 import mekanism.common.base.IGuiProvider;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.inventory.container.ContainerNull;

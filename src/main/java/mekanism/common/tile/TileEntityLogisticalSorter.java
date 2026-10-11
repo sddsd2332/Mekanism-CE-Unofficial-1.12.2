@@ -136,7 +136,7 @@ public class TileEntityLogisticalSorter extends TileEntityEffectsBlock implement
             delayTicks = 10;
         }
         if (!playersUsing.isEmpty()) {
-            playersUsing.forEach(player ->  Mekanism.packetHandler.sendTo(new TileEntityMessage(this, getGenericPacket(new TileNetworkList())), (EntityPlayerMP) player));
+            playersUsing.forEach(player -> Mekanism.packetHandler.sendTo(new TileEntityMessage(this, getGenericPacket(new TileNetworkList())), (EntityPlayerMP) player));
         }
 
         int newRedstoneLevel = getRedstoneLevel();
@@ -514,7 +514,7 @@ public class TileEntityLogisticalSorter extends TileEntityEffectsBlock implement
         container.track(SyncableBoolean.create(() -> roundRobin, value -> roundRobin = value));
         container.track(SyncableBoolean.create(() -> singleItem, value -> singleItem = value));
         container.track(SyncableInt.create(() -> color == null ? -1 : TransporterUtils.colors.indexOf(color),
-              value -> color = MekanismUtils.getByIndex(TransporterUtils.colors, value, null)));
+                value -> color = MekanismUtils.getByIndex(TransporterUtils.colors, value, null)));
         filterManager.addContainerTrackers(container, FilterListType.TRANSPORTER, TransporterFilter::write);
     }
 
@@ -618,7 +618,7 @@ public class TileEntityLogisticalSorter extends TileEntityEffectsBlock implement
                 return new Object[]{"Single-item mode set to " + singleItem};
             }
         }
-        playersUsing.forEach(player ->  Mekanism.packetHandler.sendTo(new TileEntityMessage(this, getGenericPacket(new TileNetworkList())), (EntityPlayerMP) player));
+        playersUsing.forEach(player -> Mekanism.packetHandler.sendTo(new TileEntityMessage(this, getGenericPacket(new TileNetworkList())), (EntityPlayerMP) player));
         return null;
     }
 
@@ -657,6 +657,16 @@ public class TileEntityLogisticalSorter extends TileEntityEffectsBlock implement
     @Override
     public int getRedstoneLevel() {
         return isActive ? 15 : 0;
+    }
+
+    @Override
+    public int getCurrentRedstoneLevel() {
+        return getRedstoneLevel();
+    }
+
+    @Override
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return false;
     }
 
 

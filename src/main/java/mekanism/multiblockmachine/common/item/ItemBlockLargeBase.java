@@ -5,26 +5,22 @@ import mekanism.client.MekKeyHandler;
 import mekanism.client.MekanismClient;
 import mekanism.client.MekanismKeyHandler;
 import mekanism.common.Upgrade;
-import mekanism.common.base.*;
+import mekanism.common.base.ISustainedInventory;
+import mekanism.common.base.ISustainedTank;
 import mekanism.common.config.MekanismConfig;
-import mekanism.common.item.interfaces.IItemSustainedInventory;
 import mekanism.common.item.interfaces.IItemBlockPlacementData;
+import mekanism.common.item.interfaces.IItemSustainedInventory;
 import mekanism.common.security.ISecurityItem;
 import mekanism.common.security.ISecurityTile;
-import mekanism.common.tile.prefab.TileEntityBasicBlock;
-import mekanism.common.util.ItemDataUtils;
-import mekanism.common.util.LangUtils;
-import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.MekanismPlacementData;
-import mekanism.common.util.SecurityUtils;
+import mekanism.common.util.*;
 import mekanism.multiblockmachine.common.MekanismMultiblockMachine;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.settings.GameSettings;
 import net.minecraft.client.util.ITooltipFlag;
-import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagList;
@@ -76,7 +72,7 @@ public abstract class ItemBlockLargeBase extends ItemBlock implements IItemSusta
                     }
                 }
             }
-            addInformation(itemstack,list,world,flag);
+            addInformation(itemstack, list, world, flag);
             if (itemstack.getItem() instanceof ISustainedTank tank && itemstack.getCount() <= 1) {
                 FluidStack fluidStack = tank.getFluidStack(itemstack);
                 if (fluidStack != null && itemstack.getCount() <= 1) {
@@ -96,7 +92,7 @@ public abstract class ItemBlockLargeBase extends ItemBlock implements IItemSusta
     }
 
     @SideOnly(Side.CLIENT)
-    public void addInformation(ItemStack itemstack,List<String> list,World world,ITooltipFlag flag){
+    public void addInformation(ItemStack itemstack, List<String> list, World world, ITooltipFlag flag) {
     }
 
     @Override
@@ -114,7 +110,7 @@ public abstract class ItemBlockLargeBase extends ItemBlock implements IItemSusta
 
     @Override
     public void restorePlacementData(@Nonnull ItemStack stack, @Nonnull EntityLivingBase placer, @Nonnull World world, @Nonnull BlockPos pos,
-          @Nonnull TileEntity tileEntity) {
+                                     @Nonnull TileEntity tileEntity) {
         MekanismPlacementData.restoreCommon(stack, placer, tileEntity);
         addOtherMachine(tileEntity, stack, world);
     }

@@ -16,7 +16,6 @@ public interface IntContainerInteraction<TYPE> {
      * @param amount    Amount being adjusted by the interaction.
      * @param side      The side we are interacting with the handler from (null for internal).
      * @param action    The action to perform, either {@link Action#EXECUTE} or {@link Action#SIMULATE}.
-     *
      * @return Result of the interaction, for example the result of an extraction.
      */
     @Nullable

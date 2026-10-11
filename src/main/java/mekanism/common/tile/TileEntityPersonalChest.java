@@ -36,7 +36,7 @@ public class TileEntityPersonalChest extends TileEntityContainerBlock implements
     protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
         InventorySlotHelper builder = createInventorySlotHelper();
         BiPredicate<ItemStack, AutomationType> canInteract = (stack, automationType) ->
-              automationType == AutomationType.MANUAL || SecurityUtils.getSecurity(this, Side.SERVER) == SecurityMode.PUBLIC;
+                automationType == AutomationType.MANUAL || SecurityUtils.getSecurity(this, Side.SERVER) == SecurityMode.PUBLIC;
         for (int slotY = 0; slotY < 6; slotY++) {
             for (int slotX = 0; slotX < 9; slotX++) {
                 builder.addSlot(BasicInventorySlot.at(canInteract, canInteract, listener, 8 + slotX * 18, 18 + slotY * 18));

@@ -20,6 +20,7 @@ public class MultiblockMachineGuiFactory implements IModGuiFactory {
     public Set<RuntimeOptionCategoryElement> runtimeGuiCategories() {
         return null;
     }
+
     @Override
     public boolean hasConfigGui() {
         return true;

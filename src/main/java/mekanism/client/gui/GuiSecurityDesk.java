@@ -77,21 +77,21 @@ public class GuiSecurityDesk extends GuiMekanismTile<TileEntitySecurityDesk, Con
         scrollList = addButton(new GuiTextScrollList(this, 13, 13, 122, 42));
         removeButton = addButton(new TranslationButton(this, 13, 81, 122, 20, mekanism.common.MekanismLang.BUTTON_REMOVE, this::removeSelected));
         trustedField = addButton(new GuiTextField(this, 1, 35, 68, 99, 11)
-              .setMaxLength(MAX_LENGTH)
-              .setBackground(BackgroundType.INNER_SCREEN)
-              .setInputValidator(this::isValidTextboxInput)
-              .setEnterHandler(this::setTrusted)
-              .addCheckmarkButton(this::setTrusted));
+                .setMaxLength(MAX_LENGTH)
+                .setBackground(BackgroundType.INNER_SCREEN)
+                .setInputValidator(this::isValidTextboxInput)
+                .setEnterHandler(this::setTrusted)
+                .addCheckmarkButton(this::setTrusted));
         publicButton = addButton(new MekanismImageButton(this, 13, 113, 40, 16, 40, 16, getButtonLocation("public"),
-              () -> setSecurityMode(SecurityMode.PUBLIC)).setTooltip(new TextComponentString(LangUtils.localize("gui.publicMode"))));
+                () -> setSecurityMode(SecurityMode.PUBLIC)).setTooltip(new TextComponentString(LangUtils.localize("gui.publicMode"))));
         privateButton = addButton(new MekanismImageButton(this, 54, 113, 40, 16, 40, 16, getButtonLocation("private"),
-              () -> setSecurityMode(SecurityMode.PRIVATE)).setTooltip(new TextComponentString(LangUtils.localize("gui.privateMode"))));
+                () -> setSecurityMode(SecurityMode.PRIVATE)).setTooltip(new TextComponentString(LangUtils.localize("gui.privateMode"))));
         trustedButton = addButton(new MekanismImageButton(this, 95, 113, 40, 16, 40, 16, getButtonLocation("trusted"),
-              () -> setSecurityMode(SecurityMode.TRUSTED)).setTooltip(new TextComponentString(LangUtils.localize("gui.trustedMode"))));
+                () -> setSecurityMode(SecurityMode.TRUSTED)).setTooltip(new TextComponentString(LangUtils.localize("gui.trustedMode"))));
         overrideButton = addButton(new TooltipToggleButton(this, 146, 59, 16, 16, getButtonLocation("exclamation"),
-              () -> tileEntity.frequency != null && tileEntity.frequency.override, this::toggleOverride,
-              new TextComponentString(LangUtils.localize("gui.securityOverride") + ": " + LangUtils.transOnOff(true)),
-              new TextComponentString(LangUtils.localize("gui.securityOverride") + ": " + LangUtils.transOnOff(false))));
+                () -> tileEntity.frequency != null && tileEntity.frequency.override, this::toggleOverride,
+                new TextComponentString(LangUtils.localize("gui.securityOverride") + ": " + LangUtils.transOnOff(true)),
+                new TextComponentString(LangUtils.localize("gui.securityOverride") + ": " + LangUtils.transOnOff(false))));
         updateButtons();
     }
 
@@ -105,7 +105,7 @@ public class GuiSecurityDesk extends GuiMekanismTile<TileEntitySecurityDesk, Con
 
     private boolean isTextboxKey(int keyCode) {
         return keyCode == Keyboard.KEY_BACK || keyCode == Keyboard.KEY_DELETE || keyCode == Keyboard.KEY_LEFT || keyCode == Keyboard.KEY_RIGHT ||
-              keyCode == Keyboard.KEY_HOME || keyCode == Keyboard.KEY_END;
+                keyCode == Keyboard.KEY_HOME || keyCode == Keyboard.KEY_END;
     }
 
     private void setTrusted() {
@@ -196,18 +196,18 @@ public class GuiSecurityDesk extends GuiMekanismTile<TileEntitySecurityDesk, Con
     protected void drawForegroundText(int mouseX, int mouseY) {
         drawTitleText(new TextComponentString(tileEntity.getName()), titleLabelY);
         String ownerText = tileEntity.clientOwner != null ? LangUtils.localize("gui.owner") + ": " + tileEntity.clientOwner :
-              EnumColor.RED + LangUtils.localize("gui.noOwner");
+                EnumColor.RED + LangUtils.localize("gui.noOwner");
         renderInventoryTextAndOther(new TextComponentString(ownerText));
         drawScaledScrollingString(new TextComponentString(LangUtils.localize("gui.trustedPlayers")), 13, 57, TextAlignment.CENTER,
-              subheadingTextColor(), 122, 0, false, 1, GuiElement.getMillis());
+                subheadingTextColor(), 122, 0, false, 1, GuiElement.getMillis());
         String security = EnumColor.RED + LangUtils.localize("gui.securityOffline");
         if (tileEntity.frequency != null) {
             security = LangUtils.localize("gui.security") + ": " + tileEntity.frequency.securityMode.getDisplay();
         }
         drawScaledScrollingString(new TextComponentString(security), 13, 103, TextAlignment.LEFT, titleTextColor(), 122, 0, false, 1,
-              GuiElement.getMillis());
+                GuiElement.getMillis());
         drawScaledScrollingString(new TextComponentString(LangUtils.localize("gui.add") + ":"), 1, 70, TextAlignment.RIGHT,
-              titleTextColor(), trustedField.getRelativeX() - 1, 3, false, 1, GuiElement.getMillis());
+                titleTextColor(), trustedField.getRelativeX() - 1, 3, false, 1, GuiElement.getMillis());
         super.drawForegroundText(mouseX, mouseY);
     }
 }

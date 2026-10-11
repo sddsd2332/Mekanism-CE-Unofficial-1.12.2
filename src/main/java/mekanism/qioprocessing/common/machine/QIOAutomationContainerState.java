@@ -1,18 +1,18 @@
 package mekanism.qioprocessing.common.machine;
 
+import mekanism.api.NBTConstants;
 import mekanism.api.processing.QIOAutomationMode;
 import mekanism.api.qio.external.QIOFrequencyReference;
 import mekanism.common.content.qio.QIOFrequency;
+import mekanism.common.frequency.Frequency;
 import mekanism.common.frequency.FrequencyManager;
 import mekanism.common.frequency.FrequencyType;
-import mekanism.common.frequency.Frequency;
 import mekanism.common.inventory.container.MekanismContainer.ISpecificContainerTracker;
 import mekanism.common.inventory.container.MekanismTileContainer;
 import mekanism.common.inventory.container.sync.ISyncableData;
 import mekanism.common.inventory.container.sync.SyncableFrequencyList;
 import mekanism.common.inventory.container.sync.SyncableNBT;
 import mekanism.common.security.ISecurityTile.SecurityMode;
-import mekanism.api.NBTConstants;
 import mekanism.qioprocessing.api.machine.QIOAutomationHost;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
@@ -20,14 +20,12 @@ import net.minecraft.util.ResourceLocation;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
-/** Container-side client mirror for one machine's QIO automation binding. */
+/**
+ * Container-side client mirror for one machine's QIO automation binding.
+ */
+
 /**
  * QIO 处理模块中的 QIOAutomationContainerState 类型。
  *
@@ -37,7 +35,7 @@ import java.util.UUID;
 public final class QIOAutomationContainerState implements ISpecificContainerTracker {
 
     public static final ResourceLocation EXTENSION_ID = new ResourceLocation("mekanismqioprocessing",
-          "automation_binding");
+            "automation_binding");
     public static final int TRACKING_KEY = 0x51494F;
     private static boolean registered;
 
@@ -70,16 +68,16 @@ public final class QIOAutomationContainerState implements ISpecificContainerTrac
             return;
         }
         mekanism.common.inventory.container.MekanismTileContainerExtensionRegistry.register(EXTENSION_ID,
-              (container, tile) -> QIOAutomationCapabilities.AUTOMATION_HOST != null &&
-                    tile.hasCapability(QIOAutomationCapabilities.AUTOMATION_HOST, null) ?
-                    new QIOAutomationContainerState(container, tile) : null);
+                (container, tile) -> QIOAutomationCapabilities.AUTOMATION_HOST != null &&
+                        tile.hasCapability(QIOAutomationCapabilities.AUTOMATION_HOST, null) ?
+                        new QIOAutomationContainerState(container, tile) : null);
         registered = true;
     }
 
     @Nullable
     public static QIOAutomationContainerState get(MekanismTileContainer<?> container) {
         return container == null ? null : container.getExtension(EXTENSION_ID,
-              QIOAutomationContainerState.class);
+                QIOAutomationContainerState.class);
     }
 
     @Nullable
@@ -149,16 +147,16 @@ public final class QIOAutomationContainerState implements ISpecificContainerTrac
         List<ISyncableData> tracked = new ArrayList<>(3);
         for (SecurityMode securityMode : SecurityMode.values()) {
             tracked.add(SyncableFrequencyList.create(FrequencyType.QIO,
-                  () -> serverFrequencies(securityMode),
-                  frequencies -> frequencyLists.put(securityMode,
-                        Collections.unmodifiableList(new ArrayList<>(frequencies)))));
+                    () -> serverFrequencies(securityMode),
+                    frequencies -> frequencyLists.put(securityMode,
+                            Collections.unmodifiableList(new ArrayList<>(frequencies)))));
         }
         return tracked;
     }
 
     NBTTagCompound writeSummary() {
         QIOAutomationHost host = QIOAutomationCapabilities.AUTOMATION_HOST == null ? null :
-              tile.getCapability(QIOAutomationCapabilities.AUTOMATION_HOST, null);
+                tile.getCapability(QIOAutomationCapabilities.AUTOMATION_HOST, null);
         return writeSummary(host);
     }
 
@@ -185,24 +183,24 @@ public final class QIOAutomationContainerState implements ISpecificContainerTrac
     void readSummary(NBTTagCompound data) {
         try {
             QIOAutomationHost.State reportedState = data.hasKey("state") ?
-                  QIOAutomationHost.State.valueOf(data.getString("state")) :
-                  QIOAutomationHost.State.UNBOUND;
+                    QIOAutomationHost.State.valueOf(data.getString("state")) :
+                    QIOAutomationHost.State.UNBOUND;
             // DATA_ERROR was serialized by older hosts. It is not a lifecycle state
             // anymore; keep the diagnostic/recovery bit while showing the normal
             // access lifecycle to the client.
             recoveryPending = data.getBoolean("recoveryPending") ||
-                  reportedState == QIOAutomationHost.State.DATA_ERROR;
+                    reportedState == QIOAutomationHost.State.DATA_ERROR;
             recoveryDiagnostic = data.hasKey("recoveryDiagnostic", 8) ?
-                  data.getString("recoveryDiagnostic") : null;
+                    data.getString("recoveryDiagnostic") : null;
             recoveryState = data.hasKey("recoveryState", 8) ?
-                  QIOAutomationHost.RecoveryState.valueOf(data.getString("recoveryState")) :
-                  (reportedState == QIOAutomationHost.State.DATA_ERROR ||
-                        recoveryDiagnostic != null ?
-                        QIOAutomationHost.RecoveryState.QUARANTINED :
-                        QIOAutomationHost.RecoveryState.NONE);
+                    QIOAutomationHost.RecoveryState.valueOf(data.getString("recoveryState")) :
+                    (reportedState == QIOAutomationHost.State.DATA_ERROR ||
+                            recoveryDiagnostic != null ?
+                            QIOAutomationHost.RecoveryState.QUARANTINED :
+                            QIOAutomationHost.RecoveryState.NONE);
             if (recoveryState == QIOAutomationHost.RecoveryState.NONE &&
-                  (reportedState == QIOAutomationHost.State.DATA_ERROR ||
-                        recoveryDiagnostic != null)) {
+                    (reportedState == QIOAutomationHost.State.DATA_ERROR ||
+                            recoveryDiagnostic != null)) {
                 // Be defensive about old clients/packets that carried a diagnostic without its
                 // companion recovery marker.
                 recoveryState = QIOAutomationHost.RecoveryState.QUARANTINED;
@@ -212,17 +210,17 @@ public final class QIOAutomationContainerState implements ISpecificContainerTrac
             }
             mode = data.hasKey("mode") ? QIOAutomationMode.valueOf(data.getString("mode")) : null;
             reference = data.hasKey("reference", 10) ?
-                  QIOFrequencyReference.read(data.getCompoundTag("reference")) : null;
+                    QIOFrequencyReference.read(data.getCompoundTag("reference")) : null;
             state = reportedState == QIOAutomationHost.State.DATA_ERROR ?
-                  (reference == null ? QIOAutomationHost.State.UNBOUND :
-                        QIOAutomationHost.State.WAITING_ACCESS) : reportedState;
+                    (reference == null ? QIOAutomationHost.State.UNBOUND :
+                            QIOAutomationHost.State.WAITING_ACCESS) : reportedState;
             displayFrequency = createDisplayFrequency(reference);
         } catch (RuntimeException e) {
             state = QIOAutomationHost.State.UNBOUND;
             recoveryState = QIOAutomationHost.RecoveryState.QUARANTINED;
             recoveryPending = true;
             recoveryDiagnostic = e.getMessage() == null ? "Invalid QIO automation state" :
-                  e.getMessage();
+                    e.getMessage();
             mode = null;
             reference = null;
             displayFrequency = null;
@@ -232,15 +230,15 @@ public final class QIOAutomationContainerState implements ISpecificContainerTrac
     private java.util.Collection<QIOFrequency> serverFrequencies(SecurityMode securityMode) {
         UUID player = container.getPlayerUUID();
         FrequencyManager<QIOFrequency> manager = FrequencyType.QIO.getManager(
-              securityMode == SecurityMode.PUBLIC ? null : player, securityMode);
+                securityMode == SecurityMode.PUBLIC ? null : player, securityMode);
         return manager == null ? Collections.emptyList() : manager.getFrequencies();
     }
 
     private static boolean matchesReference(QIOFrequency frequency, QIOFrequencyReference reference) {
         return frequency != null && frequency.getFrequencyUUID().equals(reference.getFrequencyUUID()) &&
-              frequency.getName().equals(reference.getFrequencyName()) &&
-              java.util.Objects.equals(frequency.getOwner(), reference.getOwnerUUID()) &&
-              frequency.getSecurity() == reference.getSecurityMode();
+                frequency.getName().equals(reference.getFrequencyName()) &&
+                java.util.Objects.equals(frequency.getOwner(), reference.getOwnerUUID()) &&
+                frequency.getSecurity() == reference.getSecurityMode();
     }
 
     @Nullable

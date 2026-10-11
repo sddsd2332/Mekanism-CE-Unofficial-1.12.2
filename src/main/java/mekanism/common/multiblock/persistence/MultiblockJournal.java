@@ -1,35 +1,19 @@
 package mekanism.common.multiblock.persistence;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.channels.OverlappingFileLockException;
-import java.nio.file.AccessDeniedException;
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Locale;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.UUID;
+import java.nio.file.*;
+import java.util.*;
 
 /**
  * Single-writer, append-only commit log. A transaction payload must contain BOTH target changes and
  * consumed sources. A synced preparation has no authority until its synced marker is atomically
  * published. No ordinary-move fallback, replacement of previous commits, or silent corrupt-tail
  * recovery is permitted. Minecraft objects never enter this IO layer.
- *
+ * <p>
  * File sync and atomic rename provide process-crash recovery. Directory sync is additionally used
  * when the platform exposes it; {@link #hasDirectorySync()} reports that capability, not a promise
  * about hardware power-loss behavior. Any failed append poisons this session until full recovery.
@@ -55,7 +39,8 @@ public final class MultiblockJournal implements AutoCloseable {
     private final Set<String> checkpointSegments = new HashSet<>();
 
     public MultiblockJournal(Path directory, String namespace) throws IOException {
-        this(directory, namespace, stage -> {});
+        this(directory, namespace, stage -> {
+        });
     }
 
     MultiblockJournal(Path directory, String namespace, FaultInjector faults) throws IOException {
@@ -104,7 +89,9 @@ public final class MultiblockJournal implements AutoCloseable {
         return directoryChannel != null;
     }
 
-    /** Replays in commit order. Never skip a damaged committed record or a sequence gap. */
+    /**
+     * Replays in commit order. Never skip a damaged committed record or a sequence gap.
+     */
     public void recover(Replay replay) throws IOException {
         checkOpen();
         if (recovered) throw new IOException("Journal was already recovered");
@@ -156,7 +143,8 @@ public final class MultiblockJournal implements AutoCloseable {
                 byte[] markerBytes = readBounded(commitPath(next), 4096);
                 Marker marker = readMarker(markerBytes, next, true);
                 byte[] prepared = readBounded(directory.resolve(marker.preparedName), MAX_PAYLOAD_BYTES + 8192);
-                if (!Arrays.equals(digest(prepared), marker.preparedHash)) throw new IOException("Prepared snapshot checksum mismatch at " + next);
+                if (!Arrays.equals(digest(prepared), marker.preparedHash))
+                    throw new IOException("Prepared snapshot checksum mismatch at " + next);
                 Record record = readPrepared(prepared, next, marker.transaction);
                 replay.accept(record);
                 sequence = next;
@@ -178,7 +166,9 @@ public final class MultiblockJournal implements AutoCloseable {
         publishCheckpoint(payload, false, java.util.Collections.emptySet());
     }
 
-    /** Produces one bounded segment at a time; null ends the snapshot. */
+    /**
+     * Produces one bounded segment at a time; null ends the snapshot.
+     */
     public interface SegmentSource {
         byte[] next() throws IOException;
     }
@@ -247,7 +237,8 @@ public final class MultiblockJournal implements AutoCloseable {
             faults.at(Stage.CHECKPOINT_PREPARED);
             byte[] marker = encodeMarker(sequence, transaction, preparation, digest(data), segmented);
             writeSyncedNew(pending, marker);
-            if (!Arrays.equals(marker, readBounded(pending, 4096))) throw new IOException("Checkpoint marker readback differs");
+            if (!Arrays.equals(marker, readBounded(pending, 4096)))
+                throw new IOException("Checkpoint marker readback differs");
             faults.at(Stage.CHECKPOINT_BEFORE_PUBLISH);
             fileOperations.publish(pending, directory.resolve("checkpoint"), true);
             faults.at(Stage.CHECKPOINT_PUBLISHED);
@@ -281,7 +272,7 @@ public final class MultiblockJournal implements AutoCloseable {
             for (Path file : files) {
                 String name = file.getFileName().toString();
                 if ((name.matches("prepared-[0-9a-f-]{36}-[0-9a-f-]{36}\\.bin") && !retained.contains(name)) ||
-                      name.matches("pending-[0-9a-f-]{36}")) Files.delete(file);
+                        name.matches("pending-[0-9a-f-]{36}")) Files.delete(file);
             }
         }
         if (directoryChannel != null) directoryChannel.force(true);
@@ -312,7 +303,8 @@ public final class MultiblockJournal implements AutoCloseable {
             byte[] marker = encodeMarker(next, transaction, preparedName, digest(prepared));
             writeSyncedNew(temporaryMarker, marker);
             faults.at(Stage.MARKER_SYNCED);
-            if (!Arrays.equals(marker, readBounded(temporaryMarker, 4096))) throw new IOException("Commit marker readback differs");
+            if (!Arrays.equals(marker, readBounded(temporaryMarker, 4096)))
+                throw new IOException("Commit marker readback differs");
             // CREATE_NEW preparation and the exclusive writer lock prevent accidental replacement.
             if (Files.exists(commitPath(next))) throw new IOException("Commit sequence already exists: " + next);
             faults.at(Stage.BEFORE_PUBLISH);
@@ -414,8 +406,10 @@ public final class MultiblockJournal implements AutoCloseable {
             if (size < 0 || size > limit) throw new IOException("Journal record size limit: " + file);
             byte[] data = new byte[(int) size];
             ByteBuffer buffer = ByteBuffer.wrap(data);
-            while (buffer.hasRemaining()) if (input.read(buffer) < 0) throw new IOException("Truncated journal record: " + file);
-            if (input.read(ByteBuffer.allocate(1)) != -1) throw new IOException("Journal record grew while reading: " + file);
+            while (buffer.hasRemaining())
+                if (input.read(buffer) < 0) throw new IOException("Truncated journal record: " + file);
+            if (input.read(ByteBuffer.allocate(1)) != -1)
+                throw new IOException("Journal record grew while reading: " + file);
             return data;
         }
     }
@@ -512,23 +506,30 @@ public final class MultiblockJournal implements AutoCloseable {
         CHECKPOINT_PREPARED, CHECKPOINT_BEFORE_PUBLISH, CHECKPOINT_PUBLISHED, CHECKPOINT_BEFORE_CLEANUP,
         CHECKPOINT_MARKERS_REMOVED, CHECKPOINT_CLEANED;
 
-        boolean isCheckpoint() { return name().startsWith("CHECKPOINT_"); }
+        boolean isCheckpoint() {
+            return name().startsWith("CHECKPOINT_");
+        }
     }
 
     interface FaultInjector {
         void at(Stage stage) throws IOException;
     }
 
-    /** Package-private IO seam for unsupported atomic move, disk-full and sync failure tests. */
+    /**
+     * Package-private IO seam for unsupported atomic move, disk-full and sync failure tests.
+     */
     static class FileOperations {
         void write(FileChannel output, ByteBuffer buffer) throws IOException {
             while (buffer.hasRemaining()) output.write(buffer);
         }
 
-        void sync(FileChannel output) throws IOException { output.force(true); }
+        void sync(FileChannel output) throws IOException {
+            output.force(true);
+        }
 
         void publish(Path source, Path target, boolean replacingCheckpoint) throws IOException {
-            if (replacingCheckpoint) Files.move(source, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            if (replacingCheckpoint)
+                Files.move(source, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             else Files.move(source, target, StandardCopyOption.ATOMIC_MOVE);
         }
     }

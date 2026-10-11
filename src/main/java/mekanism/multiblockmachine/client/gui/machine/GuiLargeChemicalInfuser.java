@@ -33,21 +33,21 @@ public class GuiLargeChemicalInfuser extends GuiMekanismTile<TileEntityLargeChem
     protected void addGuiElements() {
         super.addGuiElements();
         addButton(new GuiHorizontalPowerBar(this, tileEntity.getMainEnergyContainer(), 115, 75))
-              .warning(WarningType.NOT_ENOUGH_ENERGY, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY))
-              .warning(WarningType.NOT_ENOUGH_ENERGY_REDUCED_RATE, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY_REDUCED_RATE));
+                .warning(WarningType.NOT_ENOUGH_ENERGY, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY))
+                .warning(WarningType.NOT_ENOUGH_ENERGY_REDUCED_RATE, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY_REDUCED_RATE));
         addButton(new GuiEnergyTab(this, tileEntity.getMainEnergyContainer(), () -> tileEntity.clientEnergyUsed));
         addButton(new GuiGasGauge(this, tileEntity.leftTank, 25, 13)
-              .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_LEFT_INPUT)));
+                .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_LEFT_INPUT)));
         centerGauge = addButton(new GuiGasGauge(this, tileEntity.centerTank, 79, 4)
-              .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_OUTPUT_SPACE)));
+                .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_OUTPUT_SPACE)));
         addButton(new GuiGasGauge(this, tileEntity.rightTank, 133, 13)
-              .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_RIGHT_INPUT)));
+                .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_RIGHT_INPUT)));
         addButton(new GuiProgress(tileEntity::getActive, ProgressType.SMALL_RIGHT, this, 47, 39))
-              .recipeViewerCategories(RecipeViewerRecipeType.CHEMICAL_INFUSING)
-              .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity.getWarningCheck(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT));
+                .recipeViewerCategories(RecipeViewerRecipeType.CHEMICAL_INFUSING)
+                .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity.getWarningCheck(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT));
         addButton(new GuiProgress(tileEntity::getActive, ProgressType.SMALL_LEFT, this, 101, 39))
-              .recipeViewerCategories(RecipeViewerRecipeType.CHEMICAL_INFUSING)
-              .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity.getWarningCheck(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT));
+                .recipeViewerCategories(RecipeViewerRecipeType.CHEMICAL_INFUSING)
+                .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity.getWarningCheck(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT));
     }
 
     @Override

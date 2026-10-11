@@ -73,13 +73,13 @@ public class TileEntityRotaryCondensentrator extends TileEntityMachine implement
     public static final RecipeError NOT_ENOUGH_SPACE_GAS_OUTPUT_ERROR = RecipeError.create();
     public static final RecipeError NOT_ENOUGH_SPACE_FLUID_OUTPUT_ERROR = RecipeError.create();
     private static final List<RecipeError> TRACKED_ERROR_TYPES = Arrays.asList(
-          RecipeError.NOT_ENOUGH_ENERGY,
-          RecipeError.NOT_ENOUGH_ENERGY_REDUCED_RATE,
-          NOT_ENOUGH_FLUID_INPUT_ERROR,
-          NOT_ENOUGH_GAS_INPUT_ERROR,
-          NOT_ENOUGH_SPACE_GAS_OUTPUT_ERROR,
-          NOT_ENOUGH_SPACE_FLUID_OUTPUT_ERROR,
-          RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
+            RecipeError.NOT_ENOUGH_ENERGY,
+            RecipeError.NOT_ENOUGH_ENERGY_REDUCED_RATE,
+            NOT_ENOUGH_FLUID_INPUT_ERROR,
+            NOT_ENOUGH_GAS_INPUT_ERROR,
+            NOT_ENOUGH_SPACE_GAS_OUTPUT_ERROR,
+            NOT_ENOUGH_SPACE_FLUID_OUTPUT_ERROR,
+            RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
     );
     /**
      * 0: gas -> fluid; 1: fluid -> gas
@@ -117,14 +117,14 @@ public class TileEntityRotaryCondensentrator extends TileEntityMachine implement
         configComponent.setInputConfig(TransmissionType.ENERGY);
         ejectorComponent = new TileComponentEjector(this);
         ejectorComponent.setOutputData(configComponent, TransmissionType.GAS, TransmissionType.FLUID)
-              .setCanEject(transmissionType -> {
-                  if (transmissionType == TransmissionType.GAS) {
-                      return mode == 1;
-                  } else if (transmissionType == TransmissionType.FLUID) {
-                      return mode == 0;
-                  }
-                  return true;
-              });
+                .setCanEject(transmissionType -> {
+                    if (transmissionType == TransmissionType.GAS) {
+                        return mode == 1;
+                    } else if (transmissionType == TransmissionType.FLUID) {
+                        return mode == 0;
+                    }
+                    return true;
+                });
     }
 
     @Override
@@ -169,9 +169,9 @@ public class TileEntityRotaryCondensentrator extends TileEntityMachine implement
     private BasicGasTank getOrCreateGasTank(IContentsListener listener) {
         if (gasTank == null) {
             gasTank = BasicGasTank.create(MAX_FLUID,
-                  (gas, automationType) -> automationType == AutomationType.MANUAL || automationType == AutomationType.INTERNAL || mode == 1,
-                  (gas, automationType) -> automationType == AutomationType.INTERNAL || mode == 0,
-                  gas -> isValidGas(new GasStack(gas, 1)), recipeCacheLookupMonitor);
+                    (gas, automationType) -> automationType == AutomationType.MANUAL || automationType == AutomationType.INTERNAL || mode == 1,
+                    (gas, automationType) -> automationType == AutomationType.INTERNAL || mode == 0,
+                    gas -> isValidGas(new GasStack(gas, 1)), recipeCacheLookupMonitor);
         }
         return gasTank;
     }
@@ -179,9 +179,9 @@ public class TileEntityRotaryCondensentrator extends TileEntityMachine implement
     private BasicFluidTank getOrCreateFluidTank(IContentsListener listener) {
         if (fluidTank == null) {
             fluidTank = BasicFluidTank.create(MAX_FLUID,
-                  (fluid, automationType) -> automationType == AutomationType.MANUAL || automationType == AutomationType.INTERNAL || mode == 0,
-                  (fluid, automationType) -> automationType == AutomationType.INTERNAL || mode == 1,
-                  this::isValidFluid, recipeCacheLookupMonitor);
+                    (fluid, automationType) -> automationType == AutomationType.MANUAL || automationType == AutomationType.INTERNAL || mode == 0,
+                    (fluid, automationType) -> automationType == AutomationType.INTERNAL || mode == 1,
+                    this::isValidFluid, recipeCacheLookupMonitor);
         }
         return fluidTank;
     }
@@ -372,25 +372,25 @@ public class TileEntityRotaryCondensentrator extends TileEntityMachine implement
     @Override
     public CachedRecipe<RotaryRecipe> createNewCachedRecipe(RotaryRecipe recipe, int cacheIndex) {
         return new RotaryCachedRecipe(recipe, () -> false,
-              InputHelper.getFluidInputHandler(fluidTank, NOT_ENOUGH_FLUID_INPUT_ERROR),
-              InputHelper.getGasInputHandler(gasTank, NOT_ENOUGH_GAS_INPUT_ERROR),
-              OutputHelper.getGasOutputHandler(gasTank, NOT_ENOUGH_SPACE_GAS_OUTPUT_ERROR),
-              OutputHelper.getOutputHandler(fluidTank, NOT_ENOUGH_SPACE_FLUID_OUTPUT_ERROR),
-              () -> mode == 1)
-              .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
-              .setActive(active -> {
-                  if (active || prevEnergy >= getEnergy()) {
-                      setActive(active);
-                  }
-              })
-              .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
-              .setBaselineMaxOperations(this::getUpgradedUsage)
-              .setErrorsChanged(errors -> {
-                  for (int i = 0; i < trackedErrors.length; i++) {
-                      trackedErrors[i] = errors.contains(TRACKED_ERROR_TYPES.get(i));
-                  }
-              })
-              .setOnFinish(this::markNoUpdateSync);
+                InputHelper.getFluidInputHandler(fluidTank, NOT_ENOUGH_FLUID_INPUT_ERROR),
+                InputHelper.getGasInputHandler(gasTank, NOT_ENOUGH_GAS_INPUT_ERROR),
+                OutputHelper.getGasOutputHandler(gasTank, NOT_ENOUGH_SPACE_GAS_OUTPUT_ERROR),
+                OutputHelper.getOutputHandler(fluidTank, NOT_ENOUGH_SPACE_FLUID_OUTPUT_ERROR),
+                () -> mode == 1)
+                .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
+                .setActive(active -> {
+                    if (active || prevEnergy >= getEnergy()) {
+                        setActive(active);
+                    }
+                })
+                .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
+                .setBaselineMaxOperations(this::getUpgradedUsage)
+                .setErrorsChanged(errors -> {
+                    for (int i = 0; i < trackedErrors.length; i++) {
+                        trackedErrors[i] = errors.contains(TRACKED_ERROR_TYPES.get(i));
+                    }
+                })
+                .setOnFinish(this::markNoUpdateSync);
     }
 
     @Override
@@ -547,6 +547,11 @@ public class TileEntityRotaryCondensentrator extends TileEntityMachine implement
     }
 
     @Override
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return type == mekanism.api.transmitters.TransmissionType.GAS || type == mekanism.api.transmitters.TransmissionType.FLUID;
+    }
+
+    @Override
     public int getRedstoneLevel() {
         if (mode == 0) {
             return MekanismUtils.redstoneLevelFromContents(gasTank.getStored(), gasTank.getMaxGas());
@@ -568,7 +573,8 @@ public class TileEntityRotaryCondensentrator extends TileEntityMachine implement
     public TileComponentEjector getEjector() {
         return ejectorComponent;
     }
-@Override
+
+    @Override
     public int getBlockGuiID(Block block, int metadata) {
         return MachineType.get(block, metadata) != null ? MachineType.get(block, metadata).guiId : -1;
     }

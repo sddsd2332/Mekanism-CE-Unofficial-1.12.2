@@ -2,6 +2,7 @@ package mekanism.common.recipe.inputs;
 
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import mekanism.common.OreDictCache;
+import mekanism.common.recipe.RecipeHandler;
 import mekanism.common.util.StackUtils;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -16,6 +17,7 @@ public abstract class MachineInput<INPUT extends MachineInput<INPUT>> {
 
     public static void addCustomItemMatcher(Class<? extends Item> clazz, ItemStackIngredientMatcher matcher) {
         ITEM_MATCHER_OVERRIDES.put(clazz, matcher);
+        RecipeHandler.markRecipeCachesInvalid();
     }
 
     public static boolean inputContains(ItemStack container, ItemStack contained) {
@@ -48,7 +50,9 @@ public abstract class MachineInput<INPUT extends MachineInput<INPUT>> {
         return ITEM_MATCHER_OVERRIDES.getOrDefault(container.getItem().getClass(), DEFAULT_MATCHER).test(container, contained);
     }
 
-    /** Capture-side check; an arbitrary item matcher cannot be executed by a detached worker. */
+    /**
+     * Capture-side check; an arbitrary item matcher cannot be executed by a detached worker.
+     */
     public static boolean hasCustomItemMatcher(ItemStack stack) {
         ItemStackIngredientMatcher matcher = ITEM_MATCHER_OVERRIDES.get(stack.getItem().getClass());
         return matcher != null && matcher != DEFAULT_MATCHER;

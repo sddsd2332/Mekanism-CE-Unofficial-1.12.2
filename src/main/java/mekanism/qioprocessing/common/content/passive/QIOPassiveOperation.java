@@ -10,13 +10,12 @@ import net.minecraftforge.common.util.Constants.NBT;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.math.BigInteger;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
-/** Persistent standalone operation created by a QIO automatic-processing upgrade. */
+/**
+ * Persistent standalone operation created by a QIO automatic-processing upgrade.
+ */
+
 /**
  * QIO 处理模块中的 QIOPassiveOperation 类型。
  *
@@ -79,36 +78,36 @@ public final class QIOPassiveOperation {
 
     /** 创建被动处理操作的 claim 阶段记录。 */
     public QIOPassiveOperation(@Nonnull UUID operationId, @Nonnull UUID deviceUUID,
-          @Nonnull String providerId, @Nonnull String routeId, @Nonnull String recipeKey,
-          long createdAtTick, long expectedContentsRevision, long expectedClaimRevision,
-          @Nonnull Map<PortableResourceDescriptor, UUID> resourceBindings,
-          @Nonnull Map<PortableResourceDescriptor, Long> requiredInputs) {
+                               @Nonnull String providerId, @Nonnull String routeId, @Nonnull String recipeKey,
+                               long createdAtTick, long expectedContentsRevision, long expectedClaimRevision,
+                               @Nonnull Map<PortableResourceDescriptor, UUID> resourceBindings,
+                               @Nonnull Map<PortableResourceDescriptor, Long> requiredInputs) {
         this(operationId, deviceUUID, providerId, routeId, recipeKey, 1, createdAtTick,
-              expectedContentsRevision, expectedClaimRevision, resourceBindings,
-              requiredInputs);
+                expectedContentsRevision, expectedClaimRevision, resourceBindings,
+                requiredInputs);
     }
 
     /** 创建带资源绑定和输入需求的被动处理记录。 */
     public QIOPassiveOperation(@Nonnull UUID operationId, @Nonnull UUID deviceUUID,
-          @Nonnull String providerId, @Nonnull String routeId, @Nonnull String recipeKey,
-          long operationCount, long createdAtTick, long expectedContentsRevision,
-          long expectedClaimRevision,
-          @Nonnull Map<PortableResourceDescriptor, UUID> resourceBindings,
-          @Nonnull Map<PortableResourceDescriptor, Long> requiredInputs) {
+                               @Nonnull String providerId, @Nonnull String routeId, @Nonnull String recipeKey,
+                               long operationCount, long createdAtTick, long expectedContentsRevision,
+                               long expectedClaimRevision,
+                               @Nonnull Map<PortableResourceDescriptor, UUID> resourceBindings,
+                               @Nonnull Map<PortableResourceDescriptor, Long> requiredInputs) {
         this(operationId, deviceUUID, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-              UUID.randomUUID(), UUID.randomUUID(), providerId, routeId, recipeKey,
-              operationCount, createdAtTick, expectedContentsRevision,
-              expectedClaimRevision, resourceBindings, requiredInputs);
+                UUID.randomUUID(), UUID.randomUUID(), providerId, routeId, recipeKey,
+                operationCount, createdAtTick, expectedContentsRevision,
+                expectedClaimRevision, resourceBindings, requiredInputs);
     }
 
     private QIOPassiveOperation(UUID operationId, UUID deviceUUID, UUID claimId,
-          UUID claimRequestId, UUID consumeRequestId, UUID consumeTransferId,
-          UUID releaseRequestId,
-          String providerId, String routeId, String recipeKey, long operationCount,
-          long createdAtTick,
-          long expectedContentsRevision, long expectedClaimRevision,
-          Map<PortableResourceDescriptor, UUID> resourceBindings,
-          Map<PortableResourceDescriptor, Long> requiredInputs) {
+                                UUID claimRequestId, UUID consumeRequestId, UUID consumeTransferId,
+                                UUID releaseRequestId,
+                                String providerId, String routeId, String recipeKey, long operationCount,
+                                long createdAtTick,
+                                long expectedContentsRevision, long expectedClaimRevision,
+                                Map<PortableResourceDescriptor, UUID> resourceBindings,
+                                Map<PortableResourceDescriptor, Long> requiredInputs) {
         this.operationId = Objects.requireNonNull(operationId, "operationId");
         this.deviceUUID = Objects.requireNonNull(deviceUUID, "deviceUUID");
         this.claimId = Objects.requireNonNull(claimId, "claimId");
@@ -125,9 +124,9 @@ public final class QIOPassiveOperation {
         this.operationCount = operationCount;
         this.createdAtTick = QIOProcessingNbt.requireNonNegative(createdAtTick, "createdAtTick");
         this.expectedContentsRevision = QIOProcessingNbt.requireNonNegative(
-              expectedContentsRevision, "expectedContentsRevision");
+                expectedContentsRevision, "expectedContentsRevision");
         this.expectedClaimRevision = QIOProcessingNbt.requireNonNegative(expectedClaimRevision,
-              "expectedClaimRevision");
+                "expectedClaimRevision");
         this.requiredInputs = checkedAmounts(requiredInputs, false, "passive inputs");
         this.resourceBindings = checkedBindings(resourceBindings, this.requiredInputs);
     }
@@ -285,7 +284,7 @@ public final class QIOPassiveOperation {
     public void markClaimed(long claimRevision) {
         requireState(State.CLAIM_PREPARED);
         observedClaimRevision = QIOProcessingNbt.requireNonNegative(claimRevision,
-              "observedClaimRevision");
+                "observedClaimRevision");
         claimedInputs.clear();
         claimedInputs.putAll(requiredInputs);
         state = State.CLAIMED;
@@ -294,10 +293,10 @@ public final class QIOPassiveOperation {
 
     /** 记录部分 claim 结果，等待下一次版本一致性重试。 */
     public void markPartialClaim(@Nonnull Map<PortableResourceDescriptor, Long> amounts,
-          long claimRevision, @Nonnull String reason) {
+                                 long claimRevision, @Nonnull String reason) {
         requireState(State.CLAIM_PREPARED);
         observedClaimRevision = QIOProcessingNbt.requireNonNegative(claimRevision,
-              "observedClaimRevision");
+                "observedClaimRevision");
         claimedInputs.clear();
         claimedInputs.putAll(checkedAmounts(amounts, true, "partial passive claim"));
         fail(reason);
@@ -307,14 +306,14 @@ public final class QIOPassiveOperation {
     public void prepareConsume(@Nonnull Map<PortableResourceDescriptor, BigInteger> baselines) {
         requireState(State.CONFIGURING);
         Map<PortableResourceDescriptor, BigInteger> checked = QIOProcessingNbt.copyExactAmounts(
-              baselines, false, "passive consume baselines");
+                baselines, false, "passive consume baselines");
         if (!checked.keySet().equals(requiredInputs.keySet())) {
             throw new IllegalArgumentException("Passive consume baselines do not match required inputs");
         }
         for (Map.Entry<PortableResourceDescriptor, Long> input : requiredInputs.entrySet()) {
             if (checked.get(input.getKey()).compareTo(BigInteger.valueOf(input.getValue())) < 0) {
                 throw new IllegalArgumentException(
-                      "A passive consume baseline cannot be smaller than its input amount");
+                        "A passive consume baseline cannot be smaller than its input amount");
             }
         }
         consumeBaselines.clear();
@@ -327,7 +326,7 @@ public final class QIOPassiveOperation {
     public void markReserved(long claimRevision) {
         requireState(State.CONSUME_PREPARED);
         observedClaimRevision = QIOProcessingNbt.requireNonNegative(claimRevision,
-              "observedClaimRevision");
+                "observedClaimRevision");
         claimedInputs.clear();
         inputBuffer.clear();
         inputBuffer.putAll(requiredInputs);
@@ -401,7 +400,7 @@ public final class QIOPassiveOperation {
     /** 从输出缓冲扣除已成功写回 QIO 的数量。 */
     public void debitDelivered(@Nonnull PortableResourceDescriptor resource, long amount) {
         if (state != State.DELIVERING || amount <= 0 ||
-              outputBuffer.getOrDefault(resource, 0L) < amount) {
+                outputBuffer.getOrDefault(resource, 0L) < amount) {
             throw new IllegalStateException("Invalid passive output delivery debit");
         }
         long remaining = outputBuffer.get(resource) - amount;
@@ -420,7 +419,7 @@ public final class QIOPassiveOperation {
     public void debitReturned(@Nonnull PortableResourceDescriptor resource, long amount) {
         requireState(State.RETURNING);
         Map<PortableResourceDescriptor, Long> buffer = outputBuffer.containsKey(resource) ?
-              outputBuffer : inputBuffer;
+                outputBuffer : inputBuffer;
         long current = buffer.getOrDefault(resource, 0L);
         if (amount <= 0 || current < amount) {
             throw new IllegalStateException("Invalid passive resource return debit");
@@ -441,8 +440,8 @@ public final class QIOPassiveOperation {
     public void fail(@Nonnull String reason) {
         diagnostic = checkedText(reason, "diagnostic");
         if (!claimedInputs.isEmpty() || state == State.CLAIM_PREPARED ||
-              state == State.CLAIMED || state == State.CONFIGURING ||
-              state == State.CONSUME_PREPARED || state == State.RELEASE_PREPARED) {
+                state == State.CLAIMED || state == State.CONFIGURING ||
+                state == State.CONSUME_PREPARED || state == State.RELEASE_PREPARED) {
             state = State.RELEASE_PREPARED;
         } else if (!inputBuffer.isEmpty() || !outputBuffer.isEmpty()) {
             state = State.RETURNING;
@@ -472,7 +471,7 @@ public final class QIOPassiveOperation {
      */
     /** 主机恢复后取消操作，并按参数决定是否保留输入缓冲。 */
     public void forceCancelAfterHostRecovery(@Nonnull String reason, boolean retainInput,
-          boolean retainOutput) {
+                                             boolean retainOutput) {
         diagnostic = checkedText(reason, "diagnostic");
         if (!retainInput) {
             inputBuffer.clear();
@@ -483,8 +482,8 @@ public final class QIOPassiveOperation {
         leaseId = null;
         laneId = -1;
         if (!claimedInputs.isEmpty() || state == State.CLAIM_PREPARED ||
-              state == State.CLAIMED || state == State.CONFIGURING ||
-              state == State.CONSUME_PREPARED || state == State.RELEASE_PREPARED) {
+                state == State.CLAIMED || state == State.CONFIGURING ||
+                state == State.CONSUME_PREPARED || state == State.RELEASE_PREPARED) {
             state = State.RELEASE_PREPARED;
         } else if (!inputBuffer.isEmpty() || !outputBuffer.isEmpty()) {
             state = State.RETURNING;
@@ -542,7 +541,7 @@ public final class QIOPassiveOperation {
     @Nonnull
     /** 从 NBT 读取并校验被动操作状态机。 */
     public static QIOPassiveOperation read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         int schema = data.getInteger("schema");
         if (schema != 3 && schema != SCHEMA_VERSION) {
             throw new QIOProcessingDataException("Unsupported passive operation schema");
@@ -550,38 +549,38 @@ public final class QIOPassiveOperation {
         try {
             Map<PortableResourceDescriptor, UUID> bindings = readBindings(data);
             QIOPassiveOperation operation = new QIOPassiveOperation(
-                  QIOProcessingNbt.readUUID(data, "operationId"),
-                  QIOProcessingNbt.readUUID(data, "deviceUUID"),
-                  QIOProcessingNbt.readUUID(data, "claimId"),
-                  QIOProcessingNbt.readUUID(data, "claimRequestId"),
-                  QIOProcessingNbt.readUUID(data, "consumeRequestId"),
-                  QIOProcessingNbt.readUUID(data, "consumeTransferId"),
-                  QIOProcessingNbt.readUUID(data, "releaseRequestId"),
-                  data.getString("providerId"), data.getString("routeId"),
-                  data.getString("recipeKey"), data.getLong("operationCount"),
-                  data.getLong("createdAtTick"),
-                  data.getLong("expectedContentsRevision"),
-                  data.getLong("expectedClaimRevision"), bindings,
-                  QIOProcessingNbt.readAmounts(data, "requiredInputs", MAX_RESOURCES));
+                    QIOProcessingNbt.readUUID(data, "operationId"),
+                    QIOProcessingNbt.readUUID(data, "deviceUUID"),
+                    QIOProcessingNbt.readUUID(data, "claimId"),
+                    QIOProcessingNbt.readUUID(data, "claimRequestId"),
+                    QIOProcessingNbt.readUUID(data, "consumeRequestId"),
+                    QIOProcessingNbt.readUUID(data, "consumeTransferId"),
+                    QIOProcessingNbt.readUUID(data, "releaseRequestId"),
+                    data.getString("providerId"), data.getString("routeId"),
+                    data.getString("recipeKey"), data.getLong("operationCount"),
+                    data.getLong("createdAtTick"),
+                    data.getLong("expectedContentsRevision"),
+                    data.getLong("expectedClaimRevision"), bindings,
+                    QIOProcessingNbt.readAmounts(data, "requiredInputs", MAX_RESOURCES));
             operation.observedClaimRevision = QIOProcessingNbt.requireRevision(
-                  data.getLong("observedClaimRevision"), "observedClaimRevision");
+                    data.getLong("observedClaimRevision"), "observedClaimRevision");
             operation.state = QIOProcessingNbt.readEnum(data, "state", State.class);
             operation.runtimeRevision = QIOProcessingNbt.requireNonNegative(
-                  data.getLong("runtimeRevision"), "runtimeRevision");
+                    data.getLong("runtimeRevision"), "runtimeRevision");
             operation.claimedInputs.putAll(QIOProcessingNbt.readAmounts(data, "claimedInputs",
-                  MAX_RESOURCES));
+                    MAX_RESOURCES));
             operation.consumeBaselines.putAll(QIOProcessingNbt.readExactAmounts(data,
-                  "consumeBaselines", MAX_RESOURCES));
+                    "consumeBaselines", MAX_RESOURCES));
             operation.inputBuffer.putAll(QIOProcessingNbt.readAmounts(data, "inputBuffer",
-                  MAX_RESOURCES));
+                    MAX_RESOURCES));
             operation.outputBuffer.putAll(QIOProcessingNbt.readAmounts(data, "outputBuffer",
-                  MAX_RESOURCES));
+                    MAX_RESOURCES));
             operation.leaseId = data.hasKey("leaseId", NBT.TAG_STRING) ?
-                  QIOProcessingNbt.readUUID(data, "leaseId") : null;
+                    QIOProcessingNbt.readUUID(data, "leaseId") : null;
             operation.laneId = operation.leaseId == null ? -1 :
-                  QIOProcessingNbt.requireNonNegative(data.getLong("laneId"), "laneId");
+                    QIOProcessingNbt.requireNonNegative(data.getLong("laneId"), "laneId");
             operation.diagnostic = data.hasKey("diagnostic", NBT.TAG_STRING) ?
-                  checkedText(data.getString("diagnostic"), "diagnostic") : null;
+                    checkedText(data.getString("diagnostic"), "diagnostic") : null;
             operation.validate();
             return operation;
         } catch (QIOProcessingDataException e) {
@@ -593,26 +592,26 @@ public final class QIOPassiveOperation {
 
     private void validate() {
         boolean expectsClaim = state == State.CLAIMED || state == State.CONFIGURING ||
-              state == State.CONSUME_PREPARED || state == State.RELEASE_PREPARED;
+                state == State.CONSUME_PREPARED || state == State.RELEASE_PREPARED;
         boolean expectsInput = state == State.RESERVED || state == State.LOADING ||
-              state == State.RETURNING && !inputBuffer.isEmpty();
+                state == State.RETURNING && !inputBuffer.isEmpty();
         boolean expectsOutput = state == State.COLLECTING || state == State.DELIVERING ||
-              state == State.RETURNING && !outputBuffer.isEmpty();
+                state == State.RETURNING && !outputBuffer.isEmpty();
         boolean requiresConsumeBaseline = state == State.CONSUME_PREPARED ||
-              state == State.RESERVED || state == State.LOADING || state == State.ACTIVE ||
-              state == State.COLLECTING || state == State.DELIVERING ||
-              state == State.RETURNING || state == State.COMPLETED;
+                state == State.RESERVED || state == State.LOADING || state == State.ACTIVE ||
+                state == State.COLLECTING || state == State.DELIVERING ||
+                state == State.RETURNING || state == State.COMPLETED;
         if (expectsClaim != !claimedInputs.isEmpty() ||
-              !requiredInputs.keySet().containsAll(claimedInputs.keySet()) ||
-              claimedInputs.entrySet().stream().anyMatch(entry ->
-                    entry.getValue() > requiredInputs.get(entry.getKey())) ||
-              !consumeBaselines.isEmpty() && (!consumeBaselines.keySet().equals(requiredInputs.keySet()) ||
-                    consumeBaselines.entrySet().stream().anyMatch(entry ->
-                          entry.getValue().compareTo(BigInteger.valueOf(
-                                requiredInputs.get(entry.getKey()))) < 0)) ||
-              requiresConsumeBaseline != !consumeBaselines.isEmpty() ||
-              expectsInput != !inputBuffer.isEmpty() || expectsOutput != !outputBuffer.isEmpty() ||
-              (leaseId == null) != (laneId < 0) || state == State.FAILED && diagnostic == null) {
+                !requiredInputs.keySet().containsAll(claimedInputs.keySet()) ||
+                claimedInputs.entrySet().stream().anyMatch(entry ->
+                        entry.getValue() > requiredInputs.get(entry.getKey())) ||
+                !consumeBaselines.isEmpty() && (!consumeBaselines.keySet().equals(requiredInputs.keySet()) ||
+                        consumeBaselines.entrySet().stream().anyMatch(entry ->
+                                entry.getValue().compareTo(BigInteger.valueOf(
+                                        requiredInputs.get(entry.getKey()))) < 0)) ||
+                requiresConsumeBaseline != !consumeBaselines.isEmpty() ||
+                expectsInput != !inputBuffer.isEmpty() || expectsOutput != !outputBuffer.isEmpty() ||
+                (leaseId == null) != (laneId < 0) || state == State.FAILED && diagnostic == null) {
             throw new IllegalArgumentException("Passive operation state disagrees with its buffers");
         }
     }
@@ -631,9 +630,9 @@ public final class QIOPassiveOperation {
     }
 
     private static Map<PortableResourceDescriptor, Long> checkedAmounts(
-          Map<PortableResourceDescriptor, Long> amounts, boolean allowEmpty, String name) {
+            Map<PortableResourceDescriptor, Long> amounts, boolean allowEmpty, String name) {
         Map<PortableResourceDescriptor, Long> checked = QIOProcessingNbt.copyAmounts(amounts,
-              allowEmpty, name);
+                allowEmpty, name);
         if (checked.size() > MAX_RESOURCES) {
             throw new IllegalArgumentException(name + " contains too many resources");
         }
@@ -641,20 +640,20 @@ public final class QIOPassiveOperation {
     }
 
     private static Map<PortableResourceDescriptor, UUID> checkedBindings(
-          Map<PortableResourceDescriptor, UUID> bindings,
-          Map<PortableResourceDescriptor, Long> required) {
+            Map<PortableResourceDescriptor, UUID> bindings,
+            Map<PortableResourceDescriptor, Long> required) {
         if (!bindings.keySet().equals(required.keySet())) {
             throw new IllegalArgumentException("Passive resource bindings do not match inputs");
         }
         Map<PortableResourceDescriptor, UUID> copy = new LinkedHashMap<>();
         bindings.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry ->
-              copy.put(Objects.requireNonNull(entry.getKey(), "resource"),
-                    Objects.requireNonNull(entry.getValue(), "resource UUID")));
+                copy.put(Objects.requireNonNull(entry.getKey(), "resource"),
+                        Objects.requireNonNull(entry.getValue(), "resource UUID")));
         return Collections.unmodifiableMap(copy);
     }
 
     private static Map<PortableResourceDescriptor, UUID> readBindings(NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         NBTTagList list = data.getTagList("resourceBindings", NBT.TAG_COMPOUND);
         if (list.tagCount() > MAX_RESOURCES) {
             throw new QIOProcessingDataException("Passive operation has too many bindings");
@@ -663,9 +662,9 @@ public final class QIOPassiveOperation {
         for (int index = 0; index < list.tagCount(); index++) {
             NBTTagCompound stored = list.getCompoundTagAt(index);
             PortableResourceDescriptor resource = PortableResourceDescriptor.read(
-                  stored.getCompoundTag("resource"));
+                    stored.getCompoundTag("resource"));
             if (bindings.put(resource, QIOProcessingNbt.readUUID(stored,
-                  "qioResourceUUID")) != null) {
+                    "qioResourceUUID")) != null) {
                 throw new QIOProcessingDataException("Duplicate passive resource binding");
             }
         }

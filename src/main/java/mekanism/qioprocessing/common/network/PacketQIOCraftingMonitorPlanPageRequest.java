@@ -6,12 +6,7 @@ import mekanism.qioprocessing.common.content.QIOProcessingNetworkData;
 import mekanism.qioprocessing.common.content.QIOProcessingNetworkManager;
 import mekanism.qioprocessing.common.inventory.container.QIOCraftingMonitorPageContainer;
 import mekanism.qioprocessing.common.inventory.container.QIOProcessingTerminalContainerState;
-import mekanism.qioprocessing.common.terminal.QIOCraftingMonitorPlanEntry;
-import mekanism.qioprocessing.common.terminal.QIOCraftingMonitorService;
-import mekanism.qioprocessing.common.terminal.QIOPage;
-import mekanism.qioprocessing.common.terminal.QIOPageCursor;
-import mekanism.qioprocessing.common.terminal.QIOProcessingTerminalSession;
-import mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType;
+import mekanism.qioprocessing.common.terminal.*;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
@@ -28,7 +23,7 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class PacketQIOCraftingMonitorPlanPageRequest implements
-      IMessageHandler<PacketQIOCraftingMonitorPlanPageRequest.Message, IMessage> {
+        IMessageHandler<PacketQIOCraftingMonitorPlanPageRequest.Message, IMessage> {
 
     @Override
     public IMessage onMessage(Message message, MessageContext context) {
@@ -40,37 +35,37 @@ public final class PacketQIOCraftingMonitorPlanPageRequest implements
 
     private static void handle(Message message, EntityPlayer player) {
         if (!(player instanceof EntityPlayerMP playerMP) ||
-            !(player.openContainer instanceof QIOCraftingMonitorPageContainer container) ||
-            player.openContainer.windowId != message.windowId ||
-            !player.openContainer.canInteractWith(player)) return;
+                !(player.openContainer instanceof QIOCraftingMonitorPageContainer container) ||
+                player.openContainer.windowId != message.windowId ||
+                !player.openContainer.canInteractWith(player)) return;
         QIOProcessingTerminalSession session = container.getTerminalSession();
         if (!validSession(message, player, session) ||
-            !container.tryRequestCraftingMonitorDetail(player.world.getTotalWorldTime())) return;
+                !container.tryRequestCraftingMonitorDetail(player.world.getTotalWorldTime())) return;
         QIOProcessingNetworkData network = QIOProcessingNetworkManager.INSTANCE.get(
-              session.getFrequencyUUID());
+                session.getFrequencyUUID());
         if (network == null) return;
         try {
             QIOPage<QIOCraftingMonitorPlanEntry> page = QIOCraftingMonitorService.getPlanPage(
-                  session, network, session.getAccessRevision(), message.jobId,
-                  message.planRevision, message.cursor, message.pageSize);
+                    session, network, session.getAccessRevision(), message.jobId,
+                    message.planRevision, message.cursor, message.pageSize);
             String signature = network.getJob(message.jobId).getActivePlan()
-                  .getStructuralSignature();
+                    .getStructuralSignature();
             QIOProcessingPacketHandler.INSTANCE.sendTo(
-                  PacketQIOCraftingMonitorPlanPageData.Message.create(message.windowId,
-                        session, message.jobId, message.planRevision, signature, page), playerMP);
+                    PacketQIOCraftingMonitorPlanPageData.Message.create(message.windowId,
+                            session, message.jobId, message.planRevision, signature, page), playerMP);
         } catch (IllegalArgumentException | IllegalStateException | SecurityException ignored) {
         }
     }
 
     private static boolean validSession(Message message, EntityPlayer player,
-          @Nullable QIOProcessingTerminalSession session) {
+                                        @Nullable QIOProcessingTerminalSession session) {
         return session != null && session.getFrequencyUUID() != null &&
-              session.getTerminalType() == QIOProcessingTerminalType.CRAFTING_MONITOR &&
-              session.validate(message.nonce, player.getUniqueID(), session.getTargetKind(),
-                    QIOProcessingTerminalType.CRAFTING_MONITOR, message.terminalUUID,
-                    message.targetRevision, session.getFrequencyUUID(),
-                    session.getAccessRevision()) ==
-                    QIOProcessingTerminalSession.Validation.ACCEPTED;
+                session.getTerminalType() == QIOProcessingTerminalType.CRAFTING_MONITOR &&
+                session.validate(message.nonce, player.getUniqueID(), session.getTargetKind(),
+                        QIOProcessingTerminalType.CRAFTING_MONITOR, message.terminalUUID,
+                        message.targetRevision, session.getFrequencyUUID(),
+                        session.getAccessRevision()) ==
+                        QIOProcessingTerminalSession.Validation.ACCEPTED;
     }
 
     public static final class Message implements IMessage {
@@ -81,14 +76,15 @@ public final class PacketQIOCraftingMonitorPlanPageRequest implements
         private UUID jobId;
         private int planRevision;
         private int pageSize;
-        @Nullable private QIOPageCursor cursor;
+        @Nullable
+        private QIOPageCursor cursor;
         private boolean valid;
 
         public Message() {
         }
 
         private Message(int windowId, UUID nonce, UUID terminalUUID, long targetRevision,
-              UUID jobId, int planRevision, int pageSize, @Nullable QIOPageCursor cursor) {
+                        UUID jobId, int planRevision, int pageSize, @Nullable QIOPageCursor cursor) {
             this.windowId = windowId;
             this.nonce = nonce;
             this.terminalUUID = terminalUUID;
@@ -101,17 +97,17 @@ public final class PacketQIOCraftingMonitorPlanPageRequest implements
         }
 
         public static Message create(int windowId, QIOProcessingTerminalContainerState state,
-              UUID jobId, int planRevision, int pageSize, @Nullable QIOPageCursor cursor) {
+                                     UUID jobId, int planRevision, int pageSize, @Nullable QIOPageCursor cursor) {
             return state == null || !state.isValid() ? new Message() : new Message(windowId,
-                  state.getSessionNonce(), state.getTerminalUUID(), state.getTargetRevision(),
-                  jobId, planRevision, pageSize, cursor);
+                    state.getSessionNonce(), state.getTerminalUUID(), state.getTargetRevision(),
+                    jobId, planRevision, pageSize, cursor);
         }
 
         static Message create(int windowId, QIOProcessingTerminalSession session,
-              UUID jobId, int planRevision, int pageSize, @Nullable QIOPageCursor cursor) {
+                              UUID jobId, int planRevision, int pageSize, @Nullable QIOPageCursor cursor) {
             return session == null ? new Message() : new Message(windowId,
-                  session.getSessionNonce(), session.getTerminalUUID(),
-                  session.getTargetRevision(), jobId, planRevision, pageSize, cursor);
+                    session.getSessionNonce(), session.getTerminalUUID(),
+                    session.getTargetRevision(), jobId, planRevision, pageSize, cursor);
         }
 
         @Override
@@ -144,13 +140,15 @@ public final class PacketQIOCraftingMonitorPlanPageRequest implements
             }
         }
 
-        public boolean isValid() { return valid; }
+        public boolean isValid() {
+            return valid;
+        }
 
         private boolean shape() {
             return windowId >= 0 && nonce != null && terminalUUID != null &&
-                  targetRevision >= 0 && jobId != null && planRevision > 0 &&
-                  pageSize > 0 && pageSize <= PacketQIOCraftingMonitorPlanPageData.MAX_PAGE_SIZE &&
-                  (cursor == null || nonce.equals(cursor.getSessionNonce()));
+                    targetRevision >= 0 && jobId != null && planRevision > 0 &&
+                    pageSize > 0 && pageSize <= PacketQIOCraftingMonitorPlanPageData.MAX_PAGE_SIZE &&
+                    (cursor == null || nonce.equals(cursor.getSessionNonce()));
         }
     }
 

@@ -65,12 +65,12 @@ public class TileEntityElectrolyticSeparator extends TileEntityBasicMachine<Flui
     public static final RecipeError NOT_ENOUGH_SPACE_LEFT_OUTPUT_ERROR = RecipeError.create();
     public static final RecipeError NOT_ENOUGH_SPACE_RIGHT_OUTPUT_ERROR = RecipeError.create();
     private static final List<RecipeError> TRACKED_ERROR_TYPES = Arrays.asList(
-          RecipeError.NOT_ENOUGH_ENERGY,
-          RecipeError.NOT_ENOUGH_ENERGY_REDUCED_RATE,
-          RecipeError.NOT_ENOUGH_INPUT,
-          NOT_ENOUGH_SPACE_LEFT_OUTPUT_ERROR,
-          NOT_ENOUGH_SPACE_RIGHT_OUTPUT_ERROR,
-          RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
+            RecipeError.NOT_ENOUGH_ENERGY,
+            RecipeError.NOT_ENOUGH_ENERGY_REDUCED_RATE,
+            RecipeError.NOT_ENOUGH_INPUT,
+            NOT_ENOUGH_SPACE_LEFT_OUTPUT_ERROR,
+            NOT_ENOUGH_SPACE_RIGHT_OUTPUT_ERROR,
+            RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
     );
     private static final String[] methods = new String[]{"getEnergy", "getOutput", "getMaxEnergy", "getEnergyNeeded", "getWater", "getWaterNeeded", "getHydrogen",
             "getHydrogenNeeded", "getOxygen", "getOxygenNeeded"};
@@ -126,14 +126,14 @@ public class TileEntityElectrolyticSeparator extends TileEntityBasicMachine<Flui
         configComponent.setInputConfig(TransmissionType.ENERGY);
         ejectorComponent = new TileComponentEjector(this);
         ejectorComponent.setOutputData(configComponent, TransmissionType.ITEM, TransmissionType.GAS)
-              .setCanTankEject(tank -> {
-                  if (tank == leftTank) {
-                      return dumpLeft != GasMode.DUMPING;
-                  } else if (tank == rightTank) {
-                      return dumpRight != GasMode.DUMPING;
-                  }
-                  return true;
-              });
+                .setCanTankEject(tank -> {
+                    if (tank == leftTank) {
+                        return dumpLeft != GasMode.DUMPING;
+                    } else if (tank == rightTank) {
+                        return dumpRight != GasMode.DUMPING;
+                    }
+                    return true;
+                });
     }
 
     @Override
@@ -327,27 +327,27 @@ public class TileEntityElectrolyticSeparator extends TileEntityBasicMachine<Flui
     @Override
     public CachedRecipe<SeparatorRecipe> createNewCachedRecipe(SeparatorRecipe recipe, int cacheIndex) {
         return new OneInputCachedRecipe<>(recipe, this::shouldRecheckAllRecipeErrors,
-              InputHelper.getFluidInputHandler(fluidTank, RecipeError.NOT_ENOUGH_INPUT),
-              OutputHelper.getChemicalPairOutputHandler(leftTank, NOT_ENOUGH_SPACE_LEFT_OUTPUT_ERROR, rightTank, NOT_ENOUGH_SPACE_RIGHT_OUTPUT_ERROR),
-              () -> recipe.getInput().ingredient,
-              input -> input != null && input.isFluidEqual(recipe.getInput().ingredient),
-              input -> recipe.getOutput().copy(), input -> input == null || input.amount <= 0, output -> output == null || !output.isValid())
-              .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
-              .setActive(active -> {
-                  if (active || prevEnergy >= getEnergy()) {
-                      setActive(active);
-                  }
-              })
-              .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
-              .setRequiredTicks(() -> ticksRequired)
-              .setBaselineMaxOperations(() -> getUpgradedUsage(recipe))
-              .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
-              .setErrorsChanged(errors -> {
-                  for (int i = 0; i < trackedErrors.length; i++) {
-                      trackedErrors[i] = errors.contains(TRACKED_ERROR_TYPES.get(i));
-                  }
-              })
-              .setOnFinish(this::onCachedRecipeFinish);
+                InputHelper.getFluidInputHandler(fluidTank, RecipeError.NOT_ENOUGH_INPUT),
+                OutputHelper.getChemicalPairOutputHandler(leftTank, NOT_ENOUGH_SPACE_LEFT_OUTPUT_ERROR, rightTank, NOT_ENOUGH_SPACE_RIGHT_OUTPUT_ERROR),
+                () -> recipe.getInput().ingredient,
+                input -> input != null && input.isFluidEqual(recipe.getInput().ingredient),
+                input -> recipe.getOutput().copy(), input -> input == null || input.amount <= 0, output -> output == null || !output.isValid())
+                .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
+                .setActive(active -> {
+                    if (active || prevEnergy >= getEnergy()) {
+                        setActive(active);
+                    }
+                })
+                .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
+                .setRequiredTicks(() -> ticksRequired)
+                .setBaselineMaxOperations(() -> getUpgradedUsage(recipe))
+                .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
+                .setErrorsChanged(errors -> {
+                    for (int i = 0; i < trackedErrors.length; i++) {
+                        trackedErrors[i] = errors.contains(TRACKED_ERROR_TYPES.get(i));
+                    }
+                })
+                .setOnFinish(this::onCachedRecipeFinish);
     }
 
     @Override
@@ -552,10 +552,16 @@ public class TileEntityElectrolyticSeparator extends TileEntityBasicMachine<Flui
     }
 
     @Override
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return type == mekanism.api.transmitters.TransmissionType.FLUID;
+    }
+
+    @Override
     public int getRedstoneLevel() {
         return MekanismUtils.redstoneLevelFromContents(fluidTank.getFluidAmount(), fluidTank.getCapacity());
     }
-@Override
+
+    @Override
     protected boolean shouldDumpRadiation() {
         return true;
     }

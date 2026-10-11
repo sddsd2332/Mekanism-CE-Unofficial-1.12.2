@@ -22,12 +22,16 @@ public interface QIOResourceCodec<T> {
     @Nonnull
     Class<T> getValueClass();
 
-    /** Current payload version written by this codec. */
+    /**
+     * Current payload version written by this codec.
+     */
     default int getCodecVersion() {
         return 1;
     }
 
-    /** Returns an immutable-by-contract, amount-free resource template. */
+    /**
+     * Returns an immutable-by-contract, amount-free resource template.
+     */
     @Nonnull
     T normalize(@Nonnull T value);
 
@@ -38,10 +42,14 @@ public interface QIOResourceCodec<T> {
     @Nonnull
     NBTTagCompound writeTemplate(@Nonnull T value);
 
-    /** Reads any payload version explicitly supported by this codec. */
+    /**
+     * Reads any payload version explicitly supported by this codec.
+     */
     @Nonnull
     T readTemplate(@Nonnull NBTTagCompound payload, int codecVersion);
 
-    /** Fixed-point QIO storage units consumed by one minimum integer unit of this resource. */
+    /**
+     * Fixed-point QIO storage units consumed by one minimum integer unit of this resource.
+     */
     long getStorageUnitsPerUnit();
 }

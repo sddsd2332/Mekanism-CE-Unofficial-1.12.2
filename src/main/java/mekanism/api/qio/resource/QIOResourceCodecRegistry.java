@@ -9,7 +9,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
-/** Process-wide registry of uniquely named QIO resource codecs. */
+/**
+ * Process-wide registry of uniquely named QIO resource codecs.
+ */
 public final class QIOResourceCodecRegistry {
 
     public static final QIOResourceCodecRegistry INSTANCE = new QIOResourceCodecRegistry();
@@ -20,7 +22,9 @@ public final class QIOResourceCodecRegistry {
         QIOResourceCodecs.registerBuiltins(this);
     }
 
-    /** Registers one codec. Duplicate ids always fail, even when both registrations use one class. */
+    /**
+     * Registers one codec. Duplicate ids always fail, even when both registrations use one class.
+     */
     @Nonnull
     public synchronized <T> QIOResourceCodec<T> register(@Nonnull QIOResourceCodec<T> codec) {
         Objects.requireNonNull(codec, "QIO resource codec cannot be null");

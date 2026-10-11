@@ -11,7 +11,10 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Renders the resource consumed by a logical workbench slot, not its validation container. */
+/**
+ * Renders the resource consumed by a logical workbench slot, not its validation container.
+ */
+
 /**
  * QIO 处理模块中的 QIOWorkbenchGuiIngredientRenderer 类型。
  *
@@ -29,11 +32,11 @@ final class QIOWorkbenchGuiIngredientRenderer {
 
     static void render(IGuiWrapper gui, Candidate candidate, int x, int y, int size) {
         render(gui, candidate.getDisplayStack(), candidate.isVirtualFluid() ?
-              candidate.getResource() : null, x, y, size);
+                candidate.getResource() : null, x, y, size);
     }
 
     private static void render(IGuiWrapper gui, ItemStack displayStack,
-          @Nullable PortableResourceDescriptor virtualFluid, int x, int y, int size) {
+                               @Nullable PortableResourceDescriptor virtualFluid, int x, int y, int size) {
         if (virtualFluid != null) {
             QIOGuiResourceRenderer.renderIcon(gui, virtualFluid, x, y, size);
         } else if (!displayStack.isEmpty()) {
@@ -43,29 +46,29 @@ final class QIOWorkbenchGuiIngredientRenderer {
 
     static List<String> fluidTooltip(Ingredient ingredient) {
         return fluidTooltip(ingredient.getVirtualFluid(), ingredient.getVirtualFluidAmount(),
-              ingredient.getRepresentative());
+                ingredient.getRepresentative());
     }
 
     static List<String> fluidTooltip(Candidate candidate) {
         return fluidTooltip(candidate.isVirtualFluid() ? candidate.getResource() : null,
-              candidate.getAmount(), candidate.getDisplayStack());
+                candidate.getAmount(), candidate.getDisplayStack());
     }
 
     private static List<String> fluidTooltip(@Nullable PortableResourceDescriptor resource,
-          long amount, ItemStack recipeContainer) {
+                                             long amount, ItemStack recipeContainer) {
         List<String> tooltip = new ArrayList<>();
         if (resource == null) return tooltip;
         tooltip.add(QIOGuiResourceRenderer.name(resource));
         tooltip.add(new TextComponentTranslation(
-              "gui.mekanismqioprocessing.workbench_direct_fluid_amount",
-              Long.toString(amount)).getFormattedText());
+                "gui.mekanismqioprocessing.workbench_direct_fluid_amount",
+                Long.toString(amount)).getFormattedText());
         tooltip.add(new TextComponentTranslation(
-              "gui.mekanismqioprocessing.workbench_direct_fluid_behavior")
-              .getFormattedText());
+                "gui.mekanismqioprocessing.workbench_direct_fluid_behavior")
+                .getFormattedText());
         if (!recipeContainer.isEmpty()) {
             tooltip.add(new TextComponentTranslation(
-                  "gui.mekanismqioprocessing.workbench_direct_fluid_container",
-                  recipeContainer.getDisplayName()).getFormattedText());
+                    "gui.mekanismqioprocessing.workbench_direct_fluid_container",
+                    recipeContainer.getDisplayName()).getFormattedText());
         }
         return tooltip;
     }

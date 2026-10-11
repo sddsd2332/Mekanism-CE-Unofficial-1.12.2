@@ -42,7 +42,7 @@ public class RenderLargeWindGeneratorItem extends MekanismItemStackRenderer {
         } else {
             if (transformType == TransformType.GUI) {
                 GlStateManager.rotate(90, 0, 1, 0);
-                GlStateManager.translate(0,0.4F,0);
+                GlStateManager.translate(0, 0.4F, 0);
             } else if (transformType == TransformType.FIRST_PERSON_RIGHT_HAND) {
                 GlStateManager.rotate(180, 0, 1, 0);
             }

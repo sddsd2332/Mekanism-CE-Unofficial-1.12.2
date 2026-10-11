@@ -3,7 +3,9 @@ package mekanism.common.content.qio;
 import javax.annotation.Nullable;
 import java.util.UUID;
 
-/** Small immutable-on-the-wire source descriptors used by crafting transfer. */
+/**
+ * Small immutable-on-the-wire source descriptors used by crafting transfer.
+ */
 public final class QIOCraftingTransferHelper {
 
     private QIOCraftingTransferHelper() {
@@ -60,7 +62,9 @@ public final class QIOCraftingTransferHelper {
         }
     }
 
-    /** Generic request shape for future fluid/gas recipe adapters. */
+    /**
+     * Generic request shape for future fluid/gas recipe adapters.
+     */
     public static final class ResourceRequest {
         private final UUID resource;
         private final QIOResourceKind kind;

@@ -164,7 +164,7 @@ public interface IFluidHandlerSlot extends IInventorySlot {
         if (tanks == 1) {
             FluidStack fluidInItem = getFluidInTank(itemFluidHandler, 0);
             if (!isFluidStackEmpty(fluidInItem) && getFluidTank().isFluidValid(fluidInItem) &&
-                  fillHandlerFromOther(getFluidTank(), itemFluidHandler, fluidInItem)) {
+                    fillHandlerFromOther(getFluidTank(), itemFluidHandler, fluidInItem)) {
                 setStack(itemFluidHandler.getContainer());
                 return true;
             }

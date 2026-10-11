@@ -17,14 +17,14 @@ public class ReactorInventorySlot extends BasicInventorySlot {
     }
 
     public static ReactorInventorySlot at(Predicate<ItemStack> validator, BiPredicate<ItemStack, AutomationType> canInsert,
-          @Nullable IContentsListener listener, int x, int y) {
+                                          @Nullable IContentsListener listener, int x, int y) {
         Objects.requireNonNull(validator, "Item validity check cannot be null");
         Objects.requireNonNull(canInsert, "Item insertion check cannot be null");
         return new ReactorInventorySlot(validator, canInsert, listener, x, y);
     }
 
     protected ReactorInventorySlot(Predicate<ItemStack> validator, BiPredicate<ItemStack, AutomationType> canInsert,
-          @Nullable IContentsListener listener, int x, int y) {
+                                   @Nullable IContentsListener listener, int x, int y) {
         super(notExternal, canInsert, validator, listener, x, y);
     }
 }

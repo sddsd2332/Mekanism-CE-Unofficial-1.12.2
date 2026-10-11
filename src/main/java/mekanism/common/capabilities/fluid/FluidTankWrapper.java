@@ -1,10 +1,6 @@
 package mekanism.common.capabilities.fluid;
 
-import mekanism.api.Action;
-import mekanism.api.AutomationType;
-import mekanism.api.IContentsListener;
-import mekanism.api.IContentsListenerRegistry;
-import mekanism.api.IContentsSnapshot;
+import mekanism.api.*;
 import mekanism.api.fluid.IExtendedFluidTank;
 import mekanism.common.capabilities.merged.MergedTank;
 import net.minecraft.nbt.NBTTagCompound;

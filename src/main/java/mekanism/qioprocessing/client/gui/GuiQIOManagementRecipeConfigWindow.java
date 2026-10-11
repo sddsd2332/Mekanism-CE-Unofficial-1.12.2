@@ -11,9 +11,7 @@ import mekanism.client.gui.element.scroll.GuiScrollList;
 import mekanism.client.gui.element.text.BackgroundType;
 import mekanism.client.gui.element.text.GuiTextField;
 import mekanism.client.gui.element.window.GuiWindow;
-import mekanism.client.render.IFancyFontRenderer.TextAlignment;
 import mekanism.common.inventory.container.SelectedWindowData;
-import mekanism.qioprocessing.api.resource.PortableResourceDescriptor;
 import mekanism.qioprocessing.common.QIOProcessingWindowTypes;
 import mekanism.qioprocessing.common.config.QIOAutomationRecipeProfileMutation;
 import mekanism.qioprocessing.common.config.QIOAutomationRecipeProfileMutation.Action;
@@ -38,13 +36,12 @@ import net.minecraft.util.text.TextComponentTranslation;
 import org.lwjgl.opengl.GL11;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
-/** Remote recipe-profile editor owned by the management terminal session. */
+/**
+ * Remote recipe-profile editor owned by the management terminal session.
+ */
+
 /**
  * QIO 处理模块中的 GuiQIOManagementRecipeConfigWindow 类型。
  *
@@ -64,7 +61,7 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
     private static final int PRODUCT_FILTER_BUTTON_WIDTH = 70;
     private static final int PRODUCT_SEARCH_X = 80;
     private static final int PRODUCT_SEARCH_WIDTH = PRODUCT_LIST_WIDTH -
-          (PRODUCT_SEARCH_X - PRODUCT_FILTER_BUTTON_X);
+            (PRODUCT_SEARCH_X - PRODUCT_FILTER_BUTTON_X);
     private static final int ROUTE_LIST_X = 170;
     private static final int ROUTE_LIST_WIDTH = 160;
     private static final int LIST_Y = 38;
@@ -74,9 +71,9 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
     private static final int BOTTOM_BUTTON_Y = 202;
     private static final int AMOUNT_FIELD_WIDTH = 64;
     private static final int GLOBAL_AMOUNT_FIELD_X = 6 + PRODUCT_LIST_WIDTH -
-          AMOUNT_FIELD_WIDTH;
+            AMOUNT_FIELD_WIDTH;
     private static final int ROUTE_AMOUNT_FIELD_X = ROUTE_LIST_X + ROUTE_LIST_WIDTH -
-          AMOUNT_FIELD_WIDTH;
+            AMOUNT_FIELD_WIDTH;
     private static final int PROFILE_MODE_BUTTON_X = WIDTH - 98;
     private static final int PROFILE_MODE_BUTTON_WIDTH = 92;
     private static final int TITLE_X = 32;
@@ -124,10 +121,14 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
     private ProductFilter productFilter = ProductFilter.ALL;
     private SelectionFocus selectionFocus = SelectionFocus.PRODUCT;
     private String query = "";
-    @Nullable private String selectedProductKey;
-    @Nullable private String selectedRouteKey;
-    @Nullable private QIOManagementRecipeSnapshot metadata;
-    @Nullable private Pending pending;
+    @Nullable
+    private String selectedProductKey;
+    @Nullable
+    private String selectedRouteKey;
+    @Nullable
+    private QIOManagementRecipeSnapshot metadata;
+    @Nullable
+    private Pending pending;
     private int productTotal;
     private int routeTotal;
     private long directoryRevision;
@@ -144,13 +145,13 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
     private boolean closed;
 
     public GuiQIOManagementRecipeConfigWindow(IGuiWrapper gui, int x, int y,
-          QIOManagementRecipeContainer container, UUID deviceUUID,
-          QIOAutomationMode mode, String machineName) {
+                                              QIOManagementRecipeContainer container, UUID deviceUUID,
+                                              QIOAutomationMode mode, String machineName) {
         super(gui, x, y, WIDTH, HEIGHT, new SelectedWindowData(
-              QIOProcessingWindowTypes.MANAGEMENT_RECIPE_CONFIG,
-              mode == QIOAutomationMode.SCHEDULED ?
-                    QIOProcessingWindowTypes.MANAGEMENT_RECIPE_SCHEDULED :
-                    QIOProcessingWindowTypes.MANAGEMENT_RECIPE_PASSIVE));
+                QIOProcessingWindowTypes.MANAGEMENT_RECIPE_CONFIG,
+                mode == QIOAutomationMode.SCHEDULED ?
+                        QIOProcessingWindowTypes.MANAGEMENT_RECIPE_SCHEDULED :
+                        QIOProcessingWindowTypes.MANAGEMENT_RECIPE_PASSIVE));
         this.container = Objects.requireNonNull(container, "container");
         terminalState = container.getTerminalState();
         cache = container.getManagementRecipeClientCache();
@@ -160,9 +161,9 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
             throw new IllegalArgumentException("Unsupported remote recipe mode " + mode);
         }
         title = tr(mode == QIOAutomationMode.SCHEDULED ?
-              "gui.mekanismqioprocessing.management_auto_crafting_config_title" :
-              "gui.mekanismqioprocessing.management_auto_processing_config_title",
-              machineName);
+                        "gui.mekanismqioprocessing.management_auto_crafting_config_title" :
+                        "gui.mekanismqioprocessing.management_auto_processing_config_title",
+                machineName);
         session = SessionIdentity.capture(terminalState);
         if (session == null) {
             throw new IllegalStateException("Management recipe window requires a session");
@@ -170,55 +171,55 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
         interactionStrategy = InteractionStrategy.ALL;
 
         profileModeButton = addChild(button(gui, PROFILE_MODE_BUTTON_X, 6,
-              PROFILE_MODE_BUTTON_WIDTH,
-              "gui.mekanismqioprocessing.config_profile_global",
-              this::toggleProfileMode));
+                PROFILE_MODE_BUTTON_WIDTH,
+                "gui.mekanismqioprocessing.config_profile_global",
+                this::toggleProfileMode));
         routeFilterModeButton = addChild(button(gui, ROUTE_FILTER_MODE_BUTTON_X, 22,
-              ROUTE_FILTER_MODE_BUTTON_WIDTH,
-              "gui.mekanismqioprocessing.config_filter_blacklist",
-              this::toggleFilterMode));
+                ROUTE_FILTER_MODE_BUTTON_WIDTH,
+                "gui.mekanismqioprocessing.config_filter_blacklist",
+                this::toggleFilterMode));
         globalProfileButton = addChild(new MekanismButton(gui,
-              relativeX + PROFILE_MODE_BUTTON_X, relativeY + 22,
-              PROFILE_MODE_BUTTON_WIDTH, 12,
-              tr("gui.mekanismqioprocessing.config_profile_slot", 1),
-              () -> cycleGlobalProfile(1), () -> cycleGlobalProfile(-1), null));
+                relativeX + PROFILE_MODE_BUTTON_X, relativeY + 22,
+                PROFILE_MODE_BUTTON_WIDTH, 12,
+                tr("gui.mekanismqioprocessing.config_profile_slot", 1),
+                () -> cycleGlobalProfile(1), () -> cycleGlobalProfile(-1), null));
         productFilterButton = addChild(button(gui, PRODUCT_FILTER_BUTTON_X, 22,
-              PRODUCT_FILTER_BUTTON_WIDTH, productFilterKey(),
-              this::cycleProductFilter));
+                PRODUCT_FILTER_BUTTON_WIDTH, productFilterKey(),
+                this::cycleProductFilter));
         searchField = addChild(new GuiTextField(gui, relativeX + PRODUCT_SEARCH_X,
-              relativeY + 22, PRODUCT_SEARCH_WIDTH, 12)
-              .setBackground(BackgroundType.DIGITAL)
-              .setTextColor(screenTextColor())
-              .setMaxLength(64)
-              .setResponder(this::searchChanged));
+                relativeY + 22, PRODUCT_SEARCH_WIDTH, 12)
+                .setBackground(BackgroundType.DIGITAL)
+                .setTextColor(screenTextColor())
+                .setMaxLength(64)
+                .setResponder(this::searchChanged));
 
         productList = addChild(new ProductScrollList(gui, relativeX + 6,
-              relativeY + LIST_Y, PRODUCT_LIST_WIDTH, LIST_HEIGHT));
+                relativeY + LIST_Y, PRODUCT_LIST_WIDTH, LIST_HEIGHT));
         routeList = addChild(new RouteScrollList(gui, relativeX + ROUTE_LIST_X,
-              relativeY + LIST_Y, ROUTE_LIST_WIDTH, LIST_HEIGHT));
+                relativeY + LIST_Y, ROUTE_LIST_WIDTH, LIST_HEIGHT));
 
         globalAmountField = addChild(amountField(gui, GLOBAL_AMOUNT_FIELD_X,
-              AMOUNT_ROW_Y, this::applyGlobalAmount));
+                AMOUNT_ROW_Y, this::applyGlobalAmount));
         routeAmountField = addChild(amountField(gui, ROUTE_AMOUNT_FIELD_X,
-              AMOUNT_ROW_Y, this::applyRouteAmount));
+                AMOUNT_ROW_Y, this::applyRouteAmount));
         globalAmountField.setTextValidator(text -> isValidAmountText(text,
-              metadata == null ? Long.MAX_VALUE : metadata.getMaximumCraftAmount()));
+                metadata == null ? Long.MAX_VALUE : metadata.getMaximumCraftAmount()));
         routeAmountField.setTextValidator(text -> {
             Route route = selectedRoute();
             return isValidAmountText(text, route == null ? Long.MAX_VALUE :
-                  route.getMaximumCraftAmount());
+                    route.getMaximumCraftAmount());
         });
 
         resetProductButton = addChild(button(gui, 6, BOTTOM_BUTTON_Y, 94,
-              "gui.mekanismqioprocessing.config_reset_product", this::resetProduct));
+                "gui.mekanismqioprocessing.config_reset_product", this::resetProduct));
         resetAllButton = addChild(button(gui, 104, BOTTOM_BUTTON_Y, 66,
-              "gui.mekanismqioprocessing.config_reset_all", this::resetAll));
+                "gui.mekanismqioprocessing.config_reset_all", this::resetAll));
         toggleButton = addChild(button(gui, 174, BOTTOM_BUTTON_Y, 54,
-              "gui.mekanismqioprocessing.config_enable", this::toggleSelection));
+                "gui.mekanismqioprocessing.config_enable", this::toggleSelection));
         upButton = addChild(button(gui, 232, BOTTOM_BUTTON_Y, 46,
-              "gui.mekanismqioprocessing.config_move_up", () -> moveSelection(-1)));
+                "gui.mekanismqioprocessing.config_move_up", () -> moveSelection(-1)));
         downButton = addChild(button(gui, 282, BOTTOM_BUTTON_Y, 48,
-              "gui.mekanismqioprocessing.config_move_down", () -> moveSelection(1)));
+                "gui.mekanismqioprocessing.config_move_down", () -> moveSelection(1)));
 
         productGeneration = cache.getProductGeneration();
         routeGeneration = cache.getRouteGeneration();
@@ -244,9 +245,9 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
             queueProductReload();
         }
         long currentRecipeProfileRevision =
-              terminalState.getAutomationRecipeProfileRevision();
+                terminalState.getAutomationRecipeProfileRevision();
         if (currentRecipeProfileRevision >= 0 &&
-            currentRecipeProfileRevision != recipeProfileRevision) {
+                currentRecipeProfileRevision != recipeProfileRevision) {
             recipeProfileRevision = currentRecipeProfileRevision;
             queueProductReload();
         }
@@ -274,7 +275,7 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
             } else if (productList.shouldRequestMore() && products.size() < productTotal) {
                 requestProducts(products.size());
             } else if (routeList.shouldRequestMore() && routes.size() < routeTotal &&
-                       selectedProductKey != null) {
+                    selectedProductKey != null) {
                 requestRoutes(routes.size());
             }
         }
@@ -296,36 +297,36 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
         drawWindowTitle();
         if (searchField.isEmpty() && !searchField.isFocused()) {
             drawScaledScrollingString(tr("gui.mekanismqioprocessing.config_search"),
-                  PRODUCT_SEARCH_X + 5, 24, TextAlignment.LEFT, 0x707070,
-                  PRODUCT_SEARCH_WIDTH - 7, 0, false, 0.8F, getTimeOpened());
+                    PRODUCT_SEARCH_X + 5, 24, TextAlignment.LEFT, 0x707070,
+                    PRODUCT_SEARCH_WIDTH - 7, 0, false, 0.8F, getTimeOpened());
         }
         if (metadata == null || metadata.isIndividualProfile()) {
             drawScaledScrollingString(tr("gui.mekanismqioprocessing.config_routes"),
-                  ROUTE_LIST_X + 2, 24, TextAlignment.LEFT, titleTextColor(),
-                  ROUTE_LIST_WIDTH, 0, false, 0.9F, getTimeOpened());
+                    ROUTE_LIST_X + 2, 24, TextAlignment.LEFT, titleTextColor(),
+                    ROUTE_LIST_WIDTH, 0, false, 0.9F, getTimeOpened());
         }
         drawScaledScrollingString(tr("gui.mekanismqioprocessing.config_global_amount_short"),
-              8, AMOUNT_ROW_Y + 2, TextAlignment.LEFT, titleTextColor(),
-              GLOBAL_AMOUNT_FIELD_X - 12, 0, false, 0.82F, getTimeOpened());
+                8, AMOUNT_ROW_Y + 2, TextAlignment.LEFT, titleTextColor(),
+                GLOBAL_AMOUNT_FIELD_X - 12, 0, false, 0.82F, getTimeOpened());
         Route route = selectedRoute();
         String amountText = tr("gui.mekanismqioprocessing.config_route_amount_short")
-              .getFormattedText() + ": " + (route == null ? "-" : route.getCraftAmount());
+                .getFormattedText() + ": " + (route == null ? "-" : route.getCraftAmount());
         drawScaledScrollingString(new TextComponentString(amountText), ROUTE_LIST_X + 2,
-              AMOUNT_ROW_Y + 2, TextAlignment.LEFT, titleTextColor(),
-              ROUTE_AMOUNT_FIELD_X - ROUTE_LIST_X - 6, 0, false, 0.82F,
-              getTimeOpened());
+                AMOUNT_ROW_Y + 2, TextAlignment.LEFT, titleTextColor(),
+                ROUTE_AMOUNT_FIELD_X - ROUTE_LIST_X - 6, 0, false, 0.82F,
+                getTimeOpened());
         if (routeAmountField.isEmpty() && !routeAmountField.isFocused()) {
             drawScaledScrollingString(tr("gui.mekanismqioprocessing.config_amount_inherit"),
-                  ROUTE_AMOUNT_FIELD_X + 4, AMOUNT_ROW_Y + 2, TextAlignment.LEFT,
-                  0x707070, AMOUNT_FIELD_WIDTH - 6, 0, false, 0.8F,
-                  getTimeOpened());
+                    ROUTE_AMOUNT_FIELD_X + 4, AMOUNT_ROW_Y + 2, TextAlignment.LEFT,
+                    0x707070, AMOUNT_FIELD_WIDTH - 6, 0, false, 0.8F,
+                    getTimeOpened());
         }
         if (metadata == null && (pending != null || productReloadQueued)) {
             drawEmptyMessage("gui.mekanismqioprocessing.config_loading");
         } else if (products.isEmpty() && pending == null) {
             drawEmptyMessage(query.isEmpty() && productFilter == ProductFilter.ALL ?
-                  "gui.mekanismqioprocessing.config_empty" :
-                  "gui.mekanismqioprocessing.config_no_match");
+                    "gui.mekanismqioprocessing.config_empty" :
+                    "gui.mekanismqioprocessing.config_no_match");
         }
     }
 
@@ -333,31 +334,31 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
     public void renderToolTip(int mouseX, int mouseY) {
         super.renderToolTip(mouseX, mouseY);
         if (showTooltip(profileModeButton,
-              "gui.mekanismqioprocessing.config_profile_mode_tooltip", mouseX, mouseY) ||
-            showTooltip(globalProfileButton,
-                  "gui.mekanismqioprocessing.config_profile_slot_tooltip", mouseX, mouseY) ||
-            showTooltip(routeFilterModeButton,
-                  "gui.mekanismqioprocessing.config_filter_mode_tooltip", mouseX, mouseY) ||
-            showTooltip(productFilterButton,
-                  "gui.mekanismqioprocessing.management_product_filter_tooltip", mouseX,
-                  mouseY) ||
-            showTooltip(searchField,
-                  "gui.mekanismqioprocessing.config_search_tooltip", mouseX, mouseY) ||
-            showTooltip(toggleButton,
-                  "gui.mekanismqioprocessing.config_toggle_tooltip", mouseX, mouseY) ||
-            showTooltip(upButton,
-                  "gui.mekanismqioprocessing.config_move_up_tooltip", mouseX, mouseY) ||
-            showTooltip(downButton,
-                  "gui.mekanismqioprocessing.config_move_down_tooltip", mouseX, mouseY) ||
-            showTooltip(resetProductButton,
-                  "gui.mekanismqioprocessing.config_reset_product_tooltip", mouseX, mouseY) ||
-            showTooltip(resetAllButton,
-                  "gui.mekanismqioprocessing.config_reset_all_tooltip", mouseX, mouseY) ||
-            showTooltip(globalAmountField,
-                  "gui.mekanismqioprocessing.config_global_amount_tooltip", mouseX, mouseY) ||
-            showTooltip(routeAmountField,
-                  "gui.mekanismqioprocessing.config_route_amount_tooltip", mouseX,
-                  mouseY)) {
+                "gui.mekanismqioprocessing.config_profile_mode_tooltip", mouseX, mouseY) ||
+                showTooltip(globalProfileButton,
+                        "gui.mekanismqioprocessing.config_profile_slot_tooltip", mouseX, mouseY) ||
+                showTooltip(routeFilterModeButton,
+                        "gui.mekanismqioprocessing.config_filter_mode_tooltip", mouseX, mouseY) ||
+                showTooltip(productFilterButton,
+                        "gui.mekanismqioprocessing.management_product_filter_tooltip", mouseX,
+                        mouseY) ||
+                showTooltip(searchField,
+                        "gui.mekanismqioprocessing.config_search_tooltip", mouseX, mouseY) ||
+                showTooltip(toggleButton,
+                        "gui.mekanismqioprocessing.config_toggle_tooltip", mouseX, mouseY) ||
+                showTooltip(upButton,
+                        "gui.mekanismqioprocessing.config_move_up_tooltip", mouseX, mouseY) ||
+                showTooltip(downButton,
+                        "gui.mekanismqioprocessing.config_move_down_tooltip", mouseX, mouseY) ||
+                showTooltip(resetProductButton,
+                        "gui.mekanismqioprocessing.config_reset_product_tooltip", mouseX, mouseY) ||
+                showTooltip(resetAllButton,
+                        "gui.mekanismqioprocessing.config_reset_all_tooltip", mouseX, mouseY) ||
+                showTooltip(globalAmountField,
+                        "gui.mekanismqioprocessing.config_global_amount_tooltip", mouseX, mouseY) ||
+                showTooltip(routeAmountField,
+                        "gui.mekanismqioprocessing.config_route_amount_tooltip", mouseX,
+                        mouseY)) {
             return;
         }
     }
@@ -365,8 +366,8 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
         return routeList.mouseScrolled(mouseX, mouseY, delta) ||
-              productList.mouseScrolled(mouseX, mouseY, delta) ||
-              super.mouseScrolled(mouseX, mouseY, delta);
+                productList.mouseScrolled(mouseX, mouseY, delta) ||
+                super.mouseScrolled(mouseX, mouseY, delta);
     }
 
     @Override
@@ -416,14 +417,14 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
         Status status = cache.getProductStatus();
         QIOManagementRecipeSnapshot snapshot = cache.getProductPage();
         if (status != Status.OK || snapshot == null ||
-            !deviceUUID.equals(snapshot.getDeviceUUID())) {
+                !deviceUUID.equals(snapshot.getDeviceUUID())) {
             if (status == Status.INVALID_TARGET || status == Status.UNAVAILABLE) {
                 closeLater();
             }
             return;
         }
         if (!response.query.equals(query) || response.filter != productFilter ||
-            !snapshot.getQuery().equals(query)) {
+                !snapshot.getQuery().equals(query)) {
             queueProductReload();
             return;
         }
@@ -448,14 +449,14 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
         Status status = cache.getRouteStatus();
         QIOManagementRecipeSnapshot snapshot = cache.getRoutePage();
         if (status != Status.OK || snapshot == null ||
-            !deviceUUID.equals(snapshot.getDeviceUUID())) {
+                !deviceUUID.equals(snapshot.getDeviceUUID())) {
             if (status == Status.INVALID_TARGET || status == Status.UNAVAILABLE) {
                 closeLater();
             }
             return;
         }
         if (!Objects.equals(response.productKey, selectedProductKey) ||
-            !snapshot.getProductKey().equals(selectedProductKey)) {
+                !snapshot.getProductKey().equals(selectedProductKey)) {
             routeReloadQueued = selectedProductKey != null;
             return;
         }
@@ -513,33 +514,33 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
         cache.expect(PageKind.PRODUCTS, requestId);
         pending = Pending.products(offset, query, productFilter, clientTick);
         QIOProcessingPacketHandler.INSTANCE.sendToServer(
-              PacketQIOManagementRecipeRequest.Message.products(
-                    container.getTerminalWindowId(), terminalState, requestId, deviceUUID,
-                    offset, PAGE_SIZE, query, productFilter));
+                PacketQIOManagementRecipeRequest.Message.products(
+                        container.getTerminalWindowId(), terminalState, requestId, deviceUUID,
+                        offset, PAGE_SIZE, query, productFilter));
     }
 
     private void requestRoutes(int offset) {
         if (pending != null || selectedProductKey == null ||
-            !session.matches(terminalState)) return;
+                !session.matches(terminalState)) return;
         UUID requestId = UUID.randomUUID();
         cache.expect(PageKind.ROUTES, requestId);
         pending = Pending.routes(offset, selectedProductKey, clientTick);
         QIOProcessingPacketHandler.INSTANCE.sendToServer(
-              PacketQIOManagementRecipeRequest.Message.routes(
-                    container.getTerminalWindowId(), terminalState, requestId, deviceUUID,
-                    selectedProductKey, offset, PAGE_SIZE, ""));
+                PacketQIOManagementRecipeRequest.Message.routes(
+                        container.getTerminalWindowId(), terminalState, requestId, deviceUUID,
+                        selectedProductKey, offset, PAGE_SIZE, ""));
     }
 
     private void sendMutation(QIOAutomationRecipeProfileMutation mutation) {
         if (pending != null || metadata == null || !metadata.isEditable() ||
-            !session.matches(terminalState)) return;
+                !session.matches(terminalState)) return;
         UUID requestId = UUID.randomUUID();
         cache.expectMutation(requestId);
         pending = Pending.mutation(clientTick);
         QIOProcessingPacketHandler.INSTANCE.sendToServer(
-              PacketQIOManagementRecipeRequest.Message.mutate(
-                    container.getTerminalWindowId(), terminalState, requestId, deviceUUID,
-                    metadata.getProfileRevision(), mutation));
+                PacketQIOManagementRecipeRequest.Message.mutate(
+                        container.getTerminalWindowId(), terminalState, requestId, deviceUUID,
+                        metadata.getProfileRevision(), mutation));
     }
 
     private void searchChanged(String value) {
@@ -576,7 +577,7 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
 
     private void toggleFilterMode() {
         sendMutation(QIOAutomationRecipeProfileMutation.simple(
-              Action.TOGGLE_ROUTE_FILTER_MODE));
+                Action.TOGGLE_ROUTE_FILTER_MODE));
     }
 
     private void toggleSelection() {
@@ -585,17 +586,17 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
         if (GuiScreen.isCtrlKeyDown()) {
             if (product != null) {
                 sendMutation(QIOAutomationRecipeProfileMutation.product(
-                      Action.DISABLE_PRODUCT, product.getProductKey()));
+                        Action.DISABLE_PRODUCT, product.getProductKey()));
             }
         } else if (route != null) {
             sendMutation(QIOAutomationRecipeProfileMutation.route(Action.TOGGLE_ROUTE,
-                  route.getProductKey(), route.getRouteKey()));
+                    route.getProductKey(), route.getRouteKey()));
         }
     }
 
     private void toggleProduct(Product product) {
         sendMutation(QIOAutomationRecipeProfileMutation.product(Action.TOGGLE_PRODUCT,
-              product.getProductKey()));
+                product.getProductKey()));
     }
 
     private void moveSelection(int direction) {
@@ -603,21 +604,21 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
             Product product = selectedProduct();
             if (product != null) {
                 sendMutation(GuiScreen.isCtrlKeyDown() ?
-                      QIOAutomationRecipeProfileMutation.product(direction < 0 ?
-                            Action.MOVE_PRODUCT_TO_TOP : Action.MOVE_PRODUCT_TO_BOTTOM,
-                            product.getProductKey()) :
-                      QIOAutomationRecipeProfileMutation.moveProduct(
-                            product.getProductKey(), direction));
+                        QIOAutomationRecipeProfileMutation.product(direction < 0 ?
+                                        Action.MOVE_PRODUCT_TO_TOP : Action.MOVE_PRODUCT_TO_BOTTOM,
+                                product.getProductKey()) :
+                        QIOAutomationRecipeProfileMutation.moveProduct(
+                                product.getProductKey(), direction));
             }
         } else {
             Route route = selectedRoute();
             if (route != null) {
                 sendMutation(GuiScreen.isCtrlKeyDown() ?
-                      QIOAutomationRecipeProfileMutation.route(direction < 0 ?
-                            Action.MOVE_ROUTE_TO_TOP : Action.MOVE_ROUTE_TO_BOTTOM,
-                            route.getProductKey(), route.getRouteKey()) :
-                      QIOAutomationRecipeProfileMutation.moveRoute(route.getProductKey(),
-                            route.getRouteKey(), direction));
+                        QIOAutomationRecipeProfileMutation.route(direction < 0 ?
+                                        Action.MOVE_ROUTE_TO_TOP : Action.MOVE_ROUTE_TO_BOTTOM,
+                                route.getProductKey(), route.getRouteKey()) :
+                        QIOAutomationRecipeProfileMutation.moveRoute(route.getProductKey(),
+                                route.getRouteKey(), direction));
             }
         }
     }
@@ -626,14 +627,14 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
         Product product = selectedProduct();
         if (product != null) {
             sendMutation(QIOAutomationRecipeProfileMutation.product(Action.RESET_PRODUCT,
-                  product.getProductKey()));
+                    product.getProductKey()));
         }
     }
 
     private void resetAll() {
         if (GuiScreen.isShiftKeyDown()) {
             sendMutation(QIOAutomationRecipeProfileMutation.setAllRoutesEnabled(
-                  !areAllLoadedProductsEnabled()));
+                    !areAllLoadedProductsEnabled()));
         } else {
             sendMutation(QIOAutomationRecipeProfileMutation.simple(Action.RESET_ALL));
         }
@@ -642,9 +643,9 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
     private void applyGlobalAmount() {
         if (metadata != null) {
             sendMutation(QIOAutomationRecipeProfileMutation.amount(
-                  Action.SET_GLOBAL_CRAFT_AMOUNT, "",
-                  parseAmount(globalAmountField.getText(), metadata.getCraftAmount(),
-                        metadata.getMaximumCraftAmount())));
+                    Action.SET_GLOBAL_CRAFT_AMOUNT, "",
+                    parseAmount(globalAmountField.getText(), metadata.getCraftAmount(),
+                            metadata.getMaximumCraftAmount())));
         }
     }
 
@@ -653,12 +654,12 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
         if (route == null) return;
         if (routeAmountField.isEmpty()) {
             sendMutation(QIOAutomationRecipeProfileMutation.amount(
-                  Action.CLEAR_ROUTE_CRAFT_AMOUNT, route.getRouteKey(), 0));
+                    Action.CLEAR_ROUTE_CRAFT_AMOUNT, route.getRouteKey(), 0));
         } else {
             sendMutation(QIOAutomationRecipeProfileMutation.amount(
-                  Action.SET_ROUTE_CRAFT_AMOUNT, route.getRouteKey(),
-                  parseAmount(routeAmountField.getText(), route.getCraftAmount(),
-                        route.getMaximumCraftAmount())));
+                    Action.SET_ROUTE_CRAFT_AMOUNT, route.getRouteKey(),
+                    parseAmount(routeAmountField.getText(), route.getCraftAmount(),
+                            route.getMaximumCraftAmount())));
         }
     }
 
@@ -726,7 +727,7 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
         if (selectionFocus == SelectionFocus.PRODUCT) {
             upButton.active = available && product != null && product.getOrder() > 0;
             downButton.active = available && product != null &&
-                  product.getOrder() + 1 < productTotal;
+                    product.getOrder() + 1 < productTotal;
         } else {
             upButton.active = available && route != null && route.getOrder() > 0;
             downButton.active = available && route != null && route.getOrder() + 1 < routeTotal;
@@ -739,39 +740,39 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
         routeAmountField.setEnabled(available && route != null);
         profileModeButton.active = available && hasCatalog;
         routeFilterModeButton.visible = metadata != null && hasCatalog &&
-              mode == QIOAutomationMode.SCHEDULED;
+                mode == QIOAutomationMode.SCHEDULED;
         routeFilterModeButton.active = available && routeFilterModeButton.visible;
         globalProfileButton.visible = metadata != null && hasCatalog &&
-              !metadata.isIndividualProfile();
+                !metadata.isIndividualProfile();
         globalProfileButton.active = available && globalProfileButton.visible;
 
         if (metadata != null) {
             profileModeButton.setMessage(tr(metadata.isIndividualProfile() ?
-                  "gui.mekanismqioprocessing.config_profile_machine" :
-                  "gui.mekanismqioprocessing.config_profile_global"));
+                    "gui.mekanismqioprocessing.config_profile_machine" :
+                    "gui.mekanismqioprocessing.config_profile_global"));
             routeFilterModeButton.setMessage(tr(metadata.getRouteFilterMode() ==
-                  RouteFilterMode.WHITELIST ?
-                  "gui.mekanismqioprocessing.config_filter_whitelist" :
-                  "gui.mekanismqioprocessing.config_filter_blacklist"));
+                    RouteFilterMode.WHITELIST ?
+                    "gui.mekanismqioprocessing.config_filter_whitelist" :
+                    "gui.mekanismqioprocessing.config_filter_blacklist"));
             globalProfileButton.setMessage(tr(
-                  "gui.mekanismqioprocessing.config_profile_slot",
-                  metadata.getGlobalProfileSlot()));
+                    "gui.mekanismqioprocessing.config_profile_slot",
+                    metadata.getGlobalProfileSlot()));
         }
         productFilterButton.setMessage(tr(productFilterKey()));
         toggleButton.setMessage(tr(ctrl ?
-              "gui.mekanismqioprocessing.config_disable_product" :
-              route != null && route.isProfileEnabled() ?
-                    "gui.mekanismqioprocessing.config_disable" :
-                    "gui.mekanismqioprocessing.config_enable"));
+                "gui.mekanismqioprocessing.config_disable_product" :
+                route != null && route.isProfileEnabled() ?
+                        "gui.mekanismqioprocessing.config_disable" :
+                        "gui.mekanismqioprocessing.config_enable"));
         upButton.setMessage(tr(ctrl ? "gui.mekanismqioprocessing.config_move_top" :
-              "gui.mekanismqioprocessing.config_move_up"));
+                "gui.mekanismqioprocessing.config_move_up"));
         downButton.setMessage(tr(ctrl ? "gui.mekanismqioprocessing.config_move_bottom" :
-              "gui.mekanismqioprocessing.config_move_down"));
+                "gui.mekanismqioprocessing.config_move_down"));
         resetAllButton.setMessage(tr(GuiScreen.isShiftKeyDown() ?
-              areAllLoadedProductsEnabled() ?
-                    "gui.mekanismqioprocessing.config_disable_all" :
-                    "gui.mekanismqioprocessing.config_enable_all" :
-              "gui.mekanismqioprocessing.config_reset_all"));
+                areAllLoadedProductsEnabled() ?
+                        "gui.mekanismqioprocessing.config_disable_all" :
+                        "gui.mekanismqioprocessing.config_enable_all" :
+                "gui.mekanismqioprocessing.config_reset_all"));
         updateProfileButtonLayout();
         syncAmountFields(route);
     }
@@ -779,14 +780,14 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
     private void updateProfileButtonLayout() {
         if (metadata != null && mode == QIOAutomationMode.SCHEDULED) {
             int targetX = metadata.isIndividualProfile() ? PROFILE_MODE_BUTTON_X :
-                  ROUTE_FILTER_MODE_BUTTON_X;
+                    ROUTE_FILTER_MODE_BUTTON_X;
             moveElementToX(routeFilterModeButton,
-                  getGuiLeft() + relativeX + targetX);
+                    getGuiLeft() + relativeX + targetX);
             routeFilterModeButton.setWidth(metadata.isIndividualProfile() ?
-                  PROFILE_MODE_BUTTON_WIDTH : ROUTE_FILTER_MODE_BUTTON_WIDTH);
+                    PROFILE_MODE_BUTTON_WIDTH : ROUTE_FILTER_MODE_BUTTON_WIDTH);
         }
         moveElementToX(globalProfileButton,
-              getGuiLeft() + relativeX + PROFILE_MODE_BUTTON_X);
+                getGuiLeft() + relativeX + PROFILE_MODE_BUTTON_X);
         globalProfileButton.setWidth(PROFILE_MODE_BUTTON_WIDTH);
     }
 
@@ -804,7 +805,7 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
         }
         if (!routeAmountField.isFocused()) {
             String text = route != null && route.hasCraftAmountOverride() ?
-                  Long.toString(route.getCraftAmount()) : "";
+                    Long.toString(route.getCraftAmount()) : "";
             if (!text.equals(routeAmountField.getText())) {
                 routeAmountField.setTextSilently(text);
             }
@@ -820,20 +821,20 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
     }
 
     private MekanismButton button(IGuiWrapper gui, int x, int y, int width, String key,
-          Runnable action) {
+                                  Runnable action) {
         return new MekanismButton(gui, relativeX + x, relativeY + y, width, 12,
-              tr(key), action, null);
+                tr(key), action, null);
     }
 
     private GuiTextField amountField(IGuiWrapper gui, int x, int y, Runnable enterHandler) {
         return new GuiTextField(gui, relativeX + x, relativeY + y,
-              AMOUNT_FIELD_WIDTH, 12)
-              .setBackground(BackgroundType.DIGITAL)
-              .setTextColor(screenTextColor())
-              .setMaxLength(19)
-              .setInputValidator((c, keyCode) -> Character.isDigit(c) ||
-                    GuiMekanism.isTextboxKey(c, keyCode))
-              .setEnterHandler(enterHandler);
+                AMOUNT_FIELD_WIDTH, 12)
+                .setBackground(BackgroundType.DIGITAL)
+                .setTextColor(screenTextColor())
+                .setMaxLength(19)
+                .setInputValidator((c, keyCode) -> Character.isDigit(c) ||
+                        GuiMekanism.isTextboxKey(c, keyCode))
+                .setEnterHandler(enterHandler);
     }
 
     private static boolean isValidAmountText(String text, long maximum) {
@@ -851,7 +852,7 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
         long checkedFallback = Math.max(1, Math.min(maximum, fallback));
         try {
             return text == null || text.isEmpty() ? checkedFallback :
-                  Math.max(1, Math.min(maximum, Long.parseLong(text)));
+                    Math.max(1, Math.min(maximum, Long.parseLong(text)));
         } catch (RuntimeException ignored) {
             return checkedFallback;
         }
@@ -859,8 +860,8 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
 
     private boolean showTooltip(GuiElement element, String key, int mouseX, int mouseY) {
         if (element.visible && mouseX >= element.getX() &&
-            mouseX < element.getX() + element.getWidth() && mouseY >= element.getY() &&
-            mouseY < element.getY() + element.getHeight()) {
+                mouseX < element.getX() + element.getWidth() && mouseY >= element.getY() &&
+                mouseY < element.getY() + element.getHeight()) {
             displayTooltip(tr(key), mouseX, mouseY);
             return true;
         }
@@ -869,7 +870,7 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
 
     private void drawEmptyMessage(String key) {
         drawScaledScrollingString(tr(key), 6, 100, TextAlignment.CENTER,
-              screenTextColor(), WIDTH - 12, 0, false, 1F, getTimeOpened());
+                screenTextColor(), WIDTH - 12, 0, false, 1F, getTimeOpened());
     }
 
     private void drawWindowTitle() {
@@ -879,28 +880,28 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
         int titleY = relativeY + 5;
         if (textWidth <= TITLE_WIDTH) {
             getFont().drawString(text, titleX + (TITLE_WIDTH - textWidth) / 2F,
-                  titleY, titleTextColor(), false);
+                    titleY, titleTextColor(), false);
         } else {
             drawSmoothString(text, titleX, relativeY + 3, TITLE_WIDTH, 14,
-                  titleTextColor());
+                    titleTextColor());
         }
     }
 
     private void drawRowSelection(int x, int y, int width, int height,
-          boolean selected, boolean focused, boolean hovered) {
+                                  boolean selected, boolean focused, boolean hovered) {
         if (selected) {
             GuiUtils.fill(x, y, x + width, y + height,
-                  focused ? ROW_FOCUSED_SELECTED_COLOR : ROW_SELECTED_COLOR);
+                    focused ? ROW_FOCUSED_SELECTED_COLOR : ROW_SELECTED_COLOR);
             GuiUtils.drawOutline(x, y, width, height,
-                  focused ? ROW_FOCUSED_SELECTED_OUTLINE_COLOR :
-                        ROW_SELECTED_OUTLINE_COLOR);
+                    focused ? ROW_FOCUSED_SELECTED_OUTLINE_COLOR :
+                            ROW_SELECTED_OUTLINE_COLOR);
         } else if (hovered) {
             GuiUtils.fill(x, y, x + width, y + height, ROW_HOVER_COLOR);
         }
     }
 
     private void drawSmoothString(String text, int x, int y, int width, int height,
-          int color) {
+                                  int color) {
         int textWidth = getFont().getStringWidth(text);
         if (textWidth <= 0 || width <= 0) return;
         boolean scrolling = textWidth > width;
@@ -915,7 +916,7 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
     }
 
     private void drawResources(List<ResourceAmount> resources, int x, int y,
-          int width, int height) {
+                               int width, int height) {
         if (resources.isEmpty() || width <= 0) return;
         int contentWidth = resourceStripWidth(resources);
         boolean scrolling = contentWidth > width;
@@ -925,8 +926,8 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
             float drawX = x + index * RESOURCE_STEP - offset;
             if (drawX > x - RESOURCE_STEP && drawX < x + width) {
                 QIOGuiResourceRenderer.renderIcon(gui(),
-                      resources.get(index).getResource(), Math.round(drawX),
-                      y + Math.max(0, (height - 16) / 2), 16);
+                        resources.get(index).getResource(), Math.round(drawX),
+                        y + Math.max(0, (height - 16) / 2), 16);
             }
         }
         if (scrolling) GL11.glDisable(GL11.GL_SCISSOR_TEST);
@@ -934,11 +935,11 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
 
     @Nullable
     private ResourceAmount hoveredResource(List<ResourceAmount> resources,
-          int mouseX, int mouseY, int x, int y, int width, int height) {
+                                           int mouseX, int mouseY, int x, int y, int width, int height) {
         int absoluteX = getGuiLeft() + x;
         int absoluteY = getGuiTop() + y;
         if (mouseX < absoluteX || mouseX >= absoluteX + width ||
-            mouseY < absoluteY || mouseY >= absoluteY + height) return null;
+                mouseY < absoluteY || mouseY >= absoluteY + height) return null;
         int contentWidth = resourceStripWidth(resources);
         float offset = contentWidth > width ? scrollingOffset(contentWidth, width) : 0;
         for (int index = 0; index < resources.size(); index++) {
@@ -952,8 +953,8 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
 
     private void renderResourceTooltip(ResourceAmount amount, int mouseX, int mouseY) {
         List<String> extra = Collections.singletonList(tr(
-              "gui.mekanismqioprocessing.config_resource_amount",
-              amount.getAmount()).getFormattedText());
+                "gui.mekanismqioprocessing.config_resource_amount",
+                amount.getAmount()).getFormattedText());
         ItemStack item = QIOGuiResourceRenderer.item(amount.getResource());
         if (!item.isEmpty()) {
             gui().renderItemTooltipWithExtra(item, mouseX, mouseY, extra);
@@ -970,7 +971,7 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
             if (index > 0) result.append(" + ");
             ResourceAmount amount = resources.get(index);
             result.append(QIOGuiResourceRenderer.name(amount.getResource()))
-                  .append(" x").append(amount.getAmount());
+                    .append(" x").append(amount.getAmount());
         }
         return result.toString();
     }
@@ -999,7 +1000,7 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
         double scaleY = minecraft.displayHeight / (double) minecraft.currentScreen.height;
         int scissorX = (int) Math.floor((getGuiLeft() + minX) * scaleX);
         int scissorY = (int) Math.floor(minecraft.displayHeight -
-              (getGuiTop() + maxY) * scaleY);
+                (getGuiTop() + maxY) * scaleY);
         int scissorWidth = Math.max(0, (int) Math.ceil((maxX - minX) * scaleX));
         int scissorHeight = Math.max(0, (int) Math.ceil((maxY - minY) * scaleY));
         GL11.glEnable(GL11.GL_SCISSOR_TEST);
@@ -1018,11 +1019,11 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
     }
 
     private static boolean sameSource(@Nullable QIOManagementRecipeSnapshot first,
-          QIOManagementRecipeSnapshot second) {
+                                      QIOManagementRecipeSnapshot second) {
         return first == null || first.getDeviceUUID().equals(second.getDeviceUUID()) &&
-              first.getRouteDirectoryRevision() == second.getRouteDirectoryRevision() &&
-              first.getProfileRevision() == second.getProfileRevision() &&
-              first.getPolicyRevision() == second.getPolicyRevision();
+                first.getRouteDirectoryRevision() == second.getRouteDirectoryRevision() &&
+                first.getProfileRevision() == second.getProfileRevision() &&
+                first.getPolicyRevision() == second.getPolicyRevision();
     }
 
     private static TextComponentTranslation tr(String key, Object... args) {
@@ -1033,15 +1034,26 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
 
         private ProductScrollList(IGuiWrapper gui, int x, int y, int width, int height) {
             super(gui, x, y, width, height, ROW_HEIGHT, GuiInnerScreen.SCREEN,
-                  GuiInnerScreen.SCREEN_SIZE);
+                    GuiInnerScreen.SCREEN_SIZE);
         }
 
-        @Override protected int getMaxElements() { return products.size(); }
-        @Override public boolean hasSelection() { return selectedProduct() != null; }
-        @Override protected void setSelected(int index) {
+        @Override
+        protected int getMaxElements() {
+            return products.size();
+        }
+
+        @Override
+        public boolean hasSelection() {
+            return selectedProduct() != null;
+        }
+
+        @Override
+        protected void setSelected(int index) {
             if (index >= 0 && index < products.size()) selectProduct(products.get(index));
         }
-        @Override public void clearSelection() {
+
+        @Override
+        public void clearSelection() {
             selectedProductKey = null;
             selectedRouteKey = null;
         }
@@ -1054,7 +1066,7 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
             Product product = hoveredProduct(mouseX, mouseY);
             if (button == 1 && GuiScreen.isShiftKeyDown() && product != null &&
-                metadata != null && metadata.isEditable() && pending == null) {
+                    metadata != null && metadata.isEditable() && pending == null) {
                 selectProduct(product);
                 toggleProduct(product);
                 return true;
@@ -1071,17 +1083,17 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
                 int rowY = relativeY + 1 + index * elementHeight;
                 boolean selected = product.getProductKey().equals(selectedProductKey);
                 boolean hovered = mouseX >= getX() + 1 &&
-                      mouseX < getX() + barXShift - 1 &&
-                      mouseY >= getY() + 1 + index * elementHeight &&
-                      mouseY < getY() + 1 + (index + 1) * elementHeight;
+                        mouseX < getX() + barXShift - 1 &&
+                        mouseY >= getY() + 1 + index * elementHeight &&
+                        mouseY < getY() + 1 + (index + 1) * elementHeight;
                 drawRowSelection(relativeX + 1, rowY, barXShift - 2, elementHeight,
-                      selected, selectionFocus == SelectionFocus.PRODUCT, hovered);
+                        selected, selectionFocus == SelectionFocus.PRODUCT, hovered);
                 int indicatorX = relativeX + barXShift - 10;
                 GuiUtils.fill(indicatorX, rowY + 4, indicatorX + 6, rowY + 10,
-                      productColor(product));
+                        productColor(product));
                 if (product.getRouteCount() > 1) {
                     GuiUtils.fill(indicatorX, rowY + 12, indicatorX + 6, rowY + 18,
-                          INDICATOR_MULTI_ROUTE);
+                            INDICATOR_MULTI_ROUTE);
                 }
             }
         }
@@ -1095,10 +1107,10 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
                 Product product = products.get(start + index);
                 int rowY = relativeY + 4 + index * elementHeight;
                 QIOGuiResourceRenderer.renderIcon(gui(),
-                      product.getProduct().getResource(), relativeX + 4, rowY, 16);
+                        product.getProduct().getResource(), relativeX + 4, rowY, 16);
                 drawSmoothString(QIOGuiResourceRenderer.name(
-                      product.getProduct().getResource()), relativeX + 25, rowY,
-                      barXShift - 38, 16, screenTextColor());
+                                product.getProduct().getResource()), relativeX + 25, rowY,
+                        barXShift - 38, 16, screenTextColor());
             }
         }
 
@@ -1112,7 +1124,7 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
         @Nullable
         private Product hoveredProduct(double mouseX, double mouseY) {
             if (mouseX < getX() + 1 || mouseX >= getX() + barXShift - 1 ||
-                mouseY < getY() + 1 || mouseY >= getY() + height - 1) return null;
+                    mouseY < getY() + 1 || mouseY >= getY() + height - 1) return null;
             int index = getCurrentSelection() + (int) (mouseY - getY() - 1) / elementHeight;
             return index >= 0 && index < products.size() ? products.get(index) : null;
         }
@@ -1122,15 +1134,28 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
 
         private RouteScrollList(IGuiWrapper gui, int x, int y, int width, int height) {
             super(gui, x, y, width, height, ROW_HEIGHT, GuiInnerScreen.SCREEN,
-                  GuiInnerScreen.SCREEN_SIZE);
+                    GuiInnerScreen.SCREEN_SIZE);
         }
 
-        @Override protected int getMaxElements() { return routes.size(); }
-        @Override public boolean hasSelection() { return selectedRoute() != null; }
-        @Override protected void setSelected(int index) {
+        @Override
+        protected int getMaxElements() {
+            return routes.size();
+        }
+
+        @Override
+        public boolean hasSelection() {
+            return selectedRoute() != null;
+        }
+
+        @Override
+        protected void setSelected(int index) {
             if (index >= 0 && index < routes.size()) selectRoute(routes.get(index));
         }
-        @Override public void clearSelection() { selectedRouteKey = null; }
+
+        @Override
+        public void clearSelection() {
+            selectedRouteKey = null;
+        }
 
         private boolean shouldRequestMore() {
             return getCurrentSelection() + getFocusedElements() + 2 >= getMaxElements();
@@ -1140,10 +1165,10 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
             Route route = hoveredRoute(mouseX, mouseY);
             if (button == 1 && GuiScreen.isShiftKeyDown() && route != null &&
-                metadata != null && metadata.isEditable() && pending == null) {
+                    metadata != null && metadata.isEditable() && pending == null) {
                 selectRoute(route);
                 sendMutation(QIOAutomationRecipeProfileMutation.route(Action.TOGGLE_ROUTE,
-                      route.getProductKey(), route.getRouteKey()));
+                        route.getProductKey(), route.getRouteKey()));
                 return true;
             }
             return super.mouseClicked(mouseX, mouseY, button);
@@ -1158,13 +1183,13 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
                 int rowY = relativeY + 1 + index * elementHeight;
                 boolean selected = route.getRouteKey().equals(selectedRouteKey);
                 boolean hovered = mouseX >= getX() + 1 &&
-                      mouseX < getX() + barXShift - 1 &&
-                      mouseY >= getY() + 1 + index * elementHeight &&
-                      mouseY < getY() + 1 + (index + 1) * elementHeight;
+                        mouseX < getX() + barXShift - 1 &&
+                        mouseY >= getY() + 1 + index * elementHeight &&
+                        mouseY < getY() + 1 + (index + 1) * elementHeight;
                 drawRowSelection(relativeX + 1, rowY, barXShift - 2, elementHeight,
-                      selected, selectionFocus == SelectionFocus.ROUTE, hovered);
+                        selected, selectionFocus == SelectionFocus.ROUTE, hovered);
                 GuiUtils.fill(relativeX + barXShift - 10, rowY + 4,
-                      relativeX + barXShift - 4, rowY + 10, routeColor(route));
+                        relativeX + barXShift - 4, rowY + 10, routeColor(route));
             }
         }
 
@@ -1184,11 +1209,11 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
                 drawResources(route.getInputs(), inputX, rowY, inputWidth, 16);
                 if (!route.getConfigurationInputs().isEmpty()) {
                     drawResources(route.getConfigurationInputs(), inputX + inputWidth + 1,
-                          rowY, 13, 16);
+                            rowY, 13, 16);
                 }
                 drawSmoothString(resourceSummary(route.getInputs()), textX, rowY,
-                      textWidth, 16, route.isEffectiveEnabled() ? screenTextColor() :
-                            route.isProfileEnabled() ? 0xE0C05A : 0x8A8A8A);
+                        textWidth, 16, route.isEffectiveEnabled() ? screenTextColor() :
+                                route.isProfileEnabled() ? 0xE0C05A : 0x8A8A8A);
                 drawResources(route.getOutputs(), outputX, rowY, 38, 16);
             }
         }
@@ -1201,22 +1226,22 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
             int visibleIndex = (int) (mouseY - getY() - 1) / elementHeight;
             int rowY = relativeY + 4 + visibleIndex * elementHeight;
             ResourceAmount input = hoveredResource(route.getInputs(), mouseX, mouseY,
-                  relativeX + 4, rowY,
-                  route.getConfigurationInputs().isEmpty() ? 38 : 24, 16);
+                    relativeX + 4, rowY,
+                    route.getConfigurationInputs().isEmpty() ? 38 : 24, 16);
             if (input != null) {
                 renderResourceTooltip(input, mouseX, mouseY);
                 return;
             }
             if (!route.getConfigurationInputs().isEmpty()) {
                 ResourceAmount configuration = hoveredResource(route.getConfigurationInputs(),
-                      mouseX, mouseY, relativeX + 29, rowY, 13, 16);
+                        mouseX, mouseY, relativeX + 29, rowY, 13, 16);
                 if (configuration != null) {
                     renderResourceTooltip(configuration, mouseX, mouseY);
                     return;
                 }
             }
             ResourceAmount output = hoveredResource(route.getOutputs(), mouseX, mouseY,
-                  relativeX + barXShift - 54, rowY, 38, 16);
+                    relativeX + barXShift - 54, rowY, 38, 16);
             if (output != null) {
                 renderResourceTooltip(output, mouseX, mouseY);
                 return;
@@ -1225,7 +1250,7 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
             tooltip.add(resourceSummary(route.getInputs()));
             if (!route.getConfigurationInputs().isEmpty()) {
                 tooltip.add(tr("gui.mekanismqioprocessing.config_retained_input",
-                      resourceSummary(route.getConfigurationInputs())).getFormattedText());
+                        resourceSummary(route.getConfigurationInputs())).getFormattedText());
             }
             tooltip.add("->");
             tooltip.add(resourceSummary(route.getOutputs()));
@@ -1237,7 +1262,7 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
         @Nullable
         private Route hoveredRoute(double mouseX, double mouseY) {
             if (mouseX < getX() + 1 || mouseX >= getX() + barXShift - 1 ||
-                mouseY < getY() + 1 || mouseY >= getY() + height - 1) return null;
+                    mouseY < getY() + 1 || mouseY >= getY() + height - 1) return null;
             int index = getCurrentSelection() + (int) (mouseY - getY() - 1) / elementHeight;
             return index >= 0 && index < routes.size() ? routes.get(index) : null;
         }
@@ -1245,25 +1270,25 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
 
     private static int productColor(Product product) {
         if (product.getEffectiveEnabledCount() < product.getProfileEnabledCount() ||
-            product.getProfileEnabledCount() > 0 &&
-                  product.getProfileEnabledCount() < product.getRouteCount()) {
+                product.getProfileEnabledCount() > 0 &&
+                        product.getProfileEnabledCount() < product.getRouteCount()) {
             return INDICATOR_PARTIAL;
         }
         return product.getProfileEnabledCount() > 0 ? INDICATOR_ENABLED :
-              INDICATOR_DISABLED;
+                INDICATOR_DISABLED;
     }
 
     private static int routeColor(Route route) {
         return route.isEffectiveEnabled() ? INDICATOR_ENABLED :
-              route.isProfileEnabled() ? INDICATOR_PARTIAL : INDICATOR_DISABLED;
+                route.isProfileEnabled() ? INDICATOR_PARTIAL : INDICATOR_DISABLED;
     }
 
     private static String routeStatusKey(Route route) {
         return route.isEffectiveEnabled() ?
-              "gui.mekanismqioprocessing.config_route_enabled" :
-              route.isProfileEnabled() ?
-                    "gui.mekanismqioprocessing.config_route_policy_blocked" :
-                    "gui.mekanismqioprocessing.config_route_disabled";
+                "gui.mekanismqioprocessing.config_route_enabled" :
+                route.isProfileEnabled() ?
+                        "gui.mekanismqioprocessing.config_route_policy_blocked" :
+                        "gui.mekanismqioprocessing.config_route_disabled";
     }
 
     private enum SelectionFocus {
@@ -1281,13 +1306,15 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
         private final RequestKind kind;
         private final int offset;
         private final String query;
-        @Nullable private final ProductFilter filter;
-        @Nullable private final String productKey;
+        @Nullable
+        private final ProductFilter filter;
+        @Nullable
+        private final String productKey;
         private final long sentAtTick;
 
         private Pending(RequestKind kind, int offset, String query,
-              @Nullable ProductFilter filter, @Nullable String productKey,
-              long sentAtTick) {
+                        @Nullable ProductFilter filter, @Nullable String productKey,
+                        long sentAtTick) {
             this.kind = kind;
             this.offset = offset;
             this.query = query;
@@ -1297,7 +1324,7 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
         }
 
         private static Pending products(int offset, String query, ProductFilter filter,
-              long tick) {
+                                        long tick) {
             return new Pending(RequestKind.PRODUCTS, offset, query, filter, null, tick);
         }
 
@@ -1318,7 +1345,7 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
         private final long accessRevision;
 
         private SessionIdentity(UUID nonce, UUID terminalUUID, long targetRevision,
-              UUID frequencyUUID, long accessRevision) {
+                                UUID frequencyUUID, long accessRevision) {
             this.nonce = nonce;
             this.terminalUUID = terminalUUID;
             this.targetRevision = targetRevision;
@@ -1329,15 +1356,15 @@ public final class GuiQIOManagementRecipeConfigWindow extends GuiWindow {
         @Nullable
         private static SessionIdentity capture(QIOProcessingTerminalContainerState state) {
             return state.isValid() && state.getSessionNonce() != null &&
-                  state.getTerminalUUID() != null && state.getFrequencyUUID() != null ?
-                  new SessionIdentity(state.getSessionNonce(), state.getTerminalUUID(),
-                        state.getTargetRevision(), state.getFrequencyUUID(),
-                        state.getAccessRevision()) : null;
+                    state.getTerminalUUID() != null && state.getFrequencyUUID() != null ?
+                    new SessionIdentity(state.getSessionNonce(), state.getTerminalUUID(),
+                            state.getTargetRevision(), state.getFrequencyUUID(),
+                            state.getAccessRevision()) : null;
         }
 
         private boolean matches(QIOProcessingTerminalContainerState state) {
             return state.matches(nonce, terminalUUID, targetRevision, frequencyUUID,
-                  accessRevision);
+                    accessRevision);
         }
     }
 }

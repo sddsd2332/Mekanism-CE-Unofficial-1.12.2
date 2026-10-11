@@ -1,7 +1,10 @@
 package mekanism.common.item;
 
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
-import mekanism.api.*;
+import mekanism.api.Action;
+import mekanism.api.Coord4D;
+import mekanism.api.EnumColor;
+import mekanism.api.MekanismAPI;
 import mekanism.api.heat.IHeatHandler;
 import mekanism.api.transmitters.DynamicNetwork;
 import mekanism.api.transmitters.IGridTransmitter;

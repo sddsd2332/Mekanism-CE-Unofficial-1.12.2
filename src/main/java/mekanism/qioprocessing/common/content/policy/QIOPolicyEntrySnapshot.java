@@ -10,7 +10,10 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Bounded immutable policy row used by management paging and conflict responses. */
+/**
+ * Bounded immutable policy row used by management paging and conflict responses.
+ */
+
 /**
  * QIO 处理模块中的 QIOPolicyEntrySnapshot 类型。
  *
@@ -51,37 +54,37 @@ public final class QIOPolicyEntrySnapshot {
     private final QIOPolicyCatalog.Source passivePrioritySource;
 
     private QIOPolicyEntrySnapshot(long policyRevision, Kind kind,
-          @Nullable UUID deviceUUID, @Nullable QIOPolicyCatalog.RouteIdentity route,
-          QIOPolicyCatalog.Toggle configuredToggle,
-          boolean hasConfiguredRoutePriority, long configuredRoutePriority,
-          boolean hasConfiguredPassivePriority, long configuredPassivePriority,
-          long machinePriority, long passivePriority,
-          boolean hasEffectiveRoutePolicy, boolean effectiveEnabled,
-          long effectiveRoutePriority, long effectivePassivePriority,
-          @Nullable QIOPolicyCatalog.Source toggleSource,
-          @Nullable QIOPolicyCatalog.Source prioritySource,
-          @Nullable QIOPolicyCatalog.Source passivePrioritySource) {
+                                   @Nullable UUID deviceUUID, @Nullable QIOPolicyCatalog.RouteIdentity route,
+                                   QIOPolicyCatalog.Toggle configuredToggle,
+                                   boolean hasConfiguredRoutePriority, long configuredRoutePriority,
+                                   boolean hasConfiguredPassivePriority, long configuredPassivePriority,
+                                   long machinePriority, long passivePriority,
+                                   boolean hasEffectiveRoutePolicy, boolean effectiveEnabled,
+                                   long effectiveRoutePriority, long effectivePassivePriority,
+                                   @Nullable QIOPolicyCatalog.Source toggleSource,
+                                   @Nullable QIOPolicyCatalog.Source prioritySource,
+                                   @Nullable QIOPolicyCatalog.Source passivePrioritySource) {
         this.policyRevision = QIOProcessingNbt.requireNonNegative(policyRevision,
-              "policyRevision");
+                "policyRevision");
         this.kind = Objects.requireNonNull(kind, "kind");
         this.deviceUUID = deviceUUID;
         this.route = route;
         this.configuredToggle = Objects.requireNonNull(configuredToggle,
-              "configuredToggle");
+                "configuredToggle");
         this.hasConfiguredRoutePriority = hasConfiguredRoutePriority;
         this.configuredRoutePriority = hasConfiguredRoutePriority ?
-              configuredRoutePriority : 0;
+                configuredRoutePriority : 0;
         this.hasConfiguredPassivePriority = hasConfiguredPassivePriority;
         this.configuredPassivePriority = hasConfiguredPassivePriority ?
-              configuredPassivePriority : 0;
+                configuredPassivePriority : 0;
         this.machinePriority = machinePriority;
         this.passivePriority = passivePriority;
         this.hasEffectiveRoutePolicy = hasEffectiveRoutePolicy;
         this.effectiveEnabled = effectiveEnabled;
         this.effectiveRoutePriority = hasEffectiveRoutePolicy ?
-              effectiveRoutePriority : 0;
+                effectiveRoutePriority : 0;
         this.effectivePassivePriority = hasEffectiveRoutePolicy ?
-              effectivePassivePriority : 0;
+                effectivePassivePriority : 0;
         this.toggleSource = toggleSource;
         this.prioritySource = prioritySource;
         this.passivePrioritySource = passivePrioritySource;
@@ -90,59 +93,59 @@ public final class QIOPolicyEntrySnapshot {
 
     @Nonnull
     static QIOPolicyEntrySnapshot globalDefault(long revision,
-          QIOPolicyCatalog.Toggle toggle, long routePriority,
-          long passivePriority) {
+                                                QIOPolicyCatalog.Toggle toggle, long routePriority,
+                                                long passivePriority) {
         return new QIOPolicyEntrySnapshot(revision, Kind.GLOBAL_DEFAULT, null, null,
-              toggle, true, routePriority, true, passivePriority, 0, 0, true,
-              toggle != QIOPolicyCatalog.Toggle.DISABLED, routePriority,
-              passivePriority,
-              QIOPolicyCatalog.Source.GLOBAL_DEFAULT,
-              QIOPolicyCatalog.Source.GLOBAL_DEFAULT,
-              QIOPolicyCatalog.Source.GLOBAL_DEFAULT);
+                toggle, true, routePriority, true, passivePriority, 0, 0, true,
+                toggle != QIOPolicyCatalog.Toggle.DISABLED, routePriority,
+                passivePriority,
+                QIOPolicyCatalog.Source.GLOBAL_DEFAULT,
+                QIOPolicyCatalog.Source.GLOBAL_DEFAULT,
+                QIOPolicyCatalog.Source.GLOBAL_DEFAULT);
     }
 
     @Nonnull
     static QIOPolicyEntrySnapshot globalRoute(long revision, String providerId,
-          String routeId, String recipeKey, QIOPolicyCatalog.Toggle toggle,
-          @Nullable Long routePriority, @Nullable Long passivePriority,
-          boolean effectiveEnabled, long effectiveRoutePriority,
-          long effectivePassivePriority, QIOPolicyCatalog.Source toggleSource,
-          QIOPolicyCatalog.Source prioritySource,
-          QIOPolicyCatalog.Source passivePrioritySource) {
+                                              String routeId, String recipeKey, QIOPolicyCatalog.Toggle toggle,
+                                              @Nullable Long routePriority, @Nullable Long passivePriority,
+                                              boolean effectiveEnabled, long effectiveRoutePriority,
+                                              long effectivePassivePriority, QIOPolicyCatalog.Source toggleSource,
+                                              QIOPolicyCatalog.Source prioritySource,
+                                              QIOPolicyCatalog.Source passivePrioritySource) {
         return new QIOPolicyEntrySnapshot(revision, Kind.GLOBAL_ROUTE, null,
-              QIOPolicyCatalog.RouteIdentity.create(providerId, routeId, recipeKey),
-              toggle, routePriority != null, routePriority == null ? 0 : routePriority,
-              passivePriority != null, passivePriority == null ? 0 : passivePriority,
-              0, 0, true, effectiveEnabled, effectiveRoutePriority,
-              effectivePassivePriority, toggleSource, prioritySource,
-              passivePrioritySource);
+                QIOPolicyCatalog.RouteIdentity.create(providerId, routeId, recipeKey),
+                toggle, routePriority != null, routePriority == null ? 0 : routePriority,
+                passivePriority != null, passivePriority == null ? 0 : passivePriority,
+                0, 0, true, effectiveEnabled, effectiveRoutePriority,
+                effectivePassivePriority, toggleSource, prioritySource,
+                passivePrioritySource);
     }
 
     @Nonnull
     static QIOPolicyEntrySnapshot deviceDefault(long revision, UUID deviceUUID,
-          QIOPolicyCatalog.Toggle toggle, long machinePriority, long passivePriority,
-          boolean effectiveEnabled, QIOPolicyCatalog.Source toggleSource) {
+                                                QIOPolicyCatalog.Toggle toggle, long machinePriority, long passivePriority,
+                                                boolean effectiveEnabled, QIOPolicyCatalog.Source toggleSource) {
         return new QIOPolicyEntrySnapshot(revision, Kind.DEVICE_DEFAULT, deviceUUID,
-              null, toggle, false, 0, true, passivePriority, machinePriority,
-              passivePriority, false, effectiveEnabled, 0, 0, toggleSource, null, null);
+                null, toggle, false, 0, true, passivePriority, machinePriority,
+                passivePriority, false, effectiveEnabled, 0, 0, toggleSource, null, null);
     }
 
     @Nonnull
     static QIOPolicyEntrySnapshot deviceRoute(long revision, UUID deviceUUID,
-          String providerId, String routeId, String recipeKey,
-          QIOPolicyCatalog.Toggle toggle, @Nullable Long routePriority,
-          @Nullable Long passivePriority, boolean effectiveEnabled,
-          long effectiveRoutePriority, long effectivePassivePriority,
-          QIOPolicyCatalog.Source toggleSource,
-          QIOPolicyCatalog.Source prioritySource,
-          QIOPolicyCatalog.Source passivePrioritySource) {
+                                              String providerId, String routeId, String recipeKey,
+                                              QIOPolicyCatalog.Toggle toggle, @Nullable Long routePriority,
+                                              @Nullable Long passivePriority, boolean effectiveEnabled,
+                                              long effectiveRoutePriority, long effectivePassivePriority,
+                                              QIOPolicyCatalog.Source toggleSource,
+                                              QIOPolicyCatalog.Source prioritySource,
+                                              QIOPolicyCatalog.Source passivePrioritySource) {
         return new QIOPolicyEntrySnapshot(revision, Kind.DEVICE_ROUTE, deviceUUID,
-              QIOPolicyCatalog.RouteIdentity.create(providerId, routeId, recipeKey),
-              toggle, routePriority != null, routePriority == null ? 0 : routePriority,
-              passivePriority != null, passivePriority == null ? 0 : passivePriority,
-              0, 0, true, effectiveEnabled, effectiveRoutePriority,
-              effectivePassivePriority, toggleSource, prioritySource,
-              passivePrioritySource);
+                QIOPolicyCatalog.RouteIdentity.create(providerId, routeId, recipeKey),
+                toggle, routePriority != null, routePriority == null ? 0 : routePriority,
+                passivePriority != null, passivePriority == null ? 0 : passivePriority,
+                0, 0, true, effectiveEnabled, effectiveRoutePriority,
+                effectivePassivePriority, toggleSource, prioritySource,
+                passivePrioritySource);
     }
 
     public long getPolicyRevision() {
@@ -260,42 +263,42 @@ public final class QIOPolicyEntrySnapshot {
 
     @Nonnull
     public static QIOPolicyEntrySnapshot read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         try {
             Kind kind = QIOProcessingNbt.readEnum(data, "kind", Kind.class);
             UUID deviceUUID = data.hasKey("deviceUUID", NBT.TAG_STRING) ?
-                  QIOProcessingNbt.readUUID(data, "deviceUUID") : null;
+                    QIOProcessingNbt.readUUID(data, "deviceUUID") : null;
             QIOPolicyCatalog.RouteIdentity route = data.hasKey("providerId", NBT.TAG_STRING) ||
-                  data.hasKey("routeId", NBT.TAG_STRING) ||
-                  data.hasKey("recipeKey", NBT.TAG_STRING) ?
-                  QIOPolicyCatalog.RouteIdentity.create(data.getString("providerId"),
-                        data.getString("routeId"), data.getString("recipeKey")) : null;
+                    data.hasKey("routeId", NBT.TAG_STRING) ||
+                    data.hasKey("recipeKey", NBT.TAG_STRING) ?
+                    QIOPolicyCatalog.RouteIdentity.create(data.getString("providerId"),
+                            data.getString("routeId"), data.getString("recipeKey")) : null;
             QIOPolicyCatalog.Toggle toggle = QIOProcessingNbt.readEnum(data,
-                  "configuredToggle", QIOPolicyCatalog.Toggle.class);
+                    "configuredToggle", QIOPolicyCatalog.Toggle.class);
             boolean hasPriority = data.getBoolean("hasConfiguredRoutePriority");
             boolean hasPassivePriority = data.getBoolean("hasConfiguredPassivePriority");
             boolean hasEffective = data.getBoolean("hasEffectiveRoutePolicy");
             QIOPolicyCatalog.Source toggleSource = data.hasKey("toggleSource", NBT.TAG_STRING) ?
-                  QIOProcessingNbt.readEnum(data, "toggleSource",
-                        QIOPolicyCatalog.Source.class) : null;
+                    QIOProcessingNbt.readEnum(data, "toggleSource",
+                            QIOPolicyCatalog.Source.class) : null;
             QIOPolicyCatalog.Source prioritySource =
-                  data.hasKey("prioritySource", NBT.TAG_STRING) ?
-                        QIOProcessingNbt.readEnum(data, "prioritySource",
-                              QIOPolicyCatalog.Source.class) : null;
+                    data.hasKey("prioritySource", NBT.TAG_STRING) ?
+                            QIOProcessingNbt.readEnum(data, "prioritySource",
+                                    QIOPolicyCatalog.Source.class) : null;
             QIOPolicyCatalog.Source passivePrioritySource =
-                  data.hasKey("passivePrioritySource", NBT.TAG_STRING) ?
-                        QIOProcessingNbt.readEnum(data, "passivePrioritySource",
-                              QIOPolicyCatalog.Source.class) : null;
+                    data.hasKey("passivePrioritySource", NBT.TAG_STRING) ?
+                            QIOProcessingNbt.readEnum(data, "passivePrioritySource",
+                                    QIOPolicyCatalog.Source.class) : null;
             return new QIOPolicyEntrySnapshot(data.getLong("policyRevision"), kind,
-                  deviceUUID, route, toggle, hasPriority,
-                  hasPriority ? data.getLong("configuredRoutePriority") : 0,
-                  hasPassivePriority,
-                  hasPassivePriority ? data.getLong("configuredPassivePriority") : 0,
-                  data.getLong("machinePriority"), data.getLong("passivePriority"),
-                  hasEffective, data.getBoolean("effectiveEnabled"),
-                  hasEffective ? data.getLong("effectiveRoutePriority") : 0,
-                  hasEffective ? data.getLong("effectivePassivePriority") : 0,
-                  toggleSource, prioritySource, passivePrioritySource);
+                    deviceUUID, route, toggle, hasPriority,
+                    hasPriority ? data.getLong("configuredRoutePriority") : 0,
+                    hasPassivePriority,
+                    hasPassivePriority ? data.getLong("configuredPassivePriority") : 0,
+                    data.getLong("machinePriority"), data.getLong("passivePriority"),
+                    hasEffective, data.getBoolean("effectiveEnabled"),
+                    hasEffective ? data.getLong("effectiveRoutePriority") : 0,
+                    hasEffective ? data.getLong("effectivePassivePriority") : 0,
+                    toggleSource, prioritySource, passivePrioritySource);
         } catch (QIOProcessingDataException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -310,18 +313,18 @@ public final class QIOPolicyEntrySnapshot {
             throw new IllegalArgumentException("QIO policy entry identity does not match its kind");
         }
         if (kind == Kind.GLOBAL_DEFAULT &&
-            configuredToggle == QIOPolicyCatalog.Toggle.INHERIT) {
+                configuredToggle == QIOPolicyCatalog.Toggle.INHERIT) {
             throw new IllegalArgumentException("Global default policy cannot inherit");
         }
         if (kind == Kind.GLOBAL_DEFAULT && !hasConfiguredRoutePriority ||
-            kind == Kind.DEVICE_DEFAULT && hasConfiguredRoutePriority) {
+                kind == Kind.DEVICE_DEFAULT && hasConfiguredRoutePriority) {
             throw new IllegalArgumentException("QIO policy priority does not match its kind");
         }
         if (kind == Kind.GLOBAL_DEFAULT && !hasConfiguredPassivePriority) {
             throw new IllegalArgumentException("Global default needs passive priority");
         }
         if (kind != Kind.DEVICE_DEFAULT &&
-            (machinePriority != 0 || passivePriority != 0)) {
+                (machinePriority != 0 || passivePriority != 0)) {
             throw new IllegalArgumentException("Only device defaults have machine priorities");
         }
         if (hasEffectiveRoutePolicy != (toggleSource != null && prioritySource != null)) {
@@ -341,30 +344,30 @@ public final class QIOPolicyEntrySnapshot {
             return false;
         }
         return policyRevision == other.policyRevision && kind == other.kind &&
-              Objects.equals(deviceUUID, other.deviceUUID) &&
-              Objects.equals(route, other.route) &&
-              configuredToggle == other.configuredToggle &&
-              hasConfiguredRoutePriority == other.hasConfiguredRoutePriority &&
-              configuredRoutePriority == other.configuredRoutePriority &&
-              hasConfiguredPassivePriority == other.hasConfiguredPassivePriority &&
-              configuredPassivePriority == other.configuredPassivePriority &&
-              machinePriority == other.machinePriority &&
-              passivePriority == other.passivePriority &&
-              hasEffectiveRoutePolicy == other.hasEffectiveRoutePolicy &&
-              effectiveEnabled == other.effectiveEnabled &&
-              effectiveRoutePriority == other.effectiveRoutePriority &&
-              effectivePassivePriority == other.effectivePassivePriority &&
-              toggleSource == other.toggleSource && prioritySource == other.prioritySource &&
-              passivePrioritySource == other.passivePrioritySource;
+                Objects.equals(deviceUUID, other.deviceUUID) &&
+                Objects.equals(route, other.route) &&
+                configuredToggle == other.configuredToggle &&
+                hasConfiguredRoutePriority == other.hasConfiguredRoutePriority &&
+                configuredRoutePriority == other.configuredRoutePriority &&
+                hasConfiguredPassivePriority == other.hasConfiguredPassivePriority &&
+                configuredPassivePriority == other.configuredPassivePriority &&
+                machinePriority == other.machinePriority &&
+                passivePriority == other.passivePriority &&
+                hasEffectiveRoutePolicy == other.hasEffectiveRoutePolicy &&
+                effectiveEnabled == other.effectiveEnabled &&
+                effectiveRoutePriority == other.effectiveRoutePriority &&
+                effectivePassivePriority == other.effectivePassivePriority &&
+                toggleSource == other.toggleSource && prioritySource == other.prioritySource &&
+                passivePrioritySource == other.passivePrioritySource;
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(policyRevision, kind, deviceUUID, route, configuredToggle,
-              hasConfiguredRoutePriority, configuredRoutePriority,
-              hasConfiguredPassivePriority, configuredPassivePriority, machinePriority,
-              passivePriority, hasEffectiveRoutePolicy, effectiveEnabled,
-              effectiveRoutePriority, effectivePassivePriority, toggleSource,
-              prioritySource, passivePrioritySource);
+                hasConfiguredRoutePriority, configuredRoutePriority,
+                hasConfiguredPassivePriority, configuredPassivePriority, machinePriority,
+                passivePriority, hasEffectiveRoutePolicy, effectiveEnabled,
+                effectiveRoutePriority, effectivePassivePriority, toggleSource,
+                prioritySource, passivePrioritySource);
     }
 }

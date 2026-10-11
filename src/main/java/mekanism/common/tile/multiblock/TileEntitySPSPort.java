@@ -48,18 +48,18 @@ public class TileEntitySPSPort extends TileEntitySPSCasing implements IConfigura
     @Override
     protected IGasTankHolder getInitialGasTanks(IContentsListener listener) {
         return ProxiedGasTankHolder.create(
-              side -> isFormed() && !outputMode,
-              side -> isFormed() && outputMode,
-              this::getSPSGasTanks
+                side -> isFormed() && !outputMode,
+                side -> isFormed() && outputMode,
+                this::getSPSGasTanks
         );
     }
 
     @Override
     protected IEnergyContainerHolder getInitialEnergyContainers(IContentsListener listener) {
         return ProxiedEnergyContainerHolder.create(
-              side -> side != null,
-              side -> false,
-              side -> Collections.singletonList(this)
+                side -> side != null,
+                side -> false,
+                side -> Collections.singletonList(this)
         );
     }
 
@@ -178,7 +178,7 @@ public class TileEntitySPSPort extends TileEntitySPSCasing implements IConfigura
             setActive(!oldMode);
             String mode = outputMode ? LangUtils.localize("gui.output") : LangUtils.localize("gui.input");
             player.sendMessage(new TextComponentString(EnumColor.DARK_BLUE + Mekanism.LOG_TAG + " " + EnumColor.GREY +
-                  LangUtils.localize("tooltip.configurator.reactorPortEject") + " " + EnumColor.AQUA + mode));
+                    LangUtils.localize("tooltip.configurator.reactorPortEject") + " " + EnumColor.AQUA + mode));
             Mekanism.packetHandler.sendUpdatePacket(this);
             markNoUpdateSync();
         }

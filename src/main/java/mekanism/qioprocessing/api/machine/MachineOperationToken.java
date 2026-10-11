@@ -7,15 +7,12 @@ import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
-/** Persistent identity and transfer receipt set for one real machine operation. */
+/**
+ * Persistent identity and transfer receipt set for one real machine operation.
+ */
+
 /**
  * QIO 处理模块中的 MachineOperationToken 类型。
  *
@@ -69,7 +66,7 @@ public final class MachineOperationToken {
     private final Set<UUID> transferReceipts;
 
     private MachineOperationToken(UUID operationId, UUID leaseId, Kind kind, @Nullable UUID jobId,
-          long planRevision, String routeId, String recipeKey, long laneId, State state, Set<UUID> transferReceipts) {
+                                  long planRevision, String routeId, String recipeKey, long laneId, State state, Set<UUID> transferReceipts) {
         this.operationId = Objects.requireNonNull(operationId, "Operation id cannot be null");
         this.leaseId = Objects.requireNonNull(leaseId, "Lease id cannot be null");
         this.kind = Objects.requireNonNull(kind, "Operation kind cannot be null");
@@ -94,24 +91,24 @@ public final class MachineOperationToken {
     /** 创建一个计划合成操作 token。参数必须与对应租约和计划版本一致。 */
     @Nonnull
     public static MachineOperationToken job(@Nonnull UUID operationId, @Nonnull UUID leaseId, @Nonnull UUID jobId,
-          long planRevision, @Nonnull String routeId, @Nonnull String recipeKey, long laneId) {
+                                            long planRevision, @Nonnull String routeId, @Nonnull String recipeKey, long laneId) {
         return new MachineOperationToken(operationId, leaseId, Kind.JOB, jobId, planRevision, routeId, recipeKey,
-              laneId, State.ALLOCATED, Collections.emptySet());
+                laneId, State.ALLOCATED, Collections.emptySet());
     }
 
     /** 创建一个被动处理操作 token。 */
     @Nonnull
     public static MachineOperationToken passive(@Nonnull UUID operationId, @Nonnull UUID leaseId,
-          @Nonnull String routeId, @Nonnull String recipeKey, long laneId) {
+                                                @Nonnull String routeId, @Nonnull String recipeKey, long laneId) {
         return new MachineOperationToken(operationId, leaseId, Kind.PASSIVE, null, -1, routeId, recipeKey,
-              laneId, State.ALLOCATED, Collections.emptySet());
+                laneId, State.ALLOCATED, Collections.emptySet());
     }
 
     /** 创建一个自动输出排空 token。 */
     @Nonnull
     public static MachineOperationToken outputDrain(@Nonnull UUID operationId, @Nonnull UUID leaseId, long laneId) {
         return new MachineOperationToken(operationId, leaseId, Kind.OUTPUT_DRAIN, null, -1, "", "", laneId,
-              State.ALLOCATED, Collections.emptySet());
+                State.ALLOCATED, Collections.emptySet());
     }
 
     /** 返回操作唯一标识。 */
@@ -259,9 +256,9 @@ public final class MachineOperationToken {
             }
             UUID jobId = data.hasKey(JOB_ID, NBT.TAG_STRING) ? parseUUID(data.getString(JOB_ID), JOB_ID) : null;
             return new MachineOperationToken(parseUUID(data.getString(OPERATION_ID), OPERATION_ID),
-                  parseUUID(data.getString(LEASE_ID), LEASE_ID), kind, jobId, data.getLong(PLAN_REVISION),
-                  data.getString(ROUTE_ID), data.getString(RECIPE_KEY), data.getLong(LANE_ID),
-                  State.valueOf(data.getString(STATE)), receipts);
+                    parseUUID(data.getString(LEASE_ID), LEASE_ID), kind, jobId, data.getLong(PLAN_REVISION),
+                    data.getString(ROUTE_ID), data.getString(RECIPE_KEY), data.getLong(LANE_ID),
+                    State.valueOf(data.getString(STATE)), receipts);
         } catch (RuntimeException e) {
             throw new IllegalArgumentException("Invalid machine operation token", e);
         }
@@ -269,16 +266,16 @@ public final class MachineOperationToken {
 
     private MachineOperationToken copy(State state, Set<UUID> receipts) {
         return new MachineOperationToken(operationId, leaseId, kind, jobId, planRevision, routeId, recipeKey,
-              laneId, state, receipts);
+                laneId, state, receipts);
     }
 
     private static boolean canTransition(State current, State next) {
         return switch (current) {
             case ALLOCATED -> next == State.LOADING || next == State.COLLECTING || next == State.CANCELLED ||
-                              next == State.CONTAMINATED;
+                    next == State.CONTAMINATED;
             case LOADING -> next == State.ACTIVE || next == State.CANCELLED || next == State.CONTAMINATED;
             case ACTIVE -> next == State.COLLECTING || next == State.CANCELLED ||
-                           next == State.CONTAMINATED;
+                    next == State.CONTAMINATED;
             case COLLECTING -> next == State.COMPLETED || next == State.CONTAMINATED;
             case COMPLETED, CANCELLED, CONTAMINATED -> false;
         };
@@ -322,14 +319,14 @@ public final class MachineOperationToken {
             return false;
         }
         return planRevision == other.planRevision && laneId == other.laneId && operationId.equals(other.operationId) &&
-              leaseId.equals(other.leaseId) && kind == other.kind && Objects.equals(jobId, other.jobId) &&
-              routeId.equals(other.routeId) && recipeKey.equals(other.recipeKey) && state == other.state &&
-              transferReceipts.equals(other.transferReceipts);
+                leaseId.equals(other.leaseId) && kind == other.kind && Objects.equals(jobId, other.jobId) &&
+                routeId.equals(other.routeId) && recipeKey.equals(other.recipeKey) && state == other.state &&
+                transferReceipts.equals(other.transferReceipts);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(operationId, leaseId, kind, jobId, planRevision, routeId, recipeKey, laneId, state,
-              transferReceipts);
+                transferReceipts);
     }
 }

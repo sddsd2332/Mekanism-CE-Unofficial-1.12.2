@@ -39,8 +39,8 @@ public class GuiSPS extends GuiConfigurableTile<TileEntitySPS, ContainerSPS> {
     protected void addGuiElements() {
         super.addGuiElements();
         addButton(new GuiEnergyTab(this, () -> Arrays.asList(
-              new TextComponentString(LangUtils.localize("gui.using") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.lastReceivedEnergy) + "/t"),
-              new TextComponentString(LangUtils.localize("gui.needed") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getNeedEnergy()))
+                new TextComponentString(LangUtils.localize("gui.using") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.lastReceivedEnergy) + "/t"),
+                new TextComponentString(LangUtils.localize("gui.needed") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getNeedEnergy()))
         )));
         addButton(new GuiGasGauge(this, tileEntity.inputTank, GuiGasGauge.Type.STANDARD, 7, 17).withColor(GuiGasGauge.GaugeColor.RED));
         addButton(new GuiGasGauge(this, tileEntity.outputTank, GuiGasGauge.Type.STANDARD, 151, 17).withColor(GuiGasGauge.GaugeColor.RED));
@@ -69,13 +69,13 @@ public class GuiSPS extends GuiConfigurableTile<TileEntitySPS, ContainerSPS> {
         List<ITextComponent> list = new ArrayList<>();
         boolean active = tileEntity.lastProcessed > 0;
         list.add(new TextComponentGroup().translation(MekanismLang.STATUS.getTranslationKey())
-              .string(" ")
-              .translation(active ? MekanismLang.ACTIVE.getTranslationKey() : MekanismLang.IDLE.getTranslationKey()));
+                .string(" ")
+                .translation(active ? MekanismLang.ACTIVE.getTranslationKey() : MekanismLang.IDLE.getTranslationKey()));
         if (active) {
             list.add(new TextComponentGroup().translation(MekanismLang.SPS_ENERGY_INPUT.getTranslationKey())
-                  .string(" " + MekanismUtils.getEnergyDisplay(tileEntity.lastReceivedEnergy)));
+                    .string(" " + MekanismUtils.getEnergyDisplay(tileEntity.lastReceivedEnergy)));
             list.add(new TextComponentGroup().translation(MekanismLang.PROCESS_RATE_MB.getTranslationKey())
-                  .string(" " + tileEntity.getProcessRate() + "mB/t"));
+                    .string(" " + tileEntity.getProcessRate() + "mB/t"));
         }
         return list;
     }

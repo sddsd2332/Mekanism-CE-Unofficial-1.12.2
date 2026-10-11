@@ -1,16 +1,18 @@
 package mekanism.qioprocessing.client.gui;
 
+import mekanism.client.gui.element.window.GuiWindow;
 import mekanism.client.gui.qio.GuiQIOViewerScreen;
 import mekanism.common.content.qio.QIOFrequency;
 import mekanism.qioprocessing.common.inventory.container.ContainerPortableQIOSmartProcessingTerminal;
-import mekanism.client.gui.element.window.GuiWindow;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumHand;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
-/** Portable QIO viewer with three item-owned manual crafting windows. */
+/**
+ * Portable QIO viewer with three item-owned manual crafting windows.
+ */
 @SideOnly(Side.CLIENT)
 /**
  * QIO 处理模块中的 GuiPortableQIOSmartProcessingTerminal 类型。
@@ -19,20 +21,20 @@ import net.minecraftforge.fml.relauncher.SideOnly;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class GuiPortableQIOSmartProcessingTerminal extends
-      GuiQIOViewerScreen<ContainerPortableQIOSmartProcessingTerminal> {
+        GuiQIOViewerScreen<ContainerPortableQIOSmartProcessingTerminal> {
 
     private final ContainerPortableQIOSmartProcessingTerminal container;
     private GuiQIOSmartProcessingOrderTab orderTab;
 
     public GuiPortableQIOSmartProcessingTerminal(InventoryPlayer inventory,
-          EnumHand hand, int itemSlot, ItemStack stack) {
+                                                 EnumHand hand, int itemSlot, ItemStack stack) {
         super(new ContainerPortableQIOSmartProcessingTerminal(inventory, hand,
-              itemSlot, stack));
+                itemSlot, stack));
         container = (ContainerPortableQIOSmartProcessingTerminal) inventorySlots;
     }
 
     private GuiPortableQIOSmartProcessingTerminal(
-          ContainerPortableQIOSmartProcessingTerminal container) {
+            ContainerPortableQIOSmartProcessingTerminal container) {
         super(container);
         this.container = container;
     }
@@ -41,9 +43,9 @@ public final class GuiPortableQIOSmartProcessingTerminal extends
     protected void addGuiElements() {
         super.addGuiElements();
         frequencyTab = addButton(new GuiQIOProcessingTerminalFrequencyTab(this,
-              container, () -> frequencyTab));
+                container, () -> frequencyTab));
         orderTab = addButton(new GuiQIOSmartProcessingOrderTab(this,
-              () -> orderTab, () -> container));
+                () -> orderTab, () -> container));
     }
 
     @Override
@@ -59,7 +61,7 @@ public final class GuiPortableQIOSmartProcessingTerminal extends
 
     @Override
     protected GuiQIOViewerScreen<ContainerPortableQIOSmartProcessingTerminal> recreate(
-          ContainerPortableQIOSmartProcessingTerminal container) {
+            ContainerPortableQIOSmartProcessingTerminal container) {
         return new GuiPortableQIOSmartProcessingTerminal(container);
     }
 

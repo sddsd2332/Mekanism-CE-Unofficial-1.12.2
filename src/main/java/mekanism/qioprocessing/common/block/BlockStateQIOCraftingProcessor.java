@@ -6,7 +6,10 @@ import net.minecraft.block.Block;
 import net.minecraft.block.properties.PropertyBool;
 import net.minecraft.block.state.BlockStateContainer;
 
-/** Listed render state for QIO crafting processors. */
+/**
+ * Listed render state for QIO crafting processors.
+ */
+
 /**
  * QIO 处理模块中的 BlockStateQIOCraftingProcessor 类型。
  *
@@ -19,6 +22,6 @@ public final class BlockStateQIOCraftingProcessor extends BlockStateContainer {
 
     public BlockStateQIOCraftingProcessor(Block block) {
         super(block, BlockStateFacing.facingProperty,
-              BlockStateQIOComponent.activeProperty, workingProperty);
+                BlockStateQIOComponent.activeProperty, workingProperty);
     }
 }

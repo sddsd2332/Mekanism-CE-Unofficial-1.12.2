@@ -22,12 +22,12 @@ public class RateLimitFluidHandler extends ItemStackMekanismFluidHandler {
     }
 
     public static RateLimitFluidHandler create(IntSupplier rate, IntSupplier capacity, BiPredicate<FluidStack, AutomationType> canExtract,
-          BiPredicate<FluidStack, AutomationType> canInsert, Predicate<FluidStack> isValid) {
+                                               BiPredicate<FluidStack, AutomationType> canInsert, Predicate<FluidStack> isValid) {
         return create(rate, capacity, canExtract, canInsert, isValid, null);
     }
 
     public static RateLimitFluidHandler create(IntSupplier rate, IntSupplier capacity, BiPredicate<FluidStack, AutomationType> canExtract,
-          BiPredicate<FluidStack, AutomationType> canInsert, Predicate<FluidStack> isValid, @Nullable String legacyFluidKey) {
+                                               BiPredicate<FluidStack, AutomationType> canInsert, Predicate<FluidStack> isValid, @Nullable String legacyFluidKey) {
         Objects.requireNonNull(rate, "Rate supplier cannot be null");
         Objects.requireNonNull(capacity, "Capacity supplier cannot be null");
         Objects.requireNonNull(canExtract, "Extraction validity check cannot be null");
@@ -71,7 +71,7 @@ public class RateLimitFluidHandler extends ItemStackMekanismFluidHandler {
         }
 
         public RateLimitFluidTank(IntSupplier rate, IntSupplier capacity, BiPredicate<FluidStack, AutomationType> canExtract,
-              BiPredicate<FluidStack, AutomationType> canInsert, Predicate<FluidStack> isValid, @Nullable IContentsListener listener) {
+                                  BiPredicate<FluidStack, AutomationType> canInsert, Predicate<FluidStack> isValid, @Nullable IContentsListener listener) {
             super(capacity, canExtract, canInsert, isValid, listener);
             this.rate = rate;
         }
@@ -88,7 +88,7 @@ public class RateLimitFluidHandler extends ItemStackMekanismFluidHandler {
 
         private FluidTankRateLimitFluidTank(Supplier<FluidTankTier> tier, @Nullable IContentsListener listener) {
             super(() -> tier.get().getOutput(), () -> tier.get().getStorage(), BasicFluidTank.alwaysTrueBi, BasicFluidTank.alwaysTrueBi,
-                  BasicFluidTank.alwaysTrue, listener);
+                    BasicFluidTank.alwaysTrue, listener);
             this.tier = tier;
         }
 

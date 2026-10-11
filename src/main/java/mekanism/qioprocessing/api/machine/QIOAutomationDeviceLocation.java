@@ -7,7 +7,10 @@ import net.minecraft.world.World;
 import javax.annotation.Nonnull;
 import java.util.Objects;
 
-/** Stable world location used in device identity diagnostics and duplicate UUID auditing. */
+/**
+ * Stable world location used in device identity diagnostics and duplicate UUID auditing.
+ */
+
 /**
  * QIO 处理模块中的 QIOAutomationDeviceLocation 类型。
  *
@@ -61,7 +64,7 @@ public final class QIOAutomationDeviceLocation implements Comparable<QIOAutomati
     @Override
     public boolean equals(Object obj) {
         return this == obj || obj instanceof QIOAutomationDeviceLocation other && dimension == other.dimension &&
-              position.equals(other.position);
+                position.equals(other.position);
     }
 
     @Override

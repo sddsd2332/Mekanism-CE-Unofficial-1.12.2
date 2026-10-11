@@ -31,7 +31,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
-/** Reusable 26.2-style frequency selector that can be embedded in a screen or window. */
+/**
+ * Reusable 26.2-style frequency selector that can be embedded in a screen or window.
+ */
 public class GuiFrequencySelector<FREQ extends Frequency> extends GuiElement {
 
     public static final int WIDTH = 132;
@@ -57,33 +59,33 @@ public class GuiFrequencySelector<FREQ extends Frequency> extends GuiElement {
 
         scrollList = addChild(new GuiTextScrollList(gui, relativeX, relativeY + 22, 122, 42));
         publicButton = addChild(new MekanismImageButton(gui, relativeX, relativeY, 38, 20, 40, 16,
-              getButtonLocation("public"), () -> setMode(SecurityMode.PUBLIC)).setTooltip(MekanismLang.PUBLIC_MODE.translate()));
+                getButtonLocation("public"), () -> setMode(SecurityMode.PUBLIC)).setTooltip(MekanismLang.PUBLIC_MODE.translate()));
         trustedButton = addChild(new MekanismImageButton(gui, relativeX + 42, relativeY, 38, 20, 40, 16,
-              getButtonLocation("trusted"), () -> setMode(SecurityMode.TRUSTED)).setTooltip(MekanismLang.TRUSTED_MODE.translate()));
+                getButtonLocation("trusted"), () -> setMode(SecurityMode.TRUSTED)).setTooltip(MekanismLang.TRUSTED_MODE.translate()));
         privateButton = addChild(new MekanismImageButton(gui, relativeX + 84, relativeY, 38, 20, 40, 16,
-              getButtonLocation("private"), () -> setMode(SecurityMode.PRIVATE)).setTooltip(MekanismLang.PRIVATE_MODE.translate()));
+                getButtonLocation("private"), () -> setMode(SecurityMode.PRIVATE)).setTooltip(MekanismLang.PRIVATE_MODE.translate()));
 
         int buttonWidth = hasColor ? 50 : 60;
         setButton = addChild(new MekanismButton(gui, relativeX, relativeY + 113, buttonWidth, 18,
-              MekanismLang.BUTTON_SET.translate(), this::setSelectedFrequency, null));
+                MekanismLang.BUTTON_SET.translate(), this::setSelectedFrequency, null));
         deleteButton = addChild(new MekanismButton(gui, relativeX + buttonWidth + 2, relativeY + 113, buttonWidth, 18,
-              frequencySelector.getSecondaryButtonText(), this::runSecondaryAction, null));
+                frequencySelector.getSecondaryButtonText(), this::runSecondaryAction, null));
         if (hasColor) {
             addChild(new GuiSlot(SlotType.NORMAL, gui, relativeX + 104, relativeY + 113));
             @SuppressWarnings("unchecked")
             IGuiColorFrequencySelector<FREQ> colorSelector = (IGuiColorFrequencySelector<FREQ>) frequencySelector;
             addChild(new ColorButton(gui, relativeX + 105, relativeY + 114, 16, 16,
-                  () -> {
-                      FREQ frequency = colorSelector.getFrequency();
-                      return frequency instanceof IColorableFrequency ? ((IColorableFrequency) frequency).getColor() : null;
-                  }, () -> colorSelector.sendColorUpdate(true), () -> colorSelector.sendColorUpdate(false)));
+                    () -> {
+                        FREQ frequency = colorSelector.getFrequency();
+                        return frequency instanceof IColorableFrequency ? ((IColorableFrequency) frequency).getColor() : null;
+                    }, () -> colorSelector.sendColorUpdate(true), () -> colorSelector.sendColorUpdate(false)));
         }
         frequencyField = addChild(new GuiTextField(gui, 4, relativeX + 23, relativeY + 99, 98, 11)
-              .setMaxLength(FrequencyManager.MAX_FREQ_LENGTH)
-              .setBackground(BackgroundType.INNER_SCREEN)
-              .setInputValidator(this::isValidFrequencyInput)
-              .setEnterHandler(this::setTypedFrequency)
-              .addCheckmarkButton(this::setTypedFrequency));
+                .setMaxLength(FrequencyManager.MAX_FREQ_LENGTH)
+                .setBackground(BackgroundType.INNER_SCREEN)
+                .setInputValidator(this::isValidFrequencyInput)
+                .setEnterHandler(this::setTypedFrequency)
+                .addCheckmarkButton(this::setTypedFrequency));
         updateButtons();
     }
 
@@ -97,7 +99,7 @@ public class GuiFrequencySelector<FREQ extends Frequency> extends GuiElement {
 
     private boolean isValidFrequencyInput(char c, int keyCode) {
         return Character.isDigit(c) || Character.isLetter(c) || FrequencyManager.SPECIAL_CHARS.contains(c) ||
-              GuiMekanism.isTextboxKey(c, keyCode);
+                GuiMekanism.isTextboxKey(c, keyCode);
     }
 
     private void setTypedFrequency() {
@@ -184,7 +186,7 @@ public class GuiFrequencySelector<FREQ extends Frequency> extends GuiElement {
             List<String> text = new ArrayList<>(frequencies.size());
             for (FREQ frequency : frequencies) {
                 text.add(selectedMode == SecurityMode.PRIVATE ? frequency.getName() :
-                      frequency.getName() + " (" + frequency.getOwnerName() + ")");
+                        frequency.getName() + " (" + frequency.getOwnerName() + ")");
             }
             scrollList.setText(text);
         }
@@ -195,8 +197,8 @@ public class GuiFrequencySelector<FREQ extends Frequency> extends GuiElement {
         FREQ current = frequencySelector.getFrequency();
         setButton.active = selected != null && (current == null || !current.equals(selected));
         deleteButton.active = frequencySelector.supportsFrequencyDeletion() ?
-              selected != null && minecraft.player != null && selected.ownerMatches(minecraft.player.getUniqueID()) :
-              current != null;
+                selected != null && minecraft.player != null && selected.ownerMatches(minecraft.player.getUniqueID()) :
+                current != null;
         frequencySelector.buttonsUpdated();
     }
 
@@ -209,13 +211,13 @@ public class GuiFrequencySelector<FREQ extends Frequency> extends GuiElement {
         String owner = frequency == null ? none : getOwnerUsername(frequency);
         String security = frequency == null ? none : getSecurity(frequency);
         drawScaledScrollingString(new TextComponentString(LangUtils.localize("gui.freq") + ": " + frequencyName), 0, 67,
-              TextAlignment.LEFT, titleTextColor(), WIDTH, 3, false, 1, getTimeOpened());
+                TextAlignment.LEFT, titleTextColor(), WIDTH, 3, false, 1, getTimeOpened());
         drawScaledScrollingString(new TextComponentString(LangUtils.localize(frequencySelector.isPortable() ? "gui.itemowner" : "gui.owner") + ": " + owner),
-              0, 77, TextAlignment.LEFT, titleTextColor(), WIDTH, 3, false, 1, getTimeOpened());
+                0, 77, TextAlignment.LEFT, titleTextColor(), WIDTH, 3, false, 1, getTimeOpened());
         drawScaledScrollingString(new TextComponentString(LangUtils.localize("gui.security") + ": " + security), 0, 87,
-              TextAlignment.LEFT, titleTextColor(), WIDTH, 3, false, 1, getTimeOpened());
+                TextAlignment.LEFT, titleTextColor(), WIDTH, 3, false, 1, getTimeOpened());
         drawScaledScrollingString(new TextComponentString(LangUtils.localize("gui.set") + ":"), 0, 100,
-              TextAlignment.RIGHT, titleTextColor(), 23, 2, false, 1, getTimeOpened());
+                TextAlignment.RIGHT, titleTextColor(), 23, 2, false, 1, getTimeOpened());
     }
 
     private String getOwnerUsername(FREQ frequency) {

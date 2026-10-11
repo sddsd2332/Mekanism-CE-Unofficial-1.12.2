@@ -73,15 +73,15 @@ public class GuiThermoelectricBoiler extends GuiMekanismTile<TileEntityBoilerCas
             }
         }, 166, 13));
         addButton(new GuiGasGauge(() -> tileEntity.getInputGasTank(), () -> tileEntity.getGasTanks(null), GaugeType.STANDARD, this, 6, 13)
-              .setLabel(MekanismLang.BOILER_HEATED_COOLANT_TANK.translateColored(EnumColor.ORANGE)));
+                .setLabel(MekanismLang.BOILER_HEATED_COOLANT_TANK.translateColored(EnumColor.ORANGE)));
         addButton(new GuiFluidGauge(() -> tileEntity.getWaterTank(), () -> tileEntity.getFluidTanks(null), GaugeType.STANDARD, this, 26, 13)
-              .setLabel(MekanismLang.BOILER_WATER_TANK.translateColored(EnumColor.INDIGO)));
+                .setLabel(MekanismLang.BOILER_WATER_TANK.translateColored(EnumColor.INDIGO)));
         addButton(new GuiFluidGauge(() -> tileEntity.getSteamTank(), () -> tileEntity.getFluidTanks(null), GaugeType.STANDARD, this, 174, 13)
-              .setLabel(MekanismLang.BOILER_STEAM_TANK.translateColored(EnumColor.GREY)));
+                .setLabel(MekanismLang.BOILER_STEAM_TANK.translateColored(EnumColor.GREY)));
         addButton(new GuiGasGauge(() -> tileEntity.getOutputGasTank(), () -> tileEntity.getGasTanks(null), GaugeType.STANDARD, this, 194, 13)
-              .setLabel(MekanismLang.BOILER_COOLANT_TANK.translateColored(EnumColor.AQUA)));
+                .setLabel(MekanismLang.BOILER_COOLANT_TANK.translateColored(EnumColor.AQUA)));
         addButton(new GuiHeatTab(this, () -> Collections.singletonList(new TextComponentString(LangUtils.localize("gui.dissipated") + ": " +
-              getEnvironmentLoss() + "/t"))));
+                getEnvironmentLoss() + "/t"))));
     }
 
     @Override

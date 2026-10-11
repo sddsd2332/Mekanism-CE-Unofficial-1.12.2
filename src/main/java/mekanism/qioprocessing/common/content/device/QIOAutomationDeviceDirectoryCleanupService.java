@@ -18,14 +18,12 @@ import net.minecraftforge.common.DimensionManager;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
-/** Distinguishes a temporarily unloaded endpoint from a device which left a frequency. */
+/**
+ * Distinguishes a temporarily unloaded endpoint from a device which left a frequency.
+ */
+
 /**
  * QIO 处理模块中的 QIOAutomationDeviceDirectoryCleanupService 类型。
  *
@@ -75,12 +73,12 @@ public final class QIOAutomationDeviceDirectoryCleanupService {
         for (ChunkKey key : batch) {
             World world = DimensionManager.getWorld(key.dimension);
             if (world == null || world.isRemote ||
-                !world.isBlockLoaded(new BlockPos(key.chunkX << 4, 0,
-                      key.chunkZ << 4), false)) {
+                    !world.isBlockLoaded(new BlockPos(key.chunkX << 4, 0,
+                            key.chunkZ << 4), false)) {
                 continue;
             }
             for (QIOProcessingNetworkData network :
-                  QIOProcessingNetworkManager.INSTANCE.getNetworks()) {
+                    QIOProcessingNetworkManager.INSTANCE.getNetworks()) {
                 pruneLoadedStaleRecordsInChunk(network, world, key.chunkX, key.chunkZ);
             }
         }
@@ -94,14 +92,14 @@ public final class QIOAutomationDeviceDirectoryCleanupService {
         int removed = 0;
         int checked = 0;
         for (QIOAutomationDeviceSnapshot snapshot :
-              network.getAutomationDevices().getDevices()) {
+                network.getAutomationDevices().getDevices()) {
             if (checked++ >= MAX_FALLBACK_RECORDS) {
                 break;
             }
             QIOAutomationDeviceLocation location = snapshot.getLocation();
             World world = DimensionManager.getWorld(location.dimension());
             if (world == null || world.isRemote ||
-                !world.isBlockLoaded(location.position(), false)) {
+                    !world.isBlockLoaded(location.position(), false)) {
                 continue;
             }
             TileEntity tile = world.getTileEntity(location.position());
@@ -121,10 +119,10 @@ public final class QIOAutomationDeviceDirectoryCleanupService {
     }
 
     private static int pruneLoadedStaleRecordsInChunk(@Nonnull QIOProcessingNetworkData network,
-          @Nonnull World world, int chunkX, int chunkZ) {
+                                                      @Nonnull World world, int chunkX, int chunkZ) {
         int removed = 0;
         for (QIOAutomationDeviceSnapshot snapshot : network.getAutomationDevices()
-              .getDevicesInChunk(world.provider.getDimension(), chunkX, chunkZ)) {
+                .getDevicesInChunk(world.provider.getDimension(), chunkX, chunkZ)) {
             QIOAutomationDeviceLocation location = snapshot.getLocation();
             if (!world.isBlockLoaded(location.position(), false)) {
                 continue;
@@ -168,7 +166,7 @@ public final class QIOAutomationDeviceDirectoryCleanupService {
         } else {
             QIOAutomationHost host = automationHost(tile);
             QIOFrequencyReference reference = host == null ? null :
-                  host.getFrequencyReference();
+                    host.getFrequencyReference();
             if (host == null || reference == null) {
                 return false;
             }
@@ -176,30 +174,30 @@ public final class QIOAutomationDeviceDirectoryCleanupService {
             frequencyUUID = reference.getFrequencyUUID();
         }
         QIOProcessingNetworkData network =
-              QIOProcessingNetworkManager.INSTANCE.get(frequencyUUID);
+                QIOProcessingNetworkManager.INSTANCE.get(frequencyUUID);
         return network != null && network.forgetAutomationDeviceMembership(deviceUUID,
-              QIOAutomationDeviceLocation.of(tile.getWorld(), tile.getPos()));
+                QIOAutomationDeviceLocation.of(tile.getWorld(), tile.getPos()));
     }
 
     private static boolean matchesMembership(QIOAutomationDeviceSnapshot snapshot,
-          @Nullable TileEntity tile, UUID frequencyUUID) {
+                                             @Nullable TileEntity tile, UUID frequencyUUID) {
         if (tile == null || tile.isInvalid()) {
             return false;
         }
         return switch (snapshot.getKind()) {
             case AUTOMATION_MACHINE -> matchesAutomationMachine(snapshot, tile,
-                  frequencyUUID);
+                    frequencyUUID);
             case CRAFTING_PROCESSOR -> matchesCraftingProcessor(snapshot, tile,
-                  frequencyUUID);
+                    frequencyUUID);
             case TERMINAL -> matchesTerminal(snapshot, tile, frequencyUUID);
         };
     }
 
     private static boolean matchesAutomationMachine(QIOAutomationDeviceSnapshot snapshot,
-          TileEntity tile, UUID frequencyUUID) {
+                                                    TileEntity tile, UUID frequencyUUID) {
         QIOAutomationHost host = automationHost(tile);
         if (host == null || !snapshot.getDeviceUUID().equals(
-              host.getPersistentDeviceUUID())) {
+                host.getPersistentDeviceUUID())) {
             return false;
         }
         QIOFrequencyReference reference = host.getFrequencyReference();
@@ -215,10 +213,10 @@ public final class QIOAutomationDeviceDirectoryCleanupService {
     }
 
     private static boolean matchesCraftingProcessor(
-          QIOAutomationDeviceSnapshot snapshot, TileEntity tile, UUID frequencyUUID) {
+            QIOAutomationDeviceSnapshot snapshot, TileEntity tile, UUID frequencyUUID) {
         if (!(tile instanceof QIOCraftingProcessor processor) ||
-            !snapshot.getDeviceUUID().equals(
-                  processor.getProcessorState().getProcessorUUID())) {
+                !snapshot.getDeviceUUID().equals(
+                        processor.getProcessorState().getProcessorUUID())) {
             return false;
         }
         QIOFrequency frequency = processor.getQIOFrequency();
@@ -226,9 +224,9 @@ public final class QIOAutomationDeviceDirectoryCleanupService {
     }
 
     private static boolean matchesTerminal(QIOAutomationDeviceSnapshot snapshot,
-          TileEntity tile, UUID frequencyUUID) {
+                                           TileEntity tile, UUID frequencyUUID) {
         if (!(tile instanceof QIOProcessingTerminal terminal) ||
-            !snapshot.getDeviceUUID().equals(terminal.getPersistentTerminalUUID())) {
+                !snapshot.getDeviceUUID().equals(terminal.getPersistentTerminalUUID())) {
             return false;
         }
         QIOFrequencyReference reference = terminal.getFrequencyReference();
@@ -238,8 +236,8 @@ public final class QIOAutomationDeviceDirectoryCleanupService {
     @Nullable
     private static QIOAutomationHost automationHost(TileEntity tile) {
         return QIOAutomationCapabilities.AUTOMATION_HOST == null ||
-              !tile.hasCapability(QIOAutomationCapabilities.AUTOMATION_HOST, null) ? null :
-              tile.getCapability(QIOAutomationCapabilities.AUTOMATION_HOST, null);
+                !tile.hasCapability(QIOAutomationCapabilities.AUTOMATION_HOST, null) ? null :
+                tile.getCapability(QIOAutomationCapabilities.AUTOMATION_HOST, null);
     }
 
     private static final class ChunkKey {
@@ -257,8 +255,8 @@ public final class QIOAutomationDeviceDirectoryCleanupService {
         @Override
         public boolean equals(Object obj) {
             return this == obj || obj instanceof ChunkKey other &&
-                  dimension == other.dimension && chunkX == other.chunkX &&
-                  chunkZ == other.chunkZ;
+                    dimension == other.dimension && chunkX == other.chunkX &&
+                    chunkZ == other.chunkZ;
         }
 
         @Override

@@ -2,8 +2,8 @@ package mekanism.common.item.armor;
 
 import mekanism.api.IContentsListener;
 import mekanism.api.gas.Gas;
-import mekanism.api.gas.IExtendedGasTank;
 import mekanism.api.gas.GasStack;
+import mekanism.api.gas.IExtendedGasTank;
 import mekanism.api.mixninapi.EnderMaskMixinHelp;
 import mekanism.client.model.mekasuitarmour.ModelMekAsuitHead;
 import mekanism.client.model.mekasuitarmour.ModuleSolarHelmet;

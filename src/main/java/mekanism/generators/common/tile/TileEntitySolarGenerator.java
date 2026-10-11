@@ -204,7 +204,8 @@ public class TileEntitySolarGenerator extends TileEntityGenerator implements ISp
     public double getMaxOutput() {
         return peakOutput;
     }
-@Override
+
+    @Override
     @SideOnly(Side.CLIENT)
     public Class<?> getSelectionWireframeModelClass() {
         return mekanism.generators.client.model.ModelSolarGenerator.class;

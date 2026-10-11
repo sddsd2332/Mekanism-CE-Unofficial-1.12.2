@@ -55,7 +55,7 @@ public abstract class GasHandlerInventorySlot extends BasicInventorySlot impleme
     }
 
     protected static Predicate<ItemStack> getFillOrConvertExtractPredicate(IExtendedGasTank gasTank, Function<ItemStack, IGasHandler> handlerFunction,
-          Supplier<?> worldSupplier) {
+                                                                           Supplier<?> worldSupplier) {
         Objects.requireNonNull(gasTank, "Gas tank cannot be null");
         Objects.requireNonNull(handlerFunction, "Gas handler function cannot be null");
         Objects.requireNonNull(worldSupplier, "World supplier cannot be null");
@@ -76,7 +76,7 @@ public abstract class GasHandlerInventorySlot extends BasicInventorySlot impleme
     }
 
     protected static Predicate<ItemStack> getFillOrConvertInsertPredicate(IExtendedGasTank gasTank, Function<ItemStack, IGasHandler> handlerFunction,
-          Supplier<?> worldSupplier) {
+                                                                          Supplier<?> worldSupplier) {
         Objects.requireNonNull(gasTank, "Gas tank cannot be null");
         Objects.requireNonNull(handlerFunction, "Gas handler function cannot be null");
         Objects.requireNonNull(worldSupplier, "World supplier cannot be null");
@@ -101,22 +101,22 @@ public abstract class GasHandlerInventorySlot extends BasicInventorySlot impleme
     private boolean filling;
 
     protected GasHandlerInventorySlot(IExtendedGasTank gasTank, Predicate<ItemStack> canExtract, Predicate<ItemStack> canInsert,
-          @Nullable IContentsListener listener, int x, int y) {
+                                      @Nullable IContentsListener listener, int x, int y) {
         this(gasTank, () -> null, canExtract, canInsert, GAS_ITEM_VALIDATOR, listener, x, y);
     }
 
     protected GasHandlerInventorySlot(IExtendedGasTank gasTank, Predicate<ItemStack> canExtract, Predicate<ItemStack> canInsert,
-          Predicate<ItemStack> validator, @Nullable IContentsListener listener, int x, int y) {
+                                      Predicate<ItemStack> validator, @Nullable IContentsListener listener, int x, int y) {
         this(gasTank, () -> null, canExtract, canInsert, validator, listener, x, y);
     }
 
     protected GasHandlerInventorySlot(IExtendedGasTank gasTank, Supplier<?> worldSupplier, Predicate<ItemStack> canExtract,
-          Predicate<ItemStack> canInsert, @Nullable IContentsListener listener, int x, int y) {
+                                      Predicate<ItemStack> canInsert, @Nullable IContentsListener listener, int x, int y) {
         this(gasTank, worldSupplier, canExtract, canInsert, GAS_ITEM_VALIDATOR, listener, x, y);
     }
 
     protected GasHandlerInventorySlot(IExtendedGasTank gasTank, Supplier<?> worldSupplier, Predicate<ItemStack> canExtract,
-          Predicate<ItemStack> canInsert, Predicate<ItemStack> validator, @Nullable IContentsListener listener, int x, int y) {
+                                      Predicate<ItemStack> canInsert, Predicate<ItemStack> validator, @Nullable IContentsListener listener, int x, int y) {
         super(canExtract, canInsert, validator, listener, x, y);
         setSlotType(ContainerSlotType.EXTRA);
         this.gasTank = gasTank;

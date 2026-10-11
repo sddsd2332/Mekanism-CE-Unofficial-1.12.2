@@ -4,16 +4,7 @@ import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.ResourceLocation;
 
 import javax.annotation.Nullable;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Deque;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -24,26 +15,26 @@ public final class TileUpgradeRegistry {
     private static final Map<ResourceLocation, Entry<?>> ENTRIES = new LinkedHashMap<>();
     private static final Map<Class<?>, Entry<?>> CACHE = new ConcurrentHashMap<>();
     private static final Entry<TileEntity> NO_ENTRY = new Entry<>(new ResourceLocation("mekanism", "missing"), TileEntity.class,
-          new ITileUpgradeAdapter<TileEntity>() {
-          }, Integer.MIN_VALUE);
+            new ITileUpgradeAdapter<TileEntity>() {
+            }, Integer.MIN_VALUE);
     private static volatile List<Entry<?>> snapshot = Collections.emptyList();
 
     private TileUpgradeRegistry() {
     }
 
     public static <TILE extends TileEntity> void register(ResourceLocation id, Class<TILE> tileClass,
-          ITileUpgradeAdapter<? super TILE> adapter) {
+                                                          ITileUpgradeAdapter<? super TILE> adapter) {
         register(id, tileClass, adapter, 0);
     }
 
     public static synchronized <TILE extends TileEntity> void register(ResourceLocation id, Class<TILE> tileClass,
-          ITileUpgradeAdapter<? super TILE> adapter, int priority) {
+                                                                       ITileUpgradeAdapter<? super TILE> adapter, int priority) {
         Objects.requireNonNull(id, "Adapter id cannot be null");
         if (ENTRIES.containsKey(id)) {
             throw new IllegalArgumentException("Duplicate tile upgrade adapter id: " + id);
         }
         ENTRIES.put(id, new Entry<>(id, Objects.requireNonNull(tileClass, "Tile class cannot be null"),
-              Objects.requireNonNull(adapter, "Adapter cannot be null"), priority));
+                Objects.requireNonNull(adapter, "Adapter cannot be null"), priority));
         snapshot = Collections.unmodifiableList(new ArrayList<>(ENTRIES.values()));
         CACHE.clear();
     }
@@ -75,7 +66,7 @@ public final class TileUpgradeRegistry {
             }
             int distance = inheritanceDistance(actualClass, candidate.tileClass);
             if (best == null || candidate.priority > best.priority || candidate.priority == best.priority && distance < bestDistance ||
-                  candidate.priority == best.priority && distance == bestDistance && candidate.id.toString().compareTo(best.id.toString()) < 0) {
+                    candidate.priority == best.priority && distance == bestDistance && candidate.id.toString().compareTo(best.id.toString()) < 0) {
                 best = candidate;
                 bestDistance = distance;
             }

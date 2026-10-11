@@ -31,7 +31,8 @@ public class MekaSuitEnergyLevel {
             }
             if (capacity != 0) {
                 int x = event.getResolution().getScaledWidth() / 2 - 91;
-                int y = event.getResolution().getScaledHeight() - GuiIngameForge.left_height + 2;;
+                int y = event.getResolution().getScaledHeight() - GuiIngameForge.left_height + 2;
+                ;
                 int length = (int) Math.round((stored / capacity) * 79);
                 GuiUtils.renderExtendedTexture(BAR, 2, 2, x, y, 81, 6);
                 mc.renderEngine.bindTexture(POWER_BAR);
@@ -41,8 +42,6 @@ public class MekaSuitEnergyLevel {
             }
         }
     }
-
-
 
 
 }

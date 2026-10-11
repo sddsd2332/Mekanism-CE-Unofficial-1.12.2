@@ -21,7 +21,10 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-/** Client-owned world highlight copied from an already authorized management snapshot. */
+/**
+ * Client-owned world highlight copied from an already authorized management snapshot.
+ */
+
 /**
  * QIO 处理模块中的 QIODeviceLocatorRenderer 类型。
  *
@@ -74,7 +77,7 @@ public final class QIODeviceLocatorRenderer {
     private void addLocation(QIOAutomationDeviceLocation location, boolean online) {
         Minecraft minecraft = Minecraft.getMinecraft();
         if (minecraft.world == null || minecraft.player == null || location == null ||
-            location.dimension() != minecraft.world.provider.getDimension()) {
+                location.dimension() != minecraft.world.provider.getDimension()) {
             return;
         }
         BlockPos position = location.position();
@@ -89,7 +92,7 @@ public final class QIODeviceLocatorRenderer {
     private void finishLocations() {
         Minecraft minecraft = Minecraft.getMinecraft();
         if (minecraft.world == null || minecraft.player == null ||
-            onlineLocations.isEmpty() && offlineLocations.isEmpty()) {
+                onlineLocations.isEmpty() && offlineLocations.isEmpty()) {
             clear();
             return;
         }
@@ -121,18 +124,18 @@ public final class QIODeviceLocatorRenderer {
         double cameraY = minecraft.getRenderManager().viewerPosY;
         double cameraZ = minecraft.getRenderManager().viewerPosZ;
         boolean mekanismSelectionEnabled =
-              SelectionWireframeRenderer.isSelectionWireframeRenderingEnabled();
+                SelectionWireframeRenderer.isSelectionWireframeRenderingEnabled();
 
         SelectionWireframeRenderer.begin(
-              SelectionWireframeRenderer.getConfiguredLineWidth(), true);
+                SelectionWireframeRenderer.getConfiguredLineWidth(), true);
         try {
             for (BlockPos location : onlineLocations) {
                 renderLocation(minecraft.world, location, cameraX, cameraY, cameraZ,
-                      mekanismSelectionEnabled, ONLINE_RED, ONLINE_GREEN, ONLINE_BLUE);
+                        mekanismSelectionEnabled, ONLINE_RED, ONLINE_GREEN, ONLINE_BLUE);
             }
             for (BlockPos location : offlineLocations) {
                 renderLocation(minecraft.world, location, cameraX, cameraY, cameraZ,
-                      mekanismSelectionEnabled, OFFLINE_RED, OFFLINE_GREEN, OFFLINE_BLUE);
+                        mekanismSelectionEnabled, OFFLINE_RED, OFFLINE_GREEN, OFFLINE_BLUE);
             }
         } finally {
             SelectionWireframeRenderer.end(true);
@@ -140,8 +143,8 @@ public final class QIODeviceLocatorRenderer {
     }
 
     private static void renderLocation(World world, BlockPos location,
-          double cameraX, double cameraY, double cameraZ,
-          boolean mekanismSelectionEnabled, float red, float green, float blue) {
+                                       double cameraX, double cameraY, double cameraZ,
+                                       boolean mekanismSelectionEnabled, float red, float green, float blue) {
         BlockPos renderPos = location;
         IBlockState state = null;
         if (world.isBlockLoaded(location, false)) {
@@ -162,7 +165,7 @@ public final class QIODeviceLocatorRenderer {
 
         if (state != null) {
             if (mekanismSelectionEnabled && renderMekanismSelection(state, world, renderPos,
-                  cameraX, cameraY, cameraZ, red, green, blue)) {
+                    cameraX, cameraY, cameraZ, red, green, blue)) {
                 return;
             }
             try {
@@ -174,12 +177,12 @@ public final class QIODeviceLocatorRenderer {
             }
         }
         drawWorldBox(new AxisAlignedBB(renderPos), cameraX, cameraY, cameraZ,
-              red, green, blue);
+                red, green, blue);
     }
 
     private static boolean renderMekanismSelection(IBlockState state, World world,
-          BlockPos pos, double cameraX, double cameraY, double cameraZ,
-          float red, float green, float blue) {
+                                                   BlockPos pos, double cameraX, double cameraY, double cameraZ,
+                                                   float red, float green, float blue) {
         Block block = state.getBlock();
         if (block instanceof IHighlightBoxProvider provider) {
             AxisAlignedBB[] boxes = null;
@@ -188,7 +191,7 @@ public final class QIODeviceLocatorRenderer {
             } catch (RuntimeException ignored) {
             }
             if (drawLocalBoxes(boxes, pos, cameraX, cameraY, cameraZ,
-                  red, green, blue)) {
+                    red, green, blue)) {
                 return true;
             }
         }
@@ -209,14 +212,14 @@ public final class QIODeviceLocatorRenderer {
         }
 
         SelectionWireframeRenderer.drawWireframes(wireframes, pos,
-              cameraX, cameraY, cameraZ, red, green, blue, ALPHA,
-              SelectionWireframeRenderer.keepVisibleInternalEdgesForState(state));
+                cameraX, cameraY, cameraZ, red, green, blue, ALPHA,
+                SelectionWireframeRenderer.keepVisibleInternalEdgesForState(state));
         return true;
     }
 
     private static boolean drawLocalBoxes(AxisAlignedBB[] boxes, BlockPos pos,
-          double cameraX, double cameraY, double cameraZ,
-          float red, float green, float blue) {
+                                          double cameraX, double cameraY, double cameraZ,
+                                          float red, float green, float blue) {
         if (boxes == null || boxes.length == 0) {
             return false;
         }
@@ -224,7 +227,7 @@ public final class QIODeviceLocatorRenderer {
         for (AxisAlignedBB box : boxes) {
             if (isValidBox(box)) {
                 drawWorldBox(box.offset(pos), cameraX, cameraY, cameraZ,
-                      red, green, blue);
+                        red, green, blue);
                 rendered = true;
             }
         }
@@ -232,22 +235,22 @@ public final class QIODeviceLocatorRenderer {
     }
 
     private static boolean drawWorldBox(AxisAlignedBB box,
-          double cameraX, double cameraY, double cameraZ,
-          float red, float green, float blue) {
+                                        double cameraX, double cameraY, double cameraZ,
+                                        float red, float green, float blue) {
         if (!isValidBox(box)) {
             return false;
         }
         RenderGlobal.drawSelectionBoundingBox(
-              box.grow(BOX_GROW).offset(-cameraX, -cameraY, -cameraZ),
-              red, green, blue, ALPHA);
+                box.grow(BOX_GROW).offset(-cameraX, -cameraY, -cameraZ),
+                red, green, blue, ALPHA);
         return true;
     }
 
     private static boolean isValidBox(AxisAlignedBB box) {
         return box != null && Double.isFinite(box.minX) && Double.isFinite(box.minY) &&
-              Double.isFinite(box.minZ) && Double.isFinite(box.maxX) &&
-              Double.isFinite(box.maxY) && Double.isFinite(box.maxZ) &&
-              box.maxX > box.minX && box.maxY > box.minY && box.maxZ > box.minZ;
+                Double.isFinite(box.minZ) && Double.isFinite(box.maxX) &&
+                Double.isFinite(box.maxY) && Double.isFinite(box.maxZ) &&
+                box.maxX > box.minX && box.maxY > box.minY && box.maxZ > box.minZ;
     }
 
     private void clear() {

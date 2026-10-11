@@ -490,12 +490,12 @@ public class GuiUtils {
     }
 
     public static void renderGuiElementItem(RenderItem renderer, @Nonnull ItemStack stack, int xAxis, int yAxis, float scale, FontRenderer font,
-          @Nullable String text, boolean overlay) {
+                                            @Nullable String text, boolean overlay) {
         renderItem(renderer, stack, xAxis, yAxis, scale, font, text, overlay, GUI_ELEMENT_ITEM_Z);
     }
 
     private static void renderItem(RenderItem renderer, @Nonnull ItemStack stack, int xAxis, int yAxis, float scale, FontRenderer font, @Nullable String text,
-          boolean overlay, float itemZLevel) {
+                                   boolean overlay, float itemZLevel) {
         if (!stack.isEmpty()) {
             float previousZLevel = renderer.zLevel;
             try {
@@ -533,7 +533,7 @@ public class GuiUtils {
     }
 
     public static void renderItemOverlay(RenderItem renderer, FontRenderer font, @Nonnull ItemStack stack, int x, int y,
-          @Nullable String text) {
+                                         @Nullable String text) {
         if (text != null || !usesCompactItemCount(stack)) {
             renderer.renderItemOverlayIntoGUI(font, stack, x, y, text);
             return;
@@ -576,8 +576,6 @@ public class GuiUtils {
         GlStateManager.shadeModel(GL11.GL_FLAT);
         MekanismRenderer.resetColor();
     }
-
-
 
 
 }

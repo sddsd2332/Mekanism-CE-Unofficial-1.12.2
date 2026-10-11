@@ -15,7 +15,7 @@ import java.util.function.Predicate;
 public class VariableCapacityFluidTank extends BasicFluidTank {
 
     public static VariableCapacityFluidTank create(SynchronizedData<?> multiblock, IntSupplier capacity, Predicate<FluidStack> validator,
-          @Nullable IContentsListener listener) {
+                                                   @Nullable IContentsListener listener) {
         Objects.requireNonNull(multiblock, "Multiblock cannot be null");
         Objects.requireNonNull(capacity, "Capacity supplier cannot be null");
         Objects.requireNonNull(validator, "Fluid validity check cannot be null");
@@ -23,7 +23,7 @@ public class VariableCapacityFluidTank extends BasicFluidTank {
     }
 
     public static VariableCapacityFluidTank input(SynchronizedData<?> multiblock, IntSupplier capacity, Predicate<FluidStack> validator,
-          @Nullable IContentsListener listener) {
+                                                  @Nullable IContentsListener listener) {
         Objects.requireNonNull(multiblock, "Multiblock cannot be null");
         Objects.requireNonNull(capacity, "Capacity supplier cannot be null");
         Objects.requireNonNull(validator, "Fluid validity check cannot be null");
@@ -31,7 +31,7 @@ public class VariableCapacityFluidTank extends BasicFluidTank {
     }
 
     public static VariableCapacityFluidTank output(SynchronizedData<?> multiblock, IntSupplier capacity, Predicate<FluidStack> validator,
-          @Nullable IContentsListener listener) {
+                                                   @Nullable IContentsListener listener) {
         Objects.requireNonNull(multiblock, "Multiblock cannot be null");
         Objects.requireNonNull(capacity, "Capacity supplier cannot be null");
         Objects.requireNonNull(validator, "Fluid validity check cannot be null");
@@ -51,7 +51,7 @@ public class VariableCapacityFluidTank extends BasicFluidTank {
     }
 
     public static VariableCapacityFluidTank create(IntSupplier capacity, BiPredicate<FluidStack, AutomationType> canExtract,
-          BiPredicate<FluidStack, AutomationType> canInsert, Predicate<FluidStack> validator, @Nullable IContentsListener listener) {
+                                                   BiPredicate<FluidStack, AutomationType> canInsert, Predicate<FluidStack> validator, @Nullable IContentsListener listener) {
         Objects.requireNonNull(capacity, "Capacity supplier cannot be null");
         Objects.requireNonNull(canExtract, "Extraction validity check cannot be null");
         Objects.requireNonNull(canInsert, "Insertion validity check cannot be null");
@@ -62,7 +62,7 @@ public class VariableCapacityFluidTank extends BasicFluidTank {
     private final IntSupplier capacity;
 
     protected VariableCapacityFluidTank(IntSupplier capacity, BiPredicate<FluidStack, AutomationType> canExtract,
-          BiPredicate<FluidStack, AutomationType> canInsert, Predicate<FluidStack> validator, @Nullable IContentsListener listener) {
+                                        BiPredicate<FluidStack, AutomationType> canInsert, Predicate<FluidStack> validator, @Nullable IContentsListener listener) {
         super(capacity.getAsInt(), canExtract, canInsert, validator, listener);
         this.capacity = capacity;
     }

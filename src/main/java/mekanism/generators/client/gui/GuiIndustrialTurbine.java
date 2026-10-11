@@ -119,8 +119,8 @@ public class GuiIndustrialTurbine extends GuiMekanismTile<TileEntityTurbineCasin
         double maxEnergy = data != null && data.isFormed() ? tileEntity.getMaxEnergy() : 0;
         double producing = data != null && data.isFormed() ? getProductionRate(data) : 0;
         return Arrays.asList(
-              new TextComponentString(LangUtils.localize("gui.storing") + ": " + MekanismUtils.getEnergyDisplay(storing, maxEnergy)),
-              new TextComponentString(LangUtils.localize("gui.producing") + ": " + MekanismUtils.getEnergyDisplay(producing) + "/t")
+                new TextComponentString(LangUtils.localize("gui.storing") + ": " + MekanismUtils.getEnergyDisplay(storing, maxEnergy)),
+                new TextComponentString(LangUtils.localize("gui.producing") + ": " + MekanismUtils.getEnergyDisplay(producing) + "/t")
         );
     }
 
@@ -148,11 +148,11 @@ public class GuiIndustrialTurbine extends GuiMekanismTile<TileEntityTurbineCasin
 
     private double getEnergyMultiplier(SynchronizedTurbineData data) {
         return (MekanismConfig.current().general.maxEnergyPerSteam.val() / TurbineUpdateProtocol.MAX_BLADES) *
-              Math.min(data.blades, data.coils * MekanismConfig.current().generators.turbineBladesPerCoil.val());
+                Math.min(data.blades, data.coils * MekanismConfig.current().generators.turbineBladesPerCoil.val());
     }
 
     private double getMaxFlowRate(SynchronizedTurbineData data) {
         return Math.min(data.lowerVolume * data.clientDispersers * MekanismConfig.current().generators.turbineDisperserGasFlow.val(),
-              data.vents * MekanismConfig.current().generators.turbineVentGasFlow.val());
+                data.vents * MekanismConfig.current().generators.turbineVentGasFlow.val());
     }
 }

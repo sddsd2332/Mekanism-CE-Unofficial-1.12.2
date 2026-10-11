@@ -12,7 +12,9 @@ import net.minecraft.tileentity.TileEntity;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-/** Inventory slot that accepts exactly one QIO drive and keeps its mount state current. */
+/**
+ * Inventory slot that accepts exactly one QIO drive and keeps its mount state current.
+ */
 public class QIODriveSlot extends BasicInventorySlot {
 
     private final IQIODriveHolder holder;
@@ -20,7 +22,7 @@ public class QIODriveSlot extends BasicInventorySlot {
 
     public QIODriveSlot(IQIODriveHolder holder, int slot, @Nullable IContentsListener listener, int x, int y) {
         super(1, notExternal, notExternal, stack -> !stack.isEmpty() && stack.getItem() instanceof IQIODriveItem,
-              listener, x, y);
+                listener, x, y);
         this.holder = holder;
         this.slot = slot;
     }
@@ -47,7 +49,9 @@ public class QIODriveSlot extends BasicInventorySlot {
         notifyDriveChanged();
     }
 
-    /** Used by a holder callback to replace a defensive-copy stack without a callback loop. */
+    /**
+     * Used by a holder callback to replace a defensive-copy stack without a callback loop.
+     */
     public void setStackFromHolder(@Nonnull ItemStack stack) {
         super.setStackUncheckedNoUpdate(stack);
     }

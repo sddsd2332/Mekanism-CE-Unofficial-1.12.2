@@ -20,7 +20,7 @@ public class RateLimitMultiTankGasHandler extends ItemStackMekanismGasHandler {
         List<IExtendedGasTank> tankProviders = new ArrayList<>();
         for (GasTankSpec spec : gasTanks) {
             tankProviders.add(new RateLimitGasTank(spec.rate, spec.capacity, spec.canExtract,
-                  (gas, automationType) -> spec.canInsert.test(gas, automationType, getStack()), spec.isValid, this));
+                    (gas, automationType) -> spec.canInsert.test(gas, automationType, getStack()), spec.isValid, this));
         }
         tanks = Collections.unmodifiableList(tankProviders);
     }

@@ -2,14 +2,10 @@ package mekanism.common.network.qio;
 
 import io.netty.buffer.ByteBuf;
 import mekanism.api.Action;
+import mekanism.api.gas.GasStack;
 import mekanism.common.Mekanism;
 import mekanism.common.PacketHandler;
-import mekanism.common.content.qio.QIOFrequency;
-import mekanism.common.content.qio.QIOResourceEntry;
-import mekanism.common.content.qio.QIOResourceKind;
-import mekanism.common.content.qio.QIOResourceType;
-import mekanism.common.content.qio.QIOResourceTypeRegistry;
-import mekanism.common.content.qio.QIORollback;
+import mekanism.common.content.qio.*;
 import mekanism.common.inventory.container.QIOItemViewerContainer;
 import mekanism.common.inventory.container.item.IItemStackBackedContainer;
 import mekanism.common.inventory.slot.gas.GasInventorySlot;
@@ -20,20 +16,20 @@ import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.network.play.server.SPacketSetSlot;
+import net.minecraftforge.fluids.FluidStack;
+import net.minecraftforge.fluids.capability.IFluidHandlerItem;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessageHandler;
 import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.capability.IFluidHandlerItem;
 import net.minecraftforge.items.ItemHandlerHelper;
-import mekanism.api.gas.GasStack;
 
-import javax.annotation.Nullable;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.UUID;
 
-/** Server-authoritative resource viewer action. */
+/**
+ * Server-authoritative resource viewer action.
+ */
 public class PacketQIOViewerAction implements IMessageHandler<PacketQIOViewerAction.Message, IMessage> {
 
     @Override
@@ -47,7 +43,9 @@ public class PacketQIOViewerAction implements IMessageHandler<PacketQIOViewerAct
         return null;
     }
 
-    /** Shared server entry point for legacy slot-interaction packets. */
+    /**
+     * Shared server entry point for legacy slot-interaction packets.
+     */
     public static void handleMessage(Message message, EntityPlayer player) {
         if (!message.valid || !(player.openContainer instanceof QIOItemViewerContainer) || message.amount <= 0) {
             return;
@@ -86,7 +84,7 @@ public class PacketQIOViewerAction implements IMessageHandler<PacketQIOViewerAct
         }
         if (player.openContainer instanceof IItemStackBackedContainer portable) {
             if (portable.getItemAccess().getStack() == held ||
-                portable.getItemAccess().getOpeningStack() == held) {
+                    portable.getItemAccess().getOpeningStack() == held) {
                 return false;
             }
         }
@@ -94,7 +92,7 @@ public class PacketQIOViewerAction implements IMessageHandler<PacketQIOViewerAct
         boolean hasGas = !hasFluid && hasGasToInsert(held);
         if (hasFluid || hasGas) {
             return hasFluid ? insertHeldFluid(player, frequency, held, requested)
-                  : insertHeldGas(player, frequency, held, requested);
+                    : insertHeldGas(player, frequency, held, requested);
         }
         boolean inserted = insertHeldItem(held, frequency, requested);
         if (inserted && held.isEmpty()) {
@@ -170,20 +168,20 @@ public class PacketQIOViewerAction implements IMessageHandler<PacketQIOViewerAct
     }
 
     static boolean takeItemToInventory(@Nonnull InventoryPlayer inventory,
-          @Nonnull QIOFrequency frequency, @Nonnull UUID resource,
-          @Nonnull QIOResourceType type, long requested) {
+                                       @Nonnull QIOFrequency frequency, @Nonnull UUID resource,
+                                       @Nonnull QIOResourceType type, long requested) {
         long remaining = Math.min(requested, frequency.getStored(resource));
         if (remaining <= 0) return false;
         ItemStack template = type.createItemStack(1);
         if (template.isEmpty()) return false;
         int stackLimit = Math.min(template.getMaxStackSize(),
-              inventory.getInventoryStackLimit());
+                inventory.getInventoryStackLimit());
         if (stackLimit <= 0) return false;
         int batch = (int) Math.min(remaining, stackLimit);
         // A partial inventory slot may have room for less than one full stack. Find the
         // largest legal transfer instead of rejecting the whole Shift-click.
         while (batch > 0 && !canAddToInventory(inventory,
-              type.createItemStack(batch))) {
+                type.createItemStack(batch))) {
             batch--;
         }
         if (batch <= 0) return false;
@@ -328,7 +326,7 @@ public class PacketQIOViewerAction implements IMessageHandler<PacketQIOViewerAct
     }
 
     private static boolean takeFluidToCursor(EntityPlayer player, QIOFrequency frequency, UUID resource, QIOResourceType type,
-          long requested) {
+                                             long requested) {
         ItemStack held = player.inventory.getItemStack();
         if (held.isEmpty()) {
             return false;
@@ -350,7 +348,7 @@ public class PacketQIOViewerAction implements IMessageHandler<PacketQIOViewerAct
         preview.setCount(1);
         IFluidHandlerItem previewHandler = FluidContainerUtils.getFluidHandlerCapability(preview);
         int previewFilled = previewHandler == null ? 0 : Math.max(0, Math.min(accepted,
-              previewHandler.fill(new FluidStack(template, accepted), true)));
+                previewHandler.fill(new FluidStack(template, accepted), true)));
         if (previewFilled <= 0 || !canReturnContainer(player, held, previewHandler.getContainer())) {
             return false;
         }
@@ -380,7 +378,7 @@ public class PacketQIOViewerAction implements IMessageHandler<PacketQIOViewerAct
     }
 
     private static boolean takeGasToCursor(EntityPlayer player, QIOFrequency frequency, UUID resource, QIOResourceType type,
-          long requested) {
+                                           long requested) {
         ItemStack held = player.inventory.getItemStack();
         if (held.isEmpty()) {
             return false;
@@ -401,7 +399,7 @@ public class PacketQIOViewerAction implements IMessageHandler<PacketQIOViewerAct
         ItemStack preview = held.copy();
         preview.setCount(1);
         int previewFilled = Math.max(0, Math.min(accepted,
-              GasInventorySlot.insertGas(preview, new GasStack(template.getGas(), accepted), true)));
+                GasInventorySlot.insertGas(preview, new GasStack(template.getGas(), accepted), true)));
         if (previewFilled <= 0 || !canReturnContainer(player, held, preview)) {
             return false;
         }
@@ -412,7 +410,7 @@ public class PacketQIOViewerAction implements IMessageHandler<PacketQIOViewerAct
         ItemStack working = held.copy();
         working.setCount(1);
         int filled = Math.max(0, Math.min((int) extracted,
-              GasInventorySlot.insertGas(working, new GasStack(template.getGas(), (int) extracted), true)));
+                GasInventorySlot.insertGas(working, new GasStack(template.getGas(), (int) extracted), true)));
         if (filled < extracted) {
             rollbackExtraction(frequency, resource, extracted - filled, "gas cursor transfer");
         }
@@ -427,12 +425,12 @@ public class PacketQIOViewerAction implements IMessageHandler<PacketQIOViewerAct
     }
 
     private static boolean takeFluidToInventory(EntityPlayer player, QIOFrequency frequency, UUID resource, QIOResourceType type,
-          long requested) {
+                                                long requested) {
         return takeFluidToInventory(player.inventory, frequency, resource, type, requested);
     }
 
     static boolean takeFluidToInventory(InventoryPlayer inventory, QIOFrequency frequency, UUID resource, QIOResourceType type,
-          long requested) {
+                                        long requested) {
         FluidStack template = type.createFluidStack(1);
         if (template == null) {
             return false;
@@ -462,7 +460,7 @@ public class PacketQIOViewerAction implements IMessageHandler<PacketQIOViewerAct
                 working.setCount(1);
                 IFluidHandlerItem actual = FluidContainerUtils.getFluidHandlerCapability(working);
                 int filled = actual == null ? 0 : Math.max(0, Math.min((int) extracted,
-                      actual.fill(new FluidStack(template, (int) extracted), true)));
+                        actual.fill(new FluidStack(template, (int) extracted), true)));
                 if (filled < extracted) {
                     rollbackExtraction(frequency, resource, extracted - filled, "fluid inventory transfer");
                 }
@@ -481,12 +479,12 @@ public class PacketQIOViewerAction implements IMessageHandler<PacketQIOViewerAct
     }
 
     private static boolean takeGasToInventory(EntityPlayer player, QIOFrequency frequency, UUID resource, QIOResourceType type,
-          long requested) {
+                                              long requested) {
         return takeGasToInventory(player.inventory, frequency, resource, type, requested);
     }
 
     static boolean takeGasToInventory(InventoryPlayer inventory, QIOFrequency frequency, UUID resource, QIOResourceType type,
-          long requested) {
+                                      long requested) {
         GasStack template = type.createGasStack(1);
         if (template == null) {
             return false;
@@ -503,7 +501,7 @@ public class PacketQIOViewerAction implements IMessageHandler<PacketQIOViewerAct
                 simulation.setCount(1);
                 int amount = (int) Math.min(remaining, Integer.MAX_VALUE);
                 int accepted = Math.max(0, Math.min(amount,
-                      GasInventorySlot.insertGas(simulation, new GasStack(template.getGas(), amount), false)));
+                        GasInventorySlot.insertGas(simulation, new GasStack(template.getGas(), amount), false)));
                 if (accepted <= 0) {
                     break;
                 }
@@ -514,7 +512,7 @@ public class PacketQIOViewerAction implements IMessageHandler<PacketQIOViewerAct
                 ItemStack working = container.copy();
                 working.setCount(1);
                 int filled = Math.max(0, Math.min((int) extracted,
-                      GasInventorySlot.insertGas(working, new GasStack(template.getGas(), (int) extracted), true)));
+                        GasInventorySlot.insertGas(working, new GasStack(template.getGas(), (int) extracted), true)));
                 if (filled < extracted) {
                     rollbackExtraction(frequency, resource, extracted - filled, "gas inventory transfer");
                 }
@@ -559,9 +557,11 @@ public class PacketQIOViewerAction implements IMessageHandler<PacketQIOViewerAct
         }
     }
 
-    /** Commits one transformed container from a player inventory slot without allowing partial inventory mutations. */
+    /**
+     * Commits one transformed container from a player inventory slot without allowing partial inventory mutations.
+     */
     private static boolean commitInventoryContainerResult(InventoryPlayer inventory, int index, ItemStack expected,
-          @Nullable ItemStack result) {
+                                                          @Nullable ItemStack result) {
         if (index < 0 || index >= getContainerSlotCount(inventory) || expected == null || expected.isEmpty()) {
             return false;
         }
@@ -610,15 +610,17 @@ public class PacketQIOViewerAction implements IMessageHandler<PacketQIOViewerAct
 
     static boolean canMergeInto(ItemStack existing, ItemStack requested, int max) {
         return !existing.isEmpty() && existing.isStackable() && ItemHandlerHelper.canItemStacksStack(existing, requested)
-              && existing.getCount() < Math.min(max, existing.getMaxStackSize());
+                && existing.getCount() < Math.min(max, existing.getMaxStackSize());
     }
 
     public static boolean canTakeIntoHeldStack(@Nullable QIOResourceEntry entry, @Nullable ItemStack held) {
         return entry != null && entry.getKind() == QIOResourceKind.ITEM && held != null && !held.isEmpty() &&
-              held.getCount() < held.getMaxStackSize() && ItemHandlerHelper.canItemStacksStack(entry.getItem(), held);
+                held.getCount() < held.getMaxStackSize() && ItemHandlerHelper.canItemStacksStack(entry.getItem(), held);
     }
 
-    /** Amount represented by one Shift-click transfer from the viewer. */
+    /**
+     * Amount represented by one Shift-click transfer from the viewer.
+     */
     public static long getShiftTakeAmount(@Nullable QIOResourceEntry entry) {
         if (entry == null || entry.getAmount() <= 0) return 0;
         if (entry.getKind() != QIOResourceKind.ITEM) return entry.getAmount();
@@ -646,7 +648,9 @@ public class PacketQIOViewerAction implements IMessageHandler<PacketQIOViewerAct
         return gas != null && GasInventorySlot.insertGas(simulation, gas, false) > 0;
     }
 
-    /** Returns the resource-unit amount represented by a Viewer PUT click. */
+    /**
+     * Returns the resource-unit amount represented by a Viewer PUT click.
+     */
     public static long getHeldPutAmount(@Nullable ItemStack held, boolean singleItem) {
         if (held == null || held.isEmpty()) {
             return 0;
@@ -685,11 +689,13 @@ public class PacketQIOViewerAction implements IMessageHandler<PacketQIOViewerAct
         return returned.isEmpty() || canAddToInventory(player, returned);
     }
 
-    /** Commits a previously validated cursor/container transition. */
+    /**
+     * Commits a previously validated cursor/container transition.
+     */
     private static boolean commitContainerResult(EntityPlayer player, ItemStack held, @Nullable ItemStack result) {
         ItemStack current = player.inventory.getItemStack();
         if (current.isEmpty() || held == null || held.isEmpty() || current.getCount() != held.getCount()
-              || !ItemStack.areItemStacksEqual(current, held) || !canReturnContainer(player, held, result)) {
+                || !ItemStack.areItemStacksEqual(current, held) || !canReturnContainer(player, held, result)) {
             return false;
         }
         ItemStack cursor = current.copy();
@@ -723,7 +729,9 @@ public class PacketQIOViewerAction implements IMessageHandler<PacketQIOViewerAct
         return true;
     }
 
-    /** Adds a complete stack or restores the inventory snapshot on failure. */
+    /**
+     * Adds a complete stack or restores the inventory snapshot on failure.
+     */
     private static boolean addFullyToInventory(InventoryPlayer inventory, ItemStack stack) {
         if (!canAddToInventory(inventory, stack)) {
             return false;
@@ -754,7 +762,7 @@ public class PacketQIOViewerAction implements IMessageHandler<PacketQIOViewerAct
         int left = remaining.getCount();
         int current = inventory.currentItem;
         ItemStack selected = current >= 0 && current < inventory.mainInventory.size()
-              ? inventory.mainInventory.get(current) : ItemStack.EMPTY;
+                ? inventory.mainInventory.get(current) : ItemStack.EMPTY;
         if (canMergeInto(selected, remaining, max)) {
             left -= Math.min(left, max - selected.getCount());
         }
@@ -791,7 +799,7 @@ public class PacketQIOViewerAction implements IMessageHandler<PacketQIOViewerAct
     }
 
     private static void restoreInventory(InventoryPlayer inventory, java.util.List<ItemStack> mainSnapshot,
-          java.util.List<ItemStack> offhandSnapshot) {
+                                         java.util.List<ItemStack> offhandSnapshot) {
         for (int slot = 0; slot < mainSnapshot.size(); slot++) {
             inventory.mainInventory.set(slot, mainSnapshot.get(slot));
         }

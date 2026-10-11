@@ -3,13 +3,7 @@ package mekanism.api.processing;
 import net.minecraft.block.Block;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.CompressedStreamTools;
-import net.minecraft.nbt.NBTBase;
-import net.minecraft.nbt.NBTTagByteArray;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.nbt.NBTTagIntArray;
-import net.minecraft.nbt.NBTTagList;
-import net.minecraft.nbt.NBTTagString;
+import net.minecraft.nbt.*;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.common.util.Constants.NBT;
@@ -21,14 +15,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Locale;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * Small, persistent identity used to render a machine without retaining its Tile NBT.
@@ -42,12 +29,12 @@ public final class MachinePresentationDescriptor {
     private static final int MAX_ID_LENGTH = 256;
     private static final int MAX_DISCRIMINATOR_LENGTH = 128;
     private static final Set<String> FORBIDDEN_KEYS = new HashSet<>(Arrays.asList(
-          "items", "inventory", "energy", "energystored", "energycontainers",
-          "fluid", "fluids", "fluidtank", "gas", "gases", "gastank",
-          "frequency", "componentfrequency", "security", "owner", "trusted",
-          "upgrades", "componentupgrade", "qio", "qiofrequency",
-          "qioautomation", "qioautomationhost", "contents", "storage", "stored",
-          "tank", "slot", "slots", "container", "containers", "capabilities"));
+            "items", "inventory", "energy", "energystored", "energycontainers",
+            "fluid", "fluids", "fluidtank", "gas", "gases", "gastank",
+            "frequency", "componentfrequency", "security", "owner", "trusted",
+            "upgrades", "componentupgrade", "qio", "qiofrequency",
+            "qioautomation", "qioautomationhost", "contents", "storage", "stored",
+            "tank", "slot", "slots", "container", "containers", "capabilities"));
 
     private final String itemId;
     private final int itemMetadata;
@@ -56,7 +43,7 @@ public final class MachinePresentationDescriptor {
     private final String typeDiscriminator;
 
     private MachinePresentationDescriptor(String itemId, int itemMetadata,
-          @Nullable NBTTagCompound itemNbt, @Nullable String typeDiscriminator) {
+                                          @Nullable NBTTagCompound itemNbt, @Nullable String typeDiscriminator) {
         this.itemId = checkedId(itemId);
         if (itemMetadata < 0 || itemMetadata > Short.MAX_VALUE) {
             throw new IllegalArgumentException("itemMetadata must be in the range 0..32767");
@@ -68,16 +55,16 @@ public final class MachinePresentationDescriptor {
 
     @Nonnull
     public static MachinePresentationDescriptor of(@Nonnull String itemId,
-          int itemMetadata, @Nullable NBTTagCompound itemNbt) {
+                                                   int itemMetadata, @Nullable NBTTagCompound itemNbt) {
         return new MachinePresentationDescriptor(itemId, itemMetadata, itemNbt, null);
     }
 
     @Nonnull
     public static MachinePresentationDescriptor of(@Nonnull String itemId,
-          int itemMetadata, @Nullable NBTTagCompound itemNbt,
-          @Nullable String typeDiscriminator) {
+                                                   int itemMetadata, @Nullable NBTTagCompound itemNbt,
+                                                   @Nullable String typeDiscriminator) {
         return new MachinePresentationDescriptor(itemId, itemMetadata, itemNbt,
-              typeDiscriminator);
+                typeDiscriminator);
     }
 
     @Nonnull
@@ -87,15 +74,15 @@ public final class MachinePresentationDescriptor {
             throw new IllegalArgumentException("Presentation stack must name a registered item");
         }
         return of(stack.getItem().getRegistryName().toString(), stack.getMetadata(),
-              stack.getTagCompound());
+                stack.getTagCompound());
     }
 
     @Nonnull
     public static MachinePresentationDescriptor fromStack(@Nonnull ItemStack stack,
-          @Nullable String typeDiscriminator) {
+                                                          @Nullable String typeDiscriminator) {
         MachinePresentationDescriptor descriptor = fromStack(stack);
         return of(descriptor.itemId, descriptor.itemMetadata, descriptor.itemNbt,
-              typeDiscriminator);
+                typeDiscriminator);
     }
 
     @Nonnull
@@ -115,15 +102,15 @@ public final class MachinePresentationDescriptor {
     public static MachinePresentationDescriptor read(@Nonnull NBTTagCompound data) {
         Objects.requireNonNull(data, "data");
         if (!data.hasKey("itemId", NBT.TAG_STRING) ||
-            !data.hasKey("itemMetadata", NBT.TAG_INT)) {
+                !data.hasKey("itemMetadata", NBT.TAG_INT)) {
             throw new IllegalArgumentException("Machine presentation is missing identity fields");
         }
         NBTTagCompound itemNbt = data.hasKey("itemNbt", NBT.TAG_COMPOUND) ?
-              data.getCompoundTag("itemNbt") : null;
+                data.getCompoundTag("itemNbt") : null;
         String discriminator = data.hasKey("typeDiscriminator", NBT.TAG_STRING) ?
-              data.getString("typeDiscriminator") : "";
+                data.getString("typeDiscriminator") : "";
         return of(data.getString("itemId"), data.getInteger("itemMetadata"), itemNbt,
-              discriminator);
+                discriminator);
     }
 
     @Nonnull
@@ -180,14 +167,16 @@ public final class MachinePresentationDescriptor {
         return typeDiscriminator;
     }
 
-    /** Stable grouping identity; never use this as a recipe or profile key. */
+    /**
+     * Stable grouping identity; never use this as a recipe or profile key.
+     */
     @Nonnull
     public String presentationKey() {
         String canonicalNbt = itemNbt == null ? "" : canonicalCopy(itemNbt).toString();
         UUID nbtFingerprint = UUID.nameUUIDFromBytes(
-              canonicalNbt.getBytes(StandardCharsets.UTF_8));
+                canonicalNbt.getBytes(StandardCharsets.UTF_8));
         return itemId + '|' + itemMetadata + '|' + typeDiscriminator + '|' +
-              nbtFingerprint;
+                nbtFingerprint;
     }
 
     @Override
@@ -195,8 +184,8 @@ public final class MachinePresentationDescriptor {
         if (this == object) return true;
         if (!(object instanceof MachinePresentationDescriptor other)) return false;
         return itemMetadata == other.itemMetadata && itemId.equals(other.itemId) &&
-              Objects.equals(itemNbt, other.itemNbt) &&
-              typeDiscriminator.equals(other.typeDiscriminator);
+                Objects.equals(itemNbt, other.itemNbt) &&
+                typeDiscriminator.equals(other.typeDiscriminator);
     }
 
     @Override
@@ -224,8 +213,8 @@ public final class MachinePresentationDescriptor {
         for (int index = 0; index < checked.length(); index++) {
             char character = checked.charAt(index);
             if (!(character >= 'a' && character <= 'z') &&
-                !(character >= '0' && character <= '9') && character != '_' &&
-                character != '-' && character != '.' && character != '/') {
+                    !(character >= '0' && character <= '9') && character != '_' &&
+                    character != '-' && character != '.' && character != '/') {
                 throw new IllegalArgumentException("typeDiscriminator contains an unsupported character");
             }
         }
@@ -271,11 +260,11 @@ public final class MachinePresentationDescriptor {
                 validateTag(child, depth + 1, counter);
             }
         } else if (tag instanceof NBTTagByteArray bytes &&
-                   bytes.getByteArray().length > MAX_NBT_BYTES ||
-                   tag instanceof NBTTagIntArray integers &&
-                   integers.getIntArray().length * Integer.BYTES > MAX_NBT_BYTES ||
-                   tag instanceof NBTTagString string &&
-                   string.getString().length() > MAX_NBT_BYTES) {
+                bytes.getByteArray().length > MAX_NBT_BYTES ||
+                tag instanceof NBTTagIntArray integers &&
+                        integers.getIntArray().length * Integer.BYTES > MAX_NBT_BYTES ||
+                tag instanceof NBTTagString string &&
+                        string.getString().length() > MAX_NBT_BYTES) {
             throw new IllegalArgumentException("Machine presentation NBT value is too large");
         }
     }
@@ -284,12 +273,12 @@ public final class MachinePresentationDescriptor {
         String normalized = key.toLowerCase(Locale.ROOT).replace("_", "").replace("-", "");
         if (FORBIDDEN_KEYS.contains(normalized)) return true;
         return normalized.contains("inventory") || normalized.contains("frequency") ||
-              normalized.contains("security") || normalized.contains("upgrade") ||
-              normalized.contains("energy") || normalized.contains("owner") ||
-              normalized.contains("trusted") || normalized.contains("contents") ||
-              normalized.contains("storage") || normalized.contains("stored") ||
-              normalized.contains("tank") || normalized.contains("slot") ||
-              normalized.contains("capabilit");
+                normalized.contains("security") || normalized.contains("upgrade") ||
+                normalized.contains("energy") || normalized.contains("owner") ||
+                normalized.contains("trusted") || normalized.contains("contents") ||
+                normalized.contains("storage") || normalized.contains("stored") ||
+                normalized.contains("tank") || normalized.contains("slot") ||
+                normalized.contains("capabilit");
     }
 
     private static NBTBase canonicalCopy(NBTBase value) {

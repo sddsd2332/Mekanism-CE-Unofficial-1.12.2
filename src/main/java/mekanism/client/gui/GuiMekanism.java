@@ -96,8 +96,8 @@ public abstract class GuiMekanism<CONTAINER extends Container> extends VirtualSl
 
     public static boolean isTextboxKey(char c, int keyCode) {
         return keyCode == Keyboard.KEY_BACK || keyCode == Keyboard.KEY_DELETE || keyCode == Keyboard.KEY_LEFT || keyCode == Keyboard.KEY_RIGHT ||
-              keyCode == Keyboard.KEY_END || keyCode == Keyboard.KEY_HOME || isKeyComboCtrlA(keyCode) || isKeyComboCtrlC(keyCode) ||
-              isKeyComboCtrlV(keyCode) || isKeyComboCtrlX(keyCode);
+                keyCode == Keyboard.KEY_END || keyCode == Keyboard.KEY_HOME || isKeyComboCtrlA(keyCode) || isKeyComboCtrlC(keyCode) ||
+                isKeyComboCtrlV(keyCode) || isKeyComboCtrlX(keyCode);
     }
 
 
@@ -486,10 +486,10 @@ public abstract class GuiMekanism<CONTAINER extends Container> extends VirtualSl
 
     protected void renderInventoryTextAndOther(ITextComponent rightAlignedText, int rightEndPad) {
         drawScaledTextScaledBound(new TextComponentString(mekanism.common.util.LangUtils.localize("container.inventory")),
-              inventoryLabelX, inventoryLabelY, titleTextColor(), 53, 1);
+                inventoryLabelX, inventoryLabelY, titleTextColor(), 53, 1);
         int rightStart = inventoryLabelX + 51;
         drawScaledScrollingString(rightAlignedText, rightStart, inventoryLabelY, TextAlignment.RIGHT, titleTextColor(),
-              getXSize() - rightStart - rightEndPad, 6, false, 1, getTimeOpened());
+                getXSize() - rightStart - rightEndPad, 6, false, 1, getTimeOpened());
     }
 
 
@@ -692,7 +692,7 @@ public abstract class GuiMekanism<CONTAINER extends Container> extends VirtualSl
                     GuiWindow window = getWindowHovering(mouseX, mouseY);
                     //If we are hovering over a window, check if the virtual slot is a child of the window
                     if (window == null || window.childrenContainsElement(element -> element instanceof GuiVirtualSlot &&
-                          ((GuiVirtualSlot) element).isElementForSlot(virtualSlot))) {
+                            ((GuiVirtualSlot) element).isElementForSlot(virtualSlot))) {
                         return overNoButtons(window, mouseX, mouseY);
                     }
                 }
@@ -790,7 +790,7 @@ public abstract class GuiMekanism<CONTAINER extends Container> extends VirtualSl
     @Nullable
     protected DataType findDataType(InventoryContainerSlot slot) {
         if (inventorySlots instanceof MekanismContainer && this instanceof GuiMekanismTile<?, ?> tileGui &&
-            tileGui.getTileEntity() instanceof ISideConfiguration sideConfig) {
+                tileGui.getTileEntity() instanceof ISideConfiguration sideConfig) {
             return sideConfig.getActiveDataType(slot.getInventorySlot());
         }
         return null;
@@ -848,7 +848,7 @@ public abstract class GuiMekanism<CONTAINER extends Container> extends VirtualSl
     private void addStoredCountTooltip(ItemStack stack, List<String> tooltip) {
         if (GuiUtils.usesCompactItemCount(stack)) {
             String countTooltip = MekanismLang.QIO_STORED_COUNT.translateColored(EnumColor.GREY, EnumColor.INDIGO,
-                  TextUtils.format(stack.getCount())).getFormattedText();
+                    TextUtils.format(stack.getCount())).getFormattedText();
             if (!tooltip.contains(countTooltip)) {
                 tooltip.add(countTooltip);
             }

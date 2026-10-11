@@ -10,7 +10,10 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Persistent machine-to-QIO intermediate ownership for one output port extraction. */
+/**
+ * Persistent machine-to-QIO intermediate ownership for one output port extraction.
+ */
+
 /**
  * QIO 处理模块中的 QIOOutputBufferEntry 类型。
  *
@@ -40,8 +43,8 @@ public final class QIOOutputBufferEntry {
     private final long qioRequestedAmount;
 
     private QIOOutputBufferEntry(UUID bufferId, UUID operationId, UUID leaseId, MachinePortBaseline baseline,
-          MachineResourceStack extraction, long createdAt, Phase phase, @Nullable PortableResourceDescriptor resource, long amount,
-          @Nullable UUID qioTransferId, long qioRequestedAmount) {
+                                 MachineResourceStack extraction, long createdAt, Phase phase, @Nullable PortableResourceDescriptor resource, long amount,
+                                 @Nullable UUID qioTransferId, long qioRequestedAmount) {
         this.bufferId = Objects.requireNonNull(bufferId, "Output buffer id cannot be null");
         this.operationId = Objects.requireNonNull(operationId, "Output operation id cannot be null");
         this.leaseId = Objects.requireNonNull(leaseId, "Output lease id cannot be null");
@@ -49,8 +52,8 @@ public final class QIOOutputBufferEntry {
         this.extraction = Objects.requireNonNull(extraction, "Output extraction cannot be null");
         long baselineAmount = baseline.amountOf(extraction);
         if (baselineAmount <= 0 || !baseline.acceptsResource(extraction) ||
-            !extraction.portId().equals(baseline.portId()) ||
-            extraction.amount() > baselineAmount) {
+                !extraction.portId().equals(baseline.portId()) ||
+                extraction.amount() > baselineAmount) {
             throw new IllegalArgumentException("Output extraction does not belong to its prepared baseline");
         }
         if (createdAt < 0) {
@@ -73,8 +76,8 @@ public final class QIOOutputBufferEntry {
                 throw new IllegalArgumentException("Output buffer contains more than its prepared extraction");
             }
             if (phase == Phase.DELIVERING && (qioTransferId == null || qioRequestedAmount <= 0 ||
-                                              qioRequestedAmount > amount) ||
-                phase == Phase.HELD && (qioTransferId != null || qioRequestedAmount != 0)) {
+                    qioRequestedAmount > amount) ||
+                    phase == Phase.HELD && (qioTransferId != null || qioRequestedAmount != 0)) {
                 throw new IllegalArgumentException("Output buffer delivery state is inconsistent");
             }
         }
@@ -87,7 +90,7 @@ public final class QIOOutputBufferEntry {
     /** 创建只包含机器抽取意图、尚未实际取出资源的 PREPARED 缓冲。 */
     @Nonnull
     public static QIOOutputBufferEntry prepared(@Nonnull UUID bufferId, @Nonnull UUID operationId,
-          @Nonnull UUID leaseId, @Nonnull MachinePortBaseline baseline, long createdAt) {
+                                                @Nonnull UUID leaseId, @Nonnull MachinePortBaseline baseline, long createdAt) {
         MachineResourceStack contents = baseline.contents();
         if (contents == null) {
             throw new IllegalArgumentException("Prepared output baseline must contain a resource");
@@ -98,10 +101,10 @@ public final class QIOOutputBufferEntry {
     /** 使用指定抽取栈创建 PREPARED 缓冲。 */
     @Nonnull
     public static QIOOutputBufferEntry prepared(@Nonnull UUID bufferId, @Nonnull UUID operationId,
-          @Nonnull UUID leaseId, @Nonnull MachinePortBaseline baseline,
-          @Nonnull MachineResourceStack extraction, long createdAt) {
+                                                @Nonnull UUID leaseId, @Nonnull MachinePortBaseline baseline,
+                                                @Nonnull MachineResourceStack extraction, long createdAt) {
         return new QIOOutputBufferEntry(bufferId, operationId, leaseId, baseline, extraction, createdAt, Phase.PREPARED,
-              null, 0, null, 0);
+                null, 0, null, 0);
     }
 
     /** 返回缓冲唯一标识。 */
@@ -174,7 +177,7 @@ public final class QIOOutputBufferEntry {
             throw new IllegalStateException("Only a prepared output buffer can receive machine resources");
         }
         return new QIOOutputBufferEntry(bufferId, operationId, leaseId, baseline, extraction, createdAt, Phase.HELD,
-              resource, amount, null, 0);
+                resource, amount, null, 0);
     }
 
     /** 为 HELD 缓冲建立一次 QIO 投递并进入 DELIVERING。 */
@@ -184,7 +187,7 @@ public final class QIOOutputBufferEntry {
             throw new IllegalStateException("Only a held output buffer can begin QIO delivery");
         }
         return new QIOOutputBufferEntry(bufferId, operationId, leaseId, baseline, extraction, createdAt, Phase.DELIVERING,
-              resource, amount, transferId, requestedAmount);
+                resource, amount, transferId, requestedAmount);
     }
 
     /** 应用完整投递回执；全部完成时返回 null，否则返回剩余资源的 HELD 缓冲。 */
@@ -198,7 +201,7 @@ public final class QIOOutputBufferEntry {
         }
         long remaining = amount - transferredAmount;
         return remaining == 0 ? null : new QIOOutputBufferEntry(bufferId, operationId, leaseId, baseline, extraction, createdAt,
-              Phase.HELD, resource, remaining, null, 0);
+                Phase.HELD, resource, remaining, null, 0);
     }
 
     /** 将缓冲阶段和所有权字段写入 NBT。 */
@@ -230,20 +233,20 @@ public final class QIOOutputBufferEntry {
         try {
             Phase phase = Phase.valueOf(data.getString("phase"));
             PortableResourceDescriptor resource = data.hasKey("resource", NBT.TAG_COMPOUND) ?
-                  PortableResourceDescriptor.read(data.getCompoundTag("resource")) : null;
+                    PortableResourceDescriptor.read(data.getCompoundTag("resource")) : null;
             UUID qioTransferId = data.hasKey("qioTransferId", NBT.TAG_STRING) ?
-                  parseUUID(data.getString("qioTransferId"), "qioTransferId") : null;
+                    parseUUID(data.getString("qioTransferId"), "qioTransferId") : null;
             if (!data.hasKey("extraction", NBT.TAG_COMPOUND)) {
                 throw new IllegalArgumentException("QIO output buffer is missing its extraction intent");
             }
             MachinePortBaseline baseline = MachinePortBaseline.read(data.getCompoundTag("baseline"));
             MachineResourceStack extraction = MachineResourceStack.read(
-                  data.getCompoundTag("extraction"));
+                    data.getCompoundTag("extraction"));
             return new QIOOutputBufferEntry(parseUUID(data.getString("bufferId"), "bufferId"),
-                  parseUUID(data.getString("operationId"), "operationId"),
-                  parseUUID(data.getString("leaseId"), "leaseId"),
-                  baseline, extraction, data.getLong("createdAt"), phase,
-                  resource, data.getLong("amount"), qioTransferId, data.getLong("qioRequestedAmount"));
+                    parseUUID(data.getString("operationId"), "operationId"),
+                    parseUUID(data.getString("leaseId"), "leaseId"),
+                    baseline, extraction, data.getLong("createdAt"), phase,
+                    resource, data.getLong("amount"), qioTransferId, data.getLong("qioRequestedAmount"));
         } catch (RuntimeException e) {
             throw new IllegalArgumentException("Invalid QIO output buffer entry", e);
         }
@@ -266,14 +269,14 @@ public final class QIOOutputBufferEntry {
             return false;
         }
         return createdAt == other.createdAt && amount == other.amount && qioRequestedAmount == other.qioRequestedAmount &&
-              bufferId.equals(other.bufferId) && operationId.equals(other.operationId) && leaseId.equals(other.leaseId) &&
-              baseline.equals(other.baseline) && extraction.equals(other.extraction) && phase == other.phase && Objects.equals(resource, other.resource) &&
-              Objects.equals(qioTransferId, other.qioTransferId);
+                bufferId.equals(other.bufferId) && operationId.equals(other.operationId) && leaseId.equals(other.leaseId) &&
+                baseline.equals(other.baseline) && extraction.equals(other.extraction) && phase == other.phase && Objects.equals(resource, other.resource) &&
+                Objects.equals(qioTransferId, other.qioTransferId);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(bufferId, operationId, leaseId, baseline, extraction, createdAt, phase, resource, amount,
-              qioTransferId, qioRequestedAmount);
+                qioTransferId, qioRequestedAmount);
     }
 }

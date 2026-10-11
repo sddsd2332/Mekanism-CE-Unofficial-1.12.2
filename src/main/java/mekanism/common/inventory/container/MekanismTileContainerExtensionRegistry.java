@@ -5,13 +5,11 @@ import net.minecraft.util.ResourceLocation;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
-/** Optional-module hook for adding synchronized state to ordinary Mekanism tile containers. */
+/**
+ * Optional-module hook for adding synchronized state to ordinary Mekanism tile containers.
+ */
 public final class MekanismTileContainerExtensionRegistry {
 
     private static final Map<ResourceLocation, Factory> FACTORIES = new LinkedHashMap<>();
@@ -49,6 +47,6 @@ public final class MekanismTileContainerExtensionRegistry {
 
         @Nullable
         Object create(@Nonnull MekanismTileContainer<?> container,
-              @Nonnull TileEntityContainerBlock tile);
+                      @Nonnull TileEntityContainerBlock tile);
     }
 }

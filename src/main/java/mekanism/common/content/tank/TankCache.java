@@ -74,7 +74,7 @@ public class TankCache extends MultiblockCache<SynchronizedTankData> {
         if (nbtTags.hasKey("cachedFluid")) {
             fluid = FluidStack.loadFluidStackFromNBT(nbtTags.getCompoundTag("cachedFluid"));
         }
-        if (nbtTags.hasKey("cachedGas")){
+        if (nbtTags.hasKey("cachedGas")) {
             gas = GasStack.readFromNBT(nbtTags.getCompoundTag("cachedGas"));
         }
         sanitizeStoredSubstances();
@@ -88,8 +88,8 @@ public class TankCache extends MultiblockCache<SynchronizedTankData> {
         if (fluid != null) {
             nbtTags.setTag("cachedFluid", fluid.writeToNBT(new NBTTagCompound()));
         }
-        if (gas !=null){
-            nbtTags.setTag("cachedGas",gas.write(new NBTTagCompound()));
+        if (gas != null) {
+            nbtTags.setTag("cachedGas", gas.write(new NBTTagCompound()));
         }
     }
 }

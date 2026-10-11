@@ -2,7 +2,6 @@ package mekanism.common.base;
 
 import mekanism.api.Action;
 import mekanism.api.AutomationType;
-import mekanism.api.Coord4D;
 import mekanism.api.MekanismAPI;
 import mekanism.api.fluid.IExtendedFluidTank;
 import mekanism.api.fluid.IMekanismFluidHandler;
@@ -62,7 +61,7 @@ public interface ITankManager {
                         transferBetweenTanks(dropperTank, gasTank, player);
                     } else if (button == 2) { //Dump the tank
                         GasStack gas = gasTank.getGas();
-                        if (gas != null){
+                        if (gas != null) {
                             if (gas.getGas().isRadiation() && !MekanismAPI.getRadiationManager().dumpRadiation(player.world, player.getPosition(), gas)) {
                                 player.sendMessage(new net.minecraft.util.text.TextComponentTranslation("cmd.mek.radiation.unavailable"));
                                 return;

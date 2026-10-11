@@ -223,8 +223,8 @@ public class ItemFreeRunners extends ItemArmor implements ILegacyEnergizedItem, 
     @Override
     public ICapabilityProvider initCapabilities(ItemStack stack, NBTTagCompound nbt) {
         return new ItemCapabilityWrapper(stack, new TeslaItemWrapper(), new ForgeEnergyItemWrapper(),
-              RateLimitEnergyHandler.create(() -> getEnergyTransfer(stack), () -> getEnergyCapacity(stack),
-                    BasicEnergyContainer.manualOnly, ConstantPredicates.alwaysTrue()));
+                RateLimitEnergyHandler.create(() -> getEnergyTransfer(stack), () -> getEnergyCapacity(stack),
+                        BasicEnergyContainer.manualOnly, ConstantPredicates.alwaysTrue()));
     }
 
     public FreeRunnerMode getMode(ItemStack itemStack) {

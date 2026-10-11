@@ -40,11 +40,11 @@ public class GuiAntiprotonicNucleosynthesizer extends GuiConfigurableTile<TileEn
 
     private final BoltRenderer bolt = new BoltRenderer();
     private final Supplier<BoltEffect> boltSupplier = () -> new BoltEffect(BOLT_RENDER_INFO, BOLT_FROM, BOLT_TO, 15)
-          .count((int) Math.min(Math.ceil(tileEntity.getProcessRate() / 8F), 20))
-          .size(1)
-          .lifespan(1)
-          .spawn(SpawnFunction.CONSECUTIVE)
-          .fade(FadeFunction.NONE);
+            .count((int) Math.min(Math.ceil(tileEntity.getProcessRate() / 8F), 20))
+            .size(1)
+            .lifespan(1)
+            .spawn(SpawnFunction.CONSECUTIVE)
+            .fade(FadeFunction.NONE);
     private GuiInnerScreen screen;
 
     public GuiAntiprotonicNucleosynthesizer(InventoryPlayer inventory, TileEntityAntiprotonicNucleosynthesizer tile) {
@@ -61,9 +61,9 @@ public class GuiAntiprotonicNucleosynthesizer extends GuiConfigurableTile<TileEn
         screen = addButton(new GuiInnerScreen(this, 45, 18, 104, 68).recipeViewerCategories(RecipeViewerRecipeType.NUCLEOSYNTHESIZING));
         addButton(new GuiEnergyTab(this, tileEntity.getEnergyContainer(), tileEntity::getEnergyUsed));
         addButton(new GuiGasGauge(this, tileEntity.inputGasTank, GuiGasGauge.Type.SMALL_MED, 5, 18)
-              .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_SECONDARY_INPUT)));
+                .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_SECONDARY_INPUT)));
         addButton(new GuiEnergyGauge(this, tileEntity.getEnergyContainer(), GuiEnergyGauge.Type.SMALL_MED, 172, 18))
-              .warning(WarningType.NOT_ENOUGH_ENERGY, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY));
+                .warning(WarningType.NOT_ENOUGH_ENERGY, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY));
         addButton(new GuiDynamicHorizontalRateBar(this, new IBarInfoHandler() {
             @Override
             public ITextComponent getTooltip() {
@@ -75,7 +75,7 @@ public class GuiAntiprotonicNucleosynthesizer extends GuiConfigurableTile<TileEn
                 return Math.min(1, tileEntity.getScaledProgress());
             }
         }, 5, 88, 183, Color.ColorFunction.scale(Color.rgbi(60, 45, 74), Color.rgbi(100, 30, 170))))
-              .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity.getWarningCheck(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT));
+                .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity.getWarningCheck(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT));
     }
 
     @Override
@@ -84,7 +84,7 @@ public class GuiAntiprotonicNucleosynthesizer extends GuiConfigurableTile<TileEn
         renderInventoryText(8, ySize - 93, getXSize());
         if (screen != null) {
             screen.drawScaledScrollingString(new TextComponentString(LangUtils.localize("gui.processRate") + ": " + (int) (tileEntity.getProcessRate() * 100) + "%"),
-                  0, screen.getHeight() - 10, TextAlignment.CENTER, screenTextColor(), screen.getWidth(), 2, false, 1, GuiElement.getMillis());
+                    0, screen.getHeight() - 10, TextAlignment.CENTER, screenTextColor(), screen.getWidth(), 2, false, 1, GuiElement.getMillis());
         }
         super.drawForegroundText(mouseX, mouseY);
         GlStateManager.pushMatrix();

@@ -1,7 +1,7 @@
 package mekanism.client.gui.machine;
 
-import mekanism.client.gui.GuiConfigurableTile;
 import mekanism.api.TileNetworkList;
+import mekanism.client.gui.GuiConfigurableTile;
 import mekanism.client.gui.element.GuiDownArrow;
 import mekanism.client.gui.element.GuiElement;
 import mekanism.client.gui.element.bar.GuiHorizontalPowerBar;
@@ -42,15 +42,15 @@ public class GuiRotaryCondensentrator extends GuiConfigurableTile<TileEntityRota
         super.addGuiElements();
         addButton(new GuiDownArrow(this, 159, 44));
         energyBar = addButton(new GuiHorizontalPowerBar(this, tileEntity.getEnergyContainer(), 115, 75)
-              .warning(WarningType.NOT_ENOUGH_ENERGY, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY))
-              .warning(WarningType.NOT_ENOUGH_ENERGY_REDUCED_RATE, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY_REDUCED_RATE)));
+                .warning(WarningType.NOT_ENOUGH_ENERGY, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY))
+                .warning(WarningType.NOT_ENOUGH_ENERGY_REDUCED_RATE, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY_REDUCED_RATE)));
         addButton(new GuiEnergyTab(this, tileEntity.getEnergyContainer(), tileEntity::getEnergyUsed));
         addButton(new GuiFluidGauge(this, tileEntity.fluidTank, GuiFluidGauge.Type.STANDARD, 133, 13)
-              .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(TileEntityRotaryCondensentrator.NOT_ENOUGH_FLUID_INPUT_ERROR))
-              .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity.getWarningCheck(TileEntityRotaryCondensentrator.NOT_ENOUGH_SPACE_FLUID_OUTPUT_ERROR)));
+                .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(TileEntityRotaryCondensentrator.NOT_ENOUGH_FLUID_INPUT_ERROR))
+                .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity.getWarningCheck(TileEntityRotaryCondensentrator.NOT_ENOUGH_SPACE_FLUID_OUTPUT_ERROR)));
         addButton(new GuiGasGauge(this, tileEntity.gasTank, 25, 13)
-              .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(TileEntityRotaryCondensentrator.NOT_ENOUGH_GAS_INPUT_ERROR))
-              .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity.getWarningCheck(TileEntityRotaryCondensentrator.NOT_ENOUGH_SPACE_GAS_OUTPUT_ERROR)));
+                .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(TileEntityRotaryCondensentrator.NOT_ENOUGH_GAS_INPUT_ERROR))
+                .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity.getWarningCheck(TileEntityRotaryCondensentrator.NOT_ENOUGH_SPACE_GAS_OUTPUT_ERROR)));
         addButton(new GuiProgress(new mekanism.client.gui.element.progress.IProgressInfoHandler.IBooleanProgressInfoHandler() {
             @Override
             public boolean fillProgressBar() {
@@ -62,8 +62,8 @@ public class GuiRotaryCondensentrator extends GuiConfigurableTile<TileEntityRota
                 return tileEntity.mode == 0;
             }
         }, ProgressType.LARGE_RIGHT, this, 64, 39))
-              .recipeViewerCategories(RecipeViewerRecipeType.CONDENSENTRATING)
-              .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity.getWarningCheck(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT));
+                .recipeViewerCategories(RecipeViewerRecipeType.CONDENSENTRATING)
+                .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity.getWarningCheck(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT));
         addButton(new GuiProgress(new mekanism.client.gui.element.progress.IProgressInfoHandler.IBooleanProgressInfoHandler() {
             @Override
             public boolean fillProgressBar() {
@@ -75,18 +75,18 @@ public class GuiRotaryCondensentrator extends GuiConfigurableTile<TileEntityRota
                 return tileEntity.mode == 1;
             }
         }, ProgressType.LARGE_LEFT, this, 64, 39))
-              .recipeViewerCategories(RecipeViewerRecipeType.DECONDENSENTRATING)
-              .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity.getWarningCheck(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT));
+                .recipeViewerCategories(RecipeViewerRecipeType.DECONDENSENTRATING)
+                .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity.getWarningCheck(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT));
         addButton(new ToggleButton(this, 4, 4, () -> tileEntity.mode == 1, this::sendModePacket,
-              new TextComponentString(LangUtils.localize("gui.rotaryCondensentrator.toggleOperation")),
-              new TextComponentString(LangUtils.localize("gui.rotaryCondensentrator.toggleOperation"))));
+                new TextComponentString(LangUtils.localize("gui.rotaryCondensentrator.toggleOperation")),
+                new TextComponentString(LangUtils.localize("gui.rotaryCondensentrator.toggleOperation"))));
     }
 
     @Override
     protected void drawForegroundText(int mouseX, int mouseY) {
         drawTitleText(new TextComponentString(tileEntity.getName()), titleLabelY);
         drawScaledScrollingString(new TextComponentString(tileEntity.mode == 0 ? LangUtils.localize("gui.condensentrating") : LangUtils.localize("gui.decondensentrating")),
-              4, ySize - 92, TextAlignment.LEFT, titleTextColor(), energyBar.getRelativeX() - 4, 2, false, 1, GuiElement.getMillis());
+                4, ySize - 92, TextAlignment.LEFT, titleTextColor(), energyBar.getRelativeX() - 4, 2, false, 1, GuiElement.getMillis());
         super.drawForegroundText(mouseX, mouseY);
     }
 

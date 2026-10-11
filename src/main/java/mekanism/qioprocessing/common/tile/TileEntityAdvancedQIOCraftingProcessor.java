@@ -13,6 +13,6 @@ public class TileEntityAdvancedQIOCraftingProcessor extends TieredQIOCraftingPro
 
     public TileEntityAdvancedQIOCraftingProcessor() {
         super("AdvancedQIOCraftingProcessor", QIOProcessingProcessorHosts.ADVANCED_HOST_ID,
-              QIOCraftingProcessorRegistry.ADVANCED_ID);
+                QIOCraftingProcessorRegistry.ADVANCED_ID);
     }
 }

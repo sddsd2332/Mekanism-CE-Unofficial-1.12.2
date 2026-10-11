@@ -17,22 +17,22 @@ import java.util.function.Supplier;
 public abstract class GasHandlerInventorySlot extends mekanism.common.inventory.slot.gas.GasHandlerInventorySlot {
 
     protected GasHandlerInventorySlot(IExtendedGasTank gasTank, Predicate<ItemStack> canExtract, Predicate<ItemStack> canInsert,
-          @Nullable IContentsListener listener, int x, int y) {
+                                      @Nullable IContentsListener listener, int x, int y) {
         super(gasTank, canExtract, canInsert, listener, x, y);
     }
 
     protected GasHandlerInventorySlot(IExtendedGasTank gasTank, Predicate<ItemStack> canExtract, Predicate<ItemStack> canInsert,
-          Predicate<ItemStack> validator, @Nullable IContentsListener listener, int x, int y) {
+                                      Predicate<ItemStack> validator, @Nullable IContentsListener listener, int x, int y) {
         super(gasTank, canExtract, canInsert, validator, listener, x, y);
     }
 
     protected GasHandlerInventorySlot(IExtendedGasTank gasTank, Supplier<?> worldSupplier, Predicate<ItemStack> canExtract,
-          Predicate<ItemStack> canInsert, @Nullable IContentsListener listener, int x, int y) {
+                                      Predicate<ItemStack> canInsert, @Nullable IContentsListener listener, int x, int y) {
         super(gasTank, worldSupplier, canExtract, canInsert, listener, x, y);
     }
 
     protected GasHandlerInventorySlot(IExtendedGasTank gasTank, Supplier<?> worldSupplier, Predicate<ItemStack> canExtract,
-          Predicate<ItemStack> canInsert, Predicate<ItemStack> validator, @Nullable IContentsListener listener, int x, int y) {
+                                      Predicate<ItemStack> canInsert, Predicate<ItemStack> validator, @Nullable IContentsListener listener, int x, int y) {
         super(gasTank, worldSupplier, canExtract, canInsert, validator, listener, x, y);
     }
 }

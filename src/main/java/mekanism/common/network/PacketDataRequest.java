@@ -41,7 +41,7 @@ public class PacketDataRequest implements IMessageHandler<DataRequestMessage, IM
                 return;
             }
             if (!requestLimiters.computeIfAbsent(player, ignored -> new RequestLimiter())
-                  .allow(message.coord4D, worldServer.getTotalWorldTime())) {
+                    .allow(message.coord4D, worldServer.getTotalWorldTime())) {
                 return;
             }
             TileEntity tileEntity = message.coord4D.getTileEntity(worldServer);

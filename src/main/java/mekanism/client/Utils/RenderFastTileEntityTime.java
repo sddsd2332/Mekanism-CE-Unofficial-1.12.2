@@ -16,5 +16,4 @@ public abstract class RenderFastTileEntityTime<T extends TileEntity> extends Fas
     }
 
 
-
 }

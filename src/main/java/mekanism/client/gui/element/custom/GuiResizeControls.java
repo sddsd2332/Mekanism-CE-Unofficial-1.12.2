@@ -11,7 +11,9 @@ import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.text.TextComponentTranslation;
 
-/** Height and width controls for the resizable QIO viewer. */
+/**
+ * Height and width controls for the resizable QIO viewer.
+ */
 public class GuiResizeControls extends GuiSideHolder {
 
     private static final ResourceLocation PLUS = MekanismUtils.getResource(MekanismUtils.ResourceType.GUI_BUTTON, "plus.png");
@@ -23,9 +25,9 @@ public class GuiResizeControls extends GuiSideHolder {
     public <GUI extends IGuiWrapper & ResizeController> GuiResizeControls(GUI gui, int y) {
         super(gui, -26, y, 40, true, false);
         expand = addChild(new MekanismImageButton(gui, relativeX + 4, relativeY + 5, 19, 9, 19, 9, PLUS,
-              () -> handleResize(gui, ResizeType.EXPAND_Y), (mekanism.client.gui.element.GuiElement.IHoverable) null));
+                () -> handleResize(gui, ResizeType.EXPAND_Y), (mekanism.client.gui.element.GuiElement.IHoverable) null));
         shrink = addChild(new MekanismImageButton(gui, relativeX + 4, relativeY + 26, 19, 9, 19, 9, MINUS,
-              () -> handleResize(gui, ResizeType.SHRINK_Y), (mekanism.client.gui.element.GuiElement.IHoverable) null));
+                () -> handleResize(gui, ResizeType.SHRINK_Y), (mekanism.client.gui.element.GuiElement.IHoverable) null));
         active = true;
         updateState();
     }
@@ -52,7 +54,7 @@ public class GuiResizeControls extends GuiSideHolder {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         boolean handled = super.mouseClicked(mouseX, mouseY, button);
         if (button == 0 && !expand.active && mouseX >= expand.getX() && mouseX < expand.getRight() &&
-              mouseY >= expand.getY() && mouseY < expand.getBottom()) {
+                mouseY >= expand.getY() && mouseY < expand.getBottom()) {
             tooltipTicks = 100;
             return true;
         }
@@ -76,7 +78,7 @@ public class GuiResizeControls extends GuiSideHolder {
     public void renderForeground(int mouseX, int mouseY) {
         super.renderForeground(mouseX, mouseY);
         drawScaledScrollingString(new TextComponentTranslation("gui.height"), 0, 16, TextAlignment.CENTER,
-              titleTextColor(), width, 4, false, 0.6F, getMillis());
+                titleTextColor(), width, 4, false, 0.6F, getMillis());
     }
 
     public enum ResizeType {

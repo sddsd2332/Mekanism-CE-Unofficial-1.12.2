@@ -1,11 +1,11 @@
 package mekanism.common.base;
 
+import mekanism.api.Action;
 import mekanism.common.Upgrade;
 import mekanism.common.inventory.slot.UpgradeInventorySlot;
 import mekanism.common.tile.component.TileComponentUpgrade;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import mekanism.api.Action;
 
 import java.util.Collection;
 import java.util.Map;

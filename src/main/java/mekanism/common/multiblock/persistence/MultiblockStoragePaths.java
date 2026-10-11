@@ -10,7 +10,9 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
 
-/** Resolve once on the owning server thread, before submitting any file work. */
+/**
+ * Resolve once on the owning server thread, before submitting any file work.
+ */
 public final class MultiblockStoragePaths {
     private static final Field SAVE_HANDLER = ReflectionHelper.findField(MapStorage.class, new String[]{"saveHandler", "field_75751_a"});
     public final Path legacyFile;
@@ -39,7 +41,8 @@ public final class MultiblockStoragePaths {
 
     static MultiblockStoragePaths resolve(ISaveHandler handler, String manager) throws IOException {
         if (handler == null) throw new IOException("World has no persistent per-world save handler");
-        if (manager == null || !manager.matches("[A-Za-z0-9_]{1,80}")) throw new IOException("Invalid multiblock manager name");
+        if (manager == null || !manager.matches("[A-Za-z0-9_]{1,80}"))
+            throw new IOException("Invalid multiblock manager name");
         // Use precisely the handler that MapStorage used for the legacy file. getSaveHandler()
         // alone is the root world's handler on Forge, and is wrong for per-dimension data.
         File legacy = handler.getMapFileFromName("mekanism_" + manager + "_invalidated_multiblocks");

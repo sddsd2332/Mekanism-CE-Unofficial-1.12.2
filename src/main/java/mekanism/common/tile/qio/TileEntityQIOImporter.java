@@ -2,8 +2,8 @@ package mekanism.common.tile.qio;
 
 import mekanism.api.Action;
 import mekanism.api.gas.GasStack;
-import mekanism.api.gas.IMekanismGasHandler;
 import mekanism.api.gas.IExtendedGasHandler;
+import mekanism.api.gas.IMekanismGasHandler;
 import mekanism.api.qio.resource.QIOResourceDescriptor;
 import mekanism.api.qio.resource.QIOResourceStack;
 import mekanism.api.qio.resource.QIOResourceTransferAdapter;
@@ -11,9 +11,9 @@ import mekanism.api.qio.resource.QIOResourceTransferAdapterRegistry;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.content.qio.QIOFrequency;
 import mekanism.common.content.qio.QIORollback;
+import mekanism.common.lib.inventory.HashedItem;
 import mekanism.common.util.CapabilityUtils;
 import mekanism.common.util.MekanismUtils;
-import mekanism.common.lib.inventory.HashedItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraftforge.fluids.FluidStack;
@@ -26,7 +26,9 @@ import net.minecraftforge.items.IItemHandler;
 import java.util.HashSet;
 import java.util.Set;
 
-/** Pulls item, fluid and gas resources from the adjacent block into QIO. */
+/**
+ * Pulls item, fluid and gas resources from the adjacent block into QIO.
+ */
 public class TileEntityQIOImporter extends TileEntityQIOFilterHandler {
 
     private static final int MAX_DELAY = 10;
@@ -169,7 +171,7 @@ public class TileEntityQIOImporter extends TileEntityQIOFilterHandler {
                 if (restored < remainder) {
                     long unresolved = remainder - restored;
                     inserted += QIORollback.restore(frequency, new FluidStack(drained, (int) unresolved), unresolved,
-                          "importer fluid transfer");
+                            "importer fluid transfer");
                 }
             }
             if (inserted > 0) {
@@ -213,7 +215,7 @@ public class TileEntityQIOImporter extends TileEntityQIOFilterHandler {
                 break;
             }
             GasStack drawn = drawMatchingGas(handler, (int) Math.min(simulated.amount, accepted), true,
-                  java.util.Collections.singleton(type), false);
+                    java.util.Collections.singleton(type), false);
             if (drawn == null || drawn.amount <= 0) {
                 break;
             }
@@ -225,7 +227,7 @@ public class TileEntityQIOImporter extends TileEntityQIOFilterHandler {
                 if (restored < remainder.amount) {
                     long unresolved = remainder.amount - restored;
                     inserted += QIORollback.restore(frequency, new GasStack(remainder.getGas(), (int) unresolved), unresolved,
-                          "importer gas transfer");
+                            "importer gas transfer");
                 }
             }
             if (inserted > 0) {
@@ -249,11 +251,11 @@ public class TileEntityQIOImporter extends TileEntityQIOFilterHandler {
         boolean moved = false;
         for (QIOResourceTransferAdapter adapter : QIOResourceTransferAdapterRegistry.INSTANCE.getAdapters()) {
             if (movedAmount >= getMaxTransitCount() || movedResourceTypes.size() >= getMaxTransitTypes() ||
-                  !adapter.supports(target, getHandlerSide())) {
+                    !adapter.supports(target, getHandlerSide())) {
                 continue;
             }
             java.util.List<QIOResourceStack> available = adapter.getExtractable(target, getHandlerSide(),
-                  getMaxTransitTypes() - movedResourceTypes.size(), getMaxTransitCount() - movedAmount);
+                    getMaxTransitTypes() - movedResourceTypes.size(), getMaxTransitCount() - movedAmount);
             if (available == null) {
                 continue;
             }
@@ -263,7 +265,7 @@ public class TileEntityQIOImporter extends TileEntityQIOFilterHandler {
                 }
                 QIOResourceDescriptor descriptor = candidate.getDescriptor();
                 if (!adapter.getCodecId().equals(descriptor.getCodecId()) || !descriptor.isResolved() ||
-                      !acceptsDescriptor(descriptor)) {
+                        !acceptsDescriptor(descriptor)) {
                     continue;
                 }
                 boolean newType = !movedResourceTypes.contains(descriptor);
@@ -272,14 +274,14 @@ public class TileEntityQIOImporter extends TileEntityQIOFilterHandler {
                 }
                 long requested = Math.min(candidate.getAmount(), getMaxTransitCount() - movedAmount);
                 long extractable = Math.min(requested, Math.max(0, adapter.extract(target, getHandlerSide(),
-                      descriptor, requested, Action.SIMULATE)));
+                        descriptor, requested, Action.SIMULATE)));
                 long accepted = frequency.massInsert(descriptor, extractable, Action.SIMULATE);
                 long toExtract = Math.min(extractable, accepted);
                 if (toExtract <= 0) {
                     continue;
                 }
                 long extracted = Math.max(0, adapter.extract(target, getHandlerSide(), descriptor,
-                      toExtract, Action.EXECUTE));
+                        toExtract, Action.EXECUTE));
                 if (extracted > toExtract) {
                     adapter.insert(target, getHandlerSide(), descriptor, extracted - toExtract, Action.EXECUTE);
                     extracted = toExtract;
@@ -291,10 +293,10 @@ public class TileEntityQIOImporter extends TileEntityQIOFilterHandler {
                 if (inserted < extracted) {
                     long remainder = extracted - inserted;
                     long returned = Math.min(remainder, Math.max(0, adapter.insert(target, getHandlerSide(),
-                          descriptor, remainder, Action.EXECUTE)));
+                            descriptor, remainder, Action.EXECUTE)));
                     if (returned < remainder) {
                         inserted += QIORollback.restore(frequency, descriptor, remainder - returned,
-                              "importer custom resource transfer");
+                                "importer custom resource transfer");
                     }
                 }
                 if (inserted > 0) {
@@ -309,7 +311,7 @@ public class TileEntityQIOImporter extends TileEntityQIOFilterHandler {
 
     @javax.annotation.Nullable
     private GasStack drawMatchingGas(mekanism.api.gas.IGasHandler handler, int amount, boolean execute,
-          Set<String> seenTypes, boolean allowNewType) {
+                                     Set<String> seenTypes, boolean allowNewType) {
         net.minecraft.util.EnumFacing side = getHandlerSide();
         mekanism.api.Action action = mekanism.api.Action.get(execute);
         if (handler instanceof IMekanismGasHandler) {
@@ -345,7 +347,7 @@ public class TileEntityQIOImporter extends TileEntityQIOFilterHandler {
 
     private boolean isGasImportCandidate(GasStack stack, Set<String> seenTypes, boolean allowNewType) {
         return stack != null && stack.amount > 0 && stack.getGas() != null && acceptsGas(stack) &&
-              (allowNewType || seenTypes.contains(stack.getGas().getName()));
+                (allowNewType || seenTypes.contains(stack.getGas().getName()));
     }
 
     private int getGasImportAttemptLimit(mekanism.api.gas.IGasHandler handler) {

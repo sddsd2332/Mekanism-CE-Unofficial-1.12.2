@@ -1,7 +1,6 @@
 package mekanism.client.gui;
 
 import mekanism.api.EnumColor;
-import mekanism.api.TileNetworkList;
 import mekanism.client.gui.element.GuiElement;
 import mekanism.client.gui.element.GuiElementHolder;
 import mekanism.client.gui.element.GuiInnerScreen;
@@ -19,7 +18,6 @@ import mekanism.common.frequency.FrequencyManager;
 import mekanism.common.frequency.FrequencyType;
 import mekanism.common.inventory.container.ContainerQuantumEntangloporter;
 import mekanism.common.network.PacketSetTileFrequency.SetTileFrequencyMessage;
-import mekanism.common.network.PacketTileEntity.TileEntityMessage;
 import mekanism.common.security.ISecurityTile.SecurityMode;
 import mekanism.common.tile.TileEntityQuantumEntangloporter;
 import mekanism.common.util.LangUtils;
@@ -68,19 +66,19 @@ public class GuiQuantumEntangloporter extends GuiConfigurableTile<TileEntityQuan
         addButton(new GuiHeatTab(this, this::getHeatTabText));
         scrollList = addButton(new GuiTextScrollList(this, 28, 37, 120, 42));
         publicButton = addButton(new MekanismButton(this, 27, 14, 39, 20, new TextComponentString(LangUtils.localize("gui.public")),
-              () -> setMode(SecurityMode.PUBLIC), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.publicMode")))));
+                () -> setMode(SecurityMode.PUBLIC), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.publicMode")))));
         privateButton = addButton(new MekanismButton(this, 68, 14, 39, 20, new TextComponentString(LangUtils.localize("gui.private")),
-              () -> setMode(SecurityMode.PRIVATE), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.privateMode")))));
+                () -> setMode(SecurityMode.PRIVATE), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.privateMode")))));
         trustedButton = addButton(new MekanismButton(this, 109, 14, 40, 20, new TextComponentString(LangUtils.localize("gui.trusted")),
-              () -> setMode(SecurityMode.TRUSTED), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.trustedMode")))));
+                () -> setMode(SecurityMode.TRUSTED), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.trustedMode")))));
         setButton = addButton(new MekanismButton(this, 27, 127, 60, 18, new TextComponentString(LangUtils.localize("gui.set")), this::setSelectedFrequency, null));
         deleteButton = addButton(new MekanismButton(this, 89, 127, 60, 18, new TextComponentString(LangUtils.localize("gui.delete")), this::deleteSelectedFrequency, null));
         frequencyField = addButton(new mekanism.client.gui.element.text.GuiTextField(this, 4, 50, 113, 98, 11)
-              .setMaxLength(FrequencyManager.MAX_FREQ_LENGTH)
-              .setBackground(BackgroundType.INNER_SCREEN)
-              .setInputValidator(this::isValidFrequencyInput)
-              .setEnterHandler(this::setTypedFrequency)
-              .addCheckmarkButton(this::setTypedFrequency));
+                .setMaxLength(FrequencyManager.MAX_FREQ_LENGTH)
+                .setBackground(BackgroundType.INNER_SCREEN)
+                .setInputValidator(this::isValidFrequencyInput)
+                .setEnterHandler(this::setTypedFrequency)
+                .addCheckmarkButton(this::setTypedFrequency));
         updateButtons();
     }
 
@@ -112,7 +110,7 @@ public class GuiQuantumEntangloporter extends GuiConfigurableTile<TileEntityQuan
 
     private boolean isTextboxKey(int keyCode) {
         return keyCode == Keyboard.KEY_BACK || keyCode == Keyboard.KEY_DELETE || keyCode == Keyboard.KEY_LEFT || keyCode == Keyboard.KEY_RIGHT ||
-              keyCode == Keyboard.KEY_HOME || keyCode == Keyboard.KEY_END;
+                keyCode == Keyboard.KEY_HOME || keyCode == Keyboard.KEY_END;
     }
 
     private void setTypedFrequency() {
@@ -143,7 +141,7 @@ public class GuiQuantumEntangloporter extends GuiConfigurableTile<TileEntityQuan
     private void sendTypedFrequency(String freq) {
         if (!freq.isEmpty()) {
             Mekanism.packetHandler.sendToServer(new SetTileFrequencyMessage(true, FrequencyType.INVENTORY,
-                  new FrequencyIdentity(freq, selectedMode, tileEntity.getSecurity().getOwnerUUID()), tileEntity));
+                    new FrequencyIdentity(freq, selectedMode, tileEntity.getSecurity().getOwnerUUID()), tileEntity));
         }
     }
 
@@ -229,7 +227,7 @@ public class GuiQuantumEntangloporter extends GuiConfigurableTile<TileEntityQuan
         drawTextExact(new TextComponentString(LangUtils.localize("gui.security") + ":"), 27, 101, titleTextColor());
         drawTextExact(new TextComponentString(" " + (frequency != null ? getSecurity(frequency) : none)), 27 + fontRenderer.getStringWidth(LangUtils.localize("gui.security") + ":"), 101, subheadingTextColor());
         drawScaledScrollingString(new TextComponentString(LangUtils.localize("gui.set") + ":"), 0, 114, TextAlignment.RIGHT, titleTextColor(),
-              frequencyField.getRelativeX(), 5, false, 1, GuiElement.getMillis());
+                frequencyField.getRelativeX(), 5, false, 1, GuiElement.getMillis());
         if (frequency == null) {
             int xAxis = mouseX - guiLeft;
             int yAxis = mouseY - guiTop;

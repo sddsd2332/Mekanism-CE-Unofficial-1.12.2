@@ -11,7 +11,9 @@ import javax.annotation.Nullable;
 import java.math.BigInteger;
 import java.util.UUID;
 
-/** Authorized, lifecycle-bound access to one QIO frequency. */
+/**
+ * Authorized, lifecycle-bound access to one QIO frequency.
+ */
 public interface IQIOStorageView {
 
     @Nonnull
@@ -56,7 +58,9 @@ public interface IQIOStorageView {
 
     long insert(GasStack stack, long amount, Action action);
 
-    /** Generic codec-backed insertion. Legacy implementations fail closed until they override it. */
+    /**
+     * Generic codec-backed insertion. Legacy implementations fail closed until they override it.
+     */
     default long insert(@Nonnull QIOResourceDescriptor descriptor, long amount, @Nonnull Action action) {
         return 0;
     }
@@ -67,32 +71,63 @@ public interface IQIOStorageView {
      */
     @Nonnull
     default QIOTransferResult insertIdempotent(@Nonnull UUID transferId, ItemStack stack,
-          long amount, @Nonnull BigInteger expectedStoredAmount) {
+                                               long amount, @Nonnull BigInteger expectedStoredAmount) {
         return new QIOTransferResult(transferId, QIOTransferResult.Status.FAILED,
-              Math.max(1, amount), 0);
+                Math.max(1, amount), 0);
     }
 
     @Nonnull
     default QIOTransferResult insertIdempotent(@Nonnull UUID transferId, FluidStack stack,
-          long amount, @Nonnull BigInteger expectedStoredAmount) {
+                                               long amount, @Nonnull BigInteger expectedStoredAmount) {
         return new QIOTransferResult(transferId, QIOTransferResult.Status.FAILED,
-              Math.max(1, amount), 0);
+                Math.max(1, amount), 0);
     }
 
     @Nonnull
     default QIOTransferResult insertIdempotent(@Nonnull UUID transferId, GasStack stack,
-          long amount, @Nonnull BigInteger expectedStoredAmount) {
+                                               long amount, @Nonnull BigInteger expectedStoredAmount) {
         return new QIOTransferResult(transferId, QIOTransferResult.Status.FAILED,
-              Math.max(1, amount), 0);
+                Math.max(1, amount), 0);
     }
 
-    /** Generic idempotent insertion used by QIO processing for custom codecs. */
+    /**
+     * Generic idempotent insertion used by QIO processing for custom codecs.
+     */
     @Nonnull
     default QIOTransferResult insertIdempotent(@Nonnull UUID transferId,
-          @Nonnull QIOResourceDescriptor descriptor, long amount,
-          @Nonnull BigInteger expectedStoredAmount) {
+                                               @Nonnull QIOResourceDescriptor descriptor, long amount,
+                                               @Nonnull BigInteger expectedStoredAmount) {
         return new QIOTransferResult(transferId, QIOTransferResult.Status.FAILED,
-              Math.max(1, amount), 0);
+                Math.max(1, amount), 0);
+    }
+
+    @Nonnull
+    default QIOTransferResult extractIdempotent(@Nonnull UUID transferId, ItemStack stack,
+                                                long amount, @Nonnull BigInteger expectedStoredAmount) {
+        return new QIOTransferResult(transferId, QIOTransferResult.Status.FAILED,
+                Math.max(1, amount), 0);
+    }
+
+    @Nonnull
+    default QIOTransferResult extractIdempotent(@Nonnull UUID transferId, FluidStack stack,
+                                                long amount, @Nonnull BigInteger expectedStoredAmount) {
+        return new QIOTransferResult(transferId, QIOTransferResult.Status.FAILED,
+                Math.max(1, amount), 0);
+    }
+
+    @Nonnull
+    default QIOTransferResult extractIdempotent(@Nonnull UUID transferId, GasStack stack,
+                                                long amount, @Nonnull BigInteger expectedStoredAmount) {
+        return new QIOTransferResult(transferId, QIOTransferResult.Status.FAILED,
+                Math.max(1, amount), 0);
+    }
+
+    @Nonnull
+    default QIOTransferResult extractIdempotent(@Nonnull UUID transferId,
+                                                @Nonnull QIOResourceDescriptor descriptor, long amount,
+                                                @Nonnull BigInteger expectedStoredAmount) {
+        return new QIOTransferResult(transferId, QIOTransferResult.Status.FAILED,
+                Math.max(1, amount), 0);
     }
 
     long extract(ItemStack stack, long amount, Action action);
@@ -101,9 +136,11 @@ public interface IQIOStorageView {
 
     long extract(GasStack stack, long amount, Action action);
 
-    /** Generic codec-backed extraction. Legacy implementations fail closed until they override it. */
+    /**
+     * Generic codec-backed extraction. Legacy implementations fail closed until they override it.
+     */
     default long extract(@Nonnull QIOResourceDescriptor descriptor, long amount,
-          @Nonnull Action action) {
+                         @Nonnull Action action) {
         return 0;
     }
 

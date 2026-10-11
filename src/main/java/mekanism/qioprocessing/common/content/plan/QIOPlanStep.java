@@ -8,15 +8,12 @@ import net.minecraft.nbt.NBTTagList;
 import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
-/** One immutable, exact route node in a persisted QIO craft-plan DAG. */
+/**
+ * One immutable, exact route node in a persisted QIO craft-plan DAG.
+ */
+
 /**
  * QIO 处理模块中的 QIOPlanStep 类型。
  *
@@ -29,6 +26,8 @@ public final class QIOPlanStep {
     private static final int MAX_RESOURCE_ENTRIES = 65_536;
     private static final int MAX_DEPENDENCIES = 65_536;
     private static final int MAX_ID_LENGTH = 512;
+    /** Four bounded IDs joined by three separators; shared by persistence and display. */
+    public static final int MAX_STABLE_ROUTE_ID_LENGTH = MAX_ID_LENGTH * 4 + 3;
 
     public enum ProviderKind {
         WORKBENCH,
@@ -52,39 +51,39 @@ public final class QIOPlanStep {
     private final List<Long> dependencies;
 
     public QIOPlanStep(long nodeId, @Nonnull ProviderKind providerKind,
-          @Nonnull String providerId, @Nonnull String routeId, @Nonnull String recipeKey,
-          @Nonnull String variantId, @Nonnull String routeSignature, long operations,
-          @Nonnull Map<PortableResourceDescriptor, Long> exactInputs,
-          @Nonnull Map<PortableResourceDescriptor, Long> guaranteedOutputs,
-          @Nonnull Map<PortableResourceDescriptor, Long> optionalOutputs,
-          @Nonnull List<Long> dependencies) {
+                       @Nonnull String providerId, @Nonnull String routeId, @Nonnull String recipeKey,
+                       @Nonnull String variantId, @Nonnull String routeSignature, long operations,
+                       @Nonnull Map<PortableResourceDescriptor, Long> exactInputs,
+                       @Nonnull Map<PortableResourceDescriptor, Long> guaranteedOutputs,
+                       @Nonnull Map<PortableResourceDescriptor, Long> optionalOutputs,
+                       @Nonnull List<Long> dependencies) {
         this(nodeId, providerKind, providerId, routeId, recipeKey, variantId,
-              routeSignature, operations, exactInputs, guaranteedOutputs, optionalOutputs,
-              dependencies, Collections.emptyList(), Collections.emptyMap());
+                routeSignature, operations, exactInputs, guaranteedOutputs, optionalOutputs,
+                dependencies, Collections.emptyList(), Collections.emptyMap());
     }
 
     public QIOPlanStep(long nodeId, @Nonnull ProviderKind providerKind,
-          @Nonnull String providerId, @Nonnull String routeId, @Nonnull String recipeKey,
-          @Nonnull String variantId, @Nonnull String routeSignature, long operations,
-          @Nonnull Map<PortableResourceDescriptor, Long> exactInputs,
-          @Nonnull Map<PortableResourceDescriptor, Long> guaranteedOutputs,
-          @Nonnull Map<PortableResourceDescriptor, Long> optionalOutputs,
-          @Nonnull List<Long> dependencies,
-          @Nonnull List<QIOCandidateInputGroup> candidateInputs) {
+                       @Nonnull String providerId, @Nonnull String routeId, @Nonnull String recipeKey,
+                       @Nonnull String variantId, @Nonnull String routeSignature, long operations,
+                       @Nonnull Map<PortableResourceDescriptor, Long> exactInputs,
+                       @Nonnull Map<PortableResourceDescriptor, Long> guaranteedOutputs,
+                       @Nonnull Map<PortableResourceDescriptor, Long> optionalOutputs,
+                       @Nonnull List<Long> dependencies,
+                       @Nonnull List<QIOCandidateInputGroup> candidateInputs) {
         this(nodeId, providerKind, providerId, routeId, recipeKey, variantId,
-              routeSignature, operations, exactInputs, guaranteedOutputs, optionalOutputs,
-              dependencies, candidateInputs, Collections.emptyMap());
+                routeSignature, operations, exactInputs, guaranteedOutputs, optionalOutputs,
+                dependencies, candidateInputs, Collections.emptyMap());
     }
 
     public QIOPlanStep(long nodeId, @Nonnull ProviderKind providerKind,
-          @Nonnull String providerId, @Nonnull String routeId, @Nonnull String recipeKey,
-          @Nonnull String variantId, @Nonnull String routeSignature, long operations,
-          @Nonnull Map<PortableResourceDescriptor, Long> exactInputs,
-          @Nonnull Map<PortableResourceDescriptor, Long> guaranteedOutputs,
-          @Nonnull Map<PortableResourceDescriptor, Long> optionalOutputs,
-          @Nonnull List<Long> dependencies,
-          @Nonnull List<QIOCandidateInputGroup> candidateInputs,
-          @Nonnull Map<PortableResourceDescriptor, Long> configurationInputs) {
+                       @Nonnull String providerId, @Nonnull String routeId, @Nonnull String recipeKey,
+                       @Nonnull String variantId, @Nonnull String routeSignature, long operations,
+                       @Nonnull Map<PortableResourceDescriptor, Long> exactInputs,
+                       @Nonnull Map<PortableResourceDescriptor, Long> guaranteedOutputs,
+                       @Nonnull Map<PortableResourceDescriptor, Long> optionalOutputs,
+                       @Nonnull List<Long> dependencies,
+                       @Nonnull List<QIOCandidateInputGroup> candidateInputs,
+                       @Nonnull Map<PortableResourceDescriptor, Long> configurationInputs) {
         this.nodeId = QIOProcessingNbt.requireNonNegative(nodeId, "nodeId");
         this.providerKind = Objects.requireNonNull(providerKind, "providerKind");
         this.providerId = requireId(providerId, "providerId");
@@ -97,17 +96,17 @@ public final class QIOPlanStep {
         }
         this.operations = operations;
         this.configurationInputs = QIOProcessingNbt.copyAmounts(configurationInputs, true,
-              "configurationInputs");
+                "configurationInputs");
         this.exactInputs = QIOProcessingNbt.copyAmounts(exactInputs, false, "exactInputs");
         this.guaranteedOutputs = QIOProcessingNbt.copyAmounts(guaranteedOutputs, false,
-              "guaranteedOutputs");
+                "guaranteedOutputs");
         this.optionalOutputs = QIOProcessingNbt.copyAmounts(optionalOutputs, true,
-              "optionalOutputs");
+                "optionalOutputs");
         this.dependencies = checkedDependencies(dependencies, nodeId);
         Objects.requireNonNull(candidateInputs, "candidateInputs");
         if (candidateInputs.size() > 9 || providerKind != ProviderKind.WORKBENCH &&
-            !candidateInputs.isEmpty() || providerKind == ProviderKind.WORKBENCH &&
-            !this.configurationInputs.isEmpty()) {
+                !candidateInputs.isEmpty() || providerKind == ProviderKind.WORKBENCH &&
+                !this.configurationInputs.isEmpty()) {
             throw new IllegalArgumentException("Invalid QIO plan-step special inputs");
         }
         this.candidateInputs = Collections.unmodifiableList(new ArrayList<>(candidateInputs));
@@ -223,29 +222,29 @@ public final class QIOPlanStep {
 
     @Nonnull
     public static QIOPlanStep read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         int schema = data.getInteger("planStepSchemaVersion");
         if (schema != 3 && schema != SCHEMA_VERSION) {
             throw new QIOProcessingDataException("Unsupported QIO plan-step schema " +
-                  data.getInteger("planStepSchemaVersion"));
+                    data.getInteger("planStepSchemaVersion"));
         }
         try {
             if (!data.hasKey("nodeId", NBT.TAG_LONG) ||
-                  !data.hasKey("providerKind", NBT.TAG_STRING) ||
-                  !data.hasKey("providerId", NBT.TAG_STRING) ||
-                  !data.hasKey("routeId", NBT.TAG_STRING) ||
-                  !data.hasKey("recipeKey", NBT.TAG_STRING) ||
-                  !data.hasKey("variantId", NBT.TAG_STRING) ||
-                  !data.hasKey("routeSignature", NBT.TAG_STRING) ||
-                  !data.hasKey("operations", NBT.TAG_LONG) ||
-                  schema >= 4 && !data.hasKey("configurationInputs", NBT.TAG_LIST) ||
-                  !data.hasKey("exactInputs", NBT.TAG_LIST) ||
-                  !data.hasKey("guaranteedOutputs", NBT.TAG_LIST) ||
-                  !data.hasKey("optionalOutputs", NBT.TAG_LIST) ||
-                  !data.hasKey("candidateInputs", NBT.TAG_LIST) ||
-                  !data.hasKey("dependencies", NBT.TAG_LIST)) {
+                    !data.hasKey("providerKind", NBT.TAG_STRING) ||
+                    !data.hasKey("providerId", NBT.TAG_STRING) ||
+                    !data.hasKey("routeId", NBT.TAG_STRING) ||
+                    !data.hasKey("recipeKey", NBT.TAG_STRING) ||
+                    !data.hasKey("variantId", NBT.TAG_STRING) ||
+                    !data.hasKey("routeSignature", NBT.TAG_STRING) ||
+                    !data.hasKey("operations", NBT.TAG_LONG) ||
+                    schema >= 4 && !data.hasKey("configurationInputs", NBT.TAG_LIST) ||
+                    !data.hasKey("exactInputs", NBT.TAG_LIST) ||
+                    !data.hasKey("guaranteedOutputs", NBT.TAG_LIST) ||
+                    !data.hasKey("optionalOutputs", NBT.TAG_LIST) ||
+                    !data.hasKey("candidateInputs", NBT.TAG_LIST) ||
+                    !data.hasKey("dependencies", NBT.TAG_LIST)) {
                 throw new QIOProcessingDataException(
-                      "QIO plan step is missing required current-schema state");
+                        "QIO plan step is missing required current-schema state");
             }
             NBTTagList dependencyList = data.getTagList("dependencies", NBT.TAG_COMPOUND);
             if (dependencyList.tagCount() > MAX_DEPENDENCIES) {
@@ -256,29 +255,29 @@ public final class QIOPlanStep {
                 dependencies.add(dependencyList.getCompoundTagAt(i).getLong("nodeId"));
             }
             NBTTagList storedCandidateInputs = data.getTagList("candidateInputs",
-                  NBT.TAG_COMPOUND);
+                    NBT.TAG_COMPOUND);
             if (storedCandidateInputs.tagCount() > 9) {
                 throw new QIOProcessingDataException(
-                      "QIO plan step has too many candidate input groups");
+                        "QIO plan step has too many candidate input groups");
             }
             List<QIOCandidateInputGroup> candidateInputs = new ArrayList<>(
-                  storedCandidateInputs.tagCount());
+                    storedCandidateInputs.tagCount());
             for (int index = 0; index < storedCandidateInputs.tagCount(); index++) {
                 candidateInputs.add(QIOCandidateInputGroup.read(
-                      storedCandidateInputs.getCompoundTagAt(index)));
+                        storedCandidateInputs.getCompoundTagAt(index)));
             }
             return new QIOPlanStep(data.getLong("nodeId"),
-                  QIOProcessingNbt.readEnum(data, "providerKind", ProviderKind.class),
-                  data.getString("providerId"), data.getString("routeId"),
-                  data.getString("recipeKey"), data.getString("variantId"),
-                  data.getString("routeSignature"),
-                  data.getLong("operations"),
-                  QIOProcessingNbt.readAmounts(data, "exactInputs", MAX_RESOURCE_ENTRIES),
-                  QIOProcessingNbt.readAmounts(data, "guaranteedOutputs", MAX_RESOURCE_ENTRIES),
-                  QIOProcessingNbt.readAmounts(data, "optionalOutputs", MAX_RESOURCE_ENTRIES),
-                  dependencies, candidateInputs, schema >= 4 ?
-                        QIOProcessingNbt.readAmounts(data, "configurationInputs",
-                              MAX_RESOURCE_ENTRIES) : Collections.emptyMap());
+                    QIOProcessingNbt.readEnum(data, "providerKind", ProviderKind.class),
+                    data.getString("providerId"), data.getString("routeId"),
+                    data.getString("recipeKey"), data.getString("variantId"),
+                    data.getString("routeSignature"),
+                    data.getLong("operations"),
+                    QIOProcessingNbt.readAmounts(data, "exactInputs", MAX_RESOURCE_ENTRIES),
+                    QIOProcessingNbt.readAmounts(data, "guaranteedOutputs", MAX_RESOURCE_ENTRIES),
+                    QIOProcessingNbt.readAmounts(data, "optionalOutputs", MAX_RESOURCE_ENTRIES),
+                    dependencies, candidateInputs, schema >= 4 ?
+                    QIOProcessingNbt.readAmounts(data, "configurationInputs",
+                            MAX_RESOURCE_ENTRIES) : Collections.emptyMap());
         } catch (QIOProcessingDataException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -288,13 +287,13 @@ public final class QIOPlanStep {
 
     void appendStructuralSignature(StringBuilder canonical) {
         canonical.append("|node=").append(nodeId)
-              .append('|').append(providerKind)
-              .append('|').append(providerId)
-              .append('|').append(routeId)
-              .append('|').append(recipeKey)
-              .append('|').append(variantId)
-              .append('|').append(routeSignature)
-              .append("|operations=").append(operations);
+                .append('|').append(providerKind)
+                .append('|').append(providerId)
+                .append('|').append(routeId)
+                .append('|').append(recipeKey)
+                .append('|').append(variantId)
+                .append('|').append(routeSignature)
+                .append("|operations=").append(operations);
         appendAmounts(canonical, "input", exactInputs);
         if (!configurationInputs.isEmpty()) {
             appendAmounts(canonical, "configuration", configurationInputs);
@@ -311,10 +310,10 @@ public final class QIOPlanStep {
     }
 
     private static void appendAmounts(StringBuilder canonical, String prefix,
-          Map<PortableResourceDescriptor, Long> amounts) {
+                                      Map<PortableResourceDescriptor, Long> amounts) {
         for (Map.Entry<PortableResourceDescriptor, Long> entry : amounts.entrySet()) {
             canonical.append('|').append(prefix).append('=').append(entry.getKey())
-                  .append('@').append(entry.getValue());
+                    .append('@').append(entry.getValue());
         }
     }
 
@@ -326,7 +325,7 @@ public final class QIOPlanStep {
         Set<Long> unique = new LinkedHashSet<>();
         for (Long dependency : dependencies) {
             long checked = QIOProcessingNbt.requireNonNegative(
-                  Objects.requireNonNull(dependency, "dependency"), "dependency");
+                    Objects.requireNonNull(dependency, "dependency"), "dependency");
             if (checked == nodeId) {
                 throw new IllegalArgumentException("QIO plan step cannot depend on itself");
             }
@@ -340,16 +339,16 @@ public final class QIOPlanStep {
     }
 
     private static Map<PortableResourceDescriptor, Long> calculateFixedInputs(
-          Map<PortableResourceDescriptor, Long> exactInputs,
-          List<QIOCandidateInputGroup> candidateInputs) {
+            Map<PortableResourceDescriptor, Long> exactInputs,
+            List<QIOCandidateInputGroup> candidateInputs) {
         Map<PortableResourceDescriptor, Long> fixed = new java.util.LinkedHashMap<>(exactInputs);
         for (QIOCandidateInputGroup group : candidateInputs) {
             for (Map.Entry<PortableResourceDescriptor, Long> planned :
-                  group.getPlannedInputs().entrySet()) {
+                    group.getPlannedInputs().entrySet()) {
                 long present = fixed.getOrDefault(planned.getKey(), 0L);
                 if (present < planned.getValue()) {
                     throw new IllegalArgumentException(
-                          "QIO candidate inputs exceed the step's exact inputs");
+                            "QIO candidate inputs exceed the step's exact inputs");
                 }
                 if (present == planned.getValue()) fixed.remove(planned.getKey());
                 else fixed.put(planned.getKey(), present - planned.getValue());
@@ -363,7 +362,7 @@ public final class QIOPlanStep {
         String trimmed = value.trim();
         if (trimmed.isEmpty() || trimmed.length() > MAX_ID_LENGTH) {
             throw new IllegalArgumentException(name + " must contain 1.." + MAX_ID_LENGTH +
-                  " characters");
+                    " characters");
         }
         return trimmed;
     }

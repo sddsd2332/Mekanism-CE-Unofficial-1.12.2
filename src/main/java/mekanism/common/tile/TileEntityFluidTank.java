@@ -105,8 +105,8 @@ public class TileEntityFluidTank extends TileEntityContainerBlock implements IAc
             return null;
         }
         return new FluidTankUpgradeData(upgradeTier, facing, clientFacing, ticker, redstone, redstoneLastTick, doAutoSync, isActive,
-              clientActive, editMode, valve, valveFluid, fluidTank.getFluid(), currentRedstoneLevel, writeUpgradeComponentData(),
-              inputSlot.serializeNBT(), outputSlot.serializeNBT());
+                clientActive, editMode, valve, valveFluid, fluidTank.getFluid(), currentRedstoneLevel, writeUpgradeComponentData(),
+                inputSlot.serializeNBT(), outputSlot.serializeNBT());
     }
 
     @Nonnull
@@ -288,6 +288,11 @@ public class TileEntityFluidTank extends TileEntityContainerBlock implements IAc
     }
 
     @Override
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return type == mekanism.api.transmitters.TransmissionType.FLUID;
+    }
+
+    @Override
     public int getRedstoneLevel() {
         return MekanismUtils.redstoneLevelFromContents(fluidTank.getFluidAmount(), fluidTank.getCapacity());
     }
@@ -367,14 +372,14 @@ public class TileEntityFluidTank extends TileEntityContainerBlock implements IAc
     @Nullable
     public FluidStack insertFluid(int tank, @Nullable FluidStack stack, @Nullable EnumFacing side, Action action) {
         return tryCallContainerTransaction(() ->
-              insertExcess(stack, side, action, super.insertFluid(tank, stack, side, action)), () -> stack);
+                insertExcess(stack, side, action, super.insertFluid(tank, stack, side, action)), () -> stack);
     }
 
     @Override
     @Nullable
     public FluidStack insertFluid(@Nullable FluidStack stack, @Nullable EnumFacing side, Action action) {
         return tryCallContainerTransaction(() ->
-              insertExcess(stack, side, action, super.insertFluid(stack, side, action)), () -> stack);
+                insertExcess(stack, side, action, super.insertFluid(stack, side, action)), () -> stack);
     }
 
     @Nullable

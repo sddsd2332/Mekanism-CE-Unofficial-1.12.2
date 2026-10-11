@@ -1,13 +1,15 @@
 package mekanism.client.gui.qio;
 
-import mekanism.common.inventory.container.PortableQIODashboardContainer;
 import mekanism.client.gui.element.tab.GuiQIOFrequencyTab;
 import mekanism.common.content.qio.QIOFrequency;
+import mekanism.common.inventory.container.PortableQIODashboardContainer;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
-/** Portable Dashboard viewer screen. */
+/**
+ * Portable Dashboard viewer screen.
+ */
 @SideOnly(Side.CLIENT)
 public class GuiPortableQIODashboard extends GuiQIOViewerScreen<PortableQIODashboardContainer> {
 

@@ -1,4 +1,3 @@
-
 package mekanism.common.inventory.container;
 
 import mekanism.common.content.gear.IModuleContainerItem;
@@ -80,6 +79,6 @@ public class ModuleTweakerContainer extends MekanismContainer {
             }
         }
         return player.inventory.armorInventory.stream().anyMatch(ModuleTweakerContainer::isTweakableItem) ||
-              player.inventory.offHandInventory.stream().anyMatch(ModuleTweakerContainer::isTweakableItem);
+                player.inventory.offHandInventory.stream().anyMatch(ModuleTweakerContainer::isTweakableItem);
     }
 }

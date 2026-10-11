@@ -1,12 +1,15 @@
 package mekanism.generators.common.content.fission;
 
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
-import mekanism.api.*;
+import mekanism.api.Action;
+import mekanism.api.AutomationType;
+import mekanism.api.Coord4D;
+import mekanism.api.MekanismAPI;
 import mekanism.api.gas.GasStack;
 import mekanism.api.heat.HeatAPI;
-import mekanism.common.capabilities.heat.VariableHeatCapacitor;
 import mekanism.common.MekanismFluids;
 import mekanism.common.capabilities.fluid.VariableCapacityFluidTank;
+import mekanism.common.capabilities.heat.VariableHeatCapacitor;
 import mekanism.common.capabilities.tank.ValidatingGasTank;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.multiblock.SynchronizedData;
@@ -45,7 +48,7 @@ public class SynchronizedFissionData extends SynchronizedData<SynchronizedFissio
     private static final double INVERSE_INSULATION_COEFFICIENT = 10_000;
     private static final double INVERSE_CONDUCTION_COEFFICIENT = 10;
     private static final double ENVIRONMENT_INVERSE_CONDUCTION = HeatAPI.AIR_INVERSE_COEFFICIENT + INVERSE_INSULATION_COEFFICIENT +
-          INVERSE_CONDUCTION_COEFFICIENT;
+            INVERSE_CONDUCTION_COEFFICIENT;
     private static final double DEFAULT_WATER_COOLING_CONDUCTIVITY = 0.5;
     private static final double DEFAULT_SODIUM_COOLING_CONDUCTIVITY = 1;
     private static final double DEFAULT_STEAM_ENERGY_EFFICIENCY = 0.2;
@@ -54,9 +57,9 @@ public class SynchronizedFissionData extends SynchronizedData<SynchronizedFissio
     public final Set<FormedAssembly> assemblies = new ObjectOpenHashSet<>();
 
     public final VariableCapacityFluidTank coolantTank = VariableCapacityFluidTank.input(this, this::getCoolantCapacity,
-          this::isValidFluidCoolant, this);
+            this::isValidFluidCoolant, this);
     public final VariableCapacityFluidTank steamTank = VariableCapacityFluidTank.output(this, this::getSteamCapacity,
-          stack -> stack.getFluid() == FluidRegistry.getFluid("steam"), this);
+            stack -> stack.getFluid() == FluidRegistry.getFluid("steam"), this);
     public final ValidatingGasTank fuelTank = new ValidatingGasTank(1, gas -> gas == MekanismFluids.FissileFuel, this::isFormed);
     public final ValidatingGasTank wasteTank = new ValidatingGasTank(1, gas -> gas == MekanismFluids.NuclearWaste, this::isFormed);
     public final ValidatingGasTank gasCoolantTank = new ValidatingGasTank(1, this::isValidGasCoolant, this::isFormed);
@@ -66,11 +69,11 @@ public class SynchronizedFissionData extends SynchronizedData<SynchronizedFissio
     public int surfaceArea;
     public double biomeAmbientTemp = HeatAPI.AMBIENT_TEMP;
     private final VariableHeatCapacitor heatCapacitor = VariableHeatCapacitor.create(
-          getDefaultCasingHeatCapacity(),
-          () -> INVERSE_CONDUCTION_COEFFICIENT,
-          () -> INVERSE_INSULATION_COEFFICIENT,
-          () -> biomeAmbientTemp,
-          this
+            getDefaultCasingHeatCapacity(),
+            () -> INVERSE_CONDUCTION_COEFFICIENT,
+            () -> INVERSE_INSULATION_COEFFICIENT,
+            () -> biomeAmbientTemp,
+            this
     );
 
     public double rateLimit = getDefaultRateLimit();
@@ -301,14 +304,14 @@ public class SynchronizedFissionData extends SynchronizedData<SynchronizedFissio
         BlockPos min = minLocation.getPos();
         BlockPos max = maxLocation.getPos();
         BlockPos[] corners = {
-              min,
-              new BlockPos(max.getX(), min.getY(), min.getZ()),
-              new BlockPos(min.getX(), min.getY(), max.getZ()),
-              new BlockPos(max.getX(), min.getY(), max.getZ()),
-              new BlockPos(min.getX(), max.getY(), min.getZ()),
-              new BlockPos(max.getX(), max.getY(), min.getZ()),
-              new BlockPos(min.getX(), max.getY(), max.getZ()),
-              max
+                min,
+                new BlockPos(max.getX(), min.getY(), min.getZ()),
+                new BlockPos(min.getX(), min.getY(), max.getZ()),
+                new BlockPos(max.getX(), min.getY(), max.getZ()),
+                new BlockPos(min.getX(), max.getY(), min.getZ()),
+                new BlockPos(max.getX(), max.getY(), min.getZ()),
+                new BlockPos(min.getX(), max.getY(), max.getZ()),
+                max
         };
         double biomeTemperature = 0;
         for (BlockPos corner : corners) {
@@ -476,7 +479,7 @@ public class SynchronizedFissionData extends SynchronizedData<SynchronizedFissio
             double waterThermalEnthalpy = getWaterThermalEnthalpy();
             double steamEnergyEfficiency = getSteamEnergyEfficiency();
             if (!HeatAPI.isFinite(caseCoolantHeat) || caseCoolantHeat <= 0 || waterThermalEnthalpy <= 0 || steamEnergyEfficiency <= 0 ||
-                FluidRegistry.getFluid("steam") == null) {
+                    FluidRegistry.getFluid("steam") == null) {
                 lastBoilRate = 0;
                 return;
             }
@@ -540,7 +543,7 @@ public class SynchronizedFissionData extends SynchronizedData<SynchronizedFissio
 
     private void dissipateHeat() {
         double tempToTransfer = (HeatAPI.sanitizeTemperature(getTemperature()) - HeatAPI.sanitizeTemperature(biomeAmbientTemp)) /
-              ENVIRONMENT_INVERSE_CONDUCTION;
+                ENVIRONMENT_INVERSE_CONDUCTION;
         double heatToTransfer = HeatAPI.multiplyHeatSigned(tempToTransfer, heatCapacitor.getHeatCapacity());
         double heatBefore = heatCapacitor.getHeat();
         if (HeatAPI.isFinite(heatToTransfer)) {
@@ -675,7 +678,7 @@ public class SynchronizedFissionData extends SynchronizedData<SynchronizedFissio
     public void updateDerivedGeometry() {
         reactorCenter = calculateReactorCenter();
         radiationBounds = minLocation == null || maxLocation == null ? null :
-              new AxisAlignedBB(minLocation.x + 1, minLocation.y + 1, minLocation.z + 1, maxLocation.x, maxLocation.y, maxLocation.z);
+                new AxisAlignedBB(minLocation.x + 1, minLocation.y + 1, minLocation.z + 1, maxLocation.x, maxLocation.y, maxLocation.z);
     }
 
     public Coord4D getReactorCenter() {

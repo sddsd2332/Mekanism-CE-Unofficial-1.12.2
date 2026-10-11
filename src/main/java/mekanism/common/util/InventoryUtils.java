@@ -21,8 +21,8 @@ import net.minecraftforge.items.ItemHandlerHelper;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Predicate;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 public final class InventoryUtils {
 
@@ -111,7 +111,7 @@ public final class InventoryUtils {
     }
 
     public static HandlerTransitRequest getEjectItemMap(IItemHandler handler,
-          List<IInventorySlot> slots, Predicate<IInventorySlot> extractor) {
+                                                        List<IInventorySlot> slots, Predicate<IInventorySlot> extractor) {
         return getEjectItemMap(new HandlerTransitRequest(handler), slots, extractor);
     }
 
@@ -119,9 +119,11 @@ public final class InventoryUtils {
         return getEjectItemMap(request, slots, slot -> true);
     }
 
-    /** Builds an eject request while applying the same extraction predicate used by the caller. */
+    /**
+     * Builds an eject request while applying the same extraction predicate used by the caller.
+     */
     public static <REQUEST extends HandlerTransitRequest> REQUEST getEjectItemMap(
-          REQUEST request, List<IInventorySlot> slots, Predicate<IInventorySlot> extractor) {
+            REQUEST request, List<IInventorySlot> slots, Predicate<IInventorySlot> extractor) {
         if (extractor == null) {
             throw new IllegalArgumentException("Extraction predicate cannot be null");
         }
@@ -155,7 +157,7 @@ public final class InventoryUtils {
     }
 
     public static ItemStack insertItem(List<? extends IInventorySlot> slots, ItemStack stack, boolean ignoreEmpty, boolean checkAll, Action action,
-          AutomationType automationType) {
+                                       AutomationType automationType) {
         if (stack.isEmpty()) {
             return stack;
         }
@@ -178,12 +180,12 @@ public final class InventoryUtils {
             //If we have more than a stack of the item (such as we are a bin) or some other thing that allows for compressing
             // stack counts, drop as many stacks as we need at their max size
             while (count > max) {
-                dropper.accept(copyWithCount(stack,max));
+                dropper.accept(copyWithCount(stack, max));
                 count -= max;
             }
             if (count > 0) {
                 //If we have anything left to drop afterward, do so
-                dropper.accept(copyWithCount(stack,count));
+                dropper.accept(copyWithCount(stack, count));
             }
         } else {
             //If we have a valid stack, we can just directly drop that instead without requiring any copies
@@ -194,7 +196,7 @@ public final class InventoryUtils {
     public static ItemStack copyWithCount(ItemStack stack, int pCount) {
         if (stack.isEmpty()) {
             return ItemStack.EMPTY;
-        }else {
+        } else {
             ItemStack itemstack = stack.copy();
             itemstack.setCount(pCount);
             return itemstack;

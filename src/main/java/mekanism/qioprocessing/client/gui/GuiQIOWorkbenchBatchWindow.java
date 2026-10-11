@@ -10,13 +10,13 @@ import mekanism.client.gui.element.slot.GuiSlot;
 import mekanism.client.gui.element.window.GuiWindow;
 import mekanism.client.jei.interfaces.IJEIIngredientHelper;
 import mekanism.client.recipe_viewer.interfaces.IRecipeViewerGhostTarget;
-import mekanism.client.recipe_viewer.interfaces.IRecipeViewerGhostTarget.IGhostItemConsumer;
-import mekanism.common.inventory.container.SelectedWindowData;
 import mekanism.common.config.MekanismConfig;
+import mekanism.common.inventory.container.SelectedWindowData;
 import mekanism.common.util.MekanismUtils;
+import mekanism.qioprocessing.client.integration.QIORecipeViewerBridge;
 import mekanism.qioprocessing.common.QIOProcessingWindowTypes;
-import mekanism.qioprocessing.common.inventory.container.QIOWorkbenchConfigurationClientCache;
 import mekanism.qioprocessing.common.content.workbench.QIOWorkbenchClosureMode;
+import mekanism.qioprocessing.common.inventory.container.QIOWorkbenchConfigurationClientCache;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ResourceLocation;
@@ -26,7 +26,10 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Objects;
 
-/** Scrollable exact-output target list for one atomic batch workbench import. */
+/**
+ * Scrollable exact-output target list for one atomic batch workbench import.
+ */
+
 /**
  * QIO 处理模块中的 GuiQIOWorkbenchBatchWindow 类型。
  *
@@ -45,17 +48,20 @@ public final class GuiQIOWorkbenchBatchWindow extends GuiWindow {
     private final MekanismButton encodeButton;
     private final MekanismButton closureModeButton;
     private final MekanismButton cycleFilterButton;
+    private final MekanismButton bookmarkImportButton;
+    @Nullable
+    private TextComponentTranslation bookmarkImportFeedback;
     private QIOWorkbenchClosureMode closureMode = QIOWorkbenchClosureMode.NONE;
     private boolean skipCyclicRecipes;
     private boolean closed;
 
     public GuiQIOWorkbenchBatchWindow(IGuiWrapper gui,
-          QIOWorkbenchConfigurationClientCache cache,
-          TriPredicate<List<ItemStack>, QIOWorkbenchClosureMode, Boolean> encoder,
-          Runnable focusHandler,
-          Runnable closeHandler) {
+                                      QIOWorkbenchConfigurationClientCache cache,
+                                      TriPredicate<List<ItemStack>, QIOWorkbenchClosureMode, Boolean> encoder,
+                                      Runnable focusHandler,
+                                      Runnable closeHandler) {
         super(gui, (gui.getWidth() - WIDTH) / 2, WINDOW_Y, WIDTH, HEIGHT,
-              new SelectedWindowData(QIOProcessingWindowTypes.MANAGEMENT_WORKBENCH_BATCH));
+                new SelectedWindowData(QIOProcessingWindowTypes.MANAGEMENT_WORKBENCH_BATCH));
         this.cache = Objects.requireNonNull(cache, "cache");
         this.encoder = Objects.requireNonNull(encoder, "encoder");
         this.focusHandler = Objects.requireNonNull(focusHandler, "focusHandler");
@@ -63,18 +69,22 @@ public final class GuiQIOWorkbenchBatchWindow extends GuiWindow {
         interactionStrategy = InteractionStrategy.ALL;
         addChild(new TargetGrid(gui, relativeX + 8, relativeY + 24));
         closureModeButton = addChild(new MekanismButton(gui, relativeX + 8,
-              relativeY + 126, 97, 20, closureModeText(), this::cycleClosureMode, null));
+                relativeY + 126, 97, 20, closureModeText(), this::cycleClosureMode, null));
         cycleFilterButton = addChild(new MekanismButton(gui, relativeX + 109,
-              relativeY + 126, 97, 20, cycleFilterText(), this::toggleCycleFilter,
-              getOnHover(() -> new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.workbench_cycle_filter_tooltip"))));
-        addChild(new MekanismButton(gui, relativeX + 8, relativeY + 150, 82, 20,
-              new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.workbench_batch_clear"),
-              cache::clearBatchTargets, null));
-        encodeButton = addChild(new MekanismButton(gui, relativeX + 94,
-              relativeY + 150, 112, 20, new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.workbench_batch_encode"), this::encode, null));
+                relativeY + 126, 97, 20, cycleFilterText(), this::toggleCycleFilter,
+                getOnHover(() -> new TextComponentTranslation(
+                        "gui.mekanismqioprocessing.workbench_cycle_filter_tooltip"))));
+        addChild(new MekanismButton(gui, relativeX + 8, relativeY + 150, 42, 20,
+                new TextComponentTranslation(
+                        "gui.mekanismqioprocessing.workbench_batch_clear"),
+                cache::clearBatchTargets, null));
+        bookmarkImportButton = addChild(new MekanismButton(gui, relativeX + 54,
+                relativeY + 150, 88, 20, new TextComponentTranslation(
+                "gui.mekanismqioprocessing.workbench_batch_bookmarks"), this::importBookmarks,
+                getOnHover(this::bookmarkImportTooltip)));
+        encodeButton = addChild(new MekanismButton(gui, relativeX + 146,
+                relativeY + 150, 60, 20, new TextComponentTranslation(
+                "gui.mekanismqioprocessing.workbench_batch_encode"), this::encode, null));
         updateButton();
     }
 
@@ -94,19 +104,40 @@ public final class GuiQIOWorkbenchBatchWindow extends GuiWindow {
     public void renderForeground(int mouseX, int mouseY) {
         super.renderForeground(mouseX, mouseY);
         drawTitleText(new TextComponentTranslation(
-              "gui.mekanismqioprocessing.workbench_batch_title"), 5);
+                "gui.mekanismqioprocessing.workbench_batch_title"), 5);
         getFont().drawString(new TextComponentTranslation(
-              "gui.mekanismqioprocessing.workbench_batch_count",
-              cache.getBatchTargetCount(),
-              QIOWorkbenchConfigurationClientCache.MAX_BATCH_TARGETS).getFormattedText(),
-              relativeX + 8, relativeY + 115, titleTextColor());
+                        "gui.mekanismqioprocessing.workbench_batch_count",
+                        cache.getBatchTargetCount(),
+                        QIOWorkbenchConfigurationClientCache.MAX_BATCH_TARGETS).getFormattedText(),
+                relativeX + 8, relativeY + 115, titleTextColor());
     }
 
     private void encode() {
         if (cache.hasBatchTargets() && encoder.test(cache.getBatchTargets(), closureMode,
-              skipCyclicRecipes)) {
+                skipCyclicRecipes)) {
             close();
         }
+    }
+
+    private void importBookmarks() {
+        int added = QIORecipeViewerBridge.importBookmarks(cache::addBatchTarget,
+                QIOWorkbenchConfigurationClientCache.MAX_BATCH_TARGETS - cache.getBatchTargetCount());
+        bookmarkImportFeedback = added < 0 ? new TextComponentTranslation(
+                "gui.mekanismqioprocessing.workbench_batch_bookmarks_unavailable") :
+                new TextComponentTranslation("gui.mekanismqioprocessing.workbench_batch_bookmarks_added", added);
+        updateButton();
+    }
+
+    private TextComponentTranslation bookmarkImportTooltip() {
+        TextComponentTranslation tooltip = new TextComponentTranslation(
+                "gui.mekanismqioprocessing.workbench_batch_bookmarks_tooltip");
+        if (!QIORecipeViewerBridge.supportsBookmarkImport()) {
+            tooltip.appendText("\n").appendSibling(new TextComponentTranslation(
+                    "gui.mekanismqioprocessing.workbench_batch_bookmarks_unavailable"));
+        } else if (bookmarkImportFeedback != null) {
+            tooltip.appendText("\n").appendSibling(bookmarkImportFeedback);
+        }
+        return tooltip;
     }
 
     private void cycleClosureMode() {
@@ -131,13 +162,13 @@ public final class GuiQIOWorkbenchBatchWindow extends GuiWindow {
 
     private TextComponentTranslation cycleFilterText() {
         return new TextComponentTranslation(skipCyclicRecipes ?
-              "gui.mekanismqioprocessing.workbench_cycle_filter_on" :
-              "gui.mekanismqioprocessing.workbench_cycle_filter_off");
+                "gui.mekanismqioprocessing.workbench_cycle_filter_on" :
+                "gui.mekanismqioprocessing.workbench_cycle_filter_off");
     }
 
     private void updateButton() {
         boolean recursive = MekanismConfig.current().qioProcessing.recipeCatalogScanMode
-              .val().allowsRecursiveImport();
+                .val().allowsRecursiveImport();
         if (!recursive) {
             closureMode = QIOWorkbenchClosureMode.NONE;
             skipCyclicRecipes = false;
@@ -145,14 +176,16 @@ public final class GuiQIOWorkbenchBatchWindow extends GuiWindow {
         closureModeButton.visible = recursive;
         cycleFilterButton.visible = recursive;
         encodeButton.active = cache.hasBatchTargets();
+        bookmarkImportButton.active = QIORecipeViewerBridge.supportsBookmarkImport() &&
+                cache.getBatchTargetCount() < QIOWorkbenchConfigurationClientCache.MAX_BATCH_TARGETS;
         cycleFilterButton.active = recursive &&
-              closureMode != QIOWorkbenchClosureMode.NONE;
+                closureMode != QIOWorkbenchClosureMode.NONE;
     }
 
     private ItemStack playerStack(int index) {
         return minecraft.player == null || index < 0 ||
-              index >= minecraft.player.inventory.mainInventory.size() ? ItemStack.EMPTY :
-              minecraft.player.inventory.mainInventory.get(index);
+                index >= minecraft.player.inventory.mainInventory.size() ? ItemStack.EMPTY :
+                minecraft.player.inventory.mainInventory.get(index);
     }
 
     boolean inventoryClicked(int index, int button) {
@@ -173,20 +206,20 @@ public final class GuiQIOWorkbenchBatchWindow extends GuiWindow {
     }
 
     private final class TargetGrid extends GuiElement
-          implements IJEIIngredientHelper, IRecipeViewerGhostTarget {
+            implements IJEIIngredientHelper, IRecipeViewerGhostTarget {
 
         private static final int COLUMNS = 10;
         private static final int ROWS = 5;
         private static final ResourceLocation SLOTS = MekanismUtils.getResource(
-              MekanismUtils.ResourceType.GUI_SLOT, "slots.png");
+                MekanismUtils.ResourceType.GUI_SLOT, "slots.png");
         private static final ResourceLocation SLOTS_DARK = MekanismUtils.getResource(
-              MekanismUtils.ResourceType.GUI_SLOT, "slots_dark.png");
+                MekanismUtils.ResourceType.GUI_SLOT, "slots_dark.png");
         private final GuiScrollBar scrollBar;
 
         private TargetGrid(IGuiWrapper gui, int x, int y) {
             super(gui, x, y, COLUMNS * 18 + 18, ROWS * 18);
             scrollBar = addChild(new GuiScrollBar(gui, relativeX + COLUMNS * 18 + 4,
-                  relativeY, ROWS * 18, this::totalRows, () -> ROWS));
+                    relativeY, ROWS * 18, this::totalRows, () -> ROWS));
             active = true;
         }
 
@@ -195,13 +228,13 @@ public final class GuiQIOWorkbenchBatchWindow extends GuiWindow {
             super.drawBackground(mouseX, mouseY, partialTicks);
             minecraft.renderEngine.bindTexture(cache.hasBatchTargets() ? SLOTS : SLOTS_DARK);
             GuiUtils.blit(relativeX, relativeY, 0, 0, COLUMNS * 18, ROWS * 18,
-                  288, 288);
+                    288, 288);
             int first = firstVisibleIndex();
             for (int slot = 0; slot < COLUMNS * ROWS; slot++) {
                 ItemStack stack = cache.getBatchTarget(first + slot);
                 if (!stack.isEmpty()) {
                     gui().renderItem(stack, relativeX + slot % COLUMNS * 18 + 1,
-                          relativeY + slot / COLUMNS * 18 + 1);
+                            relativeY + slot / COLUMNS * 18 + 1);
                 }
             }
         }
@@ -220,7 +253,7 @@ public final class GuiQIOWorkbenchBatchWindow extends GuiWindow {
         @Override
         public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
             return isMouseOverCheckWindows(mouseX, mouseY) &&
-                  scrollBar.adjustScroll(delta) || super.mouseScrolled(mouseX, mouseY, delta);
+                    scrollBar.adjustScroll(delta) || super.mouseScrolled(mouseX, mouseY, delta);
         }
 
         @Override
@@ -234,7 +267,7 @@ public final class GuiQIOWorkbenchBatchWindow extends GuiWindow {
                 changed = cache.removeBatchTarget(index);
             } else {
                 ItemStack carried = minecraft.player == null ? ItemStack.EMPTY :
-                      minecraft.player.inventory.getItemStack();
+                        minecraft.player.inventory.getItemStack();
                 changed = cache.addBatchTarget(carried);
             }
             if (changed) playClickSound();
@@ -259,7 +292,7 @@ public final class GuiQIOWorkbenchBatchWindow extends GuiWindow {
         @Override
         public IGhostIngredientConsumer getGhostHandler() {
             if (cache.getBatchTargetCount() >=
-                QIOWorkbenchConfigurationClientCache.MAX_BATCH_TARGETS) return null;
+                    QIOWorkbenchConfigurationClientCache.MAX_BATCH_TARGETS) return null;
             return new IGhostItemConsumer() {
                 @Override
                 public void accept(Object ingredient) {
@@ -280,19 +313,19 @@ public final class GuiQIOWorkbenchBatchWindow extends GuiWindow {
         private ItemStack stackAt(double mouseX, double mouseY) {
             int slot = slotAt(mouseX, mouseY);
             return slot < 0 ? ItemStack.EMPTY :
-                  cache.getBatchTarget(firstVisibleIndex() + slot);
+                    cache.getBatchTarget(firstVisibleIndex() + slot);
         }
 
         private int slotAt(double mouseX, double mouseY) {
             if (mouseX < getX() || mouseY < getY() ||
-                mouseX >= getX() + COLUMNS * 18 ||
-                mouseY >= getY() + ROWS * 18 || !checkWindows(mouseX, mouseY)) return -1;
+                    mouseX >= getX() + COLUMNS * 18 ||
+                    mouseY >= getY() + ROWS * 18 || !checkWindows(mouseX, mouseY)) return -1;
             int slotX = (int) ((mouseX - getX()) / 18);
             int slotY = (int) ((mouseY - getY()) / 18);
             int startX = getX() + slotX * 18 + 1;
             int startY = getY() + slotY * 18 + 1;
             if (mouseX < startX || mouseX >= startX + 16 || mouseY < startY ||
-                mouseY >= startY + 16) return -1;
+                    mouseY >= startY + 16) return -1;
             return slotY * COLUMNS + slotX;
         }
     }

@@ -21,14 +21,16 @@ public interface QIOResourceTransferAdapter {
 
     boolean supports(@Nonnull TileEntity target, @Nonnull EnumFacing targetFace);
 
-    /** Returns a bounded snapshot of resources that may be extracted from the target. */
+    /**
+     * Returns a bounded snapshot of resources that may be extracted from the target.
+     */
     @Nonnull
     List<QIOResourceStack> getExtractable(@Nonnull TileEntity target, @Nonnull EnumFacing targetFace,
-          int maximumTypes, long maximumAmount);
+                                          int maximumTypes, long maximumAmount);
 
     long extract(@Nonnull TileEntity target, @Nonnull EnumFacing targetFace,
-          @Nonnull QIOResourceDescriptor descriptor, long amount, @Nonnull Action action);
+                 @Nonnull QIOResourceDescriptor descriptor, long amount, @Nonnull Action action);
 
     long insert(@Nonnull TileEntity target, @Nonnull EnumFacing targetFace,
-          @Nonnull QIOResourceDescriptor descriptor, long amount, @Nonnull Action action);
+                @Nonnull QIOResourceDescriptor descriptor, long amount, @Nonnull Action action);
 }

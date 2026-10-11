@@ -4,57 +4,35 @@ import mekanism.common.Mekanism;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.Executors;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
-/** Server-wide, cooperatively time-sliced QIO planning workers. */
 /**
- * QIO 处理模块中的 QIOPlanningExecutor 类型。
- *
- * <p>该类型封装本层的数据、状态或服务职责；调用方应遵守其公开方法的输入约束，
- * 实现负责保持状态与持久化表示的一致。</p>
+ * One server's bounded, independent pure-data workers. No worker needs a server tick to run.
+ * Results stay owned by this executor until the server thread drains them. Pending results
+ * count against admission too, so a slow server cannot accumulate unbounded completed plans.
  */
 public final class QIOPlanningExecutor implements AutoCloseable {
 
-    public enum SubmissionStatus {
-        ACCEPTED,
-        SHUTDOWN
-    }
+    public enum SubmissionStatus {ACCEPTED, SHUTDOWN, BUSY}
 
-    public enum ResultStatus {
-        SUCCESS,
-        CANCELLED,
-        TIMED_OUT,
-        FAILED
-    }
+    public enum ResultStatus {SUCCESS, CANCELLED, TIMED_OUT, FAILED}
+
+    /**
+     * Background automation and encoding cannot consume the slots reserved for previews.
+     */
+    public enum TaskKind {INTERACTIVE, ENCODING, BACKGROUND}
 
     @FunctionalInterface
     public interface PlanningTask<I, O> {
-
         O plan(I input, CancellationToken cancellationToken) throws Exception;
     }
 
     public interface CancellationToken {
-
         /**
-         * This is also the cooperative scheduling checkpoint. A planning task may block here
-         * until the server grants its next calculation slice.
+         * A nonblocking cancellation check, never a tick/slice permission request.
          */
         boolean isCancelled();
 
@@ -66,7 +44,6 @@ public final class QIOPlanningExecutor implements AutoCloseable {
     }
 
     public static final class Submission {
-
         private final UUID taskId;
         private final SubmissionStatus status;
 
@@ -91,20 +68,34 @@ public final class QIOPlanningExecutor implements AutoCloseable {
     }
 
     public static final class PlanningResult<O> {
-
         private final UUID taskId;
         private final ResultStatus status;
+        @Nullable
         private final O value;
+        @Nullable
         private final Throwable error;
-        private final long elapsedNanos;
+        private final long submittedNanos;
+        private final long startedNanos;
+        private final long finishedNanos;
+        private long publishedNanos;
+        private long executionNanos;
+        private long queueNanos;
+        private long validationWaitNanos;
+        private QIOPlanningMetrics.Snapshot metrics = QIOPlanningMetrics.Snapshot.EMPTY;
 
         private PlanningResult(UUID taskId, ResultStatus status, @Nullable O value,
-              @Nullable Throwable error, long elapsedNanos) {
+                               @Nullable Throwable error, long submittedNanos, long startedNanos,
+                               long finishedNanos) {
             this.taskId = taskId;
             this.status = status;
             this.value = value;
             this.error = error;
-            this.elapsedNanos = elapsedNanos;
+            this.submittedNanos = submittedNanos;
+            this.startedNanos = startedNanos;
+            this.finishedNanos = finishedNanos;
+            publishedNanos = finishedNanos;
+            executionNanos = elapsed(startedNanos, finishedNanos);
+            queueNanos = elapsed(submittedNanos, startedNanos);
         }
 
         @Nonnull
@@ -127,375 +118,512 @@ public final class QIOPlanningExecutor implements AutoCloseable {
             return error;
         }
 
+        /**
+         * Accepted submission to worker completion, including queue time.
+         */
         public long getElapsedNanos() {
-            return elapsedNanos;
+            return elapsed(submittedNanos, finishedNanos);
+        }
+
+        public long getQueueNanos() {
+            return queueNanos;
+        }
+
+        public long getExecutionNanos() {
+            return executionNanos;
+        }
+
+        public long getValidationWaitNanos() {
+            return validationWaitNanos;
+        }
+
+        public long getCompletionWaitNanos() {
+            return elapsed(finishedNanos, publishedNanos);
+        }
+
+        public QIOPlanningMetrics.Snapshot getMetrics() {
+            return metrics;
+        }
+
+        public long getSubmittedNanos() {
+            return submittedNanos;
+        }
+
+        public long getStartedNanos() {
+            return startedNanos;
+        }
+
+        public long getFinishedNanos() {
+            return finishedNanos;
+        }
+
+        public long getPublishedNanos() {
+            return publishedNanos;
         }
     }
-
-    private static final long NO_TIMEOUT = 0;
-    private static final long MINIMUM_SLICE_NANOS = TimeUnit.MICROSECONDS.toNanos(1);
 
     private final ThreadPoolExecutor workers;
-    @Nullable private final ScheduledExecutorService timeoutScheduler;
-    private final long taskTimeoutNanos;
-    private final Map<UUID, TaskControl> tasks = new LinkedHashMap<>();
-    private final ConcurrentLinkedQueue<CompletedTask<?>> completed = new ConcurrentLinkedQueue<>();
-    private final AtomicBoolean accepting = new AtomicBoolean(true);
+    private final Thread ownerThread = Thread.currentThread();
+    @Nullable
+    private final ScheduledThreadPoolExecutor watchdog;
+    private final long timeoutNanos;
+    private final int maximumOutstanding;
+    private final int nonInteractiveLimit;
+    private final Map<UUID, TaskControl<?>> tasks = new LinkedHashMap<>();
+    private final ArrayDeque<TaskControl<?>> completed = new ArrayDeque<>();
+    private final ArrayDeque<TaskControl<?>> continuations = new ArrayDeque<>();
+    private final ArrayDeque<TaskControl<?>> resumptions = new ArrayDeque<>();
+    private boolean accepting = true;
+    private static final ThreadLocal<Map<Object, Object>> LOCAL = new ThreadLocal<>();
 
-    /** Creates the same cached-worker, tick-sliced model used by AE2 crafting calculations. */
-    public QIOPlanningExecutor() {
-        this(NO_TIMEOUT, TimeUnit.NANOSECONDS);
-    }
-
-    /** Test and diagnostic constructor. A zero timeout disables automatic wall-clock expiry. */
-    QIOPlanningExecutor(long taskTimeout, @Nonnull TimeUnit taskTimeoutUnit) {
-        Objects.requireNonNull(taskTimeoutUnit, "taskTimeoutUnit");
-        if (taskTimeout < 0 || taskTimeout > 0 && taskTimeoutUnit.toNanos(taskTimeout) <= 0) {
-            throw new IllegalArgumentException("QIO planning task timeout cannot be negative or overflow");
-        }
-        taskTimeoutNanos = taskTimeout == 0 ? NO_TIMEOUT : taskTimeoutUnit.toNanos(taskTimeout);
-        AtomicInteger threadNumber = new AtomicInteger();
-        ThreadFactory factory = runnable -> {
-            Thread thread = new Thread(runnable,
-                  "Mekanism-QIO-Planner-" + threadNumber.incrementAndGet());
-            thread.setDaemon(true);
-            return thread;
-        };
-        workers = new ThreadPoolExecutor(0, Integer.MAX_VALUE, 60L, TimeUnit.SECONDS,
-              new SynchronousQueue<>(), factory, new ThreadPoolExecutor.AbortPolicy());
-        timeoutScheduler = taskTimeoutNanos == NO_TIMEOUT ? null :
-              Executors.newSingleThreadScheduledExecutor(runnable -> {
-                  Thread thread = new Thread(runnable, "Mekanism-QIO-Planner-Watchdog");
-                  thread.setDaemon(true);
-                  return thread;
-              });
-    }
-
-    @Nonnull
-    public synchronized <I, O> Submission submit(@Nonnull I input,
-          @Nonnull PlanningTask<I, O> task,
-          @Nonnull Consumer<PlanningResult<O>> completion) {
-        Objects.requireNonNull(input, "input");
-        Objects.requireNonNull(task, "task");
-        Objects.requireNonNull(completion, "completion");
-        UUID taskId = UUID.randomUUID();
-        if (!accepting.get()) {
-            return new Submission(taskId, SubmissionStatus.SHUTDOWN);
-        }
-        TaskControl control = new TaskControl(taskTimeoutNanos);
-        tasks.put(taskId, control);
-        try {
-            if (timeoutScheduler != null) {
-                control.timeoutFuture = timeoutScheduler.schedule(() -> control.cancel(true),
-                      taskTimeoutNanos, TimeUnit.NANOSECONDS);
-            }
-            workers.execute(() -> execute(taskId, input, task, completion, control));
-            return new Submission(taskId, SubmissionStatus.ACCEPTED);
-        } catch (RejectedExecutionException e) {
-            cancelTimeout(control);
-            tasks.remove(taskId);
-            return new Submission(taskId, SubmissionStatus.SHUTDOWN);
-        }
-    }
-
-    public synchronized boolean cancel(UUID taskId) {
-        TaskControl control = taskId == null ? null : tasks.get(taskId);
-        return control != null && control.cancel(false);
+    static QIOPlanningMetrics currentMetrics() {
+        Map<Object, Object> local = LOCAL.get();
+        return local == null ? QIOPlanningMetrics.NONE :
+                (QIOPlanningMetrics) local.computeIfAbsent(QIOPlanningMetrics.class, ignored -> new QIOPlanningMetrics());
     }
 
     /**
-     * Grants every active calculation an equal part of the server-wide budget and waits until
-     * each worker finishes or reaches its next cooperative checkpoint.
+     * Owned by one admitted task, retained across validation yields, released on completion.
      */
-    public int runPlanningSlice(long budget, @Nonnull TimeUnit unit) {
-        if (budget <= 0) {
-            return 0;
+    @SuppressWarnings("unchecked")
+    static <T> T taskLocal(Object key, java.util.function.Supplier<T> create) {
+        Map<Object, Object> values = LOCAL.get();
+        return values == null ? create.get() : (T) values.computeIfAbsent(key, ignored -> create.get());
+    }
+
+    public QIOPlanningExecutor() {
+        this(defaultWorkerCount(), 64, 0, TimeUnit.NANOSECONDS);
+    }
+
+    /**
+     * Diagnostic constructor retained for callers which need an explicit deadline.
+     */
+    QIOPlanningExecutor(long timeout, @Nonnull TimeUnit unit) {
+        this(defaultWorkerCount(), 64, timeout, unit);
+    }
+
+    public QIOPlanningExecutor(int workerCount, int queueCapacity, long timeout,
+                               @Nonnull TimeUnit unit) {
+        Objects.requireNonNull(unit, "unit");
+        if (workerCount < 1 || queueCapacity < 1 || timeout < 0 ||
+                timeout > 0 && unit.toNanos(timeout) <= 0) {
+            throw new IllegalArgumentException("Invalid QIO worker, queue or timeout bounds");
         }
-        long budgetNanos = Objects.requireNonNull(unit, "unit").toNanos(budget);
-        if (budgetNanos <= 0) {
-            return 0;
+        maximumOutstanding = Math.addExact(workerCount, queueCapacity);
+        // Reserve admission for manual previews. FIFO execution makes progress for already
+        // accepted work regardless of which kind submits next.
+        nonInteractiveLimit = Math.max(1, maximumOutstanding - Math.max(1, maximumOutstanding / 4));
+        timeoutNanos = unit.toNanos(timeout);
+        AtomicInteger number = new AtomicInteger();
+        ThreadFactory factory = runnable -> {
+            Thread thread = new Thread(runnable, "Mekanism-QIO-Planner-" + number.incrementAndGet());
+            thread.setDaemon(true);
+            return thread;
+        };
+        workers = new ThreadPoolExecutor(workerCount, workerCount, 60, TimeUnit.SECONDS,
+                new ArrayBlockingQueue<>(queueCapacity), factory, new ThreadPoolExecutor.AbortPolicy());
+        workers.allowCoreThreadTimeOut(true);
+        watchdog = timeout == 0 ? null : new ScheduledThreadPoolExecutor(1, runnable -> {
+            Thread thread = new Thread(runnable, "Mekanism-QIO-Planner-Watchdog");
+            thread.setDaemon(true);
+            return thread;
+        });
+        if (watchdog != null) watchdog.setRemoveOnCancelPolicy(true);
+    }
+
+    public static int defaultWorkerCount() {
+        return Math.max(1, Math.min(4, Runtime.getRuntime().availableProcessors() - 1));
+    }
+
+    @Nonnull
+    public <I, O> Submission submit(@Nonnull I input, @Nonnull PlanningTask<I, O> task,
+                                    @Nonnull Consumer<PlanningResult<O>> completion) {
+        return submit(TaskKind.INTERACTIVE, input, task, completion);
+    }
+
+    @Nonnull
+    public synchronized <I, O> Submission submit(@Nonnull TaskKind kind, @Nonnull I input,
+                                                 @Nonnull PlanningTask<I, O> task, @Nonnull Consumer<PlanningResult<O>> completion) {
+        Objects.requireNonNull(kind, "kind");
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(task, "task");
+        Objects.requireNonNull(completion, "completion");
+        UUID id = UUID.randomUUID();
+        if (!accepting) return new Submission(id, SubmissionStatus.SHUTDOWN);
+        if (tasks.size() >= maximumOutstanding || kind != TaskKind.INTERACTIVE &&
+                nonInteractiveCount() >= nonInteractiveLimit) {
+            return new Submission(id, SubmissionStatus.BUSY);
         }
-        List<TaskControl> active;
+        TaskControl<O> control = new TaskControl<>(id, kind,
+                cancellation -> task.plan(input, cancellation), completion);
+        tasks.put(id, control);
+        try {
+            workers.execute(control);
+            if (watchdog != null) {
+                control.timeoutFuture = watchdog.schedule(() -> cancel(id, true),
+                        timeoutNanos, TimeUnit.NANOSECONDS);
+            }
+            return new Submission(id, SubmissionStatus.ACCEPTED);
+        } catch (RejectedExecutionException e) {
+            workers.remove(control);
+            tasks.remove(id);
+            return new Submission(id, accepting ? SubmissionStatus.BUSY : SubmissionStatus.SHUTDOWN);
+        }
+    }
+
+    public boolean cancel(UUID taskId) {
+        return cancel(taskId, false);
+    }
+
+    private synchronized boolean cancel(UUID taskId, boolean timedOut) {
+        TaskControl<?> control = tasks.get(taskId);
+        if (control == null || control.cancelled || timedOut && control.result != null) return false;
+        control.cancelled = true;
+        control.timedOut = timedOut;
+        if (control.continuation != null) control.continuation.cancel(control.id);
+        continuations.remove(control);
+        resumptions.remove(control);
+        if (control.worker != null) {
+            // Clearing worker uses this same lock; cancellation cannot interrupt a later
+            // task after this thread has returned to the pool.
+            control.worker.interrupt();
+        } else if (control.result == null) {
+            workers.remove(control);
+            if (control.continuation == null) {
+                control.queueNanos += elapsed(control.queuedAt, System.nanoTime());
+            }
+            control.finish(null, null);
+        }
+        return true;
+    }
+
+    /**
+     * Counts owner-thread progress separately from published results.
+     */
+    static final class DrainResult {
+        final int work;
+        final int completed;
+
+        private DrainResult(int work, int completed) {
+            this.work = work;
+            this.completed = completed;
+        }
+    }
+
+    /**
+     * Server-thread publication only. No executor lock is held while invoking callbacks.
+     */
+    public int drainCompleted(int limit) {
+        return drainWork(limit).completed;
+    }
+
+    /**
+     * A continuation handoff is useful progress even if no plan has finished yet.
+     */
+    DrainResult drainWork(int limit) {
+        requireOwnerThread();
+        int drained = 0;
+        while (drained < limit) {
+            TaskControl<?> control;
+            synchronized (this) {
+                if (!accepting || (control = completed.pollFirst()) == null) break;
+                tasks.remove(control.id);
+                control.result.publishedNanos = System.nanoTime();
+            }
+            control.publish();
+            drained++;
+        }
+        return new DrainResult(drained + drainContinuations(limit - drained), drained);
+    }
+
+    /**
+     * Admits continuations without spinning on a full validation or worker queue.
+     */
+    private int drainContinuations(int limit) {
+        int advanced = 0;
+        int count;
+        // Already validated tasks must not sit behind a full validation queue.
         synchronized (this) {
-            active = new ArrayList<>(tasks.size());
-            for (TaskControl control : tasks.values()) {
-                if (!control.finished.get() && !control.cancelled.get()) {
-                    active.add(control);
+            count = Math.min(Math.max(0, limit), resumptions.size());
+            for (int index = 0; index < count; index++) {
+                TaskControl<?> control = resumptions.pollFirst();
+                if (!accepting || control.cancelled || control.result != null) continue;
+                try {
+                    workers.execute(control);
+                    advanced++;
+                } catch (RejectedExecutionException busy) {
+                    resumptions.addFirst(control);
+                    break;
                 }
             }
         }
-        if (active.isEmpty()) {
-            return 0;
+        limit -= advanced;
+        synchronized (this) {
+            count = Math.min(Math.max(0, limit), continuations.size());
         }
-        long sliceNanos = Math.max(MINIMUM_SLICE_NANOS, budgetNanos / active.size());
-        int advanced = 0;
-        for (TaskControl control : active) {
-            if (control.runFor(sliceNanos)) {
+        for (int index = 0; index < count; index++) {
+            TaskControl<?> control;
+            QIOPlanningContinuation pending;
+            synchronized (this) {
+                control = continuations.pollFirst();
+                if (control == null) break;
+                if (!accepting || control.cancelled || control.result != null) continue;
+                pending = control.continuation;
+            }
+            try {
+                boolean admitted = pending.submit(control.id, () -> resume(control, pending),
+                        error -> failContinuation(control, pending, error));
+                if (admitted) advanced++;
+                synchronized (this) {
+                    if (!admitted && accepting && !control.cancelled && control.result == null &&
+                            control.continuation == pending) continuations.addLast(control);
+                }
+            } catch (RuntimeException error) {
+                failContinuation(control, pending, error);
                 advanced++;
             }
         }
         return advanced;
     }
 
-    /** Runs completion callbacks on the caller thread and never waits for a worker. */
-    public int drainCompleted(int limit) {
-        if (limit <= 0) {
-            return 0;
+    private synchronized void resume(TaskControl<?> control, QIOPlanningContinuation pending) {
+        if (!accepting || control.cancelled || control.result != null || control.continuation != pending) return;
+        control.continuation = null;
+        continuations.remove(control);
+        long now = System.nanoTime();
+        control.validationWaitNanos += elapsed(control.suspendedAt, now);
+        control.queuedAt = now;
+        // Validation already finished on the owner thread. A free worker must not wait
+        // for the next tick merely to leave the resumption queue.
+        try {
+            workers.execute(control);
+        } catch (RejectedExecutionException busy) {
+            resumptions.addLast(control);
         }
-        int drained = 0;
-        CompletedTask<?> task;
-        while (drained < limit && (task = completed.poll()) != null) {
-            synchronized (this) {
-                tasks.remove(task.taskId);
-            }
-            task.complete();
-            drained++;
-        }
-        return drained;
     }
 
-    /** Current cached worker count; this grows with concurrent calculations and later shrinks. */
+    private synchronized void failContinuation(TaskControl<?> control, QIOPlanningContinuation pending, Throwable error) {
+        if (!accepting || control.result != null || control.continuation != pending) return;
+        pending.cancel(control.id);
+        control.continuation = null;
+        continuations.remove(control);
+        control.validationWaitNanos += elapsed(control.suspendedAt, System.nanoTime());
+        control.finish(null, Objects.requireNonNull(error));
+    }
+
     public int getWorkerCount() {
         return workers.getPoolSize();
     }
 
-    /** Cached workers hand tasks off directly and therefore have no executor waiting queue. */
+    /**
+     * Nonblocking progress/cancellation snapshot; open CPU scopes are deliberately excluded.
+     */
+    public synchronized QIOPlanningMetrics.Snapshot snapshotMetrics(UUID id) {
+        TaskControl<?> task = tasks.get(id);
+        if (task == null) return QIOPlanningMetrics.Snapshot.EMPTY;
+        QIOPlanningMetrics copy = new QIOPlanningMetrics();
+        copy.merge(task.metrics.snapshot());
+        long now = System.nanoTime();
+        copy.add(QIOPlanningMetrics.Metric.WORKER_QUEUE_NS, task.queueNanos);
+        copy.add(QIOPlanningMetrics.Metric.WORKER_NS, task.executionNanos);
+        if (task.result != null) {
+            copy.add(QIOPlanningMetrics.Metric.DELIVERY_WAIT_NS, elapsed(task.result.finishedNanos, now));
+        } else {
+            copy.add(QIOPlanningMetrics.Metric.PARTIAL_SNAPSHOTS, 1);
+            if (task.worker != null) copy.add(QIOPlanningMetrics.Metric.WORKER_NS, elapsed(task.runningAt, now));
+            else if (task.continuation == null)
+                copy.add(QIOPlanningMetrics.Metric.WORKER_QUEUE_NS, elapsed(task.queuedAt, now));
+        }
+        return copy.snapshot();
+    }
+
     public int getQueuedTaskCount() {
-        return 0;
+        return workers.getQueue().size();
     }
 
     public synchronized int getActiveTaskCount() {
         int active = 0;
-        for (TaskControl control : tasks.values()) {
-            if (!control.finished.get() && !control.cancelled.get()) {
-                active++;
-            }
-        }
+        for (TaskControl<?> task : tasks.values()) if (task.result == null) active++;
         return active;
     }
 
-    public int getPendingCompletionCount() {
+    public synchronized int getPendingCompletionCount() {
         return completed.size();
     }
 
-    public boolean isAccepting() {
-        return accepting.get() && !workers.isShutdown();
+    public synchronized boolean isAccepting() {
+        return accepting;
     }
 
-    public void shutdown(long timeout, TimeUnit unit) {
-        List<TaskControl> controls;
-        synchronized (this) {
-            if (!accepting.compareAndSet(true, false)) {
-                return;
-            }
-            controls = new ArrayList<>(tasks.values());
-        }
-        for (TaskControl control : controls) {
-            control.cancel(false);
+    /**
+     * Stops admission and invalidates every callback immediately. Does not join workers on the
+     * server thread. Old timeout parameters are retained for source compatibility only.
+     */
+    public synchronized void shutdown(long timeout, TimeUnit unit) {
+        requireOwnerThread();
+        Objects.requireNonNull(unit, "unit");
+        if (!accepting) return;
+        accepting = false;
+        for (TaskControl<?> control : tasks.values()) {
+            control.cancelled = true;
+            if (control.worker == null) control.local.clear();
+            if (control.continuation != null) control.continuation.cancel(control.id);
+            if (control.timeoutFuture != null) control.timeoutFuture.cancel(false);
+            if (control.worker != null) control.worker.interrupt();
         }
         workers.shutdownNow();
-        if (timeoutScheduler != null) {
-            timeoutScheduler.shutdownNow();
-        }
-        try {
-            if (!workers.awaitTermination(Math.max(0, timeout),
-                  Objects.requireNonNull(unit, "unit"))) {
-                Mekanism.logger.warn("QIO planning workers did not terminate within the shutdown budget");
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-        synchronized (this) {
-            tasks.clear();
-        }
+        if (watchdog != null) watchdog.shutdownNow();
+        tasks.clear();
         completed.clear();
+        continuations.clear();
+        resumptions.clear();
     }
 
     @Override
     public void close() {
-        shutdown(5, TimeUnit.SECONDS);
+        shutdown(0, TimeUnit.NANOSECONDS);
     }
 
-    private <I, O> void execute(UUID taskId, I input, PlanningTask<I, O> task,
-          Consumer<PlanningResult<O>> completion, TaskControl control) {
-        control.worker = Thread.currentThread();
-        long started = System.nanoTime();
-        PlanningResult<O> result;
-        try {
-            if (!control.awaitSlice()) {
-                result = cancelledResult(taskId, control, started);
-            } else {
-                O value = task.plan(input, control::checkpoint);
-                ResultStatus status = control.timedOut.get() ? ResultStatus.TIMED_OUT :
-                      control.cancelled.get() || Thread.currentThread().isInterrupted() ?
-                            ResultStatus.CANCELLED : ResultStatus.SUCCESS;
-                result = new PlanningResult<>(taskId, status,
-                      status == ResultStatus.SUCCESS ? value : null,
-                      status == ResultStatus.TIMED_OUT ? timeoutException() : null,
-                      System.nanoTime() - started);
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            result = cancelledResult(taskId, control, started);
-        } catch (Throwable error) {
-            boolean timedOut = control.timedOut.get();
-            boolean cancelled = control.cancelled.get() ||
-                  Thread.currentThread().isInterrupted();
-            result = new PlanningResult<>(taskId,
-                  timedOut ? ResultStatus.TIMED_OUT : cancelled ? ResultStatus.CANCELLED :
-                        ResultStatus.FAILED,
-                  null, timedOut ? timeoutException() : error,
-                  System.nanoTime() - started);
-        } finally {
-            control.worker = null;
-            control.finish();
-            cancelTimeout(control);
-        }
-        completed.add(new CompletedTask<>(taskId, result, completion));
-    }
-
-    private static <O> PlanningResult<O> cancelledResult(UUID taskId, TaskControl control,
-          long started) {
-        boolean timedOut = control.timedOut.get();
-        return new PlanningResult<>(taskId,
-              timedOut ? ResultStatus.TIMED_OUT : ResultStatus.CANCELLED, null,
-              timedOut ? timeoutException() : null, System.nanoTime() - started);
-    }
-
-    private static java.util.concurrent.TimeoutException timeoutException() {
-        return new java.util.concurrent.TimeoutException(
-              "QIO planning task exceeded its time budget");
-    }
-
-    private static void cancelTimeout(TaskControl control) {
-        ScheduledFuture<?> future = control.timeoutFuture;
-        if (future != null) {
-            future.cancel(false);
+    private void requireOwnerThread() {
+        if (Thread.currentThread() != ownerThread) {
+            throw new IllegalStateException("QIO result publication and shutdown require the server owner thread");
         }
     }
 
-    private static final class TaskControl {
-
-        private final Object monitor = new Object();
-        private final AtomicBoolean cancelled = new AtomicBoolean();
-        private final AtomicBoolean timedOut = new AtomicBoolean();
-        private final AtomicBoolean finished = new AtomicBoolean();
-        private final long deadlineNanos;
-        private volatile Thread worker;
-        private boolean running;
-        private long sliceDeadlineNanos;
-        @Nullable private volatile ScheduledFuture<?> timeoutFuture;
-
-        private TaskControl(long timeoutNanos) {
-            deadlineNanos = timeoutNanos == NO_TIMEOUT ? NO_TIMEOUT :
-                  saturatedAdd(System.nanoTime(), timeoutNanos);
-        }
-
-        private boolean runFor(long sliceNanos) {
-            synchronized (monitor) {
-                if (finished.get() || cancelled.get()) {
-                    return false;
-                }
-                sliceDeadlineNanos = saturatedAdd(System.nanoTime(), sliceNanos);
-                running = true;
-                monitor.notifyAll();
-                boolean interrupted = false;
-                while (running && !finished.get() && !cancelled.get()) {
-                    try {
-                        monitor.wait();
-                    } catch (InterruptedException e) {
-                        interrupted = true;
-                    }
-                }
-                if (interrupted) {
-                    Thread.currentThread().interrupt();
-                }
-                return true;
-            }
-        }
-
-        private boolean checkpoint() {
-            try {
-                return !awaitSlice();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                cancel(false);
-                return true;
-            }
-        }
-
-        private boolean awaitSlice() throws InterruptedException {
-            synchronized (monitor) {
-                while (!cancelled.get() && !finished.get() && !deadlineReached()) {
-                    if (running && System.nanoTime() - sliceDeadlineNanos < 0) {
-                        return true;
-                    }
-                    if (running) {
-                        running = false;
-                        monitor.notifyAll();
-                    }
-                    monitor.wait();
-                }
-                return false;
-            }
-        }
-
-        private boolean cancel(boolean timeout) {
-            if (!cancelled.compareAndSet(false, true)) {
-                return false;
-            }
-            if (timeout) {
-                timedOut.set(true);
-            }
-            synchronized (monitor) {
-                running = false;
-                monitor.notifyAll();
-            }
-            Thread activeWorker = worker;
-            if (activeWorker != null) {
-                activeWorker.interrupt();
-            }
-            return true;
-        }
-
-        private void finish() {
-            finished.set(true);
-            synchronized (monitor) {
-                running = false;
-                monitor.notifyAll();
-            }
-        }
-
-        private boolean deadlineReached() {
-            if (deadlineNanos != NO_TIMEOUT && System.nanoTime() - deadlineNanos >= 0) {
-                timedOut.set(true);
-                cancelled.set(true);
-                return true;
-            }
-            return false;
-        }
-
-        private static long saturatedAdd(long left, long right) {
-            return left > Long.MAX_VALUE - right ? Long.MAX_VALUE : left + right;
-        }
+    private int nonInteractiveCount() {
+        int count = 0;
+        for (TaskControl<?> task : tasks.values()) if (task.kind != TaskKind.INTERACTIVE) count++;
+        return count;
     }
 
-    private static final class CompletedTask<O> {
+    private static long elapsed(long start, long end) {
+        return Math.max(0, end - start);
+    }
 
-        private final UUID taskId;
-        private final PlanningResult<O> result;
+    @FunctionalInterface
+    private interface Calculation<O> {
+        O run(CancellationToken token) throws Exception;
+    }
+
+    private final class TaskControl<O> implements Runnable {
+        private final UUID id;
+        private final TaskKind kind;
+        private final Calculation<O> calculation;
+        private final Map<Object, Object> local = new LinkedHashMap<>();
+        private final QIOPlanningMetrics metrics = new QIOPlanningMetrics();
         private final Consumer<PlanningResult<O>> completion;
+        private final long submittedNanos = System.nanoTime();
+        private long startedNanos;
+        private boolean started;
+        private long queuedAt = submittedNanos;
+        private long executionNanos;
+        private long runningAt;
+        private long queueNanos;
+        private long validationWaitNanos;
+        private long suspendedAt;
+        @Nullable
+        private QIOPlanningContinuation continuation;
+        private volatile boolean cancelled;
+        private boolean timedOut;
+        @Nullable
+        private Thread worker;
+        @Nullable
+        private ScheduledFuture<?> timeoutFuture;
+        @Nullable
+        private PlanningResult<O> result;
 
-        private CompletedTask(UUID taskId, PlanningResult<O> result,
-              Consumer<PlanningResult<O>> completion) {
-            this.taskId = taskId;
-            this.result = result;
+        private TaskControl(UUID id, TaskKind kind, Calculation<O> calculation,
+                            Consumer<PlanningResult<O>> completion) {
+            this.id = id;
+            this.kind = kind;
+            this.calculation = calculation;
             this.completion = completion;
+            local.put(QIOPlanningMetrics.class, metrics);
         }
 
-        private void complete() {
+        @Override
+        public void run() {
+            long attemptStarted;
+            synchronized (QIOPlanningExecutor.this) {
+                if (!accepting || result != null) return;
+                worker = Thread.currentThread();
+                attemptStarted = System.nanoTime();
+                runningAt = attemptStarted;
+                if (!started) startedNanos = attemptStarted;
+                queueNanos += elapsed(queuedAt, attemptStarted);
+                started = true;
+            }
+            O value = null;
+            long cpuStarted = QIOPlanningMetrics.cpuNow();
+            Throwable error = null;
+            QIOPlanningContinuation yielded = null;
             try {
-                completion.accept(result);
+                LOCAL.set(local);
+                if (!cancelled) value = calculation.run(
+                        () -> cancelled || Thread.currentThread().isInterrupted());
+            } catch (QIOPlanningContinuation pending) {
+                yielded = pending;
+            } catch (InterruptedException | CancellationException e) {
+                cancelled = true;
+                error = e;
+            } catch (Throwable e) {
+                error = e;
+            } finally {
+                QIOPlanningMetrics metrics = currentMetrics();
+                metrics.add(QIOPlanningMetrics.Metric.WORKER_RUNS, 1);
+                metrics.cpu(QIOPlanningMetrics.Metric.WORKER_CPU_NS, QIOPlanningMetrics.Metric.WORKER_CPU_SAMPLES, cpuStarted);
+                LOCAL.remove();
+                synchronized (QIOPlanningExecutor.this) {
+                    if (Thread.currentThread().isInterrupted()) cancelled = true;
+                    worker = null;
+                    long now = System.nanoTime();
+                    executionNanos += elapsed(attemptStarted, now);
+                    if (yielded != null && accepting && !cancelled) {
+                        continuation = yielded;
+                        suspendedAt = now;
+                        continuations.addLast(this);
+                    } else finish(value, error);
+                }
+            }
+        }
+
+        /**
+         * Called under the executor lock, once even if cancellation wins before execution.
+         */
+        private void finish(@Nullable O value, @Nullable Throwable error) {
+            if (result != null) return;
+            QIOPlanningMetrics taskMetrics = (QIOPlanningMetrics) local.get(QIOPlanningMetrics.class);
+            QIOPlanningMetrics.Snapshot metrics = taskMetrics == null ? QIOPlanningMetrics.Snapshot.EMPTY : taskMetrics.snapshot();
+            local.clear();
+            long finishedNanos = System.nanoTime();
+            ResultStatus status = timedOut ? ResultStatus.TIMED_OUT : cancelled ?
+                    ResultStatus.CANCELLED : error == null ? ResultStatus.SUCCESS : ResultStatus.FAILED;
+            result = new PlanningResult<>(id, status, status == ResultStatus.SUCCESS ? value : null,
+                    timedOut ? new java.util.concurrent.TimeoutException("QIO planning deadline exceeded") : error,
+                    submittedNanos, started ? startedNanos : finishedNanos, finishedNanos);
+            result.executionNanos = executionNanos;
+            result.metrics = metrics;
+            result.queueNanos = queueNanos;
+            result.validationWaitNanos = validationWaitNanos +
+                    (continuation == null ? 0 : elapsed(suspendedAt, finishedNanos));
+            if (timeoutFuture != null) timeoutFuture.cancel(false);
+            if (accepting) completed.addLast(this);
+        }
+
+        private void publish() {
+            PlanningResult<O> published = result;
+            // Cancellation may arrive after calculation but before the main-thread callback.
+            if (cancelled && published.status == ResultStatus.SUCCESS) {
+                published = new PlanningResult<>(id, ResultStatus.CANCELLED, null, null,
+                        published.submittedNanos, published.startedNanos, published.finishedNanos);
+                published.publishedNanos = result.publishedNanos;
+                published.executionNanos = result.executionNanos;
+                published.queueNanos = result.queueNanos;
+                published.validationWaitNanos = result.validationWaitNanos;
+                published.metrics = result.metrics;
+            }
+            try {
+                completion.accept(published);
             } catch (RuntimeException e) {
                 Mekanism.logger.error("A QIO planning completion callback failed", e);
             }

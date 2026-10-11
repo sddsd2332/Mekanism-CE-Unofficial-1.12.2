@@ -15,7 +15,9 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Immutable network/view representation of one QIO resource and its amount. */
+/**
+ * Immutable network/view representation of one QIO resource and its amount.
+ */
 public final class QIOResourceEntry {
 
     private final UUID uuid;
@@ -28,7 +30,7 @@ public final class QIOResourceEntry {
     }
 
     private QIOResourceEntry(UUID uuid, QIOResourceDescriptor descriptor, QIOAmount amount,
-          boolean displayPayloadAvailable) {
+                             boolean displayPayloadAvailable) {
         this.uuid = Objects.requireNonNull(uuid, "uuid");
         this.descriptor = Objects.requireNonNull(descriptor, "descriptor");
         this.amount = amount == null ? QIOAmount.ZERO : amount;
@@ -60,7 +62,9 @@ public final class QIOResourceEntry {
         return descriptor;
     }
 
-    /** @deprecated Use {@link #getDescriptor()}; null means a custom codec. */
+    /**
+     * @deprecated Use {@link #getDescriptor()}; null means a custom codec.
+     */
     @Deprecated
     @Nullable
     public QIOResourceKind getKind() {
@@ -80,7 +84,9 @@ public final class QIOResourceEntry {
         return descriptor.getStorageUnitsPerUnit();
     }
 
-    /** False when an oversized codec payload was intentionally replaced by the generic fallback. */
+    /**
+     * False when an oversized codec payload was intentionally replaced by the generic fallback.
+     */
     public boolean hasDisplayPayload() {
         return displayPayloadAvailable;
     }
@@ -134,8 +140,8 @@ public final class QIOResourceEntry {
     @Override
     public boolean equals(Object obj) {
         return obj == this || obj instanceof QIOResourceEntry other && uuid.equals(other.uuid) &&
-              descriptor.equals(other.descriptor) && amount.equals(other.amount) &&
-              displayPayloadAvailable == other.displayPayloadAvailable;
+                descriptor.equals(other.descriptor) && amount.equals(other.amount) &&
+                displayPayloadAvailable == other.displayPayloadAvailable;
     }
 
     @Override
@@ -148,12 +154,14 @@ public final class QIOResourceEntry {
         buffer.writeLong(uuid.getLeastSignificantBits());
         amount.write(buffer);
         boolean includePayload = displayPayloadAvailable &&
-              QIONetworkResourceLimits.isSafeDescriptorPayload(descriptor.getPayload());
+                QIONetworkResourceLimits.isSafeDescriptorPayload(descriptor.getPayload());
         buffer.writeBoolean(includePayload);
         PacketHandler.writeNBT(buffer, includePayload ? descriptor.write() : networkFallbackDescriptor().write());
     }
 
-    /** Exact encoded size after applying the per-descriptor fallback. */
+    /**
+     * Exact encoded size after applying the per-descriptor fallback.
+     */
     public int getNetworkEncodedSize() {
         ByteBuf temporary = Unpooled.buffer();
         try {
@@ -190,6 +198,6 @@ public final class QIOResourceEntry {
 
     private QIOResourceDescriptor networkFallbackDescriptor() {
         return QIOResourceDescriptor.persisted(descriptor.getCodecId(), descriptor.getFamily(),
-              descriptor.getCodecVersion(), descriptor.getStorageUnitsPerUnit(), new NBTTagCompound());
+                descriptor.getCodecVersion(), descriptor.getStorageUnitsPerUnit(), new NBTTagCompound());
     }
 }

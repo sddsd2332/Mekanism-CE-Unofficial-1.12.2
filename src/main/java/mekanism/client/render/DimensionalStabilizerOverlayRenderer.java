@@ -68,7 +68,7 @@ public final class DimensionalStabilizerOverlayRenderer {
         GlStateManager.depthMask(false);
         GlStateManager.enableBlend();
         GlStateManager.tryBlendFuncSeparate(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA,
-              GlStateManager.SourceFactor.ONE, GlStateManager.DestFactor.ZERO);
+                GlStateManager.SourceFactor.ONE, GlStateManager.DestFactor.ZERO);
 
         buffer.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_COLOR);
         for (TileEntityDimensionalStabilizer stabilizer : visibleStabilizers) {
@@ -139,19 +139,19 @@ public final class DimensionalStabilizerOverlayRenderer {
             boolean insidePiece = isInsideBounds(renderViewEntity, startMinX, startMinZ, endMaxX, endMaxZ);
             if (piece.renderNorth) {
                 addFace(buffer, renderMinX, renderMinY, renderMinZ, renderMinX, renderMaxY, renderMinZ, renderMaxX, renderMaxY, renderMinZ, renderMaxX, renderMinY, renderMinZ,
-                      NORTH_SOUTH_ALPHA, insidePiece);
+                        NORTH_SOUTH_ALPHA, insidePiece);
             }
             if (piece.renderSouth) {
                 addFace(buffer, renderMinX, renderMinY, renderMaxZ, renderMaxX, renderMinY, renderMaxZ, renderMaxX, renderMaxY, renderMaxZ, renderMinX, renderMaxY, renderMaxZ,
-                      NORTH_SOUTH_ALPHA, insidePiece);
+                        NORTH_SOUTH_ALPHA, insidePiece);
             }
             if (piece.renderWest) {
                 addFace(buffer, renderMinX, renderMinY, renderMinZ, renderMinX, renderMinY, renderMaxZ, renderMinX, renderMaxY, renderMaxZ, renderMinX, renderMaxY, renderMinZ,
-                      EAST_WEST_ALPHA, insidePiece);
+                        EAST_WEST_ALPHA, insidePiece);
             }
             if (piece.renderEast) {
                 addFace(buffer, renderMaxX, renderMinY, renderMinZ, renderMaxX, renderMaxY, renderMinZ, renderMaxX, renderMaxY, renderMaxZ, renderMaxX, renderMinY, renderMaxZ,
-                      EAST_WEST_ALPHA, insidePiece);
+                        EAST_WEST_ALPHA, insidePiece);
             }
         }
     }
@@ -208,7 +208,7 @@ public final class DimensionalStabilizerOverlayRenderer {
                     while (!renderSouth && z + zLength < rowRenderSides.length) {
                         boolean[] nextColumnRenderSides = rowRenderSides[z + zLength];
                         if (renderEast == nextColumnRenderSides[EAST] &&
-                            renderWest == nextColumnRenderSides[WEST]) {
+                                renderWest == nextColumnRenderSides[WEST]) {
                             zLength++;
                             renderSouth = nextColumnRenderSides[SOUTH];
                         } else {
@@ -217,7 +217,7 @@ public final class DimensionalStabilizerOverlayRenderer {
                     }
                     ColumnKey key = new ColumnKey(z, zLength, renderNorth, renderSouth);
                     columnData.computeIfAbsent(key, k -> new ArrayList<>(TileEntityDimensionalStabilizer.MAX_LOAD_DIAMETER))
-                          .add(new RowData(x, renderEast, renderWest));
+                            .add(new RowData(x, renderEast, renderWest));
                 }
                 z += zLength;
             }
@@ -240,7 +240,7 @@ public final class DimensionalStabilizerOverlayRenderer {
                     }
                 }
                 pieces.add(new RenderPiece(rowData.x, xLength, columnKey.z, columnKey.zLength, columnKey.renderNorth,
-                      columnKey.renderSouth, renderEast, rowData.renderWest));
+                        columnKey.renderSouth, renderEast, rowData.renderWest));
                 row += xLength;
             }
         }

@@ -20,17 +20,12 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.IdentityHashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
-/** Online directory for workbench processors; duplicate persistent UUIDs are fail-closed. */
+/**
+ * Online directory for workbench processors; duplicate persistent UUIDs are fail-closed.
+ */
+
 /**
  * QIO 处理模块中的 QIOCraftingProcessorDeviceRegistry 类型。
  *
@@ -40,7 +35,7 @@ import java.util.UUID;
 public final class QIOCraftingProcessorDeviceRegistry {
 
     public static final QIOCraftingProcessorDeviceRegistry INSTANCE =
-          new QIOCraftingProcessorDeviceRegistry();
+            new QIOCraftingProcessorDeviceRegistry();
 
     private final Map<UUID, Set<QIOCraftingProcessor>> processors = new LinkedHashMap<>();
     private final Map<QIOCraftingProcessor, UUID> identities = new IdentityHashMap<>();
@@ -59,7 +54,7 @@ public final class QIOCraftingProcessorDeviceRegistry {
         }
         identities.put(processor, uuid);
         processors.computeIfAbsent(uuid,
-              ignored -> Collections.newSetFromMap(new IdentityHashMap<>())).add(processor);
+                ignored -> Collections.newSetFromMap(new IdentityHashMap<>())).add(processor);
         refreshIdentityGroup(uuid);
     }
 
@@ -107,31 +102,31 @@ public final class QIOCraftingProcessorDeviceRegistry {
             result.add(new LoadedProcessor(entry.getKey(), processor));
         }
         result.sort(Comparator.comparingInt(LoadedProcessor::dimension)
-              .thenComparing(LoadedProcessor::position)
-              .thenComparing(loaded -> loaded.processorUUID().toString()));
+                .thenComparing(LoadedProcessor::position)
+                .thenComparing(loaded -> loaded.processorUUID().toString()));
         return Collections.unmodifiableList(result);
     }
 
     @Nullable
     public synchronized LoadedProcessor findAvailable(@Nonnull UUID processorUUID,
-          @Nonnull UUID frequencyUUID) {
+                                                      @Nonnull UUID frequencyUUID) {
         Set<QIOCraftingProcessor> matches = processors.get(processorUUID);
         if (matches == null || matches.size() != 1) {
             return null;
         }
         QIOCraftingProcessor processor = matches.iterator().next();
         return isAvailable(processor, frequencyUUID) ?
-              new LoadedProcessor(processorUUID, processor) : null;
+                new LoadedProcessor(processorUUID, processor) : null;
     }
 
     @Nullable
     public synchronized LoadedProcessor findLoaded(@Nonnull UUID processorUUID,
-          @Nonnull UUID frequencyUUID) {
+                                                   @Nonnull UUID frequencyUUID) {
         Set<QIOCraftingProcessor> matches = processors.get(processorUUID);
         if (matches == null || matches.size() != 1) return null;
         QIOCraftingProcessor processor = matches.iterator().next();
         return isLoaded(processor, frequencyUUID) ?
-              new LoadedProcessor(processorUUID, processor) : null;
+                new LoadedProcessor(processorUUID, processor) : null;
     }
 
     public synchronized boolean isIdentityConflicted(@Nonnull UUID processorUUID) {
@@ -155,12 +150,12 @@ public final class QIOCraftingProcessorDeviceRegistry {
         for (Set<QIOCraftingProcessor> matches : processors.values()) {
             for (QIOCraftingProcessor processor : matches) {
                 if (processor.getWorld() == event.getWorld() &&
-                      processor.getWorld().provider.getDimension() == dimension) {
+                        processor.getWorld().provider.getDimension() == dimension) {
                     if (processor.getProcessorState().confirmSettledLanesPersisted() &&
-                          processor.getFrequencyReference() != null) {
+                            processor.getFrequencyReference() != null) {
                         QIOProcessingExecutionService.INSTANCE.wakeDevice(
-                              processor.getFrequencyReference().getFrequencyUUID(),
-                              processor.getProcessorState().getProcessorUUID());
+                                processor.getFrequencyReference().getFrequencyUUID(),
+                                processor.getProcessorState().getProcessorUUID());
                     }
                 }
             }
@@ -190,9 +185,9 @@ public final class QIOCraftingProcessorDeviceRegistry {
 
     private void publish(QIOCraftingProcessor processor, boolean identityConflict) {
         if (processor == null || processor.isInvalid() || processor.getWorld() == null ||
-            processor.getWorld().isRemote ||
-            !processor.getWorld().isBlockLoaded(processor.getPos(), false) ||
-            processor.getWorld().getTileEntity(processor.getPos()) != processor) {
+                processor.getWorld().isRemote ||
+                !processor.getWorld().isBlockLoaded(processor.getPos(), false) ||
+                processor.getWorld().getTileEntity(processor.getPos()) != processor) {
             publishOffline(processor);
             return;
         }
@@ -207,52 +202,52 @@ public final class QIOCraftingProcessorDeviceRegistry {
         }
         UUID processorUUID = processor.getProcessorState().getProcessorUUID();
         QIOAutomationDeviceLocation location = QIOAutomationDeviceLocation.of(
-              processor.getWorld(), processor.getPos());
+                processor.getWorld(), processor.getPos());
         PublishedEndpoint previous = published.get(processor);
         if (previous != null && (!previous.frequencyUUID.equals(frequency.getFrequencyUUID()) ||
-            !previous.location.equals(location) || !previous.deviceUUID.equals(processorUUID))) {
+                !previous.location.equals(location) || !previous.deviceUUID.equals(processorUUID))) {
             forgetPublished(previous);
         }
         PublishedEndpoint endpoint = new PublishedEndpoint(processorUUID,
-              frequency.getFrequencyUUID(), location);
+                frequency.getFrequencyUUID(), location);
         published.put(processor, endpoint);
         Block block = processor.getBlockType();
         ResourceLocation blockId = block == null ? null : block.getRegistryName();
         QIOCraftingProcessorState state = processor.getProcessorState();
         boolean recoveryPending = state.hasRecoveryPending();
         String stateName = identityConflict ? "IDENTITY_CONFLICT" :
-              recoveryPending ? "DATA_ERROR" : state.getState().name();
+                recoveryPending ? "DATA_ERROR" : state.getState().name();
         if (QIOProcessingNetworkManager.INSTANCE.getIsolationStatus(
-              frequency.getFrequencyUUID()) != null) {
+                frequency.getFrequencyUUID()) != null) {
             directoryRejectedDevices.add(processorUUID);
             return;
         }
         try {
             QIOProcessingNetworkData network = QIOProcessingNetworkManager.INSTANCE.getOrCreate(
-                  frequency.getFrequencyUUID(), new QIOFrequencyIdentitySnapshot(
-                        frequency.getName(), frequency.getOwner(), frequency.getSecurity()));
+                    frequency.getFrequencyUUID(), new QIOFrequencyIdentitySnapshot(
+                            frequency.getName(), frequency.getOwner(), frequency.getSecurity()));
             QIOAutomationDeviceSnapshot snapshot = new QIOAutomationDeviceSnapshot(
-                  processorUUID, location,
-                  QIOAutomationDeviceSnapshot.Kind.CRAFTING_PROCESSOR,
-                  blockId == null ? "minecraft:air" : blockId.toString(),
-                  Math.max(0, processor.getBlockMetadata()),
-                  state.getDefinitionId().toString(), state.getHostId().toString(),
-                  stateName, true, Math.max(0, processor.getWorld().getTotalWorldTime()),
-                  processor.getManagementConfigurationRevision(), 0, processor.getLaneCount(),
-                  Math.min(Integer.MAX_VALUE, state.getActiveLanes().size()),
-                  processor.isManagementPaused(),
-                  identityConflict ? "Duplicate QIO crafting processor UUID" :
-                   recoveryPending && state.getDiagnostic() == null ?
-                         "QIO crafting processor recovery is pending" : state.getDiagnostic());
+                    processorUUID, location,
+                    QIOAutomationDeviceSnapshot.Kind.CRAFTING_PROCESSOR,
+                    blockId == null ? "minecraft:air" : blockId.toString(),
+                    Math.max(0, processor.getBlockMetadata()),
+                    state.getDefinitionId().toString(), state.getHostId().toString(),
+                    stateName, true, Math.max(0, processor.getWorld().getTotalWorldTime()),
+                    processor.getManagementConfigurationRevision(), 0, processor.getLaneCount(),
+                    Math.min(Integer.MAX_VALUE, state.getActiveLanes().size()),
+                    processor.isManagementPaused(),
+                    identityConflict ? "Duplicate QIO crafting processor UUID" :
+                            recoveryPending && state.getDiagnostic() == null ?
+                                    "QIO crafting processor recovery is pending" : state.getDiagnostic());
             network.observeAutomationDevice(snapshot,
-                  MekanismConfig.current().qioProcessing.deviceRecordsPerFrequency.val());
+                    MekanismConfig.current().qioProcessing.deviceRecordsPerFrequency.val());
             directoryRejectedDevices.remove(processorUUID);
         } catch (IsolatedNetworkException e) {
             directoryRejectedDevices.add(processorUUID);
         } catch (RuntimeException e) {
             if (directoryRejectedDevices.add(processorUUID)) {
                 Mekanism.logger.warn("Unable to publish QIO crafting processor {} to frequency {}",
-                      processorUUID, frequency.getFrequencyUUID(), e);
+                        processorUUID, frequency.getFrequencyUUID(), e);
             }
         }
     }
@@ -263,16 +258,16 @@ public final class QIOCraftingProcessorDeviceRegistry {
             return;
         }
         long currentTick = processor != null && processor.getWorld() != null ?
-              Math.max(0, processor.getWorld().getTotalWorldTime()) : 0;
+                Math.max(0, processor.getWorld().getTotalWorldTime()) : 0;
         publishOffline(endpoint, currentTick);
     }
 
     private static void publishOffline(PublishedEndpoint endpoint, long currentTick) {
         QIOProcessingNetworkData network = QIOProcessingNetworkManager.INSTANCE.get(
-              endpoint.frequencyUUID);
+                endpoint.frequencyUUID);
         if (network != null) {
             network.markAutomationDeviceOffline(endpoint.deviceUUID, endpoint.location,
-                  currentTick);
+                    currentTick);
         }
     }
 
@@ -285,35 +280,35 @@ public final class QIOCraftingProcessorDeviceRegistry {
 
     private static void forgetPublished(PublishedEndpoint endpoint) {
         QIOProcessingNetworkData network = QIOProcessingNetworkManager.INSTANCE.get(
-              endpoint.frequencyUUID);
+                endpoint.frequencyUUID);
         if (network != null) {
             network.forgetAutomationDeviceMembership(endpoint.deviceUUID,
-                  endpoint.location);
+                    endpoint.location);
         }
     }
 
     private static boolean isLoadedInvalidation(QIOCraftingProcessor processor) {
         return processor.getWorld() != null && !processor.getWorld().isRemote &&
-              processor.getWorld().isBlockLoaded(processor.getPos(), false) &&
-              (processor.isInvalid() || processor.getWorld().getTileEntity(
-                    processor.getPos()) != processor);
+                processor.getWorld().isBlockLoaded(processor.getPos(), false) &&
+                (processor.isInvalid() || processor.getWorld().getTileEntity(
+                        processor.getPos()) != processor);
     }
 
     private static boolean isAvailable(QIOCraftingProcessor processor, UUID frequencyUUID) {
         if (!isLoaded(processor, frequencyUUID) ||
-              processor.getProcessorState().getState() != QIOCraftingProcessorState.State.ACTIVE ||
-              processor.isManagementPaused()) return false;
+                processor.getProcessorState().getState() != QIOCraftingProcessorState.State.ACTIVE ||
+                processor.isManagementPaused()) return false;
         return true;
     }
 
     private static boolean isLoaded(QIOCraftingProcessor processor, UUID frequencyUUID) {
         if (processor == null || processor.isInvalid() || processor.getWorld() == null ||
-            processor.getWorld().isRemote ||
-            !processor.getWorld().isBlockLoaded(processor.getPos(), false) ||
-            processor.getWorld().getTileEntity(processor.getPos()) != processor) return false;
+                processor.getWorld().isRemote ||
+                !processor.getWorld().isBlockLoaded(processor.getPos(), false) ||
+                processor.getWorld().getTileEntity(processor.getPos()) != processor) return false;
         QIOFrequency frequency = processor.getQIOFrequency();
         return frequency != null && frequency.isValid() && !frequency.isRemoved() &&
-              frequencyUUID.equals(frequency.getFrequencyUUID());
+                frequencyUUID.equals(frequency.getFrequencyUUID());
     }
 
     private static final class PublishedEndpoint {
@@ -323,7 +318,7 @@ public final class QIOCraftingProcessorDeviceRegistry {
         private final QIOAutomationDeviceLocation location;
 
         private PublishedEndpoint(UUID deviceUUID, UUID frequencyUUID,
-              QIOAutomationDeviceLocation location) {
+                                  QIOAutomationDeviceLocation location) {
             this.deviceUUID = deviceUUID;
             this.frequencyUUID = frequencyUUID;
             this.location = location;

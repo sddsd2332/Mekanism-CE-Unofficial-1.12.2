@@ -41,7 +41,6 @@ public class ItemAlloy extends ItemMekanism {
     }
 
 
-
     public AlloyTier getTier() {
         return tier;
     }

@@ -28,7 +28,7 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class PacketQIOManagementDeviceGroupPageData implements
-      IMessageHandler<PacketQIOManagementDeviceGroupPageData.Message, IMessage> {
+        IMessageHandler<PacketQIOManagementDeviceGroupPageData.Message, IMessage> {
 
     private static final int MAX_PAGE_SIZE = 1_024;
 
@@ -38,15 +38,15 @@ public final class PacketQIOManagementDeviceGroupPageData implements
         if (player == null || !player.world.isRemote) return null;
         PacketHandler.handlePacket(() -> {
             if (!message.valid ||
-                !(player.openContainer instanceof QIOManagementDevicePageContainer container) ||
-                player.openContainer.windowId != message.windowId) return;
+                    !(player.openContainer instanceof QIOManagementDevicePageContainer container) ||
+                    player.openContainer.windowId != message.windowId) return;
             QIOProcessingTerminalContainerState state = container.getTerminalState();
             if (!state.matches(message.sessionNonce, message.terminalUUID,
-                  message.targetRevision, message.frequencyUUID,
-                  message.accessRevision)) return;
+                    message.targetRevision, message.frequencyUUID,
+                    message.accessRevision)) return;
             container.getDeviceGroupClientCache().apply(message.sessionNonce,
-                  message.sourceRevision, message.offset, message.totalSize,
-                  message.groups, message.nextCursor);
+                    message.sourceRevision, message.offset, message.totalSize,
+                    message.groups, message.nextCursor);
         }, player);
         return null;
     }
@@ -63,14 +63,15 @@ public final class PacketQIOManagementDeviceGroupPageData implements
         private int offset;
         private int totalSize;
         private List<QIOManagementDeviceGroupSnapshot> groups = Collections.emptyList();
-        @Nullable private QIOPageCursor nextCursor;
+        @Nullable
+        private QIOPageCursor nextCursor;
         private boolean valid;
 
         public Message() {
         }
 
         public static Message create(int windowId, QIOProcessingTerminalSession session,
-              QIOPage<QIOManagementDeviceGroupSnapshot> page) {
+                                     QIOPage<QIOManagementDeviceGroupSnapshot> page) {
             Message message = new Message();
             if (session != null && session.getFrequencyUUID() != null) {
                 message.windowId = windowId;
@@ -83,7 +84,7 @@ public final class PacketQIOManagementDeviceGroupPageData implements
                 message.offset = page.getOffset();
                 message.totalSize = page.getTotalSize();
                 message.groups = Collections.unmodifiableList(
-                      new ArrayList<>(page.getEntries()));
+                        new ArrayList<>(page.getEntries()));
                 message.nextCursor = page.getNextCursor();
                 message.valid = message.shape();
             }
@@ -139,21 +140,25 @@ public final class PacketQIOManagementDeviceGroupPageData implements
             }
         }
 
-        public boolean isValid() { return valid; }
+        public boolean isValid() {
+            return valid;
+        }
 
-        List<QIOManagementDeviceGroupSnapshot> getGroups() { return groups; }
+        List<QIOManagementDeviceGroupSnapshot> getGroups() {
+            return groups;
+        }
 
         private boolean shape() {
             if (windowId < 0 || sessionNonce == null || terminalUUID == null ||
-                targetRevision < 0 || frequencyUUID == null || accessRevision < 0 ||
-                sourceRevision < 0 || offset < 0 || totalSize < 0 ||
-                offset > totalSize || groups.size() > MAX_PAGE_SIZE ||
-                groups.size() > totalSize - offset) return false;
+                    targetRevision < 0 || frequencyUUID == null || accessRevision < 0 ||
+                    sourceRevision < 0 || offset < 0 || totalSize < 0 ||
+                    offset > totalSize || groups.size() > MAX_PAGE_SIZE ||
+                    groups.size() > totalSize - offset) return false;
             if (nextCursor == null) return offset + groups.size() == totalSize;
             return sessionNonce.equals(nextCursor.getSessionNonce()) &&
-                  sourceRevision == nextCursor.getSourceRevision() &&
-                  nextCursor.getOffset() == offset + groups.size() &&
-                  nextCursor.getOffset() < totalSize;
+                    sourceRevision == nextCursor.getSourceRevision() &&
+                    nextCursor.getOffset() == offset + groups.size() &&
+                    nextCursor.getOffset() < totalSize;
         }
 
         private static void writeUUID(ByteBuf buffer, UUID uuid) {

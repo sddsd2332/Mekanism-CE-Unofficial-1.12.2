@@ -78,7 +78,7 @@ public class MultipartMekanism implements IMCMPAddon {
     }
 
     public static Collection<AxisAlignedBB> getTransmitterSideBounds(IMultipartTile tile, EnumFacing side) {
-        if (tile.getTileEntity() instanceof TileEntityTransmitter<?,?,?> transmitter) {
+        if (tile.getTileEntity() instanceof TileEntityTransmitter<?, ?, ?> transmitter) {
             boolean large = transmitter.getTransmitterType().getSize() == Size.LARGE;
             AxisAlignedBB ret = large ? BlockTransmitter.largeSides[side.ordinal()] : BlockTransmitter.smallSides[side.ordinal()];
             return Collections.singletonList(ret);

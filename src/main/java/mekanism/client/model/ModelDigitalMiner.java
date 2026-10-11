@@ -439,7 +439,7 @@ public class ModelDigitalMiner extends ModelBase {
         return OVERLAY_ON_ANIMATED[getTick(tick)];
     }
 
-    public void render(double tick, float size, boolean on, TextureManager manager,boolean isEnableGlow) {
+    public void render(double tick, float size, boolean on, TextureManager manager, boolean isEnableGlow) {
         GlStateManager.pushMatrix();
         GlStateManager.shadeModel(GL11.GL_SMOOTH);
         doRender(size);

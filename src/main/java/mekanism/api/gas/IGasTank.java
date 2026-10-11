@@ -16,7 +16,7 @@ public interface IGasTank {
     int input(GasStack resource, boolean input);
 
     @Nullable
-    GasStack output(int Maxoutput ,boolean output);
+    GasStack output(int Maxoutput, boolean output);
 
     default Gas getGasType() {
         GasStack stack = getGas();

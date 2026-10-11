@@ -58,7 +58,7 @@ public class TileEntityBioGenerator extends TileEntityGenerator implements ISust
     protected IFluidTankHolder getInitialFluidTanks(IContentsListener listener) {
         FluidTankHelper builder = createFluidTankHelper();
         bioFuelTank = builder.addTank(BasicFluidTank.input(TANK_CAPACITY, TileEntityBioGenerator::isBioFuel, listener),
-              RelativeSide.LEFT, RelativeSide.RIGHT, RelativeSide.BACK, RelativeSide.TOP, RelativeSide.BOTTOM);
+                RelativeSide.LEFT, RelativeSide.RIGHT, RelativeSide.BACK, RelativeSide.TOP, RelativeSide.BOTTOM);
         return builder.build();
     }
 
@@ -66,7 +66,7 @@ public class TileEntityBioGenerator extends TileEntityGenerator implements ISust
     protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
         InventorySlotHelper builder = createInventorySlotHelper();
         fuelSlot = builder.addSlot(FluidFuelInventorySlot.forFuel(bioFuelTank, this::getFuel, TileEntityBioGenerator::getBioFuelStack, listener, 17, 35),
-              RelativeSide.FRONT, RelativeSide.LEFT, RelativeSide.BACK, RelativeSide.TOP, RelativeSide.BOTTOM);
+                RelativeSide.FRONT, RelativeSide.LEFT, RelativeSide.BACK, RelativeSide.TOP, RelativeSide.BOTTOM);
         fuelSlot.setSlotOverlay(SlotOverlay.MINUS);
         energySlot = builder.addSlot(EnergyInventorySlot.drain(this, listener, 143, 35), RelativeSide.RIGHT);
         return builder.build();
@@ -100,7 +100,7 @@ public class TileEntityBioGenerator extends TileEntityGenerator implements ISust
     @Override
     public boolean canOperate() {
         return MekanismUtils.canFunction(this) && !bioFuelTank.isEmpty()
-              && getEnergyContainer().insert(MekanismConfig.current().generators.bioGeneration.val(), Action.SIMULATE, AutomationType.INTERNAL) == 0;
+                && getEnergyContainer().insert(MekanismConfig.current().generators.bioGeneration.val(), Action.SIMULATE, AutomationType.INTERNAL) == 0;
     }
 
     @Override
@@ -111,7 +111,7 @@ public class TileEntityBioGenerator extends TileEntityGenerator implements ISust
     @Override
     protected boolean isAsyncUpdateIdle() {
         return bioFuelTank.isEmpty() && fuelSlot.isEmpty() && energySlot.isEmpty() && !getActive() &&
-              !activeChanged && lastBioFuelRenderLevel == -1 && currentRedstoneLevel == getRedstoneLevel();
+                !activeChanged && lastBioFuelRenderLevel == -1 && currentRedstoneLevel == getRedstoneLevel();
     }
 
     @Override
@@ -246,10 +246,16 @@ public class TileEntityBioGenerator extends TileEntityGenerator implements ISust
     }
 
     @Override
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return type == mekanism.api.transmitters.TransmissionType.FLUID;
+    }
+
+    @Override
     public int getRedstoneLevel() {
         return MekanismUtils.redstoneLevelFromContents(bioFuelTank.getFluidAmount(), bioFuelTank.getCapacity());
     }
-@Override
+
+    @Override
     @SideOnly(Side.CLIENT)
     public Class<?> getSelectionWireframeModelClass() {
         return mekanism.generators.client.model.ModelBioGenerator.class;

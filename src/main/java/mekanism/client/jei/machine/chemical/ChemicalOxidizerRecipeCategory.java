@@ -25,7 +25,7 @@ public class ChemicalOxidizerRecipeCategory<WRAPPER extends ChemicalOxidizerReci
 
     public ChemicalOxidizerRecipeCategory(IGuiHelper helper) {
         super(helper, "mekanism:gui/Null.png", Recipe.CHEMICAL_OXIDIZER.getJEICategory(),
-              "tile.MachineBlock2.ChemicalOxidizer.name", 20, 12, 132, 62, ProgressType.LARGE_RIGHT);
+                "tile.MachineBlock2.ChemicalOxidizer.name", 20, 12, 132, 62, ProgressType.LARGE_RIGHT);
     }
 
     @Override

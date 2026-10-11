@@ -6,7 +6,7 @@ import mekanism.common.recipe.ItemStackToEnergyRecipe;
 import mezz.jei.api.IGuiHelper;
 
 public class ItemStackToEnergyRecipeCategory<WRAPPER extends ItemStackToEnergyRecipeWrapper<ItemStackToEnergyRecipe>>
-      extends mekanism.client.jei.machine.ItemStackToEnergyRecipeCategory<WRAPPER> {
+        extends mekanism.client.jei.machine.ItemStackToEnergyRecipeCategory<WRAPPER> {
 
     public ItemStackToEnergyRecipeCategory(IGuiHelper helper, IRecipeViewerRecipeType<?> recipeType) {
         super(helper, recipeType);

@@ -8,7 +8,10 @@ import net.minecraft.nbt.NBTTagCompound;
 import javax.annotation.Nonnull;
 import java.util.Objects;
 
-/** Stable machine-type summary used by the first management-terminal column. */
+/**
+ * Stable machine-type summary used by the first management-terminal column.
+ */
+
 /**
  * QIO 处理模块中的 QIOManagementDeviceGroupSnapshot 类型。
  *
@@ -27,14 +30,14 @@ public final class QIOManagementDeviceGroupSnapshot {
     private final int totalCount;
 
     public QIOManagementDeviceGroupSnapshot(@Nonnull String typeKey,
-          @Nonnull QIOAutomationDeviceSnapshot.Kind kind, @Nonnull String blockId,
-          int blockMetadata, @Nonnull String profileScopeId, int onlineCount,
-          int totalCount) {
+                                            @Nonnull QIOAutomationDeviceSnapshot.Kind kind, @Nonnull String blockId,
+                                            int blockMetadata, @Nonnull String profileScopeId, int onlineCount,
+                                            int totalCount) {
         this.typeKey = checked(typeKey, "typeKey", false);
         this.kind = Objects.requireNonNull(kind, "kind");
         this.blockId = checked(blockId, "blockId", false);
         if (blockMetadata < 0 || blockMetadata > 15 || totalCount <= 0 ||
-            onlineCount < 0 || onlineCount > totalCount) {
+                onlineCount < 0 || onlineCount > totalCount) {
             throw new IllegalArgumentException("Invalid QIO management device group");
         }
         this.blockMetadata = blockMetadata;
@@ -45,34 +48,60 @@ public final class QIOManagementDeviceGroupSnapshot {
     }
 
     public QIOManagementDeviceGroupSnapshot(@Nonnull String typeKey,
-          @Nonnull QIOAutomationDeviceSnapshot.Kind kind, @Nonnull String blockId,
-          int blockMetadata, @Nonnull MachinePresentationDescriptor presentation,
-          @Nonnull String profileScopeId, int onlineCount, int totalCount) {
+                                            @Nonnull QIOAutomationDeviceSnapshot.Kind kind, @Nonnull String blockId,
+                                            int blockMetadata, @Nonnull MachinePresentationDescriptor presentation,
+                                            @Nonnull String profileScopeId, int onlineCount, int totalCount) {
         this.typeKey = checked(typeKey, "typeKey", false);
         this.kind = Objects.requireNonNull(kind, "kind");
         this.blockId = checked(blockId, "blockId", false);
         if (blockMetadata < 0 || blockMetadata > 15 || totalCount <= 0 ||
-            onlineCount < 0 || onlineCount > totalCount) {
+                onlineCount < 0 || onlineCount > totalCount) {
             throw new IllegalArgumentException("Invalid QIO management device group");
         }
         this.blockMetadata = blockMetadata;
         this.presentation = MachinePresentationDescriptor.read(
-              Objects.requireNonNull(presentation, "presentation").write());
+                Objects.requireNonNull(presentation, "presentation").write());
         this.profileScopeId = checked(profileScopeId, "profileScopeId", true);
         this.onlineCount = onlineCount;
         this.totalCount = totalCount;
     }
 
-    @Nonnull public String getTypeKey() { return typeKey; }
-    @Nonnull public QIOAutomationDeviceSnapshot.Kind getKind() { return kind; }
-    @Nonnull public String getBlockId() { return blockId; }
-    public int getBlockMetadata() { return blockMetadata; }
-    @Nonnull public MachinePresentationDescriptor getPresentation() {
+    @Nonnull
+    public String getTypeKey() {
+        return typeKey;
+    }
+
+    @Nonnull
+    public QIOAutomationDeviceSnapshot.Kind getKind() {
+        return kind;
+    }
+
+    @Nonnull
+    public String getBlockId() {
+        return blockId;
+    }
+
+    public int getBlockMetadata() {
+        return blockMetadata;
+    }
+
+    @Nonnull
+    public MachinePresentationDescriptor getPresentation() {
         return MachinePresentationDescriptor.read(presentation.write());
     }
-    @Nonnull public String getProfileScopeId() { return profileScopeId; }
-    public int getOnlineCount() { return onlineCount; }
-    public int getTotalCount() { return totalCount; }
+
+    @Nonnull
+    public String getProfileScopeId() {
+        return profileScopeId;
+    }
+
+    public int getOnlineCount() {
+        return onlineCount;
+    }
+
+    public int getTotalCount() {
+        return totalCount;
+    }
 
     @Nonnull
     public NBTTagCompound write() {
@@ -90,19 +119,19 @@ public final class QIOManagementDeviceGroupSnapshot {
 
     @Nonnull
     public static QIOManagementDeviceGroupSnapshot read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         try {
             MachinePresentationDescriptor presentation = data.hasKey("presentation",
-                  net.minecraftforge.common.util.Constants.NBT.TAG_COMPOUND) ?
-                  MachinePresentationDescriptor.read(data.getCompoundTag("presentation")) :
-                  MachinePresentationDescriptor.of(data.getString("blockId"),
-                        data.getInteger("blockMetadata"), null);
+                    net.minecraftforge.common.util.Constants.NBT.TAG_COMPOUND) ?
+                    MachinePresentationDescriptor.read(data.getCompoundTag("presentation")) :
+                    MachinePresentationDescriptor.of(data.getString("blockId"),
+                            data.getInteger("blockMetadata"), null);
             return new QIOManagementDeviceGroupSnapshot(data.getString("typeKey"),
-                  QIOAutomationDeviceSnapshot.Kind.valueOf(data.getString("kind")),
-                  data.getString("blockId"), data.getInteger("blockMetadata"),
-                  presentation, data.getString("profileScopeId"),
-                  data.getInteger("onlineCount"),
-                  data.getInteger("totalCount"));
+                    QIOAutomationDeviceSnapshot.Kind.valueOf(data.getString("kind")),
+                    data.getString("blockId"), data.getInteger("blockMetadata"),
+                    presentation, data.getString("profileScopeId"),
+                    data.getInteger("onlineCount"),
+                    data.getInteger("totalCount"));
         } catch (RuntimeException e) {
             throw new QIOProcessingDataException("Invalid QIO management device group", e);
         }
@@ -113,10 +142,10 @@ public final class QIOManagementDeviceGroupSnapshot {
         Objects.requireNonNull(device, "device");
         if (device.getKind() == QIOAutomationDeviceSnapshot.Kind.AUTOMATION_MACHINE) {
             return device.getKind().name() + '|' + device.getProfileScopeId() + '|' +
-                  device.getPresentation().presentationKey();
+                    device.getPresentation().presentationKey();
         }
         return device.getKind().name() + '|' +
-              device.getPresentation().presentationKey();
+                device.getPresentation().presentationKey();
     }
 
     private static String checked(String value, String name, boolean emptyAllowed) {

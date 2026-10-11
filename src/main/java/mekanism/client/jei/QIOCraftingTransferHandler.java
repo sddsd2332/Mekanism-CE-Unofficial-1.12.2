@@ -18,18 +18,14 @@ import net.minecraft.inventory.Container;
 import net.minecraft.inventory.Slot;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.text.translation.I18n;
-import net.minecraftforge.items.ItemHandlerHelper;
 import net.minecraftforge.oredict.OreDictionary;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
-/** JEI transfer adapter for the server-validated QIO crafting window. */
+/**
+ * JEI transfer adapter for the server-validated QIO crafting window.
+ */
 public class QIOCraftingTransferHandler<CONTAINER extends QIOItemViewerContainer> implements IRecipeTransferHandler<CONTAINER> {
 
     private final Class<CONTAINER> containerClass;
@@ -50,7 +46,7 @@ public class QIOCraftingTransferHandler<CONTAINER extends QIOItemViewerContainer
     @Nullable
     @Override
     public IRecipeTransferError transferRecipe(CONTAINER container, IRecipeLayout recipeLayout, EntityPlayer player,
-          boolean maxTransfer, boolean doTransfer) {
+                                               boolean maxTransfer, boolean doTransfer) {
         // JEI and HEI invoke this handler on the client. The UUID overload is
         // server-only and intentionally has no client-side selection map.
         byte selected = container.getSelectedCraftingGrid();
@@ -180,7 +176,7 @@ public class QIOCraftingTransferHandler<CONTAINER extends QIOItemViewerContainer
             List<SingularHashedItemSource> list = new ArrayList<>(entry.getValue().size());
             for (SingularHashedItemSource source : entry.getValue()) {
                 list.add(source.getSlot() == -1 ? new SingularHashedItemSource(source.getQioSource(), source.getUsed()) :
-                      new SingularHashedItemSource(source.getSlot(), source.getUsed()));
+                        new SingularHashedItemSource(source.getSlot(), source.getUsed()));
             }
             copy.put(entry.getByteKey(), list);
         }
@@ -210,7 +206,7 @@ public class QIOCraftingTransferHandler<CONTAINER extends QIOItemViewerContainer
             if (existing.getSlot() == add.getSlot() && java.util.Objects.equals(existing.getQioSource(), add.getQioSource())) {
                 int amount = existing.getUsed() + add.getUsed();
                 sources.set(i, existing.getSlot() == -1 ? new SingularHashedItemSource(existing.getQioSource(), amount) :
-                      new SingularHashedItemSource(existing.getSlot(), amount));
+                        new SingularHashedItemSource(existing.getSlot(), amount));
                 return;
             }
         }
@@ -243,7 +239,7 @@ public class QIOCraftingTransferHandler<CONTAINER extends QIOItemViewerContainer
         }
         for (ItemStack ingredient : ingredients) {
             if (!ingredient.isEmpty() && (stackHelper.isEquivalent(stored, ingredient) ||
-                  OreDictionary.itemMatches(ingredient, stored, false) && ItemStack.areItemStackTagsEqual(ingredient, stored))) {
+                    OreDictionary.itemMatches(ingredient, stored, false) && ItemStack.areItemStackTagsEqual(ingredient, stored))) {
                 return true;
             }
         }

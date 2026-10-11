@@ -40,7 +40,7 @@ public class PacketLightningRender implements IMessageHandler<LightningRenderMes
 
     public enum LightningPreset {
         TOOL_AOE(() -> MekanismConfig.current().client.renderToolAOEParticles.val(), (start, end, segments) ->
-              new BoltEffect(BoltRenderInfo.ELECTRICITY, start, end, segments).size(0.015F).lifespan(12).spawn(SpawnFunction.NO_DELAY));
+                new BoltEffect(BoltRenderInfo.ELECTRICITY, start, end, segments).size(0.015F).lifespan(12).spawn(SpawnFunction.NO_DELAY));
 
         private final BooleanSupplier shouldAdd;
         private final BoltCreator boltCreator;

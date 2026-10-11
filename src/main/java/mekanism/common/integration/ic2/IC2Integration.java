@@ -182,7 +182,7 @@ public class IC2Integration {
     @Method(modid = MekanismHooks.IC2_MOD_ID)
     public static boolean isOutputter(TileEntity tileEntity, EnumFacing side) {
         IEnergyTile tile = EnergyNet.instance.getSubTile(tileEntity.getWorld(), tileEntity.getPos());
-        return tile instanceof IEnergySource source&& source.emitsEnergyTo(null, side.getOpposite());
+        return tile instanceof IEnergySource source && source.emitsEnergyTo(null, side.getOpposite());
 
     }
 

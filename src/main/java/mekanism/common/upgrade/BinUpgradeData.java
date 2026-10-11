@@ -18,7 +18,7 @@ public class BinUpgradeData extends TierUpgradeData {
     public final NBTTagCompound binSlot;
 
     public BinUpgradeData(@Nonnull BaseTier upgradeTier, @Nonnull EnumFacing facing, @Nonnull EnumFacing clientFacing, int ticker,
-          boolean redstone, boolean redstoneLastTick, boolean doAutoSync, boolean active, @Nonnull NBTTagCompound binSlot) {
+                          boolean redstone, boolean redstoneLastTick, boolean doAutoSync, boolean active, @Nonnull NBTTagCompound binSlot) {
         super(upgradeTier);
         this.facing = facing;
         this.clientFacing = clientFacing;

@@ -22,7 +22,7 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class PacketQIODeviceCommandResult implements
-      IMessageHandler<PacketQIODeviceCommandResult.Message, IMessage> {
+        IMessageHandler<PacketQIODeviceCommandResult.Message, IMessage> {
 
     @Override
     public IMessage onMessage(Message message, MessageContext context) {
@@ -30,11 +30,11 @@ public final class PacketQIODeviceCommandResult implements
         if (player == null || !player.world.isRemote) return null;
         PacketHandler.handlePacket(() -> {
             if (!message.valid ||
-                !(player.openContainer instanceof QIOManagementDevicePageContainer container) ||
-                player.openContainer.windowId != message.windowId) return;
+                    !(player.openContainer instanceof QIOManagementDevicePageContainer container) ||
+                    player.openContainer.windowId != message.windowId) return;
             QIOProcessingTerminalContainerState state = container.getTerminalState();
             if (state.matches(message.nonce, message.terminalUUID, message.targetRevision,
-                  message.frequencyUUID, message.accessRevision)) {
+                    message.frequencyUUID, message.accessRevision)) {
                 container.getDeviceClientCache().applyCommand(message.nonce, message.result);
             }
         }, player);
@@ -55,7 +55,7 @@ public final class PacketQIODeviceCommandResult implements
         }
 
         private Message(int windowId, QIOProcessingTerminalSession session,
-              QIODeviceCommandResult result) {
+                        QIODeviceCommandResult result) {
             this.windowId = windowId;
             nonce = session.getSessionNonce();
             terminalUUID = session.getTerminalUUID();
@@ -67,9 +67,9 @@ public final class PacketQIODeviceCommandResult implements
         }
 
         public static Message create(int windowId, QIOProcessingTerminalSession session,
-              QIODeviceCommandResult result) {
+                                     QIODeviceCommandResult result) {
             return session == null || session.getFrequencyUUID() == null ? new Message() :
-                  new Message(windowId, session, result);
+                    new Message(windowId, session, result);
         }
 
         @Override
@@ -102,12 +102,14 @@ public final class PacketQIODeviceCommandResult implements
             }
         }
 
-        public boolean isValid() { return valid; }
+        public boolean isValid() {
+            return valid;
+        }
 
         private boolean shape() {
             return windowId >= 0 && nonce != null && terminalUUID != null &&
-                  targetRevision >= 0 && frequencyUUID != null && accessRevision >= 0 &&
-                  result != null;
+                    targetRevision >= 0 && frequencyUUID != null && accessRevision >= 0 &&
+                    result != null;
         }
     }
 }

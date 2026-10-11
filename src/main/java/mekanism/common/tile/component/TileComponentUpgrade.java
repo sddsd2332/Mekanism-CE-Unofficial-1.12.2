@@ -6,9 +6,10 @@ import mekanism.api.inventory.IInventorySlot;
 import mekanism.common.Mekanism;
 import mekanism.common.PacketHandler;
 import mekanism.common.Upgrade;
+import mekanism.common.base.IComparatorSupport;
+import mekanism.common.base.ITileComponent;
 import mekanism.common.base.IUpgradeItem;
 import mekanism.common.base.IUpgradeTile;
-import mekanism.common.base.ITileComponent;
 import mekanism.common.inventory.container.MekanismContainer.ISpecificContainerTracker;
 import mekanism.common.inventory.container.sync.ISyncableData;
 import mekanism.common.inventory.container.sync.SyncableInt;
@@ -45,10 +46,20 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
     private final UpgradeInventorySlot upgradeSlot;
     private final UpgradeInventorySlot upgradeOutputSlot;
     private boolean canCheckUpgrades = true;
+    private boolean mufflingSyncPending;
+    private long tickRequestVersion;
     private volatile long configurationVersion;
+    private volatile boolean deterministicSecondaryUsage;
+
+    public boolean requiresDeterministicSecondaryUsage() {
+        return deterministicSecondaryUsage;
+    }
+
     private Map<UpgradeSupportValidity, Boolean> supportValidityTokens;
 
-    /** Revision of installed upgrades and locally declared support, for dependent state caches. */
+    /**
+     * Revision of installed upgrades and locally declared support, for dependent state caches.
+     */
     public long getConfigurationVersion() {
         return configurationVersion;
     }
@@ -73,20 +84,45 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
     }
 
     private synchronized void configurationChanged() {
+        deterministicSecondaryUsage = upgrades.entrySet().stream().anyMatch(
+                entry -> entry.getValue() > 0 && entry.getKey().requiresDeterministicSecondaryUsage());
         configurationVersion = configurationVersion + 1;
         if (supportValidityTokens != null) {
             supportValidityTokens.keySet().forEach(UpgradeSupportValidity::invalidate);
             supportValidityTokens.clear();
         }
+        requestUpgradeCheck();
+    }
+
+    /**
+     * Wake the existing component; never re-enter machine work from a contents callback.
+     */
+    private synchronized void requestUpgradeCheck() {
+        canCheckUpgrades = true;
+        tickRequestVersion++;
+        tileEntity.setUpgradeComponentTicking(this, true);
+    }
+
+    private synchronized void requestMufflingSync() {
+        mufflingSyncPending = true;
+        tickRequestVersion++;
+        tileEntity.setUpgradeComponentTicking(this, true);
+    }
+
+    private synchronized void refreshTickRegistration() {
+        tileEntity.setUpgradeComponentTicking(this, canCheckUpgrades || mufflingSyncPending);
     }
 
     public TileComponentUpgrade(TileEntityContainerBlock tile) {
         tileEntity = tile;
         setSupported(Upgrade.SPEED);
         setSupported(Upgrade.ENERGY);
+        if (tile instanceof IComparatorSupport) {
+            setSupported(Upgrade.COMPARATOR);
+        }
         upgradeSlot = UpgradeInventorySlot.input(this::canInsertUpgrade, this::onUpgradeSlotContentsChanged);
         upgradeOutputSlot = UpgradeInventorySlot.output(tile);
-        tile.components.add(this);
+        tile.addComponent(this);
     }
 
     public TileComponentUpgrade(TileEntityContainerBlock tile, Upgrade upgrade) {
@@ -94,12 +130,12 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
         setSupported(upgrade);
         upgradeSlot = UpgradeInventorySlot.input(this::canInsertUpgrade, this::onUpgradeSlotContentsChanged);
         upgradeOutputSlot = UpgradeInventorySlot.output(tile);
-        tile.components.add(this);
+        tile.addComponent(this);
     }
 
     private void onUpgradeSlotContentsChanged() {
         tileEntity.onContentsChanged();
-        canCheckUpgrades = true;
+        requestUpgradeCheck();
     }
 
     public void readFrom(TileComponentUpgrade upgrade) {
@@ -111,35 +147,57 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
         upgradeSlot.setStackUnchecked(upgrade.upgradeSlot.getStack());
         upgradeOutputSlot.setStackUnchecked(upgrade.upgradeOutputSlot.getStack());
         upgradeTicks = upgrade.upgradeTicks;
-        canCheckUpgrades = true;
+        requestUpgradeCheck();
+        tileEntity.refreshUpgradeComponents(this, false);
     }
 
-    @Override
-    public void tick() {
-        if (!tileEntity.getWorld().isRemote && canCheckUpgrades) {
-            ItemStack stack = upgradeSlot.getStack();
-            Upgrade type = Upgrade.byStack(stack);
-            if (type != null) {
-                int installed = getUpgrades(type);
-                if (canInstall(stack)) {
-                    if (upgradeTicks < UPGRADE_TICKS_REQUIRED) {
-                        upgradeTicks++;
-                        return;
-                    } else if (upgradeTicks == UPGRADE_TICKS_REQUIRED) {
-                        upgradeTicks = 0;
-                        int added = addUpgrades(type, installed, upgradeSlot.getCount());
-                        if (added > 0) {
-                            onUpgradeInstalled(upgradeSlot.getStack(), added);
-                            upgradeSlot.shrinkStack(added, Action.EXECUTE);
+    public void tickServer() {
+        final boolean checkUpgrades;
+        final boolean syncMuffling;
+        final long observedRequest;
+        synchronized (this) {
+            checkUpgrades = canCheckUpgrades;
+            syncMuffling = mufflingSyncPending;
+            observedRequest = tickRequestVersion;
+            mufflingSyncPending = false;
+        }
+        try {
+            if (syncMuffling) Mekanism.packetHandler.sendUpdatePacket(tileEntity);
+            if (checkUpgrades) {
+                ItemStack stack = upgradeSlot.getStack();
+                Upgrade type = Upgrade.byStack(stack);
+                if (type != null) {
+                    int installed = getUpgrades(type);
+                    if (canInstall(stack)) {
+                        if (upgradeTicks < UPGRADE_TICKS_REQUIRED) {
+                            upgradeTicks++;
+                            return;
+                        } else if (upgradeTicks == UPGRADE_TICKS_REQUIRED) {
+                            upgradeTicks = 0;
+                            int added = addUpgrades(type, installed, upgradeSlot.getCount());
+                            if (added > 0) {
+                                onUpgradeInstalled(upgradeSlot.getStack(), added);
+                                upgradeSlot.shrinkStack(added, Action.EXECUTE);
+                            }
+                            // This packet includes the just-installed muffling state. Clear
+                            // before sending so a reentrant change can schedule another packet.
+                            synchronized (this) {
+                                mufflingSyncPending = false;
+                            }
+                            Mekanism.packetHandler.sendUpdatePacket(tileEntity);
+                            tileEntity.markNoUpdateSync();
+                            return;
                         }
-                        Mekanism.packetHandler.sendUpdatePacket(tileEntity);
-                        tileEntity.markNoUpdateSync();
-                        return;
                     }
                 }
+                upgradeTicks = 0;
+                synchronized (this) {
+                    // An input/configuration callback during this pass owns the next check.
+                    if (tickRequestVersion == observedRequest) canCheckUpgrades = false;
+                }
             }
-            upgradeTicks = 0;
-            canCheckUpgrades = false;
+        } finally {
+            refreshTickRegistration();
         }
     }
 
@@ -250,7 +308,15 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
     }
 
     public void clearUpgrades() {
-        new ArrayList<>(upgrades.keySet()).forEach(upgrade -> setUpgrades(upgrade, 0));
+        if (upgrades.isEmpty()) return;
+        Map<Upgrade, Integer> previous = new java.util.LinkedHashMap<>(upgrades);
+        upgrades.clear();
+        configurationChanged();
+        tileEntity.recalculateAllUpgradables(previous.keySet());
+        tileEntity.refreshUpgradeComponents(this, true);
+        previous.forEach((upgrade, amount) -> upgrade.onChanged(tileEntity, amount, 0));
+        if (previous.containsKey(Upgrade.MUFFLING)) requestMufflingSync();
+        tileEntity.markNoUpdateSync();
     }
 
     public int addUpgrades(Upgrade upgrade, int maxAvailable) {
@@ -286,7 +352,7 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
                 ItemStack stackToInsert = stackToReturn.copy();
                 stackToInsert.setCount(toRemove);
                 upgradeOutputSlot.insertItem(stackToInsert, Action.EXECUTE, AutomationType.INTERNAL);
-                canCheckUpgrades = !upgradeSlot.isEmpty();
+                requestUpgradeCheck();
             }
         }
     }
@@ -302,10 +368,14 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
     private void onUpgradeChanged(Upgrade upgrade, int previousAmount, int amount) {
         configurationChanged();
         tileEntity.recalculateUpgradables(upgrade);
+        tileEntity.refreshUpgradeComponents(this, true);
+        if (upgrade == Upgrade.COMPARATOR) {
+            ((mekanism.common.tile.base.TileEntitySynchronized) tileEntity).invalidateComparatorUpgradeState();
+        }
         upgrade.onChanged(tileEntity, previousAmount, amount);
         if (upgrade == Upgrade.MUFFLING) {
-            //Send an update packet to the client to update the number of muffling upgrades installed
-            tileEntity.doRestrictedTick();
+            // Synchronize after the mutation; never re-enter machine work to update a sound.
+            requestMufflingSync();
         }
         tileEntity.markNoUpdateSync();
     }
@@ -351,7 +421,7 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
         } else {
             if (supported.remove(upgrade)) configurationChanged();
         }
-        canCheckUpgrades = true;
+        requestUpgradeCheck();
     }
 
     public boolean supports(Upgrade upgrade) {
@@ -377,7 +447,7 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
             supported.clear();
             configurationChanged();
         }
-        canCheckUpgrades = true;
+        requestUpgradeCheck();
     }
 
     private List<IInventorySlot> getSlots() {
@@ -402,6 +472,7 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
         upgradeTicks = dataStream.readInt();
         configurationChanged();
         tileEntity.recalculateAllUpgradables(getSupportedTypes());
+        tileEntity.refreshUpgradeComponents(this, false);
     }
 
     @Override
@@ -446,10 +517,11 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
             upgradeSlot.setEmpty();
             upgradeOutputSlot.setEmpty();
         }
-        canCheckUpgrades = true;
+        requestUpgradeCheck();
         if (recalculate) {
             tileEntity.recalculateAllUpgradables(getSupportedTypes());
         }
+        tileEntity.refreshUpgradeComponents(this, false);
     }
 
     @Override
@@ -477,6 +549,7 @@ public class TileComponentUpgrade implements ITileComponent, ISpecificContainerT
                         upgrades.put(upgrade, value);
                     }
                     configurationChanged();
+                    tileEntity.refreshUpgradeComponents(this, false);
                 }));
             }
         }

@@ -86,7 +86,7 @@ public interface IMekanismHeatHandler extends ISidedHeatHandler, IContentsListen
             double capacity = capacitor.getHeatCapacity();
             if (HeatAPI.isFinite(capacity) && capacity > 0) {
                 double contribution = HeatAPI.sanitizeInverseInsulation(capacitor.getInverseInsulation()) *
-                      (HeatAPI.getCapacityWeight(capacity, maxCapacity) / totalWeight);
+                        (HeatAPI.getCapacityWeight(capacity, maxCapacity) / totalWeight);
                 if (!HeatAPI.isFinite(contribution) || contribution >= HeatAPI.MAX_HEAT - sum) {
                     return HeatAPI.MAX_HEAT;
                 }
@@ -118,7 +118,7 @@ public interface IMekanismHeatHandler extends ISidedHeatHandler, IContentsListen
             double capacity = capacitor.getHeatCapacity();
             if (HeatAPI.isFinite(capacity) && capacity > 0) {
                 double contribution = HeatAPI.sanitizeTemperature(capacitor.getTemperature()) *
-                      (HeatAPI.getCapacityWeight(capacity, maxCapacity) / totalWeight);
+                        (HeatAPI.getCapacityWeight(capacity, maxCapacity) / totalWeight);
                 if (!HeatAPI.isFinite(contribution) || contribution >= HeatAPI.MAX_HEAT - sum) {
                     return HeatAPI.MAX_HEAT;
                 }
@@ -150,7 +150,7 @@ public interface IMekanismHeatHandler extends ISidedHeatHandler, IContentsListen
             double capacity = capacitor.getHeatCapacity();
             if (HeatAPI.isFinite(capacity) && capacity > 0) {
                 double contribution = HeatAPI.sanitizeInverseConduction(capacitor.getInverseConduction()) *
-                      (HeatAPI.getCapacityWeight(capacity, maxCapacity) / totalWeight);
+                        (HeatAPI.getCapacityWeight(capacity, maxCapacity) / totalWeight);
                 if (!HeatAPI.isFinite(contribution) || contribution >= HeatAPI.MAX_HEAT - sum) {
                     return HeatAPI.MAX_HEAT;
                 }

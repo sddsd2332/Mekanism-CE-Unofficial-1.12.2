@@ -35,13 +35,13 @@ public class GuiAmbientAccumulatorEnergy extends GuiConfigurableTile<TileEntityA
     protected void addGuiElements() {
         super.addGuiElements();
         addButton(new GuiEnergyTab(this, () -> Arrays.asList(
-              new TextComponentString(LangUtils.localize("gui.using") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.clientEnergyUsed) + "/t"),
-              new TextComponentString(LangUtils.localize("gui.needed") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getNeedEnergy()))
+                new TextComponentString(LangUtils.localize("gui.using") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.clientEnergyUsed) + "/t"),
+                new TextComponentString(LangUtils.localize("gui.needed") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getNeedEnergy()))
         )));
         addButton(new GuiGasGauge(this, tileEntity.outputTank, GuiGasGauge.Type.WIDE, 95, 13).withColor(GuiGasGauge.GaugeColor.ORANGE));
         addButton(new GuiVerticalPowerBar(this, tileEntity.getMainEnergyContainer(), 165, 9, 78));
         addButton(new GuiInnerScreen(this, 7, 13, 80, 65, this::getScreenText).clearFormat().padding(1).clearSpacing().textScale(0.8F)
-              .recipeViewerCategories(RecipeViewerRecipeType.AMBIENT_ACCUMULATOR));
+                .recipeViewerCategories(RecipeViewerRecipeType.AMBIENT_ACCUMULATOR));
     }
 
     @Override

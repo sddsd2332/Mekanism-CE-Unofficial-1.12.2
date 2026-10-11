@@ -36,7 +36,7 @@ public interface Finder {
 
     static Finder material(Material materialType) {
         return stack -> !stack.isEmpty() && stack.getItem() instanceof ItemBlock &&
-              Block.getBlockFromItem(stack.getItem()).getStateFromMeta(stack.getItemDamage()).getMaterial() == materialType;
+                Block.getBlockFromItem(stack.getItem()).getStateFromMeta(stack.getItemDamage()).getMaterial() == materialType;
     }
 
     static Finder modID(String modID) {

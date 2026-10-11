@@ -12,7 +12,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
-/** Client-only ordered policy cache tied to one session and one policy revision. */
+/**
+ * Client-only ordered policy cache tied to one session and one policy revision.
+ */
+
 /**
  * QIO 处理模块中的 QIOManagementPolicyClientCache 类型。
  *
@@ -51,24 +54,24 @@ public final class QIOManagementPolicyClientCache {
     }
 
     public boolean applyPage(@Nonnull UUID responseSessionNonce,
-          @Nonnull UUID responseRequestId, @Nonnull PageMode responsePageMode,
-          long responseRecipeCatalogRevision, long responseRevision,
-          int offset, int responseTotalSize,
-          @Nonnull List<QIOPolicyEntrySnapshot> page,
-          @Nullable QIOPageCursor responseNextCursor) {
+                             @Nonnull UUID responseRequestId, @Nonnull PageMode responsePageMode,
+                             long responseRecipeCatalogRevision, long responseRevision,
+                             int offset, int responseTotalSize,
+                             @Nonnull List<QIOPolicyEntrySnapshot> page,
+                             @Nullable QIOPageCursor responseNextCursor) {
         if (!responseRequestId.equals(expectedPageRequestId) ||
-            responseRecipeCatalogRevision < -1 ||
-            (responsePageMode == PageMode.CONFIGURED ?
-                  responseRecipeCatalogRevision != -1 :
-                  responseRecipeCatalogRevision < 0)) {
+                responseRecipeCatalogRevision < -1 ||
+                (responsePageMode == PageMode.CONFIGURED ?
+                        responseRecipeCatalogRevision != -1 :
+                        responseRecipeCatalogRevision < 0)) {
             return false;
         }
         if (offset > 0 && (responsePageMode != pageMode ||
-            responseRecipeCatalogRevision != recipeCatalogRevision)) {
+                responseRecipeCatalogRevision != recipeCatalogRevision)) {
             return false;
         }
         if (!applyPageInternal(responseSessionNonce, responseRevision, offset,
-              responseTotalSize, page, responseNextCursor)) {
+                responseTotalSize, page, responseNextCursor)) {
             return false;
         }
         pageMode = responsePageMode;
@@ -78,23 +81,23 @@ public final class QIOManagementPolicyClientCache {
     }
 
     public boolean applyPage(@Nonnull UUID responseSessionNonce, long responseRevision,
-          int offset, int responseTotalSize,
-          @Nonnull List<QIOPolicyEntrySnapshot> page,
-          @Nullable QIOPageCursor responseNextCursor) {
+                             int offset, int responseTotalSize,
+                             @Nonnull List<QIOPolicyEntrySnapshot> page,
+                             @Nullable QIOPageCursor responseNextCursor) {
         return applyPageInternal(responseSessionNonce, responseRevision, offset,
-              responseTotalSize, page, responseNextCursor);
+                responseTotalSize, page, responseNextCursor);
     }
 
     private boolean applyPageInternal(@Nonnull UUID responseSessionNonce,
-          long responseRevision, int offset, int responseTotalSize,
-          @Nonnull List<QIOPolicyEntrySnapshot> page,
-          @Nullable QIOPageCursor responseNextCursor) {
+                                      long responseRevision, int offset, int responseTotalSize,
+                                      @Nonnull List<QIOPolicyEntrySnapshot> page,
+                                      @Nullable QIOPageCursor responseNextCursor) {
         if (responseRevision < 0 || offset < 0 || responseTotalSize < 0 ||
-            offset > responseTotalSize || page.size() > responseTotalSize - offset ||
-            page.stream().anyMatch(entry ->
-                  entry.getPolicyRevision() != responseRevision) ||
-            !validNextCursor(responseSessionNonce, responseRevision,
-                  offset + page.size(), responseTotalSize, responseNextCursor)) {
+                offset > responseTotalSize || page.size() > responseTotalSize - offset ||
+                page.stream().anyMatch(entry ->
+                        entry.getPolicyRevision() != responseRevision) ||
+                !validNextCursor(responseSessionNonce, responseRevision,
+                        offset + page.size(), responseTotalSize, responseNextCursor)) {
             return false;
         }
         if (offset == 0) {
@@ -103,8 +106,8 @@ public final class QIOManagementPolicyClientCache {
             sourceRevision = responseRevision;
             totalSize = responseTotalSize;
         } else if (!responseSessionNonce.equals(sessionNonce) ||
-            responseRevision != sourceRevision || responseTotalSize != totalSize ||
-            offset != entries.size()) {
+                responseRevision != sourceRevision || responseTotalSize != totalSize ||
+                offset != entries.size()) {
             return false;
         }
         entries.addAll(page);
@@ -114,12 +117,12 @@ public final class QIOManagementPolicyClientCache {
     }
 
     public boolean applyMutation(@Nonnull UUID responseSessionNonce,
-          @Nonnull UUID responseRequestId,
-          @Nonnull MutationStatus status, long responseRevision,
-          @Nonnull QIOPolicyEntrySnapshot authoritativeEntry) {
+                                 @Nonnull UUID responseRequestId,
+                                 @Nonnull MutationStatus status, long responseRevision,
+                                 @Nonnull QIOPolicyEntrySnapshot authoritativeEntry) {
         if (responseRevision < 0 ||
-            authoritativeEntry.getPolicyRevision() != responseRevision ||
-            sessionNonce != null && !responseSessionNonce.equals(sessionNonce)) {
+                authoritativeEntry.getPolicyRevision() != responseRevision ||
+                sessionNonce != null && !responseSessionNonce.equals(sessionNonce)) {
             return false;
         }
         if (sourceRevision != responseRevision) {
@@ -140,12 +143,12 @@ public final class QIOManagementPolicyClientCache {
     }
 
     public boolean applyLookup(@Nonnull UUID responseSessionNonce,
-          @Nonnull UUID responseRequestId,
-          @Nonnull QIOPolicyEntrySnapshot authoritativeEntry) {
+                               @Nonnull UUID responseRequestId,
+                               @Nonnull QIOPolicyEntrySnapshot authoritativeEntry) {
         if (authoritativeEntry.getKind() !=
-            QIOPolicyEntrySnapshot.Kind.DEVICE_DEFAULT ||
-            authoritativeEntry.getDeviceUUID() == null ||
-            sessionNonce != null && !responseSessionNonce.equals(sessionNonce)) {
+                QIOPolicyEntrySnapshot.Kind.DEVICE_DEFAULT ||
+                authoritativeEntry.getDeviceUUID() == null ||
+                sessionNonce != null && !responseSessionNonce.equals(sessionNonce)) {
             return false;
         }
         sessionNonce = responseSessionNonce;
@@ -236,13 +239,13 @@ public final class QIOManagementPolicyClientCache {
     }
 
     private static boolean validNextCursor(UUID nonce, long revision, int nextOffset,
-          int totalSize, @Nullable QIOPageCursor cursor) {
+                                           int totalSize, @Nullable QIOPageCursor cursor) {
         if (cursor == null) {
             return nextOffset == totalSize;
         }
         return nextOffset < totalSize && nonce.equals(cursor.getSessionNonce()) &&
-              revision == cursor.getSourceRevision() &&
-              nextOffset == cursor.getOffset();
+                revision == cursor.getSourceRevision() &&
+                nextOffset == cursor.getOffset();
     }
 
     private static long nextGeneration(long generation) {

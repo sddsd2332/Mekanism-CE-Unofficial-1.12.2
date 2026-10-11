@@ -1,31 +1,11 @@
 package mekanism.common.recipe.lookup.cache;
 
-import mekanism.common.recipe.inputs.AdvancedMachineInput;
-import mekanism.common.recipe.inputs.ChemicalGasInput;
-import mekanism.common.recipe.inputs.ChemicalPairInput;
-import mekanism.common.recipe.inputs.DoubleMachineInput;
-import mekanism.common.recipe.inputs.FarmInput;
-import mekanism.common.recipe.inputs.FluidInput;
-import mekanism.common.recipe.inputs.GasAndFluidInput;
-import mekanism.common.recipe.inputs.GasInput;
-import mekanism.common.recipe.inputs.InfusionInput;
-import mekanism.common.recipe.inputs.IntegerInput;
-import mekanism.common.recipe.inputs.IWildInput;
-import mekanism.common.recipe.inputs.ItemStackInput;
-import mekanism.common.recipe.inputs.MachineInput;
-import mekanism.common.recipe.inputs.NucleosynthesizerInput;
-import mekanism.common.recipe.inputs.PressurizedInput;
-import mekanism.common.recipe.inputs.RotaryInput;
+import mekanism.common.recipe.inputs.*;
 import mekanism.common.recipe.machines.MachineRecipe;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Main-thread input candidate cache, modeled after Mekanism's high-version
@@ -121,7 +101,7 @@ public final class InputRecipeCache<INPUT extends MachineInput<INPUT>, RECIPE ex
                 publishedIndex.put(entry.getKey(), Collections.unmodifiableList(entry.getValue()));
             }
             state = new CacheState<>(Collections.unmodifiableList(ordered),
-                  Collections.unmodifiableMap(publishedIndex), Collections.unmodifiableList(buildingComplex));
+                    Collections.unmodifiableMap(publishedIndex), Collections.unmodifiableList(buildingComplex));
         }
     }
 
@@ -169,8 +149,8 @@ public final class InputRecipeCache<INPUT extends MachineInput<INPUT>, RECIPE ex
             return !MachineInput.hasCustomItemMatcher(((FarmInput) input).itemStack);
         }
         return input instanceof GasInput || input instanceof FluidInput || input instanceof GasAndFluidInput ||
-              input instanceof ChemicalPairInput || input instanceof ChemicalGasInput || input instanceof RotaryInput ||
-              input instanceof IntegerInput;
+                input instanceof ChemicalPairInput || input instanceof ChemicalGasInput || input instanceof RotaryInput ||
+                input instanceof IntegerInput;
     }
 
     private static final class CacheState<RECIPE> {

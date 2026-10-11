@@ -59,10 +59,10 @@ import java.util.function.BooleanSupplier;
 public class TileEntityChemicalCrystallizer extends TileEntityBasicMachine<GasInput, ItemStackOutput, CrystallizerRecipe> implements ISustainedData, ITankManager, ISpecialSelectionWireframeTile {
 
     private static final List<RecipeError> TRACKED_ERROR_TYPES = Arrays.asList(
-          RecipeError.NOT_ENOUGH_ENERGY,
-          RecipeError.NOT_ENOUGH_INPUT,
-          RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
-          RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
+            RecipeError.NOT_ENOUGH_ENERGY,
+            RecipeError.NOT_ENOUGH_INPUT,
+            RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
+            RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
     );
     public static final int MAX_GAS = 10000;
     public BasicGasTank inputTank;
@@ -243,22 +243,22 @@ public class TileEntityChemicalCrystallizer extends TileEntityBasicMachine<GasIn
     @Override
     public CachedRecipe<CrystallizerRecipe> createNewCachedRecipe(CrystallizerRecipe recipe, int cacheIndex) {
         return new OneInputCachedRecipe<>(recipe, this::shouldRecheckAllRecipeErrors,
-              InputHelper.getGasInputHandler(inputTank, RecipeError.NOT_ENOUGH_INPUT),
-              OutputHelper.getOutputHandler(outputSlot, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
-              () -> recipe.getInput().ingredient, input -> input != null && input.isGasEqual(recipe.getInput().ingredient),
-              input -> recipe.getOutput().output.copy(), input -> input == null || input.amount <= 0, ItemStack::isEmpty)
-              .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
-              .setActive(active -> {
-                  if (active || prevEnergy >= getEnergy()) {
-                      setActive(active);
-                  }
-              })
-              .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
-              .setRequiredTicks(() -> ticksRequired)
-              .setBaselineMaxOperations(() -> getBaselineMaxOperations(energyPerTick, true))
-              .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
-              .setErrorsChanged(this::onRecipeErrorsChanged)
-              .setOnFinish(this::onCachedRecipeFinish);
+                InputHelper.getGasInputHandler(inputTank, RecipeError.NOT_ENOUGH_INPUT),
+                OutputHelper.getOutputHandler(outputSlot, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
+                () -> recipe.getInput().ingredient, input -> input != null && input.isGasEqual(recipe.getInput().ingredient),
+                input -> recipe.getOutput().output.copy(), input -> input == null || input.amount <= 0, ItemStack::isEmpty)
+                .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
+                .setActive(active -> {
+                    if (active || prevEnergy >= getEnergy()) {
+                        setActive(active);
+                    }
+                })
+                .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
+                .setRequiredTicks(() -> ticksRequired)
+                .setBaselineMaxOperations(() -> getBaselineMaxOperations(energyPerTick, true))
+                .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
+                .setErrorsChanged(this::onRecipeErrorsChanged)
+                .setOnFinish(this::onCachedRecipeFinish);
     }
 
     @Override
@@ -401,7 +401,8 @@ public class TileEntityChemicalCrystallizer extends TileEntityBasicMachine<GasIn
             updateDelay = 10;
         }
     }
-@Override
+
+    @Override
     @SideOnly(Side.CLIENT)
     public Class<?> getSelectionWireframeModelClass() {
         return mekanism.client.model.ModelChemicalCrystallizer.class;

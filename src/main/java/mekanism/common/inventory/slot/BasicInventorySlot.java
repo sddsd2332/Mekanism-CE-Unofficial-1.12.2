@@ -1,11 +1,6 @@
 package mekanism.common.inventory.slot;
 
-import mekanism.api.Action;
-import mekanism.api.AutomationType;
-import mekanism.api.IContentsListener;
-import mekanism.api.IContentsListenerRegistry;
-import mekanism.api.IContentsSnapshot;
-import mekanism.api.NBTConstants;
+import mekanism.api.*;
 import mekanism.api.functions.ConstantPredicates;
 import mekanism.api.inventory.IInventorySlot;
 import mekanism.api.qio.resource.QIOResourceDescriptor;
@@ -13,7 +8,6 @@ import mekanism.common.inventory.container.slot.ContainerSlotType;
 import mekanism.common.inventory.container.slot.InventoryContainerSlot;
 import mekanism.common.inventory.container.slot.SlotOverlay;
 import mekanism.common.inventory.warning.ISupportsWarning;
-import mekanism.common.util.MachineStressDiagnostics;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.common.util.Constants.NBT;
@@ -71,12 +65,12 @@ public class BasicInventorySlot implements IInventorySlot, IContentsListenerRegi
     }
 
     public static BasicInventorySlot at(BiPredicate<ItemStack, AutomationType> canExtract, BiPredicate<ItemStack, AutomationType> canInsert,
-          @Nullable IContentsListener listener, int x, int y) {
+                                        @Nullable IContentsListener listener, int x, int y) {
         return at(canExtract, canInsert, alwaysTrue, listener, x, y);
     }
 
     public static BasicInventorySlot at(BiPredicate<ItemStack, AutomationType> canExtract, BiPredicate<ItemStack, AutomationType> canInsert,
-          Predicate<ItemStack> validator, @Nullable IContentsListener listener, int x, int y) {
+                                        Predicate<ItemStack> validator, @Nullable IContentsListener listener, int x, int y) {
         Objects.requireNonNull(canExtract, "Extraction validity check cannot be null");
         Objects.requireNonNull(canInsert, "Insertion validity check cannot be null");
         Objects.requireNonNull(validator, "Item validity check cannot be null");
@@ -94,6 +88,7 @@ public class BasicInventorySlot implements IInventorySlot, IContentsListenerRegi
     public boolean isTransferAllowed() {
         return transferAllowed.getAsBoolean();
     }
+
     private final BiPredicate<ItemStack, AutomationType> canInsert;
     private final Predicate<ItemStack> validator;
     private final int limit;
@@ -101,6 +96,26 @@ public class BasicInventorySlot implements IInventorySlot, IContentsListenerRegi
     private final IContentsListener listener;
     @Nullable
     private volatile IContentsListener[] additionalListeners;
+    // Separate from ordinary listeners: even no-update restoration must invalidate derived state.
+    @Nullable
+    private volatile IContentsListener comparatorListener;
+
+    public final synchronized boolean attachComparatorListener(IContentsListener listener) {
+        Objects.requireNonNull(listener);
+        if (comparatorListener != null) return false;
+        comparatorListener = listener;
+        return true;
+    }
+
+    public final synchronized void detachComparatorListener(IContentsListener listener) {
+        if (comparatorListener == listener) comparatorListener = null;
+    }
+
+    private void notifyComparatorListener() {
+        IContentsListener observer = comparatorListener;
+        if (observer != null) observer.onContentsChanged();
+    }
+
     private final int x;
     private final int y;
     private IntSupplier xSupplier;
@@ -114,18 +129,18 @@ public class BasicInventorySlot implements IInventorySlot, IContentsListenerRegi
     private BooleanSupplier enabledSupplier = () -> true;
 
     protected BasicInventorySlot(Predicate<ItemStack> canExtract, Predicate<ItemStack> canInsert, Predicate<ItemStack> validator,
-          @Nullable IContentsListener listener, int x, int y) {
+                                 @Nullable IContentsListener listener, int x, int y) {
         this((stack, automationType) -> automationType == AutomationType.MANUAL || canExtract.test(stack),
-              (stack, automationType) -> canInsert.test(stack), validator, listener, x, y);
+                (stack, automationType) -> canInsert.test(stack), validator, listener, x, y);
     }
 
     protected BasicInventorySlot(BiPredicate<ItemStack, AutomationType> canExtract, BiPredicate<ItemStack, AutomationType> canInsert,
-          Predicate<ItemStack> validator, @Nullable IContentsListener listener, int x, int y) {
+                                 Predicate<ItemStack> validator, @Nullable IContentsListener listener, int x, int y) {
         this(DEFAULT_LIMIT, canExtract, canInsert, validator, listener, x, y);
     }
 
     protected BasicInventorySlot(int limit, BiPredicate<ItemStack, AutomationType> canExtract, BiPredicate<ItemStack, AutomationType> canInsert,
-          Predicate<ItemStack> validator, @Nullable IContentsListener listener, int x, int y) {
+                                 Predicate<ItemStack> validator, @Nullable IContentsListener listener, int x, int y) {
         validateSlotLimit(limit);
         this.limit = limit;
         this.canExtract = Objects.requireNonNull(canExtract, "Extraction validity check cannot be null");
@@ -180,9 +195,10 @@ public class BasicInventorySlot implements IInventorySlot, IContentsListenerRegi
         } else {
             throw new RuntimeException("Invalid stack for slot: " + stack);
         }
-        if (MachineStressDiagnostics.ENABLED) MachineStressDiagnostics.record(this, notifyChange ? "slot_set_write" : "slot_quiet_write");
         if (notifyChange) {
             onContentsChanged();
+        } else {
+            notifyComparatorListener();
         }
     }
 
@@ -203,7 +219,6 @@ public class BasicInventorySlot implements IInventorySlot, IContentsListenerRegi
                 if (sameType) {
                     current.grow(toAdd);
                     onContentsChanged();
-                    if (MachineStressDiagnostics.ENABLED) MachineStressDiagnostics.record(this, "slot_grow_write");
                 } else {
                     ItemStack toSet = stack.copy();
                     toSet.setCount(toAdd);
@@ -239,7 +254,6 @@ public class BasicInventorySlot implements IInventorySlot, IContentsListenerRegi
             if (action.execute()) {
                 if (sameType) {
                     current.grow(toAdd);
-                    if (MachineStressDiagnostics.ENABLED) MachineStressDiagnostics.record(this, "slot_grow_write");
                     onContentsChanged();
                 } else {
                     ItemStack toSet = stack.copy();
@@ -263,7 +277,6 @@ public class BasicInventorySlot implements IInventorySlot, IContentsListenerRegi
         toReturn.setCount(amount);
         if (action.execute()) {
             current.shrink(amount);
-            if (MachineStressDiagnostics.ENABLED) MachineStressDiagnostics.record(this, "slot_extract_write");
             if (current.getCount() <= 0) {
                 current = ItemStack.EMPTY;
             }
@@ -282,7 +295,7 @@ public class BasicInventorySlot implements IInventorySlot, IContentsListenerRegi
         // These exact classes use our hard upper bound for every insertion. Subclasses may replace that contract.
         Class<?> type = getClass();
         if (type != BasicInventorySlot.class && type != InputInventorySlot.class &&
-            type != FactoryInputInventorySlot.class && type != OutputInventorySlot.class) {
+                type != FactoryInputInventorySlot.class && type != OutputInventorySlot.class) {
             return true;
         }
         // Do not call item limits or validators: they can depend on the offered item, count, or capabilities.
@@ -291,15 +304,19 @@ public class BasicInventorySlot implements IInventorySlot, IContentsListenerRegi
 
     @Override
     public int getResourceCapacity(QIOResourceDescriptor resource, int templateCount, boolean checkInsertion,
-          AutomationType automationType) {
+                                   AutomationType automationType) {
         if (templateCount <= 0 || checkInsertion && !isTransferAllowed()) return 0;
         // Exact classes only: subclasses may override limits, insertion, or stack access.
-        boolean plainSlot = getClass() == BasicInventorySlot.class || getClass() == OutputInventorySlot.class;
+        Class<?> type = getClass();
+        boolean plainSlot = type == BasicInventorySlot.class || type == OutputInventorySlot.class
+                || type == InputInventorySlot.class || type == FactoryInputInventorySlot.class;
         boolean plainInsertion = validator == alwaysTrue && (canInsert == alwaysTrueBi ||
-              canInsert == internalOnly && automationType == AutomationType.INTERNAL);
-        if (plainSlot && (!checkInsertion || plainInsertion)) {
+                canInsert == internalOnly && automationType == AutomationType.INTERNAL);
+        if (plainSlot) {
             int space = resource.getPlainItemSpace(current, limit, obeyStackLimit);
-            if (space >= 0) return space;
+            // A proven zero needs no validator or stack construction. Positive space
+            // still uses the live insertion contract for input/factory predicates.
+            if (space == 0 || space > 0 && (!checkInsertion || plainInsertion)) return space;
         }
         return IInventorySlot.super.getResourceCapacity(resource, templateCount, checkInsertion, automationType);
     }
@@ -315,15 +332,11 @@ public class BasicInventorySlot implements IInventorySlot, IContentsListenerRegi
 
     @Override
     public void onContentsChanged() {
-        MachineStressDiagnostics.Source previous = MachineStressDiagnostics.ENABLED ? MachineStressDiagnostics.beginNotification(this) : null;
-        try {
-            notifyContentsListeners();
-        } finally {
-            if (MachineStressDiagnostics.ENABLED) MachineStressDiagnostics.endNotification(previous);
-        }
+        notifyContentsListeners();
     }
 
     private void notifyContentsListeners() {
+        notifyComparatorListener();
         if (listener != null) {
             listener.onContentsChanged();
         }
@@ -441,7 +454,6 @@ public class BasicInventorySlot implements IInventorySlot, IContentsListenerRegi
             return amount;
         }
         current.setCount(amount);
-        if (MachineStressDiagnostics.ENABLED) MachineStressDiagnostics.record(this, "slot_count_write");
         onContentsChanged();
         return amount;
     }

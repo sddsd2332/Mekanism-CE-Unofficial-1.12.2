@@ -9,7 +9,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Bounded, session-local replay ledger for smart-processing mutations. */
+/**
+ * Bounded, session-local replay ledger for smart-processing mutations.
+ */
+
 /**
  * QIO 处理模块中的 QIOSmartProcessingRequestLedger 类型。
  *
@@ -59,7 +62,7 @@ public final class QIOSmartProcessingRequestLedger {
         private final UUID jobId;
 
         public Response(@Nonnull String actionStatus,
-              @Nullable QIOSmartProcessingPreviewSnapshot snapshot, @Nullable UUID jobId) {
+                        @Nullable QIOSmartProcessingPreviewSnapshot snapshot, @Nullable UUID jobId) {
             this.actionStatus = Objects.requireNonNull(actionStatus, "actionStatus");
             this.snapshot = snapshot;
             this.jobId = jobId;
@@ -96,7 +99,7 @@ public final class QIOSmartProcessingRequestLedger {
 
     @Nonnull
     public synchronized Lookup begin(@Nonnull UUID requestId,
-          @Nonnull String fingerprint) {
+                                     @Nonnull String fingerprint) {
         Objects.requireNonNull(requestId, "requestId");
         Objects.requireNonNull(fingerprint, "fingerprint");
         Entry existing = entries.get(requestId);
@@ -105,7 +108,7 @@ public final class QIOSmartProcessingRequestLedger {
                 return new Lookup(Status.CONFLICT, null);
             }
             return existing.response == null ? new Lookup(Status.PENDING, null) :
-                  new Lookup(Status.REPLAY, existing.response);
+                    new Lookup(Status.REPLAY, existing.response);
         }
         if (entries.size() >= MAX_REQUESTS) {
             return new Lookup(Status.FULL, null);
@@ -115,10 +118,10 @@ public final class QIOSmartProcessingRequestLedger {
     }
 
     public synchronized void complete(@Nonnull UUID requestId,
-          @Nonnull String fingerprint, @Nonnull Response response) {
+                                      @Nonnull String fingerprint, @Nonnull Response response) {
         Entry entry = entries.get(Objects.requireNonNull(requestId, "requestId"));
         if (entry == null || !entry.fingerprint.equals(
-              Objects.requireNonNull(fingerprint, "fingerprint")) || entry.response != null) {
+                Objects.requireNonNull(fingerprint, "fingerprint")) || entry.response != null) {
             throw new IllegalStateException("Smart-processing request ledger completion mismatch");
         }
         entry.response = Objects.requireNonNull(response, "response");
@@ -127,7 +130,7 @@ public final class QIOSmartProcessingRequestLedger {
     public synchronized void abort(@Nonnull UUID requestId, @Nonnull String fingerprint) {
         Entry entry = entries.get(Objects.requireNonNull(requestId, "requestId"));
         if (entry != null && entry.response == null && entry.fingerprint.equals(
-              Objects.requireNonNull(fingerprint, "fingerprint"))) {
+                Objects.requireNonNull(fingerprint, "fingerprint"))) {
             entries.remove(requestId);
         }
     }

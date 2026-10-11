@@ -10,6 +10,6 @@ public class MekPassthrough implements MekWrenchProxy {
 
     @Override
     public IMekWrench get(ItemStack stack) {
-        return stack.getItem() instanceof IMekWrench wrench? wrench : null;
+        return stack.getItem() instanceof IMekWrench wrench ? wrench : null;
     }
 }

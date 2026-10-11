@@ -35,6 +35,36 @@ public abstract class CachedRecipe<RECIPE> {
     private IntConsumer operatingTicksChanged = ticks -> {
     };
     private int operatingTicks;
+    private boolean lockBatchOperations;
+    private int batchOperations;
+    private IntConsumer batchOperationsChanged = count -> {
+    };
+
+    /**
+     * Continuous resources must not pay for one batch size and finish another.
+     */
+    protected void lockBatchOperations() {
+        lockBatchOperations = true;
+    }
+
+    public CachedRecipe<RECIPE> setBatchOperationsChanged(IntConsumer changed) {
+        batchOperationsChanged = Objects.requireNonNull(changed);
+        return this;
+    }
+
+    public void loadSavedBatchOperations(int count) {
+        if (lockBatchOperations && operatingTicks > 0) {
+            batchOperations = Math.max(1, count);
+            batchOperationsChanged.accept(batchOperations);
+        }
+    }
+
+    private void resetBatchOperations() {
+        if (batchOperations != 0) {
+            batchOperations = 0;
+            batchOperationsChanged.accept(0);
+        }
+    }
 
     protected CachedRecipe(RECIPE recipe, BooleanSupplier recheckAllErrors) {
         this.recipe = Objects.requireNonNull(recipe, "Recipe cannot be null.");
@@ -107,7 +137,8 @@ public abstract class CachedRecipe<RECIPE> {
         int operations;
         if (canHolderFunction.getAsBoolean()) {
             setupVariableValues();
-            OperationTracker tracker = new OperationTracker(errors, recheckAllErrors.getAsBoolean(), Math.max(1, baselineMaxOperations.getAsInt()));
+            OperationTracker tracker = new OperationTracker(errors, recheckAllErrors.getAsBoolean(),
+                    batchOperations > 0 ? batchOperations : Math.max(1, baselineMaxOperations.getAsInt()));
             calculateOperationsThisTick(tracker);
             if (tracker.shouldContinueChecking()) {
                 postProcessOperations.accept(tracker);
@@ -125,7 +156,14 @@ public abstract class CachedRecipe<RECIPE> {
                 updateErrors(Collections.emptySet());
             }
         }
+        if (lockBatchOperations && batchOperations > 0 && operations > 0 && operations < batchOperations) {
+            operations = 0;
+        }
         if (operations > 0) {
+            if (lockBatchOperations && batchOperations == 0) {
+                batchOperations = operations;
+                batchOperationsChanged.accept(operations);
+            }
             setActive.accept(true);
             useEnergy(operations);
             operatingTicks++;
@@ -133,6 +171,7 @@ public abstract class CachedRecipe<RECIPE> {
             if (operatingTicks >= ticksRequired) {
                 operatingTicks = 0;
                 finishProcessing(operations);
+                resetBatchOperations();
                 onFinish.run();
                 resetCache();
             } else {
@@ -145,6 +184,7 @@ public abstract class CachedRecipe<RECIPE> {
             setActive.accept(false);
             if (operations < 0) {
                 operatingTicks = 0;
+                resetBatchOperations();
                 operatingTicksChanged.accept(operatingTicks);
                 resetCache();
             }

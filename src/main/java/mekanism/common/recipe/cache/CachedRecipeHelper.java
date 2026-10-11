@@ -12,8 +12,8 @@ public final class CachedRecipeHelper {
     }
 
     public static <INPUT, OUTPUT, INGREDIENT> void oneInputCalculateOperationsThisTick(OperationTracker tracker, IInputHandler<INPUT, INGREDIENT> inputHandler,
-          Supplier<INGREDIENT> inputIngredient, Consumer<INPUT> inputSetter, IOutputHandler<OUTPUT> outputHandler, Function<INPUT, OUTPUT> outputGetter,
-          Consumer<OUTPUT> outputSetter, Predicate<INPUT> emptyCheck) {
+                                                                                       Supplier<INGREDIENT> inputIngredient, Consumer<INPUT> inputSetter, IOutputHandler<OUTPUT> outputHandler, Function<INPUT, OUTPUT> outputGetter,
+                                                                                       Consumer<OUTPUT> outputSetter, Predicate<INPUT> emptyCheck) {
         if (tracker.shouldContinueChecking()) {
             INPUT input = inputHandler.getRecipeInput(inputIngredient.get());
             inputSetter.accept(input);
@@ -31,9 +31,9 @@ public final class CachedRecipeHelper {
     }
 
     public static <INPUT_A, INPUT_B, OUTPUT, INGREDIENT_A, INGREDIENT_B> void twoInputCalculateOperationsThisTick(OperationTracker tracker,
-          IInputHandler<INPUT_A, INGREDIENT_A> inputAHandler, Supplier<INGREDIENT_A> inputAIngredient, IInputHandler<INPUT_B, INGREDIENT_B> inputBHandler,
-          Supplier<INGREDIENT_B> inputBIngredient, BiConsumer<INPUT_A, INPUT_B> inputsSetter, IOutputHandler<OUTPUT> outputHandler,
-          BiFunction<INPUT_A, INPUT_B, OUTPUT> outputGetter, Consumer<OUTPUT> outputSetter, Predicate<INPUT_A> emptyCheckA, Predicate<INPUT_B> emptyCheckB) {
+                                                                                                                  IInputHandler<INPUT_A, INGREDIENT_A> inputAHandler, Supplier<INGREDIENT_A> inputAIngredient, IInputHandler<INPUT_B, INGREDIENT_B> inputBHandler,
+                                                                                                                  Supplier<INGREDIENT_B> inputBIngredient, BiConsumer<INPUT_A, INPUT_B> inputsSetter, IOutputHandler<OUTPUT> outputHandler,
+                                                                                                                  BiFunction<INPUT_A, INPUT_B, OUTPUT> outputGetter, Consumer<OUTPUT> outputSetter, Predicate<INPUT_A> emptyCheckA, Predicate<INPUT_B> emptyCheckB) {
         if (tracker.shouldContinueChecking()) {
             INPUT_A inputA = inputAHandler.getRecipeInput(inputAIngredient.get());
             if (emptyCheckA.test(inputA)) {
@@ -59,11 +59,11 @@ public final class CachedRecipeHelper {
     }
 
     public static <INPUT_A, INPUT_B, INPUT_C, OUTPUT, INGREDIENT_A, INGREDIENT_B, INGREDIENT_C> void threeInputCalculateOperationsThisTick(
-          OperationTracker tracker, IInputHandler<INPUT_A, INGREDIENT_A> inputAHandler, Supplier<INGREDIENT_A> inputAIngredient,
-          IInputHandler<INPUT_B, INGREDIENT_B> inputBHandler, Supplier<INGREDIENT_B> inputBIngredient, IInputHandler<INPUT_C, INGREDIENT_C> inputCHandler,
-          Supplier<INGREDIENT_C> inputCIngredient, TriConsumer<INPUT_A, INPUT_B, INPUT_C> inputsSetter, IOutputHandler<OUTPUT> outputHandler,
-          TriFunction<INPUT_A, INPUT_B, INPUT_C, OUTPUT> outputGetter, Consumer<OUTPUT> outputSetter, Predicate<INPUT_A> emptyCheckA,
-          Predicate<INPUT_B> emptyCheckB, Predicate<INPUT_C> emptyCheckC) {
+            OperationTracker tracker, IInputHandler<INPUT_A, INGREDIENT_A> inputAHandler, Supplier<INGREDIENT_A> inputAIngredient,
+            IInputHandler<INPUT_B, INGREDIENT_B> inputBHandler, Supplier<INGREDIENT_B> inputBIngredient, IInputHandler<INPUT_C, INGREDIENT_C> inputCHandler,
+            Supplier<INGREDIENT_C> inputCIngredient, TriConsumer<INPUT_A, INPUT_B, INPUT_C> inputsSetter, IOutputHandler<OUTPUT> outputHandler,
+            TriFunction<INPUT_A, INPUT_B, INPUT_C, OUTPUT> outputGetter, Consumer<OUTPUT> outputSetter, Predicate<INPUT_A> emptyCheckA,
+            Predicate<INPUT_B> emptyCheckB, Predicate<INPUT_C> emptyCheckC) {
         if (tracker.shouldContinueChecking()) {
             INPUT_A inputA = inputAHandler.getRecipeInput(inputAIngredient.get());
             if (emptyCheckA.test(inputA)) {

@@ -4,7 +4,6 @@ import io.netty.buffer.ByteBuf;
 import mekanism.api.*;
 import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasStack;
-import mekanism.api.math.MathUtils;
 import mekanism.api.transmitters.TransmissionType;
 import mekanism.common.Mekanism;
 import mekanism.common.MekanismFluids;
@@ -30,6 +29,7 @@ import mekanism.common.recipe.cache.CachedRecipe.OperationTracker.RecipeError;
 import mekanism.common.recipe.cache.IRecipeLookupHandler.ConstantUsageRecipeLookupHandler;
 import mekanism.common.recipe.cache.ItemStackConstantGasCachedRecipe;
 import mekanism.common.recipe.cache.ItemStackConstantGasCachedRecipe.GasUsageMultiplier;
+import mekanism.common.recipe.cache.SecondaryFuelUsage;
 import mekanism.common.recipe.cache.inputs.InputHelper;
 import mekanism.common.recipe.cache.outputs.OutputHelper;
 import mekanism.common.recipe.inputs.ItemStackInput;
@@ -43,7 +43,6 @@ import mekanism.common.util.ItemDataUtils;
 import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.PoissonSampler;
 import mekanism.common.util.TileUtils;
-import net.minecraft.block.Block;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.fml.common.FMLCommonHandler;
@@ -56,17 +55,17 @@ import java.util.Map;
 import java.util.Set;
 
 public class TileEntityChemicalDissolutionChamber extends TileEntityBasicMachine<ItemStackInput, GasOutput, DissolutionRecipe> implements ISustainedData, ITankManager,
-      IComparatorSupport, ISpecialSelectionWireframeTile, ConstantUsageRecipeLookupHandler {
+        IComparatorSupport, ISpecialSelectionWireframeTile, ConstantUsageRecipeLookupHandler {
 
     public static final int MAX_GAS = 10000;
     public static final int BASE_INJECT_USAGE = 1;
     private static final List<RecipeError> TRACKED_ERROR_TYPES = Arrays.asList(
-          RecipeError.NOT_ENOUGH_ENERGY,
-          RecipeError.NOT_ENOUGH_ENERGY_REDUCED_RATE,
-          RecipeError.NOT_ENOUGH_INPUT,
-          RecipeError.NOT_ENOUGH_SECONDARY_INPUT,
-          RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
-          RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
+            RecipeError.NOT_ENOUGH_ENERGY,
+            RecipeError.NOT_ENOUGH_ENERGY_REDUCED_RATE,
+            RecipeError.NOT_ENOUGH_INPUT,
+            RecipeError.NOT_ENOUGH_SECONDARY_INPUT,
+            RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
+            RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
     );
     public final double BASE_ENERGY_USAGE = MachineType.CHEMICAL_DISSOLUTION_CHAMBER.getUsage();
     public BasicGasTank injectTank;
@@ -103,18 +102,11 @@ public class TileEntityChemicalDissolutionChamber extends TileEntityBasicMachine
         configComponent.setInputConfig(TransmissionType.ENERGY);
         ejectorComponent = new TileComponentEjector(this);
         ejectorComponent.setOutputData(configComponent, TransmissionType.ITEM, TransmissionType.GAS)
-              .setCanTankEject(tank -> tank != injectTank);
+                .setCanTankEject(tank -> tank != injectTank);
         baseTotalUsage = BASE_TICKS_REQUIRED;
-        gasUsageMultiplier = (usedSoFar, operatingTicks) -> {
-            long baseRemaining = baseTotalUsage - usedSoFar;
-            int remainingTicks = getTicksRequired() - operatingTicks;
-            if (baseRemaining < remainingTicks) {
-                return 0;
-            } else if (baseRemaining == remainingTicks) {
-                return 1;
-            }
-            return Math.max(MathUtils.clampToLong(baseRemaining / (double) remainingTicks), 0);
-        };
+        gasUsageMultiplier = (usedSoFar, operatingTicks) -> SecondaryFuelUsage.isRandomized(this)
+                ? injectUsageSampler.sample(gasPerTickMeanMultiplier)
+                : SecondaryFuelUsage.constantUse(baseTotalUsage, usedSoFar, getTicksRequired(), operatingTicks);
     }
 
     @Override
@@ -122,7 +114,7 @@ public class TileEntityChemicalDissolutionChamber extends TileEntityBasicMachine
         InventorySlotHelper builder = createInventorySlotHelper();
         injectSlot = builder.addSlot(GasInventorySlot.fill(injectTank, listener, 8, 65));
         inputSlot = builder.addSlot(InputInventorySlot.at(stack -> RecipeHandler.getDissolutionRecipe(new ItemStackInput(stack)) != null, getRecipeCacheListener(), 28, 36)
-              .setAutoPullValidator((stack, side) -> canAutoPullInput(stack)));
+                .setAutoPullValidator((stack, side) -> canAutoPullInput(stack)));
         outputSlot = builder.addSlot(GasInventorySlot.drain(outputTank, listener, 152, 55));
         energySlot = builder.addSlot(EnergyInventorySlot.fillOrConvert(getMainEnergyContainer(), this::getWorld, listener, 152, 14));
         injectSlot.setSlotOverlay(SlotOverlay.MINUS);
@@ -189,7 +181,7 @@ public class TileEntityChemicalDissolutionChamber extends TileEntityBasicMachine
     @Override
     protected boolean isAsyncUpdateIdle() {
         return inputSlot.isEmpty() && injectSlot.isEmpty() && outputSlot.isEmpty() && energySlot.isEmpty() &&
-              isEmptyRecipeStateSettled();
+                isEmptyRecipeStateSettled();
     }
 
     @Override
@@ -217,7 +209,7 @@ public class TileEntityChemicalDissolutionChamber extends TileEntityBasicMachine
     }
 
     public double getScaledProgress() {
-        return Math.max(Math.min((double) operatingTicks / (double) ticksRequired, 1.0D),0.0D);
+        return Math.max(Math.min((double) operatingTicks / (double) ticksRequired, 1.0D), 0.0D);
     }
 
     public DissolutionRecipe getRecipe() {
@@ -249,7 +241,8 @@ public class TileEntityChemicalDissolutionChamber extends TileEntityBasicMachine
     }
 
     public int getRecipeGasUsagePerOperation() {
-        return Math.max(1, MathUtils.clampToInt(baseTotalUsage));
+        return ItemStackConstantGasCachedRecipe.getGasUsagePerOperation(SecondaryFuelUsage.isRandomized(this),
+                baseTotalUsage, gasPerTickMeanMultiplier, ticksRequired);
     }
 
 
@@ -280,29 +273,29 @@ public class TileEntityChemicalDissolutionChamber extends TileEntityBasicMachine
     }
 
     private boolean canAutoPullInput(ItemStack stack) {
-        DissolutionRecipe recipe = RecipeHandler.getDissolutionRecipe(new ItemStackInput(getSimulatedStackWithInsert(0, stack)));
+        DissolutionRecipe recipe = RecipeHandler.getDissolutionRecipe(new ItemStackInput(getSimulatedStackWithInsert(inputSlot, stack)));
         return recipe != null && recipe.getOutput().applyOutputs(outputTank, false, 1);
     }
 
     @Override
     public CachedRecipe<DissolutionRecipe> createNewCachedRecipe(DissolutionRecipe recipe, int cacheIndex) {
         return new ItemStackConstantGasCachedRecipe<>(recipe, this::shouldRecheckAllRecipeErrors,
-              InputHelper.getInputHandler(inputSlot, RecipeError.NOT_ENOUGH_INPUT),
-              InputHelper.getConstantGasInputHandler(injectTank, RecipeError.NOT_ENOUGH_SECONDARY_INPUT, false),
-              OutputHelper.getGasOutputHandler(outputTank, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
-              gasUsageMultiplier, used -> usedSoFar = used)
-              .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
-              .setActive(active -> {
-                  if (active || prevEnergy >= getEnergy()) {
-                      setActive(active);
-                  }
-              })
-              .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
-              .setRequiredTicks(() -> ticksRequired)
-              .setBaselineMaxOperations(() -> getBaselineMaxOperations(energyPerTick, true))
-              .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
-              .setErrorsChanged(this::onRecipeErrorsChanged)
-              .setOnFinish(this::onCachedRecipeFinish);
+                InputHelper.getInputHandler(inputSlot, RecipeError.NOT_ENOUGH_INPUT),
+                InputHelper.getConstantGasInputHandler(injectTank, RecipeError.NOT_ENOUGH_SECONDARY_INPUT, false),
+                OutputHelper.getGasOutputHandler(outputTank, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
+                gasUsageMultiplier, used -> usedSoFar = used)
+                .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
+                .setActive(active -> {
+                    if (active || prevEnergy >= getEnergy()) {
+                        setActive(active);
+                    }
+                })
+                .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
+                .setRequiredTicks(() -> ticksRequired)
+                .setBaselineMaxOperations(() -> getBaselineMaxOperations(energyPerTick, true))
+                .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
+                .setErrorsChanged(this::onRecipeErrorsChanged)
+                .setOnFinish(this::onCachedRecipeFinish);
     }
 
 
@@ -425,7 +418,7 @@ public class TileEntityChemicalDissolutionChamber extends TileEntityBasicMachine
     private void recalculateInjectUsage() {
         injectUsage = MekanismUtils.getSecondaryEnergyPerTickMean(this, BASE_INJECT_USAGE);
         gasPerTickMeanMultiplier = MekanismUtils.getGasPerTickMeanMultiplier(this);
-        baseTotalUsage = MekanismUtils.getBaseUsage(this, BASE_INJECT_USAGE);
+        baseTotalUsage = SecondaryFuelUsage.fixedTotal(this, BASE_TICKS_REQUIRED);
     }
 
     @Override
@@ -461,7 +454,8 @@ public class TileEntityChemicalDissolutionChamber extends TileEntityBasicMachine
             updateDelay = 10;
         }
     }
-@Override
+
+    @Override
     @SideOnly(Side.CLIENT)
     public Class<?> getSelectionWireframeModelClass() {
         return mekanism.client.model.ModelChemicalDissolutionChamber.class;

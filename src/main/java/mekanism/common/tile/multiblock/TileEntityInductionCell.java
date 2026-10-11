@@ -10,6 +10,7 @@ import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.fml.common.FMLCommonHandler;
+
 import java.math.BigDecimal;
 
 public class TileEntityInductionCell extends TileEntityBasicBlock implements IStrictEnergyStorage {
@@ -78,10 +79,12 @@ public class TileEntityInductionCell extends TileEntityBasicBlock implements ISt
         if (nbtTags.hasKey("matrixExactEnergy")) {
             String encoded = nbtTags.getString("matrixExactEnergy");
             try {
-                if (!nbtTags.hasKey("matrixExactEnergy", 8) || encoded.length() > 2048) throw new NumberFormatException();
+                if (!nbtTags.hasKey("matrixExactEnergy", 8) || encoded.length() > 2048)
+                    throw new NumberFormatException();
                 BigDecimal decoded = new BigDecimal(encoded);
                 if (decoded.scale() < 0 || decoded.scale() > 1074 || decoded.precision() > 1400 ||
-                      !Double.isFinite(decoded.doubleValue()) || decoded.doubleValue() != electricityStored) throw new NumberFormatException();
+                        !Double.isFinite(decoded.doubleValue()) || decoded.doubleValue() != electricityStored)
+                    throw new NumberFormatException();
                 exactEnergy = decoded;
             } catch (NumberFormatException invalid) {
                 invalidExactEnergy = nbtTags.getTag("matrixExactEnergy").copy();
@@ -97,7 +100,8 @@ public class TileEntityInductionCell extends TileEntityBasicBlock implements ISt
         nbtTags.setInteger("tier", tier.ordinal());
         nbtTags.setDouble("electricityStored", electricityStored);
         if (invalidExactEnergy != null) nbtTags.setTag("matrixExactEnergy", invalidExactEnergy.copy());
-        else if (Double.isFinite(electricityStored)) nbtTags.setString("matrixExactEnergy", getExactEnergy().toPlainString());
+        else if (Double.isFinite(electricityStored))
+            nbtTags.setString("matrixExactEnergy", getExactEnergy().toPlainString());
     }
 
     @Override
@@ -114,7 +118,8 @@ public class TileEntityInductionCell extends TileEntityBasicBlock implements ISt
     }
 
     public boolean hasValidExactEnergy() {
-        if (invalidExactEnergy != null || !Double.isFinite(electricityStored) || !Double.isFinite(getMaxEnergy())) return false;
+        if (invalidExactEnergy != null || !Double.isFinite(electricityStored) || !Double.isFinite(getMaxEnergy()))
+            return false;
         BigDecimal energy = getExactEnergy();
         return energy.signum() >= 0 && energy.compareTo(new BigDecimal(getMaxEnergy())) <= 0;
     }
@@ -123,7 +128,8 @@ public class TileEntityInductionCell extends TileEntityBasicBlock implements ISt
         if (matrix != null) matrix.flushEnergy();
         if (invalidExactEnergy != null) throw new IllegalStateException("Invalid persisted matrix cell energy");
         // Public legacy field writes replace the value when their double projection changes.
-        if (exactEnergy == null || exactEnergy.doubleValue() != electricityStored) exactEnergy = new BigDecimal(electricityStored);
+        if (exactEnergy == null || exactEnergy.doubleValue() != electricityStored)
+            exactEnergy = new BigDecimal(electricityStored);
         return exactEnergy;
     }
 

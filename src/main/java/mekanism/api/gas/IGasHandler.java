@@ -8,6 +8,7 @@ import javax.annotation.Nullable;
 /**
  * Implement this if your tile entity accepts gas from an external source.
  * 如果机器支持外部气体，实现该功能
+ *
  * @author AidanBrady
  */
 public interface IGasHandler {

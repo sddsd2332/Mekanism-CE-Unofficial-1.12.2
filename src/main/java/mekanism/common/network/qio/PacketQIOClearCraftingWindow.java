@@ -13,7 +13,9 @@ import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
 
 import javax.annotation.Nullable;
 
-/** Server-authoritative clear operation for a selected QIO crafting window. */
+/**
+ * Server-authoritative clear operation for a selected QIO crafting window.
+ */
 public class PacketQIOClearCraftingWindow implements IMessageHandler<PacketQIOClearCraftingWindow.Message, IMessage> {
 
     @Override
@@ -111,7 +113,9 @@ public class PacketQIOClearCraftingWindow implements IMessageHandler<PacketQIOCl
         }
     }
 
-    /** Source-compatible name used by the original 1.12 QIO port. */
+    /**
+     * Source-compatible name used by the original 1.12 QIO port.
+     */
     public static class QIOClearCraftingWindowMessage extends Message {
         public QIOClearCraftingWindowMessage() {
             super();

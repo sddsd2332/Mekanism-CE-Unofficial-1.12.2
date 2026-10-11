@@ -1,10 +1,9 @@
 package mekanism.qioprocessing.client.gui;
 
-import mekanism.api.processing.QIOAutomationMode;
 import mekanism.api.processing.MachinePresentationDescriptor;
+import mekanism.api.processing.QIOAutomationMode;
 import mekanism.client.gui.GuiUtils;
 import mekanism.client.gui.IGuiWrapper;
-import mekanism.api.processing.QIOAutomationMode;
 import mekanism.client.gui.element.GuiElement;
 import mekanism.client.gui.element.GuiInnerScreen;
 import mekanism.client.gui.element.button.MekanismButton;
@@ -14,14 +13,10 @@ import mekanism.client.gui.element.text.GuiTextField;
 import mekanism.qioprocessing.client.QIODeviceLocatorRenderer;
 import mekanism.qioprocessing.common.content.device.QIOAutomationDeviceSnapshot;
 import mekanism.qioprocessing.common.content.profile.QIOAutomationRecipeProfile.RouteFilterMode;
-import mekanism.qioprocessing.common.inventory.container.QIOManagementDeviceClientCache;
-import mekanism.qioprocessing.common.inventory.container.QIOManagementDeviceGroupClientCache;
-import mekanism.qioprocessing.common.inventory.container.QIOManagementDevicePageContainer;
-import mekanism.qioprocessing.common.inventory.container.QIOManagementRecipeContainer;
-import mekanism.qioprocessing.common.inventory.container.QIOProcessingTerminalContainerState;
+import mekanism.qioprocessing.common.inventory.container.*;
+import mekanism.qioprocessing.common.network.PacketQIODeviceCommand;
 import mekanism.qioprocessing.common.network.PacketQIOManagementDeviceGroupPageRequest;
 import mekanism.qioprocessing.common.network.PacketQIOManagementDevicePageRequest;
-import mekanism.qioprocessing.common.network.PacketQIODeviceCommand;
 import mekanism.qioprocessing.common.network.QIOProcessingPacketHandler;
 import mekanism.qioprocessing.common.terminal.QIODeviceCommandService;
 import mekanism.qioprocessing.common.terminal.QIOManagementDeviceGroupSnapshot;
@@ -33,16 +28,12 @@ import net.minecraft.util.text.TextComponentTranslation;
 import org.lwjgl.opengl.GL11;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
-/** Two-column management browser for machine types and their persisted device records. */
+/**
+ * Two-column management browser for machine types and their persisted device records.
+ */
+
 /**
  * QIO 处理模块中的 GuiQIOManagementMachinePanel 类型。
  *
@@ -85,15 +76,24 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
 
     private DeviceCategory category = DeviceCategory.ALL;
     private String searchQuery = "";
-    @Nullable private SessionKey sessionKey;
-    @Nullable private String selectedTypeKey;
-    @Nullable private UUID selectedDeviceUUID;
-    @Nullable private UUID lastClickedDeviceUUID;
-    @Nullable private GuiQIOManagementRecipeConfigWindow recipeWindow;
-    @Nullable private String pendingLocateTypeKey;
-    @Nullable private Pending groupRequest;
-    @Nullable private Pending deviceRequest;
-    @Nullable private UUID pendingRecoveryRequestId;
+    @Nullable
+    private SessionKey sessionKey;
+    @Nullable
+    private String selectedTypeKey;
+    @Nullable
+    private UUID selectedDeviceUUID;
+    @Nullable
+    private UUID lastClickedDeviceUUID;
+    @Nullable
+    private GuiQIOManagementRecipeConfigWindow recipeWindow;
+    @Nullable
+    private String pendingLocateTypeKey;
+    @Nullable
+    private Pending groupRequest;
+    @Nullable
+    private Pending deviceRequest;
+    @Nullable
+    private UUID pendingRecoveryRequestId;
     private boolean groupRequestFirstPage;
     private boolean deviceRequestFirstPage;
     private long lastGroupGeneration = Long.MIN_VALUE;
@@ -112,9 +112,9 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
     private long lastDeviceClickTick = Long.MIN_VALUE;
 
     public GuiQIOManagementMachinePanel(IGuiWrapper gui,
-          QIOManagementDevicePageContainer deviceContainer,
-          QIOManagementRecipeContainer recipeContainer,
-          int x, int y, int width, int height) {
+                                        QIOManagementDevicePageContainer deviceContainer,
+                                        QIOManagementRecipeContainer recipeContainer,
+                                        int x, int y, int width, int height) {
         super(gui, x, y, width, height);
         this.deviceContainer = Objects.requireNonNull(deviceContainer, "deviceContainer");
         this.recipeContainer = Objects.requireNonNull(recipeContainer, "recipeContainer");
@@ -131,13 +131,13 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
         searchX = categoryX + CATEGORY_BUTTON_WIDTH + HEADER_GAP;
         searchWidth = Math.max(24, typeX + typeWidth - searchX);
         categoryButton = addChild(new MekanismButton(gui, categoryX, y,
-              CATEGORY_BUTTON_WIDTH, 12, new TextComponentTranslation(category.key),
-              this::cycleCategory, null));
+                CATEGORY_BUTTON_WIDTH, 12, new TextComponentTranslation(category.key),
+                this::cycleCategory, null));
         searchField = addChild(new GuiTextField(gui, searchX, y, searchWidth, 12)
-              .setBackground(BackgroundType.ELEMENT_HOLDER)
-              .setTextColor(0xFFFFFF)
-              .setMaxLength(64)
-              .setResponder(this::searchChanged));
+                .setBackground(BackgroundType.ELEMENT_HOLDER)
+                .setTextColor(0xFFFFFF)
+                .setMaxLength(64)
+                .setResponder(this::searchChanged));
         typeList = addChild(new TypeList(gui, typeX, listY, typeWidth, listHeight));
         deviceList = addChild(new DeviceList(gui, deviceX, listY, deviceWidth, listHeight));
     }
@@ -175,12 +175,12 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
     boolean hasSelectedDataError() {
         QIOAutomationDeviceSnapshot selected = selectedDevice();
         return selected != null && selected.isOnline() &&
-              ((selected.getKind() == QIOAutomationDeviceSnapshot.Kind.AUTOMATION_MACHINE &&
-                    ("DATA_ERROR".equals(selected.getStateName()) ||
-                          selected.getRecoveryState() ==
-                                mekanism.qioprocessing.api.machine.QIOAutomationHost.RecoveryState.QUARANTINED)) ||
-                    selected.getKind() == QIOAutomationDeviceSnapshot.Kind.CRAFTING_PROCESSOR &&
-                          "DATA_ERROR".equals(selected.getStateName()));
+                ((selected.getKind() == QIOAutomationDeviceSnapshot.Kind.AUTOMATION_MACHINE &&
+                        ("DATA_ERROR".equals(selected.getStateName()) ||
+                                selected.getRecoveryState() ==
+                                        mekanism.qioprocessing.api.machine.QIOAutomationHost.RecoveryState.QUARANTINED)) ||
+                        selected.getKind() == QIOAutomationDeviceSnapshot.Kind.CRAFTING_PROCESSOR &&
+                                "DATA_ERROR".equals(selected.getStateName()));
     }
 
     boolean hasSelectedRecoveryPending() {
@@ -206,52 +206,52 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
     void recoverSelectedDataError() {
         QIOAutomationDeviceSnapshot selected = selectedDevice();
         if (selected == null || !hasSelectedDataError() || pendingRecoveryRequestId != null ||
-            !terminalState.isValid() ||
-            deviceContainer.getDeviceClientCache().getSourceRevision() < 0) {
+                !terminalState.isValid() ||
+                deviceContainer.getDeviceClientCache().getSourceRevision() < 0) {
             return;
         }
         UUID requestId = UUID.randomUUID();
         pendingRecoveryRequestId = requestId;
         QIOProcessingPacketHandler.INSTANCE.sendToServer(
-              PacketQIODeviceCommand.Message.create(
-                    deviceContainer.getTerminalWindowId(), terminalState, requestId,
-                    selected.getDeviceUUID(),
-                    deviceContainer.getDeviceClientCache().getSourceRevision(),
-                    selected.getConfigurationRevision(),
-                    QIODeviceCommandService.Command.RECOVER));
+                PacketQIODeviceCommand.Message.create(
+                        deviceContainer.getTerminalWindowId(), terminalState, requestId,
+                        selected.getDeviceUUID(),
+                        deviceContainer.getDeviceClientCache().getSourceRevision(),
+                        selected.getConfigurationRevision(),
+                        QIODeviceCommandService.Command.RECOVER));
     }
 
     @Override
     public void renderForeground(int mouseX, int mouseY) {
         super.renderForeground(mouseX, mouseY);
         drawSmoothScrollingString(localize("gui.mekanismqioprocessing.machine_types"),
-              typeX + 2, relativeY, TYPE_TITLE_WIDTH - 4, 12, 0x404040);
+                typeX + 2, relativeY, TYPE_TITLE_WIDTH - 4, 12, 0x404040);
         if (searchField.isEmpty() && !searchField.isFocused()) {
             drawSmoothScrollingString(
-                  localize("gui.mekanismqioprocessing.management_search"),
-                  searchX + 4, relativeY, Math.max(8, searchWidth - 8), 12, 0x707070);
+                    localize("gui.mekanismqioprocessing.management_search"),
+                    searchX + 4, relativeY, Math.max(8, searchWidth - 8), 12, 0x707070);
         }
         drawColumnTitle("gui.mekanismqioprocessing.machine_name_configuration_hint", deviceX,
-              deviceWidth);
+                deviceWidth);
         if (!terminalState.isValid()) {
             drawEmpty(deviceX, deviceWidth, "gui.mekanismqioprocessing.session_waiting");
         } else if (terminalState.getFrequencyUUID() == null) {
             drawEmpty(deviceX, deviceWidth,
-                  "gui.mekanismqioprocessing.bind_frequency_first");
+                    "gui.mekanismqioprocessing.bind_frequency_first");
         } else if (groups().isEmpty()) {
             boolean loading = groupRequest != null ||
-                  deviceContainer.getDeviceGroupClientCache().getSourceRevision() < 0 ||
-                  deviceContainer.getDeviceGroupClientCache().getNextCursor() != null;
+                    deviceContainer.getDeviceGroupClientCache().getSourceRevision() < 0 ||
+                    deviceContainer.getDeviceGroupClientCache().getNextCursor() != null;
             drawEmpty(typeX, typeWidth, loading ?
-                  "gui.mekanismqioprocessing.loading" :
-                  searchQuery.isEmpty() && category == DeviceCategory.ALL ?
-                        "gui.mekanismqioprocessing.no_devices" :
-                        "gui.mekanismqioprocessing.management_no_search_results");
+                    "gui.mekanismqioprocessing.loading" :
+                    searchQuery.isEmpty() && category == DeviceCategory.ALL ?
+                            "gui.mekanismqioprocessing.no_devices" :
+                            "gui.mekanismqioprocessing.management_no_search_results");
         } else if (selectedTypeKey != null && devices().isEmpty()) {
             drawEmpty(deviceX, deviceWidth, deviceRequest != null ||
-                  deviceContainer.getDeviceClientCache().getSourceRevision() < 0 ?
-                  "gui.mekanismqioprocessing.loading" :
-                  "gui.mekanismqioprocessing.no_devices");
+                    deviceContainer.getDeviceClientCache().getSourceRevision() < 0 ?
+                    "gui.mekanismqioprocessing.loading" :
+                    "gui.mekanismqioprocessing.no_devices");
         }
     }
 
@@ -262,8 +262,8 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
         if (group != null) {
             List<String> tooltip = new ArrayList<>();
             tooltip.add(new TextComponentTranslation(
-                  "gui.mekanismqioprocessing.management_type_highlight_tooltip")
-                  .getFormattedText());
+                    "gui.mekanismqioprocessing.management_type_highlight_tooltip")
+                    .getFormattedText());
             displayTooltips(tooltip, mouseX, mouseY);
             return;
         }
@@ -271,11 +271,11 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
         if (device != null) {
             List<String> tooltip = new ArrayList<>();
             tooltip.add(new TextComponentTranslation(canConfigureRecipes(device) ?
-                  "gui.mekanismqioprocessing.management_double_click_config" :
-                  "gui.mekanismqioprocessing.management_no_route_config").getFormattedText());
+                    "gui.mekanismqioprocessing.management_double_click_config" :
+                    "gui.mekanismqioprocessing.management_no_route_config").getFormattedText());
             tooltip.add(new TextComponentTranslation(
-                  "gui.mekanismqioprocessing.management_device_highlight_tooltip")
-                  .getFormattedText());
+                    "gui.mekanismqioprocessing.management_device_highlight_tooltip")
+                    .getFormattedText());
             displayTooltips(tooltip, mouseX, mouseY);
         }
     }
@@ -283,7 +283,7 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
     private void drawColumnTitle(String key, int x, int maximumWidth) {
         String title = localize(key);
         getFont().drawString(getFont().trimStringToWidth(title, Math.max(12, maximumWidth - 4)),
-              x + 2, relativeY + 2, 0x404040);
+                x + 2, relativeY + 2, 0x404040);
     }
 
     private void drawEmpty(int x, int width, String key) {
@@ -316,24 +316,24 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
         typeList.resetScroll();
         List<QIOManagementDeviceGroupSnapshot> visible = groups();
         if (selectedTypeKey == null || visible.stream().noneMatch(
-              group -> group.getTypeKey().equals(selectedTypeKey))) {
+                group -> group.getTypeKey().equals(selectedTypeKey))) {
             selectType(visible.isEmpty() ? null : visible.get(0));
         }
     }
 
     private void ensureCurrentSessionPages() {
         if (!terminalState.isValid() || terminalState.getFrequencyUUID() == null ||
-            terminalState.getSessionNonce() == null ||
-            clientTick < initialRequestNotBeforeTick) {
+                terminalState.getSessionNonce() == null ||
+                clientTick < initialRequestNotBeforeTick) {
             return;
         }
         UUID nonce = terminalState.getSessionNonce();
         QIOManagementDeviceGroupClientCache groupCache =
-              deviceContainer.getDeviceGroupClientCache();
+                deviceContainer.getDeviceGroupClientCache();
         if (!emptyGroupPageRechecked && emptyGroupPageAtTick >= 0 &&
-            clientTick - emptyGroupPageAtTick >= EMPTY_PAGE_RECHECK_TICKS &&
-            groupRequest == null && groupCache.hasPageFor(nonce) &&
-            groupCache.getGroups().isEmpty()) {
+                clientTick - emptyGroupPageAtTick >= EMPTY_PAGE_RECHECK_TICKS &&
+                groupRequest == null && groupCache.hasPageFor(nonce) &&
+                groupCache.getGroups().isEmpty()) {
             emptyGroupPageRechecked = true;
             requestGroups(null);
             return;
@@ -343,20 +343,20 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
             return;
         }
         if (selectedTypeKey != null && deviceRequest == null &&
-            !deviceContainer.getDeviceClientCache().hasPageFor(nonce, selectedTypeKey)) {
+                !deviceContainer.getDeviceClientCache().hasPageFor(nonce, selectedTypeKey)) {
             requestDevices(null);
         }
     }
 
     private void requestPagesNearScrollEnd() {
         if (groupRequest == null && (!searchQuery.isEmpty() ||
-            typeList.shouldRequestMore()) &&
-            deviceContainer.getDeviceGroupClientCache().getNextCursor() != null) {
+                typeList.shouldRequestMore()) &&
+                deviceContainer.getDeviceGroupClientCache().getNextCursor() != null) {
             requestGroups(deviceContainer.getDeviceGroupClientCache().getNextCursor());
         }
         if (selectedTypeKey != null && deviceRequest == null &&
-            deviceList.shouldRequestMore() &&
-            deviceContainer.getDeviceClientCache().getNextCursor() != null) {
+                deviceList.shouldRequestMore() &&
+                deviceContainer.getDeviceClientCache().getNextCursor() != null) {
             requestDevices(deviceContainer.getDeviceClientCache().getNextCursor());
         }
     }
@@ -392,7 +392,7 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
             directoryReloadPending = true;
         }
         if (directoryReloadPending && groupRequest == null && terminalState.isValid() &&
-            terminalState.getFrequencyUUID() != null) {
+                terminalState.getFrequencyUUID() != null) {
             directoryReloadPending = false;
             requestGroups(null);
         }
@@ -410,8 +410,8 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
             recipeProfileReloadPending = true;
         }
         if (recipeProfileReloadPending && deviceRequest == null &&
-            selectedTypeKey != null && terminalState.isValid() &&
-            terminalState.getFrequencyUUID() != null) {
+                selectedTypeKey != null && terminalState.isValid() &&
+                terminalState.getFrequencyUUID() != null) {
             recipeProfileReloadPending = false;
             deviceContainer.getDeviceClientCache().clear();
             requestDevices(null);
@@ -421,18 +421,18 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
     private void retryTimedOutRequests() {
         UUID nonce = terminalState.getSessionNonce();
         boolean hasGroupPage = nonce != null &&
-              deviceContainer.getDeviceGroupClientCache().hasPageFor(nonce);
+                deviceContainer.getDeviceGroupClientCache().hasPageFor(nonce);
         boolean hasDevicePage = nonce != null && selectedTypeKey != null &&
-              deviceContainer.getDeviceClientCache().hasPageFor(nonce, selectedTypeKey);
+                deviceContainer.getDeviceClientCache().hasPageFor(nonce, selectedTypeKey);
         if (groupRequest != null && timedOut(groupRequest,
-              hasGroupPage ? REQUEST_TIMEOUT_TICKS : INITIAL_PAGE_TIMEOUT_TICKS)) {
+                hasGroupPage ? REQUEST_TIMEOUT_TICKS : INITIAL_PAGE_TIMEOUT_TICKS)) {
             if (!groupRequestFirstPage) deviceContainer.getDeviceGroupClientCache().clear();
             groupRequest = null;
             pendingGroupTopIndex = -1;
             requestGroups(null);
         }
         if (deviceRequest != null && timedOut(deviceRequest,
-              hasDevicePage ? REQUEST_TIMEOUT_TICKS : INITIAL_PAGE_TIMEOUT_TICKS)) {
+                hasDevicePage ? REQUEST_TIMEOUT_TICKS : INITIAL_PAGE_TIMEOUT_TICKS)) {
             if (!deviceRequestFirstPage) deviceContainer.getDeviceClientCache().clear();
             deviceRequest = null;
             pendingDeviceTopIndex = -1;
@@ -452,7 +452,7 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
             List<QIOManagementDeviceGroupSnapshot> allGroups = allGroups();
             if (nonce != null && deviceContainer.getDeviceGroupClientCache().hasPageFor(nonce)) {
                 if (allGroups.isEmpty() && !emptyGroupPageRechecked &&
-                    emptyGroupPageAtTick < 0) {
+                        emptyGroupPageAtTick < 0) {
                     emptyGroupPageAtTick = clientTick;
                 } else if (!allGroups.isEmpty()) {
                     emptyGroupPageAtTick = -1;
@@ -461,11 +461,11 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
             }
             List<QIOManagementDeviceGroupSnapshot> visibleGroups = groups();
             if (selectedTypeKey == null || visibleGroups.stream().noneMatch(
-                  group -> group.getTypeKey().equals(selectedTypeKey))) {
+                    group -> group.getTypeKey().equals(selectedTypeKey))) {
                 selectType(visibleGroups.isEmpty() ? null : visibleGroups.get(0));
             } else if (deviceContainer.getDeviceClientCache().getSourceRevision() !=
-                       deviceContainer.getDeviceGroupClientCache().getSourceRevision() &&
-                       deviceRequest == null) {
+                    deviceContainer.getDeviceGroupClientCache().getSourceRevision() &&
+                    deviceRequest == null) {
                 requestDevices(null);
             }
         }
@@ -474,7 +474,7 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
             lastDeviceGeneration = deviceGeneration;
             List<QIOAutomationDeviceSnapshot> devices = devices();
             if (selectedDeviceUUID == null || devices.stream().noneMatch(
-                  device -> device.getDeviceUUID().equals(selectedDeviceUUID))) {
+                    device -> device.getDeviceUUID().equals(selectedDeviceUUID))) {
                 selectDevice(devices.isEmpty() ? null : devices.get(0));
             }
         }
@@ -559,8 +559,8 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
     private boolean canConfigureRecipes(QIOAutomationDeviceSnapshot device) {
         QIOAutomationMode mode = device.getMode();
         return device.getKind() == QIOAutomationDeviceSnapshot.Kind.AUTOMATION_MACHINE &&
-              device.hasRecipeProfile() &&
-              (mode == QIOAutomationMode.SCHEDULED || mode == QIOAutomationMode.PASSIVE);
+                device.hasRecipeProfile() &&
+                (mode == QIOAutomationMode.SCHEDULED || mode == QIOAutomationMode.PASSIVE);
     }
 
     private void openRecipeConfig(QIOAutomationDeviceSnapshot device) {
@@ -571,14 +571,15 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
         ItemStack stack = machineStack(device.getPresentation());
         String machineName = stack.isEmpty() ? device.getBlockId() : stack.getDisplayName();
         GuiQIOManagementRecipeConfigWindow opened =
-              new GuiQIOManagementRecipeConfigWindow(gui(),
-                    (getGuiWidth() - GuiQIOManagementRecipeConfigWindow.WIDTH) / 2,
-                    18, recipeContainer, device.getDeviceUUID(), device.getMode(),
-                    machineName);
+                new GuiQIOManagementRecipeConfigWindow(gui(),
+                        (getGuiWidth() - GuiQIOManagementRecipeConfigWindow.WIDTH) / 2,
+                        18, recipeContainer, device.getDeviceUUID(), device.getMode(),
+                        machineName);
         recipeWindow = opened;
         opened.setTabListeners(window -> {
             if (recipeWindow == opened) recipeWindow = null;
-        }, window -> { });
+        }, window -> {
+        });
         gui().addWindow(opened);
     }
 
@@ -597,7 +598,7 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
 
     private void advancePendingGroupLocate() {
         if (pendingLocateTypeKey == null ||
-            !pendingLocateTypeKey.equals(selectedTypeKey)) {
+                !pendingLocateTypeKey.equals(selectedTypeKey)) {
             return;
         }
         UUID nonce = terminalState.getSessionNonce();
@@ -635,11 +636,11 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
         if (!terminalState.isValid() || groupRequest != null) return;
         pendingGroupTopIndex = cursor == null ? -1 : typeList.getCurrentSelection();
         QIOProcessingPacketHandler.INSTANCE.sendToServer(
-              PacketQIOManagementDeviceGroupPageRequest.Message.create(
-                    deviceContainer.getTerminalWindowId(), terminalState, PAGE_SIZE, cursor));
+                PacketQIOManagementDeviceGroupPageRequest.Message.create(
+                        deviceContainer.getTerminalWindowId(), terminalState, PAGE_SIZE, cursor));
         groupRequestFirstPage = cursor == null;
         groupRequest = new Pending(
-              deviceContainer.getDeviceGroupClientCache().getGeneration(), clientTick);
+                deviceContainer.getDeviceGroupClientCache().getGeneration(), clientTick);
     }
 
     private void requestDevices(@Nullable QIOPageCursor cursor) {
@@ -647,12 +648,12 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
         pendingDeviceTopIndex = cursor == null ? -1 : deviceList.getCurrentSelection();
         deviceContainer.getDeviceClientCache().expectView(selectedTypeKey);
         QIOProcessingPacketHandler.INSTANCE.sendToServer(
-              PacketQIOManagementDevicePageRequest.Message.create(
-                    deviceContainer.getTerminalWindowId(), terminalState, PAGE_SIZE, cursor,
-                    selectedTypeKey));
+                PacketQIOManagementDevicePageRequest.Message.create(
+                        deviceContainer.getTerminalWindowId(), terminalState, PAGE_SIZE, cursor,
+                        selectedTypeKey));
         deviceRequestFirstPage = cursor == null;
         deviceRequest = new Pending(
-              deviceContainer.getDeviceClientCache().getPageGeneration(), clientTick);
+                deviceContainer.getDeviceClientCache().getPageGeneration(), clientTick);
     }
 
     private List<QIOManagementDeviceGroupSnapshot> allGroups() {
@@ -677,16 +678,16 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
             ItemStack stack = machineStack(group.getPresentation());
             String displayName = stack.isEmpty() ? "" : stack.getDisplayName();
             return (displayName + '\n' + group.getPresentation().getItemId() + '\n' +
-                  group.getBlockId() + '\n' +
-                  group.getProfileScopeId() + '\n' + group.getTypeKey())
-                  .toLowerCase(Locale.ROOT);
+                    group.getBlockId() + '\n' +
+                    group.getProfileScopeId() + '\n' + group.getTypeKey())
+                    .toLowerCase(Locale.ROOT);
         });
         return searchable.contains(searchQuery);
     }
 
     private List<QIOAutomationDeviceSnapshot> devices() {
         return selectedTypeKey == null ? Collections.emptyList() :
-              deviceContainer.getDeviceClientCache().getDevices();
+                deviceContainer.getDeviceClientCache().getDevices();
     }
 
     private ItemStack machineStack(MachinePresentationDescriptor presentation) {
@@ -695,38 +696,38 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
 
     private String deviceStatus(QIOAutomationDeviceSnapshot device) {
         if ("DATA_ERROR".equals(device.getStateName()) ||
-              "IDENTITY_CONFLICT".equals(device.getStateName()) ||
-              device.getRecoveryState() ==
-                    mekanism.qioprocessing.api.machine.QIOAutomationHost.RecoveryState.QUARANTINED ||
-              !device.getDiagnostic().isEmpty()) {
+                "IDENTITY_CONFLICT".equals(device.getStateName()) ||
+                device.getRecoveryState() ==
+                        mekanism.qioprocessing.api.machine.QIOAutomationHost.RecoveryState.QUARANTINED ||
+                !device.getDiagnostic().isEmpty()) {
             String diagnostic = device.getDiagnostic();
             return diagnostic.isEmpty() ? device.getStateName() :
-                  device.getStateName() + ": " + diagnostic;
+                    device.getStateName() + ": " + diagnostic;
         }
         if (device.getRecoveryState() ==
-              mekanism.qioprocessing.api.machine.QIOAutomationHost.RecoveryState.RETRY_PENDING) {
+                mekanism.qioprocessing.api.machine.QIOAutomationHost.RecoveryState.RETRY_PENDING) {
             return localize("gui.mekanismqioprocessing.management_status_recovery_retry");
         }
         if (device.hasRecipeProfile()) {
             String filter = localize(device.getRecipeRouteFilterMode() == RouteFilterMode.WHITELIST ?
-                  "gui.mekanismqioprocessing.config_filter_whitelist" :
-                  "gui.mekanismqioprocessing.config_filter_blacklist");
+                    "gui.mekanismqioprocessing.config_filter_whitelist" :
+                    "gui.mekanismqioprocessing.config_filter_blacklist");
             return device.isIndividualRecipeProfile() ?
-                  localize("gui.mekanismqioprocessing.management_status_individual", filter) :
-                  localize("gui.mekanismqioprocessing.management_status_global", filter,
-                        device.getGlobalRecipeProfileSlot());
+                    localize("gui.mekanismqioprocessing.management_status_individual", filter) :
+                    localize("gui.mekanismqioprocessing.management_status_global", filter,
+                            device.getGlobalRecipeProfileSlot());
         }
         if (device.getKind() == QIOAutomationDeviceSnapshot.Kind.AUTOMATION_MACHINE &&
-            "OUTPUT_ONLY".equals(device.getModeName())) {
+                "OUTPUT_ONLY".equals(device.getModeName())) {
             return localize("gui.mekanismqioprocessing.management_status_output");
         }
         return localize("gui.mekanismqioprocessing.management_status_simple",
-              localize(device.isOnline() ? "gui.mekanismqioprocessing.online" :
-                    "gui.mekanismqioprocessing.offline"));
+                localize(device.isOnline() ? "gui.mekanismqioprocessing.online" :
+                        "gui.mekanismqioprocessing.offline"));
     }
 
     private void drawRow(int x, int y, int width, int height, boolean selected,
-          boolean hovered) {
+                         boolean hovered) {
         if (selected) {
             GuiUtils.fill(x, y, x + width, y + height, SELECTED);
         } else if (hovered) {
@@ -735,7 +736,7 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
     }
 
     private void drawSmoothScrollingString(String text, int x, int y, int width,
-          int height, int color) {
+                                           int height, int color) {
         int textWidth = getFont().getStringWidth(text);
         if (textWidth <= 0 || width <= 0) {
             return;
@@ -745,7 +746,7 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
         if (scrolling) {
             enableGuiScissor(x, y, x + width, y + height);
             drawX -= getScrollingOffset(textWidth, width, getTimeOpened(),
-                  !getFont().getBidiFlag());
+                    !getFont().getBidiFlag());
         }
         float drawY = y + (height - getFont().FONT_HEIGHT) / 2F;
         getFont().drawString(text, drawX, drawY, color, false);
@@ -755,7 +756,7 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
     }
 
     private float getScrollingOffset(double contentWidth, double areaWidth,
-          long msVisible, boolean leftToRight) {
+                                     long msVisible, boolean leftToRight) {
         double overflowWidth = contentWidth - areaWidth;
         if (overflowWidth <= 0) {
             return 0;
@@ -786,26 +787,26 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
         double scaleY = minecraft.displayHeight / (double) minecraft.currentScreen.height;
         int scissorX = (int) Math.floor((getGuiLeft() + minX) * scaleX);
         int scissorY = (int) Math.floor(minecraft.displayHeight -
-              (getGuiTop() + maxY) * scaleY);
+                (getGuiTop() + maxY) * scaleY);
         int scissorWidth = Math.max(0,
-              (int) Math.ceil((maxX - minX) * scaleX));
+                (int) Math.ceil((maxX - minX) * scaleX));
         int scissorHeight = Math.max(0,
-              (int) Math.ceil((maxY - minY) * scaleY));
+                (int) Math.ceil((maxY - minY) * scaleY));
         GL11.glEnable(GL11.GL_SCISSOR_TEST);
         GL11.glScissor(scissorX, scissorY, scissorWidth, scissorHeight);
     }
 
     private void drawCoordinates(QIOAutomationDeviceSnapshot device, int x, int y,
-          int width, int color) {
+                                 int width, int color) {
         BlockPos position = device.getLocation().position();
         String[] labels = {
-              localize("gui.mekanismqioprocessing.management_dimension_label"),
-              "X:", "Y:", "Z:"
+                localize("gui.mekanismqioprocessing.management_dimension_label"),
+                "X:", "Y:", "Z:"
         };
         String[] values = {
-              Integer.toString(device.getLocation().dimension()),
-              Integer.toString(position.getX()), Integer.toString(position.getY()),
-              Integer.toString(position.getZ())
+                Integer.toString(device.getLocation().dimension()),
+                Integer.toString(position.getX()), Integer.toString(position.getY()),
+                Integer.toString(position.getZ())
         };
         int labelWidth = 0;
         for (String label : labels) {
@@ -818,7 +819,7 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
             getFont().drawString(labels[index], cursor, y + 2, color);
             cursor += getFont().getStringWidth(labels[index]);
             int currentWidth = index == labels.length - 1 ?
-                  Math.max(8, x + width - cursor) : valueWidth;
+                    Math.max(8, x + width - cursor) : valueWidth;
             drawSmoothScrollingString(values[index], cursor, y, currentWidth, 13, color);
             cursor += currentWidth + (index == labels.length - 1 ? 0 : 2);
         }
@@ -831,9 +832,9 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
     private abstract class PagedList extends GuiScrollList {
 
         private PagedList(IGuiWrapper gui, int x, int y, int width, int height,
-              int rowHeight) {
+                          int rowHeight) {
             super(gui, x, y, width, height, rowHeight, GuiInnerScreen.SCREEN,
-                  GuiInnerScreen.SCREEN_SIZE);
+                    GuiInnerScreen.SCREEN_SIZE);
         }
 
         protected final boolean shouldRequestMore() {
@@ -843,7 +844,7 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
         protected final void restoreTopIndex(int index) {
             int scrollable = Math.max(0, getMaxElements() - getFocusedElements());
             scroll = scrollable == 0 ? 0 : Math.max(0, Math.min(1,
-                  index / (scrollable + 0.5D)));
+                    index / (scrollable + 0.5D)));
         }
 
         @Override
@@ -858,13 +859,26 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
             super(gui, x, y, width, height, TYPE_ROW_HEIGHT);
         }
 
-        @Override protected int getMaxElements() { return groups().size(); }
-        @Override public boolean hasSelection() { return selectedTypeKey != null; }
-        @Override protected void setSelected(int index) {
+        @Override
+        protected int getMaxElements() {
+            return groups().size();
+        }
+
+        @Override
+        public boolean hasSelection() {
+            return selectedTypeKey != null;
+        }
+
+        @Override
+        protected void setSelected(int index) {
             List<QIOManagementDeviceGroupSnapshot> groups = groups();
             if (index >= 0 && index < groups.size()) selectType(groups.get(index));
         }
-        @Override public void clearSelection() { selectType(null); }
+
+        @Override
+        public void clearSelection() {
+            selectType(null);
+        }
 
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
@@ -885,11 +899,11 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
                 QIOManagementDeviceGroupSnapshot group = groups.get(start + index);
                 int rowY = relativeY + 1 + index * elementHeight;
                 boolean hovered = mouseX >= getX() + 1 &&
-                      mouseX < getX() + barXShift - 1 &&
-                      mouseY >= getY() + 1 + index * elementHeight &&
-                      mouseY < getY() + 1 + (index + 1) * elementHeight;
+                        mouseX < getX() + barXShift - 1 &&
+                        mouseY >= getY() + 1 + index * elementHeight &&
+                        mouseY < getY() + 1 + (index + 1) * elementHeight;
                 drawRow(relativeX + 1, rowY, barXShift - 2, elementHeight,
-                      group.getTypeKey().equals(selectedTypeKey), hovered);
+                        group.getTypeKey().equals(selectedTypeKey), hovered);
             }
         }
 
@@ -910,17 +924,17 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
                 String countText = group.getOnlineCount() + "/" + group.getTotalCount();
                 int countWidth = getFont().getStringWidth(countText);
                 drawSmoothScrollingString(name, relativeX + 22, rowY,
-                      Math.max(12, barXShift - 29 - countWidth), 20, 0x404040);
+                        Math.max(12, barXShift - 29 - countWidth), 20, 0x404040);
                 getFont().drawString(countText, relativeX + barXShift - countWidth - 3,
-                      rowY + 4, group.getOnlineCount() > 0 ? 0x208050 : 0xA05050);
+                        rowY + 4, group.getOnlineCount() > 0 ? 0x208050 : 0xA05050);
             }
         }
 
         @Nullable
         private QIOManagementDeviceGroupSnapshot getHoveredGroup(double mouseX,
-              double mouseY) {
+                                                                 double mouseY) {
             if (mouseX < getX() + 1 || mouseX >= getX() + barXShift - 1 ||
-                mouseY < getY() + 1 || mouseY >= getY() + getHeight() - 1) {
+                    mouseY < getY() + 1 || mouseY >= getY() + getHeight() - 1) {
                 return null;
             }
             int visibleIndex = (int) (mouseY - getY() - 1) / elementHeight;
@@ -936,13 +950,26 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
             super(gui, x, y, width, height, DEVICE_ROW_HEIGHT);
         }
 
-        @Override protected int getMaxElements() { return devices().size(); }
-        @Override public boolean hasSelection() { return selectedDeviceUUID != null; }
-        @Override protected void setSelected(int index) {
+        @Override
+        protected int getMaxElements() {
+            return devices().size();
+        }
+
+        @Override
+        public boolean hasSelection() {
+            return selectedDeviceUUID != null;
+        }
+
+        @Override
+        protected void setSelected(int index) {
             List<QIOAutomationDeviceSnapshot> devices = devices();
             if (index >= 0 && index < devices.size()) selectDevice(devices.get(index));
         }
-        @Override public void clearSelection() { selectDevice(null); }
+
+        @Override
+        public void clearSelection() {
+            selectDevice(null);
+        }
 
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
@@ -955,7 +982,7 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
             if (button == 0 && device != null) {
                 UUID deviceUUID = device.getDeviceUUID();
                 boolean doubleClick = deviceUUID.equals(lastClickedDeviceUUID) &&
-                      clientTick - lastDeviceClickTick <= DOUBLE_CLICK_TICKS;
+                        clientTick - lastDeviceClickTick <= DOUBLE_CLICK_TICKS;
                 selectDevice(device);
                 if (doubleClick) {
                     resetDoubleClick();
@@ -979,14 +1006,14 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
                 QIOAutomationDeviceSnapshot device = devices.get(start + index);
                 int rowY = relativeY + 1 + index * elementHeight;
                 boolean hovered = mouseX >= getX() + 1 &&
-                      mouseX < getX() + barXShift - 1 &&
-                      mouseY >= getY() + 1 + index * elementHeight &&
-                      mouseY < getY() + 1 + (index + 1) * elementHeight;
+                        mouseX < getX() + barXShift - 1 &&
+                        mouseY >= getY() + 1 + index * elementHeight &&
+                        mouseY < getY() + 1 + (index + 1) * elementHeight;
                 drawRow(relativeX + 1, rowY, barXShift - 2, elementHeight,
-                      device.getDeviceUUID().equals(selectedDeviceUUID), hovered);
+                        device.getDeviceUUID().equals(selectedDeviceUUID), hovered);
                 GuiUtils.fill(relativeX + barXShift - 9, rowY + 21,
-                      relativeX + barXShift - 4, rowY + 26,
-                      device.isOnline() ? ONLINE : OFFLINE);
+                        relativeX + barXShift - 4, rowY + 26,
+                        device.isOnline() ? ONLINE : OFFLINE);
             }
         }
 
@@ -1001,18 +1028,18 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
                 int rowY = relativeY + 3 + index * elementHeight;
                 int color = device.isOnline() ? 0x404040 : 0x8A6060;
                 drawCoordinates(device, relativeX + 4, rowY,
-                      Math.max(20, barXShift - 8), color);
+                        Math.max(20, barXShift - 8), color);
                 drawSmoothScrollingString(deviceStatus(device), relativeX + 4,
-                      rowY + 15, Math.max(12, barXShift - 16), 13,
-                      device.isOnline() ? 0x555555 : 0x9A7070);
+                        rowY + 15, Math.max(12, barXShift - 16), 13,
+                        device.isOnline() ? 0x555555 : 0x9A7070);
             }
         }
 
         @Nullable
         private QIOAutomationDeviceSnapshot getHoveredDevice(double mouseX,
-              double mouseY) {
+                                                             double mouseY) {
             if (mouseX < getX() + 1 || mouseX >= getX() + barXShift - 1 ||
-                mouseY < getY() + 1 || mouseY >= getY() + getHeight() - 1) {
+                    mouseY < getY() + 1 || mouseY >= getY() + getHeight() - 1) {
                 return null;
             }
             int visibleIndex = (int) (mouseY - getY() - 1) / elementHeight;
@@ -1025,13 +1052,14 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
     private enum DeviceCategory {
         ALL(null, "gui.mekanismqioprocessing.management_category_all"),
         MACHINES(QIOAutomationDeviceSnapshot.Kind.AUTOMATION_MACHINE,
-              "gui.mekanismqioprocessing.management_category_machines"),
+                "gui.mekanismqioprocessing.management_category_machines"),
         TERMINALS(QIOAutomationDeviceSnapshot.Kind.TERMINAL,
-              "gui.mekanismqioprocessing.management_category_terminals"),
+                "gui.mekanismqioprocessing.management_category_terminals"),
         CRAFTING(QIOAutomationDeviceSnapshot.Kind.CRAFTING_PROCESSOR,
-              "gui.mekanismqioprocessing.management_category_crafting");
+                "gui.mekanismqioprocessing.management_category_crafting");
 
-        @Nullable private final QIOAutomationDeviceSnapshot.Kind kind;
+        @Nullable
+        private final QIOAutomationDeviceSnapshot.Kind kind;
         private final String key;
 
         DeviceCategory(QIOAutomationDeviceSnapshot.Kind kind, String key) {
@@ -1063,11 +1091,12 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
         private final UUID nonce;
         private final UUID terminalUUID;
         private final long targetRevision;
-        @Nullable private final UUID frequencyUUID;
+        @Nullable
+        private final UUID frequencyUUID;
         private final long accessRevision;
 
         private SessionKey(UUID nonce, UUID terminalUUID, long targetRevision,
-              @Nullable UUID frequencyUUID, long accessRevision) {
+                           @Nullable UUID frequencyUUID, long accessRevision) {
             this.nonce = nonce;
             this.terminalUUID = terminalUUID;
             this.targetRevision = targetRevision;
@@ -1078,22 +1107,22 @@ public final class GuiQIOManagementMachinePanel extends GuiElement {
         @Nullable
         private static SessionKey capture(QIOProcessingTerminalContainerState state) {
             return state.isValid() ? new SessionKey(state.getSessionNonce(),
-                  state.getTerminalUUID(), state.getTargetRevision(), state.getFrequencyUUID(),
-                  state.getAccessRevision()) : null;
+                    state.getTerminalUUID(), state.getTargetRevision(), state.getFrequencyUUID(),
+                    state.getAccessRevision()) : null;
         }
 
         @Override
         public boolean equals(Object obj) {
             return obj instanceof SessionKey other && targetRevision == other.targetRevision &&
-                  accessRevision == other.accessRevision && nonce.equals(other.nonce) &&
-                  terminalUUID.equals(other.terminalUUID) &&
-                  Objects.equals(frequencyUUID, other.frequencyUUID);
+                    accessRevision == other.accessRevision && nonce.equals(other.nonce) &&
+                    terminalUUID.equals(other.terminalUUID) &&
+                    Objects.equals(frequencyUUID, other.frequencyUUID);
         }
 
         @Override
         public int hashCode() {
             return Objects.hash(nonce, terminalUUID, targetRevision, frequencyUUID,
-                  accessRevision);
+                    accessRevision);
         }
     }
 }

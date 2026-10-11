@@ -58,12 +58,12 @@ public class ItemGeigerCounter extends ItemMekanism {
                 }
                 double magnitude = radiation.getLevel();
                 player.sendMessage(MekanismLang.RADIATION_EXPOSURE.translateColored(EnumColor.GREY)
-                      .appendText(RadiationScale.getSeverityColor(magnitude) +
-                            UnitDisplayUtils.getDisplayShort(magnitude, UnitDisplayUtils.RadiationUnit.SVH, 3)));
+                        .appendText(RadiationScale.getSeverityColor(magnitude) +
+                                UnitDisplayUtils.getDisplayShort(magnitude, UnitDisplayUtils.RadiationUnit.SVH, 3)));
                 if (MekanismConfig.current().general.radiationDecayTimers.val() && magnitude > RadiationManager.BASELINE) {
                     player.sendMessage(MekanismLang.RADIATION_DECAY_TIME.translateColored(EnumColor.GREY)
-                          .appendText(RadiationScale.getSeverityColor(magnitude) + TextUtils.getHoursMinutesFromTicks(
-                                RadiationUtil.getDecayTime(radiation.getMaxMagnitude(), true))));
+                            .appendText(RadiationScale.getSeverityColor(magnitude) + TextUtils.getHoursMinutesFromTicks(
+                                    RadiationUtil.getDecayTime(radiation.getMaxMagnitude(), true))));
                 }
                 if (player instanceof EntityPlayerMP playerMP) {
                     MekanismCriteriaTriggers.USE_GEIGER_COUNTER.trigger(playerMP);

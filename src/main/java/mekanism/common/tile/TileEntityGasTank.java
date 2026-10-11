@@ -86,7 +86,7 @@ public class TileEntityGasTank extends TileEntityContainerBlock implements IReds
 
         ejectorComponent = new TileComponentEjector(this);
         ejectorComponent.setOutputData(configComponent, TransmissionType.GAS)
-              .setCanEject(type -> MekanismUtils.canFunction(this) && (tier == GasTankTier.CREATIVE || dumping != GasMode.DUMPING));
+                .setCanEject(type -> MekanismUtils.canFunction(this) && (tier == GasTankTier.CREATIVE || dumping != GasMode.DUMPING));
 
         securityComponent = new TileComponentSecurity(this);
     }
@@ -169,8 +169,8 @@ public class TileEntityGasTank extends TileEntityContainerBlock implements IReds
             return null;
         }
         return new GasTankUpgradeData(upgradeTier, facing, clientFacing, ticker, redstone, redstoneLastTick, doAutoSync, getControlType(),
-              dumping, gasTank.getGas(), currentGasAmount, currentRedstoneLevel, writeUpgradeComponentData(), drainSlot.serializeNBT(),
-              fillSlot.serializeNBT());
+                dumping, gasTank.getGas(), currentGasAmount, currentRedstoneLevel, writeUpgradeComponentData(), drainSlot.serializeNBT(),
+                fillSlot.serializeNBT());
     }
 
     @Nonnull
@@ -293,6 +293,11 @@ public class TileEntityGasTank extends TileEntityContainerBlock implements IReds
     @Override
     public boolean canSetFacing(@Nonnull EnumFacing facing) {
         return facing != EnumFacing.DOWN && facing != EnumFacing.UP;
+    }
+
+    @Override
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return type == mekanism.api.transmitters.TransmissionType.GAS;
     }
 
     @Override

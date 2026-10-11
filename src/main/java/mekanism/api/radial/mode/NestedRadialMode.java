@@ -17,7 +17,8 @@ import java.util.Objects;
  * @since 10.3.2
  */
 @Desugar
-public record NestedRadialMode(@NotNull RadialData<?> nestedData, @NotNull ITextComponent sliceName, @NotNull ResourceLocation icon, @Nullable EnumColor color)
+public record NestedRadialMode(@NotNull RadialData<?> nestedData, @NotNull ITextComponent sliceName,
+                               @NotNull ResourceLocation icon, @Nullable EnumColor color)
         implements INestedRadialMode {
 
     /**
@@ -34,7 +35,6 @@ public record NestedRadialMode(@NotNull RadialData<?> nestedData, @NotNull IText
      * @param sliceName  Lang entry for the name to display in this mode's slice of the radial menu.
      * @param icon       Asset location of the icon to draw in this mode's slice of the radial menu.
      * @param color      Selection color of this mode's slice.
-     *
      * @implNote {@code sliceName} is colored using the given color.
      */
     public NestedRadialMode(@NotNull RadialData<?> nestedData, @NotNull ILangEntry sliceName, @NotNull ResourceLocation icon, @NotNull EnumColor color) {

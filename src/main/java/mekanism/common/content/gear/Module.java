@@ -408,17 +408,17 @@ public final class Module<MODULE extends ICustomModule<MODULE>> implements IModu
         }
     }
 
-    public void hitEntity(ItemStack stack, EntityLivingBase target, EntityLivingBase attacker){
+    public void hitEntity(ItemStack stack, EntityLivingBase target, EntityLivingBase attacker) {
         if (isEnabled()) {
-            customModule.hitEntity(this,stack,target,attacker);
+            customModule.hitEntity(this, stack, target, attacker);
         }
     }
 
-    public void onUpdateModule(ItemStack stack, World world, Entity entity, int itemSlot, boolean isSelected){
+    public void onUpdateModule(ItemStack stack, World world, Entity entity, int itemSlot, boolean isSelected) {
         if (isEnabled()) {
             if (world.isRemote) {
                 customModule.tickClientUpdate(this, stack, world, entity, itemSlot, isSelected);
-            }else {
+            } else {
                 customModule.tickServerUpdate(this, stack, world, entity, itemSlot, isSelected);
             }
         }

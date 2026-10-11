@@ -18,15 +18,15 @@ import java.util.function.ObjIntConsumer;
 public class MovableFilterButton extends FilterButton {
 
     private static final java.util.List<String> MOVE_UP = Arrays.asList(mekanism.common.MekanismLang.MOVE_UP.translate().getFormattedText(),
-          mekanism.common.MekanismLang.MOVE_TO_TOP.translate().getFormattedText());
+            mekanism.common.MekanismLang.MOVE_TO_TOP.translate().getFormattedText());
     private static final java.util.List<String> MOVE_DOWN = Arrays.asList(mekanism.common.MekanismLang.MOVE_DOWN.translate().getFormattedText(),
-          mekanism.common.MekanismLang.MOVE_TO_BOTTOM.translate().getFormattedText());
+            mekanism.common.MekanismLang.MOVE_TO_BOTTOM.translate().getFormattedText());
 
     private final FilterSelectButton upButton;
     private final FilterSelectButton downButton;
 
     public MovableFilterButton(IGuiWrapper gui, int x, int y, int index, IntSupplier filterIndex, FilterManager<?> filterManager, IntConsumer upButtonPress,
-          IntConsumer downButtonPress, ObjIntConsumer<IFilter> onPress, IntConsumer toggleButtonPress, Function<IFilter, List<ItemStack>> renderStackSupplier) {
+                               IntConsumer downButtonPress, ObjIntConsumer<IFilter> onPress, IntConsumer toggleButtonPress, Function<IFilter, List<ItemStack>> renderStackSupplier) {
         super(gui, x, y, TEXTURE_WIDTH, TEXTURE_HEIGHT / 2, index, filterIndex, filterManager, onPress, toggleButtonPress, renderStackSupplier);
         int arrowX = relativeX + width - 14;
         int halfHeight = height / 2;

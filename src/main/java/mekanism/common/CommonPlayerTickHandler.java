@@ -7,9 +7,9 @@ import mekanism.api.functions.FloatSupplier;
 import mekanism.api.gas.GasStack;
 import mekanism.api.gear.IModule;
 import mekanism.api.radiation.capability.IRadiationEntity;
+import mekanism.common.advancements.MekanismCriteriaTriggers;
 import mekanism.common.block.PortalHelper;
 import mekanism.common.block.states.BlockStateBasic;
-import mekanism.common.advancements.MekanismCriteriaTriggers;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.content.gear.ModuleHelper;
@@ -39,12 +39,8 @@ import net.minecraft.util.DamageSource;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
-import net.minecraftforge.event.entity.living.LivingAttackEvent;
-import net.minecraftforge.event.entity.living.LivingDeathEvent;
-import net.minecraftforge.event.entity.living.LivingEntityUseItemEvent;
-import net.minecraftforge.event.entity.living.LivingEvent;
+import net.minecraftforge.event.entity.living.*;
 import net.minecraftforge.event.entity.living.LivingEvent.LivingJumpEvent;
-import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.event.entity.player.ItemFishedEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.world.BlockEvent;
@@ -66,12 +62,12 @@ public class CommonPlayerTickHandler {
 
     public static boolean hasScubaTankGas(ItemStack tank) {
         return !tank.isEmpty() && tank.getItem() instanceof ItemScubaTank &&
-               GasInventorySlot.getContainedGas(tank, MekanismFluids.Oxygen) != null;
+                GasInventorySlot.getContainedGas(tank, MekanismFluids.Oxygen) != null;
     }
 
     public static boolean hasFlamethrowerGas(ItemStack currentItem) {
         return !currentItem.isEmpty() && currentItem.getItem() instanceof ItemFlamethrower &&
-               GasInventorySlot.getContainedGas(currentItem, MekanismFluids.Hydrogen) != null;
+                GasInventorySlot.getContainedGas(currentItem, MekanismFluids.Hydrogen) != null;
     }
 
     public static boolean isScubaMaskOn(EntityPlayer player, ItemStack tank) {
@@ -195,7 +191,7 @@ public class CommonPlayerTickHandler {
             if (!headStack.isEmpty() && headStack.getItem() instanceof ItemGasMask) {
                 ItemStack chestStack = entity.getItemStackFromSlot(EntityEquipmentSlot.CHEST);
                 if (!chestStack.isEmpty() && chestStack.getItem() instanceof ItemScubaTank tank && tank.getFlowing(chestStack) &&
-                    hasScubaTankGas(chestStack)) {
+                        hasScubaTankGas(chestStack)) {
                     event.setCanceled(true);
                     return;
                 }
@@ -459,7 +455,7 @@ public class CommonPlayerTickHandler {
                 int count = (fish.getInstalledCount() / fish.getData().getMaxStackSize());
                 for (ItemStack fishStack : event.getDrops()) {
                     //如果这里已经是最大物品堆叠了，则直接添加到掉落物内
-                    if (fishStack.getCount() == fishStack.getMaxStackSize()){
+                    if (fishStack.getCount() == fishStack.getMaxStackSize()) {
                         drops.add(fishStack);
                         continue;
                     }

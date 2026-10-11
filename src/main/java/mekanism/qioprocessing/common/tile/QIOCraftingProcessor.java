@@ -4,22 +4,21 @@ import com.google.common.util.concurrent.AtomicDouble;
 import ic2.api.energy.event.EnergyTileLoadEvent;
 import ic2.api.energy.event.EnergyTileUnloadEvent;
 import ic2.api.energy.tile.IEnergyAcceptor;
-import ic2.api.energy.tile.IEnergyConductor;
 import ic2.api.energy.tile.IEnergyEmitter;
 import io.netty.buffer.ByteBuf;
 import mekanism.api.Action;
-import mekanism.api.AutomationType;
 import mekanism.api.IContentsListener;
 import mekanism.api.RelativeSide;
 import mekanism.api.TileNetworkList;
 import mekanism.api.heat.HeatAPI;
+import mekanism.api.processing.MachineOperationToken;
 import mekanism.api.qio.external.QIOFrequencyReference;
 import mekanism.common.Mekanism;
 import mekanism.common.PacketHandler;
 import mekanism.common.Upgrade;
 import mekanism.common.base.IEnergyWrapper;
-import mekanism.common.base.IUpgradeTile;
 import mekanism.common.base.IGuiProvider;
+import mekanism.common.base.IUpgradeTile;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.capabilities.CapabilityWrapperManager;
 import mekanism.common.capabilities.energy.MachineEnergyContainer;
@@ -37,26 +36,44 @@ import mekanism.common.integration.forgeenergy.ForgeEnergyIntegration;
 import mekanism.common.integration.ic2.IC2Integration;
 import mekanism.common.integration.redstoneflux.RFIntegration;
 import mekanism.common.integration.tesla.TeslaIntegration;
-import mekanism.common.inventory.slot.EnergyInventorySlot;
 import mekanism.common.inventory.container.MekanismContainer;
-import mekanism.common.inventory.container.sync.SyncableNBT;
 import mekanism.common.inventory.container.sync.SyncableLong;
+import mekanism.common.inventory.container.sync.SyncableNBT;
+import mekanism.common.inventory.slot.EnergyInventorySlot;
 import mekanism.common.lib.LastEnergyTracker;
 import mekanism.common.tile.component.TileComponentUpgrade;
+import mekanism.common.tile.qio.TileEntityQIOComponent;
 import mekanism.common.util.CapabilityUtils;
+import mekanism.common.util.LangUtils;
 import mekanism.common.util.MekanismUtils;
 import mekanism.qioprocessing.api.processor.QIOCraftingProcessorDefinition;
 import mekanism.qioprocessing.api.processor.QIOCraftingProcessorHostRegistry;
 import mekanism.qioprocessing.api.processor.QIOCraftingProcessorRegistry;
+import mekanism.qioprocessing.api.resource.PortableResourceDescriptor;
+import mekanism.qioprocessing.common.MekanismQIOProcessing;
+import mekanism.qioprocessing.common.QIOProcessingCommonProxy;
+import mekanism.qioprocessing.common.QIOProcessingUpgrades;
 import mekanism.qioprocessing.common.content.QIOProcessingDataException;
 import mekanism.qioprocessing.common.content.QIOProcessingNetworkData;
 import mekanism.qioprocessing.common.content.QIOProcessingNetworkManager;
+import mekanism.qioprocessing.common.content.job.QIOCraftingJob;
+import mekanism.qioprocessing.common.content.job.QIOOperationAssignment;
+import mekanism.qioprocessing.common.content.job.QIOStepRuntime;
+import mekanism.qioprocessing.common.content.plan.QIOPlanStep;
 import mekanism.qioprocessing.common.content.processor.QIOCraftingProcessorState;
 import mekanism.qioprocessing.common.content.processor.QIOProcessorDisplaySnapshot;
-import mekanism.common.tile.qio.TileEntityQIOComponent;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.nbt.NBTTagCompound;
+import mekanism.qioprocessing.common.content.processor.QIOProcessorLaneRuntime;
+import mekanism.qioprocessing.common.execution.QIOProcessingExecutionService;
+import mekanism.qioprocessing.common.planning.QIORecipeCatalogService;
+import mekanism.qioprocessing.common.planning.QIOWorkbenchRecipeCatalog;
+import mekanism.qioprocessing.common.planning.QIOWorkbenchRecipePattern;
+import mekanism.qioprocessing.common.processor.QIOCraftingProcessorDeviceRegistry;
+import mekanism.qioprocessing.common.terminal.QIOProcessingFrequencyAccess;
+import mekanism.qioprocessing.common.tile.component.QIOProcessorUpgradeComponent;
 import net.minecraft.block.Block;
+import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.common.MinecraftForge;
@@ -66,33 +83,14 @@ import net.minecraftforge.energy.CapabilityEnergy;
 import net.minecraftforge.fml.common.Optional.Method;
 
 import javax.annotation.Nonnull;
-import java.util.Objects;
-import mekanism.qioprocessing.common.processor.QIOCraftingProcessorDeviceRegistry;
-import mekanism.qioprocessing.common.execution.QIOProcessingExecutionService;
-import mekanism.qioprocessing.common.content.processor.QIOProcessorLaneRuntime;
-import mekanism.qioprocessing.common.planning.QIORecipeCatalogService;
-import mekanism.qioprocessing.common.planning.QIOWorkbenchRecipeCatalog;
-import mekanism.qioprocessing.common.planning.QIOWorkbenchRecipePattern;
-import mekanism.qioprocessing.common.terminal.QIOProcessingFrequencyAccess;
-import mekanism.qioprocessing.common.tile.component.QIOProcessorUpgradeComponent;
-import mekanism.qioprocessing.common.MekanismQIOProcessing;
-import mekanism.qioprocessing.common.QIOProcessingCommonProxy;
-import mekanism.qioprocessing.common.QIOProcessingUpgrades;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import mekanism.qioprocessing.api.resource.PortableResourceDescriptor;
 import javax.annotation.Nullable;
-import net.minecraft.item.ItemStack;
-import mekanism.common.util.LangUtils;
+import java.util.*;
 
 /**
  * Reusable root TileEntity implementation for ordinary workbench processors. Tier implementations
  * only select immutable host and processor definitions; they do not replace this state machine.
  */
+
 /**
  * QIO 处理模块中的 QIOCraftingProcessor 类型。
  *
@@ -100,7 +98,7 @@ import mekanism.common.util.LangUtils;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implements IUpgradeTile,
-      IEnergyWrapper {
+        IEnergyWrapper {
 
     private static final int WORKBENCH_BASE_PROCESSING_TICKS = 200;
     private static final String PROCESSOR_STATE = "qioCraftingProcessorState";
@@ -113,29 +111,31 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
     private double maxEnergy;
     private boolean ic2Registered;
     private final CapabilityWrapperManager<IEnergyWrapper, TeslaIntegration> teslaManager =
-          new CapabilityWrapperManager<>(IEnergyWrapper.class, TeslaIntegration.class);
+            new CapabilityWrapperManager<>(IEnergyWrapper.class, TeslaIntegration.class);
     private final CapabilityWrapperManager<IEnergyWrapper, ForgeEnergyIntegration> forgeEnergyManager =
-          new CapabilityWrapperManager<>(IEnergyWrapper.class, ForgeEnergyIntegration.class);
+            new CapabilityWrapperManager<>(IEnergyWrapper.class, ForgeEnergyIntegration.class);
     private final LastEnergyTracker lastEnergyTracker = new LastEnergyTracker();
     @Nullable
     private MachineEnergyContainer mainEnergyContainer;
     private final ResourceLocation expectedHostId;
     private final ResourceLocation expectedDefinitionId;
     private QIOCraftingProcessorState processorState;
+    @Nullable
+    private mekanism.qioprocessing.common.processor.QIOCraftingProcessorState coreRuntimeState;
     private final QIOProcessorUpgradeComponent upgradeComponent;
     private EnergyInventorySlot energySlot;
     private long clientActiveLaneCount;
     private long clientProcessingTicks;
     private long clientTotalProcessingTicks;
     private QIOProcessorDisplaySnapshot clientDisplaySnapshot =
-          QIOProcessorDisplaySnapshot.empty(0);
+            QIOProcessorDisplaySnapshot.empty(0);
     private final long[] clientLaneCurrentTicks =
-          new long[QIOProcessorDisplaySnapshot.MAX_DISPLAY_LANES];
+            new long[QIOProcessorDisplaySnapshot.MAX_DISPLAY_LANES];
     private final long[] clientLaneTotalTicks =
-          new long[QIOProcessorDisplaySnapshot.MAX_DISPLAY_LANES];
+            new long[QIOProcessorDisplaySnapshot.MAX_DISPLAY_LANES];
     private String cachedDisplaySignature = "";
     private QIOProcessorDisplaySnapshot cachedDisplaySnapshot =
-          QIOProcessorDisplaySnapshot.empty(0);
+            QIOProcessorDisplaySnapshot.empty(0);
     private NBTTagCompound cachedDisplayData = new NBTTagCompound();
     private boolean managementPaused;
     private long managementConfigurationRevision;
@@ -144,13 +144,15 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
     private QIOFrequencyReference frequencyReference;
 
     protected QIOCraftingProcessor(@Nonnull String name, @Nonnull ResourceLocation hostId,
-          @Nonnull ResourceLocation definitionId) {
+                                   @Nonnull ResourceLocation definitionId) {
         super(Objects.requireNonNull(name, "name"));
         expectedHostId = Objects.requireNonNull(hostId, "hostId");
         expectedDefinitionId = Objects.requireNonNull(definitionId, "definitionId");
         baseMaxEnergy = definitionEnergyCapacity(expectedDefinitionId);
         maxEnergy = baseMaxEnergy;
         processorState = QIOCraftingProcessorState.create(expectedHostId, requireDefinition());
+        coreRuntimeState = mekanism.qioprocessing.common.processor.QIOCraftingProcessorState.create(
+                processorState.getProcessorUUID(), expectedHostId, requireDefinition()).activate();
         upgradeComponent = new QIOProcessorUpgradeComponent(this);
         initializeInventorySlots();
         bindState();
@@ -159,11 +161,11 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
     @Override
     protected IEnergyContainerHolder getInitialEnergyContainers(IContentsListener listener) {
         return ProxiedEnergyContainerHolder.create(
-              side -> side != null && sideIsConsumer(side),
-              side -> side != null && sideIsOutput(side),
-              side -> side == null || sideIsConsumer(side) || sideIsOutput(side) ?
-                    Collections.singletonList(getMainEnergyContainer(listener)) :
-                    Collections.emptyList());
+                side -> side != null && sideIsConsumer(side),
+                side -> side != null && sideIsOutput(side),
+                side -> side == null || sideIsConsumer(side) || sideIsOutput(side) ?
+                        Collections.singletonList(getMainEnergyContainer(listener)) :
+                        Collections.emptyList());
     }
 
     @Nonnull
@@ -175,8 +177,8 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
     private MachineEnergyContainer getMainEnergyContainer(@Nullable IContentsListener listener) {
         if (mainEnergyContainer == null) {
             mainEnergyContainer = MachineEnergyContainer.create(this::getEnergy, this::setEnergy,
-                  this::getMaxEnergy, this::getMainEnergyPerTick, ignored -> true,
-                  ignored -> true, listener);
+                    this::getMaxEnergy, this::getMainEnergyPerTick, ignored -> true,
+                    ignored -> true, listener);
         }
         return mainEnergyContainer;
     }
@@ -185,9 +187,9 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
     protected IInventorySlotHolder getInitialInventory(IContentsListener listener) {
         InventorySlotHelper builder = createInventorySlotHelper();
         int slotX = isFactoryProcessor() ? 7 : 143;
-        int slotY = isFactoryProcessor() ? 5 : 57;
+        int slotY = isFactoryProcessor() ? 39 : 57;
         energySlot = builder.addSlot(EnergyInventorySlot.fillOrConvert(getMainEnergyContainer(),
-              this::getWorld, listener, slotX, slotY), RelativeSide.BACK);
+                this::getWorld, listener, slotX, slotY), RelativeSide.BACK);
         return builder.build();
     }
 
@@ -212,10 +214,12 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
 
     public int getDisplayLaneCount() {
         return (int) Math.min(QIOProcessorDisplaySnapshot.MAX_DISPLAY_LANES,
-              Math.max(0, getLaneCount()));
+                Math.max(0, getLaneCount()));
     }
 
-    /** Built-in factory layout has room for at most nine simultaneously visible lanes. */
+    /**
+     * Built-in factory layout has room for at most nine simultaneously visible lanes.
+     */
     public int getVisibleLaneCount() {
         return Math.min(9, getDisplayLaneCount());
     }
@@ -226,7 +230,7 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
             return null;
         }
         return isRemote() ? clientDisplaySnapshot.getLane(lane) :
-              buildDisplaySnapshot().getLane(lane);
+                buildDisplaySnapshot().getLane(lane);
     }
 
     public long getLaneCurrentTicks(int lane) {
@@ -263,7 +267,9 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
         return isRemote() ? clientActiveLaneCount : processorState.getActiveLanes().size();
     }
 
-    /** True only while at least one lane advanced its recipe processing this tick. */
+    /**
+     * True only while at least one lane advanced its recipe processing this tick.
+     */
     public boolean isWorking() {
         return working;
     }
@@ -286,24 +292,28 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
     public final QIOFrequency getQIOFrequency() {
         QIOFrequency frequency = super.getQIOFrequency();
         return frequencyReference != null &&
-              QIOProcessingFrequencyAccess.matches(frequencyReference, frequency) ?
-              frequency : null;
+                QIOProcessingFrequencyAccess.matches(frequencyReference, frequency) ?
+                frequency : null;
     }
 
-    /** Generic QIO packets cannot mutate an exact smart-processing binding. */
+    /**
+     * Generic QIO packets cannot mutate an exact smart-processing binding.
+     */
     @Override
     public final void setFrequency(FrequencyType<?> type, FrequencyIdentity data,
-          UUID player) {
+                                   UUID player) {
     }
 
-    /** Frequency removal is deliberately separate from unbinding this processor. */
+    /**
+     * Frequency removal is deliberately separate from unbinding this processor.
+     */
     @Override
     public final void removeFrequency(FrequencyType<?> type, FrequencyIdentity data,
-          UUID player) {
+                                      UUID player) {
     }
 
     public final boolean applyAuthorizedBinding(@Nullable QIOFrequency frequency,
-          @Nonnull UUID bindingPlayerUUID) {
+                                                @Nonnull UUID bindingPlayerUUID) {
         Objects.requireNonNull(bindingPlayerUUID, "bindingPlayerUUID");
         boolean normalized = processorState.normalizeLegacyState(expectedHostId, expectedDefinitionId);
         if (normalized) {
@@ -313,8 +323,8 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
             return false;
         }
         QIOFrequencyReference updatedReference = frequency == null ? null :
-              QIOFrequencyStorageAccess.INSTANCE.createReference(frequency,
-                    bindingPlayerUUID);
+                QIOFrequencyStorageAccess.INSTANCE.createReference(frequency,
+                        bindingPlayerUUID);
         if (Objects.equals(frequencyReference, updatedReference)) {
             return false;
         }
@@ -322,7 +332,7 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
             getFrequencyComponent().unsetFrequency(FrequencyType.QIO);
         } else {
             getFrequencyComponent().setFrequencyFromData(FrequencyType.QIO,
-                  frequency.getIdentity(), bindingPlayerUUID);
+                    frequency.getIdentity(), bindingPlayerUUID);
         }
         frequencyReference = updatedReference;
         markFrequencyBindingChanged();
@@ -339,13 +349,13 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
             return false;
         }
         QIOFrequency frequency = QIOProcessingFrequencyAccess.resolveAccessible(
-              frequencyReference, bindingPlayerUUID);
+                frequencyReference, bindingPlayerUUID);
         if (frequency == null) {
             getFrequencyComponent().unsetFrequency(FrequencyType.QIO);
             return false;
         }
         getFrequencyComponent().setFrequencyFromData(FrequencyType.QIO,
-              frequency.getIdentity(), bindingPlayerUUID);
+                frequency.getIdentity(), bindingPlayerUUID);
         markFrequencyBindingChanged();
         return true;
     }
@@ -377,20 +387,20 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
     public void addContainerTrackers(MekanismContainer container) {
         super.addContainerTrackers(container);
         container.track(SyncableNBT.create(this::getDisplaySnapshotData,
-              this::setClientDisplaySnapshot));
+                this::setClientDisplaySnapshot));
         for (int lane = 0; lane < getDisplayLaneCount(); lane++) {
             final int laneId = lane;
             container.track(SyncableLong.create(() -> getLaneCurrentTicks(laneId),
-                  value -> clientLaneCurrentTicks[laneId] = Math.max(0, value)));
+                    value -> clientLaneCurrentTicks[laneId] = Math.max(0, value)));
             container.track(SyncableLong.create(() -> getLaneTotalTicks(laneId),
-                  value -> clientLaneTotalTicks[laneId] = Math.max(0, value)));
+                    value -> clientLaneTotalTicks[laneId] = Math.max(0, value)));
         }
         container.track(SyncableLong.create(this::getActiveLaneCount,
-              value -> clientActiveLaneCount = Math.max(0, value)));
+                value -> clientActiveLaneCount = Math.max(0, value)));
         container.track(SyncableLong.create(this::currentProcessingTicks,
-              value -> clientProcessingTicks = Math.max(0, value)));
+                value -> clientProcessingTicks = Math.max(0, value)));
         container.track(SyncableLong.create(this::totalProcessingTicks,
-              value -> clientTotalProcessingTicks = Math.max(0, value)));
+                value -> clientTotalProcessingTicks = Math.max(0, value)));
     }
 
     @Override
@@ -433,7 +443,7 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
     public void setEnergy(double energy) {
         runContainerTransaction(() -> {
             double sanitized = HeatAPI.isFinite(energy) ?
-                  Math.max(0, Math.min(energy, getMaxEnergy())) : 0;
+                    Math.max(0, Math.min(energy, getMaxEnergy())) : 0;
             electricityStored.set(sanitized);
             MekanismUtils.saveChunk(this);
         });
@@ -442,13 +452,13 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
     @Override
     public double getMaxEnergy() {
         return HeatAPI.isFinite(maxEnergy) ?
-              Math.max(0, Math.min(HeatAPI.MAX_HEAT, maxEnergy)) : 0;
+                Math.max(0, Math.min(HeatAPI.MAX_HEAT, maxEnergy)) : 0;
     }
 
     protected double getMainEnergyPerTick() {
         QIOCraftingProcessorDefinition definition = processorState == null ?
-              QIOCraftingProcessorRegistry.get(expectedDefinitionId) :
-              processorState.getResolvedDefinition();
+                QIOCraftingProcessorRegistry.get(expectedDefinitionId) :
+                processorState.getResolvedDefinition();
         if (definition == null) {
             return 0;
         }
@@ -462,7 +472,7 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
     public void recalculateUpgradables(Upgrade upgrade) {
         if (upgrade == Upgrade.ENERGY) {
             maxEnergy = isUpgradeInstalled(Upgrade.ENERGY) ?
-                  MekanismUtils.getMaxEnergy(this, baseMaxEnergy) : baseMaxEnergy;
+                    MekanismUtils.getMaxEnergy(this, baseMaxEnergy) : baseMaxEnergy;
             setEnergy(Math.min(getEnergy(), maxEnergy));
         }
     }
@@ -470,7 +480,7 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
     private void trackEnergyInput(double amount, Action action, double remainder) {
         if (action.execute()) {
             lastEnergyTracker.received(world == null ? 0 : world.getTotalWorldTime(),
-                  amount - remainder);
+                    amount - remainder);
         }
     }
 
@@ -495,7 +505,7 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
 
     @Override
     public double insertEnergy(int container, double amount, @Nullable EnumFacing side,
-          Action action) {
+                               Action action) {
         return tryCallContainerTransaction(() -> {
             double remainder = super.insertEnergy(container, amount, side, action);
             trackEnergyInput(amount, action, remainder);
@@ -578,7 +588,7 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
     @Method(modid = MekanismHooks.IC2_MOD_ID)
     public int getSinkTier() {
         return MekanismConfig.current().general.blacklistIC2.val() ? 0 :
-              IC2Integration.getConfiguredInputTier();
+                IC2Integration.getConfiguredInputTier();
     }
 
     @Override
@@ -609,7 +619,7 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
     @Method(modid = MekanismHooks.IC2_MOD_ID)
     public boolean acceptsEnergyFrom(IEnergyEmitter emitter, EnumFacing direction) {
         return !MekanismConfig.current().general.blacklistIC2.val() &&
-              canInsertExternalEnergy(direction);
+                canInsertExternalEnergy(direction);
     }
 
     @Override
@@ -648,7 +658,7 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
     @Method(modid = MekanismHooks.IC2_MOD_ID)
     public double getDemandedEnergy() {
         return MekanismConfig.current().general.blacklistIC2.val() ? 0 :
-              IC2Integration.toEU(getMaxEnergy() - getEnergy());
+                IC2Integration.toEU(getMaxEnergy() - getEnergy());
     }
 
     @Override
@@ -667,14 +677,14 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
     @Method(modid = MekanismHooks.IC2_MOD_ID)
     public double injectEnergy(EnumFacing pushDirection, double amount, double voltage) {
         TileEntity tile = MekanismUtils.getTileEntity(world,
-              getPos().offset(pushDirection.getOpposite()));
+                getPos().offset(pushDirection.getOpposite()));
         if (MekanismConfig.current().general.blacklistIC2.val() ||
-            CapabilityUtils.hasCapability(tile, Capabilities.GRID_TRANSMITTER_CAPABILITY,
-                  pushDirection)) {
+                CapabilityUtils.hasCapability(tile, Capabilities.GRID_TRANSMITTER_CAPABILITY,
+                        pushDirection)) {
             return amount;
         }
         return amount - IC2Integration.toEU(acceptEnergy(pushDirection.getOpposite(),
-              IC2Integration.fromEU(amount), false));
+                IC2Integration.fromEU(amount), false));
     }
 
     @Override
@@ -684,7 +694,7 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
 
     @Override
     public void invalidateCapability(@Nullable Capability<?> capability,
-          @Nullable EnumFacing side) {
+                                     @Nullable EnumFacing side) {
         super.invalidateCapability(capability, side);
         if (capability == CapabilityEnergy.ENERGY) {
             forgeEnergyManager.invalidate(side);
@@ -702,12 +712,12 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
             return false;
         }
         return capability == CapabilityEnergy.ENERGY || isTeslaCapability(capability) &&
-              canResolveTesla(capability, side) || super.hasCapability(capability, side);
+                canResolveTesla(capability, side) || super.hasCapability(capability, side);
     }
 
     @Override
     public <T> T getCapability(@Nonnull Capability<T> capability,
-          @Nullable EnumFacing side) {
+                               @Nullable EnumFacing side) {
         if (isCapabilityDisabled(capability, side)) {
             return null;
         } else if (capability == CapabilityEnergy.ENERGY) {
@@ -720,27 +730,27 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
 
     @Override
     public boolean isCapabilityDisabled(@Nonnull Capability<?> capability,
-          @Nullable EnumFacing side) {
+                                        @Nullable EnumFacing side) {
         if (capability == CapabilityEnergy.ENERGY || isTeslaCapability(capability)) {
             return side != null && !canInsertExternalEnergy(side) &&
-                  !canExtractExternalEnergy(side);
+                    !canExtractExternalEnergy(side);
         }
         return super.isCapabilityDisabled(capability, side);
     }
 
     private boolean canResolveTesla(Capability<?> capability, @Nullable EnumFacing side) {
         return capability == Capabilities.TESLA_HOLDER_CAPABILITY ||
-              capability == Capabilities.TESLA_CONSUMER_CAPABILITY &&
-                    canInsertExternalEnergy(side) ||
-              capability == Capabilities.TESLA_PRODUCER_CAPABILITY &&
-                    canExtractExternalEnergy(side);
+                capability == Capabilities.TESLA_CONSUMER_CAPABILITY &&
+                        canInsertExternalEnergy(side) ||
+                capability == Capabilities.TESLA_PRODUCER_CAPABILITY &&
+                        canExtractExternalEnergy(side);
     }
 
     private static boolean isTeslaCapability(@Nullable Capability<?> capability) {
         return capability != null &&
-              (capability == Capabilities.TESLA_HOLDER_CAPABILITY ||
-               capability == Capabilities.TESLA_CONSUMER_CAPABILITY ||
-               capability == Capabilities.TESLA_PRODUCER_CAPABILITY);
+                (capability == Capabilities.TESLA_HOLDER_CAPABILITY ||
+                        capability == Capabilities.TESLA_CONSUMER_CAPABILITY ||
+                        capability == Capabilities.TESLA_PRODUCER_CAPABILITY);
     }
 
     @Nonnull
@@ -841,14 +851,14 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
         }
         energySlot.fillContainerOrConvert();
         if (!isActive() || processorState.getState() != QIOCraftingProcessorState.State.ACTIVE ||
-              !QIORecipeCatalogService.INSTANCE.isReady()) {
+                !QIORecipeCatalogService.INSTANCE.isReady()) {
             updateWorking(false);
             return;
         }
         int processed = 0;
         boolean workedThisTick = false;
         for (QIOProcessorLaneRuntime lane : new ArrayList<>(
-              processorState.getActiveLanes().values())) {
+                processorState.getActiveLanes().values())) {
             if (processed++ >= 64) {
                 break;
             }
@@ -862,6 +872,7 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
         super.writeCustomNBT(data);
         data.setDouble("electricityStored", getEnergy());
         data.setTag(PROCESSOR_STATE, processorState.write());
+        if (coreRuntimeState != null) data.setTag("qioProcessorCoreRuntime", coreRuntimeState.write());
         data.setBoolean(MANAGEMENT_PAUSED, managementPaused);
         data.setLong(MANAGEMENT_REVISION, managementConfigurationRevision);
         writeFrequencyReference(data);
@@ -871,7 +882,7 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
     public void readCustomNBT(NBTTagCompound data) {
         super.readCustomNBT(data);
         electricityStored.set(Math.max(0, Math.min(data.getDouble("electricityStored"),
-              getMaxEnergy())));
+                getMaxEnergy())));
         readFrequencyReference(data);
         managementPaused = data.getBoolean(MANAGEMENT_PAUSED);
         managementConfigurationRevision = Math.max(0, data.getLong(MANAGEMENT_REVISION));
@@ -881,11 +892,12 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
         NBTTagCompound stored = data.getCompoundTag(PROCESSOR_STATE);
         try {
             processorState = QIOCraftingProcessorState.read(stored, expectedHostId,
-                  expectedDefinitionId);
+                    expectedDefinitionId);
         } catch (QIOProcessingDataException | RuntimeException e) {
             processorState = QIOCraftingProcessorState.damaged(expectedHostId, requireDefinition(),
-                  stored, e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+                    stored, e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
         }
+        readCoreRuntimeState(data);
         bindState();
     }
 
@@ -946,6 +958,7 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
     public void writeSustainedQIOData(NBTTagCompound data) {
         super.writeSustainedQIOData(data);
         data.setTag(PROCESSOR_STATE, processorState.write());
+        if (coreRuntimeState != null) data.setTag("qioProcessorCoreRuntime", coreRuntimeState.write());
         data.setBoolean(MANAGEMENT_PAUSED, managementPaused);
         data.setLong(MANAGEMENT_REVISION, managementConfigurationRevision);
         writeFrequencyReference(data);
@@ -961,12 +974,13 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
             NBTTagCompound stored = data.getCompoundTag(PROCESSOR_STATE);
             try {
                 processorState = QIOCraftingProcessorState.read(stored, expectedHostId,
-                      expectedDefinitionId);
+                        expectedDefinitionId);
             } catch (QIOProcessingDataException | RuntimeException e) {
                 processorState = QIOCraftingProcessorState.damaged(expectedHostId,
-                      requireDefinition(), stored,
-                      e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+                        requireDefinition(), stored,
+                        e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
             }
+            readCoreRuntimeState(data);
             bindState();
         }
     }
@@ -982,7 +996,7 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
     private void readFrequencyReference(NBTTagCompound data) {
         try {
             frequencyReference = data.hasKey(FREQUENCY_REFERENCE, NBT.TAG_COMPOUND) ?
-                  QIOFrequencyReference.read(data.getCompoundTag(FREQUENCY_REFERENCE)) : null;
+                    QIOFrequencyReference.read(data.getCompoundTag(FREQUENCY_REFERENCE)) : null;
         } catch (RuntimeException ignored) {
             frequencyReference = null;
         }
@@ -1002,19 +1016,19 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
     private void reconcileRegistration() {
         try {
             QIOCraftingProcessorHostRegistry.ResolvedHost resolved =
-                  QIOCraftingProcessorHostRegistry.resolve(this);
+                    QIOCraftingProcessorHostRegistry.resolve(this);
             if (resolved == null) {
                 processorState.markUnresolved("No QIO processor host registration matches " +
-                      getClass().getName());
+                        getClass().getName());
             } else if (!resolved.getHostId().equals(expectedHostId) ||
-                  !resolved.getDefinition().getId().equals(expectedDefinitionId)) {
+                    !resolved.getDefinition().getId().equals(expectedDefinitionId)) {
                 processorState.markUnresolved("QIO processor host registration resolved a different identity");
             } else {
                 processorState.reconcile(expectedHostId, expectedDefinitionId);
             }
         } catch (RuntimeException e) {
             processorState.markUnresolved(e.getMessage() == null ? e.getClass().getSimpleName() :
-                  e.getMessage());
+                    e.getMessage());
         }
     }
 
@@ -1023,7 +1037,7 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
         QIOCraftingProcessorDefinition definition = QIOCraftingProcessorRegistry.get(expectedDefinitionId);
         if (definition == null) {
             throw new IllegalStateException("QIO crafting processor definition is not registered: " +
-                  expectedDefinitionId);
+                    expectedDefinitionId);
         }
         return definition;
     }
@@ -1034,17 +1048,58 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
 
     private boolean tickWorkbenchLane(QIOProcessorLaneRuntime lane) {
         QIOProcessingNetworkData network = frequencyReference == null ? null :
-              QIOProcessingNetworkManager.INSTANCE.get(frequencyReference.getFrequencyUUID());
+                QIOProcessingNetworkManager.INSTANCE.get(frequencyReference.getFrequencyUUID());
         if (!QIORecipeCatalogService.INSTANCE.isReady()) {
             // Keep the lane state intact and retry after the immutable catalog is published.
             return false;
         }
-        QIOWorkbenchRecipePattern pattern = network == null ? null :
-              QIORecipeCatalogService.INSTANCE.getSnapshot(network.getWorkbenchConfiguration())
-                    .getPattern(lane.getRouteKey());
+        QIOWorkbenchRecipeCatalog.Snapshot catalog = network == null ? null :
+                QIORecipeCatalogService.INSTANCE.getSnapshot(network.getWorkbenchPlanningConfiguration(), world.provider.getDimension());
+        if (network != null && QIORecipeCatalogService.INSTANCE.isValidating(
+                network.getWorkbenchPlanningConfiguration(), world.provider.getDimension())) return false;
+        QIOCraftingJob job = network == null ? null : network.getJob(lane.getJobId());
+        QIOPlanStep assignedStep = null;
+        if (job != null && job.getActivePlan().getRevision() == lane.getPlanRevision()) {
+            for (QIOPlanStep step : job.getActivePlan().getSteps()) {
+                QIOStepRuntime runtime = job.getStepRuntime(step.getNodeId());
+                QIOOperationAssignment assignment = runtime == null ? null :
+                        runtime.getOperation(lane.getOperationId());
+                if (assignment != null && assignment.getProviderKind() == QIOPlanStep.ProviderKind.WORKBENCH &&
+                        assignment.getDeviceUUID().equals(processorState.getProcessorUUID()) && assignment.getLaneId() == lane.getLaneId() &&
+                        assignment.getOperationCount() == lane.getOperationCount()) {
+                    assignedStep = step;
+                    break;
+                }
+            }
+        }
+        // An unbound lane must not manufacture outputs using another operation's contract.
+        if (assignedStep == null) return false;
+        QIOWorkbenchRecipePattern pattern = catalog.getPattern(lane.getRouteKey());
+        if (pattern == null || !catalog.matchesPlan(assignedStep, pattern) ||
+                !scaleAmounts(pattern.getExactInputs(), lane.getOperationCount()).equals(lane.getInput())) {
+            pattern = null;
+            Map<PortableResourceDescriptor, Long> perOperation = new LinkedHashMap<>();
+            boolean divisible = lane.getOperationCount() > 0;
+            for (Map.Entry<PortableResourceDescriptor, Long> entry : lane.getInput().entrySet()) {
+                if (!divisible || entry.getValue() % lane.getOperationCount() != 0) {
+                    divisible = false;
+                    break;
+                }
+                perOperation.put(entry.getKey(), entry.getValue() / lane.getOperationCount());
+            }
+            if (divisible && !perOperation.isEmpty()) pattern = catalog.recoverPersistedPattern(assignedStep,
+                    perOperation, network.getWorkbenchPlanningConfiguration());
+        }
+        if (pattern == null && catalog.isPatternValidationPending(lane.getRouteKey())) return false;
+        if (pattern == null) {
+            if (lane.getState() == QIOProcessorLaneRuntime.State.PROCESSING) lane.abortProcessing();
+            else if (lane.getState() == QIOProcessorLaneRuntime.State.READY) lane.beginReturn();
+            wakeExecution();
+            return false;
+        }
         if (lane.getState() == QIOProcessorLaneRuntime.State.READY) {
             if (pattern == null || !scaleAmounts(pattern.getExactInputs(),
-                  lane.getOperationCount()).equals(lane.getInput())) {
+                    lane.getOperationCount()).equals(lane.getInput())) {
                 lane.beginReturn();
                 wakeExecution();
                 return false;
@@ -1054,30 +1109,32 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
         if (lane.getState() != QIOProcessorLaneRuntime.State.PROCESSING) {
             return false;
         }
-        double energy = getMainEnergyPerTick() * lane.getOperationCount();
-        if (energy <= 0 || Double.compare(getMainEnergyContainer().extract(energy,
-              Action.SIMULATE, AutomationType.INTERNAL), energy) != 0) {
+        mekanism.qioprocessing.common.processor.QIOCraftingProcessorRuntime.TickResult coreTick =
+                tickWithNewProcessorRuntime(lane);
+        if (coreTick.status() == mekanism.qioprocessing.common.processor.QIOCraftingProcessorRuntime.TickStatus.WAITING_ENERGY) {
             return false;
         }
-        getMainEnergyContainer().extract(energy, Action.EXECUTE, AutomationType.INTERNAL);
-        lane.advanceProcessing(1);
+        long advanced = coreTick.state().lanes().get(lane.getLaneId()).currentTick() -
+                lane.getCurrentTick();
+        setEnergy(coreTick.energy());
+        if (advanced > 0) lane.advanceProcessing(advanced);
         if (lane.getCurrentTick() < lane.getTotalTicks()) {
             return true;
         }
         Map<PortableResourceDescriptor, Long> actualOutputs = new LinkedHashMap<>();
         for (long operation = 0; operation < lane.getOperationCount(); operation++) {
             QIOWorkbenchRecipePattern.CraftResult result = pattern == null ? null :
-                  pattern.craft(world);
+                    pattern.craft(world);
             if (result == null) {
                 lane.abortProcessing();
                 wakeExecution();
                 return true;
             }
             result.getOutputs().forEach((resource, amount) -> actualOutputs.merge(resource,
-                  amount, Math::addExact));
+                    amount, Math::addExact));
         }
         if (!scaleAmounts(pattern.getExpectedOutputs(), lane.getOperationCount()).equals(
-              actualOutputs)) {
+                actualOutputs)) {
             lane.abortProcessing();
             wakeExecution();
             return true;
@@ -1085,6 +1142,71 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
         lane.completeProcessing(actualOutputs);
         wakeExecution();
         return true;
+    }
+
+    private mekanism.qioprocessing.common.processor.QIOCraftingProcessorRuntime.TickResult
+    tickWithNewProcessorRuntime(QIOProcessorLaneRuntime lane) {
+        QIOCraftingProcessorDefinition definition = processorState.getResolvedDefinition();
+        if (definition == null) {
+            throw new IllegalStateException("Processor definition is unavailable");
+        }
+        coreRuntimeState = ensureCoreRuntimeState(definition);
+        MachineOperationToken token = MachineOperationToken.allocate(lane.getOperationId(),
+                "legacy:qio_processor", lane.getRouteKey(), lane.getRouteKey(),
+                lane.getPlanRevision(), lane.getLaneId());
+        mekanism.qioprocessing.common.processor.QIOCraftingProcessorState.Lane coreLane =
+                coreRuntimeState.lanes().get(lane.getLaneId());
+        if (coreLane == null || coreLane.state() ==
+                mekanism.qioprocessing.common.processor.QIOCraftingProcessorState.LaneState.COMPLETED ||
+                coreLane.state() ==
+                        mekanism.qioprocessing.common.processor.QIOCraftingProcessorState.LaneState.CANCELLED) {
+            coreRuntimeState = coreRuntimeState.removeLane(lane.getLaneId())
+                    .startLane(lane.getLaneId(), token, lane.getTotalTicks())
+                    .updateLane(lane.getLaneId(), lane.getCurrentTick(),
+                            mekanism.qioprocessing.common.processor.QIOCraftingProcessorState.LaneState.LOADING,
+                            "legacy lane adapter")
+                    .updateLane(lane.getLaneId(), lane.getCurrentTick(),
+                            mekanism.qioprocessing.common.processor.QIOCraftingProcessorState.LaneState.PROCESSING,
+                            "legacy lane adapter");
+        }
+        mekanism.qioprocessing.common.processor.QIOCraftingProcessorRuntime.TickResult result =
+                mekanism.qioprocessing.common.processor.QIOCraftingProcessorRuntime.tick(coreRuntimeState,
+                        definition, getEnergy(), getInstalledUpgrades(Upgrade.SPEED),
+                        getInstalledUpgrades(Upgrade.ENERGY), world.getTotalWorldTime(),
+                        lane.getOperationCount());
+        coreRuntimeState = result.state();
+        markDirty();
+        return result;
+    }
+
+    private mekanism.qioprocessing.common.processor.QIOCraftingProcessorState ensureCoreRuntimeState(
+            QIOCraftingProcessorDefinition definition) {
+        if (coreRuntimeState == null || !processorState.getProcessorUUID().equals(coreRuntimeState.processorId()) ||
+                !expectedHostId.equals(coreRuntimeState.hostId()) ||
+                !definition.getId().equals(coreRuntimeState.definitionId()) ||
+                !definition.getSignature().equals(coreRuntimeState.definitionSignature())) {
+            coreRuntimeState = mekanism.qioprocessing.common.processor.QIOCraftingProcessorState.create(
+                    processorState.getProcessorUUID(), expectedHostId, definition).activate();
+        }
+        return coreRuntimeState;
+    }
+
+    private void readCoreRuntimeState(NBTTagCompound data) {
+        coreRuntimeState = null;
+        if (!data.hasKey("qioProcessorCoreRuntime", NBT.TAG_COMPOUND)) return;
+        try {
+            mekanism.qioprocessing.common.processor.QIOCraftingProcessorState candidate =
+                    mekanism.qioprocessing.common.processor.QIOCraftingProcessorState.read(
+                            data.getCompoundTag("qioProcessorCoreRuntime"));
+            QIOCraftingProcessorDefinition definition = requireDefinition();
+            if (processorState.getProcessorUUID().equals(candidate.processorId()) &&
+                    expectedHostId.equals(candidate.hostId()) && definition.getId().equals(candidate.definitionId()) &&
+                    definition.getSignature().equals(candidate.definitionSignature())) {
+                coreRuntimeState = candidate;
+            }
+        } catch (RuntimeException ignored) {
+            coreRuntimeState = null;
+        }
     }
 
     private void updateWorking(boolean nextWorking) {
@@ -1101,7 +1223,7 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
     private void wakeExecution() {
         if (frequencyReference != null) {
             QIOProcessingExecutionService.INSTANCE.wakeDeviceContents(
-                  frequencyReference.getFrequencyUUID(), processorState.getProcessorUUID());
+                    frequencyReference.getFrequencyUUID(), processorState.getProcessorUUID());
         }
     }
 
@@ -1132,19 +1254,19 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
     }
 
     private static Map<PortableResourceDescriptor, Long> scaleAmounts(
-          Map<PortableResourceDescriptor, Long> amounts, long multiplier) {
+            Map<PortableResourceDescriptor, Long> amounts, long multiplier) {
         Map<PortableResourceDescriptor, Long> scaled = new LinkedHashMap<>();
         amounts.forEach((resource, amount) ->
-              scaled.put(resource, Math.multiplyExact(amount, multiplier)));
+                scaled.put(resource, Math.multiplyExact(amount, multiplier)));
         return scaled;
     }
 
     private static double definitionEnergyCapacity(ResourceLocation definitionId) {
         QIOCraftingProcessorDefinition definition = QIOCraftingProcessorRegistry.get(
-              Objects.requireNonNull(definitionId, "definitionId"));
+                Objects.requireNonNull(definitionId, "definitionId"));
         if (definition == null) {
             throw new IllegalStateException("QIO crafting processor definition is not registered: " +
-                  definitionId);
+                    definitionId);
         }
         return definition.getEnergyCapacity();
     }
@@ -1196,12 +1318,12 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
     private QIOProcessorDisplaySnapshot buildDisplaySnapshot() {
         int laneCount = getDisplayLaneCount();
         QIOProcessingNetworkData network = frequencyReference == null ? null :
-              QIOProcessingNetworkManager.INSTANCE.get(frequencyReference.getFrequencyUUID());
+                QIOProcessingNetworkManager.INSTANCE.get(frequencyReference.getFrequencyUUID());
         long patternRevision = network == null ? -1 :
-              QIORecipeCatalogService.INSTANCE.getRevision(
-                    network.getWorkbenchConfiguration());
+                QIORecipeCatalogService.INSTANCE.getRevision(
+                        network.getWorkbenchPlanningConfiguration());
         StringBuilder signature = new StringBuilder().append(laneCount).append('|')
-              .append(patternRevision);
+                .append(patternRevision);
         List<QIOProcessorLaneRuntime> displayRuntimes = new ArrayList<>(laneCount);
         for (int laneId = 0; laneId < laneCount; laneId++) {
             QIOProcessorLaneRuntime lane = processorState.getLane(laneId);
@@ -1210,9 +1332,9 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
             }
             displayRuntimes.add(lane);
             signature.append('|').append(lane.getLaneId()).append(':')
-                  .append(lane.getOperationId()).append(':').append(lane.getRouteKey())
-                  .append(':').append(lane.getState()).append(':')
-                  .append(lane.getOperationCount());
+                    .append(lane.getOperationId()).append(':').append(lane.getRouteKey())
+                    .append(':').append(lane.getState()).append(':')
+                    .append(lane.getOperationCount());
         }
         String currentSignature = signature.toString();
         if (currentSignature.equals(cachedDisplaySignature)) {
@@ -1223,22 +1345,22 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
         if (network != null && QIORecipeCatalogService.INSTANCE.isInitialized()) {
             try {
                 catalog = QIORecipeCatalogService.INSTANCE.getSnapshot(
-                      network.getWorkbenchConfiguration());
+                        network.getWorkbenchPlanningConfiguration());
             } catch (RuntimeException ignored) {
             }
         }
         List<QIOProcessorDisplaySnapshot.Lane> displayed = new ArrayList<>();
         for (QIOProcessorLaneRuntime lane : displayRuntimes) {
             QIOWorkbenchRecipePattern pattern = catalog == null ? null :
-                  catalog.getPattern(lane.getRouteKey());
+                    catalog.getPattern(lane.getRouteKey());
             List<ItemStack> grid = pattern == null ?
-                  Collections.nCopies(9, ItemStack.EMPTY) : pattern.getGrid();
+                    Collections.nCopies(9, ItemStack.EMPTY) : pattern.getGrid();
             ItemStack output = pattern == null ? ItemStack.EMPTY : pattern.getDisplayOutput();
             displayed.add(new QIOProcessorDisplaySnapshot.Lane((int) lane.getLaneId(),
-                  lane.getState(), lane.getOperationCount(), lane.getRouteKey(), grid, output));
+                    lane.getState(), lane.getOperationCount(), lane.getRouteKey(), grid, output));
         }
         QIOProcessorDisplaySnapshot snapshot = new QIOProcessorDisplaySnapshot(laneCount,
-              displayed);
+                displayed);
         cachedDisplaySignature = currentSignature;
         cachedDisplaySnapshot = snapshot;
         cachedDisplayData = snapshot.write();

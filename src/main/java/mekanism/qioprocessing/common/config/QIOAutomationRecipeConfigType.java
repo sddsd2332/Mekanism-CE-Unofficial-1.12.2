@@ -11,7 +11,10 @@ import mekanism.qioprocessing.common.QIOProcessingWindowTypes;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-/** The two route-policy editors exposed by QIO machine automation upgrades. */
+/**
+ * The two route-policy editors exposed by QIO machine automation upgrades.
+ */
+
 /**
  * QIO 处理模块中的 QIOAutomationRecipeConfigType 类型。
  *
@@ -43,25 +46,25 @@ public enum QIOAutomationRecipeConfigType {
     @Nonnull
     public Upgrade getUpgrade() {
         return this == SCHEDULED ? QIOProcessingUpgrades.QIO_AUTO_CRAFTING :
-              QIOProcessingUpgrades.QIO_AUTO_PROCESSING;
+                QIOProcessingUpgrades.QIO_AUTO_PROCESSING;
     }
 
     public boolean isInstalledIn(@Nullable TileEntityContainerBlock tile) {
         return tile instanceof IUpgradeTile upgradeTile &&
-              upgradeTile.isUpgradeInstalled(getUpgrade());
+                upgradeTile.isUpgradeInstalled(getUpgrade());
     }
 
     @Nonnull
     public String getTitleKey() {
         return this == SCHEDULED ?
-              "gui.mekanismqioprocessing.auto_crafting_config" :
-              "gui.mekanismqioprocessing.auto_processing_config";
+                "gui.mekanismqioprocessing.auto_crafting_config" :
+                "gui.mekanismqioprocessing.auto_processing_config";
     }
 
     @Nonnull
     public WindowType getWindowType() {
         return this == SCHEDULED ? QIOProcessingWindowTypes.AUTOMATION_CRAFTING_CONFIG :
-              QIOProcessingWindowTypes.AUTOMATION_PROCESSING_CONFIG;
+                QIOProcessingWindowTypes.AUTOMATION_PROCESSING_CONFIG;
     }
 
     @Nullable

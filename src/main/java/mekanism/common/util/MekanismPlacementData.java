@@ -2,13 +2,7 @@ package mekanism.common.util;
 
 import mekanism.common.Mekanism;
 import mekanism.common.Upgrade;
-import mekanism.common.base.IRedstoneControl;
-import mekanism.common.base.ISideConfiguration;
-import mekanism.common.base.ISustainedData;
-import mekanism.common.base.ISustainedInventory;
-import mekanism.common.base.ISustainedTank;
-import mekanism.common.base.ITileNetwork;
-import mekanism.common.base.IUpgradeTile;
+import mekanism.common.base.*;
 import mekanism.common.item.interfaces.IItemBlockPlacementData;
 import mekanism.common.security.ISecurityItem;
 import mekanism.common.security.ISecurityTile;
@@ -21,7 +15,9 @@ import net.minecraft.world.World;
 
 import javax.annotation.Nonnull;
 
-/** Shared block-item data restoration used by vanilla placement and external placement tools. */
+/**
+ * Shared block-item data restoration used by vanilla placement and external placement tools.
+ */
 public final class MekanismPlacementData {
 
     private MekanismPlacementData() {

@@ -186,7 +186,7 @@ public final class GasUtils {
     }
 
     public static void emit(Set<EnumFacing> outputSides, IExtendedGasTank tank, TileEntity from, int maxOutput,
-          @Nullable TileEntityBasicBlock cacheOwner) {
+                            @Nullable TileEntityBasicBlock cacheOwner) {
         if (!tank.isEmpty() && maxOutput > 0) {
             GasStack simulated = tank.extract(maxOutput, Action.SIMULATE, AutomationType.INTERNAL);
             if (simulated != null && simulated.amount > 0) {
@@ -205,7 +205,7 @@ public final class GasUtils {
      */
     public static int emit(GasStack stack, TileEntity from, Set<EnumFacing> sides) {
         return emit(stack, from, sides, new GasHandlerTarget(stack, 6),
-              from instanceof TileEntityBasicBlock ? (TileEntityBasicBlock) from : null);
+                from instanceof TileEntityBasicBlock ? (TileEntityBasicBlock) from : null);
     }
 
     public static int emit(GasStack stack, TileEntity from, Set<EnumFacing> sides, @Nullable TileEntityBasicBlock cacheOwner) {
@@ -220,7 +220,7 @@ public final class GasUtils {
     }
 
     private static int emit(GasStack stack, TileEntity from, Set<EnumFacing> sides, GasHandlerTarget target,
-          @Nullable TileEntityBasicBlock cacheOwner) {
+                            @Nullable TileEntityBasicBlock cacheOwner) {
         target.reset(stack);
         if (stack == null || stack.amount == 0 || sides.isEmpty()) {
             return 0;
@@ -234,8 +234,8 @@ public final class GasUtils {
                 final EnumFacing accessSide = side.getOpposite();
                 //Collect cap
                 IGasHandler handler = cacheOwner == null ?
-                      CapabilityUtils.getCapability(acceptor, Capabilities.GAS_HANDLER_CAPABILITY, accessSide) :
-                      cacheOwner.getCachedGasHandler(acceptor, accessSide);
+                        CapabilityUtils.getCapability(acceptor, Capabilities.GAS_HANDLER_CAPABILITY, accessSide) :
+                        cacheOwner.getCachedGasHandler(acceptor, accessSide);
                 if (handler != null && canReceiveGas(handler, accessSide, stack)) {
                     target.addHandler(accessSide, handler);
                 }

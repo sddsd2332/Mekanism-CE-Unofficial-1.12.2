@@ -27,7 +27,7 @@ public enum QIODriveType {
     private final QIODriveSpecialization specialization;
 
     QIODriveType(@Nullable QIOResourceKind resourceKind, String serializedName,
-          QIODriveSpecialization specialization) {
+                 QIODriveSpecialization specialization) {
         this.resourceKind = resourceKind;
         this.serializedName = serializedName;
         this.specialization = specialization;
@@ -37,7 +37,9 @@ public enum QIODriveType {
         return kind != null && (resourceKind == null || resourceKind == kind);
     }
 
-    /** Exact family-based acceptance used by the extensible storage core. */
+    /**
+     * Exact family-based acceptance used by the extensible storage core.
+     */
     public boolean accepts(@Nullable String family) {
         return family != null && (resourceKind == null || resourceKind.getFamily().equals(family));
     }
@@ -88,12 +90,16 @@ public enum QIODriveType {
         return getExactStorageCapacity(definition).longValueClamped();
     }
 
-    /** Exact item-equivalent capacity, including the mixed-drive multiplier. */
+    /**
+     * Exact item-equivalent capacity, including the mixed-drive multiplier.
+     */
     public QIOAmount getExactCountCapacity(QIODriveDefinition definition) {
         return specialization.getExactCountCapacity(Objects.requireNonNull(definition, "definition"));
     }
 
-    /** Applies this drive type's capacity multiplier to a base definition value. */
+    /**
+     * Applies this drive type's capacity multiplier to a base definition value.
+     */
     public QIOAmount getExactCountCapacity(long baseCountCapacity) {
         if (this == MIXED) {
             int contributors = 0;
@@ -107,7 +113,9 @@ public enum QIODriveType {
         return QIOAmount.of(baseCountCapacity);
     }
 
-    /** Exact fixed-point capacity used for resource insertion checks. */
+    /**
+     * Exact fixed-point capacity used for resource insertion checks.
+     */
     public QIOAmount getExactStorageCapacity(QIODriveDefinition definition) {
         return getExactCountCapacity(definition).multiply(QIOStorageUnits.UNITS_PER_ITEM);
     }

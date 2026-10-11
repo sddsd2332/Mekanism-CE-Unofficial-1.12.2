@@ -31,7 +31,7 @@ public class GuiSeismicVibrator extends GuiMekanismTile<TileEntitySeismicVibrato
         super.addGuiElements();
         addButton(new GuiInnerScreen(this, 16, 23, 112, 40, this::getScreenText));
         addButton(new GuiVerticalPowerBar(this, tileEntity.getEnergyContainer(), 164, 15))
-              .warning(WarningType.NOT_ENOUGH_ENERGY, () -> tileEntity.getEnergy() < MekanismConfig.current().usage.seismicVibrator.val() || tileEntity.getEnergy() == 0);
+                .warning(WarningType.NOT_ENOUGH_ENERGY, () -> tileEntity.getEnergy() < MekanismConfig.current().usage.seismicVibrator.val() || tileEntity.getEnergy() == 0);
         addButton(new GuiEnergyTab(this, tileEntity.getEnergyContainer(), tileEntity::getActive));
     }
 

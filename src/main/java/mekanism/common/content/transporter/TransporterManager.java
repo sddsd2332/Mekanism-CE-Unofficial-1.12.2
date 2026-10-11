@@ -137,7 +137,7 @@ public class TransporterManager {
     }
 
     public static TransitResponse getPredictedInsert(TileEntity tileEntity, EnumColor color, TransitRequest request, EnumFacing side,
-          Map<Coord4D, Set<TransporterStack>> additionalFlowingStacks) {
+                                                     Map<Coord4D, Set<TransporterStack>> additionalFlowingStacks) {
         // If the TE in question implements the mekanism interface, check that the color matches and bail
         // fast if it doesn't
         if (tileEntity instanceof ISideConfiguration config) {
@@ -173,7 +173,7 @@ public class TransporterManager {
         // for inventoryInfo is updated each time
         Coord4D position = Coord4D.get(tileEntity);
         if (!predictFlowing(position, side, handler, inventoryInfo, flowingStacks) ||
-              !predictFlowing(position, side, handler, inventoryInfo, additionalFlowingStacks)) {
+                !predictFlowing(position, side, handler, inventoryInfo, additionalFlowingStacks)) {
             return request.getEmptyResponse();
         }
 
@@ -199,7 +199,7 @@ public class TransporterManager {
     }
 
     private static boolean predictFlowing(Coord4D position, EnumFacing side, IItemHandler handler, InventoryInfo inventoryInfo,
-          Map<Coord4D, Set<TransporterStack>> flowingStacks) {
+                                          Map<Coord4D, Set<TransporterStack>> flowingStacks) {
         Set<TransporterStack> transporterStacks = flowingStacks.get(position);
         if (transporterStacks != null) {
             for (TransporterStack stack : transporterStacks) {

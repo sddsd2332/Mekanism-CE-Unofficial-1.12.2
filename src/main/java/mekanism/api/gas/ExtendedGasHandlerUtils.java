@@ -56,7 +56,7 @@ public final class ExtendedGasHandlerUtils {
 
     @Nullable
     public static GasStack insert(@Nullable GasStack stack, @Nullable EnumFacing side, Function<EnumFacing, List<IExtendedGasTank>> gasTankSupplier,
-          Action action, AutomationType automationType) {
+                                  Action action, AutomationType automationType) {
         if (isEmpty(stack)) {
             return null;
         }
@@ -129,7 +129,7 @@ public final class ExtendedGasHandlerUtils {
 
     @Nullable
     public static GasStack extract(int amount, @Nullable EnumFacing side, Function<EnumFacing, List<IExtendedGasTank>> gasTankSupplier,
-          Action action, AutomationType automationType) {
+                                   Action action, AutomationType automationType) {
         if (amount <= 0) {
             return null;
         }
@@ -167,7 +167,7 @@ public final class ExtendedGasHandlerUtils {
 
     @Nullable
     public static GasStack extract(@Nullable GasStack stack, Action action, IntSupplier tankCount, GasInTankGetter inTankGetter,
-          ExtractGas extractGas) {
+                                   ExtractGas extractGas) {
         if (isEmpty(stack)) {
             return null;
         }
@@ -203,7 +203,7 @@ public final class ExtendedGasHandlerUtils {
 
     @Nullable
     public static GasStack extract(@Nullable GasStack stack, @Nullable EnumFacing side, Function<EnumFacing, List<IExtendedGasTank>> gasTankSupplier,
-          Action action, AutomationType automationType) {
+                                   Action action, AutomationType automationType) {
         if (isEmpty(stack)) {
             return null;
         }

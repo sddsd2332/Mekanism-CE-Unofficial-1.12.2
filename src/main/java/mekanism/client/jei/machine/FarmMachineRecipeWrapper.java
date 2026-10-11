@@ -38,7 +38,7 @@ public class FarmMachineRecipeWrapper<RECIPE extends FarmMachineRecipe<RECIPE>> 
         FarmInput input = recipe.getInput();
         int recipeAmount = input.isGasInput() ? input.gasInput.amount : input.fluidInput.amount;
         return Math.max(1, MathUtils.clampToInt((long) recipeAmount * TileEntityFarmMachine.BASE_TICKS_REQUIRED *
-              TileEntityFarmMachine.BASE_GAS_PER_TICK));
+                TileEntityFarmMachine.BASE_GAS_PER_TICK));
     }
 
     public List<ItemStack> getFuelStacks(Gas gasType) {

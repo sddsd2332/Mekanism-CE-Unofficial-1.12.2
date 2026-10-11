@@ -15,12 +15,12 @@ public class ProxiedEnergyContainerHolder extends ProxiedHolder implements IEner
     private final Function<EnumFacing, List<IEnergyContainer>> containerFunction;
 
     public static ProxiedEnergyContainerHolder create(Predicate<EnumFacing> insertPredicate, Predicate<EnumFacing> extractPredicate,
-          Function<EnumFacing, List<IEnergyContainer>> containerFunction) {
+                                                      Function<EnumFacing, List<IEnergyContainer>> containerFunction) {
         return new ProxiedEnergyContainerHolder(insertPredicate, extractPredicate, containerFunction);
     }
 
     private ProxiedEnergyContainerHolder(Predicate<EnumFacing> insertPredicate, Predicate<EnumFacing> extractPredicate,
-          Function<EnumFacing, List<IEnergyContainer>> containerFunction) {
+                                         Function<EnumFacing, List<IEnergyContainer>> containerFunction) {
         super(insertPredicate, extractPredicate);
         this.containerFunction = containerFunction;
     }

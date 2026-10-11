@@ -1,15 +1,9 @@
 package mekanism.common.multiblock.persistence;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.nio.file.NoSuchFileException;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.nio.file.Path;
+import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -38,19 +32,21 @@ public final class ManagedCacheIo implements AutoCloseable {
     ManagedCacheIo(Factory factory) {
         this.factory = factory;
         executor = new ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS,
-              new ArrayBlockingQueue<>(MAX_SESSIONS * 2 + 1), runnable -> {
-                  Thread thread = new Thread(runnable, "Mekanism-multiblock-store");
-                  // Accepted final snapshots must finish even after the last server thread exits.
-                  thread.setDaemon(false);
-                  return thread;
-              }, new ThreadPoolExecutor.AbortPolicy());
+                new ArrayBlockingQueue<>(MAX_SESSIONS * 2 + 1), runnable -> {
+            Thread thread = new Thread(runnable, "Mekanism-multiblock-store");
+            // Accepted final snapshots must finish even after the last server thread exits.
+            thread.setDaemon(false);
+            return thread;
+        }, new ThreadPoolExecutor.AbortPolicy());
     }
 
     public synchronized Session open(Path directory, String namespace) throws IOException {
         if (closed) throw new IOException("Multiblock IO service is closed");
         Path key = directoryKey(directory);
-        if (sessions.containsKey(key)) throw new IOException("Multiblock world path is already open or closing: " + key);
-        if (sessions.size() >= MAX_SESSIONS) throw new MultiblockBackpressureException("Multiblock world/manager session budget exceeded");
+        if (sessions.containsKey(key))
+            throw new IOException("Multiblock world path is already open or closing: " + key);
+        if (sessions.size() >= MAX_SESSIONS)
+            throw new MultiblockBackpressureException("Multiblock world/manager session budget exceeded");
         Session session = new Session(key, namespace);
         sessions.put(key, session);
         try {
@@ -87,7 +83,9 @@ public final class ManagedCacheIo implements AutoCloseable {
         sessions.remove(session.directory, session);
     }
 
-    /** Initiates drain only. Tick code must never call awaitTermination or wait on tickets. */
+    /**
+     * Initiates drain only. Tick code must never call awaitTermination or wait on tickets.
+     */
     @Override
     public synchronized void close() {
         if (!closed) {
@@ -97,19 +95,25 @@ public final class ManagedCacheIo implements AutoCloseable {
         }
     }
 
-    public boolean isTerminated() { return executor.isTerminated(); }
-    public long queuedBytes() { return queuedBytes.get(); }
+    public boolean isTerminated() {
+        return executor.isTerminated();
+    }
+
+    public long queuedBytes() {
+        return queuedBytes.get();
+    }
 
     private void reserve(long bytes) throws IOException {
         while (true) {
             long used = queuedBytes.get();
             if (bytes < 0 || bytes > MAX_QUEUED_BYTES) throw new IOException("Invalid multiblock IO snapshot size");
-            if (used > MAX_QUEUED_BYTES - bytes) throw new MultiblockBackpressureException("Multiblock IO snapshot memory budget exceeded");
+            if (used > MAX_QUEUED_BYTES - bytes)
+                throw new MultiblockBackpressureException("Multiblock IO snapshot memory budget exceeded");
             if (queuedBytes.compareAndSet(used, used + bytes)) return;
         }
     }
 
-    public enum State { LOADING, READY, FAILED, CLOSING, CLOSED }
+    public enum State {LOADING, READY, FAILED, CLOSING, CLOSED}
 
     public static final class Ticket<T> {
         private volatile boolean done;
@@ -119,9 +123,13 @@ public final class ManagedCacheIo implements AutoCloseable {
         private volatile long workerStartedNanos;
         private volatile long workerCompletedNanos;
 
-        public boolean isDone() { return done; }
+        public boolean isDone() {
+            return done;
+        }
 
-        /** Time spent executing the operation on the serialized IO worker, excluding queueing. */
+        /**
+         * Time spent executing the operation on the serialized IO worker, excluding queueing.
+         */
         public long workerNanos() {
             long started = workerStartedNanos;
             long completed = workerCompletedNanos;
@@ -145,8 +153,13 @@ public final class ManagedCacheIo implements AutoCloseable {
             done = true;
         }
 
-        private void workerStarted() { workerStartedNanos = System.nanoTime(); }
-        private void workerCompleted() { workerCompletedNanos = System.nanoTime(); }
+        private void workerStarted() {
+            workerStartedNanos = System.nanoTime();
+        }
+
+        private void workerCompleted() {
+            workerCompletedNanos = System.nanoTime();
+        }
     }
 
     public final class Session implements AutoCloseable {
@@ -164,9 +177,17 @@ public final class ManagedCacheIo implements AutoCloseable {
             this.namespace = namespace;
         }
 
-        public State state() { return state; }
-        public IOException failure() { return failure; }
-        public Ticket<Void> closedTicket() { return closedTicket; }
+        public State state() {
+            return state;
+        }
+
+        public IOException failure() {
+            return failure;
+        }
+
+        public Ticket<Void> closedTicket() {
+            return closedTicket;
+        }
 
         public ManagedCacheStore.View initialView() {
             if (state != State.READY) throw new IllegalStateException("Multiblock store is " + state, failure);
@@ -190,9 +211,10 @@ public final class ManagedCacheIo implements AutoCloseable {
         }
 
         public Ticket<ManagedCacheStore.View> transfer(UUID transaction, UUID target,
-              Collection<ManagedCacheStore.Source> sources, long[] positions, byte[] snapshot) throws IOException {
+                                                       Collection<ManagedCacheStore.Source> sources, long[] positions, byte[] snapshot) throws IOException {
             if (sources.size() > ManagedCacheStore.MAX_SOURCES || positions.length > ManagedCacheStore.MAX_BINDING_POSITIONS ||
-                  snapshot.length > ManagedCacheStore.MAX_CACHE_BYTES) throw new IOException("Multiblock transfer exceeds queue payload budget");
+                    snapshot.length > ManagedCacheStore.MAX_CACHE_BYTES)
+                throw new IOException("Multiblock transfer exceeds queue payload budget");
             Collection<ManagedCacheStore.Source> captured = new ArrayList<>(sources);
             long[] binding = positions.clone();
             byte[] bytes = snapshot.clone();
@@ -200,11 +222,13 @@ public final class ManagedCacheIo implements AutoCloseable {
         }
 
         public Ticket<ManagedCacheStore.View> save(UUID transaction, Collection<ManagedCacheStore.Update> updates) throws IOException {
-            if (updates.size() > ManagedCacheStore.MAX_SOURCES) throw new IOException("Multiblock save batch exceeds queue budget");
+            if (updates.size() > ManagedCacheStore.MAX_SOURCES)
+                throw new IOException("Multiblock save batch exceeds queue budget");
             Collection<ManagedCacheStore.Update> captured = new ArrayList<>(updates);
             long bytes = 0;
             for (ManagedCacheStore.Update update : captured) bytes += update.payloadBytes() + 64L;
-            if (bytes > MultiblockJournal.MAX_PAYLOAD_BYTES) throw new IOException("Multiblock save payload budget exceeded");
+            if (bytes > MultiblockJournal.MAX_PAYLOAD_BYTES)
+                throw new IOException("Multiblock save payload budget exceeded");
             return submit(() -> store.save(transaction, captured), bytes);
         }
 
@@ -214,7 +238,8 @@ public final class ManagedCacheIo implements AutoCloseable {
 
         private synchronized Ticket<ManagedCacheStore.View> submit(Operation operation, long bytes) throws IOException {
             if (state != State.READY) throw new IOException("Multiblock store is " + state, failure);
-            if (outstanding != null && !outstanding.isDone()) throw new IOException("A multiblock write is already pending");
+            if (outstanding != null && !outstanding.isDone())
+                throw new IOException("A multiblock write is already pending");
             reserve(bytes);
             Ticket<ManagedCacheStore.View> ticket = new Ticket<>();
             outstanding = ticket;
@@ -237,7 +262,7 @@ public final class ManagedCacheIo implements AutoCloseable {
                 });
             } catch (RejectedExecutionException rejected) {
                 IOException error = executor.isShutdown() ? new IOException("Multiblock IO service is closing", rejected) :
-                      new MultiblockBackpressureException("Multiblock IO queue rejected write", rejected);
+                        new MultiblockBackpressureException("Multiblock IO queue rejected write", rejected);
                 queuedBytes.addAndGet(-bytes);
                 ticket.complete(null, error);
                 throw error;
@@ -251,7 +276,9 @@ public final class ManagedCacheIo implements AutoCloseable {
             if (state != State.CLOSING && state != State.CLOSED) state = State.FAILED;
         }
 
-        /** Queued behind already accepted writes; no stale World callbacks are captured. */
+        /**
+         * Queued behind already accepted writes; no stale World callbacks are captured.
+         */
         @Override
         public synchronized void close() {
             try {
@@ -272,17 +299,20 @@ public final class ManagedCacheIo implements AutoCloseable {
 
         synchronized void closeWithFinalSnapshots(Map<UUID, byte[]> snapshots, MultiblockEmergencySnapshot emergency) throws IOException {
             if (state == State.CLOSING || state == State.CLOSED) return;
-            if (snapshots.size() > ManagedCacheStore.MAX_SOURCES) throw new IOException("Final snapshot count exceeds budget");
+            if (snapshots.size() > ManagedCacheStore.MAX_SOURCES)
+                throw new IOException("Final snapshot count exceeds budget");
             long bytes = 0;
             for (byte[] value : snapshots.values()) {
-                if (value.length > ManagedCacheStore.MAX_CACHE_BYTES) throw new IOException("Final cache snapshot exceeds budget");
+                if (value.length > ManagedCacheStore.MAX_CACHE_BYTES)
+                    throw new IOException("Final cache snapshot exceeds budget");
                 bytes += value.length + 64L;
             }
             if (bytes > MultiblockJournal.MAX_PAYLOAD_BYTES) throw new IOException("Final save batch exceeds budget");
             if (emergency != null) bytes += emergency.payloadBytes();
             reserve(bytes);
             Map<UUID, byte[]> captured = new HashMap<>();
-            for (Map.Entry<UUID, byte[]> entry : snapshots.entrySet()) captured.put(entry.getKey(), entry.getValue().clone());
+            for (Map.Entry<UUID, byte[]> entry : snapshots.entrySet())
+                captured.put(entry.getKey(), entry.getValue().clone());
             final long reserved = bytes;
             State previousState = state;
             ManagedCacheStore.View previousView = loaded;
@@ -293,12 +323,14 @@ public final class ManagedCacheIo implements AutoCloseable {
                 try {
                     if (emergency != null) {
                         emergency.persist(directory, namespace);
-                        if (closeFailure == null && store != null) MultiblockEmergencySnapshot.restore(directory, namespace, store);
+                        if (closeFailure == null && store != null)
+                            MultiblockEmergencySnapshot.restore(directory, namespace, store);
                     } else if (closeFailure == null && store != null && !captured.isEmpty()) {
                         Collection<ManagedCacheStore.Update> updates = new ArrayList<>();
                         for (Map.Entry<UUID, byte[]> entry : captured.entrySet()) {
                             ManagedCacheStore.Entry current = store.get(entry.getKey());
-                            if (current == null) throw new IOException("Final snapshot has no current authority: " + entry.getKey());
+                            if (current == null)
+                                throw new IOException("Final snapshot has no current authority: " + entry.getKey());
                             updates.add(new ManagedCacheStore.Update(entry.getKey(), current.revision, entry.getValue()));
                         }
                         store.save(UUID.randomUUID(), updates);
@@ -316,7 +348,7 @@ public final class ManagedCacheIo implements AutoCloseable {
                     queuedBytes.addAndGet(-reserved);
                     failure = closeFailure;
                     if (closeFailure != null) org.apache.logging.log4j.LogManager.getLogger("MekanismMultiblockStorage")
-                          .error("Multiblock final save/close failed for {}. Inspect the emergency journal before removing any files.", directory, closeFailure);
+                            .error("Multiblock final save/close failed for {}. Inspect the emergency journal before removing any files.", directory, closeFailure);
                     store = null;
                     state = State.CLOSED;
                     released(this);
@@ -339,6 +371,11 @@ public final class ManagedCacheIo implements AutoCloseable {
         return error instanceof IOException ? (IOException) error : new IOException("Multiblock IO failed", error);
     }
 
-    interface Factory { ManagedCacheStore open(Path directory, String namespace) throws IOException; }
-    private interface Operation { void run() throws IOException; }
+    interface Factory {
+        ManagedCacheStore open(Path directory, String namespace) throws IOException;
+    }
+
+    private interface Operation {
+        void run() throws IOException;
+    }
 }

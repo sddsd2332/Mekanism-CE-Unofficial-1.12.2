@@ -48,12 +48,12 @@ public class MekanismImageButton extends MekanismButton {
     }
 
     public MekanismImageButton(IGuiWrapper gui, int x, int y, int width, int height, int textureWidth, int textureHeight, ResourceLocation resource,
-          Runnable onLeftClick, Runnable onRightClick) {
+                               Runnable onLeftClick, Runnable onRightClick) {
         this(gui, x, y, width, height, textureWidth, textureHeight, resource, onLeftClick, onRightClick, null);
     }
 
     public MekanismImageButton(IGuiWrapper gui, int x, int y, int width, int height, int textureWidth, int textureHeight, ResourceLocation resource,
-          Runnable onLeftClick, Runnable onRightClick, IHoverable onHover) {
+                               Runnable onLeftClick, Runnable onRightClick, IHoverable onHover) {
         super(gui, x, y, width, height, new TextComponentGroup(), onLeftClick, onRightClick, onHover);
         this.resourceLocation = resource;
         this.textureWidth = textureWidth;

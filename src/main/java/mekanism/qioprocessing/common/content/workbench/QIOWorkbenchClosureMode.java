@@ -1,6 +1,9 @@
 package mekanism.qioprocessing.common.content.workbench;
 
-/** Controls how an explicitly encoded workbench recipe discovers its dependencies. */
+/**
+ * Controls how an explicitly encoded workbench recipe discovers its dependencies.
+ */
+
 /**
  * QIO 处理模块中的 QIOWorkbenchClosureMode 类型。
  *

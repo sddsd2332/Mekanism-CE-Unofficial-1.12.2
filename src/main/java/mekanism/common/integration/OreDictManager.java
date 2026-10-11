@@ -220,9 +220,9 @@ public final class OreDictManager {
             ItemStack oreAmethyst = StackUtils.size(oreDict.get(0), 1);
             oreDict = OreDictionary.getOres("dustAmethyst", false);
             if (!oreDict.isEmpty()) {
-                oreDict.forEach(dust ->   RecipeHandler.addCombinerRecipe(StackUtils.size(dust, 3), new ItemStack(Blocks.END_STONE), oreAmethyst));
+                oreDict.forEach(dust -> RecipeHandler.addCombinerRecipe(StackUtils.size(dust, 3), new ItemStack(Blocks.END_STONE), oreAmethyst));
             } else {
-                OreDictionary.getOres("gemAmethyst", false).forEach(gem ->  RecipeHandler.addCombinerRecipe(StackUtils.size(gem, 3), new ItemStack(Blocks.END_STONE), oreAmethyst));
+                OreDictionary.getOres("gemAmethyst", false).forEach(gem -> RecipeHandler.addCombinerRecipe(StackUtils.size(gem, 3), new ItemStack(Blocks.END_STONE), oreAmethyst));
             }
         }
 
@@ -402,8 +402,8 @@ public final class OreDictManager {
         }
 
         for (ItemStack input : OreDictionary.getOres("blockRedstone", false)) {
-            if (!RecipeHandler.Recipe.ENERGY_RECIPE.containsRecipe(input)){
-                RecipeHandler.addItemStackToEnergyRecipe(input,MekanismConfig.current().general.ENERGY_PER_REDSTONE_BLOCK.val());
+            if (!RecipeHandler.Recipe.ENERGY_RECIPE.containsRecipe(input)) {
+                RecipeHandler.addItemStackToEnergyRecipe(input, MekanismConfig.current().general.ENERGY_PER_REDSTONE_BLOCK.val());
             }
         }
     }
@@ -443,7 +443,7 @@ public final class OreDictManager {
                 NonNullList<ItemStack> logVariants = NonNullList.create();
                 Block logBlock = Block.getBlockFromItem(logEntry.getItem());
                 logBlock.getSubBlocks(logBlock.getCreativeTab(), logVariants);
-                logVariants.forEach(stack -> addSawmillLog(tempCrafting,StackUtils.size(stack, 1), finalDummyWorld));
+                logVariants.forEach(stack -> addSawmillLog(tempCrafting, StackUtils.size(stack, 1), finalDummyWorld));
             } else {
                 addSawmillLog(tempCrafting, StackUtils.size(logEntry, 1), finalDummyWorld);
             }

@@ -4,18 +4,18 @@ import mekanism.client.jei.MekanismJEI;
 import mekanism.common.recipe.RecipeHandler.Recipe;
 import mekanism.qioprocessing.client.integration.QIORecipeViewerBridge;
 import mekanism.qioprocessing.common.content.policy.QIOPolicyEntrySnapshot;
-import mekanism.qioprocessing.common.inventory.container.ContainerPortableQIOSmartProcessingTerminal;
-import mekanism.qioprocessing.common.inventory.container.ContainerQIOSmartProcessingTerminal;
 import mekanism.qioprocessing.common.inventory.container.ContainerPortableQIOProcessingTerminal;
+import mekanism.qioprocessing.common.inventory.container.ContainerPortableQIOSmartProcessingTerminal;
 import mekanism.qioprocessing.common.inventory.container.ContainerQIOProcessingTerminal;
+import mekanism.qioprocessing.common.inventory.container.ContainerQIOSmartProcessingTerminal;
 import mekanism.qioprocessing.common.registries.QIOProcessingBlocks;
 import mekanism.qioprocessing.common.registries.QIOProcessingItems;
 import mekanism.qioprocessing.common.util.QIORecipeStackUtils;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.IModRegistry;
 import mezz.jei.api.JEIPlugin;
-import mezz.jei.api.recipe.VanillaRecipeCategoryUid;
 import mezz.jei.api.recipe.IFocus;
+import mezz.jei.api.recipe.VanillaRecipeCategoryUid;
 import mezz.jei.api.recipe.transfer.IRecipeTransferHandlerHelper;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.crafting.IRecipe;
@@ -39,46 +39,56 @@ public final class QIOProcessingJEI implements IModPlugin {
     public void register(IModRegistry registry) {
         QIOWorkbenchJEIInputHandler.register();
         IRecipeTransferHandlerHelper helper =
-              registry.getJeiHelpers().recipeTransferHandlerHelper();
+                registry.getJeiHelpers().recipeTransferHandlerHelper();
         registry.getRecipeTransferRegistry().addRecipeTransferHandler(
-              new QIOProcessingRecipeTransferHandler<>(
-                    ContainerQIOSmartProcessingTerminal.class, helper,
-                    registry.getJeiHelpers().getStackHelper()),
-              VanillaRecipeCategoryUid.CRAFTING);
+                new QIOProcessingRecipeTransferHandler<>(
+                        ContainerQIOSmartProcessingTerminal.class, helper,
+                        registry.getJeiHelpers().getStackHelper()),
+                VanillaRecipeCategoryUid.CRAFTING);
         registry.getRecipeTransferRegistry().addRecipeTransferHandler(
-              new QIOWorkbenchRecipeTransferHandler<>(ContainerQIOProcessingTerminal.class,
-                    helper), VanillaRecipeCategoryUid.CRAFTING);
+                new QIOWorkbenchRecipeTransferHandler<>(ContainerQIOProcessingTerminal.class,
+                        helper), VanillaRecipeCategoryUid.CRAFTING);
         registry.getRecipeTransferRegistry().addRecipeTransferHandler(
-              new QIOWorkbenchRecipeTransferHandler<>(
-                    ContainerPortableQIOProcessingTerminal.class, helper),
-              VanillaRecipeCategoryUid.CRAFTING);
+                new QIOWorkbenchRecipeTransferHandler<>(
+                        ContainerPortableQIOProcessingTerminal.class, helper),
+                VanillaRecipeCategoryUid.CRAFTING);
         registry.getRecipeTransferRegistry().addRecipeTransferHandler(
-              new QIOProcessingRecipeTransferHandler<>(
-                    ContainerPortableQIOSmartProcessingTerminal.class, helper,
-                    registry.getJeiHelpers().getStackHelper()),
-              VanillaRecipeCategoryUid.CRAFTING);
+                new QIOProcessingRecipeTransferHandler<>(
+                        ContainerPortableQIOSmartProcessingTerminal.class, helper,
+                        registry.getJeiHelpers().getStackHelper()),
+                VanillaRecipeCategoryUid.CRAFTING);
 
         registry.addRecipeCatalyst(new ItemStack(QIOProcessingBlocks.QIOCraftingProcessor),
-              VanillaRecipeCategoryUid.CRAFTING);
+                VanillaRecipeCategoryUid.CRAFTING);
         registry.addRecipeCatalyst(new ItemStack(QIOProcessingBlocks.BasicQIOCraftingProcessor),
-              VanillaRecipeCategoryUid.CRAFTING);
+                VanillaRecipeCategoryUid.CRAFTING);
         registry.addRecipeCatalyst(new ItemStack(QIOProcessingBlocks.AdvancedQIOCraftingProcessor),
-              VanillaRecipeCategoryUid.CRAFTING);
+                VanillaRecipeCategoryUid.CRAFTING);
         registry.addRecipeCatalyst(new ItemStack(QIOProcessingBlocks.EliteQIOCraftingProcessor),
-              VanillaRecipeCategoryUid.CRAFTING);
+                VanillaRecipeCategoryUid.CRAFTING);
         registry.addRecipeCatalyst(new ItemStack(QIOProcessingBlocks.UltimateQIOCraftingProcessor),
-              VanillaRecipeCategoryUid.CRAFTING);
+                VanillaRecipeCategoryUid.CRAFTING);
         registry.addRecipeCatalyst(new ItemStack(QIOProcessingBlocks.QIOSmartProcessingTerminal),
-              VanillaRecipeCategoryUid.CRAFTING);
+                VanillaRecipeCategoryUid.CRAFTING);
         registry.addRecipeCatalyst(new ItemStack(
-              QIOProcessingItems.PortableQIOSmartProcessingTerminal),
-              VanillaRecipeCategoryUid.CRAFTING);
+                        QIOProcessingItems.PortableQIOSmartProcessingTerminal),
+                VanillaRecipeCategoryUid.CRAFTING);
         registry.addRecipeCatalyst(new ItemStack(QIOProcessingBlocks.QIOManagementTerminal),
-              VanillaRecipeCategoryUid.CRAFTING);
+                VanillaRecipeCategoryUid.CRAFTING);
         registry.addRecipeCatalyst(new ItemStack(
-              QIOProcessingItems.PortableQIOManagementTerminal),
-              VanillaRecipeCategoryUid.CRAFTING);
+                        QIOProcessingItems.PortableQIOManagementTerminal),
+                VanillaRecipeCategoryUid.CRAFTING);
         QIORecipeViewerBridge.register(new QIORecipeViewerBridge.Viewer() {
+            @Override
+            public boolean supportsBookmarkImport() {
+                return MekanismJEI.jeiRuntime != null && QIOJEIBookmarks.supportsImport();
+            }
+
+            @Override
+            public int importBookmarks(java.util.function.Predicate<ItemStack> addTarget, int remaining) {
+                return MekanismJEI.jeiRuntime == null ? -1 : QIOJEIBookmarks.importBookmarks(addTarget, remaining);
+            }
+
             @Override
             public boolean canOpen(QIOPolicyEntrySnapshot policy) {
                 return recipeOutput(policy) != null || !categories(policy).isEmpty();
@@ -90,8 +100,15 @@ public final class QIOProcessingJEI implements IModPlugin {
                 ItemStack output = recipeOutput(policy);
                 if (output != null) {
                     MekanismJEI.jeiRuntime.getRecipesGui().show(new IFocus<ItemStack>() {
-                        @Override public ItemStack getValue() { return output; }
-                        @Override public Mode getMode() { return Mode.OUTPUT; }
+                        @Override
+                        public ItemStack getValue() {
+                            return output;
+                        }
+
+                        @Override
+                        public Mode getMode() {
+                            return Mode.OUTPUT;
+                        }
                     });
                     return true;
                 }
@@ -105,11 +122,11 @@ public final class QIOProcessingJEI implements IModPlugin {
 
     private static ItemStack recipeOutput(QIOPolicyEntrySnapshot policy) {
         if (policy == null || policy.getRoute() == null ||
-            !"mekanismqioprocessing:workbench".equals(
-                  policy.getRoute().getProviderId())) return null;
+                !"mekanismqioprocessing:workbench".equals(
+                        policy.getRoute().getProviderId())) return null;
         try {
             IRecipe recipe = ForgeRegistries.RECIPES.getValue(new ResourceLocation(
-                  policy.getRoute().getRecipeKey()));
+                    policy.getRoute().getRecipeKey()));
             if (recipe == null || recipe.getRecipeOutput().isEmpty()) return null;
             return QIORecipeStackUtils.copyForRecipeSelection(recipe.getRecipeOutput());
         } catch (RuntimeException e) {
@@ -138,11 +155,14 @@ public final class QIOProcessingJEI implements IModPlugin {
             case "rotary_condensentrator" -> add(result, Recipe.ROTARY_CONDENSENTRATOR);
             case "solar_neutron_activator" -> add(result, Recipe.SOLAR_NEUTRON_ACTIVATOR);
             case "chance_machine" -> {
-                add(result, Recipe.PRECISION_SAWMILL); add(result, Recipe.RECYCLER);
-                add(result, Recipe.CELL_EXTRACTOR); add(result, Recipe.CELL_SEPARATOR);
+                add(result, Recipe.PRECISION_SAWMILL);
+                add(result, Recipe.RECYCLER);
+                add(result, Recipe.CELL_EXTRACTOR);
+                add(result, Recipe.CELL_SEPARATOR);
             }
             case "double_item_machine" -> {
-                add(result, Recipe.COMBINER); add(result, Recipe.ALLOY);
+                add(result, Recipe.COMBINER);
+                add(result, Recipe.ALLOY);
             }
             case "advanced_gas_machine" -> {
                 add(result, Recipe.PURIFICATION_CHAMBER);
@@ -150,9 +170,12 @@ public final class QIOProcessingJEI implements IModPlugin {
                 add(result, Recipe.OSMIUM_COMPRESSOR);
             }
             case "electric_machine", "factory" -> {
-                add(result, Recipe.ENERGIZED_SMELTER); add(result, Recipe.ENRICHMENT_CHAMBER);
-                add(result, Recipe.CRUSHER); add(result, Recipe.STAMPING);
-                add(result, Recipe.ROLLING); add(result, Recipe.BRUSHED);
+                add(result, Recipe.ENERGIZED_SMELTER);
+                add(result, Recipe.ENRICHMENT_CHAMBER);
+                add(result, Recipe.CRUSHER);
+                add(result, Recipe.STAMPING);
+                add(result, Recipe.ROLLING);
+                add(result, Recipe.BRUSHED);
                 add(result, Recipe.TURNING);
             }
             default -> {

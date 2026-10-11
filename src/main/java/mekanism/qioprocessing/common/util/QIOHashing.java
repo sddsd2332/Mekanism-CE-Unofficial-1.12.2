@@ -6,7 +6,10 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Objects;
 
-/** Shared allocation-light hashing for persisted QIO identities and integrity signatures. */
+/**
+ * Shared allocation-light hashing for persisted QIO identities and integrity signatures.
+ */
+
 /**
  * QIO 处理模块中的 QIOHashing 类型。
  *

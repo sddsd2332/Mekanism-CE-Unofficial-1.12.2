@@ -29,22 +29,22 @@ public class ToggleButton extends MekanismImageButton {
     }
 
     public ToggleButton(IGuiWrapper gui, int x, int y, int size, BooleanSupplier toggled, Runnable onPress, @Nullable ITextComponent yesTooltip,
-          @Nullable ITextComponent noTooltip) {
+                        @Nullable ITextComponent noTooltip) {
         this(gui, x, y, size, 18, TOGGLE, TOGGLE_FLIPPED, toggled, onPress, yesTooltip, noTooltip);
     }
 
     public ToggleButton(IGuiWrapper gui, int x, int y, BooleanSupplier toggled, Runnable onPress, @Nullable ITextComponent yesTooltip,
-          @Nullable ITextComponent noTooltip) {
+                        @Nullable ITextComponent noTooltip) {
         this(gui, x, y, 18, 18, 18, 18, TOGGLE, TOGGLE_FLIPPED, toggled, onPress, yesTooltip, noTooltip);
     }
 
     public ToggleButton(IGuiWrapper gui, int x, int y, int size, int textureSize, ResourceLocation toggle, ResourceLocation flipped, BooleanSupplier toggled,
-          Runnable onPress, @Nullable ITextComponent yesTooltip, @Nullable ITextComponent noTooltip) {
+                        Runnable onPress, @Nullable ITextComponent yesTooltip, @Nullable ITextComponent noTooltip) {
         this(gui, x, y, size, size, textureSize, textureSize, toggle, flipped, toggled, onPress, yesTooltip, noTooltip);
     }
 
     public ToggleButton(IGuiWrapper gui, int x, int y, int width, int height, int textureWidth, int textureHeight, ResourceLocation toggle, ResourceLocation flipped,
-          BooleanSupplier toggled, Runnable onPress, @Nullable ITextComponent yesTooltip, @Nullable ITextComponent noTooltip) {
+                        BooleanSupplier toggled, Runnable onPress, @Nullable ITextComponent yesTooltip, @Nullable ITextComponent noTooltip) {
         super(gui, x, y, width, height, textureWidth, textureHeight, toggle, onPress);
         this.flipped = flipped;
         this.toggled = toggled;

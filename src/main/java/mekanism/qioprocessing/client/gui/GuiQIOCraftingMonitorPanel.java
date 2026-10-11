@@ -8,7 +8,6 @@ import mekanism.client.gui.element.GuiInnerScreen;
 import mekanism.client.gui.element.button.MekanismButton;
 import mekanism.client.gui.element.scroll.GuiScrollList;
 import mekanism.client.jei.interfaces.IJEIIngredientHelper;
-import mekanism.client.render.IFancyFontRenderer.TextAlignment;
 import mekanism.common.util.text.TextUtils;
 import mekanism.qioprocessing.common.inventory.container.QIOCraftingMonitorClientCache;
 import mekanism.qioprocessing.common.inventory.container.QIOCraftingMonitorPageContainer;
@@ -24,13 +23,12 @@ import net.minecraft.util.text.TextComponentTranslation;
 import org.lwjgl.input.Keyboard;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
-/** Full-width live QIO job directory. Double-clicking a row opens its plan window. */
+/**
+ * Full-width live QIO job directory. Double-clicking a row opens its plan window.
+ */
+
 /**
  * QIO 处理模块中的 GuiQIOCraftingMonitorPanel 类型。
  *
@@ -57,37 +55,44 @@ public final class GuiQIOCraftingMonitorPanel extends GuiElement {
     private final List<QIOCraftingMonitorEntry> visibleEntries = new ArrayList<>();
 
     private ListFilter listFilter = ListFilter.ALL;
-    @Nullable private SessionKey session;
-    @Nullable private Pending pagePending;
-    @Nullable private Pending cancelPending;
-    @Nullable private UUID cancelRequestId;
-    @Nullable private Pending mutationPending;
-    @Nullable private UUID mutationRequestId;
-    @Nullable private UUID selectedJobId;
+    @Nullable
+    private SessionKey session;
+    @Nullable
+    private Pending pagePending;
+    @Nullable
+    private Pending cancelPending;
+    @Nullable
+    private UUID cancelRequestId;
+    @Nullable
+    private Pending mutationPending;
+    @Nullable
+    private UUID mutationRequestId;
+    @Nullable
+    private UUID selectedJobId;
     private long tick;
     private long lastListCompletedTick = Long.MIN_VALUE;
     private long lastListGeneration = Long.MIN_VALUE;
     private long initialRequestNotBeforeTick;
 
     public GuiQIOCraftingMonitorPanel(IGuiWrapper gui,
-          QIOCraftingMonitorPageContainer container, int x, int y,
-          int width, int height) {
+                                      QIOCraftingMonitorPageContainer container, int x, int y,
+                                      int width, int height) {
         super(gui, x, y, width, height);
         this.container = Objects.requireNonNull(container, "container");
         state = container.getTerminalState();
         listFilterButton = addChild(new MekanismButton(gui, x, y, 88, 14,
-              new TextComponentTranslation(listFilter.key), this::cycleListFilter, null));
+                new TextComponentTranslation(listFilter.key), this::cycleListFilter, null));
         cancelButton = addChild(new MekanismButton(gui, x + width - CANCEL_BUTTON_WIDTH, y,
-              CANCEL_BUTTON_WIDTH, 14, new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.monitor_cancel"), this::cancelSelected,
-              getOnHover(() -> new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.monitor_cancel_tooltip"))));
+                CANCEL_BUTTON_WIDTH, 14, new TextComponentTranslation(
+                "gui.mekanismqioprocessing.monitor_cancel"), this::cancelSelected,
+                getOnHover(() -> new TextComponentTranslation(
+                        "gui.mekanismqioprocessing.monitor_cancel_tooltip"))));
         redispatchButton = addChild(new MekanismButton(gui,
-              x + width - CANCEL_BUTTON_WIDTH - 4 - REDISPATCH_BUTTON_WIDTH, y,
-              REDISPATCH_BUTTON_WIDTH, 14, new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.monitor_redispatch"),
-              this::redispatchSelected, getOnHover(() -> new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.monitor_redispatch_tooltip"))));
+                x + width - CANCEL_BUTTON_WIDTH - 4 - REDISPATCH_BUTTON_WIDTH, y,
+                REDISPATCH_BUTTON_WIDTH, 14, new TextComponentTranslation(
+                "gui.mekanismqioprocessing.monitor_redispatch"),
+                this::redispatchSelected, getOnHover(() -> new TextComponentTranslation(
+                "gui.mekanismqioprocessing.monitor_redispatch_tooltip"))));
         redispatchButton.visible = false;
         jobs = addChild(new JobList(gui, x, y + 17, width, height - 17));
     }
@@ -122,12 +127,12 @@ public final class GuiQIOCraftingMonitorPanel extends GuiElement {
     public void renderForeground(int mouseX, int mouseY) {
         super.renderForeground(mouseX, mouseY);
         drawScaledScrollingString(new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.monitor_double_click_hint"),
-              94, 3, TextAlignment.LEFT, 0xFF596368,
-              Math.max(8, width - 98 - CANCEL_BUTTON_WIDTH -
-                    (redispatchButton.visible ? REDISPATCH_BUTTON_WIDTH + 4 : 0)),
-              0, false, 0.8F,
-              getTimeOpened());
+                        "gui.mekanismqioprocessing.monitor_double_click_hint"),
+                94, 3, TextAlignment.LEFT, 0xFF596368,
+                Math.max(8, width - 98 - CANCEL_BUTTON_WIDTH -
+                        (redispatchButton.visible ? REDISPATCH_BUTTON_WIDTH + 4 : 0)),
+                0, false, 0.8F,
+                getTimeOpened());
     }
 
     @Override
@@ -165,7 +170,7 @@ public final class GuiQIOCraftingMonitorPanel extends GuiElement {
 
     private void tickList() {
         if (!hasFrequency() || pagePending != null ||
-              tick < initialRequestNotBeforeTick) return;
+                tick < initialRequestNotBeforeTick) return;
         QIOCraftingMonitorClientCache cache = cache();
         if (cache.getSourceRevision() < 0) {
             sendList(null);
@@ -179,14 +184,14 @@ public final class GuiQIOCraftingMonitorPanel extends GuiElement {
     private void sendList(@Nullable QIOPageCursor cursor) {
         if (!hasFrequency()) return;
         QIOProcessingPacketHandler.INSTANCE.sendToServer(
-              PacketQIOCraftingMonitorPageRequest.Message.create(
-                    container.getTerminalWindowId(), state, PAGE_SIZE, cursor));
+                PacketQIOCraftingMonitorPageRequest.Message.create(
+                        container.getTerminalWindowId(), state, PAGE_SIZE, cursor));
         pagePending = new Pending(cache().getPageGeneration(), tick);
     }
 
     private void acknowledgePage() {
         if (pagePending != null && pagePending.generation !=
-              cache().getPageGeneration()) {
+                cache().getPageGeneration()) {
             pagePending = null;
             if (cache().isPageComplete()) {
                 lastListCompletedTick = tick;
@@ -209,11 +214,11 @@ public final class GuiQIOCraftingMonitorPanel extends GuiElement {
 
     private void acknowledgeCancel() {
         if (cancelPending == null || cancelPending.generation ==
-              cache().getCancelGeneration()) return;
+                cache().getCancelGeneration()) return;
         if (cancelRequestId != null && cancelRequestId.equals(
-              cache().getLastCancelRequestId())) {
+                cache().getLastCancelRequestId())) {
             if (selectedJobId != null && selectedJobId.equals(
-                  cache().getLastCancelJobId())) {
+                    cache().getLastCancelJobId())) {
                 selectedJobId = null;
             }
             cancelPending = null;
@@ -222,15 +227,15 @@ public final class GuiQIOCraftingMonitorPanel extends GuiElement {
             rebuildVisibleEntries();
         } else {
             cancelPending = new Pending(cache().getCancelGeneration(),
-                  cancelPending.sentAt);
+                    cancelPending.sentAt);
         }
     }
 
     private void acknowledgeMutation() {
         if (mutationPending == null || mutationPending.generation ==
-              cache().getMutationGeneration()) return;
+                cache().getMutationGeneration()) return;
         if (mutationRequestId != null && mutationRequestId.equals(
-              cache().getLastMutationRequestId())) {
+                cache().getLastMutationRequestId())) {
             cache().clearEntries();
             lastListCompletedTick = Long.MIN_VALUE;
             rebuildVisibleEntries();
@@ -265,7 +270,7 @@ public final class GuiQIOCraftingMonitorPanel extends GuiElement {
         visibleEntries.clear();
         for (QIOCraftingMonitorEntry entry : cache().getEntries()) {
             if (entry.getKind() == QIOCraftingMonitorEntry.Kind.JOB &&
-                  listFilter.accepts(entry)) {
+                    listFilter.accepts(entry)) {
                 visibleEntries.add(entry);
             }
         }
@@ -274,7 +279,7 @@ public final class GuiQIOCraftingMonitorPanel extends GuiElement {
 
     private void synchronizeSelection() {
         if (selectedJobId != null && cache().isPageComplete() &&
-              cache().getEntry(selectedJobId) == null) {
+                cache().getEntry(selectedJobId) == null) {
             selectedJobId = null;
         }
     }
@@ -288,16 +293,16 @@ public final class GuiQIOCraftingMonitorPanel extends GuiElement {
         if (selected == null || !canCancelSelected()) return;
         cancelRequestId = UUID.randomUUID();
         QIOProcessingPacketHandler.INSTANCE.sendToServer(
-              PacketQIOCraftingMonitorCancel.Message.create(
-                    container.getTerminalWindowId(), state, cancelRequestId,
-                    selected.getEntryId(), selected.getRuntimeRevision()));
+                PacketQIOCraftingMonitorCancel.Message.create(
+                        container.getTerminalWindowId(), state, cancelRequestId,
+                        selected.getEntryId(), selected.getRuntimeRevision()));
         cancelPending = new Pending(cache().getCancelGeneration(), tick);
     }
 
     private boolean canCancelSelected() {
         QIOCraftingMonitorEntry selected = selectedEntry();
         return hasFrequency() && cancelPending == null && selected != null &&
-              !terminal(selected.getState());
+                !terminal(selected.getState());
     }
 
     private void redispatchSelected() {
@@ -305,18 +310,18 @@ public final class GuiQIOCraftingMonitorPanel extends GuiElement {
         if (selected == null || !canRedispatchSelected()) return;
         mutationRequestId = UUID.randomUUID();
         QIOProcessingPacketHandler.INSTANCE.sendToServer(
-              PacketQIOCraftingMonitorMutation.Message.create(
-                    container.getTerminalWindowId(), state, mutationRequestId,
-                    selected.getEntryId(), selected.getRuntimeRevision(),
-                    PacketQIOCraftingMonitorMutation.Action.REDISPATCH, 0));
+                PacketQIOCraftingMonitorMutation.Message.create(
+                        container.getTerminalWindowId(), state, mutationRequestId,
+                        selected.getEntryId(), selected.getRuntimeRevision(),
+                        PacketQIOCraftingMonitorMutation.Action.REDISPATCH, 0));
         mutationPending = new Pending(cache().getMutationGeneration(), tick);
     }
 
     private boolean canRedispatchSelected() {
         QIOCraftingMonitorEntry selected = selectedEntry();
         return hasFrequency() && mutationPending == null && selected != null &&
-              isContaminated(selected) && selected.getActiveOperations() == 0 &&
-              !terminal(selected.getState());
+                isContaminated(selected) && selected.getActiveOperations() == 0 &&
+                !terminal(selected.getState());
     }
 
     @Nullable
@@ -330,7 +335,7 @@ public final class GuiQIOCraftingMonitorPanel extends GuiElement {
         jobs.resetScroll();
         rebuildVisibleEntries();
         QIOCraftingMonitorEntry selected = selectedJobId == null ? null :
-              cache().getEntry(selectedJobId);
+                cache().getEntry(selectedJobId);
         if (selected != null && !listFilter.accepts(selected)) {
             selectedJobId = null;
         }
@@ -340,7 +345,7 @@ public final class GuiQIOCraftingMonitorPanel extends GuiElement {
         if (!hasFrequency()) return;
         if (gui() instanceof GuiMekanism<?> mekanismGui) {
             for (mekanism.client.gui.element.window.GuiWindow window :
-                  new ArrayList<>(mekanismGui.getWindows())) {
+                    new ArrayList<>(mekanismGui.getWindows())) {
                 if (window instanceof GuiQIOCraftingPlanWindow) {
                     window.close();
                 }
@@ -348,8 +353,8 @@ public final class GuiQIOCraftingMonitorPanel extends GuiElement {
         }
         cache().selectDetail(entry.getEntryId(), entry.getPlanRevision());
         gui().addWindow(new GuiQIOCraftingPlanWindow(gui(),
-              (getGuiWidth() - GuiQIOCraftingPlanWindow.WIDTH) / 2,
-              2, container, entry));
+                (getGuiWidth() - GuiQIOCraftingPlanWindow.WIDTH) / 2,
+                2, container, entry));
     }
 
     private boolean hasFrequency() {
@@ -373,12 +378,12 @@ public final class GuiQIOCraftingMonitorPanel extends GuiElement {
 
     private static boolean terminal(String state) {
         return "COMPLETED".equals(state) || "FAILED".equals(state) ||
-              "CANCELLED".equals(state);
+                "CANCELLED".equals(state);
     }
 
     private static boolean isContaminated(@Nullable QIOCraftingMonitorEntry entry) {
         return entry != null && "OPERATION_CONTAMINATED".equals(entry.getState()) &&
-              !entry.getDiagnostic().isEmpty();
+                !entry.getDiagnostic().isEmpty();
     }
 
     private static String localizedDiagnostic(QIOCraftingMonitorEntry entry) {
@@ -398,7 +403,7 @@ public final class GuiQIOCraftingMonitorPanel extends GuiElement {
 
     private static String localizedState(String state) {
         return translation("gui.mekanismqioprocessing.monitor_state_" +
-              state.toLowerCase(Locale.ROOT));
+                state.toLowerCase(Locale.ROOT));
     }
 
     private static String translation(String key, Object... arguments) {
@@ -407,24 +412,28 @@ public final class GuiQIOCraftingMonitorPanel extends GuiElement {
 
     private enum ListFilter {
         ALL("gui.mekanismqioprocessing.monitor_all_jobs") {
-            @Override boolean accepts(QIOCraftingMonitorEntry entry) {
+            @Override
+            boolean accepts(QIOCraftingMonitorEntry entry) {
                 return !terminal(entry.getState());
             }
         },
         ACTIVE("gui.mekanismqioprocessing.monitor_active") {
-            @Override boolean accepts(QIOCraftingMonitorEntry entry) {
+            @Override
+            boolean accepts(QIOCraftingMonitorEntry entry) {
                 return !terminal(entry.getState()) && active(entry);
             }
         },
         MANUAL("gui.mekanismqioprocessing.monitor_manual") {
-            @Override boolean accepts(QIOCraftingMonitorEntry entry) {
+            @Override
+            boolean accepts(QIOCraftingMonitorEntry entry) {
                 return !terminal(entry.getState()) && "MANUAL".equals(entry.getSource());
             }
         },
         MAINTENANCE("gui.mekanismqioprocessing.monitor_maintenance") {
-            @Override boolean accepts(QIOCraftingMonitorEntry entry) {
+            @Override
+            boolean accepts(QIOCraftingMonitorEntry entry) {
                 return !terminal(entry.getState()) &&
-                      "MAINTENANCE".equals(entry.getSource());
+                        "MAINTENANCE".equals(entry.getSource());
             }
         };
 
@@ -439,12 +448,13 @@ public final class GuiQIOCraftingMonitorPanel extends GuiElement {
 
     private final class JobList extends GuiScrollList implements IJEIIngredientHelper {
 
-        @Nullable private UUID lastClickedJobId;
+        @Nullable
+        private UUID lastClickedJobId;
         private long lastClickTick = Long.MIN_VALUE;
 
         private JobList(IGuiWrapper gui, int x, int y, int width, int height) {
             super(gui, x, y, width, height, JOB_ROW_HEIGHT, GuiInnerScreen.SCREEN,
-                  GuiInnerScreen.SCREEN_SIZE);
+                    GuiInnerScreen.SCREEN_SIZE);
         }
 
         private void refreshScroll() {
@@ -483,7 +493,7 @@ public final class GuiQIOCraftingMonitorPanel extends GuiElement {
                 return;
             }
             boolean doubleClick = clicked.getEntryId().equals(lastClickedJobId) &&
-                  tick - lastClickTick <= DOUBLE_CLICK_TICKS;
+                    tick - lastClickTick <= DOUBLE_CLICK_TICKS;
             lastClickedJobId = clicked.getEntryId();
             lastClickTick = tick;
             if (doubleClick) {
@@ -497,32 +507,32 @@ public final class GuiQIOCraftingMonitorPanel extends GuiElement {
         protected void renderElements(int mouseX, int mouseY, float partialTicks) {
             int first = getCurrentSelection();
             int count = Math.min(getFocusedElements(),
-                  Math.max(0, visibleEntries.size() - first));
+                    Math.max(0, visibleEntries.size() - first));
             for (int row = 0; row < count; row++) {
                 QIOCraftingMonitorEntry entry = visibleEntries.get(first + row);
                 int rowY = relativeY + 1 + row * elementHeight;
                 boolean hovered = mouseX >= getX() + 1 &&
-                      mouseX < getX() + barXShift - 1 &&
-                      mouseY >= getY() + 1 + row * elementHeight &&
-                      mouseY < getY() + 1 + (row + 1) * elementHeight;
+                        mouseX < getX() + barXShift - 1 &&
+                        mouseY >= getY() + 1 + row * elementHeight &&
+                        mouseY < getY() + 1 + (row + 1) * elementHeight;
                 if (entry.getEntryId().equals(selectedJobId)) {
                     GuiUtils.fill(relativeX + 1, rowY, relativeX + barXShift - 1,
-                          rowY + elementHeight, 0x80608AA0);
+                            rowY + elementHeight, 0x80608AA0);
                 } else if (hovered) {
                     GuiUtils.fill(relativeX + 1, rowY, relativeX + barXShift - 1,
-                          rowY + elementHeight, 0x405F737D);
+                            rowY + elementHeight, 0x405F737D);
                 }
                 long total = Math.max(1, entry.getTotalOperations());
                 int available = Math.max(0, barXShift - 4);
                 int progress = (int) Math.min(available, Math.round(available *
-                      (entry.getCompletedOperations() / (double) total)));
+                        (entry.getCompletedOperations() / (double) total)));
                 GuiUtils.fill(relativeX + 2, rowY + elementHeight - 2,
-                      relativeX + barXShift - 2, rowY + elementHeight - 1,
-                      0xFFB5BEC2);
+                        relativeX + barXShift - 2, rowY + elementHeight - 1,
+                        0xFFB5BEC2);
                 if (progress > 0) {
                     GuiUtils.fill(relativeX + 2, rowY + elementHeight - 2,
-                          relativeX + 2 + progress, rowY + elementHeight - 1,
-                          0xFF4C9A6C);
+                            relativeX + 2 + progress, rowY + elementHeight - 1,
+                            0xFF4C9A6C);
                 }
             }
         }
@@ -532,75 +542,75 @@ public final class GuiQIOCraftingMonitorPanel extends GuiElement {
             super.renderForeground(mouseX, mouseY);
             if (visibleEntries.isEmpty()) {
                 String key = !state.isValid() ?
-                      "gui.mekanismqioprocessing.session_waiting" :
-                      state.getFrequencyUUID() == null ?
-                            "gui.mekanismqioprocessing.bind_frequency_first" :
-                            cache().getSourceRevision() < 0 ?
-                                  "gui.mekanismqioprocessing.loading" :
-                                  "gui.mekanismqioprocessing.monitor_empty";
+                        "gui.mekanismqioprocessing.session_waiting" :
+                        state.getFrequencyUUID() == null ?
+                                "gui.mekanismqioprocessing.bind_frequency_first" :
+                                cache().getSourceRevision() < 0 ?
+                                        "gui.mekanismqioprocessing.loading" :
+                                        "gui.mekanismqioprocessing.monitor_empty";
                 String message = translation(key);
                 String trimmed = getFont().trimStringToWidth(message,
-                      Math.max(8, barXShift - 8));
+                        Math.max(8, barXShift - 8));
                 getFont().drawString(trimmed, relativeX + 4,
-                      relativeY + Math.max(4, (height - getFont().FONT_HEIGHT) / 2),
-                      0xFF5A6266);
+                        relativeY + Math.max(4, (height - getFont().FONT_HEIGHT) / 2),
+                        0xFF5A6266);
                 return;
             }
             int first = getCurrentSelection();
             int count = Math.min(getFocusedElements(),
-                  Math.max(0, visibleEntries.size() - first));
+                    Math.max(0, visibleEntries.size() - first));
             for (int row = 0; row < count; row++) {
                 QIOCraftingMonitorEntry entry = visibleEntries.get(first + row);
                 int rowY = relativeY + 3 + row * elementHeight;
                 QIOGuiResourceRenderer.renderIcon(gui(), entry.getRootResource(),
-                      relativeX + 3, rowY + 2, 16);
+                        relativeX + 3, rowY + 2, 16);
                 int textX = relativeX + 22;
                 int textWidth = Math.max(8, barXShift - 27);
                 String stateText = localizedState(entry.getState());
                 int stateWidth = Math.min(116, Math.max(50,
-                      getFont().getStringWidth(stateText)));
+                        getFont().getStringWidth(stateText)));
                 String name = getFont().trimStringToWidth(
-                      QIOGuiResourceRenderer.name(entry.getRootResource()),
-                      Math.max(8, textWidth - stateWidth - 8));
+                        QIOGuiResourceRenderer.name(entry.getRootResource()),
+                        Math.max(8, textWidth - stateWidth - 8));
                 getFont().drawString(name, textX, rowY, 0xFF40484C);
                 String trimmedState = getFont().trimStringToWidth(stateText, stateWidth);
                 getFont().drawString(trimmedState,
-                      relativeX + barXShift - 4 - getFont().getStringWidth(trimmedState),
-                      rowY, stateColor(entry));
+                        relativeX + barXShift - 4 - getFont().getStringWidth(trimmedState),
+                        rowY, stateColor(entry));
 
                 String amount = translation(
-                      "gui.mekanismqioprocessing.monitor_delivered_total",
-                      TextUtils.format(entry.getDeliveredAmount()),
-                      TextUtils.format(entry.getRootAmount()));
+                        "gui.mekanismqioprocessing.monitor_delivered_total",
+                        TextUtils.format(entry.getDeliveredAmount()),
+                        TextUtils.format(entry.getRootAmount()));
                 String priority = translation(
-                      "gui.mekanismqioprocessing.monitor_priority",
-                      TextUtils.format(entry.getBasePriority()));
+                        "gui.mekanismqioprocessing.monitor_priority",
+                        TextUtils.format(entry.getBasePriority()));
                 String source = translation("gui.mekanismqioprocessing.monitor_source_" +
-                      entry.getSource().toLowerCase(Locale.ROOT));
+                        entry.getSource().toLowerCase(Locale.ROOT));
                 String operations = isContaminated(entry) ? localizedDiagnostic(entry) :
-                      translation("gui.mekanismqioprocessing.monitor_operation_progress",
-                            TextUtils.format(entry.getCompletedOperations()),
-                            TextUtils.format(entry.getTotalOperations()));
+                        translation("gui.mekanismqioprocessing.monitor_operation_progress",
+                                TextUtils.format(entry.getCompletedOperations()),
+                                TextUtils.format(entry.getTotalOperations()));
                 int amountWidth = Math.max(54, textWidth * 23 / 100);
                 int priorityWidth = Math.max(50, textWidth * 20 / 100);
                 int sourceWidth = Math.max(48, textWidth * 20 / 100);
                 int operationWidth = Math.max(24,
-                      textWidth - amountWidth - priorityWidth - sourceWidth);
+                        textWidth - amountWidth - priorityWidth - sourceWidth);
                 drawColumn(amount, textX, rowY + 11, amountWidth);
                 drawColumn(priority, textX + amountWidth, rowY + 11,
-                      priorityWidth);
+                        priorityWidth);
                 drawColumn(source, textX + amountWidth + priorityWidth,
-                      rowY + 11, sourceWidth);
+                        rowY + 11, sourceWidth);
                 drawColumn(operations,
-                      textX + amountWidth + priorityWidth + sourceWidth,
-                      rowY + 11, operationWidth);
+                        textX + amountWidth + priorityWidth + sourceWidth,
+                        rowY + 11, operationWidth);
 
                 if (entry.ownsExecutionSlot()) {
                     GuiUtils.fill(relativeX + barXShift - 7, rowY + 12,
-                          relativeX + barXShift - 4, rowY + 15, 0xFF42A56B);
+                            relativeX + barXShift - 4, rowY + 15, 0xFF42A56B);
                 } else if (entry.getMissingResourceTypes() > 0) {
                     GuiUtils.fill(relativeX + barXShift - 7, rowY + 12,
-                          relativeX + barXShift - 4, rowY + 15, 0xFFB85858);
+                            relativeX + barXShift - 4, rowY + 15, 0xFFB85858);
                 }
             }
         }
@@ -608,7 +618,7 @@ public final class GuiQIOCraftingMonitorPanel extends GuiElement {
         private void drawColumn(String text, int x, int y, int width) {
             if (width <= 4) return;
             getFont().drawString(getFont().trimStringToWidth(text, width - 4),
-                  x, y, 0xFF596368);
+                    x, y, 0xFF596368);
         }
 
         @Override
@@ -618,21 +628,21 @@ public final class GuiQIOCraftingMonitorPanel extends GuiElement {
             if (entry == null) return;
             List<String> extra = new ArrayList<>();
             extra.add(translation("gui.mekanismqioprocessing.monitor_state",
-                  localizedState(entry.getState())));
+                    localizedState(entry.getState())));
             extra.add(translation("gui.mekanismqioprocessing.monitor_source",
-                  translation("gui.mekanismqioprocessing.monitor_source_" +
-                        entry.getSource().toLowerCase(Locale.ROOT))));
+                    translation("gui.mekanismqioprocessing.monitor_source_" +
+                            entry.getSource().toLowerCase(Locale.ROOT))));
             extra.add(translation("gui.mekanismqioprocessing.monitor_delivered_total",
-                  TextUtils.format(entry.getDeliveredAmount()),
-                  TextUtils.format(entry.getRootAmount())));
+                    TextUtils.format(entry.getDeliveredAmount()),
+                    TextUtils.format(entry.getRootAmount())));
             extra.add(translation("gui.mekanismqioprocessing.monitor_priority",
-                  TextUtils.format(entry.getBasePriority())));
+                    TextUtils.format(entry.getBasePriority())));
             extra.add(translation("gui.mekanismqioprocessing.monitor_operation_progress",
-                  TextUtils.format(entry.getCompletedOperations()),
-                  TextUtils.format(entry.getTotalOperations())));
+                    TextUtils.format(entry.getCompletedOperations()),
+                    TextUtils.format(entry.getTotalOperations())));
             if (entry.getMissingResourceTypes() > 0) {
                 extra.add(translation("gui.mekanismqioprocessing.monitor_missing_types",
-                      Integer.toString(entry.getMissingResourceTypes())));
+                        Integer.toString(entry.getMissingResourceTypes())));
             }
             if (entry.ownsExecutionSlot()) {
                 extra.add(translation("gui.mekanismqioprocessing.monitor_slot_held"));
@@ -641,9 +651,9 @@ public final class GuiQIOCraftingMonitorPanel extends GuiElement {
                 extra.add(localizedDiagnostic(entry));
             }
             extra.add(translation("gui.mekanismqioprocessing.monitor_job_id",
-                  entry.getEntryId().toString().substring(0, 8)));
+                    entry.getEntryId().toString().substring(0, 8)));
             extra.add(translation(
-                  "gui.mekanismqioprocessing.monitor_double_click_hint"));
+                    "gui.mekanismqioprocessing.monitor_double_click_hint"));
             ItemStack item = QIOGuiResourceRenderer.item(entry.getRootResource());
             if (!item.isEmpty()) {
                 gui().renderItemTooltipWithExtra(item, mouseX, mouseY, extra);
@@ -659,17 +669,17 @@ public final class GuiQIOCraftingMonitorPanel extends GuiElement {
         public Object getIngredient(double mouseX, double mouseY) {
             QIOCraftingMonitorEntry entry = entryAt(mouseX, mouseY);
             return entry == null ? null :
-                  QIOGuiResourceRenderer.ingredient(entry.getRootResource());
+                    QIOGuiResourceRenderer.ingredient(entry.getRootResource());
         }
 
         @Nullable
         private QIOCraftingMonitorEntry entryAt(double mouseX, double mouseY) {
             if (mouseX < getX() + 1 || mouseX >= getX() + barXShift - 1 ||
-                  mouseY < getY() + 1 || mouseY >= getY() + height - 1) return null;
+                    mouseY < getY() + 1 || mouseY >= getY() + height - 1) return null;
             int row = (int) ((mouseY - getY() - 1) / elementHeight);
             int index = getCurrentSelection() + row;
             return index < 0 || index >= visibleEntries.size() ? null :
-                  visibleEntries.get(index);
+                    visibleEntries.get(index);
         }
 
         private int stateColor(QIOCraftingMonitorEntry entry) {
@@ -697,7 +707,7 @@ public final class GuiQIOCraftingMonitorPanel extends GuiElement {
         private final long accessRevision;
 
         private SessionKey(UUID nonce, UUID terminal, UUID frequency,
-              long targetRevision, long accessRevision) {
+                           long targetRevision, long accessRevision) {
             this.nonce = nonce;
             this.terminal = terminal;
             this.frequency = frequency;
@@ -708,24 +718,24 @@ public final class GuiQIOCraftingMonitorPanel extends GuiElement {
         @Nullable
         private static SessionKey capture(QIOProcessingTerminalContainerState state) {
             return state.isValid() ? new SessionKey(state.getSessionNonce(),
-                  state.getTerminalUUID(), state.getFrequencyUUID(),
-                  state.getTargetRevision(), state.getAccessRevision()) : null;
+                    state.getTerminalUUID(), state.getFrequencyUUID(),
+                    state.getTargetRevision(), state.getAccessRevision()) : null;
         }
 
         @Override
         public boolean equals(Object other) {
             return other instanceof SessionKey key &&
-                  targetRevision == key.targetRevision &&
-                  accessRevision == key.accessRevision &&
-                  Objects.equals(nonce, key.nonce) &&
-                  Objects.equals(terminal, key.terminal) &&
-                  Objects.equals(frequency, key.frequency);
+                    targetRevision == key.targetRevision &&
+                    accessRevision == key.accessRevision &&
+                    Objects.equals(nonce, key.nonce) &&
+                    Objects.equals(terminal, key.terminal) &&
+                    Objects.equals(frequency, key.frequency);
         }
 
         @Override
         public int hashCode() {
             return Objects.hash(nonce, terminal, frequency, targetRevision,
-                  accessRevision);
+                    accessRevision);
         }
     }
 }

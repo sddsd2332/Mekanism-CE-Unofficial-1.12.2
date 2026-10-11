@@ -16,24 +16,26 @@ import mekanism.common.util.MekanismUtils;
 import javax.annotation.Nullable;
 import java.util.function.Supplier;
 
-/** QIO frequency tab that opens the shared selector as an in-place window. */
+/**
+ * QIO frequency tab that opens the shared selector as an in-place window.
+ */
 public abstract class GuiQIOFrequencyTab<DATA> extends GuiInsetElement<DATA> {
 
     private static final SelectedWindowData DEFAULT_WINDOW_DATA =
-          new SelectedWindowData(WindowType.QIO_FREQUENCY);
+            new SelectedWindowData(WindowType.QIO_FREQUENCY);
 
     @Nullable
     private final Supplier<? extends GuiQIOFrequencyTab<?>> elementSupplier;
     private final SelectedWindowData windowData;
 
     protected GuiQIOFrequencyTab(IGuiWrapper gui, DATA data,
-          @Nullable Supplier<? extends GuiQIOFrequencyTab<?>> elementSupplier) {
+                                 @Nullable Supplier<? extends GuiQIOFrequencyTab<?>> elementSupplier) {
         this(gui, data, elementSupplier, DEFAULT_WINDOW_DATA);
     }
 
     protected GuiQIOFrequencyTab(IGuiWrapper gui, DATA data,
-          @Nullable Supplier<? extends GuiQIOFrequencyTab<?>> elementSupplier,
-          SelectedWindowData windowData) {
+                                 @Nullable Supplier<? extends GuiQIOFrequencyTab<?>> elementSupplier,
+                                 SelectedWindowData windowData) {
         super(MekanismUtils.getResource(MekanismUtils.ResourceType.GUI, "frequency.png"), gui, data, -26, 6, 26, 18, true);
         this.elementSupplier = elementSupplier;
         this.windowData = windowData;
@@ -86,7 +88,7 @@ public abstract class GuiQIOFrequencyTab<DATA> extends GuiInsetElement<DATA> {
     public static class Tile extends GuiQIOFrequencyTab<TileEntityQIOComponent> {
 
         public Tile(IGuiWrapper gui, TileEntityQIOComponent tile,
-              Supplier<? extends GuiQIOFrequencyTab<?>> elementSupplier) {
+                    Supplier<? extends GuiQIOFrequencyTab<?>> elementSupplier) {
             super(gui, tile, elementSupplier);
         }
 
@@ -94,7 +96,9 @@ public abstract class GuiQIOFrequencyTab<DATA> extends GuiInsetElement<DATA> {
             super(gui, tile, null);
         }
 
-        /** @deprecated Frequency selection no longer opens a separate GUI ID. */
+        /**
+         * @deprecated Frequency selection no longer opens a separate GUI ID.
+         */
         @Deprecated
         public Tile(IGuiWrapper gui, TileEntityQIOComponent tile, int ignoredGuiId) {
             this(gui, tile);
@@ -109,7 +113,7 @@ public abstract class GuiQIOFrequencyTab<DATA> extends GuiInsetElement<DATA> {
     public static class Item extends GuiQIOFrequencyTab<PortableQIODashboardContainer> {
 
         public Item(IGuiWrapper gui, PortableQIODashboardContainer container,
-              Supplier<? extends GuiQIOFrequencyTab<?>> elementSupplier) {
+                    Supplier<? extends GuiQIOFrequencyTab<?>> elementSupplier) {
             super(gui, container, elementSupplier);
         }
 

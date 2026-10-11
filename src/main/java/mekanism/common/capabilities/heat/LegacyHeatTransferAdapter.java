@@ -5,14 +5,15 @@ import mekanism.api.heat.HeatAPI;
 import mekanism.api.heat.IHeatHandler;
 import mekanism.api.heat.IMekanismHeatHandler;
 import mekanism.api.heat.ISidedHeatHandler;
-import net.minecraft.util.EnumFacing;
 import mekanism.common.capabilities.proxy.ProxyHeatHandler;
+import net.minecraft.util.EnumFacing;
 
 import javax.annotation.Nullable;
 import java.util.function.DoubleSupplier;
 
 /**
  * Exposes a new heat handler through the deprecated 1.12 heat API without duplicating thermal state.
+ *
  * @deprecated Compatibility bridge for callers of {@link IHeatTransfer}.
  */
 @Deprecated
@@ -133,7 +134,7 @@ public final class LegacyHeatTransferAdapter implements IHeatTransfer {
             denominator = HeatAPI.MAX_HEAT;
         }
         double temperatureTransfer = (temperature - HeatAPI.sanitizeTemperature(ambientTemperature.getAsDouble())) /
-              denominator;
+                denominator;
         double heatCapacity = handler.getTotalHeatCapacity();
         double heatTransfer = HeatAPI.multiplyHeatSigned(temperatureTransfer, heatCapacity);
         double[] before = ITileHeatHandler.snapshotHandlerHeat(handler, null);
@@ -142,7 +143,7 @@ public final class LegacyHeatTransferAdapter implements IHeatTransfer {
         }
         double[] after = ITileHeatHandler.snapshotHandlerHeat(handler, null);
         double actualHeat = heatTransfer > 0 ? ITileHeatHandler.getHeatDecrease(before, after) :
-              -ITileHeatHandler.getHeatIncrease(before, after);
+                -ITileHeatHandler.getHeatIncrease(before, after);
         double actualTransfer = heatCapacity >= 1 ? actualHeat / heatCapacity : 0;
         return new double[]{0, HeatAPI.isFinite(actualTransfer) ? Math.max(actualTransfer, 0) : 0};
     }

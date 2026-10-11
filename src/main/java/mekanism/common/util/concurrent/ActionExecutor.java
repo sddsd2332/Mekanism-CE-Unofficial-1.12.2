@@ -53,6 +53,14 @@ public class ActionExecutor implements Runnable, Comparable<ActionExecutor> {
         }
     }
 
+    /**
+     * Only for a dispatch failure before the action has been accepted for execution.
+     */
+    public void completeWithoutExecution() {
+        isCompleted = true;
+        completion.countDown();
+    }
+
     @Override
     public int compareTo(ActionExecutor o) {
         return o.priority - priority;

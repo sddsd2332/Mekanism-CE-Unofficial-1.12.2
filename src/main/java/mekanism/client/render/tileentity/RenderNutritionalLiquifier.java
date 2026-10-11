@@ -91,8 +91,8 @@ public class RenderNutritionalLiquifier extends TileEntitySpecialRenderer<TileEn
         bindTexture(MekanismUtils.getResource(ResourceType.RENDER, "NutritionalLiquifier.png"));
         MekanismRenderer.rotate(tileEntity.facing, 0, 180, 90, 270);
         GlStateManager.rotate(180, 0, 0, 1);
-        model.render(0.0625F,tileEntity.getActive());
-        if (tileEntity.getActive()){
+        model.render(0.0625F, tileEntity.getActive());
+        if (tileEntity.getActive()) {
             double tick = Minecraft.getSystemTime() / 800.0D;
             GlStateManager.rotate((float) (((tick * 100.0D) % 360)), 0, 1, 0);
             model.renderBlade(0.0625F);
@@ -102,7 +102,7 @@ public class RenderNutritionalLiquifier extends TileEntitySpecialRenderer<TileEn
         GlStateManager.translate((float) x + 0.5F, (float) y + 1.5F, (float) z + 0.5F);
         MekanismRenderer.rotate(tileEntity.facing, 0, 180, 90, 270);
         GlStateManager.rotate(180, 0, 0, 1);
-        model.renderGlass(0.0625F,true);
+        model.renderGlass(0.0625F, true);
         GlStateManager.popMatrix();
         MekanismRenderer.machineRenderer().render(tileEntity, x, y, z, partialTick, destroyStage, alpha);
     }

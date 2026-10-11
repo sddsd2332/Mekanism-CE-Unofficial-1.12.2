@@ -88,7 +88,7 @@ public final class ProviderConformanceDescriptor {
         for (int i = 0; i < value.length(); i++) {
             char character = value.charAt(i);
             if (!(character >= 'a' && character <= 'z') && !(character >= '0' && character <= '9') &&
-                character != '_' && character != '-' && character != '.' && character != '/') {
+                    character != '_' && character != '-' && character != '.' && character != '/') {
                 throw new IllegalArgumentException(name + " contains an unsupported character: " + value);
             }
         }
@@ -107,7 +107,9 @@ public final class ProviderConformanceDescriptor {
             this.stableProviderSlotId = stableProviderSlotId;
         }
 
-        /** Intended for a future descriptor schema negotiated by the QIO module. */
+        /**
+         * Intended for a future descriptor schema negotiated by the QIO module.
+         */
         public Builder version(int version) {
             if (version <= 0) {
                 throw new IllegalArgumentException("Conformance version must be positive");

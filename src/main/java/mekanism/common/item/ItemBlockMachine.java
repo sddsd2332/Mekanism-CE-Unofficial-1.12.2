@@ -13,40 +13,35 @@ import mekanism.api.functions.ConstantPredicates;
 import mekanism.client.MekKeyHandler;
 import mekanism.client.MekanismClient;
 import mekanism.client.MekanismKeyHandler;
-import mekanism.common.Mekanism;
 import mekanism.common.Upgrade;
-import mekanism.common.base.*;
-import mekanism.common.base.IRedstoneControl.RedstoneControl;
+import mekanism.common.base.FactoryRecipeTypeCodec;
+import mekanism.common.base.IFactory;
+import mekanism.common.base.ISustainedTank;
+import mekanism.common.base.ITierItem;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.capabilities.ItemCapabilityWrapper;
 import mekanism.common.capabilities.energy.BasicEnergyContainer;
 import mekanism.common.capabilities.energy.item.RateLimitEnergyHandler;
 import mekanism.common.capabilities.fluid.item.RateLimitFluidHandler;
 import mekanism.common.config.MekanismConfig;
-import mekanism.common.frequency.Frequency;
 import mekanism.common.frequency.Frequency.FrequencyIdentity;
 import mekanism.common.frequency.FrequencyType;
-import mekanism.common.security.ISecurityTile.SecurityMode;
 import mekanism.common.integration.MekanismHooks;
 import mekanism.common.integration.forgeenergy.ForgeEnergyItemWrapper;
 import mekanism.common.integration.ic2.IC2ItemManager;
 import mekanism.common.integration.redstoneflux.RFIntegration;
 import mekanism.common.integration.tesla.TeslaItemWrapper;
-import mekanism.common.item.interfaces.IItemSustainedInventory;
 import mekanism.common.item.interfaces.IItemBlockPlacementData;
+import mekanism.common.item.interfaces.IItemSustainedInventory;
 import mekanism.common.item.interfaces.ILegacyEnergizedItem;
 import mekanism.common.item.interfaces.IModeItem;
 import mekanism.common.security.ISecurityItem;
-import mekanism.common.security.ISecurityTile;
 import mekanism.common.security.ISecurityTile.SecurityMode;
 import mekanism.common.tier.BaseTier;
-import mekanism.common.tier.FactoryTier;
 import mekanism.common.tier.FluidTankTier;
 import mekanism.common.tile.TileEntityFluidTank;
 import mekanism.common.tile.TileEntityQuantumEntangloporter;
 import mekanism.common.tile.factory.TileEntityFactory;
-import mekanism.common.tile.prefab.TileEntityBasicBlock;
-import mekanism.common.tile.prefab.TileEntityElectricBlock;
 import mekanism.common.util.*;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
@@ -54,8 +49,8 @@ import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.settings.GameSettings;
 import net.minecraft.client.util.ITooltipFlag;
-import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.SoundEvents;
 import net.minecraft.inventory.EntityEquipmentSlot;
 import net.minecraft.item.ItemBlock;
@@ -232,7 +227,7 @@ public class ItemBlockMachine extends ItemBlock implements ILegacyEnergizedItem,
                         list.add(EnumColor.INDIGO + LangUtils.localize("gui.frequency") + ": " + EnumColor.GREY + freq.key());
 
                         list.add(EnumColor.INDIGO + LangUtils.localize("gui.mode") + ": " + EnumColor.GREY +
-                              LangUtils.localize("gui." + (freq.securityMode() == SecurityMode.PRIVATE ? "private" : "public")));
+                                LangUtils.localize("gui." + (freq.securityMode() == SecurityMode.PRIVATE ? "private" : "public")));
                     }
                 }
 
@@ -287,7 +282,7 @@ public class ItemBlockMachine extends ItemBlock implements ILegacyEnergizedItem,
     @Nonnull
     @Override
     public EnumActionResult onItemUseFirst(EntityPlayer player, World world, @Nonnull BlockPos pos, @Nonnull EnumFacing side,
-          float hitX, float hitY, float hitZ, @Nonnull EnumHand hand) {
+                                           float hitX, float hitY, float hitZ, @Nonnull EnumHand hand) {
         ItemStack stack = player.getHeldItem(hand);
         if (MachineType.get(stack) == MachineType.PERSONAL_CHEST && tryClaimPersonalChest(world, player, stack)) {
             //Claiming the chest consumes this click. The next click can place it or open its GUI.
@@ -325,7 +320,7 @@ public class ItemBlockMachine extends ItemBlock implements ILegacyEnergizedItem,
         if (type == MachineType.PERSONAL_CHEST && (getOwnerUUID(stack) == null || stack.getCount() > 1)) {
             return false;
         }
-        if (MekanismConfig.current().general.destroyDisabledBlocks.val()){
+        if (MekanismConfig.current().general.destroyDisabledBlocks.val()) {
             if (type != null && !type.isEnabled()) {
                 return false;
             }
@@ -353,8 +348,8 @@ public class ItemBlockMachine extends ItemBlock implements ILegacyEnergizedItem,
             };
             EnumFacing right = MekanismUtils.getRight(facing);
             place = MekanismUtils.isValidBoundingBlockPosition(world, pos.up(), pos)
-                  && MekanismUtils.isValidBoundingBlockPosition(world, pos.offset(right), pos)
-                  && MekanismUtils.isValidBoundingBlockPosition(world, pos.offset(right).up(), pos);
+                    && MekanismUtils.isValidBoundingBlockPosition(world, pos.offset(right), pos)
+                    && MekanismUtils.isValidBoundingBlockPosition(world, pos.offset(right).up(), pos);
         } else if (type == MachineType.SOLAR_NEUTRON_ACTIVATOR || type == MachineType.SEISMIC_VIBRATOR || type == MachineType.ISOTOPIC_CENTRIFUGE) {
             BlockPos abovePos = pos.up();
             if (!MekanismUtils.isValidBoundingBlockPosition(world, abovePos, pos)) {
@@ -367,7 +362,7 @@ public class ItemBlockMachine extends ItemBlock implements ILegacyEnergizedItem,
 
     @Override
     public void restorePlacementData(@Nonnull ItemStack stack, @Nonnull EntityLivingBase placer, @Nonnull World world, @Nonnull BlockPos pos,
-          @Nonnull TileEntity tileEntity) {
+                                     @Nonnull TileEntity tileEntity) {
         if (tileEntity instanceof TileEntityFluidTank tile) {
             tile.tier = FluidTankTier.values()[getBaseTier(stack).ordinal()];
         }
@@ -853,8 +848,8 @@ public class ItemBlockMachine extends ItemBlock implements ILegacyEnergizedItem,
     @Override
     public ICapabilityProvider initCapabilities(ItemStack stack, NBTTagCompound nbt) {
         return new ItemCapabilityWrapper(stack, new TeslaItemWrapper(), new ForgeEnergyItemWrapper(),
-              RateLimitEnergyHandler.create(() -> getEnergyTransfer(stack), () -> getEnergyCapacity(stack), BasicEnergyContainer.manualOnly, ConstantPredicates.alwaysTrue()),
-              RateLimitFluidHandler.create(() -> FluidTankTier.values()[getBaseTier(stack).ordinal()], "fluidTank")) {
+                RateLimitEnergyHandler.create(() -> getEnergyTransfer(stack), () -> getEnergyCapacity(stack), BasicEnergyContainer.manualOnly, ConstantPredicates.alwaysTrue()),
+                RateLimitFluidHandler.create(() -> FluidTankTier.values()[getBaseTier(stack).ordinal()], "fluidTank")) {
             @Override
             public boolean hasCapability(@Nonnull Capability<?> capability, EnumFacing facing) {
                 if (capability == CapabilityFluidHandler.FLUID_HANDLER_ITEM_CAPABILITY) {
@@ -866,7 +861,7 @@ public class ItemBlockMachine extends ItemBlock implements ILegacyEnergizedItem,
             @Override
             public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing facing) {
                 if (capability == CapabilityFluidHandler.FLUID_HANDLER_ITEM_CAPABILITY &&
-                      (MachineType.get(itemStack) != MachineType.FLUID_TANK || itemStack.getCount() != 1)) {
+                        (MachineType.get(itemStack) != MachineType.FLUID_TANK || itemStack.getCount() != 1)) {
                     return null;
                 }
                 return super.getCapability(capability, facing);

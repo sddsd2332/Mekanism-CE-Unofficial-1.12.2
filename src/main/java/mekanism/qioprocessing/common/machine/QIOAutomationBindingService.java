@@ -32,22 +32,22 @@ public final class QIOAutomationBindingService {
     /**
      * 把机器绑定到指定 QIO 频率。
      *
-     * @param tile 目标机器方块
+     * @param tile      目标机器方块
      * @param frequency 要绑定的 QIO 频率
      * @param requester 发起请求的玩家 UUID
      * @return 绑定成功时返回 true
      */
     public static boolean bind(@Nonnull TileEntity tile, @Nonnull QIOFrequency frequency,
-          @Nonnull UUID requester) {
+                               @Nonnull UUID requester) {
         Objects.requireNonNull(tile, "Machine tile cannot be null");
         Objects.requireNonNull(frequency, "QIO frequency cannot be null");
         Objects.requireNonNull(requester, "Binding requester cannot be null");
         DefaultQIOAutomationHost host = getMutableHost(tile);
         if (host == null || host.getEnabledMode() == null ||
-            host.getState() == QIOAutomationHost.State.IDENTITY_CONFLICT ||
-            !QIOAutomationUpgradeSupport.isModeInstalled(tile, host.getEnabledMode()) ||
-            !SecurityUtils.canAccess(requester, tile) ||
-            !SecurityUtils.canAccess(frequency.getSecurity(), requester, frequency.getOwner())) {
+                host.getState() == QIOAutomationHost.State.IDENTITY_CONFLICT ||
+                !QIOAutomationUpgradeSupport.isModeInstalled(tile, host.getEnabledMode()) ||
+                !SecurityUtils.canAccess(requester, tile) ||
+                !SecurityUtils.canAccess(frequency.getSecurity(), requester, frequency.getOwner())) {
             return false;
         }
         MachineRecipeProviderRegistry.BoundProvider provider = MachineRecipeProviderRegistry.find(tile);
@@ -64,9 +64,11 @@ public final class QIOAutomationBindingService {
         return host.configureBinding(reference, host.getEnabledMode(), true);
     }
 
-    /** 判断 Provider 是否声明支持给定自动化模式的端点契约。 */
+    /**
+     * 判断 Provider 是否声明支持给定自动化模式的端点契约。
+     */
     static boolean acceptsEndpoint(@Nullable MachineRecipeProviderRegistry.BoundProvider provider,
-          @Nullable QIOAutomationMode mode) {
+                                   @Nullable QIOAutomationMode mode) {
         if (provider == null || mode == null) {
             return false;
         }
@@ -82,7 +84,7 @@ public final class QIOAutomationBindingService {
     /**
      * 解除机器的频率绑定；已有所有权会先走安全恢复/排空路径。
      *
-     * @param tile 目标机器方块
+     * @param tile      目标机器方块
      * @param requester 发起请求的玩家 UUID
      * @return 解除成功或请求被安全接受时返回 true
      */
@@ -91,7 +93,7 @@ public final class QIOAutomationBindingService {
         Objects.requireNonNull(requester, "Binding requester cannot be null");
         DefaultQIOAutomationHost host = getMutableHost(tile);
         if (host == null || !SecurityUtils.canAccess(requester, tile) ||
-              !clearRecoveryForExplicitBindingChange(host)) {
+                !clearRecoveryForExplicitBindingChange(host)) {
             return false;
         }
         return host.configureBinding(null, host.getEnabledMode(), false);
@@ -100,32 +102,34 @@ public final class QIOAutomationBindingService {
     /**
      * 根据频率身份和期望 UUID 解析频率后执行绑定。
      *
-     * @param tile 目标机器方块
-     * @param identity 频率所有者/安全模式/键
+     * @param tile                  目标机器方块
+     * @param identity              频率所有者/安全模式/键
      * @param expectedFrequencyUUID 调用方观察到的频率 UUID
-     * @param requester 发起请求的玩家 UUID
+     * @param requester             发起请求的玩家 UUID
      * @return 频率仍匹配且绑定成功时返回 true
      */
     public static boolean bind(@Nonnull TileEntity tile, @Nonnull FrequencyIdentity identity,
-          @Nonnull UUID expectedFrequencyUUID, @Nonnull UUID requester) {
+                               @Nonnull UUID expectedFrequencyUUID, @Nonnull UUID requester) {
         Objects.requireNonNull(identity, "QIO frequency identity cannot be null");
         Objects.requireNonNull(expectedFrequencyUUID, "Expected QIO frequency UUID cannot be null");
         Objects.requireNonNull(requester, "Binding requester cannot be null");
         FrequencyManager<QIOFrequency> manager = FrequencyType.QIO.getManager(
-              identity.ownerUUID(), identity.securityMode());
+                identity.ownerUUID(), identity.securityMode());
         QIOFrequency frequency = manager == null ? null : manager.getFrequency(identity.key());
         return frequency != null && expectedFrequencyUUID.equals(frequency.getFrequencyUUID()) &&
-              bind(tile, frequency, requester);
+                bind(tile, frequency, requester);
     }
 
-    /** 重新验证已保存频率引用的访问权限并更新主机生命周期。 */
+    /**
+     * 重新验证已保存频率引用的访问权限并更新主机生命周期。
+     */
     static boolean refreshAccess(@Nonnull DefaultQIOAutomationHost host) {
         QIOFrequencyReference reference = host.getFrequencyReference();
         if (reference == null) {
             return host.getState() == QIOAutomationHost.State.UNBOUND;
         }
         boolean accessible = QIOFrequencyStorageAccess.INSTANCE.canAccess(reference,
-              reference.getBindingPlayerUUID());
+                reference.getBindingPlayerUUID());
         host.setAccessValidated(accessible);
         return accessible;
     }
@@ -133,7 +137,7 @@ public final class QIOAutomationBindingService {
     @Nullable
     private static DefaultQIOAutomationHost getMutableHost(TileEntity tile) {
         if (QIOAutomationCapabilities.AUTOMATION_HOST == null ||
-            !tile.hasCapability(QIOAutomationCapabilities.AUTOMATION_HOST, null)) {
+                !tile.hasCapability(QIOAutomationCapabilities.AUTOMATION_HOST, null)) {
             return null;
         }
         QIOAutomationHost host = tile.getCapability(QIOAutomationCapabilities.AUTOMATION_HOST, null);

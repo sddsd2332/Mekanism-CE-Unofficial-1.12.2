@@ -25,8 +25,7 @@ import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
 @SideOnly(Side.CLIENT)
-public class GuiLargeElectrolyticSeparator extends GuiMekanismTile<TileEntityLargeElectrolyticSeparator, ContainerLargeElectrolyticSeparator>
-{
+public class GuiLargeElectrolyticSeparator extends GuiMekanismTile<TileEntityLargeElectrolyticSeparator, ContainerLargeElectrolyticSeparator> {
 
     private GuiElement fluidGauge;
 
@@ -40,17 +39,17 @@ public class GuiLargeElectrolyticSeparator extends GuiMekanismTile<TileEntityLar
         super.addGuiElements();
         addButton(new GuiEnergyTab(this, tileEntity.getMainEnergyContainer(), () -> tileEntity.clientEnergyUsed));
         fluidGauge = addButton(new GuiFluidGauge(this, tileEntity.fluidTank, GuiFluidGauge.Type.STANDARD, 5, 10)
-              .warning(WarningType.NO_MATCHING_RECIPE, tileEntity::hasWarningNoMatchingInput));
+                .warning(WarningType.NO_MATCHING_RECIPE, tileEntity::hasWarningNoMatchingInput));
         addButton(new GuiGasGauge(this, tileEntity.leftTank, GuiGasGauge.Type.SMALL, 58, 18)
-              .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity::hasWarningNoSpaceLeftOutput));
+                .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity::hasWarningNoSpaceLeftOutput));
         addButton(new GuiGasGauge(this, tileEntity.rightTank, GuiGasGauge.Type.SMALL, 100, 18)
-              .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity::hasWarningNoSpaceRightOutput));
+                .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity::hasWarningNoSpaceRightOutput));
         addButton(new GuiVerticalPowerBar(this, tileEntity.getMainEnergyContainer(), 164, 15))
-              .warning(WarningType.NOT_ENOUGH_ENERGY, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY))
-              .warning(WarningType.NOT_ENOUGH_ENERGY_REDUCED_RATE, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY_REDUCED_RATE));
+                .warning(WarningType.NOT_ENOUGH_ENERGY, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY))
+                .warning(WarningType.NOT_ENOUGH_ENERGY_REDUCED_RATE, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY_REDUCED_RATE));
         addButton(new GuiProgress(tileEntity::getActive, ProgressType.BI, this, 80, 30))
-              .recipeViewerCategories(RecipeViewerRecipeType.SEPARATING)
-              .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity::hasWarningInputDoesntProduceOutput);
+                .recipeViewerCategories(RecipeViewerRecipeType.SEPARATING)
+                .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity::hasWarningInputDoesntProduceOutput);
         addButton(new GuiGasMode(this, 7, 72, false, () -> tileEntity.dumpLeft, () -> sendModePacket((byte) 0)));
         addButton(new GuiGasMode(this, 159, 72, true, () -> tileEntity.dumpRight, () -> sendModePacket((byte) 1)));
     }

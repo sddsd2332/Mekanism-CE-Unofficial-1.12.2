@@ -25,7 +25,7 @@ import javax.annotation.Nullable;
  * networking or persistence path.
  */
 public abstract class TileEntityQIOComponent extends TileEntityContainerBlock
-      implements IQIOFrequencyHolder, IFrequencyHandler, ISecurityTile, IActiveState {
+        implements IQIOFrequencyHolder, IFrequencyHandler, ISecurityTile, IActiveState {
 
     protected final TileComponentSecurity securityComponent;
     private boolean active;
@@ -178,15 +178,21 @@ public abstract class TileEntityQIOComponent extends TileEntityContainerBlock
         }
     }
 
-    /** Data retained by ItemBlockQIOComponent when the block is picked up. */
+    /**
+     * Data retained by ItemBlockQIOComponent when the block is picked up.
+     */
     public void writeSustainedQIOData(NBTTagCompound data) {
     }
 
-    /** Restores data retained by ItemBlockQIOComponent on placement. */
+    /**
+     * Restores data retained by ItemBlockQIOComponent on placement.
+     */
     public void readSustainedQIOData(NBTTagCompound data) {
     }
 
-    /** Writes only fields needed to render a QIO component, without inventories or frequency lists. */
+    /**
+     * Writes only fields needed to render a QIO component, without inventories or frequency lists.
+     */
     protected final void writeQIOVisualUpdateNBT(NBTTagCompound data) {
         if (facing != null) {
             data.setInteger("facing", facing.ordinal());
@@ -198,7 +204,9 @@ public abstract class TileEntityQIOComponent extends TileEntityContainerBlock
         }
     }
 
-    /** Reads the bounded visual payload written by {@link #writeQIOVisualUpdateNBT(NBTTagCompound)}. */
+    /**
+     * Reads the bounded visual payload written by {@link #writeQIOVisualUpdateNBT(NBTTagCompound)}.
+     */
     protected final void readQIOVisualUpdateNBT(NBTTagCompound data) {
         if (data.hasKey("facing")) {
             facing = net.minecraft.util.EnumFacing.byIndex(data.getInteger("facing"));
@@ -206,6 +214,6 @@ public abstract class TileEntityQIOComponent extends TileEntityContainerBlock
         redstone = data.getBoolean("redstone");
         active = data.getBoolean("qioActive");
         lastColor = data.hasKey("qioColor") ?
-              MekanismUtils.getByIndex(EnumColor.values(), data.getInteger("qioColor"), null) : null;
+                MekanismUtils.getByIndex(EnumColor.values(), data.getInteger("qioColor"), null) : null;
     }
 }

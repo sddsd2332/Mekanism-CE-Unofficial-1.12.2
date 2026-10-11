@@ -37,7 +37,7 @@ public final class FluidUtils {
     }
 
     public static void emit(Set<EnumFacing> outputSides, IExtendedFluidTank tank, TileEntity from, int maxOutput,
-          @Nullable TileEntityBasicBlock cacheOwner) {
+                            @Nullable TileEntityBasicBlock cacheOwner) {
         if (!tank.isEmpty() && maxOutput > 0) {
             FluidStack simulated = tank.extract(maxOutput, Action.SIMULATE, AutomationType.INTERNAL);
             if (simulated != null && simulated.amount > 0) {
@@ -51,15 +51,15 @@ public final class FluidUtils {
     }
 
     public static int emit(Set<EnumFacing> sides, @Nonnull FluidStack stack, TileEntity from,
-          @Nullable TileEntityBasicBlock cacheOwner) {
+                           @Nullable TileEntityBasicBlock cacheOwner) {
         if (stack.amount <= 0 || sides.isEmpty()) {
             return 0;
         }
         FluidHandlerTarget target = new FluidHandlerTarget(stack, 6);
         EmitUtils.forEachSide(from.getWorld(), from.getPos(), sides, (acceptor, side) -> {
             IFluidHandler handler = cacheOwner == null ?
-                  CapabilityUtils.getCapability(acceptor, CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, side.getOpposite()) :
-                  cacheOwner.getCachedFluidHandler(acceptor, side.getOpposite());
+                    CapabilityUtils.getCapability(acceptor, CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, side.getOpposite()) :
+                    cacheOwner.getCachedFluidHandler(acceptor, side.getOpposite());
             if (handler != null && PipeUtils.canFill(handler, stack)) {
                 target.addHandler(handler);
             }
@@ -72,7 +72,7 @@ public final class FluidUtils {
     }
 
     public static boolean handleTankInteraction(EntityPlayer player, EnumHand hand, ItemStack itemStack, IExtendedFluidTank fluidTank, boolean drainTank,
-          boolean dropExcessContainer) {
+                                                boolean dropExcessContainer) {
         ItemStack copyStack = StackUtils.size(itemStack.copy(), 1);
         if (!FluidContainerUtils.isFluidContainer(itemStack)) {
             return false;

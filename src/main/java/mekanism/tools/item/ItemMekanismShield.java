@@ -24,7 +24,7 @@ public class ItemMekanismShield extends Item implements IHasRepairType {
 
     protected Materials toolMaterial;
 
-    public ItemMekanismShield(Materials toolMaterial,int maxDamage) {
+    public ItemMekanismShield(Materials toolMaterial, int maxDamage) {
         super();
         this.toolMaterial = toolMaterial;
         this.maxStackSize = 1;

@@ -171,7 +171,7 @@ public class SynchronizedSPSData extends SynchronizedData<SynchronizedSPSData> {
             return false;
         }
         return pos.equals(new BlockPos(minLocation.x + 3, minLocation.y, minLocation.z)) ||
-              pos.equals(new BlockPos(maxLocation.x - 3, maxLocation.y, maxLocation.z));
+                pos.equals(new BlockPos(maxLocation.x - 3, maxLocation.y, maxLocation.z));
     }
 
     public boolean sanitizeStoredGases() {
@@ -221,7 +221,7 @@ public class SynchronizedSPSData extends SynchronizedData<SynchronizedSPSData> {
             return;
         }
         AxisAlignedBB deathZone = new AxisAlignedBB(minLocation.x + 2, minLocation.y + 2, minLocation.z + 2,
-              maxLocation.x, maxLocation.y, maxLocation.z);
+                maxLocation.x, maxLocation.y, maxLocation.z);
         for (Entity entity : world.getEntitiesWithinAABB(Entity.class, deathZone)) {
             entity.attackEntityFrom(DamageSource.MAGIC, (float) (lastReceivedEnergy / 1_000F));
         }

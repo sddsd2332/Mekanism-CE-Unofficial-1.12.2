@@ -7,13 +7,11 @@ import net.minecraft.util.ResourceLocation;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
-/** Optional-module hooks for extending configuration card data without a core-to-module link. */
+/**
+ * Optional-module hooks for extending configuration card data without a core-to-module link.
+ */
 public final class ConfigurationCardDataExtensionRegistry {
 
     private static final Map<ResourceLocation, Handler> HANDLERS = new LinkedHashMap<>();
@@ -22,7 +20,7 @@ public final class ConfigurationCardDataExtensionRegistry {
     }
 
     public static synchronized void register(@Nonnull ResourceLocation id,
-          @Nonnull Handler handler) {
+                                             @Nonnull Handler handler) {
         Objects.requireNonNull(id, "Configuration card extension id cannot be null");
         Objects.requireNonNull(handler, "Configuration card extension handler cannot be null");
         if (HANDLERS.putIfAbsent(id, handler) != null) {
@@ -36,28 +34,28 @@ public final class ConfigurationCardDataExtensionRegistry {
 
     @Nonnull
     static NBTTagCompound collect(@Nonnull TileEntity tile, @Nonnull EntityPlayer player,
-          @Nonnull NBTTagCompound data) {
+                                  @Nonnull NBTTagCompound data) {
         NBTTagCompound current = Objects.requireNonNull(data, "Configuration card data cannot be null");
         for (Handler handler : snapshot()) {
             current = Objects.requireNonNull(handler.collect(tile, player, current),
-                  "Configuration card extension returned null while collecting data");
+                    "Configuration card extension returned null while collecting data");
         }
         return current;
     }
 
     @Nonnull
     static NBTTagCompound filterForApply(@Nonnull TileEntity tile,
-          @Nonnull EntityPlayer player, @Nonnull NBTTagCompound data) {
+                                         @Nonnull EntityPlayer player, @Nonnull NBTTagCompound data) {
         NBTTagCompound current = Objects.requireNonNull(data, "Configuration card data cannot be null");
         for (Handler handler : snapshot()) {
             current = Objects.requireNonNull(handler.filterForApply(tile, player, current),
-                  "Configuration card extension returned null while filtering data");
+                    "Configuration card extension returned null while filtering data");
         }
         return current;
     }
 
     static void apply(@Nonnull TileEntity tile, @Nonnull EntityPlayer player,
-          @Nonnull NBTTagCompound data) {
+                      @Nonnull NBTTagCompound data) {
         for (Handler handler : snapshot()) {
             handler.apply(tile, player, data);
         }
@@ -70,23 +68,29 @@ public final class ConfigurationCardDataExtensionRegistry {
 
     public interface Handler {
 
-        /** Adds module-owned data while copying a machine configuration to the card. */
+        /**
+         * Adds module-owned data while copying a machine configuration to the card.
+         */
         @Nonnull
         default NBTTagCompound collect(@Nonnull TileEntity tile,
-              @Nonnull EntityPlayer player, @Nonnull NBTTagCompound data) {
+                                       @Nonnull EntityPlayer player, @Nonnull NBTTagCompound data) {
             return data;
         }
 
-        /** Removes module-owned data the current player may not apply. */
+        /**
+         * Removes module-owned data the current player may not apply.
+         */
         @Nonnull
         default NBTTagCompound filterForApply(@Nonnull TileEntity tile,
-              @Nonnull EntityPlayer player, @Nonnull NBTTagCompound data) {
+                                              @Nonnull EntityPlayer player, @Nonnull NBTTagCompound data) {
             return data;
         }
 
-        /** Applies module-owned data after Mekanism's base and special configuration. */
+        /**
+         * Applies module-owned data after Mekanism's base and special configuration.
+         */
         default void apply(@Nonnull TileEntity tile, @Nonnull EntityPlayer player,
-              @Nonnull NBTTagCompound data) {
+                           @Nonnull NBTTagCompound data) {
         }
     }
 }

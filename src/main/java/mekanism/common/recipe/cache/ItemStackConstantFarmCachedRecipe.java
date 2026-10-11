@@ -35,10 +35,11 @@ public class ItemStackConstantFarmCachedRecipe<RECIPE extends FarmMachineRecipe<
     private FarmOutput output;
 
     public ItemStackConstantFarmCachedRecipe(RECIPE recipe, BooleanSupplier recheckAllErrors,
-          IInputHandler<ItemStack, ItemStack> itemInputHandler, IInputHandler<GasStack, GasStack> gasInputHandler,
-          IInputHandler<FluidStack, FluidStack> fluidInputHandler, IOutputHandler<FarmOutput> outputHandler,
-          GasUsageMultiplier secondaryUsage, LongConsumer secondaryUsedSoFarChanged) {
+                                             IInputHandler<ItemStack, ItemStack> itemInputHandler, IInputHandler<GasStack, GasStack> gasInputHandler,
+                                             IInputHandler<FluidStack, FluidStack> fluidInputHandler, IOutputHandler<FarmOutput> outputHandler,
+                                             GasUsageMultiplier secondaryUsage, LongConsumer secondaryUsedSoFarChanged) {
         super(recipe, recheckAllErrors);
+        lockBatchOperations();
         this.itemInputHandler = Objects.requireNonNull(itemInputHandler);
         this.gasInputHandler = Objects.requireNonNull(gasInputHandler);
         this.fluidInputHandler = Objects.requireNonNull(fluidInputHandler);
@@ -112,7 +113,7 @@ public class ItemStackConstantFarmCachedRecipe<RECIPE extends FarmMachineRecipe<
         }
         int toUse = MathUtils.clampToInt(operations * secondaryUsageMultiplier);
         useSecondary(toUse);
-        secondaryUsedSoFar += toUse;
+        secondaryUsedSoFar += secondaryUsageMultiplier;
         secondaryUsedSoFarChanged.accept(secondaryUsedSoFar);
     }
 

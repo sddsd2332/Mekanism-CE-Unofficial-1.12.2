@@ -18,7 +18,6 @@ public interface CharUnaryOperator {
      * Applies this operator to the given operand.
      *
      * @param operand the operand
-     *
      * @return the operator result
      */
     char applyAsChar(char operand);
@@ -28,9 +27,7 @@ public interface CharUnaryOperator {
      * operator throws an exception, it is relayed to the caller of the composed operator.
      *
      * @param before the operator to apply before this operator is applied
-     *
      * @return a composed operator that first applies the {@code before} operator and then applies this operator
-     *
      * @throws NullPointerException if before is null
      * @see #andThen(CharUnaryOperator)
      */
@@ -44,9 +41,7 @@ public interface CharUnaryOperator {
      * operator throws an exception, it is relayed to the caller of the composed operator.
      *
      * @param after the operator to apply after this operator is applied
-     *
      * @return a composed operator that first applies this operator and then applies the {@code after} operator
-     *
      * @throws NullPointerException if after is null
      * @see #compose(CharUnaryOperator)
      */

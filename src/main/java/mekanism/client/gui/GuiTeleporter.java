@@ -63,29 +63,29 @@ public class GuiTeleporter extends GuiMekanismTile<TileEntityTeleporter, Contain
         status = addButton(new GuiTeleporterStatus(this, () -> tileEntity.getFreq() != null, () -> tileEntity.status));
         scrollList = addButton(new GuiTextScrollList(this, 28, 37, 120, 42));
         publicButton = addButton(new MekanismButton(this, 27, 14, 39, 20, new TextComponentString(LangUtils.localize("gui.public")),
-              () -> setMode(SecurityMode.PUBLIC), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.publicMode")))));
+                () -> setMode(SecurityMode.PUBLIC), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.publicMode")))));
         privateButton = addButton(new MekanismButton(this, 68, 14, 39, 20, new TextComponentString(LangUtils.localize("gui.private")),
-              () -> setMode(SecurityMode.PRIVATE), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.privateMode")))));
+                () -> setMode(SecurityMode.PRIVATE), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.privateMode")))));
         trustedButton = addButton(new MekanismButton(this, 109, 14, 40, 20, new TextComponentString(LangUtils.localize("gui.trusted")),
-              () -> setMode(SecurityMode.TRUSTED), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.trustedMode")))));
+                () -> setMode(SecurityMode.TRUSTED), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.trustedMode")))));
         setButton = addButton(new MekanismButton(this, 27, 127, 50, 18, new TextComponentString(LangUtils.localize("gui.set")),
-              this::setSelectedFrequency, null));
+                this::setSelectedFrequency, null));
         deleteButton = addButton(new MekanismButton(this, 79, 127, 50, 18, new TextComponentString(LangUtils.localize("gui.delete")),
-              this::deleteSelectedFrequency, null));
+                this::deleteSelectedFrequency, null));
         frequencyField = addButton(new GuiTextField(this, 4, 50, 113, 98, 11)
-              .setMaxLength(FrequencyManager.MAX_FREQ_LENGTH)
-              .setBackground(BackgroundType.INNER_SCREEN)
-              .setInputValidator(this::isValidFrequencyInput)
-              .setEnterHandler(this::setTypedFrequency)
-              .addCheckmarkButton(this::setTypedFrequency));
+                .setMaxLength(FrequencyManager.MAX_FREQ_LENGTH)
+                .setBackground(BackgroundType.INNER_SCREEN)
+                .setInputValidator(this::isValidFrequencyInput)
+                .setEnterHandler(this::setTypedFrequency)
+                .addCheckmarkButton(this::setTypedFrequency));
         addButton(new GuiVerticalPowerBar(this, tileEntity.getMainEnergyContainer(), 158, 26)
-              .warning(WarningType.NOT_ENOUGH_ENERGY, () -> tileEntity.status == 4));
+                .warning(WarningType.NOT_ENOUGH_ENERGY, () -> tileEntity.status == 4));
         addButton(new GuiSlot(SlotType.NORMAL, this, 131, 127));
         addButton(new ColorButton(this, 132, 128, 16, 16, () -> tileEntity.getFreq() == null ? null : tileEntity.getFreq().getColor(),
-              () -> sendColorUpdate(true),
-              () -> sendColorUpdate(false),
-              () -> java.util.Arrays.asList(LangUtils.localize("gui.Teleportercolor"),
-                    LangUtils.localize("tooltip.configurator.viewColor") + ": " + (tileEntity.getFreq() == null ? LangUtils.localize("gui.none") : tileEntity.getFreq().getColor().getColoredName()))));
+                () -> sendColorUpdate(true),
+                () -> sendColorUpdate(false),
+                () -> java.util.Arrays.asList(LangUtils.localize("gui.Teleportercolor"),
+                        LangUtils.localize("tooltip.configurator.viewColor") + ": " + (tileEntity.getFreq() == null ? LangUtils.localize("gui.none") : tileEntity.getFreq().getColor().getColoredName()))));
         updateFrequencyButtons();
     }
 
@@ -104,14 +104,14 @@ public class GuiTeleporter extends GuiMekanismTile<TileEntityTeleporter, Contain
 
     private boolean isValidFrequencyInput(char c, int keyCode) {
         return Character.isDigit(c) || Character.isLetter(c) || FrequencyManager.SPECIAL_CHARS.contains(c) ||
-              GuiMekanism.isTextboxKey(c, keyCode);
+                GuiMekanism.isTextboxKey(c, keyCode);
     }
 
     private void setTypedFrequency() {
         String name = frequencyField.getText();
         if (!name.isEmpty()) {
             Mekanism.packetHandler.sendToServer(new SetTileFrequencyMessage(true, FrequencyType.TELEPORTER,
-                  new FrequencyIdentity(name, selectedMode, tileEntity.getSecurity().getOwnerUUID()), tileEntity));
+                    new FrequencyIdentity(name, selectedMode, tileEntity.getSecurity().getOwnerUUID()), tileEntity));
         }
         frequencyField.clear();
         scrollList.clearSelection();
@@ -207,13 +207,13 @@ public class GuiTeleporter extends GuiMekanismTile<TileEntityTeleporter, Contain
         String none = EnumColor.DARK_RED + LangUtils.localize("gui.none");
         drawTextExact(new TextComponentString(LangUtils.localize("gui.freq") + ":"), 27, 81, titleTextColor());
         drawTextExact(new TextComponentString(" " + (frequency != null ? frequency.name : none)), 27 + fontRenderer.getStringWidth(LangUtils.localize("gui.freq") + ":"),
-              81, subheadingTextColor());
+                81, subheadingTextColor());
         drawTextExact(new TextComponentString(LangUtils.localize("gui.owner") + ": " + (frequency != null ? getOwnerUsername(frequency) : none)), 27, 91, titleTextColor());
         drawTextExact(new TextComponentString(LangUtils.localize("gui.security") + ":"), 27, 101, titleTextColor());
         drawTextExact(new TextComponentString(" " + (frequency != null ? getSecurity(frequency) : none)),
-              27 + fontRenderer.getStringWidth(LangUtils.localize("gui.security") + ":"), 101, subheadingTextColor());
+                27 + fontRenderer.getStringWidth(LangUtils.localize("gui.security") + ":"), 101, subheadingTextColor());
         drawScaledScrollingString(new TextComponentString(LangUtils.localize("gui.set") + ":"), 0, 114, TextAlignment.RIGHT, titleTextColor(),
-              frequencyField.getRelativeX(), 5, false, 1, GuiElement.getMillis());
+                frequencyField.getRelativeX(), 5, false, 1, GuiElement.getMillis());
         renderInventoryText();
         super.drawForegroundText(mouseX, mouseY);
     }

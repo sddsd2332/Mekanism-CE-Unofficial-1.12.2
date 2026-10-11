@@ -36,6 +36,7 @@ public class MekanismItems {
     public static final Item GasUpgrade = new ItemUpgrade(Upgrade.GAS);
     public static final Item StoneGeneratorUpgrade = new ItemUpgrade(Upgrade.STONE_GENERATOR);
     public static final Item AnchorUpgrade = new ItemUpgrade(Upgrade.ANCHOR);
+    public static final Item ComparatorUpgrade = new ItemUpgrade(Upgrade.COMPARATOR);
     public static final Item TierInstaller = new ItemTierInstaller();
     public static final ItemEnergized EnergyTablet = new ItemEnergized();
     public static final ItemRobit Robit = new ItemRobit();
@@ -180,7 +181,6 @@ public class MekanismItems {
     public static final Item HAZMAT_BOOTS = new ItemHazmatSuitArmor(3, EntityEquipmentSlot.FEET);
 
 
-
     public static final ItemModule MODULE_FISHING_COLLECTING = new ItemModule(MekanismModules.FISHING_COLLECTING_UNIT);
     public static final ItemModule MODULE_FISHING_SPEED = new ItemModule(MekanismModules.FISHING_SPEED_UNIT);
     public static final ItemModule MODULE_FISHING_INTELLIGENT = new ItemModule(MekanismModules.FISHING_INTELLIGENT_UNIT);
@@ -208,6 +208,7 @@ public class MekanismItems {
         registry.register(init(GasUpgrade, "GasUpgrade"));
         registry.register(init(AnchorUpgrade, "AnchorUpgrade"));
         registry.register(init(StoneGeneratorUpgrade, "StoneGeneratorUpgrade"));
+        registry.register(init(ComparatorUpgrade, "ComparatorUpgrade"));
         registry.register(init(Robit, "Robit"));
         registry.register(init(AtomicDisassembler, "AtomicDisassembler"));
         registry.register(init(EnrichedAlloy, "EnrichedAlloy"));
@@ -330,7 +331,7 @@ public class MekanismItems {
             registry.register(init(HDPE_REINFORCED_ELYTRA, "hdpe_elytra"));
         }
         registry.register(init(MEKA_TOOL, "meka_tool"));
-        registry.register(init(MEKA_FISHING_ROD,"mekafishingrod"));
+        registry.register(init(MEKA_FISHING_ROD, "mekafishingrod"));
         registry.register(initModule(MODULE_HEALTH_REGENERATION));
         registry.register(init(HDPE_PELLET, "hdpe_pellet"));
         registry.register(init(HDPE_ROD, "hdpe_rod"));

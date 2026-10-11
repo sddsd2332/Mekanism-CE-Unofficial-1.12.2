@@ -20,7 +20,10 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/** Locked-until-bound side tab for the frequency workbench editor. */
+/**
+ * Locked-until-bound side tab for the frequency workbench editor.
+ */
+
 /**
  * QIO 处理模块中的 GuiQIOWorkbenchConfigurationTab 类型。
  *
@@ -28,18 +31,18 @@ import java.util.function.Supplier;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class GuiQIOWorkbenchConfigurationTab extends
-      GuiWindowCreatorTab<Void, GuiQIOWorkbenchConfigurationTab> {
+        GuiWindowCreatorTab<Void, GuiQIOWorkbenchConfigurationTab> {
 
     private static final ResourceLocation ICON = MekanismUtils.getResource(
-          MekanismUtils.ResourceType.GUI_BUTTON, "recipe_viewer_frequency.png");
+            MekanismUtils.ResourceType.GUI_BUTTON, "recipe_viewer_frequency.png");
 
     private final QIOWorkbenchConfigurationContainer container;
     private boolean windowOpen;
     private boolean wasAvailable;
 
     public GuiQIOWorkbenchConfigurationTab(IGuiWrapper gui,
-          QIOWorkbenchConfigurationContainer container,
-          Supplier<GuiQIOWorkbenchConfigurationTab> self) {
+                                           QIOWorkbenchConfigurationContainer container,
+                                           Supplier<GuiQIOWorkbenchConfigurationTab> self) {
         super(ICON, gui, null, 32, true, self);
         this.container = container;
         active = available();
@@ -67,7 +70,7 @@ public final class GuiQIOWorkbenchConfigurationTab extends
     @Override
     public boolean isMouseOverTooltip(double mouseX, double mouseY) {
         return visible && mouseX >= getX() + border && mouseX < getRight() - border &&
-              mouseY >= getY() + border && mouseY < getBottom() - border;
+                mouseY >= getY() + border && mouseY < getBottom() - border;
     }
 
     @Override
@@ -107,20 +110,20 @@ public final class GuiQIOWorkbenchConfigurationTab extends
     @Override
     protected GuiWindow createWindow(SelectedWindowData windowData) {
         return new GuiQIOWorkbenchConfigurationWindow(gui(),
-              (getGuiWidth() - GuiQIOWorkbenchConfigurationWindow.WIDTH) / 2, 15,
-              container, windowData);
+                (getGuiWidth() - GuiQIOWorkbenchConfigurationWindow.WIDTH) / 2, 15,
+                container, windowData);
     }
 
     @Override
     protected SelectedWindowData getNextWindowData() {
         return new SelectedWindowData(
-              QIOProcessingWindowTypes.MANAGEMENT_WORKBENCH_CONFIGURATION);
+                QIOProcessingWindowTypes.MANAGEMENT_WORKBENCH_CONFIGURATION);
     }
 
     @Override
     protected List<SelectedWindowData> getValidWindows() {
         return available() ? Collections.singletonList(getNextWindowData()) :
-              Collections.emptyList();
+                Collections.emptyList();
     }
 
     @Override
@@ -132,8 +135,8 @@ public final class GuiQIOWorkbenchConfigurationTab extends
     @Override
     protected ITextComponent getTooltipText() {
         return new TextComponentTranslation(available() ?
-              "gui.mekanismqioprocessing.workbench_configuration_tab" :
-              "gui.mekanismqioprocessing.bind_frequency_first");
+                "gui.mekanismqioprocessing.workbench_configuration_tab" :
+                "gui.mekanismqioprocessing.bind_frequency_first");
     }
 
     private boolean available() {
@@ -143,15 +146,15 @@ public final class GuiQIOWorkbenchConfigurationTab extends
 
     private boolean hasOpenWindow() {
         return gui() instanceof GuiMekanism<?> mekanismGui && mekanismGui.getWindows().stream()
-              .anyMatch(window -> window instanceof GuiQIOWorkbenchConfigurationWindow);
+                .anyMatch(window -> window instanceof GuiQIOWorkbenchConfigurationWindow);
     }
 
     private boolean hasPinnedEditorWindow() {
         return new SelectedWindowData(
-              QIOProcessingWindowTypes.MANAGEMENT_WORKBENCH_PATTERN).wasPinned() ||
-              new SelectedWindowData(
-                    QIOProcessingWindowTypes.MANAGEMENT_WORKBENCH_BATCH).wasPinned() ||
-              new SelectedWindowData(
-                    QIOProcessingWindowTypes.MANAGEMENT_WORKBENCH_CANDIDATES).wasPinned();
+                QIOProcessingWindowTypes.MANAGEMENT_WORKBENCH_PATTERN).wasPinned() ||
+                new SelectedWindowData(
+                        QIOProcessingWindowTypes.MANAGEMENT_WORKBENCH_BATCH).wasPinned() ||
+                new SelectedWindowData(
+                        QIOProcessingWindowTypes.MANAGEMENT_WORKBENCH_CANDIDATES).wasPinned();
     }
 }

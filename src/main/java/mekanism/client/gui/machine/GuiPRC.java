@@ -32,16 +32,16 @@ public class GuiPRC extends GuiConfigurableTile<TileEntityPRC, ContainerPRC> {
         super.addGuiElements();
         addButton(new GuiEnergyTab(this, tileEntity.getEnergyContainer(), tileEntity::getActive));
         addButton(new GuiFluidGauge(this, tileEntity.inputFluidTank, GuiFluidGauge.Type.STANDARD, 5, 15)
-              .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(TileEntityPRC.NOT_ENOUGH_FLUID_INPUT_ERROR)));
+                .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(TileEntityPRC.NOT_ENOUGH_FLUID_INPUT_ERROR)));
         addButton(new GuiGasGauge(this, tileEntity.inputGasTank, 28, 15)
-              .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(TileEntityPRC.NOT_ENOUGH_GAS_INPUT_ERROR)));
+                .warning(WarningType.NO_MATCHING_RECIPE, tileEntity.getWarningCheck(TileEntityPRC.NOT_ENOUGH_GAS_INPUT_ERROR)));
         addButton(new GuiGasGauge(this, tileEntity.outputGasTank, GuiGasGauge.Type.SMALL, 140, 45)
-              .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity.getWarningCheck(TileEntityPRC.NOT_ENOUGH_SPACE_GAS_OUTPUT_ERROR)));
+                .warning(WarningType.NO_SPACE_IN_OUTPUT, tileEntity.getWarningCheck(TileEntityPRC.NOT_ENOUGH_SPACE_GAS_OUTPUT_ERROR)));
         addButton(new GuiVerticalPowerBar(this, tileEntity.getEnergyContainer(), 163, 21))
-              .warning(WarningType.NOT_ENOUGH_ENERGY, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY));
+                .warning(WarningType.NOT_ENOUGH_ENERGY, tileEntity.getWarningCheck(RecipeError.NOT_ENOUGH_ENERGY));
         addButton(new GuiProgress(tileEntity::getScaledProgress, ProgressType.RIGHT, this, 77, 43))
-              .recipeViewerCategories(RecipeViewerRecipeType.REACTION)
-              .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity.getWarningCheck(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT));
+                .recipeViewerCategories(RecipeViewerRecipeType.REACTION)
+                .warning(WarningType.INPUT_DOESNT_PRODUCE_OUTPUT, tileEntity.getWarningCheck(RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT));
     }
 
     @Override

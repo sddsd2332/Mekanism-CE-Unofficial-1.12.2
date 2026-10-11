@@ -58,7 +58,7 @@ public class TileEntityRadioactiveWasteBarrel extends TileEntityContainerBlock i
             GasStack stored = gasTank.getGas();
             int decayAmount = RadiationUtil.getWasteBarrelDecayAmount();
             if (decayAmount > 0 && RadiationUtil.canDecayInWasteBarrel(stored) &&
-                ++processTicks >= RadiationUtil.getWasteBarrelProcessTicks()) {
+                    ++processTicks >= RadiationUtil.getWasteBarrelProcessTicks()) {
                 processTicks = 0;
                 gasTank.extract(decayAmount, Action.EXECUTE, AutomationType.INTERNAL);
             }
@@ -183,6 +183,11 @@ public class TileEntityRadioactiveWasteBarrel extends TileEntityContainerBlock i
     @Override
     public boolean lightUpdate() {
         return false;
+    }
+
+    @Override
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return type == mekanism.api.transmitters.TransmissionType.GAS;
     }
 
     @Override

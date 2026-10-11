@@ -89,7 +89,8 @@ public class TileEntityOredictionificator extends TileEntityContainerBlock imple
         outputSlot = builder.addSlot(OutputInventorySlot.at(listener, 164, 115));
         return builder.build();
     }
-@Override
+
+    @Override
     public void onUpdateServer() {
         super.onUpdateServer();
         if (!playersUsing.isEmpty()) {
@@ -336,7 +337,6 @@ public class TileEntityOredictionificator extends TileEntityContainerBlock imple
     public boolean canSetFacing(@Nonnull EnumFacing facing) {
         return facing != EnumFacing.DOWN && facing != EnumFacing.UP;
     }
-
 
 
     public static class OredictionificatorFilter implements IFilter {

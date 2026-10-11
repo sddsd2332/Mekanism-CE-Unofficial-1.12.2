@@ -12,11 +12,7 @@ import mekanism.common.security.ISecurityItem;
 import mekanism.common.security.ISecurityTile;
 import mekanism.common.tile.prefab.TileEntityBasicBlock;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
-import mekanism.common.util.ItemDataUtils;
-import mekanism.common.util.MekanismUtils;
-import mekanism.common.util.MekanismPlacementData;
-import mekanism.common.util.SecurityUtils;
-import mekanism.common.util.StorageUtils;
+import mekanism.common.util.*;
 import mekanism.multiblockmachine.common.MekanismMultiblockMachine;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
@@ -307,8 +303,8 @@ public abstract class BlockLargeBase extends BlockMekanismContainer {
     @Deprecated
     public int getComparatorInputOverride(IBlockState state, World world, BlockPos pos) {
         TileEntity tileEntity = world.getTileEntity(pos);
-        if (tileEntity instanceof IComparatorSupport comparatorSupport) {
-            return comparatorSupport.getRedstoneLevel();
+        if (tileEntity instanceof IComparatorSupport comparatorSupport && comparatorSupport.supportsComparator()) {
+            return comparatorSupport.getCurrentRedstoneLevel();
         }
         return 0;
     }

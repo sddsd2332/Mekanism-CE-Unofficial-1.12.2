@@ -5,7 +5,7 @@ import mekanism.client.jei.MekanismJEI;
 import mekanism.common.inventory.container.MekanismContainer;
 import mekanism.qioprocessing.client.gui.GuiQIOWorkbenchBatchWindow;
 import mekanism.qioprocessing.common.inventory.container.QIOWorkbenchConfigurationContainer;
-import mekanism.qioprocessing.common.util.QIORecipeStackUtils;
+import mezz.jei.api.IJeiRuntime;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.client.event.GuiScreenEvent;
@@ -16,7 +16,10 @@ import org.lwjgl.input.Mouse;
 
 import javax.annotation.Nullable;
 
-/** Shift-click import from JEI's item and bookmark overlays into the batch target list. */
+/**
+ * Shift-click import from JEI's item and bookmark overlays into the batch target list.
+ */
+
 /**
  * QIO 处理模块中的 QIOWorkbenchJEIInputHandler 类型。
  *
@@ -26,7 +29,7 @@ import javax.annotation.Nullable;
 public final class QIOWorkbenchJEIInputHandler {
 
     private static final QIOWorkbenchJEIInputHandler INSTANCE =
-          new QIOWorkbenchJEIInputHandler();
+            new QIOWorkbenchJEIInputHandler();
     private static boolean registered;
 
     private QIOWorkbenchJEIInputHandler() {
@@ -43,12 +46,12 @@ public final class QIOWorkbenchJEIInputHandler {
     public void onMouseInput(GuiScreenEvent.MouseInputEvent.Pre event) {
         int button = Mouse.getEventButton();
         if (!isImportGesture(button, Mouse.getEventButtonState(),
-              GuiScreen.isShiftKeyDown()) || MekanismJEI.jeiRuntime == null) return;
+                GuiScreen.isShiftKeyDown()) || MekanismJEI.jeiRuntime == null) return;
         if (!(event.getGui() instanceof GuiMekanism<?> gui) ||
-            !(gui.inventorySlots instanceof MekanismContainer container) ||
-            !(container instanceof QIOWorkbenchConfigurationContainer workbench) ||
-            gui.getWindows().stream().noneMatch(
-                  window -> window instanceof GuiQIOWorkbenchBatchWindow)) return;
+                !(gui.inventorySlots instanceof MekanismContainer container) ||
+                !(container instanceof QIOWorkbenchConfigurationContainer workbench) ||
+                gui.getWindows().stream().noneMatch(
+                        window -> window instanceof GuiQIOWorkbenchBatchWindow)) return;
         ItemStack target = overlayTarget();
         if (target.isEmpty()) return;
         workbench.getWorkbenchConfigurationClientCache().addBatchTarget(target);
@@ -60,19 +63,19 @@ public final class QIOWorkbenchJEIInputHandler {
     }
 
     private static ItemStack overlayTarget() {
-        Object ingredient = MekanismJEI.jeiRuntime.getIngredientListOverlay()
-              .getIngredientUnderMouse();
-        if (!(ingredient instanceof ItemStack)) {
-            ingredient = MekanismJEI.jeiRuntime.getBookmarkOverlay()
-                  .getIngredientUnderMouse();
-        }
-        return copyTarget(ingredient);
+        return overlayTarget(MekanismJEI.jeiRuntime);
+    }
+
+    static ItemStack overlayTarget(@Nullable IJeiRuntime runtime) {
+        if (runtime == null) return ItemStack.EMPTY;
+        ItemStack target = runtime.getIngredientListOverlay() == null ? ItemStack.EMPTY :
+                copyTarget(runtime.getIngredientListOverlay().getIngredientUnderMouse());
+        if (!target.isEmpty()) return target;
+        return runtime.getBookmarkOverlay() == null ? ItemStack.EMPTY :
+                copyTarget(runtime.getBookmarkOverlay().getIngredientUnderMouse());
     }
 
     static ItemStack copyTarget(@Nullable Object ingredient) {
-        if (!(ingredient instanceof ItemStack stack) || stack.isEmpty()) {
-            return ItemStack.EMPTY;
-        }
-        return QIORecipeStackUtils.copyForRecipeSelection(stack, 1);
+        return QIOJEIBookmarks.copyTarget(ingredient);
     }
 }

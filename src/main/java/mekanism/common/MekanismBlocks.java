@@ -76,7 +76,7 @@ public class MekanismBlocks {
         registry.register(init(SaltBlock, "SaltBlock"));
 
         registry.register(init(BasicBlock3, "BasicBlock3"));
-        registry.register(init(SuperFumo,"SuperFumo"));
+        registry.register(init(SuperFumo, "SuperFumo"));
         registry.register(init(QIO_DRIVE_ARRAY, "qio_drive_array"));
         registry.register(init(QIO_DASHBOARD, "qio_dashboard"));
         registry.register(init(QIO_IMPORTER, "qio_importer"));
@@ -113,7 +113,7 @@ public class MekanismBlocks {
 
         registry.register(MekanismItems.init(new ItemBlockBasic(BasicBlock3), "BasicBlock3"));
         registry.register(MekanismItems.init(new ItemBlockMachine(MachineBlock4), "MachineBlock4"));
-        registry.register(MekanismItems.init(new ItemBlockSuperFumo(SuperFumo),"SuperFumo"));
+        registry.register(MekanismItems.init(new ItemBlockSuperFumo(SuperFumo), "SuperFumo"));
         registry.register(MekanismItems.init(new ItemBlockQIOComponent(QIO_DRIVE_ARRAY), "qio_drive_array"));
         registry.register(MekanismItems.init(new ItemBlockQIOComponent(QIO_DASHBOARD), "qio_dashboard"));
         registry.register(MekanismItems.init(new ItemBlockQIOComponent(QIO_IMPORTER), "qio_importer"));

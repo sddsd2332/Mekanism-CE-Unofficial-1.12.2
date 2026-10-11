@@ -3,8 +3,8 @@ package mekanism.client.gui.element.window;
 import mekanism.client.MekanismClient;
 import mekanism.client.gui.IGuiWrapper;
 import mekanism.client.gui.element.custom.GuiFrequencySelector;
-import mekanism.client.gui.element.custom.GuiFrequencySelector.IGuiFrequencySelector;
 import mekanism.client.gui.element.custom.GuiFrequencySelector.IGuiColorFrequencySelector;
+import mekanism.client.gui.element.custom.GuiFrequencySelector.IGuiFrequencySelector;
 import mekanism.common.Mekanism;
 import mekanism.common.MekanismLang;
 import mekanism.common.content.qio.QIOFrequency;
@@ -23,22 +23,26 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.UUID;
 
-/** Shared in-place frequency window for every QIO component. */
+/**
+ * Shared in-place frequency window for every QIO component.
+ */
 public class GuiQIOFrequencySelectWindow extends GuiWindow {
 
     public static final int WIDTH = 176;
-    /** Matches the 26.2 QIO frequency screen's 176x155 image bounds. */
+    /**
+     * Matches the 26.2 QIO frequency screen's 176x155 image bounds.
+     */
     public static final int HEIGHT = 155;
 
     private final ITextComponent title;
 
     public GuiQIOFrequencySelectWindow(IGuiWrapper gui, IGuiFrequencySelector<QIOFrequency> selector,
-          SelectedWindowData windowData) {
+                                       SelectedWindowData windowData) {
         this(gui, selector, MekanismLang.QIO_FREQUENCY_SELECT.translate(), windowData);
     }
 
     public GuiQIOFrequencySelectWindow(IGuiWrapper gui, IGuiFrequencySelector<QIOFrequency> selector,
-          ITextComponent title, SelectedWindowData windowData) {
+                                       ITextComponent title, SelectedWindowData windowData) {
         super(gui, (gui.getWidth() - WIDTH) / 2, (gui.getHeight() - HEIGHT) / 2, WIDTH, HEIGHT, windowData);
         this.title = title;
         // Frequency selection is an independent QIO child window. Allow
@@ -51,7 +55,7 @@ public class GuiQIOFrequencySelectWindow extends GuiWindow {
     }
 
     public static GuiQIOFrequencySelectWindow forTile(IGuiWrapper gui, TileEntityQIOComponent tile,
-          SelectedWindowData windowData) {
+                                                      SelectedWindowData windowData) {
         return forTile(gui, tile, windowData, MekanismLang.QIO_FREQUENCY_SELECT.translate());
     }
 
@@ -60,12 +64,12 @@ public class GuiQIOFrequencySelectWindow extends GuiWindow {
      * The selector and packet behavior remain the native QIO component behavior.
      */
     public static GuiQIOFrequencySelectWindow forTile(IGuiWrapper gui, TileEntityQIOComponent tile,
-          SelectedWindowData windowData, ITextComponent title) {
+                                                      SelectedWindowData windowData, ITextComponent title) {
         return new GuiQIOFrequencySelectWindow(gui, new TileSelector(tile), title, windowData);
     }
 
     public static GuiQIOFrequencySelectWindow forItem(IGuiWrapper gui, PortableQIODashboardContainer container,
-          SelectedWindowData windowData) {
+                                                      SelectedWindowData windowData) {
         return new GuiQIOFrequencySelectWindow(gui, new ItemSelector(container), windowData);
     }
 
@@ -171,7 +175,7 @@ public class GuiQIOFrequencySelectWindow extends GuiWindow {
         public UUID getOwnerUUID() {
             ItemStack stack = container.getStack();
             return stack.isEmpty() || !(stack.getItem() instanceof ItemPortableQIODashboard) ? null :
-                  ((ItemPortableQIODashboard) stack.getItem()).getOwnerUUID(stack);
+                    ((ItemPortableQIODashboard) stack.getItem()).getOwnerUUID(stack);
         }
 
         @Override

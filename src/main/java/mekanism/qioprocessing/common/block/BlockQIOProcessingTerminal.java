@@ -17,16 +17,16 @@ import net.minecraft.block.material.Material;
 import net.minecraft.block.state.BlockFaceShape;
 import net.minecraft.block.state.BlockStateContainer;
 import net.minecraft.block.state.IBlockState;
-import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumBlockRenderType;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumHand;
-import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.AxisAlignedBB;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.IBlockAccess;
@@ -38,7 +38,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-/** Shared block lifecycle for the four fixed-responsibility processing terminals. */
+/**
+ * Shared block lifecycle for the four fixed-responsibility processing terminals.
+ */
+
 /**
  * QIO 处理模块中的 BlockQIOProcessingTerminal 类型。
  *
@@ -50,15 +53,15 @@ public final class BlockQIOProcessingTerminal extends BlockMekanismContainer {
     private final Supplier<? extends QIOProcessingTerminal> tileFactory;
 
     public BlockQIOProcessingTerminal(
-          @Nonnull Supplier<? extends QIOProcessingTerminal> tileFactory) {
+            @Nonnull Supplier<? extends QIOProcessingTerminal> tileFactory) {
         super(Material.IRON);
         this.tileFactory = Objects.requireNonNull(tileFactory, "tileFactory");
         setHardness(3.5F);
         setResistance(8F);
         setCreativeTab(MekanismQIOProcessing.TAB);
         setDefaultState(blockState.getBaseState()
-              .withProperty(BlockStateFacing.facingProperty, EnumFacing.NORTH)
-              .withProperty(BlockStateQIOComponent.activeProperty, false));
+                .withProperty(BlockStateFacing.facingProperty, EnumFacing.NORTH)
+                .withProperty(BlockStateQIOComponent.activeProperty, false));
     }
 
     @Override
@@ -81,8 +84,8 @@ public final class BlockQIOProcessingTerminal extends BlockMekanismContainer {
     @Nonnull
     @Override
     public IBlockState getStateForPlacement(World world, BlockPos pos, EnumFacing facing,
-          float hitX, float hitY, float hitZ, int meta, EntityLivingBase placer,
-          EnumHand hand) {
+                                            float hitX, float hitY, float hitZ, int meta, EntityLivingBase placer,
+                                            EnumHand hand) {
         return QIOBlockShapes.getStateForPlacement(getDefaultState(), facing);
     }
 
@@ -90,27 +93,27 @@ public final class BlockQIOProcessingTerminal extends BlockMekanismContainer {
     @Override
     @Deprecated
     public IBlockState getActualState(@Nonnull IBlockState state,
-          IBlockAccess world, BlockPos pos) {
+                                      IBlockAccess world, BlockPos pos) {
         TileEntity tile = MekanismUtils.getTileEntitySafe(world, pos);
         if (tile instanceof TileEntityBasicBlock basicTile) {
             state = state.withProperty(BlockStateFacing.facingProperty,
-                  basicTile.facing);
+                    basicTile.facing);
         }
         if (tile instanceof QIOProcessingTerminal terminal) {
             state = state.withProperty(BlockStateQIOComponent.activeProperty,
-                  terminal.isActive());
+                    terminal.isActive());
         }
         return state;
     }
 
     @Override
     public void onBlockPlacedBy(World world, BlockPos pos, IBlockState state,
-          EntityLivingBase placer, ItemStack stack) {
+                                EntityLivingBase placer, ItemStack stack) {
         TileEntity tile = world.getTileEntity(pos);
         QIOBlockShapes.setPlacedFacing(world, pos, state);
         if (tile instanceof ISecurityTile securityTile &&
-            placer instanceof EntityPlayer player &&
-            securityTile.getSecurity().getOwnerUUID() == null) {
+                placer instanceof EntityPlayer player &&
+                securityTile.getSecurity().getOwnerUUID() == null) {
             securityTile.getSecurity().setOwnerUUID(player.getUniqueID());
         }
         MekanismPlacementData.apply(world, pos, placer, stack);
@@ -119,7 +122,7 @@ public final class BlockQIOProcessingTerminal extends BlockMekanismContainer {
     @Override
     @Deprecated
     public void neighborChanged(IBlockState state, World world, BlockPos pos,
-          net.minecraft.block.Block neighborBlock, BlockPos neighborPos) {
+                                net.minecraft.block.Block neighborBlock, BlockPos neighborPos) {
         if (!world.isRemote) {
             TileEntity tile = world.getTileEntity(pos);
             if (tile instanceof TileEntityBasicBlock basicTile) {
@@ -130,8 +133,8 @@ public final class BlockQIOProcessingTerminal extends BlockMekanismContainer {
 
     @Override
     public boolean onBlockActivated(World world, BlockPos pos, IBlockState state,
-          EntityPlayer player, EnumHand hand, EnumFacing side, float hitX,
-          float hitY, float hitZ) {
+                                    EntityPlayer player, EnumHand hand, EnumFacing side, float hitX,
+                                    float hitY, float hitZ) {
         if (world.isRemote) {
             return true;
         }
@@ -144,8 +147,8 @@ public final class BlockQIOProcessingTerminal extends BlockMekanismContainer {
             return true;
         }
         player.openGui(MekanismQIOProcessing.instance,
-              QIOProcessingCommonProxy.GUI_TERMINAL, world, pos.getX(),
-              pos.getY(), pos.getZ());
+                QIOProcessingCommonProxy.GUI_TERMINAL, world, pos.getX(),
+                pos.getY(), pos.getZ());
         return true;
     }
 
@@ -157,11 +160,11 @@ public final class BlockQIOProcessingTerminal extends BlockMekanismContainer {
     @Nonnull
     @Override
     protected ItemStack getDropItem(@Nonnull IBlockState state,
-          @Nonnull IBlockAccess world, @Nonnull BlockPos pos) {
+                                    @Nonnull IBlockAccess world, @Nonnull BlockPos pos) {
         ItemStack stack = new ItemStack(this);
         TileEntity tile = world.getTileEntity(pos);
         if (tile instanceof QIOProcessingTerminal terminal &&
-            stack.getItem() instanceof ItemBlockQIOComponent item) {
+                stack.getItem() instanceof ItemBlockQIOComponent item) {
             item.setOwnerUUID(stack, terminal.getSecurity().getOwnerUUID());
             item.setSecurity(stack, terminal.getSecurity().getMode());
             if (terminal.getQIOFrequency() != null) {
@@ -201,7 +204,7 @@ public final class BlockQIOProcessingTerminal extends BlockMekanismContainer {
     @Override
     @Deprecated
     public BlockFaceShape getBlockFaceShape(IBlockAccess world, IBlockState state,
-          BlockPos pos, EnumFacing face) {
+                                            BlockPos pos, EnumFacing face) {
         return BlockFaceShape.UNDEFINED;
     }
 
@@ -209,25 +212,25 @@ public final class BlockQIOProcessingTerminal extends BlockMekanismContainer {
     @Override
     @Deprecated
     public AxisAlignedBB getBoundingBox(IBlockState state, IBlockAccess world,
-          BlockPos pos) {
+                                        BlockPos pos) {
         return QIOBlockShapes.getDashboardBounds(state, world, pos);
     }
 
     @Override
     @Deprecated
     public void addCollisionBoxToList(IBlockState state, @Nonnull World world,
-          @Nonnull BlockPos pos, @Nonnull AxisAlignedBB entityBox,
-          @Nonnull List<AxisAlignedBB> collidingBoxes, @Nullable Entity entity,
-          boolean actualState) {
+                                      @Nonnull BlockPos pos, @Nonnull AxisAlignedBB entityBox,
+                                      @Nonnull List<AxisAlignedBB> collidingBoxes, @Nullable Entity entity,
+                                      boolean actualState) {
         QIOBlockShapes.addDashboardCollisionBoxes(state, world, pos, entityBox,
-              collidingBoxes);
+                collidingBoxes);
     }
 
     @Nullable
     @Override
     @Deprecated
     public RayTraceResult collisionRayTrace(IBlockState state, @Nonnull World world,
-          @Nonnull BlockPos pos, @Nonnull Vec3d start, @Nonnull Vec3d end) {
+                                            @Nonnull BlockPos pos, @Nonnull Vec3d start, @Nonnull Vec3d end) {
         return QIOBlockShapes.dashboardCollisionRayTrace(state, world, pos, start, end);
     }
 

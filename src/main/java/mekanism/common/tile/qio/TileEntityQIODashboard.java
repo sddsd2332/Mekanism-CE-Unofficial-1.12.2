@@ -1,23 +1,26 @@
 package mekanism.common.tile.qio;
 
+import mekanism.api.qio.external.IQIOStorageAccessor;
+import mekanism.api.qio.external.QIOCapabilities;
 import mekanism.common.CommonWorldTickHandler;
 import mekanism.common.content.qio.IQIOCraftingWindowHolder;
 import mekanism.common.content.qio.QIOCraftingWindow;
 import mekanism.common.content.qio.QIOFrequency;
 import mekanism.common.content.qio.QIOStorageAccessor;
-import mekanism.api.qio.external.IQIOStorageAccessor;
-import mekanism.api.qio.external.QIOCapabilities;
 import mekanism.common.inventory.container.MekanismContainer;
 import mekanism.common.inventory.container.sync.SyncableBoolean;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
-import net.minecraft.world.World;
 import net.minecraft.util.EnumFacing;
+import net.minecraft.world.World;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.util.Constants;
+
 import javax.annotation.Nonnull;
 
-/** QIO network viewer block. The actual resource state lives in its frequency. */
+/**
+ * QIO network viewer block. The actual resource state lives in its frequency.
+ */
 public class TileEntityQIODashboard extends TileEntityQIOComponent implements IQIOCraftingWindowHolder {
 
     private final QIOCraftingWindow[] craftingWindows = new QIOCraftingWindow[MAX_CRAFTING_WINDOWS];
@@ -96,7 +99,7 @@ public class TileEntityQIODashboard extends TileEntityQIOComponent implements IQ
     @Override
     public <T> T getCapability(@Nonnull Capability<T> capability, EnumFacing side) {
         if (capability == QIOCapabilities.STORAGE_ACCESSOR && side != null && facing != null &&
-              side == facing.getOpposite()) {
+                side == facing.getOpposite()) {
             return QIOCapabilities.STORAGE_ACCESSOR.cast(storageAccessor);
         }
         return super.getCapability(capability, side);

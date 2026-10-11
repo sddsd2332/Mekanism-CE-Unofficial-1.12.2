@@ -32,7 +32,7 @@ public class FilterSelectButton extends MekanismButton {
         }
         GlStateManager.enableBlend();
         GlStateManager.tryBlendFuncSeparate(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA, GlStateManager.SourceFactor.ONE,
-              GlStateManager.DestFactor.ZERO);
+                GlStateManager.DestFactor.ZERO);
         GlStateManager.enableDepth();
         minecraft.renderEngine.bindTexture(ARROWS);
         GuiUtils.blit(getButtonX(), getButtonY(), isMouseOverCheckWindows(mouseX, mouseY) ? width : 0, down ? 7 : 0, width, height, TEXTURE_WIDTH, TEXTURE_HEIGHT);

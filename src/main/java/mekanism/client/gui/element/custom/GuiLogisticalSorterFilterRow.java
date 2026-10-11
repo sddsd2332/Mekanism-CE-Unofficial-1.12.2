@@ -48,7 +48,7 @@ public class GuiLogisticalSorterFilterRow extends GuiElement {
     private ItemStack renderStack = ItemStack.EMPTY;
 
     public GuiLogisticalSorterFilterRow(IGuiWrapper gui, TileEntityLogisticalSorter tile, int x, int y, int width, int height, int row,
-          IntSupplier scrollSupplier) {
+                                        IntSupplier scrollSupplier) {
         super(gui, x, y, width, height);
         this.tile = tile;
         this.row = row;
@@ -122,7 +122,7 @@ public class GuiLogisticalSorterFilterRow extends GuiElement {
         int textWidth = width - 48;
         drawScaledScrollingString(new TextComponentString(getFilterName(filter)), 22, 4, TextAlignment.LEFT, 0x404040, textWidth, 3, false, 1, GuiElement.getMillis());
         drawScaledScrollingString(new TextComponentString(filter.color != null ? filter.color.getColoredName() : LangUtils.localize("gui.none")),
-              22, 15, TextAlignment.LEFT, 0x404040, textWidth, 3, false, 0.8F, GuiElement.getMillis());
+                22, 15, TextAlignment.LEFT, 0x404040, textWidth, 3, false, 0.8F, GuiElement.getMillis());
         drawEnabledToggle(filter);
         int arrowX = relativeX + width - 12;
         if (filterIndex > 0) {
@@ -277,7 +277,7 @@ public class GuiLogisticalSorterFilterRow extends GuiElement {
         GuiUtils.blit(x, y + height / 2, 0, (isHovered() ? 40 : 20) + 20 - height / 2, width / 2, height - height / 2, 200, 60);
         GuiUtils.blit(x + width / 2, y, 200 - width / 2, isHovered() ? 40 : 20, width - width / 2, height / 2, 200, 60);
         GuiUtils.blit(x + width / 2, y + height / 2, 200 - (width - width / 2), (isHovered() ? 40 : 20) + 20 - (height - height / 2),
-              width - width / 2, height - height / 2, 200, 60);
+                width - width / 2, height - height / 2, 200, 60);
     }
 
     private void drawArrow(int x, int y, boolean hovered, boolean up) {

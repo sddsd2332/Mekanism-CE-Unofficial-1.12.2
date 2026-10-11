@@ -78,9 +78,9 @@ public class GuiOredictionificatorFilter extends GuiTextFilter<Oredictionificato
     protected void init() {
         super.init();
         addChild(new MekanismImageButton(gui(), relativeX + 3, relativeY + 38, 12, getButtonLocation("left"), this::previousItem,
-              getOnHover(() -> new TextComponentString(LangUtils.localize("gui.lastItem")))));
+                getOnHover(() -> new TextComponentString(LangUtils.localize("gui.lastItem")))));
         addChild(new MekanismImageButton(gui(), relativeX + 16, relativeY + 38, 12, getButtonLocation("right"), this::nextItem,
-              getOnHover(() -> new TextComponentString(LangUtils.localize("gui.nextItem")))));
+                getOnHover(() -> new TextComponentString(LangUtils.localize("gui.nextItem")))));
     }
 
     @Override

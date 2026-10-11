@@ -46,7 +46,7 @@ public class PressurizedRecipe extends MachineRecipe<PressurizedInput, Pressuriz
     }
 
     public boolean canOperate(IInventorySlot inputSlot, IExtendedFluidTank inputFluidTank, IExtendedGasTank inputGasTank,
-          IExtendedGasTank outputGasTank, IInventorySlot outputSlot) {
+                              IExtendedGasTank outputGasTank, IInventorySlot outputSlot) {
         return getInput().use(inputSlot, inputFluidTank, inputGasTank, false) && getOutput().applyOutputs(outputSlot, outputGasTank, false);
     }
 

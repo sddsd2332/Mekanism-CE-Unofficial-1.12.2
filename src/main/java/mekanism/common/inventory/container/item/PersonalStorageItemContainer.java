@@ -28,7 +28,7 @@ public class PersonalStorageItemContainer extends MekanismItemContainer {
 
     public PersonalStorageItemContainer(InventoryPlayer inv, InventoryPersonalChest itemInventory) {
         this(inv, new ItemStackSlotAccess(inv, itemInventory.currentHand,
-              ItemStackSlotAccess.getSlotForHand(inv, itemInventory.currentHand), itemInventory.getStack()), itemInventory);
+                ItemStackSlotAccess.getSlotForHand(inv, itemInventory.currentHand), itemInventory.getStack()), itemInventory);
     }
 
     private PersonalStorageItemContainer(InventoryPlayer inv, ItemStackSlotAccess itemAccess) {
@@ -77,7 +77,7 @@ public class PersonalStorageItemContainer extends MekanismItemContainer {
     @Override
     protected boolean isValidStack(@Nonnull ItemStack stack) {
         return super.isValidStack(stack) && MachineType.get(stack) == MachineType.PERSONAL_CHEST && stack.getCount() == 1
-              && stack.getItem() instanceof ISecurityItem securityItem && securityItem.getOwnerUUID(stack) != null;
+                && stack.getItem() instanceof ISecurityItem securityItem && securityItem.getOwnerUUID(stack) != null;
     }
 
     @Override

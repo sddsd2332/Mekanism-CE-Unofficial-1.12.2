@@ -48,8 +48,9 @@ public class AdvancedMachineRecipeCategory<RECIPE extends AdvancedMachineRecipe<
             public double getProgress() {
                 return (double) timer.getValue() / 20F;
             }
+
             @Override
-            public boolean isGuiInJei(){
+            public boolean isGuiInJei() {
                 return true;
             }
         }, progressType, this, 86, 38));
@@ -66,7 +67,7 @@ public class AdvancedMachineRecipeCategory<RECIPE extends AdvancedMachineRecipe<
         initItem(itemStacks, 2, false, extra, recipeWrapper.getFuelStacks(tempRecipe.recipeInput.gasType));
         IGuiIngredientGroup<GasStack> gasStacks = recipeLayout.getIngredientsGroup(MekanismJEI.TYPE_GAS);
         initGas(gasStacks, 0, true, gasInput,
-              Collections.singletonList(new GasStack(tempRecipe.recipeInput.gasType,
-                    TileEntityAdvancedElectricMachine.BASE_TICKS_REQUIRED * TileEntityAdvancedElectricMachine.BASE_GAS_PER_TICK)), false);
+                Collections.singletonList(new GasStack(tempRecipe.recipeInput.gasType,
+                        TileEntityAdvancedElectricMachine.BASE_TICKS_REQUIRED * TileEntityAdvancedElectricMachine.BASE_GAS_PER_TICK)), false);
     }
 }

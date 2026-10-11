@@ -57,32 +57,32 @@ public abstract class GuiTeleporterBase<CONTAINER extends MekanismContainer> ext
         // legacy portable teleporter keeps its original one-pixel inset).
         boolean qioLayout = useIconSecurityButtons();
         scrollList = addButton(new GuiTextScrollList(this, qioLayout ? 27 : 28,
-              (qioLayout ? 36 : 37) + yOffset, qioLayout ? 122 : 120, 42));
+                (qioLayout ? 36 : 37) + yOffset, qioLayout ? 122 : 120, 42));
         if (useIconSecurityButtons()) {
             publicButton = addButton(new MekanismImageButton(this, 27, 14 + yOffset, 38, 20, 40, 16,
-                  getButtonLocation("public"), () -> setMode(SecurityMode.PUBLIC)).setTooltip(MekanismLang.PUBLIC_MODE.translate()));
+                    getButtonLocation("public"), () -> setMode(SecurityMode.PUBLIC)).setTooltip(MekanismLang.PUBLIC_MODE.translate()));
             trustedButton = addButton(new MekanismImageButton(this, 69, 14 + yOffset, 38, 20, 40, 16,
-                  getButtonLocation("trusted"), () -> setMode(SecurityMode.TRUSTED)).setTooltip(MekanismLang.TRUSTED_MODE.translate()));
+                    getButtonLocation("trusted"), () -> setMode(SecurityMode.TRUSTED)).setTooltip(MekanismLang.TRUSTED_MODE.translate()));
             privateButton = addButton(new MekanismImageButton(this, 111, 14 + yOffset, 38, 20, 40, 16,
-                  getButtonLocation("private"), () -> setMode(SecurityMode.PRIVATE)).setTooltip(MekanismLang.PRIVATE_MODE.translate()));
+                    getButtonLocation("private"), () -> setMode(SecurityMode.PRIVATE)).setTooltip(MekanismLang.PRIVATE_MODE.translate()));
         } else {
             publicButton = addButton(new MekanismButton(this, 27, 14 + yOffset, 39, 20, new TextComponentString(LangUtils.localize("gui.public")),
-                  () -> setMode(SecurityMode.PUBLIC), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.publicMode")))));
+                    () -> setMode(SecurityMode.PUBLIC), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.publicMode")))));
             privateButton = addButton(new MekanismButton(this, 68, 14 + yOffset, 39, 20, new TextComponentString(LangUtils.localize("gui.private")),
-                  () -> setMode(SecurityMode.PRIVATE), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.privateMode")))));
+                    () -> setMode(SecurityMode.PRIVATE), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.privateMode")))));
             trustedButton = addButton(new MekanismButton(this, 109, 14 + yOffset, 40, 20, new TextComponentString(LangUtils.localize("gui.trusted")),
-                  () -> setMode(SecurityMode.TRUSTED), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.trustedMode")))));
+                    () -> setMode(SecurityMode.TRUSTED), getOnHover(() -> new TextComponentString(LangUtils.localize("gui.trustedMode")))));
         }
         setButton = addButton(new MekanismButton(this, 27, 127 + yOffset, getActionButtonWidth(), 18, new TextComponentString(LangUtils.localize("gui.set")),
-              this::setSelectedFrequency, null));
+                this::setSelectedFrequency, null));
         deleteButton = addButton(new MekanismButton(this, 29 + getActionButtonWidth(), 127 + yOffset, getActionButtonWidth(), 18,
-              new TextComponentString(LangUtils.localize("gui.delete")), this::deleteSelectedFrequency, null));
+                new TextComponentString(LangUtils.localize("gui.delete")), this::deleteSelectedFrequency, null));
         frequencyField = addButton(new GuiTextField(this, 4, 50, 113 + yOffset, 98, 11)
-              .setMaxLength(FrequencyManager.MAX_FREQ_LENGTH)
-              .setBackground(BackgroundType.INNER_SCREEN)
-              .setInputValidator(this::isValidFrequencyInput)
-              .setEnterHandler(this::setTypedFrequency)
-              .addCheckmarkButton(this::setTypedFrequency));
+                .setMaxLength(FrequencyManager.MAX_FREQ_LENGTH)
+                .setBackground(BackgroundType.INNER_SCREEN)
+                .setInputValidator(this::isValidFrequencyInput)
+                .setEnterHandler(this::setTypedFrequency)
+                .addCheckmarkButton(this::setTypedFrequency));
         updateFrequencyButtons();
     }
 
@@ -111,7 +111,7 @@ public abstract class GuiTeleporterBase<CONTAINER extends MekanismContainer> ext
 
     protected boolean isValidFrequencyInput(char c, int keyCode) {
         return Character.isDigit(c) || Character.isLetter(c) || FrequencyManager.SPECIAL_CHARS.contains(c) ||
-              GuiMekanism.isTextboxKey(c, keyCode);
+                GuiMekanism.isTextboxKey(c, keyCode);
     }
 
     protected void setTypedFrequency() {
@@ -227,14 +227,14 @@ public abstract class GuiTeleporterBase<CONTAINER extends MekanismContainer> ext
         String none = EnumColor.DARK_RED + LangUtils.localize("gui.none");
         drawTextExact(new TextComponentString(LangUtils.localize("gui.freq") + ":"), 27, 81 + yOffset, titleTextColor());
         drawTextExact(new TextComponentString(" " + (frequency != null ? frequency.name : none)), 27 + fontRenderer.getStringWidth(LangUtils.localize("gui.freq") + ":"),
-              81 + yOffset, subheadingTextColor());
+                81 + yOffset, subheadingTextColor());
         drawTextExact(new TextComponentString((isPortable() ? LangUtils.localize("gui.itemowner") : LangUtils.localize("gui.owner")) + ": " +
-              (frequency != null ? getOwnerUsername(frequency) : none)), 27, 91 + yOffset, titleTextColor());
+                (frequency != null ? getOwnerUsername(frequency) : none)), 27, 91 + yOffset, titleTextColor());
         drawTextExact(new TextComponentString(LangUtils.localize("gui.security") + ":"), 27, 101 + yOffset, titleTextColor());
         drawTextExact(new TextComponentString(" " + (frequency != null ? getSecurity(frequency) : none)),
-              27 + fontRenderer.getStringWidth(LangUtils.localize("gui.security") + ":"), 101 + yOffset, subheadingTextColor());
+                27 + fontRenderer.getStringWidth(LangUtils.localize("gui.security") + ":"), 101 + yOffset, subheadingTextColor());
         drawScaledScrollingString(new TextComponentString(LangUtils.localize("gui.set") + ":"), 0, 114 + yOffset, TextAlignment.RIGHT, titleTextColor(),
-              frequencyField.getRelativeX(), 5, false, 1, GuiElement.getMillis());
+                frequencyField.getRelativeX(), 5, false, 1, GuiElement.getMillis());
         super.drawForegroundText(mouseX, mouseY);
     }
 

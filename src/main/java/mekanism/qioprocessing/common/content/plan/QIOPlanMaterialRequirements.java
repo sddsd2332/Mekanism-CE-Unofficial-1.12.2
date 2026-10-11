@@ -8,16 +8,12 @@ import net.minecraft.nbt.NBTTagList;
 import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.LinkedHashSet;
-import java.util.Set;
+import java.util.*;
 
-/** Exact and substitutable external material requirements for one immutable plan revision. */
+/**
+ * Exact and substitutable external material requirements for one immutable plan revision.
+ */
+
 /**
  * QIO 处理模块中的 QIOPlanMaterialRequirements 类型。
  *
@@ -30,20 +26,20 @@ public final class QIOPlanMaterialRequirements {
     private final List<QIOCandidateRequirement> candidateRequirements;
 
     public QIOPlanMaterialRequirements(
-          @Nonnull Map<PortableResourceDescriptor, Long> exactAmounts,
-          @Nonnull List<QIOCandidateRequirement> candidateRequirements) {
+            @Nonnull Map<PortableResourceDescriptor, Long> exactAmounts,
+            @Nonnull List<QIOCandidateRequirement> candidateRequirements) {
         this.exactAmounts = QIOProcessingNbt.copyAmounts(exactAmounts, true,
-              "exact plan material requirements");
+                "exact plan material requirements");
         Objects.requireNonNull(candidateRequirements, "candidateRequirements");
         if (candidateRequirements.size() > 65_536) {
             throw new IllegalArgumentException("Too many QIO candidate requirements");
         }
         List<QIOCandidateRequirement> checked = new ArrayList<>(
-              candidateRequirements.size());
+                candidateRequirements.size());
         Set<String> ids = new LinkedHashSet<>();
         for (QIOCandidateRequirement requirement : candidateRequirements) {
             QIOCandidateRequirement value = Objects.requireNonNull(requirement,
-                  "candidate requirement");
+                    "candidate requirement");
             if (!ids.add(value.getRequirementId())) {
                 throw new IllegalArgumentException("Duplicate QIO candidate requirement");
             }
@@ -52,13 +48,19 @@ public final class QIOPlanMaterialRequirements {
         this.candidateRequirements = Collections.unmodifiableList(checked);
     }
 
-    @Nonnull public Map<PortableResourceDescriptor, Long> getExactAmounts() {
+    @Nonnull
+    public Map<PortableResourceDescriptor, Long> getExactAmounts() {
         return exactAmounts;
     }
-    @Nonnull public List<QIOCandidateRequirement> getCandidateRequirements() {
+
+    @Nonnull
+    public List<QIOCandidateRequirement> getCandidateRequirements() {
         return candidateRequirements;
     }
-    public boolean isEmpty() { return exactAmounts.isEmpty() && candidateRequirements.isEmpty(); }
+
+    public boolean isEmpty() {
+        return exactAmounts.isEmpty() && candidateRequirements.isEmpty();
+    }
 
     /** Stable display/diagnostic projection using each group's highest-priority option. */
     @Nonnull
@@ -67,30 +69,30 @@ public final class QIOPlanMaterialRequirements {
         for (QIOCandidateRequirement requirement : candidateRequirements) {
             QIOCandidateOption preferred = requirement.getOptions().get(0);
             projection.merge(preferred.getResource(), Math.multiplyExact(
-                  requirement.getRequiredUnits(), preferred.getAmountPerUnit()), Math::addExact);
+                    requirement.getRequiredUnits(), preferred.getAmountPerUnit()), Math::addExact);
         }
         return Collections.unmodifiableMap(projection);
     }
 
     @Nonnull
     public static QIOPlanMaterialRequirements derive(
-          @Nonnull Map<PortableResourceDescriptor, Long> externalRequirements,
-          @Nonnull List<QIOPlanStep> steps) {
+            @Nonnull Map<PortableResourceDescriptor, Long> externalRequirements,
+            @Nonnull List<QIOPlanStep> steps) {
         Map<PortableResourceDescriptor, Long> remaining = new LinkedHashMap<>(
-              externalRequirements);
+                externalRequirements);
         List<QIOCandidateRequirement> groups = new ArrayList<>();
         for (QIOPlanStep step : steps) {
             if (step.getProviderKind() != QIOPlanStep.ProviderKind.WORKBENCH) continue;
             for (QIOCandidateInputGroup group : step.getCandidateInputs()) {
                 Map<PortableResourceDescriptor, Long> planned = new LinkedHashMap<>();
                 group.getPlannedInputs().forEach((resource, amount) -> planned.put(resource,
-                      Math.multiplyExact(amount, step.getOperations())));
+                        Math.multiplyExact(amount, step.getOperations())));
                 long externalUnits = 0;
                 for (QIOCandidateOption option : group.getOptions()) {
                     long plannedAmount = planned.getOrDefault(option.getResource(), 0L);
                     long availableExternal = remaining.getOrDefault(option.getResource(), 0L);
                     long units = Math.min(plannedAmount, availableExternal) /
-                          option.getAmountPerUnit();
+                            option.getAmountPerUnit();
                     if (units <= 0) continue;
                     long consumed = Math.multiplyExact(units, option.getAmountPerUnit());
                     externalUnits = Math.addExact(externalUnits, units);
@@ -100,7 +102,7 @@ public final class QIOPlanMaterialRequirements {
                 }
                 if (externalUnits > 0) {
                     groups.add(new QIOCandidateRequirement(step.getNodeId() + "/" +
-                          group.getGroupId(), externalUnits, group.getOptions()));
+                            group.getGroupId(), externalUnits, group.getOptions()));
                 }
             }
         }
@@ -119,9 +121,9 @@ public final class QIOPlanMaterialRequirements {
 
     @Nonnull
     public static QIOPlanMaterialRequirements read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         if (!data.hasKey("exactAmounts", NBT.TAG_LIST) ||
-            !data.hasKey("candidateRequirements", NBT.TAG_LIST)) {
+                !data.hasKey("candidateRequirements", NBT.TAG_LIST)) {
             throw new QIOProcessingDataException("Incomplete QIO plan material requirements");
         }
         NBTTagList stored = data.getTagList("candidateRequirements", NBT.TAG_COMPOUND);
@@ -133,6 +135,6 @@ public final class QIOPlanMaterialRequirements {
             groups.add(QIOCandidateRequirement.read(stored.getCompoundTagAt(index)));
         }
         return new QIOPlanMaterialRequirements(QIOProcessingNbt.readAmounts(data,
-              "exactAmounts", 65_536), groups);
+                "exactAmounts", 65_536), groups);
     }
 }

@@ -8,10 +8,10 @@ import mekanism.common.block.states.BlockStateQIOComponent;
 import mekanism.common.item.ItemBlockQIOComponent;
 import mekanism.common.security.ISecurityTile;
 import mekanism.common.tile.prefab.TileEntityBasicBlock;
-import mekanism.common.tile.qio.TileEntityQIOExporter;
 import mekanism.common.tile.qio.TileEntityQIOComponent;
-import mekanism.common.util.MekanismUtils;
+import mekanism.common.tile.qio.TileEntityQIOExporter;
 import mekanism.common.util.MekanismPlacementData;
+import mekanism.common.util.MekanismUtils;
 import mekanism.common.util.SecurityUtils;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.BlockFaceShape;
@@ -36,7 +36,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.List;
 
-/** QIO output automation component. */
+/**
+ * QIO output automation component.
+ */
 public class BlockQIOExporter extends BlockMekanismContainer {
 
     public BlockQIOExporter() {
@@ -46,43 +48,78 @@ public class BlockQIOExporter extends BlockMekanismContainer {
         setCreativeTab(Mekanism.tabMekanism);
     }
 
-    @Override protected BlockStateContainer createBlockState() { return new BlockStateQIOComponent(this); }
-    @Nonnull @Override @Deprecated public IBlockState getStateFromMeta(int meta) { return getDefaultState().withProperty(BlockStateFacing.facingProperty, EnumFacing.NORTH); }
-    @Override public int getMetaFromState(IBlockState state) { return 0; }
-    @Nonnull @Override @Deprecated public IBlockState getActualState(@Nonnull IBlockState state, IBlockAccess world, BlockPos pos) {
+    @Override
+    protected BlockStateContainer createBlockState() {
+        return new BlockStateQIOComponent(this);
+    }
+
+    @Nonnull
+    @Override
+    @Deprecated
+    public IBlockState getStateFromMeta(int meta) {
+        return getDefaultState().withProperty(BlockStateFacing.facingProperty, EnumFacing.NORTH);
+    }
+
+    @Override
+    public int getMetaFromState(IBlockState state) {
+        return 0;
+    }
+
+    @Nonnull
+    @Override
+    @Deprecated
+    public IBlockState getActualState(@Nonnull IBlockState state, IBlockAccess world, BlockPos pos) {
         TileEntity tile = MekanismUtils.getTileEntitySafe(world, pos);
         if (tile instanceof TileEntityBasicBlock basic && basic.facing != null) {
             state = state.withProperty(BlockStateFacing.facingProperty, basic.facing);
         }
         return tile instanceof TileEntityQIOComponent qio
-              ? state.withProperty(BlockStateQIOComponent.activeProperty, qio.isActive()) : state;
+                ? state.withProperty(BlockStateQIOComponent.activeProperty, qio.isActive()) : state;
     }
 
     @Nonnull
     @Override
     public IBlockState getStateForPlacement(World world, BlockPos pos, EnumFacing facing, float hitX, float hitY, float hitZ,
-          int meta, EntityLivingBase placer, EnumHand hand) {
+                                            int meta, EntityLivingBase placer, EnumHand hand) {
         return QIOBlockShapes.getStateForPlacement(getDefaultState(), facing);
     }
 
-    @Override public void onBlockPlacedBy(World world, BlockPos pos, IBlockState state, EntityLivingBase placer, ItemStack stack) {
+    @Override
+    public void onBlockPlacedBy(World world, BlockPos pos, IBlockState state, EntityLivingBase placer, ItemStack stack) {
         TileEntity tile = world.getTileEntity(pos);
         QIOBlockShapes.setPlacedFacing(world, pos, state);
-        if (tile instanceof ISecurityTile security && placer instanceof EntityPlayer player && security.getSecurity().getOwnerUUID() == null) security.getSecurity().setOwnerUUID(player.getUniqueID());
+        if (tile instanceof ISecurityTile security && placer instanceof EntityPlayer player && security.getSecurity().getOwnerUUID() == null)
+            security.getSecurity().setOwnerUUID(player.getUniqueID());
         MekanismPlacementData.apply(world, pos, placer, stack);
     }
-    @Override @Deprecated public void neighborChanged(IBlockState state, World world, BlockPos pos, net.minecraft.block.Block neighborBlock, BlockPos neighborPos) {
-        if (!world.isRemote && world.getTileEntity(pos) instanceof TileEntityBasicBlock tile) tile.onNeighborChange(neighborBlock);
+
+    @Override
+    @Deprecated
+    public void neighborChanged(IBlockState state, World world, BlockPos pos, net.minecraft.block.Block neighborBlock, BlockPos neighborPos) {
+        if (!world.isRemote && world.getTileEntity(pos) instanceof TileEntityBasicBlock tile)
+            tile.onNeighborChange(neighborBlock);
     }
-    @Override public boolean onBlockActivated(World world, BlockPos pos, IBlockState state, EntityPlayer player, EnumHand hand, EnumFacing side, float hitX, float hitY, float hitZ) {
+
+    @Override
+    public boolean onBlockActivated(World world, BlockPos pos, IBlockState state, EntityPlayer player, EnumHand hand, EnumFacing side, float hitX, float hitY, float hitZ) {
         if (world.isRemote) return true;
         TileEntity tile = world.getTileEntity(pos);
-        if (tile instanceof ISecurityTile && !SecurityUtils.canAccess(player, tile)) { SecurityUtils.displayNoAccess(player); return true; }
+        if (tile instanceof ISecurityTile && !SecurityUtils.canAccess(player, tile)) {
+            SecurityUtils.displayNoAccess(player);
+            return true;
+        }
         player.openGui(Mekanism.instance, QIOGuiConstants.EXPORTER, world, pos.getX(), pos.getY(), pos.getZ());
         return true;
     }
-    @Override public TileEntity createNewTileEntity(@Nonnull World world, int meta) { return new TileEntityQIOExporter(); }
-    @Nonnull @Override protected ItemStack getDropItem(@Nonnull IBlockState state, @Nonnull IBlockAccess world, @Nonnull BlockPos pos) {
+
+    @Override
+    public TileEntity createNewTileEntity(@Nonnull World world, int meta) {
+        return new TileEntityQIOExporter();
+    }
+
+    @Nonnull
+    @Override
+    protected ItemStack getDropItem(@Nonnull IBlockState state, @Nonnull IBlockAccess world, @Nonnull BlockPos pos) {
         ItemStack stack = new ItemStack(MekanismBlocks.QIO_EXPORTER);
         TileEntity tile = world.getTileEntity(pos);
         if (tile instanceof TileEntityQIOExporter exporter && stack.getItem() instanceof ItemBlockQIOComponent item) {
@@ -94,10 +131,31 @@ public class BlockQIOExporter extends BlockMekanismContainer {
         }
         return stack;
     }
-    @Nonnull @Override @Deprecated public EnumBlockRenderType getRenderType(IBlockState state) { return EnumBlockRenderType.MODEL; }
-    @Override @Deprecated public boolean isOpaqueCube(IBlockState state) { return false; }
-    @Override @Deprecated public boolean isFullCube(IBlockState state) { return false; }
-    @Override @Deprecated public boolean isFullBlock(IBlockState state) { return false; }
+
+    @Nonnull
+    @Override
+    @Deprecated
+    public EnumBlockRenderType getRenderType(IBlockState state) {
+        return EnumBlockRenderType.MODEL;
+    }
+
+    @Override
+    @Deprecated
+    public boolean isOpaqueCube(IBlockState state) {
+        return false;
+    }
+
+    @Override
+    @Deprecated
+    public boolean isFullCube(IBlockState state) {
+        return false;
+    }
+
+    @Override
+    @Deprecated
+    public boolean isFullBlock(IBlockState state) {
+        return false;
+    }
 
     @Nonnull
     @Override
@@ -116,7 +174,7 @@ public class BlockQIOExporter extends BlockMekanismContainer {
     @Override
     @Deprecated
     public void addCollisionBoxToList(IBlockState state, @Nonnull World world, @Nonnull BlockPos pos,
-          @Nonnull AxisAlignedBB entityBox, @Nonnull List<AxisAlignedBB> collidingBoxes, @Nullable Entity entity, boolean actualState) {
+                                      @Nonnull AxisAlignedBB entityBox, @Nonnull List<AxisAlignedBB> collidingBoxes, @Nullable Entity entity, boolean actualState) {
         QIOBlockShapes.addCollisionBoxes(QIOBlockShapes.EXPORTER, state, world, pos, entityBox, collidingBoxes);
     }
 
@@ -124,7 +182,7 @@ public class BlockQIOExporter extends BlockMekanismContainer {
     @Override
     @Deprecated
     public RayTraceResult collisionRayTrace(IBlockState state, @Nonnull World world, @Nonnull BlockPos pos,
-          @Nonnull Vec3d start, @Nonnull Vec3d end) {
+                                            @Nonnull Vec3d start, @Nonnull Vec3d end) {
         return QIOBlockShapes.collisionRayTrace(QIOBlockShapes.EXPORTER, state, world, pos, start, end);
     }
 
@@ -133,7 +191,8 @@ public class BlockQIOExporter extends BlockMekanismContainer {
         return QIOBlockShapes.getValidRotations(world, pos);
     }
 
-    @Override public boolean rotateBlock(World world, BlockPos pos, EnumFacing axis) {
+    @Override
+    public boolean rotateBlock(World world, BlockPos pos, EnumFacing axis) {
         return QIOBlockShapes.rotate(world, pos, axis);
     }
 }

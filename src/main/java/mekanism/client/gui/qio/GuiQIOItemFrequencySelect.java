@@ -1,6 +1,5 @@
 package mekanism.client.gui.qio;
 
-import mekanism.api.EnumColor;
 import mekanism.client.MekanismClient;
 import mekanism.client.gui.GuiTeleporterBase;
 import mekanism.client.gui.element.button.ColorButton;
@@ -18,8 +17,8 @@ import mekanism.common.frequency.Frequency.FrequencyIdentity;
 import mekanism.common.frequency.FrequencyType;
 import mekanism.common.inventory.container.QIOItemFrequencySelectContainer;
 import mekanism.common.item.ItemPortableQIODashboard;
-import mekanism.common.network.PacketSetItemFrequency.SetItemFrequencyMessage;
 import mekanism.common.network.PacketSetFrequencyColor.SetFrequencyColorMessage;
+import mekanism.common.network.PacketSetItemFrequency.SetItemFrequencyMessage;
 import mekanism.common.network.qio.PacketQIOPortableGui;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.item.ItemStack;
@@ -56,20 +55,39 @@ public class GuiQIOItemFrequencySelect extends GuiTeleporterBase<QIOItemFrequenc
     protected void addGuiElements() {
         super.addGuiElements();
         addButton(new MekanismImageButton(this, 6, 6, 14, getButtonLocation("back"),
-              () -> Mekanism.packetHandler.sendToServer(new PacketQIOPortableGui.Message(inventorySlots.windowId, hand,
-                    QIOGuiConstants.PORTABLE_DASHBOARD))).setTooltip(MekanismLang.BACK.translate()));
+                () -> Mekanism.packetHandler.sendToServer(new PacketQIOPortableGui.Message(inventorySlots.windowId, hand,
+                        QIOGuiConstants.PORTABLE_DASHBOARD))).setTooltip(MekanismLang.BACK.translate()));
         addButton(new GuiSlot(SlotType.NORMAL, this, 131, 130));
         addButton(new ColorButton(this, 132, 131, 16, 16,
-              () -> getFrequency() == null ? null : getFrequency().getColor(),
-              () -> sendColorUpdate(true), () -> sendColorUpdate(false)));
+                () -> getFrequency() == null ? null : getFrequency().getColor(),
+                () -> sendColorUpdate(true), () -> sendColorUpdate(false)));
     }
 
-    @Override protected int getSelectorYOffset() { return 3; }
-    @Override protected boolean useIconSecurityButtons() { return true; }
-    @Override protected boolean showStatusIndicator() { return false; }
-    @Override protected int getTitleOffset() { return 17; }
+    @Override
+    protected int getSelectorYOffset() {
+        return 3;
+    }
 
-    @Override protected int getActionButtonWidth() { return 50; }
+    @Override
+    protected boolean useIconSecurityButtons() {
+        return true;
+    }
+
+    @Override
+    protected boolean showStatusIndicator() {
+        return false;
+    }
+
+    @Override
+    protected int getTitleOffset() {
+        return 17;
+    }
+
+    @Override
+    protected int getActionButtonWidth() {
+        return 50;
+    }
+
     private void sendColorUpdate(boolean next) {
         QIOFrequency frequency = getFrequency();
         if (frequency != null) {
@@ -77,20 +95,54 @@ public class GuiQIOItemFrequencySelect extends GuiTeleporterBase<QIOItemFrequenc
         }
     }
 
-    private QIOItemFrequencySelectContainer getContainer() { return (QIOItemFrequencySelectContainer) inventorySlots; }
-    @Override protected String getGuiTitle() { return getContainer().getStack().getDisplayName(); }
-    @Override protected boolean isPortable() { return true; }
-    @Override protected int getStatus() { return getFrequency() == null ? 0 : 1; }
-    @Override protected QIOFrequency getFrequency() { return getContainer().getClientFrequency(); }
-    @Override protected List<QIOFrequency> getPublicCache() { return getContainer().getPublicCache(); }
-    @Override protected List<QIOFrequency> getPrivateCache() { return getContainer().getPrivateCache(); }
-    @Override protected List<QIOFrequency> getTrustedCache() { return getContainer().getTrustedCache(); }
-    @Override protected UUID getOwnerUUID() {
+    private QIOItemFrequencySelectContainer getContainer() {
+        return (QIOItemFrequencySelectContainer) inventorySlots;
+    }
+
+    @Override
+    protected String getGuiTitle() {
+        return getContainer().getStack().getDisplayName();
+    }
+
+    @Override
+    protected boolean isPortable() {
+        return true;
+    }
+
+    @Override
+    protected int getStatus() {
+        return getFrequency() == null ? 0 : 1;
+    }
+
+    @Override
+    protected QIOFrequency getFrequency() {
+        return getContainer().getClientFrequency();
+    }
+
+    @Override
+    protected List<QIOFrequency> getPublicCache() {
+        return getContainer().getPublicCache();
+    }
+
+    @Override
+    protected List<QIOFrequency> getPrivateCache() {
+        return getContainer().getPrivateCache();
+    }
+
+    @Override
+    protected List<QIOFrequency> getTrustedCache() {
+        return getContainer().getTrustedCache();
+    }
+
+    @Override
+    protected UUID getOwnerUUID() {
         ItemStack stack = getContainer().getStack();
         return stack.isEmpty() || !(stack.getItem() instanceof ItemPortableQIODashboard) ? null :
-              ((ItemPortableQIODashboard) stack.getItem()).getOwnerUUID(stack);
+                ((ItemPortableQIODashboard) stack.getItem()).getOwnerUUID(stack);
     }
-    @Override protected String getSelfOwnerName() {
+
+    @Override
+    protected String getSelfOwnerName() {
         UUID owner = getOwnerUUID();
         if (owner == null) {
             return "";
@@ -101,10 +153,14 @@ public class GuiQIOItemFrequencySelect extends GuiTeleporterBase<QIOItemFrequenc
         }
         return name == null ? "" : name;
     }
-    @Override protected void setFrequency(FrequencyIdentity identity) {
+
+    @Override
+    protected void setFrequency(FrequencyIdentity identity) {
         Mekanism.packetHandler.sendToServer(new SetItemFrequencyMessage(inventorySlots.windowId, true, FrequencyType.QIO, identity, hand));
     }
-    @Override protected void deleteSelectedFrequency() {
+
+    @Override
+    protected void deleteSelectedFrequency() {
         Frequency selected = getSelectedFrequency();
         if (selected != null) {
             GuiConfirmationDialog.show(this, MekanismLang.FREQUENCY_DELETE_CONFIRM.translate(), () -> {

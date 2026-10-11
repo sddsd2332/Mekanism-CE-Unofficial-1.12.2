@@ -61,7 +61,7 @@ public class MultiblockMachineClientProxy extends MultiblockMachineCommonProxy {
         ClientRegistry.bindTileEntitySpecialRenderer(TileEntityLargeChemicalWasher.class, new RenderLargeChemicalWasher());
         ClientRegistry.bindTileEntitySpecialRenderer(TileEntityLargeWindGenerator.class, new RenderLargeWindGenerator());
         ClientRegistry.bindTileEntitySpecialRenderer(TileEntityLargeGasGenerator.class, new RenderLargeGasGenerator());
-        ClientRegistry.bindTileEntitySpecialRenderer(TileEntityLargeSolarNeutronActivator.class,new RenderLargeSolarNeutronActivator());
+        ClientRegistry.bindTileEntitySpecialRenderer(TileEntityLargeSolarNeutronActivator.class, new RenderLargeSolarNeutronActivator());
         //提前注册屏幕的贴图，防止在运行游戏的时候卡下
         MekanismRenderer.bindTexture(MekanismUtils.getResource(MekanismMultiblockMachine.MODID, MekanismUtils.ResourceType.RENDER_MACHINE, "LargeSolarNeutronActivator/SCREEN.png"));
     }
@@ -88,7 +88,7 @@ public class MultiblockMachineClientProxy extends MultiblockMachineCommonProxy {
         ModelLoader.setCustomModelResourceLocation(Item.getItemFromBlock(MultiblockMachineBlocks.LargeChemicalWasher), 0, getInventoryMRL("LargeChemicalWasher"));
         ModelLoader.setCustomModelResourceLocation(Item.getItemFromBlock(MultiblockMachineBlocks.LargeWindGenerator), 0, getInventoryMRL("LargeWindGenerator"));
         ModelLoader.setCustomModelResourceLocation(Item.getItemFromBlock(MultiblockMachineBlocks.LargeGasGenerator), 0, getInventoryMRL("LargeGasGenerator"));
-        ModelLoader.setCustomModelResourceLocation(Item.getItemFromBlock(MultiblockMachineBlocks.LargeSolarNeutronActivator),0, getInventoryMRL("LargeSolarNeutronActivator"));
+        ModelLoader.setCustomModelResourceLocation(Item.getItemFromBlock(MultiblockMachineBlocks.LargeSolarNeutronActivator), 0, getInventoryMRL("LargeSolarNeutronActivator"));
     }
 
     private ModelResourceLocation getInventoryMRL(String type) {
@@ -131,12 +131,14 @@ public class MultiblockMachineClientProxy extends MultiblockMachineCommonProxy {
     public GuiScreen getClientGui(int ID, EntityPlayer player, World world, BlockPos pos) {
         TileEntity tileEntity = world.getTileEntity(pos);
         return switch (ID) {
-            case 0 -> new GuiLargeElectrolyticSeparator(player.inventory, (TileEntityLargeElectrolyticSeparator) tileEntity);
+            case 0 ->
+                    new GuiLargeElectrolyticSeparator(player.inventory, (TileEntityLargeElectrolyticSeparator) tileEntity);
             case 1 -> new GuiLargeChemicalInfuser(player.inventory, (TileEntityLargeChemicalInfuser) tileEntity);
             case 2 -> new GuiLargeChemicalWasher(player.inventory, (TileEntityLargeChemicalWasher) tileEntity);
             case 3 -> new GuiLargeWindGenerator(player.inventory, (TileEntityLargeWindGenerator) tileEntity);
             case 4 -> new GuiLargeGasGenerator(player.inventory, (TileEntityLargeGasGenerator) tileEntity);
-            case 5 -> new GuiLargeSolarNeutronActivator(player.inventory,(TileEntityLargeSolarNeutronActivator) tileEntity);
+            case 5 ->
+                    new GuiLargeSolarNeutronActivator(player.inventory, (TileEntityLargeSolarNeutronActivator) tileEntity);
             default -> null;
         };
     }

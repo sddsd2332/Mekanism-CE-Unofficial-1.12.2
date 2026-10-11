@@ -5,15 +5,7 @@ import mekanism.qioprocessing.common.block.BlockQIOCraftingProcessor;
 import mekanism.qioprocessing.common.block.BlockQIOProcessingTerminal;
 import mekanism.qioprocessing.common.item.ItemBlockQIOCraftingProcessor;
 import mekanism.qioprocessing.common.item.ItemBlockQIOProcessingTerminal;
-import mekanism.qioprocessing.common.tile.TileEntityAdvancedQIOCraftingProcessor;
-import mekanism.qioprocessing.common.tile.TileEntityBasicQIOCraftingProcessor;
-import mekanism.qioprocessing.common.tile.TileEntityEliteQIOCraftingProcessor;
-import mekanism.qioprocessing.common.tile.TileEntityQIOCraftingProcessor;
-import mekanism.qioprocessing.common.tile.TileEntityUltimateQIOCraftingProcessor;
-import mekanism.qioprocessing.common.tile.TileEntityQIOManagementTerminal;
-import mekanism.qioprocessing.common.tile.TileEntityQIOSmartProcessingTerminal;
-import mekanism.qioprocessing.common.tile.TileEntityQIOMaintenanceTerminal;
-import mekanism.qioprocessing.common.tile.TileEntityQIOCraftingMonitor;
+import mekanism.qioprocessing.common.tile.*;
 import net.minecraft.block.Block;
 import net.minecraft.item.Item;
 import net.minecraft.util.ResourceLocation;
@@ -30,23 +22,23 @@ import net.minecraftforge.registries.IForgeRegistry;
 public final class QIOProcessingBlocks {
 
     public static final Block QIOCraftingProcessor = new BlockQIOCraftingProcessor(
-          TileEntityQIOCraftingProcessor::new);
+            TileEntityQIOCraftingProcessor::new);
     public static final Block BasicQIOCraftingProcessor = new BlockQIOCraftingProcessor(
-          TileEntityBasicQIOCraftingProcessor::new);
+            TileEntityBasicQIOCraftingProcessor::new);
     public static final Block AdvancedQIOCraftingProcessor = new BlockQIOCraftingProcessor(
-          TileEntityAdvancedQIOCraftingProcessor::new);
+            TileEntityAdvancedQIOCraftingProcessor::new);
     public static final Block EliteQIOCraftingProcessor = new BlockQIOCraftingProcessor(
-          TileEntityEliteQIOCraftingProcessor::new);
+            TileEntityEliteQIOCraftingProcessor::new);
     public static final Block UltimateQIOCraftingProcessor = new BlockQIOCraftingProcessor(
-          TileEntityUltimateQIOCraftingProcessor::new);
+            TileEntityUltimateQIOCraftingProcessor::new);
     public static final Block QIOManagementTerminal = new BlockQIOProcessingTerminal(
-          TileEntityQIOManagementTerminal::new);
+            TileEntityQIOManagementTerminal::new);
     public static final Block QIOSmartProcessingTerminal = new BlockQIOProcessingTerminal(
-          TileEntityQIOSmartProcessingTerminal::new);
+            TileEntityQIOSmartProcessingTerminal::new);
     public static final Block QIOMaintenanceTerminal = new BlockQIOProcessingTerminal(
-          TileEntityQIOMaintenanceTerminal::new);
+            TileEntityQIOMaintenanceTerminal::new);
     public static final Block QIOCraftingMonitor = new BlockQIOProcessingTerminal(
-          TileEntityQIOCraftingMonitor::new);
+            TileEntityQIOCraftingMonitor::new);
 
     private QIOProcessingBlocks() {
     }
@@ -77,13 +69,13 @@ public final class QIOProcessingBlocks {
 
     private static void registerItemBlock(IForgeRegistry<Item> registry, Block block, String name) {
         registry.register(new ItemBlockQIOCraftingProcessor(block).setTranslationKey(name)
-              .setRegistryName(id(name)));
+                .setRegistryName(id(name)));
     }
 
     private static void registerTerminalItemBlock(IForgeRegistry<Item> registry,
-          Block block, String name) {
+                                                  Block block, String name) {
         registry.register(new ItemBlockQIOProcessingTerminal(block)
-              .setTranslationKey(name).setRegistryName(id(name)));
+                .setTranslationKey(name).setRegistryName(id(name)));
     }
 
     private static Block init(Block block, String name) {

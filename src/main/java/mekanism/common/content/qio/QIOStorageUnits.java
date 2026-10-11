@@ -5,7 +5,9 @@ import mekanism.api.qio.resource.QIOResourceDescriptor;
 import javax.annotation.Nonnull;
 import java.math.BigInteger;
 
-/** Fixed-point conversion used by every QIO count-capacity calculation. */
+/**
+ * Fixed-point conversion used by every QIO count-capacity calculation.
+ */
 public final class QIOStorageUnits {
 
     public static final long UNITS_PER_ITEM = 1_000L;
@@ -44,7 +46,9 @@ public final class QIOStorageUnits {
         return toStorageUnits(QIOResourceKind.ITEM, countCapacity);
     }
 
-    /** Converts exact storage units to the integer count shown by mixed QIO views. */
+    /**
+     * Converts exact storage units to the integer count shown by mixed QIO views.
+     */
     public static long toItemEquivalent(long storageUnits) {
         if (storageUnits <= 0) {
             return 0;
@@ -57,17 +61,17 @@ public final class QIOStorageUnits {
     }
 
     public static long getInsertableAmount(@Nonnull QIOResourceKind kind, long requested,
-          @Nonnull BigInteger availableStorageUnits) {
+                                           @Nonnull BigInteger availableStorageUnits) {
         return getInsertableAmount(getUnitsPerResource(kind), requested, availableStorageUnits);
     }
 
     public static long getInsertableAmount(@Nonnull QIOResourceDescriptor descriptor, long requested,
-          @Nonnull BigInteger availableStorageUnits) {
+                                           @Nonnull BigInteger availableStorageUnits) {
         return getInsertableAmount(descriptor.getStorageUnitsPerUnit(), requested, availableStorageUnits);
     }
 
     public static long getInsertableAmount(long unitsPerResource, long requested,
-          @Nonnull BigInteger availableStorageUnits) {
+                                           @Nonnull BigInteger availableStorageUnits) {
         if (requested <= 0 || availableStorageUnits.signum() <= 0) {
             return 0;
         }

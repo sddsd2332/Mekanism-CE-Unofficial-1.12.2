@@ -24,14 +24,14 @@ public final class ExtendedFluidHandlerUtils {
 
     @Nullable
     public static FluidStack insert(@Nullable FluidStack stack, Action action, IntSupplier tankCount, FluidInTankGetter inTankGetter,
-          InsertFluid insertFluid) {
+                                    InsertFluid insertFluid) {
         return insert(stack, null, action, side -> tankCount.getAsInt(), (tank, side) -> inTankGetter.getFluidInTank(tank),
-              (tank, toInsert, side, insertAction) -> insertFluid.insert(tank, toInsert, insertAction));
+                (tank, toInsert, side, insertAction) -> insertFluid.insert(tank, toInsert, insertAction));
     }
 
     @Nullable
     public static FluidStack insert(@Nullable FluidStack stack, @Nullable EnumFacing side, Action action, ToIntFunction<EnumFacing> tankCount,
-          InContainerGetter<FluidStack> inTankGetter, ContainerInteraction<FluidStack> insertFluid) {
+                                    InContainerGetter<FluidStack> inTankGetter, ContainerInteraction<FluidStack> insertFluid) {
         if (isEmpty(stack)) {
             return null;
         }
@@ -67,7 +67,7 @@ public final class ExtendedFluidHandlerUtils {
 
     @Nullable
     public static FluidStack insert(@Nullable FluidStack stack, @Nullable EnumFacing side, Function<EnumFacing, List<IExtendedFluidTank>> fluidTankSupplier,
-          Action action, AutomationType automationType) {
+                                    Action action, AutomationType automationType) {
         if (isEmpty(stack)) {
             return null;
         }
@@ -110,12 +110,12 @@ public final class ExtendedFluidHandlerUtils {
     @Nullable
     public static FluidStack extract(int amount, Action action, IntSupplier tankCount, FluidInTankGetter inTankGetter, ExtractFluid extractFluid) {
         return extract(amount, null, action, side -> tankCount.getAsInt(), (tank, side) -> inTankGetter.getFluidInTank(tank),
-              (tank, toExtract, side, extractAction) -> extractFluid.extract(tank, toExtract, extractAction));
+                (tank, toExtract, side, extractAction) -> extractFluid.extract(tank, toExtract, extractAction));
     }
 
     @Nullable
     public static FluidStack extract(int amount, @Nullable EnumFacing side, Action action, ToIntFunction<EnumFacing> tankCount,
-          InContainerGetter<FluidStack> inTankGetter, IntContainerInteraction<FluidStack> extractFluid) {
+                                     InContainerGetter<FluidStack> inTankGetter, IntContainerInteraction<FluidStack> extractFluid) {
         if (amount <= 0) {
             return null;
         }
@@ -149,7 +149,7 @@ public final class ExtendedFluidHandlerUtils {
 
     @Nullable
     public static FluidStack extract(int amount, @Nullable EnumFacing side, Function<EnumFacing, List<IExtendedFluidTank>> fluidTankSupplier,
-          Action action, AutomationType automationType) {
+                                     Action action, AutomationType automationType) {
         if (amount <= 0) {
             return null;
         }
@@ -187,14 +187,14 @@ public final class ExtendedFluidHandlerUtils {
 
     @Nullable
     public static FluidStack extract(@Nullable FluidStack stack, Action action, IntSupplier tankCount, FluidInTankGetter inTankGetter,
-          ExtractFluid extractFluid) {
+                                     ExtractFluid extractFluid) {
         return extract(stack, null, action, side -> tankCount.getAsInt(), (tank, side) -> inTankGetter.getFluidInTank(tank),
-              (tank, toExtract, side, extractAction) -> extractFluid.extract(tank, toExtract, extractAction));
+                (tank, toExtract, side, extractAction) -> extractFluid.extract(tank, toExtract, extractAction));
     }
 
     @Nullable
     public static FluidStack extract(@Nullable FluidStack stack, @Nullable EnumFacing side, Action action, ToIntFunction<EnumFacing> tankCount,
-          InContainerGetter<FluidStack> inTankGetter, IntContainerInteraction<FluidStack> extractFluid) {
+                                     InContainerGetter<FluidStack> inTankGetter, IntContainerInteraction<FluidStack> extractFluid) {
         if (isEmpty(stack)) {
             return null;
         }
@@ -232,7 +232,7 @@ public final class ExtendedFluidHandlerUtils {
 
     @Nullable
     public static FluidStack extract(@Nullable FluidStack stack, @Nullable EnumFacing side, Function<EnumFacing, List<IExtendedFluidTank>> fluidTankSupplier,
-          Action action, AutomationType automationType) {
+                                     Action action, AutomationType automationType) {
         if (isEmpty(stack)) {
             return null;
         }

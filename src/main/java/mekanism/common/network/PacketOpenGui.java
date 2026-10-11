@@ -37,7 +37,7 @@ public class PacketOpenGui implements IMessageHandler<OpenGui, IMessage> {
                 // Block and entity GUIs are opened by the server through Forge's GUI handler.
                 if (message.guiHandler == CORE_GUI_HANDLER && message.guiId == MODULE_TWEAKER_GUI) {
                     OpenGui.openServerGui(message.guiHandler, message.guiId, (EntityPlayerMP) player, player.world,
-                          Coord4D.get(player));
+                            Coord4D.get(player));
                 }
             } else {
                 GuiScreen gui = OpenGui.getGui(message.guiHandler, message.guiId, player, player.world, message.coord4D);

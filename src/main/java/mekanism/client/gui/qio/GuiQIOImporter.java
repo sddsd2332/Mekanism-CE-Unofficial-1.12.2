@@ -20,9 +20,9 @@ public class GuiQIOImporter extends GuiQIOFilterHandler<TileEntityQIOImporter, C
     protected void addGuiElements() {
         super.addGuiElements();
         addButton(new GuiScreenSwitch(this, 9, 122, xSize - 18, MekanismLang.QIO_IMPORT_WITHOUT_FILTER.translate(),
-              tileEntity::getImportWithoutFilter, (element, mouseX, mouseY) -> {
-                  PacketQIOComponentConfig.toggleFilterless(tileEntity);
-                  return true;
-              }));
+                tileEntity::getImportWithoutFilter, (element, mouseX, mouseY) -> {
+            PacketQIOComponentConfig.toggleFilterless(tileEntity);
+            return true;
+        }));
     }
 }

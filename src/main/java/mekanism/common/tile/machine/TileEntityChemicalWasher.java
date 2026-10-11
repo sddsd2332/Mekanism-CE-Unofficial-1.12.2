@@ -60,12 +60,12 @@ public class TileEntityChemicalWasher extends TileEntityBasicMachine<GasAndFluid
     public static final int MAX_GAS = 10000;
     public static final int MAX_FLUID = 10000;
     private static final List<RecipeError> TRACKED_ERROR_TYPES = Arrays.asList(
-          RecipeError.NOT_ENOUGH_ENERGY,
-          RecipeError.NOT_ENOUGH_ENERGY_REDUCED_RATE,
-          RecipeError.NOT_ENOUGH_INPUT,
-          RecipeError.NOT_ENOUGH_SECONDARY_INPUT,
-          RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
-          RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
+            RecipeError.NOT_ENOUGH_ENERGY,
+            RecipeError.NOT_ENOUGH_ENERGY_REDUCED_RATE,
+            RecipeError.NOT_ENOUGH_INPUT,
+            RecipeError.NOT_ENOUGH_SECONDARY_INPUT,
+            RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
+            RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
     );
     public static int WATER_USAGE = 5;
     public BasicFluidTank fluidTank;
@@ -95,7 +95,7 @@ public class TileEntityChemicalWasher extends TileEntityBasicMachine<GasAndFluid
         configComponent.setInputConfig(TransmissionType.ENERGY);
         ejectorComponent = new TileComponentEjector(this);
         ejectorComponent.setOutputData(configComponent, TransmissionType.ITEM, TransmissionType.GAS)
-              .setCanTankEject(tank -> tank != inputTank);
+                .setCanTankEject(tank -> tank != inputTank);
     }
 
     @Override
@@ -181,7 +181,7 @@ public class TileEntityChemicalWasher extends TileEntityBasicMachine<GasAndFluid
     @Override
     protected boolean isAsyncUpdateIdle() {
         return inputTank.isEmpty() && fluidTank.isEmpty() && inputSlot.isEmpty() && gasSlot.isEmpty() && energySlot.isEmpty() &&
-              clientEnergyUsed == 0 && currentRedstoneLevel == getRedstoneLevel() && isEmptyRecipeStateSettled();
+                clientEnergyUsed == 0 && currentRedstoneLevel == getRedstoneLevel() && isEmptyRecipeStateSettled();
     }
 
     @Override
@@ -247,26 +247,26 @@ public class TileEntityChemicalWasher extends TileEntityBasicMachine<GasAndFluid
     @Override
     public CachedRecipe<WasherRecipe> createNewCachedRecipe(WasherRecipe recipe, int cacheIndex) {
         return new TwoInputCachedRecipe<>(recipe, this::shouldRecheckAllRecipeErrors,
-              InputHelper.getGasInputHandler(inputTank, RecipeError.NOT_ENOUGH_INPUT),
-              InputHelper.getFluidInputHandler(fluidTank, RecipeError.NOT_ENOUGH_SECONDARY_INPUT),
-              OutputHelper.getGasOutputHandler(outputTank, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
-              () -> recipe.getInput().ingredientGas, () -> recipe.getInput().ingredientFluid,
-              (gas, fluid) -> gas != null && gas.isGasEqual(recipe.getInput().ingredientGas)
-                    && fluid != null && fluid.isFluidEqual(recipe.getInput().ingredientFluid),
-              (gas, fluid) -> recipe.getOutput().output.copy(), gas -> gas == null || gas.amount <= 0,
-              fluid -> fluid == null || fluid.amount <= 0, output -> output == null || output.amount <= 0)
-              .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
-              .setActive(active -> {
-                  if (active || prevEnergy >= getEnergy()) {
-                      setActive(active);
-                  }
-              })
-              .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
-              .setRequiredTicks(() -> ticksRequired)
-              .setBaselineMaxOperations(() -> getUpgradedUsage(recipe))
-              .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
-              .setErrorsChanged(this::onRecipeErrorsChanged)
-              .setOnFinish(this::onCachedRecipeFinish);
+                InputHelper.getGasInputHandler(inputTank, RecipeError.NOT_ENOUGH_INPUT),
+                InputHelper.getFluidInputHandler(fluidTank, RecipeError.NOT_ENOUGH_SECONDARY_INPUT),
+                OutputHelper.getGasOutputHandler(outputTank, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
+                () -> recipe.getInput().ingredientGas, () -> recipe.getInput().ingredientFluid,
+                (gas, fluid) -> gas != null && gas.isGasEqual(recipe.getInput().ingredientGas)
+                        && fluid != null && fluid.isFluidEqual(recipe.getInput().ingredientFluid),
+                (gas, fluid) -> recipe.getOutput().output.copy(), gas -> gas == null || gas.amount <= 0,
+                fluid -> fluid == null || fluid.amount <= 0, output -> output == null || output.amount <= 0)
+                .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
+                .setActive(active -> {
+                    if (active || prevEnergy >= getEnergy()) {
+                        setActive(active);
+                    }
+                })
+                .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
+                .setRequiredTicks(() -> ticksRequired)
+                .setBaselineMaxOperations(() -> getUpgradedUsage(recipe))
+                .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
+                .setErrorsChanged(this::onRecipeErrorsChanged)
+                .setOnFinish(this::onCachedRecipeFinish);
     }
 
     @Override
@@ -387,6 +387,11 @@ public class TileEntityChemicalWasher extends TileEntityBasicMachine<GasAndFluid
     @Override
     public Object[] getManagedTanks() {
         return new Object[]{fluidTank, inputTank, outputTank};
+    }
+
+    @Override
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return type == mekanism.api.transmitters.TransmissionType.GAS;
     }
 
     @Override

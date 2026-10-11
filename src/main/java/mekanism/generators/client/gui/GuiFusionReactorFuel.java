@@ -37,9 +37,9 @@ public class GuiFusionReactorFuel extends GuiFusionReactorInfo {
         addButton(new GuiFusionReactorTab(this, tileEntity, FusionReactorTab.HEAT));
         addButton(new GuiFusionReactorTab(this, tileEntity, FusionReactorTab.STAT));
         injectionRateField = addButton(new GuiTextField(this, 0, 103, 115, 26, 11)
-              .setMaxLength(Integer.toString(MekanismConfig.current().generators.reactorGeneratorInjectionRate.val()).length())
-              .setInputValidator(isDigitOrTextboxKey())
-              .setEnterHandler(this::setInjection));
+                .setMaxLength(Integer.toString(MekanismConfig.current().generators.reactorGeneratorInjectionRate.val()).length())
+                .setInputValidator(isDigitOrTextboxKey())
+                .setEnterHandler(this::setInjection));
     }
 
     @Override
@@ -52,7 +52,7 @@ public class GuiFusionReactorFuel extends GuiFusionReactorInfo {
 
     private BiPredicate<Character, Integer> isDigitOrTextboxKey() {
         return (c, keyCode) -> Character.isDigit(c) || keyCode == Keyboard.KEY_BACK || keyCode == Keyboard.KEY_DELETE || keyCode == Keyboard.KEY_LEFT ||
-              keyCode == Keyboard.KEY_RIGHT || keyCode == Keyboard.KEY_HOME || keyCode == Keyboard.KEY_END;
+                keyCode == Keyboard.KEY_RIGHT || keyCode == Keyboard.KEY_HOME || keyCode == Keyboard.KEY_END;
     }
 
     private void setInjection() {

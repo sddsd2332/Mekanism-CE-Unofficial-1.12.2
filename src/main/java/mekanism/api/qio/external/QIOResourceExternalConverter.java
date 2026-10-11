@@ -6,7 +6,9 @@ import net.minecraft.util.ResourceLocation;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-/** Explicit identity conversion between one QIO codec and one external storage system. */
+/**
+ * Explicit identity conversion between one QIO codec and one external storage system.
+ */
 public interface QIOResourceExternalConverter<T> {
 
     @Nonnull

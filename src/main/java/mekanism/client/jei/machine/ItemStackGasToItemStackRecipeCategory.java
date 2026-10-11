@@ -1,8 +1,8 @@
 package mekanism.client.jei.machine;
 
 import mekanism.api.gas.GasStack;
-import mekanism.client.gui.element.bar.GuiEmptyBar;
 import mekanism.client.gui.element.bar.GuiBar;
+import mekanism.client.gui.element.bar.GuiEmptyBar;
 import mekanism.client.gui.element.bar.GuiVerticalPowerBar;
 import mekanism.client.gui.element.progress.ProgressType;
 import mekanism.client.gui.element.slot.GuiSlot;
@@ -22,7 +22,7 @@ import mezz.jei.api.ingredients.IIngredients;
 import java.util.Collections;
 
 public class ItemStackGasToItemStackRecipeCategory<RECIPE extends AdvancedMachineRecipe<RECIPE>, WRAPPER extends AdvancedMachineRecipeWrapper<RECIPE>>
-      extends BaseRecipeCategory<WRAPPER> {
+        extends BaseRecipeCategory<WRAPPER> {
 
     private final GuiBar<?> gasInput;
     private final GuiSlot input;

@@ -45,7 +45,7 @@ public class ItemElectricBow extends ItemEnergized implements IModeItem, IItemHU
             public float apply(ItemStack stack, @Nullable World worldIn, @Nullable EntityLivingBase entityIn) {
                 if (entityIn == null) {
                     return 0.0F;
-                }else {
+                } else {
                     return !(entityIn.getActiveItemStack().getItem() instanceof ItemElectricBow) ? 0.0F : (float) (stack.getMaxItemUseDuration() - entityIn.getItemInUseCount()) / 20.0F;
                 }
             }
@@ -95,7 +95,7 @@ public class ItemElectricBow extends ItemEnergized implements IModeItem, IItemHU
                     EntityArrow entityarrow = itemarrow.createArrow(world, itemstack, player);
                     entityarrow.shoot(player, player.rotationPitch, player.rotationYaw, 0.0F, f * 3.0F, 1.0F);
                     if (f == 1.0F) {
-                    entityarrow.setIsCritical(true);
+                        entityarrow.setIsCritical(true);
                     }
                     if (!player.capabilities.isCreativeMode) {
                         StorageUtils.extractFromContainer(itemstack, getFireState(itemstack) ? 1200 : 120, Action.EXECUTE);
@@ -191,7 +191,7 @@ public class ItemElectricBow extends ItemEnergized implements IModeItem, IItemHU
         if (Math.abs(shift) % 2 == 1) {
             boolean newState = !getFireState(stack);
             setFireState(stack, newState);
-            displayChange.sendMessage(player,()->new TextComponentGroup().translation("mekanism.tooltip.fireMode", LangUtils.onOffColoured(newState)));
+            displayChange.sendMessage(player, () -> new TextComponentGroup().translation("mekanism.tooltip.fireMode", LangUtils.onOffColoured(newState)));
         }
     }
 

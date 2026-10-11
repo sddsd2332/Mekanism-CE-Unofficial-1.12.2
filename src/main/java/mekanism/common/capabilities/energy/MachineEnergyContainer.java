@@ -5,7 +5,6 @@ import mekanism.api.AutomationType;
 import mekanism.api.IContentsListener;
 import mekanism.api.energy.IEnergyContainer;
 import mekanism.api.heat.HeatAPI;
-import mekanism.common.util.MachineStressDiagnostics;
 import net.minecraft.util.EnumFacing;
 
 import javax.annotation.Nullable;
@@ -25,7 +24,7 @@ import java.util.function.Predicate;
 public class MachineEnergyContainer implements IEnergyContainer {
 
     public static MachineEnergyContainer input(DoubleSupplier stored, DoubleConsumer setter, DoubleSupplier maxEnergy, DoubleSupplier energyPerTick,
-          @Nullable IContentsListener listener) {
+                                               @Nullable IContentsListener listener) {
         Objects.requireNonNull(stored, "Stored energy supplier cannot be null");
         Objects.requireNonNull(setter, "Stored energy setter cannot be null");
         Objects.requireNonNull(maxEnergy, "Max energy supplier cannot be null");
@@ -34,7 +33,7 @@ public class MachineEnergyContainer implements IEnergyContainer {
     }
 
     public static MachineEnergyContainer internal(DoubleSupplier stored, DoubleConsumer setter, DoubleSupplier maxEnergy, DoubleSupplier energyPerTick,
-          @Nullable IContentsListener listener) {
+                                                  @Nullable IContentsListener listener) {
         Objects.requireNonNull(stored, "Stored energy supplier cannot be null");
         Objects.requireNonNull(setter, "Stored energy setter cannot be null");
         Objects.requireNonNull(maxEnergy, "Max energy supplier cannot be null");
@@ -43,7 +42,7 @@ public class MachineEnergyContainer implements IEnergyContainer {
     }
 
     public static MachineEnergyContainer create(DoubleSupplier stored, DoubleConsumer setter, DoubleSupplier maxEnergy, DoubleSupplier energyPerTick,
-          Predicate<AutomationType> canExtract, Predicate<AutomationType> canInsert, @Nullable IContentsListener listener) {
+                                                Predicate<AutomationType> canExtract, Predicate<AutomationType> canInsert, @Nullable IContentsListener listener) {
         Objects.requireNonNull(stored, "Stored energy supplier cannot be null");
         Objects.requireNonNull(setter, "Stored energy setter cannot be null");
         Objects.requireNonNull(maxEnergy, "Max energy supplier cannot be null");
@@ -63,7 +62,7 @@ public class MachineEnergyContainer implements IEnergyContainer {
     private final IContentsListener listener;
 
     protected MachineEnergyContainer(DoubleSupplier stored, DoubleConsumer setter, DoubleSupplier maxEnergy, DoubleSupplier energyPerTick,
-          Predicate<AutomationType> canExtract, Predicate<AutomationType> canInsert, @Nullable IContentsListener listener) {
+                                     Predicate<AutomationType> canExtract, Predicate<AutomationType> canInsert, @Nullable IContentsListener listener) {
         this.stored = stored;
         this.setter = setter;
         this.maxEnergy = maxEnergy;
@@ -74,12 +73,7 @@ public class MachineEnergyContainer implements IEnergyContainer {
     }
 
     public void onContentsChanged() {
-        MachineStressDiagnostics.Source previous = MachineStressDiagnostics.ENABLED ? MachineStressDiagnostics.beginNotification(this) : null;
-        try {
-            if (listener != null) listener.onContentsChanged();
-        } finally {
-            if (MachineStressDiagnostics.ENABLED) MachineStressDiagnostics.endNotification(previous);
-        }
+        if (listener != null) listener.onContentsChanged();
     }
 
     @Override
@@ -93,7 +87,6 @@ public class MachineEnergyContainer implements IEnergyContainer {
         double clamped = HeatAPI.isFinite(energy) ? Math.max(0, Math.min(energy, getMaxEnergy())) : 0;
         if (Double.compare(getEnergy(), clamped) != 0) {
             setter.accept(clamped);
-            if (MachineStressDiagnostics.ENABLED) MachineStressDiagnostics.record(this, "energy_write");
             onContentsChanged();
         }
     }

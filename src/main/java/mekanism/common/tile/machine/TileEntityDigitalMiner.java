@@ -57,12 +57,7 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.tileentity.TileEntityShulkerBox;
 import net.minecraft.util.EnumFacing;
-import net.minecraft.util.math.AxisAlignedBB;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.ChunkPos;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3i;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.math.*;
 import net.minecraft.world.IBlockAccess;
 import net.minecraft.world.WorldServer;
 import net.minecraftforge.common.MinecraftForge;
@@ -188,7 +183,7 @@ public class TileEntityDigitalMiner extends TileEntityElectricBlock implements I
         for (int slotY = 0; slotY < 3; slotY++) {
             for (int slotX = 0; slotX < 9; slotX++) {
                 BasicInventorySlot slot = BasicInventorySlot.at((stack, automationType) -> automationType != AutomationType.EXTERNAL || !isReplaceStack(stack),
-                      (stack, automationType) -> automationType != AutomationType.EXTERNAL || isReplaceStack(stack), listener, 8 + slotX * 18, 92 + slotY * 18);
+                        (stack, automationType) -> automationType != AutomationType.EXTERNAL || isReplaceStack(stack), listener, 8 + slotX * 18, 92 + slotY * 18);
                 builder.addSlot(slot, RelativeSide.BACK, RelativeSide.TOP);
                 mainSlots.add(slot);
             }
@@ -268,7 +263,9 @@ public class TileEntityDigitalMiner extends TileEntityElectricBlock implements I
         prevEnergy = getEnergy();
     }
 
-    /** Keeps destination acceptance and source consumption inside one local transaction. */
+    /**
+     * Keeps destination acceptance and source consumption inside one local transaction.
+     */
     void ejectOutputsAtomically() {
         runContainerTransaction(this::ejectOutputsInTransaction);
     }
@@ -284,11 +281,11 @@ public class TileEntityDigitalMiner extends TileEntityElectricBlock implements I
             return;
         }
         ILogisticalTransporter capability = CapabilityUtils.getCapability(ejectInv,
-              Capabilities.LOGISTICAL_TRANSPORTER_CAPABILITY, facing.getOpposite());
+                Capabilities.LOGISTICAL_TRANSPORTER_CAPABILITY, facing.getOpposite());
         TransitResponse response;
         if (capability == null) {
             response = InventoryUtils.putStackInInventory(ejectInv, ejectMap,
-                  facing.getOpposite(), false);
+                    facing.getOpposite(), false);
         } else {
             response = TransporterUtils.insert(ejectTile, capability, ejectMap, null, true, 0);
         }
@@ -560,7 +557,7 @@ public class TileEntityDigitalMiner extends TileEntityElectricBlock implements I
         EnumFacing outputSide = facing.getOpposite();
         IItemHandler handler = getItemHandler(outputSide);
         return handler == null ? new HandlerTransitRequest(null) : InventoryUtils.getEjectItemMap(
-              handler, getInventorySlots(outputSide), slot -> !isContainerExtractionGuarded(slot));
+                handler, getInventorySlots(outputSide), slot -> !isContainerExtractionGuarded(slot));
     }
 
     public boolean canInsert(List<ItemStack> stacks) {
@@ -1116,8 +1113,8 @@ public class TileEntityDigitalMiner extends TileEntityElectricBlock implements I
                 MinerFilter filter = iter.next();
                 if (filter instanceof MItemStackFilter) {
                     if (MekanismUtils.getID(((MItemStackFilter) filter).getItemStack()) == id) {
-                            filterManager.removeFilter(filter);
-                            return new Object[]{"Removed filter."};
+                        filterManager.removeFilter(filter);
+                        return new Object[]{"Removed filter."};
                     }
                 }
             }
@@ -1139,8 +1136,8 @@ public class TileEntityDigitalMiner extends TileEntityElectricBlock implements I
                 MinerFilter filter = iter.next();
                 if (filter instanceof MOreDictFilter) {
                     if (((MOreDictFilter) filter).getOreDictName().equals(ore)) {
-                            filterManager.removeFilter(filter);
-                            return new Object[]{"Removed filter."};
+                        filterManager.removeFilter(filter);
+                        return new Object[]{"Removed filter."};
                     }
                 }
             }
@@ -1515,7 +1512,7 @@ public class TileEntityDigitalMiner extends TileEntityElectricBlock implements I
             return machineBounds;
         }
         return machineBounds.union(getVisualizationRenderBoundingBox(getPos(), getRadius(), minY, maxY))
-              .grow(IBoundingBlock.RENDER_BOUNDS_EPSILON);
+                .grow(IBoundingBlock.RENDER_BOUNDS_EPSILON);
     }
 
     public static AxisAlignedBB getVisualizationRenderBoundingBox(BlockPos pos, int radius, int minY, int maxY) {
@@ -1523,7 +1520,7 @@ public class TileEntityDigitalMiner extends TileEntityElectricBlock implements I
         int renderMinY = Math.min(minY, maxY);
         int renderMaxY = Math.max(minY, maxY);
         return new AxisAlignedBB(pos.getX() - clampedRadius, renderMinY, pos.getZ() - clampedRadius,
-              pos.getX() + clampedRadius + 1D, renderMaxY + 1D, pos.getZ() + clampedRadius + 1D);
+                pos.getX() + clampedRadius + 1D, renderMaxY + 1D, pos.getZ() + clampedRadius + 1D);
     }
 
     @Override
@@ -1540,7 +1537,7 @@ public class TileEntityDigitalMiner extends TileEntityElectricBlock implements I
     public void validate() {
         super.validate();
         if (isRemote()) {
-            if (Mekanism.hooks.Bloom&& MekanismConfig.current().client.enableBloom.val()) {
+            if (Mekanism.hooks.Bloom && MekanismConfig.current().client.enableBloom.val()) {
                 try {
                     new BloomRenderDigitalMiner(this);
                 } catch (LinkageError e) {
@@ -1549,7 +1546,8 @@ public class TileEntityDigitalMiner extends TileEntityElectricBlock implements I
             }
         }
     }
-@Override
+
+    @Override
     public int getBlockGuiID(Block block, int metadata) {
         return BlockStateMachine.MachineType.get(block, metadata) != null ? BlockStateMachine.MachineType.get(block, metadata).guiId : -1;
     }

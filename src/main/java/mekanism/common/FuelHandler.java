@@ -16,7 +16,7 @@ import net.minecraftforge.fml.common.ModAPIManager;
 /**
  /**
  * @author sddsd2332
- * @reason 使用配方系统,来处理这个.
+ * @reason 使用配方系统, 来处理这个.
  */
 public class FuelHandler {
 

@@ -19,7 +19,7 @@ public class TurbineVentFluidTank extends MultiblockFluidTank<TileEntityTurbineC
     @Nullable
     public FluidStack getFluid() {
         return multiblock.structure != null && multiblock.structure.getVentWaterAmount() > 0 ?
-              new FluidStack(FluidRegistry.WATER, multiblock.structure.getVentWaterAmount()) : null;
+                new FluidStack(FluidRegistry.WATER, multiblock.structure.getVentWaterAmount()) : null;
     }
 
     @Override

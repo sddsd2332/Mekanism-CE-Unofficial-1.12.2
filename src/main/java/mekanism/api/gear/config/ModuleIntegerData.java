@@ -12,7 +12,7 @@ import java.util.Objects;
  * @since 10.3.3
  */
 @NothingNullByDefault
-public  class ModuleIntegerData implements ModuleConfigData<Integer>  {
+public class ModuleIntegerData implements ModuleConfigData<Integer> {
 
     private int value;
 
@@ -29,7 +29,6 @@ public  class ModuleIntegerData implements ModuleConfigData<Integer>  {
      * Sanitizes the given value.
      *
      * @param value Value to sanitize.
-     *
      * @return Sanitized value.
      */
     protected int sanitizeValue(int value) {

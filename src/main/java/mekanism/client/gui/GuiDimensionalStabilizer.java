@@ -44,7 +44,7 @@ public class GuiDimensionalStabilizer extends GuiMekanismTile<TileEntityDimensio
         addButton(new GuiVisualsTab<>(this, tileEntity));
         addButton(new GuiEnergyTab(this, tileEntity.getEnergyContainer(), tileEntity::getActive));
         addButton(new GuiVerticalPowerBar(this, tileEntity.getEnergyContainer(), 164, 15)
-              .warning(WarningType.NOT_ENOUGH_ENERGY, () -> tileEntity.getEnergyUsage() > tileEntity.getEnergy()));
+                .warning(WarningType.NOT_ENOUGH_ENERGY, () -> tileEntity.getEnergyUsage() > tileEntity.getEnergy()));
         addChunkButtons();
         addButton(new GuiUpArrow(this, 52, 28));
     }
@@ -56,8 +56,8 @@ public class GuiDimensionalStabilizer extends GuiMekanismTile<TileEntityDimensio
                 final int chunkGridZ = z;
                 if (chunkGridX == TileEntityDimensionalStabilizer.MAX_LOAD_RADIUS && chunkGridZ == TileEntityDimensionalStabilizer.MAX_LOAD_RADIUS) {
                     addButton(new BasicColorButton(this, GRID_START_X + x * GRID_BUTTON_SIZE, GRID_START_Y + z * GRID_BUTTON_SIZE, GRID_BUTTON_SIZE,
-                          () -> EnumColor.DARK_BLUE, () -> handleChunkButton(chunkGridX, chunkGridZ, true),
-                          () -> handleChunkButton(chunkGridX, chunkGridZ, false)) {
+                            () -> EnumColor.DARK_BLUE, () -> handleChunkButton(chunkGridX, chunkGridZ, true),
+                            () -> handleChunkButton(chunkGridX, chunkGridZ, false)) {
                         @Override
                         public void renderToolTip(int mouseX, int mouseY) {
                             super.renderToolTip(mouseX, mouseY);
@@ -66,10 +66,10 @@ public class GuiDimensionalStabilizer extends GuiMekanismTile<TileEntityDimensio
                     });
                 } else {
                     addButton(new TooltipColorButton(this, GRID_START_X + x * GRID_BUTTON_SIZE, GRID_START_Y + z * GRID_BUTTON_SIZE, GRID_BUTTON_SIZE,
-                          EnumColor.DARK_BLUE, () -> tileEntity.isChunkLoadingAt(chunkGridX, chunkGridZ),
-                          () -> handleChunkButton(chunkGridX, chunkGridZ, true),
-                          getToggleChunkButtonTooltips(chunkGridX, chunkGridZ, true),
-                          getToggleChunkButtonTooltips(chunkGridX, chunkGridZ, false)));
+                            EnumColor.DARK_BLUE, () -> tileEntity.isChunkLoadingAt(chunkGridX, chunkGridZ),
+                            () -> handleChunkButton(chunkGridX, chunkGridZ, true),
+                            getToggleChunkButtonTooltips(chunkGridX, chunkGridZ, true),
+                            getToggleChunkButtonTooltips(chunkGridX, chunkGridZ, false)));
                 }
             }
         }

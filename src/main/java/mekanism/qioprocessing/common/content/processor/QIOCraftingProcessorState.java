@@ -12,19 +12,13 @@ import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
-import java.util.LinkedHashSet;
-import java.util.Set;
-import java.util.HashSet;
 import java.nio.charset.StandardCharsets;
+import java.util.*;
 
-/** Durable identity and sparse occupied-lane state shared by all processor tiers. */
+/**
+ * Durable identity and sparse occupied-lane state shared by all processor tiers.
+ */
+
 /**
  * QIO 处理模块中的 QIOCraftingProcessorState 类型。
  *
@@ -57,7 +51,7 @@ public final class QIOCraftingProcessorState {
     private transient Runnable dirtyListener;
 
     private QIOCraftingProcessorState(UUID processorUUID, ResourceLocation hostId,
-          ResourceLocation definitionId, String definitionSignature) {
+                                      ResourceLocation definitionId, String definitionSignature) {
         this.processorUUID = Objects.requireNonNull(processorUUID, "processorUUID");
         this.hostId = Objects.requireNonNull(hostId, "hostId");
         this.definitionId = Objects.requireNonNull(definitionId, "definitionId");
@@ -67,10 +61,10 @@ public final class QIOCraftingProcessorState {
 
     @Nonnull
     public static QIOCraftingProcessorState create(@Nonnull ResourceLocation hostId,
-          @Nonnull QIOCraftingProcessorDefinition definition) {
+                                                   @Nonnull QIOCraftingProcessorDefinition definition) {
         Objects.requireNonNull(definition, "definition");
         return new QIOCraftingProcessorState(UUID.randomUUID(), hostId, definition.getId(),
-              definition.getSignature());
+                definition.getSignature());
     }
 
     @Nonnull
@@ -133,20 +127,20 @@ public final class QIOCraftingProcessorState {
 
     @Nullable
     public QIOProcessorLaneRuntime acquireLane(@Nonnull UUID operationId, @Nonnull UUID jobId,
-          int planRevision, @Nonnull String routeKey) {
+                                               int planRevision, @Nonnull String routeKey) {
         return acquireLane(operationId, jobId, planRevision, routeKey, 1);
     }
 
     @Nullable
     public QIOProcessorLaneRuntime acquireLane(@Nonnull UUID operationId, @Nonnull UUID jobId,
-          int planRevision, @Nonnull String routeKey, long operationCount) {
+                                               int planRevision, @Nonnull String routeKey, long operationCount) {
         QIOCraftingProcessorDefinition definition = getResolvedDefinition();
         if (definition == null || (long) activeLanes.size() >= definition.getLaneCount()) {
             return null;
         }
         Long candidate = findAvailableLaneId();
         return candidate == null ? null : acquireLane(candidate, operationId, jobId, planRevision,
-              routeKey, operationCount);
+                routeKey, operationCount);
     }
 
     @Nullable
@@ -171,28 +165,28 @@ public final class QIOCraftingProcessorState {
 
     @Nullable
     public QIOProcessorLaneRuntime acquireLane(long laneId, @Nonnull UUID operationId,
-          @Nonnull UUID jobId, int planRevision, @Nonnull String routeKey) {
+                                               @Nonnull UUID jobId, int planRevision, @Nonnull String routeKey) {
         return acquireLane(laneId, operationId, jobId, planRevision, routeKey, 1);
     }
 
     @Nullable
     public QIOProcessorLaneRuntime acquireLane(long laneId, @Nonnull UUID operationId,
-          @Nonnull UUID jobId, int planRevision, @Nonnull String routeKey,
-          long operationCount) {
+                                               @Nonnull UUID jobId, int planRevision, @Nonnull String routeKey,
+                                               long operationCount) {
         QIOCraftingProcessorDefinition definition = getResolvedDefinition();
         if (definition == null || laneId < 0 || laneId >= definition.getLaneCount() ||
-              (long) activeLanes.size() >= definition.getLaneCount()) {
+                (long) activeLanes.size() >= definition.getLaneCount()) {
             return null;
         }
         QIOProcessorLaneRuntime existing = activeLanes.get(laneId);
         if (existing != null) {
             return existing.getOperationId().equals(operationId) &&
-                  existing.getJobId().equals(jobId) && existing.getPlanRevision() == planRevision &&
-                  existing.getRouteKey().equals(routeKey) &&
-                  existing.getOperationCount() == operationCount ? existing : null;
+                    existing.getJobId().equals(jobId) && existing.getPlanRevision() == planRevision &&
+                    existing.getRouteKey().equals(routeKey) &&
+                    existing.getOperationCount() == operationCount ? existing : null;
         }
         QIOProcessorLaneRuntime lane = QIOProcessorLaneRuntime.loading(laneId, operationId, jobId,
-              planRevision, routeKey, operationCount);
+                planRevision, routeKey, operationCount);
         activeLanes.put(laneId, lane);
         persistedSettledOperations.remove(operationId);
         lane.setDirtyListener(dirtyListener);
@@ -204,7 +198,7 @@ public final class QIOCraftingProcessorState {
     public boolean removeSettledLane(long laneId, @Nonnull UUID operationId) {
         QIOProcessorLaneRuntime lane = activeLanes.get(laneId);
         if (lane == null || !lane.getOperationId().equals(Objects.requireNonNull(operationId,
-              "operationId")) || !lane.isSettled()) {
+                "operationId")) || !lane.isSettled()) {
             return false;
         }
         activeLanes.remove(laneId);
@@ -219,15 +213,15 @@ public final class QIOCraftingProcessorState {
 
     public boolean isPersistedSettledOperation(@Nonnull UUID operationId) {
         return persistedSettledOperations.contains(Objects.requireNonNull(operationId,
-              "operationId"));
+                "operationId"));
     }
 
     /** Confirms one settled lane was included in an endpoint persistence snapshot. */
     public boolean confirmSettledLanePersisted(@Nonnull UUID operationId) {
         UUID checked = Objects.requireNonNull(operationId, "operationId");
         QIOProcessorLaneRuntime lane = activeLanes.values().stream()
-              .filter(candidate -> checked.equals(candidate.getOperationId()))
-              .findFirst().orElse(null);
+                .filter(candidate -> checked.equals(candidate.getOperationId()))
+                .findFirst().orElse(null);
         if (lane != null && lane.isSettled()) {
             return persistedSettledOperations.add(checked);
         }
@@ -237,14 +231,14 @@ public final class QIOCraftingProcessorState {
     public boolean confirmSettledLanesPersisted() {
         int before = persistedSettledOperations.size();
         activeLanes.values().stream().filter(QIOProcessorLaneRuntime::isSettled)
-              .map(QIOProcessorLaneRuntime::getOperationId)
-              .forEach(persistedSettledOperations::add);
+                .map(QIOProcessorLaneRuntime::getOperationId)
+                .forEach(persistedSettledOperations::add);
         return persistedSettledOperations.size() != before;
     }
 
     /** Re-evaluates a previously missing addon definition without changing persisted identity. */
     public boolean reconcile(@Nonnull ResourceLocation expectedHostId,
-          @Nonnull ResourceLocation expectedDefinitionId) {
+                             @Nonnull ResourceLocation expectedDefinitionId) {
         normalizeLegacyState(expectedHostId, expectedDefinitionId);
         if (state == State.DATA_ERROR) return false;
         String problem = resolutionProblem(expectedHostId, expectedDefinitionId);
@@ -292,7 +286,7 @@ public final class QIOCraftingProcessorState {
         }
         NBTTagList lanes = new NBTTagList();
         activeLanes.values().stream().sorted((left, right) -> Long.compare(left.getLaneId(),
-              right.getLaneId())).forEach(lane -> lanes.appendTag(lane.write()));
+                right.getLaneId())).forEach(lane -> lanes.appendTag(lane.write()));
         data.setTag("activeLanes", lanes);
         if (quarantinedData != null) {
             data.setTag("quarantinedData", persistedQuarantine(quarantinedData));
@@ -302,42 +296,42 @@ public final class QIOCraftingProcessorState {
 
     @Nonnull
     public static QIOCraftingProcessorState read(@Nonnull NBTTagCompound data,
-          @Nonnull ResourceLocation expectedHostId, @Nonnull ResourceLocation expectedDefinitionId)
-          throws QIOProcessingDataException {
+                                                 @Nonnull ResourceLocation expectedHostId, @Nonnull ResourceLocation expectedDefinitionId)
+            throws QIOProcessingDataException {
         Objects.requireNonNull(data, "data");
         if (data.getInteger("processorStateSchemaVersion") != SCHEMA_VERSION) {
             throw new QIOProcessingDataException("Unsupported QIO crafting processor state schema " +
-                  data.getInteger("processorStateSchemaVersion"));
+                    data.getInteger("processorStateSchemaVersion"));
         }
         if (!data.hasKey("processorUUID", NBT.TAG_STRING) ||
-              !data.hasKey("hostId", NBT.TAG_STRING) ||
-              !data.hasKey("definitionId", NBT.TAG_STRING) ||
-              !data.hasKey("definitionSignature", NBT.TAG_STRING) ||
-              !data.hasKey("state", NBT.TAG_STRING) ||
-              !data.hasKey("nextLaneCandidate", NBT.TAG_LONG) ||
-              !data.hasKey("runtimeRevision", NBT.TAG_LONG) ||
-              !data.hasKey("activeLanes", NBT.TAG_LIST)) {
+                !data.hasKey("hostId", NBT.TAG_STRING) ||
+                !data.hasKey("definitionId", NBT.TAG_STRING) ||
+                !data.hasKey("definitionSignature", NBT.TAG_STRING) ||
+                !data.hasKey("state", NBT.TAG_STRING) ||
+                !data.hasKey("nextLaneCandidate", NBT.TAG_LONG) ||
+                !data.hasKey("runtimeRevision", NBT.TAG_LONG) ||
+                !data.hasKey("activeLanes", NBT.TAG_LIST)) {
             throw new QIOProcessingDataException(
-                  "QIO processor state is missing current-schema fields");
+                    "QIO processor state is missing current-schema fields");
         }
         try {
             QIOCraftingProcessorState processor = new QIOCraftingProcessorState(
-                  QIOProcessingNbt.readUUID(data, "processorUUID"),
-                  readResourceLocation(data, "hostId"), readResourceLocation(data, "definitionId"),
-                  data.getString("definitionSignature"));
+                    QIOProcessingNbt.readUUID(data, "processorUUID"),
+                    readResourceLocation(data, "hostId"), readResourceLocation(data, "definitionId"),
+                    data.getString("definitionSignature"));
             processor.state = QIOProcessingNbt.readEnum(data, "state", State.class);
             processor.nextLaneCandidate = QIOProcessingNbt.requireNonNegative(
-                  data.getLong("nextLaneCandidate"), "nextLaneCandidate");
+                    data.getLong("nextLaneCandidate"), "nextLaneCandidate");
             processor.runtimeRevision = QIOProcessingNbt.requireNonNegative(
-                  data.getLong("runtimeRevision"), "runtimeRevision");
+                    data.getLong("runtimeRevision"), "runtimeRevision");
             processor.diagnostic = data.hasKey("diagnostic", NBT.TAG_STRING) ?
-                  requireDiagnostic(data.getString("diagnostic")) : null;
+                    requireDiagnostic(data.getString("diagnostic")) : null;
             NBTTagList lanes = data.getTagList("activeLanes", NBT.TAG_COMPOUND);
             for (int index = 0; index < lanes.tagCount(); index++) {
                 QIOProcessorLaneRuntime lane = QIOProcessorLaneRuntime.read(lanes.getCompoundTagAt(index));
                 if (processor.activeLanes.put(lane.getLaneId(), lane) != null) {
                     throw new QIOProcessingDataException("Duplicate QIO crafting processor lane id " +
-                          lane.getLaneId());
+                            lane.getLaneId());
                 }
                 if (lane.isSettled()) {
                     processor.persistedSettledOperations.add(lane.getOperationId());
@@ -345,7 +339,7 @@ public final class QIOCraftingProcessorState {
                 lane.setDirtyListener(processor.dirtyListener);
             }
             processor.quarantinedData = data.hasKey("quarantinedData", NBT.TAG_COMPOUND) ?
-                  data.getCompoundTag("quarantinedData").copy() : null;
+                    data.getCompoundTag("quarantinedData").copy() : null;
             processor.normalizeLegacyState(expectedHostId, expectedDefinitionId);
             if (processor.state == State.DATA_ERROR) {
                 if (processor.diagnostic == null) {
@@ -372,8 +366,8 @@ public final class QIOCraftingProcessorState {
     /** Builds an isolated state while retaining the unread bytes for diagnostics and future repair. */
     @Nonnull
     public static QIOCraftingProcessorState damaged(@Nonnull ResourceLocation expectedHostId,
-          @Nonnull QIOCraftingProcessorDefinition expectedDefinition, @Nonnull NBTTagCompound rawData,
-          @Nonnull String reason) {
+                                                    @Nonnull QIOCraftingProcessorDefinition expectedDefinition, @Nonnull NBTTagCompound rawData,
+                                                    @Nonnull String reason) {
         QIOCraftingProcessorState state = create(expectedHostId, expectedDefinition);
         try {
             if (rawData.hasKey("processorUUID", NBT.TAG_STRING)) {
@@ -432,7 +426,7 @@ public final class QIOCraftingProcessorState {
 
     /** Explicit recovery using the identity currently expected by the loaded processor block. */
     public boolean forceRecoverAfterDataError(@Nonnull ResourceLocation expectedHostId,
-          @Nonnull ResourceLocation expectedDefinitionId) {
+                                              @Nonnull ResourceLocation expectedDefinitionId) {
         if (state != State.DATA_ERROR && !hasLaneRecoveryPending() && quarantinedData == null) {
             return false;
         }
@@ -464,7 +458,7 @@ public final class QIOCraftingProcessorState {
 
     /** Clears audited local state while retaining the current block's definition identity result. */
     public boolean forceClearAfterAuditedRecovery(@Nonnull ResourceLocation expectedHostId,
-          @Nonnull ResourceLocation expectedDefinitionId) {
+                                                  @Nonnull ResourceLocation expectedDefinitionId) {
         if (state != State.DATA_ERROR && !hasLaneRecoveryPending() && quarantinedData == null) {
             return false;
         }
@@ -490,7 +484,7 @@ public final class QIOCraftingProcessorState {
      * @return true when persisted state was changed
      */
     public boolean normalizeLegacyState(@Nonnull ResourceLocation expectedHostId,
-          @Nonnull ResourceLocation expectedDefinitionId) {
+                                        @Nonnull ResourceLocation expectedDefinitionId) {
         Objects.requireNonNull(expectedHostId, "expectedHostId");
         Objects.requireNonNull(expectedDefinitionId, "expectedDefinitionId");
         boolean changed = false;
@@ -501,7 +495,7 @@ public final class QIOCraftingProcessorState {
                 changed = true;
             } else if (result == QIOProcessorLaneRuntime.RecoveryResult.UNSAFE) {
                 unsafeDiagnostic = "QIO processor lane " + lane.getLaneId() +
-                      " has ambiguous owned buffers; manual recovery is required";
+                        " has ambiguous owned buffers; manual recovery is required";
                 break;
             }
         }
@@ -539,18 +533,18 @@ public final class QIOCraftingProcessorState {
     /** Narrow whitelist used to decide whether automatic cleanup is lossless. */
     private static boolean isDiagnosticOnly(@Nonnull NBTTagCompound data) {
         if (!data.hasKey("activeLanes", NBT.TAG_LIST) ||
-              data.getTagList("activeLanes", NBT.TAG_COMPOUND).tagCount() != 0) {
+                data.getTagList("activeLanes", NBT.TAG_COMPOUND).tagCount() != 0) {
             return false;
         }
         Set<String> allowed = new HashSet<>();
         Collections.addAll(allowed, "processorStateSchemaVersion", "processorUUID", "hostId",
-              "definitionId", "definitionSignature", "state", "diagnostic", "nextLaneCandidate",
-              "runtimeRevision", "activeLanes", "quarantinedData");
+                "definitionId", "definitionSignature", "state", "diagnostic", "nextLaneCandidate",
+                "runtimeRevision", "activeLanes", "quarantinedData");
         for (String key : data.getKeySet()) {
             if (!allowed.contains(key)) return false;
         }
         if (data.hasKey("quarantinedData", NBT.TAG_COMPOUND) &&
-              !data.getCompoundTag("quarantinedData").getKeySet().isEmpty()) {
+                !data.getCompoundTag("quarantinedData").getKeySet().isEmpty()) {
             return false;
         }
         return true;
@@ -576,7 +570,7 @@ public final class QIOCraftingProcessorState {
     }
 
     private static void copyOperationIds(@Nonnull NBTTagCompound raw,
-          @Nonnull NBTTagCompound summary) {
+                                         @Nonnull NBTTagCompound summary) {
         if (!raw.hasKey("activeLanes", NBT.TAG_LIST)) return;
         NBTTagList source = raw.getTagList("activeLanes", NBT.TAG_COMPOUND);
         NBTTagList ids = new NBTTagList();
@@ -594,7 +588,7 @@ public final class QIOCraftingProcessorState {
     }
 
     private void reconcileWithoutRevision(ResourceLocation expectedHostId,
-          ResourceLocation expectedDefinitionId) throws QIOProcessingDataException {
+                                          ResourceLocation expectedDefinitionId) throws QIOProcessingDataException {
         String problem = resolutionProblem(expectedHostId, expectedDefinitionId);
         if (problem == null) {
             state = State.ACTIVE;
@@ -611,7 +605,7 @@ public final class QIOCraftingProcessorState {
 
     @Nullable
     private String resolutionProblem(ResourceLocation expectedHostId,
-          ResourceLocation expectedDefinitionId) {
+                                     ResourceLocation expectedDefinitionId) {
         Objects.requireNonNull(expectedHostId, "expectedHostId");
         Objects.requireNonNull(expectedDefinitionId, "expectedDefinitionId");
         if (!hostId.equals(expectedHostId)) {
@@ -619,7 +613,7 @@ public final class QIOCraftingProcessorState {
         }
         if (!definitionId.equals(expectedDefinitionId)) {
             return "Persisted processor definition " + definitionId + " does not match block definition " +
-                  expectedDefinitionId;
+                    expectedDefinitionId;
         }
         QIOCraftingProcessorDefinition definition = QIOCraftingProcessorRegistry.get(definitionId);
         if (definition == null) {
@@ -664,7 +658,7 @@ public final class QIOCraftingProcessorState {
 
     @Nonnull
     private static ResourceLocation readResourceLocation(NBTTagCompound data, String key)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         String value = data.getString(key);
         try {
             ResourceLocation parsed = new ResourceLocation(value);

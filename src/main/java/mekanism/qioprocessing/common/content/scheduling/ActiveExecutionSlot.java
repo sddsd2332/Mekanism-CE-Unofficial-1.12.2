@@ -22,40 +22,52 @@ public final class ActiveExecutionSlot {
     private final long acquiredAtSchedulerClock;
     private final QIOCraftingJobSource source;
 
-    /** 创建一个任务执行槽所有权记录。 */
+    /**
+     * 创建一个任务执行槽所有权记录。
+     */
     public ActiveExecutionSlot(@Nonnull UUID slotToken, @Nonnull UUID ownerJobId,
-          long acquiredAtSchedulerClock, @Nonnull QIOCraftingJobSource source) {
+                               long acquiredAtSchedulerClock, @Nonnull QIOCraftingJobSource source) {
         this.slotToken = Objects.requireNonNull(slotToken, "slotToken");
         this.ownerJobId = Objects.requireNonNull(ownerJobId, "ownerJobId");
         this.acquiredAtSchedulerClock = QIOProcessingNbt.requireNonNegative(acquiredAtSchedulerClock,
-              "acquiredAtSchedulerClock");
+                "acquiredAtSchedulerClock");
         this.source = Objects.requireNonNull(source, "source");
     }
 
-    /** 返回执行槽 token。 */
+    /**
+     * 返回执行槽 token。
+     */
     @Nonnull
     public UUID getSlotToken() {
         return slotToken;
     }
 
-    /** 返回持有该槽的任务标识。 */
+    /**
+     * 返回持有该槽的任务标识。
+     */
     @Nonnull
     public UUID getOwnerJobId() {
         return ownerJobId;
     }
 
-    /** 返回取得槽时的调度时钟。 */
+    /**
+     * 返回取得槽时的调度时钟。
+     */
     public long getAcquiredAtSchedulerClock() {
         return acquiredAtSchedulerClock;
     }
 
-    /** 返回任务来源。 */
+    /**
+     * 返回任务来源。
+     */
     @Nonnull
     public QIOCraftingJobSource getSource() {
         return source;
     }
 
-    /** 将执行槽记录写入 NBT。 */
+    /**
+     * 将执行槽记录写入 NBT。
+     */
     @Nonnull
     public NBTTagCompound write() {
         NBTTagCompound data = new NBTTagCompound();
@@ -66,15 +78,17 @@ public final class ActiveExecutionSlot {
         return data;
     }
 
-    /** 从 NBT 读取执行槽记录。 */
+    /**
+     * 从 NBT 读取执行槽记录。
+     */
     @Nonnull
     public static ActiveExecutionSlot read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         try {
             return new ActiveExecutionSlot(QIOProcessingNbt.readUUID(data, "slotToken"),
-                  QIOProcessingNbt.readUUID(data, "ownerJobId"),
-                  data.getLong("acquiredAtSchedulerClock"),
-                  QIOProcessingNbt.readEnum(data, "source", QIOCraftingJobSource.class));
+                    QIOProcessingNbt.readUUID(data, "ownerJobId"),
+                    data.getLong("acquiredAtSchedulerClock"),
+                    QIOProcessingNbt.readEnum(data, "source", QIOCraftingJobSource.class));
         } catch (QIOProcessingDataException e) {
             throw e;
         } catch (RuntimeException e) {

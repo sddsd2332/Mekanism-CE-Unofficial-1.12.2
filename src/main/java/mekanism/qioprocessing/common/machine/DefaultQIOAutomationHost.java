@@ -5,18 +5,13 @@ import mekanism.api.processing.MachineRecipeProviderRegistry;
 import mekanism.api.processing.MachineResourceStack;
 import mekanism.api.processing.QIOAutomationMode;
 import mekanism.api.qio.external.QIOFrequencyReference;
-import mekanism.qioprocessing.api.machine.MachineActivitySnapshot;
-import mekanism.qioprocessing.api.machine.MachineOperationLease;
-import mekanism.qioprocessing.api.machine.MachineOperationToken;
-import mekanism.qioprocessing.api.machine.MachinePortBaseline;
-import mekanism.qioprocessing.api.machine.QIOAutomationHost;
-import mekanism.qioprocessing.api.machine.QIOOutputBufferEntry;
+import mekanism.qioprocessing.api.machine.*;
 import mekanism.qioprocessing.api.resource.PortableResourceDescriptor;
-import mekanism.qioprocessing.common.execution.QIOProcessingExecutionService;
-import mekanism.qioprocessing.common.execution.QIOEndpointPersistenceService;
 import mekanism.qioprocessing.common.content.QIOProcessingNetworkData;
 import mekanism.qioprocessing.common.content.QIOProcessingNetworkManager;
 import mekanism.qioprocessing.common.content.transfer.QIODurableTransferRecord;
+import mekanism.qioprocessing.common.execution.QIOEndpointPersistenceService;
+import mekanism.qioprocessing.common.execution.QIOProcessingExecutionService;
 import mekanism.qioprocessing.common.util.QIOHashing;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
@@ -26,16 +21,7 @@ import net.minecraftforge.common.util.Constants.NBT;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * 挂载在已接纳机器方块上的 QIO 自动化主机默认实现。
@@ -65,17 +51,20 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
     private static final String QUARANTINED_DATA = "quarantinedData";
     private static final String QUARANTINE_TRUNCATED = "quarantineTruncated";
     private static final String QUARANTINE_DIGEST = "quarantineDigest";
-    /** Keep the textual NBT representation well below Java's modified-UTF string limit. */
+    /**
+     * Keep the textual NBT representation well below Java's modified-UTF string limit.
+     */
     private static final int MAX_PERSISTED_QUARANTINE_BYTES = 16_000;
     private static final String CLEAR_MODE_WHEN_DRAINED = "clearModeWhenDrained";
     private static final String OUTPUT_QUARANTINE_PREFIX = "Automatic output operation quarantined: ";
     private static final String OPERATION_QUARANTINE_PREFIX = "Machine operation quarantined: ";
     private static final String PROCESSING_OUTPUT_PAUSE_PREFIX = "Machine output collection paused: ";
     private static final String LEGACY_OUTPUT_RECOVERY_PENDING =
-          "Deferred legacy automatic output recovery pending";
+            "Deferred legacy automatic output recovery pending";
 
     @Nullable
     private final TileEntity tile;
+    QIOUpgradeComponent upgradeComponent;
     private UUID persistentDeviceUUID = UUID.randomUUID();
     @Nullable
     private QIOFrequencyReference frequencyReference;
@@ -90,7 +79,9 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
     private Map<UUID, QIOOutputBufferEntry> outputBuffers = new LinkedHashMap<>();
     private final Set<UUID> persistedCompletedOperations = new java.util.LinkedHashSet<>();
     private final Set<UUID> persistedTransferReceipts = new java.util.LinkedHashSet<>();
-    /** Runtime-only handoff markers set when an output quarantine explicitly yields to ejection. */
+    /**
+     * Runtime-only handoff markers set when an output quarantine explicitly yields to ejection.
+     */
     private final Set<UUID> ordinaryOutputHandoffOperations = new HashSet<>();
     private final Map<Long, MachineActivitySnapshot> activitySnapshots = new LinkedHashMap<>();
     @Nullable
@@ -102,7 +93,9 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
     private ParsedState pendingLegacyOutputRecovery;
     private boolean pendingRuntimeOutputRecovery;
 
-    /** Forge 创建脱离方块的 capability 默认实例时使用的构造器。 */
+    /**
+     * Forge 创建脱离方块的 capability 默认实例时使用的构造器。
+     */
     public DefaultQIOAutomationHost() {
         tile = null;
     }
@@ -117,45 +110,57 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
     }
 
     @Nullable
-    TileEntity tile() {
+    public TileEntity tile() {
         return tile;
     }
 
-    /** 返回跨 NBT 保存边界保持不变的机器唯一标识。 */
+    /**
+     * 返回跨 NBT 保存边界保持不变的机器唯一标识。
+     */
     @Nonnull
     @Override
     public UUID getPersistentDeviceUUID() {
         return persistentDeviceUUID;
     }
 
-    /** 返回当前频率引用；尚未绑定频率时返回 null。 */
+    /**
+     * 返回当前频率引用；尚未绑定频率时返回 null。
+     */
     @Nullable
     @Override
     public QIOFrequencyReference getFrequencyReference() {
         return frequencyReference;
     }
 
-    /** 返回当前启用的自动化模式；尚未安装模式升级时返回 null。 */
+    /**
+     * 返回当前启用的自动化模式；尚未安装模式升级时返回 null。
+     */
     @Nullable
     @Override
     public QIOAutomationMode getEnabledMode() {
         return enabledMode;
     }
 
-    /** 返回主机生命周期状态。旧版 DATA_ERROR 会在序列化/读取边界归一化。 */
+    /**
+     * 返回主机生命周期状态。旧版 DATA_ERROR 会在序列化/读取边界归一化。
+     */
     @Nonnull
     @Override
     public State getState() {
         return state;
     }
 
-    /** 返回用于诊断界面的错误或恢复说明，不用于判断是否可以重试。 */
+    /**
+     * 返回用于诊断界面的错误或恢复说明，不用于判断是否可以重试。
+     */
     @Nullable
     public String getDataError() {
         return dataError;
     }
 
-    /** 返回供显式恢复审计使用的原始 capability 数据副本。 */
+    /**
+     * 返回供显式恢复审计使用的原始 capability 数据副本。
+     */
     @Nullable
     NBTTagCompound getQuarantinedDataCopy() {
         return quarantinedData == null ? null : quarantinedData.copy();
@@ -168,7 +173,7 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
      */
     boolean hasPotentialExternalOwnership() {
         if (hasResourceOwnershipState() || pendingLegacyOutputRecovery != null ||
-              pendingRuntimeOutputRecovery || quarantinedData != null) {
+                pendingRuntimeOutputRecovery || quarantinedData != null) {
             return true;
         }
         // A frequency binding and a diagnostic marker are not, by themselves, proof that
@@ -178,14 +183,16 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         return false;
     }
 
-    /** Clears a legacy diagnostic only after proving that no external owner remains. */
+    /**
+     * Clears a legacy diagnostic only after proving that no external owner remains.
+     */
     boolean clearUnownedLegacyDiagnostic() {
         if (state != State.DATA_ERROR && recoveryState != RecoveryState.QUARANTINED) {
             return false;
         }
         if (hasResourceOwnershipState() || pendingLegacyOutputRecovery != null ||
-              pendingRuntimeOutputRecovery || quarantinedData != null &&
-                    !isDiagnosticOnlyQuarantine()) {
+                pendingRuntimeOutputRecovery || quarantinedData != null &&
+                !isDiagnosticOnlyQuarantine()) {
             return false;
         }
         clearRecoveryPending();
@@ -198,30 +205,36 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         return recoveryState;
     }
 
-    /** 返回是否存在待重试、待恢复或已隔离的持久化操作。 */
+    /**
+     * 返回是否存在待重试、待恢复或已隔离的持久化操作。
+     */
     @Override
     public boolean hasRecoveryPending() {
         return recoveryState != RecoveryState.NONE || hasDeferredOutputRecovery();
     }
 
-    /** 返回有限长度的恢复诊断文本；普通运行时重试也可以没有诊断文本。 */
+    /**
+     * 返回有限长度的恢复诊断文本；普通运行时重试也可以没有诊断文本。
+     */
     @Nullable
     @Override
     public String getRecoveryDiagnostic() {
         return dataError;
     }
 
-    /** 判断是否仍有状态必须写入 capability NBT；空闲且未绑定的主机可以省略。 */
+    /**
+     * 判断是否仍有状态必须写入 capability NBT；空闲且未绑定的主机可以省略。
+     */
     boolean shouldPersistCapabilityNbt() {
         // Completed/released tokens remain durable state until the endpoint snapshot has
         // been confirmed and the execution service prunes them. Do not use only
         // hasUnsettledOperations() here or a crash in that window can lose the ownership
         // receipt needed to finish the operation exactly once.
         return enabledMode != null || frequencyReference != null || clearModeWhenDrained ||
-              state != State.UNBOUND || !leases.isEmpty() || !operationTokens.isEmpty() ||
-              !outputBuffers.isEmpty() || !persistedCompletedOperations.isEmpty() ||
-              !persistedTransferReceipts.isEmpty() || recoveryState != RecoveryState.NONE ||
-              dataError != null || quarantinedData != null;
+                state != State.UNBOUND || !leases.isEmpty() || !operationTokens.isEmpty() ||
+                !outputBuffers.isEmpty() || !persistedCompletedOperations.isEmpty() ||
+                !persistedTransferReceipts.isEmpty() || recoveryState != RecoveryState.NONE ||
+                dataError != null || quarantinedData != null;
     }
 
     @Override
@@ -229,7 +242,9 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         return configurationRevision;
     }
 
-    /** 返回管理端是否暂时暂停了新操作。 */
+    /**
+     * 返回管理端是否暂时暂停了新操作。
+     */
     @Override
     public boolean isManagementPaused() {
         return managementPaused;
@@ -261,8 +276,8 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
     public boolean selectMode(@Nonnull QIOAutomationMode mode) {
         Objects.requireNonNull(mode, "Automation mode cannot be null");
         if (clearModeWhenDrained || hasUnsettledOperations() ||
-            state == State.DRAINING_CHANGE || state == State.IDENTITY_CONFLICT ||
-            !prepareForConfigurationMutation()) {
+                state == State.DRAINING_CHANGE || state == State.IDENTITY_CONFLICT ||
+                !prepareForConfigurationMutation()) {
             return false;
         }
         enabledMode = mode;
@@ -271,7 +286,9 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         return true;
     }
 
-    /** 请求清除自动化模式；存在所有权时进入排空流程。 */
+    /**
+     * 请求清除自动化模式；存在所有权时进入排空流程。
+     */
     @Override
     public boolean clearMode() {
         return clearMode(false);
@@ -300,7 +317,7 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
             // A quarantine containing only the binding envelope is safe to clear here,
             // which keeps older addon callbacks from trapping an otherwise idle machine.
             if (!hasResourceOwnershipState() && quarantinedData != null &&
-                  isDiagnosticOnlyQuarantine()) {
+                    isDiagnosticOnlyQuarantine()) {
                 clearRecoveryPending();
             } else {
                 return false;
@@ -327,28 +344,36 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         return true;
     }
 
-    /** 返回当前租约的只读视图。 */
+    /**
+     * 返回当前租约的只读视图。
+     */
     @Nonnull
     @Override
     public Map<UUID, MachineOperationLease> getLeases() {
         return Collections.unmodifiableMap(leases);
     }
 
-    /** 返回当前操作 token 的只读视图。 */
+    /**
+     * 返回当前操作 token 的只读视图。
+     */
     @Nonnull
     @Override
     public Map<UUID, MachineOperationToken> getOperationTokens() {
         return Collections.unmodifiableMap(operationTokens);
     }
 
-    /** 返回按机器通道索引的活动快照只读视图。 */
+    /**
+     * 返回按机器通道索引的活动快照只读视图。
+     */
     @Nonnull
     @Override
     public Map<Long, MachineActivitySnapshot> getActivitySnapshots() {
         return Collections.unmodifiableMap(activitySnapshots);
     }
 
-    /** 返回自动输出中间缓冲的只读视图。 */
+    /**
+     * 返回自动输出中间缓冲的只读视图。
+     */
     @Nonnull
     @Override
     public Map<UUID, QIOOutputBufferEntry> getOutputBufferEntries() {
@@ -358,16 +383,16 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
     /**
      * 应用已经由上层授权的频率/模式绑定变更。
      *
-     * @param frequency 新频率引用；null 表示解除绑定
-     * @param mode 新自动化模式；频率非 null 时不能为 null
+     * @param frequency       新频率引用；null 表示解除绑定
+     * @param mode            新自动化模式；频率非 null 时不能为 null
      * @param accessValidated 是否已验证请求者可以访问该频率
      * @return 状态允许且变更成功时返回 true
      */
     public boolean configureBinding(@Nullable QIOFrequencyReference frequency, @Nullable QIOAutomationMode mode,
-          boolean accessValidated) {
+                                    boolean accessValidated) {
         if (clearModeWhenDrained || hasUnsettledOperations() ||
-            state == State.DRAINING_CHANGE || state == State.IDENTITY_CONFLICT ||
-            !prepareForConfigurationMutation()) {
+                state == State.DRAINING_CHANGE || state == State.IDENTITY_CONFLICT ||
+                !prepareForConfigurationMutation()) {
             return false;
         }
         if (frequency != null && mode == null) {
@@ -408,7 +433,9 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         }
     }
 
-    /** 显式恢复入口；调用方必须在前后完成所有权审计和设备注册。 */
+    /**
+     * 显式恢复入口；调用方必须在前后完成所有权审计和设备注册。
+     */
     boolean regenerateDeviceIdentity() {
         if (clearModeWhenDrained || hasUnsettledOperations()) {
             return false;
@@ -417,7 +444,7 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         do {
             replacement = UUID.randomUUID();
         } while (!QIOAutomationDeviceRegistry.INSTANCE.isRecoveryIdentityUnique(
-              replacement, this));
+                replacement, this));
         persistentDeviceUUID = replacement;
         if (pendingLegacyOutputRecovery != null) {
             // The parsed legacy candidate is keyed by its original device UUID and its durable
@@ -439,26 +466,26 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
     /**
      * 为机器操作申请端口组租约。
      *
-     * @param leaseId 租约唯一标识
+     * @param leaseId          租约唯一标识
      * @param ownerOperationId 所属操作标识
-     * @param mode 租约用途
-     * @param laneId 机器通道编号
-     * @param createdAt 创建时的游戏 tick
-     * @param baselines 创建时的端口内容基线
+     * @param mode             租约用途
+     * @param laneId           机器通道编号
+     * @param createdAt        创建时的游戏 tick
+     * @param baselines        创建时的端口内容基线
      * @return 成功取得的租约；冲突或状态不允许时返回 null
      */
     @Nullable
     @Override
     public MachineOperationLease tryAcquireLease(@Nonnull UUID leaseId, @Nonnull UUID ownerOperationId,
-          @Nonnull MachineOperationLease.Mode mode, long laneId, long createdAt,
-          @Nonnull Collection<MachinePortBaseline> baselines) {
+                                                 @Nonnull MachineOperationLease.Mode mode, long laneId, long createdAt,
+                                                 @Nonnull Collection<MachinePortBaseline> baselines) {
         Objects.requireNonNull(leaseId, "Lease id cannot be null");
         Objects.requireNonNull(ownerOperationId, "Operation id cannot be null");
         Objects.requireNonNull(mode, "Lease mode cannot be null");
         Objects.requireNonNull(baselines, "Lease baselines cannot be null");
         if (managementPaused || !state.acceptsNewOperations() || hasBlockingRecovery() ||
-            !modeMatchesEnabledAutomation(mode) || leases.containsKey(leaseId) ||
-            operationTokens.containsKey(ownerOperationId) || leases.size() >= MAX_ACTIVE_LEASES) {
+                !modeMatchesEnabledAutomation(mode) || leases.containsKey(leaseId) ||
+                operationTokens.containsKey(ownerOperationId) || leases.size() >= MAX_ACTIVE_LEASES) {
             return null;
         }
         for (MachineOperationLease existing : leases.values()) {
@@ -469,7 +496,7 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
                 return null;
             }
             if (mode == MachineOperationLease.Mode.PROCESSING_EXCLUSIVE &&
-                existing.mode() == MachineOperationLease.Mode.PROCESSING_EXCLUSIVE && existing.laneId() == laneId) {
+                    existing.mode() == MachineOperationLease.Mode.PROCESSING_EXCLUSIVE && existing.laneId() == laneId) {
                 return null;
             }
             if (sharesPortGroup(existing.portGroupIds(), baselines)) {
@@ -477,21 +504,23 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
             }
         }
         MachineOperationLease lease = MachineOperationLease.acquire(leaseId, ownerOperationId, mode, laneId,
-              createdAt, baselines);
+                createdAt, baselines);
         leases.put(leaseId, lease);
         markDirty();
         return lease;
     }
 
-    /** 将操作 token 绑定到已经取得的租约。 */
+    /**
+     * 将操作 token 绑定到已经取得的租约。
+     */
     @Override
     public boolean attachOperationToken(@Nonnull MachineOperationToken token) {
         Objects.requireNonNull(token, "Operation token cannot be null");
         MachineOperationLease lease = leases.get(token.leaseId());
         if (lease == null || lease.state() != MachineOperationLease.State.ACQUIRED ||
-            !lease.ownerOperationId().equals(token.operationId()) || lease.laneId() != token.laneId() ||
-            operationTokens.containsKey(token.operationId()) || operationTokens.size() >= MAX_OPERATION_TOKENS ||
-            !tokenMatchesLeaseMode(token, lease)) {
+                !lease.ownerOperationId().equals(token.operationId()) || lease.laneId() != token.laneId() ||
+                operationTokens.containsKey(token.operationId()) || operationTokens.size() >= MAX_OPERATION_TOKENS ||
+                !tokenMatchesLeaseMode(token, lease)) {
             return false;
         }
         operationTokens.put(token.operationId(), token);
@@ -504,13 +533,13 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
      * 原子推进操作 token 与租约状态。
      *
      * @param operationId 操作标识
-     * @param tokenState token 的目标状态
-     * @param leaseState 租约的目标状态
+     * @param tokenState  token 的目标状态
+     * @param leaseState  租约的目标状态
      * @return 状态转换成功时返回 true
      */
     @Override
     public boolean transitionOperation(@Nonnull UUID operationId, @Nonnull MachineOperationToken.State tokenState,
-          @Nonnull MachineOperationLease.State leaseState) {
+                                       @Nonnull MachineOperationLease.State leaseState) {
         Objects.requireNonNull(operationId, "Operation id cannot be null");
         MachineOperationToken token = operationTokens.get(operationId);
         if (token == null) {
@@ -531,9 +560,9 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
             // execution service performs those transitions separately; requesting a checkpoint
             // after the first transition could acknowledge a snapshot that still owns the lane.
             if (nextToken.state() == MachineOperationToken.State.COMPLETED &&
-                  nextLease.state() == MachineOperationLease.State.RELEASED && tile != null) {
+                    nextLease.state() == MachineOperationLease.State.RELEASED && tile != null) {
                 QIOEndpointPersistenceService.INSTANCE.requestAutomationHost(tile, this,
-                      operationId);
+                        operationId);
             }
             return true;
         } catch (IllegalStateException ignored) {
@@ -541,7 +570,9 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         }
     }
 
-    /** 记录一次已写入持久传输记录的回执，保证重启后可以幂等恢复。 */
+    /**
+     * 记录一次已写入持久传输记录的回执，保证重启后可以幂等恢复。
+     */
     @Override
     public boolean recordTransferReceipt(@Nonnull UUID operationId, @Nonnull UUID transferId) {
         Objects.requireNonNull(operationId, "Operation id cannot be null");
@@ -559,7 +590,9 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         return true;
     }
 
-    /** 将仍拥有资源的租约标记为污染并保留所有权记录供恢复审计。 */
+    /**
+     * 将仍拥有资源的租约标记为污染并保留所有权记录供恢复审计。
+     */
     @Override
     public boolean contaminateLease(@Nonnull UUID leaseId, @Nonnull String reason) {
         Objects.requireNonNull(leaseId, "Lease id cannot be null");
@@ -573,7 +606,7 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         // machine transfer. Quarantine the whole host instead and retain every
         // ownership record for explicit recovery.
         QIOOutputBufferEntry buffered = outputBuffers.values().stream()
-              .filter(entry -> entry.leaseId().equals(leaseId)).findFirst().orElse(null);
+                .filter(entry -> entry.leaseId().equals(leaseId)).findFirst().orElse(null);
         if (buffered != null) {
             markRecoveryPending(OUTPUT_QUARANTINE_PREFIX + reason);
             // PREPARED means the machine-side extraction has not been observed and
@@ -583,7 +616,7 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
             // is intentionally single-buffer; multiple live lanes are handled by the
             // normal per-buffer controller instead of being trapped in BLOCKED forever.
             pendingRuntimeOutputRecovery = buffered.phase() == QIOOutputBufferEntry.Phase.PREPARED &&
-                  outputBuffers.size() == 1;
+                    outputBuffers.size() == 1;
             QIOAutomationDeviceRegistry.INSTANCE.trackPending(this);
             return true;
         }
@@ -603,11 +636,11 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
      */
     public boolean pauseProcessingOutputCollection(@Nonnull String reason) {
         String pauseReason = boundedDiagnostic(PROCESSING_OUTPUT_PAUSE_PREFIX +
-              Objects.requireNonNull(reason, "Pause reason cannot be null"));
+                Objects.requireNonNull(reason, "Pause reason cannot be null"));
         boolean foundProcessingOwnership = false;
         for (MachineOperationLease snapshot : new ArrayList<>(leases.values())) {
             if (snapshot.mode() != MachineOperationLease.Mode.PROCESSING_EXCLUSIVE ||
-                  snapshot.state() == MachineOperationLease.State.RELEASED) {
+                    snapshot.state() == MachineOperationLease.State.RELEASED) {
                 continue;
             }
             foundProcessingOwnership = true;
@@ -615,7 +648,7 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
             if (token == null && snapshot.state() == MachineOperationLease.State.ACQUIRED) {
                 releaseUnattachedLease(snapshot.leaseId());
             } else if (snapshot.state() != MachineOperationLease.State.CONTAMINATED &&
-                  (token == null || !token.state().isTerminal())) {
+                    (token == null || !token.state().isTerminal())) {
                 contaminateLease(snapshot.leaseId(), pauseReason);
             }
         }
@@ -627,16 +660,18 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         markRecoveryPending(OPERATION_QUARANTINE_PREFIX + pauseReason);
         if (frequencyReference != null) {
             QIOProcessingExecutionService.INSTANCE.wakeDeviceContents(
-                  frequencyReference.getFrequencyUUID(), persistentDeviceUUID);
+                    frequencyReference.getFrequencyUUID(), persistentDeviceUUID);
         }
         return true;
     }
 
-    /** Returns whether a collection failure has paused QIO processing for this whole machine. */
+    /**
+     * Returns whether a collection failure has paused QIO processing for this whole machine.
+     */
     public boolean isProcessingOutputCollectionPaused() {
         return recoveryState == RecoveryState.QUARANTINED && dataError != null &&
-              dataError.startsWith(OPERATION_QUARANTINE_PREFIX +
-                    PROCESSING_OUTPUT_PAUSE_PREFIX);
+                dataError.startsWith(OPERATION_QUARANTINE_PREFIX +
+                        PROCESSING_OUTPUT_PAUSE_PREFIX);
     }
 
     /**
@@ -655,7 +690,7 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
      */
     public boolean pauseAutomaticOutputCollection(@Nonnull String reason) {
         String boundedReason = boundedDiagnostic(Objects.requireNonNull(reason,
-              "Pause reason cannot be null"));
+                "Pause reason cannot be null"));
         String pauseReason = boundedDiagnostic(OUTPUT_QUARANTINE_PREFIX + boundedReason);
         boolean found = false;
         int preparedBuffers = 0;
@@ -684,10 +719,12 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         return found;
     }
 
-    /** Returns whether this prepared output was explicitly yielded to the ordinary ejector. */
+    /**
+     * Returns whether this prepared output was explicitly yielded to the ordinary ejector.
+     */
     boolean isOrdinaryOutputHandoffAllowed(@Nonnull UUID operationId) {
         return ordinaryOutputHandoffOperations.contains(Objects.requireNonNull(operationId,
-              "Operation id cannot be null"));
+                "Operation id cannot be null"));
     }
 
     /**
@@ -702,9 +739,9 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         MachineOperationToken token = operationTokens.get(checked);
         MachineOperationLease lease = token == null ? null : leases.get(token.leaseId());
         if (token == null || lease == null || token.state() != MachineOperationToken.State.CONTAMINATED ||
-            lease.state() != MachineOperationLease.State.CONTAMINATED ||
-            !lease.ownerOperationId().equals(checked) ||
-            outputBuffers.values().stream().anyMatch(entry -> entry.operationId().equals(checked))) {
+                lease.state() != MachineOperationLease.State.CONTAMINATED ||
+                !lease.ownerOperationId().equals(checked) ||
+                outputBuffers.values().stream().anyMatch(entry -> entry.operationId().equals(checked))) {
             return false;
         }
         try {
@@ -717,14 +754,16 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         }
     }
 
-    /** 放弃一个计划合成操作，但不擅自领取机器输出或退回已进入机器的输入。 */
+    /**
+     * 放弃一个计划合成操作，但不擅自领取机器输出或退回已进入机器的输入。
+     */
     @Override
     public boolean abandonJobOperation(@Nonnull UUID operationId) {
         Objects.requireNonNull(operationId, "Operation id cannot be null");
         MachineOperationToken token = operationTokens.get(operationId);
         if (token == null || token.kind() != MachineOperationToken.Kind.JOB ||
-              token.state() == MachineOperationToken.State.COLLECTING ||
-              token.state() == MachineOperationToken.State.COMPLETED) {
+                token.state() == MachineOperationToken.State.COLLECTING ||
+                token.state() == MachineOperationToken.State.COMPLETED) {
             return false;
         }
         MachineOperationLease lease = leases.get(token.leaseId());
@@ -734,10 +773,10 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         }
         try {
             MachineOperationToken settledToken = token.state().isTerminal() ? token :
-                  token.transition(MachineOperationToken.State.CANCELLED);
+                    token.transition(MachineOperationToken.State.CANCELLED);
             MachineOperationLease releasedLease = lease.state() ==
-                  MachineOperationLease.State.RELEASED ? lease :
-                  lease.transition(MachineOperationLease.State.RELEASED);
+                    MachineOperationLease.State.RELEASED ? lease :
+                    lease.transition(MachineOperationLease.State.RELEASED);
             operationTokens.put(operationId, settledToken);
             leases.put(releasedLease.leaseId(), releasedLease);
             activitySnapshots.remove(token.laneId());
@@ -748,12 +787,14 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         }
     }
 
-    /** 在尚未附加 token 时释放已取得的租约。 */
+    /**
+     * 在尚未附加 token 时释放已取得的租约。
+     */
     @Override
     public boolean releaseUnattachedLease(@Nonnull UUID leaseId) {
         MachineOperationLease lease = leases.get(Objects.requireNonNull(leaseId, "Lease id cannot be null"));
         if (lease == null || lease.state() != MachineOperationLease.State.ACQUIRED ||
-              operationTokens.containsKey(lease.ownerOperationId())) {
+                operationTokens.containsKey(lease.ownerOperationId())) {
             return false;
         }
         leases.remove(leaseId);
@@ -761,16 +802,18 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         return true;
     }
 
-    /** 写入自动输出的 PREPARED 缓冲，并校验其 token、租约和端口基线一致。 */
+    /**
+     * 写入自动输出的 PREPARED 缓冲，并校验其 token、租约和端口基线一致。
+     */
     boolean prepareOutputBuffer(@Nonnull QIOOutputBufferEntry entry) {
         Objects.requireNonNull(entry, "Output buffer entry cannot be null");
         MachineOperationToken token = operationTokens.get(entry.operationId());
         MachineOperationLease lease = leases.get(entry.leaseId());
         if (entry.phase() != QIOOutputBufferEntry.Phase.PREPARED || outputBuffers.containsKey(entry.bufferId()) ||
-            outputBuffers.size() >= MAX_OUTPUT_BUFFERS || token == null || lease == null ||
-            token.kind() != MachineOperationToken.Kind.OUTPUT_DRAIN || token.state() != MachineOperationToken.State.COLLECTING ||
-            !token.leaseId().equals(entry.leaseId()) || lease.state() != MachineOperationLease.State.COLLECTING ||
-            !entry.baseline().portGroupId().equals(lease.baselines().get(0).portGroupId())) {
+                outputBuffers.size() >= MAX_OUTPUT_BUFFERS || token == null || lease == null ||
+                token.kind() != MachineOperationToken.Kind.OUTPUT_DRAIN || token.state() != MachineOperationToken.State.COLLECTING ||
+                !token.leaseId().equals(entry.leaseId()) || lease.state() != MachineOperationLease.State.COLLECTING ||
+                !entry.baseline().portGroupId().equals(lease.baselines().get(0).portGroupId())) {
             return false;
         }
         outputBuffers.put(entry.bufferId(), entry);
@@ -792,20 +835,20 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         Objects.requireNonNull(operationId, "Operation id cannot be null");
         MachineOperationToken token = operationTokens.get(operationId);
         if (token == null || token.kind() != MachineOperationToken.Kind.OUTPUT_DRAIN ||
-              !token.transferReceipts().isEmpty() ||
-              outputBuffers.values().stream().anyMatch(entry ->
-                    entry.operationId().equals(operationId))) {
+                !token.transferReceipts().isEmpty() ||
+                outputBuffers.values().stream().anyMatch(entry ->
+                        entry.operationId().equals(operationId))) {
             return false;
         }
         MachineOperationLease lease = leases.get(token.leaseId());
         if (lease == null || lease.mode() != MachineOperationLease.Mode.OUTPUT_DRAIN ||
-              !lease.ownerOperationId().equals(operationId) ||
-              (lease.state() != MachineOperationLease.State.ACQUIRED &&
-                    lease.state() != MachineOperationLease.State.COLLECTING &&
-                    lease.state() != MachineOperationLease.State.CONTAMINATED) ||
-              (token.state() != MachineOperationToken.State.ALLOCATED &&
-                    token.state() != MachineOperationToken.State.COLLECTING &&
-                    token.state() != MachineOperationToken.State.CONTAMINATED)) {
+                !lease.ownerOperationId().equals(operationId) ||
+                (lease.state() != MachineOperationLease.State.ACQUIRED &&
+                        lease.state() != MachineOperationLease.State.COLLECTING &&
+                        lease.state() != MachineOperationLease.State.CONTAMINATED) ||
+                (token.state() != MachineOperationToken.State.ALLOCATED &&
+                        token.state() != MachineOperationToken.State.COLLECTING &&
+                        token.state() != MachineOperationToken.State.CONTAMINATED)) {
             return false;
         }
         operationTokens.remove(operationId);
@@ -825,25 +868,25 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
      * matches its original baseline after the external handoff.
      */
     boolean discardPreparedOutputAfterExternalHandoff(@Nonnull UUID operationId,
-          @Nonnull UUID bufferId) {
+                                                      @Nonnull UUID bufferId) {
         Objects.requireNonNull(operationId, "Operation id cannot be null");
         Objects.requireNonNull(bufferId, "Output buffer id cannot be null");
         MachineOperationToken token = operationTokens.get(operationId);
         QIOOutputBufferEntry entry = outputBuffers.get(bufferId);
         if (token == null || token.kind() != MachineOperationToken.Kind.OUTPUT_DRAIN ||
-              !token.transferReceipts().isEmpty() || entry == null ||
-              entry.phase() != QIOOutputBufferEntry.Phase.PREPARED ||
-              !entry.operationId().equals(operationId)) {
+                !token.transferReceipts().isEmpty() || entry == null ||
+                entry.phase() != QIOOutputBufferEntry.Phase.PREPARED ||
+                !entry.operationId().equals(operationId)) {
             return false;
         }
         MachineOperationLease lease = leases.get(token.leaseId());
         if (lease == null || lease.mode() != MachineOperationLease.Mode.OUTPUT_DRAIN ||
-              !lease.ownerOperationId().equals(operationId) ||
-              !entry.leaseId().equals(lease.leaseId()) ||
-              (token.state() != MachineOperationToken.State.COLLECTING &&
-                    token.state() != MachineOperationToken.State.CONTAMINATED) ||
-              (lease.state() != MachineOperationLease.State.COLLECTING &&
-                    lease.state() != MachineOperationLease.State.CONTAMINATED)) {
+                !lease.ownerOperationId().equals(operationId) ||
+                !entry.leaseId().equals(lease.leaseId()) ||
+                (token.state() != MachineOperationToken.State.COLLECTING &&
+                        token.state() != MachineOperationToken.State.CONTAMINATED) ||
+                (lease.state() != MachineOperationLease.State.COLLECTING &&
+                        lease.state() != MachineOperationLease.State.CONTAMINATED)) {
             return false;
         }
         outputBuffers.remove(bufferId);
@@ -857,12 +900,14 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         markDirty();
         if (frequencyReference != null) {
             QIOProcessingExecutionService.INSTANCE.wakeDevice(
-                  frequencyReference.getFrequencyUUID(), persistentDeviceUUID);
+                    frequencyReference.getFrequencyUUID(), persistentDeviceUUID);
         }
         return true;
     }
 
-    /** 将已从机器取出的资源写入输出缓冲，进入等待投递阶段。 */
+    /**
+     * 将已从机器取出的资源写入输出缓冲，进入等待投递阶段。
+     */
     boolean holdOutput(@Nonnull UUID bufferId, @Nonnull PortableResourceDescriptor resource, long amount) {
         QIOOutputBufferEntry entry = outputBuffers.get(Objects.requireNonNull(bufferId, "Output buffer id cannot be null"));
         if (entry == null || entry.phase() != QIOOutputBufferEntry.Phase.PREPARED) {
@@ -873,7 +918,9 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         return true;
     }
 
-    /** 为输出缓冲创建 QIO 投递记录并记录请求数量。 */
+    /**
+     * 为输出缓冲创建 QIO 投递记录并记录请求数量。
+     */
     boolean beginOutputDelivery(@Nonnull UUID bufferId, @Nonnull UUID transferId, long requestedAmount) {
         QIOOutputBufferEntry entry = outputBuffers.get(Objects.requireNonNull(bufferId, "Output buffer id cannot be null"));
         if (entry == null || entry.phase() != QIOOutputBufferEntry.Phase.HELD) {
@@ -884,7 +931,9 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         return true;
     }
 
-    /** 应用一次输出投递回执；完全投递后同时结算 token 和租约。 */
+    /**
+     * 应用一次输出投递回执；完全投递后同时结算 token 和租约。
+     */
     boolean applyOutputDeliveryReceipt(@Nonnull UUID bufferId, @Nonnull UUID transferId, long transferredAmount) {
         QIOOutputBufferEntry entry = outputBuffers.get(Objects.requireNonNull(bufferId, "Output buffer id cannot be null"));
         if (entry == null || entry.phase() != QIOOutputBufferEntry.Phase.DELIVERING) {
@@ -893,7 +942,7 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         MachineOperationToken token = operationTokens.get(entry.operationId());
         MachineOperationLease lease = leases.get(entry.leaseId());
         if (token == null || lease == null || token.state() != MachineOperationToken.State.COLLECTING ||
-            lease.state() != MachineOperationLease.State.COLLECTING) {
+                lease.state() != MachineOperationLease.State.COLLECTING) {
             markRecoveryPending("Output buffer lost its collecting operation ownership");
             pendingRuntimeOutputRecovery = entry.phase() == QIOOutputBufferEntry.Phase.PREPARED;
             return false;
@@ -904,27 +953,29 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
             outputBuffers.remove(bufferId);
             ordinaryOutputHandoffOperations.remove(entry.operationId());
             MachineOperationToken completedToken = operationTokens.get(token.operationId())
-                  .transition(MachineOperationToken.State.COMPLETED);
+                    .transition(MachineOperationToken.State.COMPLETED);
             MachineOperationLease completedLease = lease.transition(MachineOperationLease.State.COMPLETED)
-                  .transition(MachineOperationLease.State.RELEASED);
+                    .transition(MachineOperationLease.State.RELEASED);
             operationTokens.put(completedToken.operationId(), completedToken);
             leases.put(completedLease.leaseId(), completedLease);
         } else {
             outputBuffers.put(bufferId, remaining);
         }
         if (remaining == null && isKnownOutputQuarantine() &&
-              quarantinedData == null && !hasDeferredOutputRecovery()) {
+                quarantinedData == null && !hasDeferredOutputRecovery()) {
             clearRecoveryPending();
         }
         markDirty();
         if (remaining == null && tile != null) {
             QIOEndpointPersistenceService.INSTANCE.requestAutomationHost(tile, this,
-                  token.operationId());
+                    token.operationId());
         }
         return true;
     }
 
-    /** 删除已完成、已释放且所有回执已持久化的操作。 */
+    /**
+     * 删除已完成、已释放且所有回执已持久化的操作。
+     */
     @Override
     public boolean forgetSettledOperation(@Nonnull UUID operationId) {
         MachineOperationToken token = operationTokens.get(Objects.requireNonNull(operationId, "Operation id cannot be null"));
@@ -933,7 +984,7 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         }
         MachineOperationLease lease = leases.get(token.leaseId());
         if (lease == null || lease.state() != MachineOperationLease.State.RELEASED ||
-            outputBuffers.values().stream().anyMatch(entry -> entry.operationId().equals(operationId))) {
+                outputBuffers.values().stream().anyMatch(entry -> entry.operationId().equals(operationId))) {
             return false;
         }
         operationTokens.remove(operationId);
@@ -946,34 +997,40 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         markDirty();
         if (frequencyReference != null) {
             QIOProcessingExecutionService.INSTANCE.wakeDevice(
-                  frequencyReference.getFrequencyUUID(), persistentDeviceUUID);
+                    frequencyReference.getFrequencyUUID(), persistentDeviceUUID);
         }
         return true;
     }
 
-    /** 返回完成操作是否已在 endpoint 快照中确认持久化。 */
+    /**
+     * 返回完成操作是否已在 endpoint 快照中确认持久化。
+     */
     public boolean isPersistedCompletedOperation(@Nonnull UUID operationId) {
         return persistedCompletedOperations.contains(Objects.requireNonNull(operationId,
-              "Operation id cannot be null"));
+                "Operation id cannot be null"));
     }
 
-    /** 返回指定传输回执是否已写入 endpoint 快照。 */
+    /**
+     * 返回指定传输回执是否已写入 endpoint 快照。
+     */
     @Override
     public boolean isTransferReceiptPersisted(@Nonnull UUID operationId,
-          @Nonnull UUID transferId) {
+                                              @Nonnull UUID transferId) {
         MachineOperationToken token = operationTokens.get(Objects.requireNonNull(operationId,
-              "operationId"));
+                "operationId"));
         UUID checkedTransfer = Objects.requireNonNull(transferId, "transferId");
         return token != null && token.hasTransferReceipt(checkedTransfer) &&
-              persistedTransferReceipts.contains(checkedTransfer);
+                persistedTransferReceipts.contains(checkedTransfer);
     }
 
-    /** Confirms one operation receipt was included in a completed endpoint snapshot. */
+    /**
+     * Confirms one operation receipt was included in a completed endpoint snapshot.
+     */
     @Override
     public void confirmTransferReceiptPersisted(@Nonnull UUID operationId,
-          @Nonnull UUID transferId) {
+                                                @Nonnull UUID transferId) {
         MachineOperationToken token = operationTokens.get(Objects.requireNonNull(operationId,
-              "operationId"));
+                "operationId"));
         UUID checkedTransfer = Objects.requireNonNull(transferId, "transferId");
         if (token != null && token.hasTransferReceipt(checkedTransfer)) {
             persistedTransferReceipts.add(checkedTransfer);
@@ -981,45 +1038,53 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         }
     }
 
-    /** Confirms one completed operation was included in an endpoint persistence snapshot. */
+    /**
+     * Confirms one completed operation was included in an endpoint persistence snapshot.
+     */
     @Override
     public void confirmCompletedOperationPersisted(@Nonnull UUID operationId) {
         UUID checked = Objects.requireNonNull(operationId, "operationId");
         MachineOperationToken token = operationTokens.get(checked);
         MachineOperationLease lease = token == null ? null : leases.get(token.leaseId());
         if (token != null && token.state() == MachineOperationToken.State.COMPLETED &&
-              lease != null && lease.state() == MachineOperationLease.State.RELEASED &&
-              lease.ownerOperationId().equals(checked)) {
+                lease != null && lease.state() == MachineOperationLease.State.RELEASED &&
+                lease.ownerOperationId().equals(checked)) {
             persistedCompletedOperations.add(checked);
             wakeExecution();
         }
     }
 
-    /** 批量确认当前所有已完成且已释放的操作都已进入 endpoint 快照。 */
+    /**
+     * 批量确认当前所有已完成且已释放的操作都已进入 endpoint 快照。
+     */
     public void confirmCompletedOperationsPersisted() {
         int before = persistedCompletedOperations.size();
         operationTokens.values().stream()
-              .filter(token -> token.state() == MachineOperationToken.State.COMPLETED)
-              .filter(token -> {
-                  MachineOperationLease lease = leases.get(token.leaseId());
-                  return lease != null && lease.state() == MachineOperationLease.State.RELEASED &&
-                        lease.ownerOperationId().equals(token.operationId());
-              })
-              .map(MachineOperationToken::operationId)
-              .forEach(persistedCompletedOperations::add);
+                .filter(token -> token.state() == MachineOperationToken.State.COMPLETED)
+                .filter(token -> {
+                    MachineOperationLease lease = leases.get(token.leaseId());
+                    return lease != null && lease.state() == MachineOperationLease.State.RELEASED &&
+                            lease.ownerOperationId().equals(token.operationId());
+                })
+                .map(MachineOperationToken::operationId)
+                .forEach(persistedCompletedOperations::add);
         if (persistedCompletedOperations.size() != before) {
             wakeExecution();
         }
     }
 
-    /** 更新终端和管理界面使用的机器活动快照。 */
+    /**
+     * 更新终端和管理界面使用的机器活动快照。
+     */
     @Override
     public void updateActivitySnapshot(@Nonnull MachineActivitySnapshot snapshot) {
         Objects.requireNonNull(snapshot, "Activity snapshot cannot be null");
         activitySnapshots.put(snapshot.laneId(), snapshot);
     }
 
-    /** 将主机状态按稳定顺序序列化为 NBT；旧 DATA_ERROR 只作为兼容输入读取。 */
+    /**
+     * 将主机状态按稳定顺序序列化为 NBT；旧 DATA_ERROR 只作为兼容输入读取。
+     */
     @Override
     public NBTTagCompound serializeNBT() {
         NBTTagCompound data = new NBTTagCompound();
@@ -1036,7 +1101,7 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         // saves, but never emit it again: recovery diagnostics are represented by the
         // independent RecoveryState and the endpoint remains in its normal lifecycle.
         State persistedState = state == State.DATA_ERROR ?
-              (frequencyReference == null ? State.UNBOUND : State.WAITING_ACCESS) : state;
+                (frequencyReference == null ? State.UNBOUND : State.WAITING_ACCESS) : state;
         data.setString(STATE, persistedState.name());
         data.setLong(CONFIGURATION_REVISION, configurationRevision);
         data.setBoolean(MANAGEMENT_PAUSED, managementPaused);
@@ -1078,7 +1143,7 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
             canonical = raw.getKeySet().toString();
         }
         if (canonical.getBytes(java.nio.charset.StandardCharsets.UTF_8).length <=
-              MAX_PERSISTED_QUARANTINE_BYTES) {
+                MAX_PERSISTED_QUARANTINE_BYTES) {
             return raw.copy();
         }
         NBTTagCompound summary = new NBTTagCompound();
@@ -1091,7 +1156,7 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
     }
 
     private static void copyRecoveryOperationIds(@Nonnull NBTTagCompound raw,
-          @Nonnull String sourceKey, @Nonnull NBTTagCompound summary) {
+                                                 @Nonnull String sourceKey, @Nonnull NBTTagCompound summary) {
         if (!raw.hasKey(sourceKey, NBT.TAG_LIST)) return;
         NBTTagList source = raw.getTagList(sourceKey, NBT.TAG_COMPOUND);
         if (source.tagCount() == 0) return;
@@ -1110,7 +1175,9 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         if (ids.tagCount() > 0) summary.setTag(sourceKey, ids);
     }
 
-    /** 读取主机 NBT；结构损坏时只保留可验证的绑定外壳并进入诊断隔离。 */
+    /**
+     * 读取主机 NBT；结构损坏时只保留可验证的绑定外壳并进入诊断隔离。
+     */
     @Override
     public void deserializeNBT(NBTTagCompound data) {
         // Handoff markers describe only the live tick in which a quarantined output was
@@ -1128,7 +1195,7 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
             if (isRuntimeOutputRecoveryCandidate(parsed)) {
                 pendingRuntimeOutputRecovery = true;
             } else if (parsed.recoveryState == RecoveryState.QUARANTINED &&
-                  parsed.quarantinedData != null) {
+                    parsed.quarantinedData != null) {
                 pendingLegacyOutputRecovery = tryParseLegacyOutputCandidate(parsed.quarantinedData);
             }
             completePendingModeClearIfReady();
@@ -1182,9 +1249,9 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
             }
         }
         configurationRevision = data.hasKey(CONFIGURATION_REVISION, NBT.TAG_LONG) ?
-              Math.max(0, data.getLong(CONFIGURATION_REVISION)) : 0;
+                Math.max(0, data.getLong(CONFIGURATION_REVISION)) : 0;
         state = frequencyReference != null && enabledMode != null ?
-              State.WAITING_ACCESS : State.UNBOUND;
+                State.WAITING_ACCESS : State.UNBOUND;
     }
 
     private void applyParsedState(ParsedState parsed, boolean paused) {
@@ -1193,7 +1260,7 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         enabledMode = parsed.enabledMode;
         clearModeWhenDrained = parsed.clearModeWhenDrained;
         state = isRuntimeOutputRecoveryCandidate(parsed) ?
-              (parsed.frequency == null ? State.UNBOUND : State.WAITING_ACCESS) : parsed.state;
+                (parsed.frequency == null ? State.UNBOUND : State.WAITING_ACCESS) : parsed.state;
         configurationRevision = parsed.configurationRevision;
         managementPaused = paused;
         leases = new LinkedHashMap<>(parsed.leases);
@@ -1202,16 +1269,16 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         persistedCompletedOperations.clear();
         persistedTransferReceipts.clear();
         parsed.tokens.values().stream()
-              .filter(token -> token.state() == MachineOperationToken.State.COMPLETED)
-              .filter(token -> {
-                  MachineOperationLease lease = parsed.leases.get(token.leaseId());
-                  return lease != null && lease.state() == MachineOperationLease.State.RELEASED &&
-                        lease.ownerOperationId().equals(token.operationId());
-              })
-              .map(MachineOperationToken::operationId)
-              .forEach(persistedCompletedOperations::add);
+                .filter(token -> token.state() == MachineOperationToken.State.COMPLETED)
+                .filter(token -> {
+                    MachineOperationLease lease = parsed.leases.get(token.leaseId());
+                    return lease != null && lease.state() == MachineOperationLease.State.RELEASED &&
+                            lease.ownerOperationId().equals(token.operationId());
+                })
+                .map(MachineOperationToken::operationId)
+                .forEach(persistedCompletedOperations::add);
         parsed.tokens.values().stream().flatMap(token -> token.transferReceipts().stream())
-              .forEach(persistedTransferReceipts::add);
+                .forEach(persistedTransferReceipts::add);
         dataError = parsed.dataError;
         recoveryState = parsed.recoveryState;
         quarantinedData = parsed.quarantinedData;
@@ -1229,7 +1296,7 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
     }
 
     private void installPendingLegacyOutputRecovery(ParsedState candidate,
-          NBTTagCompound raw) {
+                                                    NBTTagCompound raw) {
         persistentDeviceUUID = candidate.deviceUUID;
         frequencyReference = candidate.frequency;
         enabledMode = candidate.enabledMode;
@@ -1251,7 +1318,9 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         pendingRuntimeOutputRecovery = false;
     }
 
-    /** Restores the clean default used when Forge supplied an empty capability compound. */
+    /**
+     * Restores the clean default used when Forge supplied an empty capability compound.
+     */
     private void resetToUnbound() {
         persistentDeviceUUID = UUID.randomUUID();
         frequencyReference = null;
@@ -1278,40 +1347,40 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
             throw new IllegalArgumentException("Unsupported QIO automation host schema " + data.getInteger(SCHEMA));
         }
         if (!data.hasKey(DEVICE_UUID, NBT.TAG_STRING) ||
-              !data.hasKey(STATE, NBT.TAG_STRING) ||
-              !data.hasKey(CONFIGURATION_REVISION, NBT.TAG_LONG) ||
-              !data.hasKey(MANAGEMENT_PAUSED, NBT.TAG_BYTE) ||
-              !data.hasKey(LEASES, NBT.TAG_LIST) ||
-              !data.hasKey(TOKENS, NBT.TAG_LIST) ||
-              !data.hasKey(OUTPUT_BUFFERS, NBT.TAG_LIST)) {
+                !data.hasKey(STATE, NBT.TAG_STRING) ||
+                !data.hasKey(CONFIGURATION_REVISION, NBT.TAG_LONG) ||
+                !data.hasKey(MANAGEMENT_PAUSED, NBT.TAG_BYTE) ||
+                !data.hasKey(LEASES, NBT.TAG_LIST) ||
+                !data.hasKey(TOKENS, NBT.TAG_LIST) ||
+                !data.hasKey(OUTPUT_BUFFERS, NBT.TAG_LIST)) {
             throw new IllegalArgumentException(
-                  "QIO automation host is missing current-schema state");
+                    "QIO automation host is missing current-schema state");
         }
         UUID deviceUUID = parseUUID(data.getString(DEVICE_UUID), DEVICE_UUID);
         QIOFrequencyReference frequency = data.hasKey(FREQUENCY, NBT.TAG_COMPOUND) ?
-              QIOFrequencyReference.read(data.getCompoundTag(FREQUENCY)) : null;
+                QIOFrequencyReference.read(data.getCompoundTag(FREQUENCY)) : null;
         QIOAutomationMode mode = data.hasKey(ENABLED_MODE, NBT.TAG_STRING) ?
-              QIOAutomationMode.valueOf(data.getString(ENABLED_MODE)) : null;
+                QIOAutomationMode.valueOf(data.getString(ENABLED_MODE)) : null;
         State parsedState = State.valueOf(data.getString(STATE));
         boolean parsedClearModeWhenDrained = data.getBoolean(
-              CLEAR_MODE_WHEN_DRAINED);
+                CLEAR_MODE_WHEN_DRAINED);
         long revision = data.getLong(CONFIGURATION_REVISION);
         if (revision < 0 || frequency != null && mode == null) {
             throw new IllegalArgumentException("Invalid automation binding or configuration revision");
         }
         boolean detachedDrain = frequency == null && parsedState == State.DRAINING_CHANGE &&
-              parsedClearModeWhenDrained && mode != null;
+                parsedClearModeWhenDrained && mode != null;
         if (frequency == null && parsedState != State.UNBOUND &&
-            parsedState != State.IDENTITY_CONFLICT && parsedState != State.DATA_ERROR &&
-            !detachedDrain) {
+                parsedState != State.IDENTITY_CONFLICT && parsedState != State.DATA_ERROR &&
+                !detachedDrain) {
             throw new IllegalArgumentException("An unbound automation host has an invalid state");
         }
         if (frequency != null && mode != null && parsedState == State.UNBOUND) {
             throw new IllegalArgumentException("A bound automation host cannot be unbound");
         }
         if (parsedClearModeWhenDrained !=
-              (parsedState == State.DRAINING_CHANGE) ||
-            parsedClearModeWhenDrained && mode == null) {
+                (parsedState == State.DRAINING_CHANGE) ||
+                parsedClearModeWhenDrained && mode == null) {
             throw new IllegalArgumentException("Invalid pending automation mode removal");
         }
 
@@ -1319,14 +1388,14 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         NBTTagList tokenList = data.getTagList(TOKENS, NBT.TAG_COMPOUND);
         NBTTagList outputBufferList = data.getTagList(OUTPUT_BUFFERS, NBT.TAG_COMPOUND);
         String parsedError = data.hasKey(RECOVERY_DIAGNOSTIC, NBT.TAG_STRING) ?
-              data.getString(RECOVERY_DIAGNOSTIC) :
-              data.hasKey(DATA_ERROR, NBT.TAG_STRING) ? data.getString(DATA_ERROR) : null;
+                data.getString(RECOVERY_DIAGNOSTIC) :
+                data.hasKey(DATA_ERROR, NBT.TAG_STRING) ? data.getString(DATA_ERROR) : null;
         RecoveryState parsedRecoveryState = data.hasKey(RECOVERY_STATE, NBT.TAG_STRING) ?
-              RecoveryState.valueOf(data.getString(RECOVERY_STATE)) :
-              parsedState == State.DATA_ERROR || parsedError != null ?
-                    RecoveryState.QUARANTINED : RecoveryState.NONE;
+                RecoveryState.valueOf(data.getString(RECOVERY_STATE)) :
+                parsedState == State.DATA_ERROR || parsedError != null ?
+                        RecoveryState.QUARANTINED : RecoveryState.NONE;
         if (leaseList.tagCount() > MAX_ACTIVE_LEASES || tokenList.tagCount() > MAX_OPERATION_TOKENS ||
-            outputBufferList.tagCount() > MAX_OUTPUT_BUFFERS) {
+                outputBufferList.tagCount() > MAX_OUTPUT_BUFFERS) {
             throw new IllegalArgumentException("Automation host contains too many operations");
         }
         Map<UUID, MachineOperationLease> parsedLeases = new LinkedHashMap<>();
@@ -1347,8 +1416,8 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
                 throw new IllegalArgumentException("Machine operation token does not match its lease");
             }
             if (token.state() == MachineOperationToken.State.COMPLETED &&
-                  lease.state() != MachineOperationLease.State.COMPLETED &&
-                  lease.state() != MachineOperationLease.State.RELEASED) {
+                    lease.state() != MachineOperationLease.State.COMPLETED &&
+                    lease.state() != MachineOperationLease.State.RELEASED) {
                 throw new IllegalArgumentException("Completed machine operation has an active lease");
             }
         }
@@ -1362,94 +1431,94 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
             MachineOperationToken token = parsedTokens.get(entry.operationId());
             MachineOperationLease lease = parsedLeases.get(entry.leaseId());
             if (token == null || lease == null || token.kind() != MachineOperationToken.Kind.OUTPUT_DRAIN ||
-                !token.leaseId().equals(entry.leaseId()) ||
-                !token.leaseId().equals(lease.leaseId()) ||
-                token.state() != MachineOperationToken.State.COLLECTING ||
-                lease.state() != MachineOperationLease.State.COLLECTING) {
+                    !token.leaseId().equals(entry.leaseId()) ||
+                    !token.leaseId().equals(lease.leaseId()) ||
+                    token.state() != MachineOperationToken.State.COLLECTING ||
+                    lease.state() != MachineOperationLease.State.COLLECTING) {
                 if (!allowLegacyOutputCandidate || legacyOutputRecoveryCandidate ||
-                      !isLegacyOutputRecoveryStructure(entry, token, lease, parsedState,
-                            frequency, mode, parsedClearModeWhenDrained, parsedError)) {
+                        !isLegacyOutputRecoveryStructure(entry, token, lease, parsedState,
+                                frequency, mode, parsedClearModeWhenDrained, parsedError)) {
                     throw new IllegalArgumentException("QIO output buffer does not match a collecting operation");
                 }
                 legacyOutputRecoveryCandidate = true;
             }
         }
         NBTTagCompound parsedQuarantine = data.hasKey(QUARANTINED_DATA, NBT.TAG_COMPOUND) ?
-              data.getCompoundTag(QUARANTINED_DATA).copy() : null;
+                data.getCompoundTag(QUARANTINED_DATA).copy() : null;
         if (parsedState == State.DATA_ERROR && (parsedError == null || parsedError.isEmpty())) {
             throw new IllegalArgumentException("Data-error host is missing its diagnostic");
         }
         if (parsedRecoveryState == RecoveryState.QUARANTINED &&
-              (parsedError == null || parsedError.isEmpty())) {
+                (parsedError == null || parsedError.isEmpty())) {
             throw new IllegalArgumentException("Quarantined automation recovery is missing its diagnostic");
         }
         if (parsedRecoveryState != RecoveryState.QUARANTINED &&
-              (parsedError != null || parsedQuarantine != null)) {
+                (parsedError != null || parsedQuarantine != null)) {
             throw new IllegalArgumentException(
-                  "Automation recovery diagnostic is not quarantined");
+                    "Automation recovery diagnostic is not quarantined");
         }
         if (parsedRecoveryState == RecoveryState.RETRY_PENDING && parsedQuarantine != null) {
             throw new IllegalArgumentException(
-                  "Retryable automation recovery cannot contain quarantined data");
+                    "Retryable automation recovery cannot contain quarantined data");
         }
         // Every live binding is re-authorized after load before it can access QIO again.
         State restoredState = parsedState == State.ACTIVE || parsedState == State.DATA_ERROR ?
-              (frequency == null ? State.UNBOUND : State.WAITING_ACCESS) : parsedState;
+                (frequency == null ? State.UNBOUND : State.WAITING_ACCESS) : parsedState;
         return new ParsedState(deviceUUID, frequency, mode, parsedClearModeWhenDrained,
-              restoredState, revision, parsedLeases, parsedTokens,
-              parsedOutputBuffers, parsedRecoveryState, parsedError, parsedQuarantine,
-              legacyOutputRecoveryCandidate);
+                restoredState, revision, parsedLeases, parsedTokens,
+                parsedOutputBuffers, parsedRecoveryState, parsedError, parsedQuarantine,
+                legacyOutputRecoveryCandidate);
     }
 
     private static boolean isLegacyOutputRecoveryStructure(QIOOutputBufferEntry entry,
-          @Nullable MachineOperationToken token, @Nullable MachineOperationLease lease,
-          State parsedState, @Nullable QIOFrequencyReference frequency,
-          @Nullable QIOAutomationMode mode, boolean clearModeWhenDrained,
-          @Nullable String parsedError) {
+                                                           @Nullable MachineOperationToken token, @Nullable MachineOperationLease lease,
+                                                           State parsedState, @Nullable QIOFrequencyReference frequency,
+                                                           @Nullable QIOAutomationMode mode, boolean clearModeWhenDrained,
+                                                           @Nullable String parsedError) {
         boolean recognizedState = parsedState == State.ACTIVE || parsedState == State.WAITING_ACCESS ||
-              parsedState == State.DATA_ERROR && parsedError != null &&
-                    (parsedError.contains("Automatic output extraction") ||
-                          parsedError.startsWith(OUTPUT_QUARANTINE_PREFIX));
+                parsedState == State.DATA_ERROR && parsedError != null &&
+                        (parsedError.contains("Automatic output extraction") ||
+                                parsedError.startsWith(OUTPUT_QUARANTINE_PREFIX));
         return token != null && lease != null && frequency != null &&
-              mode == QIOAutomationMode.OUTPUT_ONLY && !clearModeWhenDrained &&
-              recognizedState &&
-              entry.phase() == QIOOutputBufferEntry.Phase.PREPARED && entry.resource() == null &&
-              entry.amount() == 0 && entry.qioTransferId() == null &&
-              entry.qioRequestedAmount() == 0 &&
-              token.kind() == MachineOperationToken.Kind.OUTPUT_DRAIN &&
-              token.state() == MachineOperationToken.State.CONTAMINATED &&
-              token.transferReceipts().isEmpty() &&
-              lease.mode() == MachineOperationLease.Mode.OUTPUT_DRAIN &&
-              lease.state() == MachineOperationLease.State.CONTAMINATED &&
-              lease.contaminationReason() != null &&
-              lease.contaminationReason().contains("Automatic output extraction") &&
-              token.leaseId().equals(lease.leaseId()) &&
-              lease.ownerOperationId().equals(token.operationId()) &&
-              entry.operationId().equals(token.operationId()) &&
-              entry.leaseId().equals(lease.leaseId()) &&
-              lease.baselines().equals(Collections.singletonList(entry.baseline()));
+                mode == QIOAutomationMode.OUTPUT_ONLY && !clearModeWhenDrained &&
+                recognizedState &&
+                entry.phase() == QIOOutputBufferEntry.Phase.PREPARED && entry.resource() == null &&
+                entry.amount() == 0 && entry.qioTransferId() == null &&
+                entry.qioRequestedAmount() == 0 &&
+                token.kind() == MachineOperationToken.Kind.OUTPUT_DRAIN &&
+                token.state() == MachineOperationToken.State.CONTAMINATED &&
+                token.transferReceipts().isEmpty() &&
+                lease.mode() == MachineOperationLease.Mode.OUTPUT_DRAIN &&
+                lease.state() == MachineOperationLease.State.CONTAMINATED &&
+                lease.contaminationReason() != null &&
+                lease.contaminationReason().contains("Automatic output extraction") &&
+                token.leaseId().equals(lease.leaseId()) &&
+                lease.ownerOperationId().equals(token.operationId()) &&
+                entry.operationId().equals(token.operationId()) &&
+                entry.leaseId().equals(lease.leaseId()) &&
+                lease.baselines().equals(Collections.singletonList(entry.baseline()));
     }
 
     private static boolean isRuntimeOutputRecoveryCandidate(ParsedState parsed) {
         if (parsed.recoveryState == RecoveryState.NONE || parsed.dataError == null ||
-              !parsed.dataError.startsWith(OUTPUT_QUARANTINE_PREFIX) ||
-              parsed.outputBuffers.size() != 1) {
+                !parsed.dataError.startsWith(OUTPUT_QUARANTINE_PREFIX) ||
+                parsed.outputBuffers.size() != 1) {
             return false;
         }
         QIOOutputBufferEntry entry = parsed.outputBuffers.values().iterator().next();
         MachineOperationToken token = parsed.tokens.get(entry.operationId());
         MachineOperationLease lease = parsed.leases.get(entry.leaseId());
         return entry.phase() == QIOOutputBufferEntry.Phase.PREPARED && entry.resource() == null &&
-              entry.amount() == 0 && entry.qioTransferId() == null &&
-              entry.qioRequestedAmount() == 0 && token != null && lease != null &&
-              token.kind() == MachineOperationToken.Kind.OUTPUT_DRAIN &&
-              token.state() == MachineOperationToken.State.COLLECTING &&
-              token.transferReceipts().isEmpty() &&
-              lease.mode() == MachineOperationLease.Mode.OUTPUT_DRAIN &&
-              lease.state() == MachineOperationLease.State.COLLECTING &&
-              token.leaseId().equals(lease.leaseId()) &&
-              lease.ownerOperationId().equals(token.operationId()) &&
-              lease.baselines().equals(Collections.singletonList(entry.baseline()));
+                entry.amount() == 0 && entry.qioTransferId() == null &&
+                entry.qioRequestedAmount() == 0 && token != null && lease != null &&
+                token.kind() == MachineOperationToken.Kind.OUTPUT_DRAIN &&
+                token.state() == MachineOperationToken.State.COLLECTING &&
+                token.transferReceipts().isEmpty() &&
+                lease.mode() == MachineOperationLease.Mode.OUTPUT_DRAIN &&
+                lease.state() == MachineOperationLease.State.COLLECTING &&
+                token.leaseId().equals(lease.leaseId()) &&
+                lease.ownerOperationId().equals(token.operationId()) &&
+                lease.baselines().equals(Collections.singletonList(entry.baseline()));
     }
 
     enum DeferredOutputRecoveryResult {
@@ -1459,7 +1528,9 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         BLOCKED
     }
 
-    /** 返回已知的自动输出隔离是否正在等待严格重试。 */
+    /**
+     * 返回已知的自动输出隔离是否正在等待严格重试。
+     */
     public boolean hasDeferredOutputRecovery() {
         return pendingLegacyOutputRecovery != null || pendingRuntimeOutputRecovery;
     }
@@ -1480,10 +1551,12 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
             return true;
         }
         return leases.isEmpty() && operationTokens.isEmpty() && outputBuffers.isEmpty() &&
-               persistedCompletedOperations.isEmpty() && persistedTransferReceipts.isEmpty();
+                persistedCompletedOperations.isEmpty() && persistedTransferReceipts.isEmpty();
     }
 
-    /** 重新启用安全恢复记录，或把已知输出隔离重新加入重试队列。 */
+    /**
+     * 重新启用安全恢复记录，或把已知输出隔离重新加入重试队列。
+     */
     public boolean rearmAfterUpgrade(@Nonnull QIOAutomationMode mode) {
         if (!canRearmAfterUpgrade(mode)) {
             return false;
@@ -1520,13 +1593,13 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         // Keep this whitelist deliberately narrow. Any unrecognised field may be an
         // ownership record from a newer schema and must remain available for audit.
         java.util.Set<String> allowed = new java.util.HashSet<>(java.util.Arrays.asList(
-              SCHEMA, DEVICE_UUID, FREQUENCY, ENABLED_MODE, STATE,
-              CONFIGURATION_REVISION, MANAGEMENT_PAUSED, CLEAR_MODE_WHEN_DRAINED,
-              DATA_ERROR, RECOVERY_STATE, RECOVERY_DIAGNOSTIC));
+                SCHEMA, DEVICE_UUID, FREQUENCY, ENABLED_MODE, STATE,
+                CONFIGURATION_REVISION, MANAGEMENT_PAUSED, CLEAR_MODE_WHEN_DRAINED,
+                DATA_ERROR, RECOVERY_STATE, RECOVERY_DIAGNOSTIC));
         for (String key : quarantinedData.getKeySet()) {
             if (LEASES.equals(key) || TOKENS.equals(key) || OUTPUT_BUFFERS.equals(key)) {
                 if (!quarantinedData.hasKey(key, NBT.TAG_LIST) ||
-                      quarantinedData.getTagList(key, NBT.TAG_COMPOUND).tagCount() != 0) {
+                        quarantinedData.getTagList(key, NBT.TAG_COMPOUND).tagCount() != 0) {
                     return false;
                 }
                 continue;
@@ -1552,11 +1625,11 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
             // files are deliberately kept out of the loaded map.  Keep the host quarantined until
             // that isolation record is resolved instead of dismissing a possible owner.
             if (QIOProcessingNetworkManager.INSTANCE.getIsolationStatus(
-                  frequencyReference.getFrequencyUUID()) != null) {
+                    frequencyReference.getFrequencyUUID()) != null) {
                 return false;
             }
             QIOProcessingNetworkData network = QIOProcessingNetworkManager.INSTANCE.get(
-                  frequencyReference.getFrequencyUUID());
+                    frequencyReference.getFrequencyUUID());
             if (network == null) {
                 return true;
             }
@@ -1565,29 +1638,29 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
             String bufferPrefix = "output-buffer/" + deviceUUID + '/';
             for (QIODurableTransferRecord transfer : network.getDurableTransfers()) {
                 if (transfer.getSource().startsWith(machinePrefix) ||
-                      transfer.getDestination().startsWith(machinePrefix) ||
-                      transfer.getSource().startsWith(bufferPrefix) ||
-                      transfer.getDestination().startsWith(bufferPrefix)) {
+                        transfer.getDestination().startsWith(machinePrefix) ||
+                        transfer.getSource().startsWith(bufferPrefix) ||
+                        transfer.getDestination().startsWith(bufferPrefix)) {
                     return false;
                 }
             }
             for (mekanism.qioprocessing.common.content.transfer.QIOConfigurationExchangeRecord exchange :
-                  network.getConfigurationExchanges()) {
+                    network.getConfigurationExchanges()) {
                 if (deviceUUID.equals(exchange.getDeviceUUID())) {
                     return false;
                 }
             }
             for (mekanism.qioprocessing.common.content.passive.QIOPassiveOperation operation :
-                  network.getPassiveOperations()) {
+                    network.getPassiveOperations()) {
                 if (deviceUUID.equals(operation.getDeviceUUID())) {
                     return false;
                 }
             }
             for (mekanism.qioprocessing.common.content.job.QIOCraftingJob job : network.getJobs()) {
                 for (mekanism.qioprocessing.common.content.job.QIOStepRuntime runtime :
-                      job.getStepRuntimes().values()) {
+                        job.getStepRuntimes().values()) {
                     for (mekanism.qioprocessing.common.content.job.QIOOperationAssignment assignment :
-                          runtime.getActiveOperations().values()) {
+                            runtime.getActiveOperations().values()) {
                         if (deviceUUID.equals(assignment.getDeviceUUID())) {
                             return false;
                         }
@@ -1600,7 +1673,9 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         }
     }
 
-    /** 网络记录受影响操作后，供恢复界面调用的强制清理入口。 */
+    /**
+     * 网络记录受影响操作后，供恢复界面调用的强制清理入口。
+     */
     public boolean forceRecoverAfterDataError() {
         if (state != State.DATA_ERROR && !hasRecoveryPending()) {
             return false;
@@ -1625,14 +1700,18 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         return true;
     }
 
-    /** 仅在升级卸载服务完成外部所有权持久化审计后调用。 */
+    /**
+     * 仅在升级卸载服务完成外部所有权持久化审计后调用。
+     */
     boolean forceClearAfterUpgradeRemoval() {
         clearAutomationStateAfterUpgradeRemoval();
         markDirty();
         return true;
     }
 
-    /** 设备注册表在 TileEntity.readCustomNBT 恢复槽位/储罐后调用。 */
+    /**
+     * 设备注册表在 TileEntity.readCustomNBT 恢复槽位/储罐后调用。
+     */
     DeferredOutputRecoveryResult attemptDeferredOutputRecovery() {
         if (!hasDeferredOutputRecovery()) {
             return DeferredOutputRecoveryResult.NONE;
@@ -1650,18 +1729,18 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         Map<UUID, MachineOperationToken> candidateTokens = legacy ? candidate.tokens : operationTokens;
         Map<UUID, QIOOutputBufferEntry> candidateBuffers = legacy ? candidate.outputBuffers : outputBuffers;
         if (candidateFrequency == null || candidateMode != QIOAutomationMode.OUTPUT_ONLY ||
-              candidateBuffers.size() != 1) {
+                candidateBuffers.size() != 1) {
             return DeferredOutputRecoveryResult.BLOCKED;
         }
         if (state == State.IDENTITY_CONFLICT) {
             return DeferredOutputRecoveryResult.BLOCKED;
         }
         if (QIOProcessingNetworkManager.INSTANCE.getIsolationStatus(
-              candidateFrequency.getFrequencyUUID()) != null) {
+                candidateFrequency.getFrequencyUUID()) != null) {
             return DeferredOutputRecoveryResult.RETRY_LATER;
         }
         if (!QIOAutomationDeviceRegistry.INSTANCE.isRecoveryIdentityUnique(
-              candidateDeviceUUID, this)) {
+                candidateDeviceUUID, this)) {
             return DeferredOutputRecoveryResult.BLOCKED;
         }
         QIOOutputBufferEntry entry = candidateBuffers.values().iterator().next();
@@ -1680,7 +1759,7 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
                 return DeferredOutputRecoveryResult.RETRY_LATER;
             }
             if (!provider.validateQIOConformance(
-                  QIOAutomationMode.OUTPUT_ONLY).isConformant()) {
+                    QIOAutomationMode.OUTPUT_ONLY).isConformant()) {
                 return DeferredOutputRecoveryResult.BLOCKED;
             }
         } catch (RuntimeException e) {
@@ -1697,7 +1776,7 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         MachinePort outputPort = null;
         for (MachinePort port : providerPorts) {
             if (port != null && !port.isConfiguration() && port.role().allowsOutput() &&
-                  entry.baseline().portId().equals(port.portId())) {
+                    entry.baseline().portId().equals(port.portId())) {
                 if (outputPort != null) {
                     return DeferredOutputRecoveryResult.BLOCKED;
                 }
@@ -1705,12 +1784,12 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
             }
         }
         if (outputPort == null || !entry.baseline().portGroupId().equals(outputPort.portGroupId()) ||
-              !entry.baseline().resourceMatcher().equals(outputPort.resourceMatcher())) {
+                !entry.baseline().resourceMatcher().equals(outputPort.resourceMatcher())) {
             return DeferredOutputRecoveryResult.BLOCKED;
         }
         boolean sourceIntact = entry.baseline().matches(outputPort);
         boolean sourceExtracted = entry.baseline().matchesAfterExtraction(outputPort,
-              entry.extraction());
+                entry.extraction());
         // A legacy contaminated capability is read before TileEntity custom NBT in Forge
         // 1.12.  Its PREPARED transfer has no ownership receipt, so a post-extraction
         // looking port cannot distinguish a legitimate completed extraction from the
@@ -1727,7 +1806,7 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         QIOProcessingNetworkData network;
         try {
             network = QIOProcessingNetworkManager.INSTANCE.get(
-                  candidateFrequency.getFrequencyUUID());
+                    candidateFrequency.getFrequencyUUID());
             if (network == null) {
                 return DeferredOutputRecoveryResult.RETRY_LATER;
             }
@@ -1746,26 +1825,26 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         }
         boolean externalPreparedHandoff = false;
         if (!legacy && !sourceIntact && token.transferReceipts().isEmpty() &&
-              (transfer == null || transfer.getPhase() == QIODurableTransferRecord.Phase.PREPARED) &&
-              (sourceExtracted || isOrdinaryOutputHandoffAllowed(entry.operationId()))) {
+                (transfer == null || transfer.getPhase() == QIODurableTransferRecord.Phase.PREPARED) &&
+                (sourceExtracted || isOrdinaryOutputHandoffAllowed(entry.operationId()))) {
             // The ordinary ejector is allowed to run while a runtime output quarantine is
             // active.  An exact post-extraction baseline, or a mutation explicitly marked by
             // pauseAutomaticOutputCollection (needed for partial fluid/gas handoffs), proves
             // that this PREPARED intent was yielded externally.  Unmarked arbitrary mutations
             // remain blocked for manual audit; a debited/credited phase stays owned by QIO.
             if (transfer != null && (ownedTransfers != 1 ||
-                  !automaticOutputTransferMatches(transfer, candidateDeviceUUID, entry, resource,
-                        false, true, false, candidateRevision))) {
+                    !automaticOutputTransferMatches(transfer, candidateDeviceUUID, entry, resource,
+                            false, true, false, candidateRevision))) {
                 return DeferredOutputRecoveryResult.BLOCKED;
             }
             try {
                 if (transfer != null) {
                     network.discardPreparedGenericTransfer(transfer.getTransferId());
                     QIOProcessingNetworkManager.INSTANCE.checkpointNetwork(
-                          candidateFrequency.getFrequencyUUID());
+                            candidateFrequency.getFrequencyUUID());
                 }
                 if (!discardPreparedOutputAfterExternalHandoff(entry.operationId(),
-                      entry.bufferId())) {
+                        entry.bufferId())) {
                     return DeferredOutputRecoveryResult.BLOCKED;
                 }
                 externalPreparedHandoff = true;
@@ -1783,8 +1862,8 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
                     return DeferredOutputRecoveryResult.BLOCKED;
                 }
             } else if (ownedTransfers != 1 || !automaticOutputTransferMatches(transfer,
-                  candidateDeviceUUID, entry, resource, legacy, sourceIntact, sourceExtracted,
-                  candidateRevision)) {
+                    candidateDeviceUUID, entry, resource, legacy, sourceIntact, sourceExtracted,
+                    candidateRevision)) {
                 return DeferredOutputRecoveryResult.BLOCKED;
             }
         }
@@ -1794,15 +1873,15 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
                 Map<UUID, MachineOperationToken> recoveredTokens = new LinkedHashMap<>(candidate.tokens);
                 Map<UUID, MachineOperationLease> recoveredLeases = new LinkedHashMap<>(candidate.leases);
                 recoveredTokens.put(token.operationId(),
-                      token.recoverCollectingAfterOutputRollback());
+                        token.recoverCollectingAfterOutputRollback());
                 recoveredLeases.put(lease.leaseId(),
-                      lease.recoverCollectingAfterOutputRollback());
+                        lease.recoverCollectingAfterOutputRollback());
                 persistentDeviceUUID = candidate.deviceUUID;
                 frequencyReference = candidate.frequency;
                 enabledMode = candidate.enabledMode;
                 clearModeWhenDrained = false;
                 configurationRevision = candidate.configurationRevision == Long.MAX_VALUE ?
-                      Long.MAX_VALUE : candidate.configurationRevision + 1;
+                        Long.MAX_VALUE : candidate.configurationRevision + 1;
                 managementPaused = false;
                 leases = recoveredLeases;
                 operationTokens = recoveredTokens;
@@ -1829,51 +1908,51 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
     }
 
     private static boolean recoveryOwnershipMatches(QIOOutputBufferEntry entry,
-          @Nullable MachineOperationToken token, @Nullable MachineOperationLease lease,
-          boolean legacy) {
+                                                    @Nullable MachineOperationToken token, @Nullable MachineOperationLease lease,
+                                                    boolean legacy) {
         if (entry.phase() != QIOOutputBufferEntry.Phase.PREPARED || entry.resource() != null ||
-              entry.amount() != 0 || entry.qioTransferId() != null ||
-              entry.qioRequestedAmount() != 0 || token == null || lease == null ||
-              token.kind() != MachineOperationToken.Kind.OUTPUT_DRAIN ||
-              !token.transferReceipts().isEmpty() ||
-              lease.mode() != MachineOperationLease.Mode.OUTPUT_DRAIN ||
-              !token.leaseId().equals(entry.leaseId()) ||
-              !token.leaseId().equals(lease.leaseId()) ||
-              !lease.ownerOperationId().equals(entry.operationId()) ||
-              !lease.baselines().equals(Collections.singletonList(entry.baseline()))) {
+                entry.amount() != 0 || entry.qioTransferId() != null ||
+                entry.qioRequestedAmount() != 0 || token == null || lease == null ||
+                token.kind() != MachineOperationToken.Kind.OUTPUT_DRAIN ||
+                !token.transferReceipts().isEmpty() ||
+                lease.mode() != MachineOperationLease.Mode.OUTPUT_DRAIN ||
+                !token.leaseId().equals(entry.leaseId()) ||
+                !token.leaseId().equals(lease.leaseId()) ||
+                !lease.ownerOperationId().equals(entry.operationId()) ||
+                !lease.baselines().equals(Collections.singletonList(entry.baseline()))) {
             return false;
         }
         if (legacy) {
             return token.state() == MachineOperationToken.State.CONTAMINATED &&
-                  lease.state() == MachineOperationLease.State.CONTAMINATED &&
-                  lease.contaminationReason() != null &&
-                  lease.contaminationReason().contains("Automatic output extraction");
+                    lease.state() == MachineOperationLease.State.CONTAMINATED &&
+                    lease.contaminationReason() != null &&
+                    lease.contaminationReason().contains("Automatic output extraction");
         }
         return token.state() == MachineOperationToken.State.COLLECTING &&
-              lease.state() == MachineOperationLease.State.COLLECTING;
+                lease.state() == MachineOperationLease.State.COLLECTING;
     }
 
     private static boolean automaticOutputTransferMatches(QIODurableTransferRecord transfer,
-          UUID deviceUUID, QIOOutputBufferEntry entry, PortableResourceDescriptor resource,
-          boolean legacy, boolean sourceIntact, boolean sourceExtracted, long expectedRevision) {
+                                                          UUID deviceUUID, QIOOutputBufferEntry entry, PortableResourceDescriptor resource,
+                                                          boolean legacy, boolean sourceIntact, boolean sourceExtracted, long expectedRevision) {
         if (!transfer.getTransferId().equals(entry.bufferId()) ||
-              transfer.getType() != QIODurableTransferRecord.Type.MACHINE_TO_JOB ||
-              transfer.getOwnerJobId() != null ||
-              !entry.operationId().equals(transfer.getOwnerOperationId()) ||
-              transfer.getPlanRevision() != 0 ||
-              !transfer.getNodeId().equals("output/" + entry.baseline().portId()) ||
-              !entry.leaseId().equals(transfer.getLeaseId()) ||
-              !transfer.getSource().equals("machine/" + deviceUUID + '/' +
-                    entry.baseline().portGroupId()) ||
-              !transfer.getDestination().equals("output-buffer/" + deviceUUID + '/' +
-                    entry.bufferId()) ||
-              !transfer.getResources().equals(Collections.singletonMap(resource,
-                    entry.extraction().amount())) ||
-              !transfer.getQIOResourceUUIDs().isEmpty() || !transfer.getQIOBaselines().isEmpty() ||
-              !transfer.getMachineBaselines().equals(Collections.singletonList(entry.baseline())) ||
-              transfer.getExpectedContentsRevision() != -1 ||
-              transfer.getExpectedClaimRevision() != -1 ||
-              transfer.getCompensationTransferId() != null) {
+                transfer.getType() != QIODurableTransferRecord.Type.MACHINE_TO_JOB ||
+                transfer.getOwnerJobId() != null ||
+                !entry.operationId().equals(transfer.getOwnerOperationId()) ||
+                transfer.getPlanRevision() != 0 ||
+                !transfer.getNodeId().equals("output/" + entry.baseline().portId()) ||
+                !entry.leaseId().equals(transfer.getLeaseId()) ||
+                !transfer.getSource().equals("machine/" + deviceUUID + '/' +
+                        entry.baseline().portGroupId()) ||
+                !transfer.getDestination().equals("output-buffer/" + deviceUUID + '/' +
+                        entry.bufferId()) ||
+                !transfer.getResources().equals(Collections.singletonMap(resource,
+                        entry.extraction().amount())) ||
+                !transfer.getQIOResourceUUIDs().isEmpty() || !transfer.getQIOBaselines().isEmpty() ||
+                !transfer.getMachineBaselines().equals(Collections.singletonList(entry.baseline())) ||
+                transfer.getExpectedContentsRevision() != -1 ||
+                transfer.getExpectedClaimRevision() != -1 ||
+                transfer.getCompensationTransferId() != null) {
             return false;
         }
 
@@ -1884,18 +1963,18 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
             // safe to migrate while the original machine-side baseline is still present;
             // there is no durable receipt proving that an extraction happened.
             return sourceIntact && transfer.getPhase() == QIODurableTransferRecord.Phase.PREPARED &&
-                  transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE &&
-                  transfer.getSourceReceipt() == null && transfer.getDestinationReceipt() == null &&
-                  transfer.getSourceStateRevision() == -1;
+                    transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE &&
+                    transfer.getSourceReceipt() == null && transfer.getDestinationReceipt() == null &&
+                    transfer.getSourceStateRevision() == -1;
         }
         if (sourceIntact) {
             // A transfer that claims any source-side progress while the machine is still at
             // its baseline cannot be replayed safely.  Re-open only a completely prepared
             // handoff; the normal controller will perform the extraction once.
             return transfer.getPhase() == QIODurableTransferRecord.Phase.PREPARED &&
-                  transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE &&
-                  transfer.getSourceReceipt() == null && transfer.getDestinationReceipt() == null &&
-                  transfer.getSourceStateRevision() == -1;
+                    transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE &&
+                    transfer.getSourceReceipt() == null && transfer.getDestinationReceipt() == null &&
+                    transfer.getSourceStateRevision() == -1;
         }
         if (!sourceExtracted) {
             return false;
@@ -1906,23 +1985,23 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         switch (transfer.getPhase()) {
             case PREPARED:
                 return transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE &&
-                      transfer.getSourceReceipt() == null && transfer.getDestinationReceipt() == null &&
-                      transfer.getSourceStateRevision() == -1;
+                        transfer.getSourceReceipt() == null && transfer.getDestinationReceipt() == null &&
+                        transfer.getSourceStateRevision() == -1;
             case SOURCE_DEBITED:
                 return transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE &&
-                      sourceReceipt.equals(transfer.getSourceReceipt()) &&
-                      transfer.getDestinationReceipt() == null &&
-                      transfer.getSourceStateRevision() == expectedRevision;
+                        sourceReceipt.equals(transfer.getSourceReceipt()) &&
+                        transfer.getDestinationReceipt() == null &&
+                        transfer.getSourceStateRevision() == expectedRevision;
             case DESTINATION_CREDITED:
                 return transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE &&
-                      sourceReceipt.equals(transfer.getSourceReceipt()) &&
-                      destinationReceipt.equals(transfer.getDestinationReceipt()) &&
-                      transfer.getSourceStateRevision() == expectedRevision;
+                        sourceReceipt.equals(transfer.getSourceReceipt()) &&
+                        destinationReceipt.equals(transfer.getDestinationReceipt()) &&
+                        transfer.getSourceStateRevision() == expectedRevision;
             case COMMITTED:
                 return transfer.getResolution() == QIODurableTransferRecord.Resolution.FORWARD_COMMITTED &&
-                      sourceReceipt.equals(transfer.getSourceReceipt()) &&
-                      destinationReceipt.equals(transfer.getDestinationReceipt()) &&
-                      transfer.getSourceStateRevision() == expectedRevision;
+                        sourceReceipt.equals(transfer.getSourceReceipt()) &&
+                        destinationReceipt.equals(transfer.getDestinationReceipt()) &&
+                        transfer.getSourceStateRevision() == expectedRevision;
             case ROLLBACK_REQUIRED:
                 return false;
             default:
@@ -1956,16 +2035,18 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         return false;
     }
 
-    /** Includes terminal ownership records which still await persistence/pruning. */
+    /**
+     * Includes terminal ownership records which still await persistence/pruning.
+     */
     private boolean hasRemovalOwnedState() {
         return hasResourceOwnershipState() ||
-              quarantinedData != null || pendingLegacyOutputRecovery != null ||
-              pendingRuntimeOutputRecovery;
+                quarantinedData != null || pendingLegacyOutputRecovery != null ||
+                pendingRuntimeOutputRecovery;
     }
 
     private boolean hasResourceOwnershipState() {
         return !leases.isEmpty() || !operationTokens.isEmpty() || !outputBuffers.isEmpty() ||
-              !persistedCompletedOperations.isEmpty() || !persistedTransferReceipts.isEmpty();
+                !persistedCompletedOperations.isEmpty() || !persistedTransferReceipts.isEmpty();
     }
 
     /**
@@ -1979,10 +2060,10 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         // Treat it as owned until the audited force-recovery path has accounted for it;
         // otherwise a mode callback could silently discard a job after a malformed load.
         boolean ownedRecovery = hasResourceOwnershipState() || hasDeferredOutputRecovery() ||
-              quarantinedData != null;
+                quarantinedData != null;
         if (ownedRecovery && hasBlockingRecovery()) {
             if (!hasResourceOwnershipState() && quarantinedData != null &&
-                  isDiagnosticOnlyQuarantine()) {
+                    isDiagnosticOnlyQuarantine()) {
                 clearRecoveryPending();
             } else {
                 return false;
@@ -2042,10 +2123,10 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
             MachineOperationToken token = operationTokens.get(entry.operationId());
             MachineOperationLease lease = leases.get(entry.leaseId());
             if (token == null || lease == null ||
-                token.state() != MachineOperationToken.State.COLLECTING ||
-                lease.state() != MachineOperationLease.State.COLLECTING ||
-                !token.leaseId().equals(entry.leaseId()) ||
-                !lease.ownerOperationId().equals(entry.operationId())) {
+                    token.state() != MachineOperationToken.State.COLLECTING ||
+                    lease.state() != MachineOperationLease.State.COLLECTING ||
+                    !token.leaseId().equals(entry.leaseId()) ||
+                    !lease.ownerOperationId().equals(entry.operationId())) {
                 return false;
             }
         }
@@ -2060,8 +2141,8 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         for (MachineOperationToken token : operationTokens.values()) {
             MachineOperationLease lease = leases.get(token.leaseId());
             if (lease == null || !lease.ownerOperationId().equals(token.operationId()) ||
-                (token.state() == MachineOperationToken.State.CONTAMINATED) !=
-                      (lease.state() == MachineOperationLease.State.CONTAMINATED)) {
+                    (token.state() == MachineOperationToken.State.CONTAMINATED) !=
+                            (lease.state() == MachineOperationLease.State.CONTAMINATED)) {
                 return false;
             }
             contaminated |= token.state() == MachineOperationToken.State.CONTAMINATED;
@@ -2071,12 +2152,12 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
 
     private boolean isKnownOutputQuarantine() {
         return recoveryState == RecoveryState.QUARANTINED && dataError != null &&
-              dataError.startsWith(OUTPUT_QUARANTINE_PREFIX);
+                dataError.startsWith(OUTPUT_QUARANTINE_PREFIX);
     }
 
     private boolean isKnownOperationQuarantine() {
         return recoveryState == RecoveryState.QUARANTINED && dataError != null &&
-              dataError.startsWith(OPERATION_QUARANTINE_PREFIX);
+                dataError.startsWith(OPERATION_QUARANTINE_PREFIX);
     }
 
     private void clearKnownOperationQuarantineIfSettled() {
@@ -2084,18 +2165,20 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
             return;
         }
         boolean contaminated = operationTokens.values().stream().anyMatch(token ->
-              token.state() == MachineOperationToken.State.CONTAMINATED);
+                token.state() == MachineOperationToken.State.CONTAMINATED);
         if (!contaminated) {
             clearRecoveryPending();
         }
     }
 
-    /** Clears a runtime diagnostic after its last unowned operation is removed. */
+    /**
+     * Clears a runtime diagnostic after its last unowned operation is removed.
+     */
     private void clearKnownQuarantineIfUnowned() {
         if ((!isKnownOutputQuarantine() && !isKnownOperationQuarantine()) ||
-              quarantinedData != null ||
-              !leases.isEmpty() || !operationTokens.isEmpty() || !outputBuffers.isEmpty() ||
-              !persistedCompletedOperations.isEmpty() || !persistedTransferReceipts.isEmpty()) {
+                quarantinedData != null ||
+                !leases.isEmpty() || !operationTokens.isEmpty() || !outputBuffers.isEmpty() ||
+                !persistedCompletedOperations.isEmpty() || !persistedTransferReceipts.isEmpty()) {
             return;
         }
         clearRecoveryPending();
@@ -2131,7 +2214,7 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
 
     private boolean modeMatchesEnabledAutomation(MachineOperationLease.Mode mode) {
         return enabledMode == QIOAutomationMode.OUTPUT_ONLY ? mode == MachineOperationLease.Mode.OUTPUT_DRAIN :
-              enabledMode != null && mode == MachineOperationLease.Mode.PROCESSING_EXCLUSIVE;
+                enabledMode != null && mode == MachineOperationLease.Mode.PROCESSING_EXCLUSIVE;
     }
 
     private boolean tokenMatchesLeaseMode(MachineOperationToken token, MachineOperationLease lease) {
@@ -2139,7 +2222,7 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
             return token.kind() == MachineOperationToken.Kind.OUTPUT_DRAIN;
         }
         return enabledMode == QIOAutomationMode.SCHEDULED && token.kind() == MachineOperationToken.Kind.JOB ||
-              enabledMode == QIOAutomationMode.PASSIVE && token.kind() == MachineOperationToken.Kind.PASSIVE;
+                enabledMode == QIOAutomationMode.PASSIVE && token.kind() == MachineOperationToken.Kind.PASSIVE;
     }
 
     private static boolean sharesPortGroup(Set<String> occupied, Collection<MachinePortBaseline> requested) {
@@ -2193,7 +2276,7 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
     void markRecoveryPending(@Nonnull String reason) {
         String diagnostic = boundedDiagnostic(reason);
         boolean changed = recoveryState != RecoveryState.QUARANTINED ||
-              !Objects.equals(dataError, diagnostic);
+                !Objects.equals(dataError, diagnostic);
         dataError = diagnostic;
         recoveryState = RecoveryState.QUARANTINED;
         if (state == State.DATA_ERROR) {
@@ -2208,7 +2291,9 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
     }
 
     /** 记录可重试的 Provider/存储不可用，不把主机暴露为错误状态。 */
-    /** 在成功观测到端点后清除可重试标记。 */
+    /**
+     * 在成功观测到端点后清除可重试标记。
+     */
     @Override
     public void markRetryPending() {
         if (recoveryState == RecoveryState.NONE) {
@@ -2225,7 +2310,9 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         }
     }
 
-    /** 在确认恢复后清除内部恢复标记，不触碰外部所有权。 */
+    /**
+     * 在确认恢复后清除内部恢复标记，不触碰外部所有权。
+     */
     void clearRecoveryPending() {
         recoveryState = RecoveryState.NONE;
         dataError = null;
@@ -2238,7 +2325,9 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         markDirty();
     }
 
-    /** 将无法确认的诊断写入非阻塞恢复隔离，并保留原始数据供审计。 */
+    /**
+     * 将无法确认的诊断写入非阻塞恢复隔离，并保留原始数据供审计。
+     */
     void enterDataError(String reason) {
         dataError = boundedDiagnostic(reason);
         recoveryState = RecoveryState.QUARANTINED;
@@ -2254,7 +2343,7 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
 
     private static String boundedDiagnostic(@Nullable String reason) {
         return reason == null || reason.isEmpty() ? "unknown automation host data error" :
-              reason.substring(0, Math.min(512, reason.length()));
+                reason.substring(0, Math.min(512, reason.length()));
     }
 
     private void markDirty() {
@@ -2270,7 +2359,7 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
     private void wakeExecution() {
         if (frequencyReference != null) {
             QIOProcessingExecutionService.INSTANCE.wakeDevice(
-                  frequencyReference.getFrequencyUUID(), persistentDeviceUUID);
+                    frequencyReference.getFrequencyUUID(), persistentDeviceUUID);
         }
     }
 
@@ -2303,13 +2392,13 @@ public final class DefaultQIOAutomationHost implements QIOAutomationHost {
         private final boolean legacyOutputRecoveryCandidate;
 
         private ParsedState(UUID deviceUUID, @Nullable QIOFrequencyReference frequency,
-              @Nullable QIOAutomationMode enabledMode, boolean clearModeWhenDrained,
-              State state, long configurationRevision,
-              Map<UUID, MachineOperationLease> leases, Map<UUID, MachineOperationToken> tokens,
-              Map<UUID, QIOOutputBufferEntry> outputBuffers, RecoveryState recoveryState,
-              @Nullable String dataError,
-              @Nullable NBTTagCompound quarantinedData,
-              boolean legacyOutputRecoveryCandidate) {
+                            @Nullable QIOAutomationMode enabledMode, boolean clearModeWhenDrained,
+                            State state, long configurationRevision,
+                            Map<UUID, MachineOperationLease> leases, Map<UUID, MachineOperationToken> tokens,
+                            Map<UUID, QIOOutputBufferEntry> outputBuffers, RecoveryState recoveryState,
+                            @Nullable String dataError,
+                            @Nullable NBTTagCompound quarantinedData,
+                            boolean legacyOutputRecoveryCandidate) {
             this.deviceUUID = deviceUUID;
             this.frequency = frequency;
             this.enabledMode = enabledMode;

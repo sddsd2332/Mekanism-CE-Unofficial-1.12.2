@@ -6,7 +6,6 @@ import net.minecraft.item.ItemStack;
 public interface ElytraMixinHelp {
 
 
-
     /**
      * Used to determine if the player can use Elytra flight.
      * This is called Client and Server side.

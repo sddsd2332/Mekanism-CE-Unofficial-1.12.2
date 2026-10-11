@@ -6,12 +6,7 @@ import mekanism.qioprocessing.common.content.QIOProcessingNetworkAccess;
 import mekanism.qioprocessing.common.content.QIOProcessingNetworkData;
 import mekanism.qioprocessing.common.inventory.container.QIOMaintenanceResourcePageContainer;
 import mekanism.qioprocessing.common.inventory.container.QIOProcessingTerminalContainerState;
-import mekanism.qioprocessing.common.terminal.QIOPage;
-import mekanism.qioprocessing.common.terminal.QIOProcessingTerminalSession;
-import mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType;
-import mekanism.qioprocessing.common.terminal.QIOMaintenanceResourceService;
-import mekanism.qioprocessing.common.terminal.QIOSmartProcessingResourceEntry;
-import mekanism.qioprocessing.common.terminal.QIOSmartProcessingResourceFilter;
+import mekanism.qioprocessing.common.terminal.*;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
@@ -22,7 +17,10 @@ import javax.annotation.Nonnull;
 import java.util.Locale;
 import java.util.UUID;
 
-/** Server request for one bounded page of maintenance resources. */
+/**
+ * Server request for one bounded page of maintenance resources.
+ */
+
 /**
  * QIO 处理模块中的 PacketQIOMaintenanceResourcePageRequest 类型。
  *
@@ -30,7 +28,7 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class PacketQIOMaintenanceResourcePageRequest implements
-      IMessageHandler<PacketQIOMaintenanceResourcePageRequest.Message, IMessage> {
+        IMessageHandler<PacketQIOMaintenanceResourcePageRequest.Message, IMessage> {
 
     private static final int MAX_QUERY_LENGTH = 64;
 
@@ -44,37 +42,37 @@ public final class PacketQIOMaintenanceResourcePageRequest implements
 
     private static void handle(Message message, EntityPlayer player) {
         if (!(player instanceof EntityPlayerMP playerMP) ||
-              !(player.openContainer instanceof QIOMaintenanceResourcePageContainer container) ||
-              !(player.openContainer instanceof mekanism.qioprocessing.common.inventory.container.QIOProcessingTerminalFrequencyContainer frequencyContainer) ||
-              player.openContainer.windowId != message.windowId ||
-              !player.openContainer.canInteractWith(player) ||
-              !container.tryRequestMaintenanceResourcePage(player.world.getTotalWorldTime())) {
+                !(player.openContainer instanceof QIOMaintenanceResourcePageContainer container) ||
+                !(player.openContainer instanceof mekanism.qioprocessing.common.inventory.container.QIOProcessingTerminalFrequencyContainer frequencyContainer) ||
+                player.openContainer.windowId != message.windowId ||
+                !player.openContainer.canInteractWith(player) ||
+                !container.tryRequestMaintenanceResourcePage(player.world.getTotalWorldTime())) {
             return;
         }
         QIOProcessingTerminalSession session = container.getTerminalSession();
         if (!validSession(message, player, session)) return;
         QIOProcessingNetworkData network = QIOProcessingNetworkAccess.getOrCreate(
-              frequencyContainer, session, player);
+                frequencyContainer, session, player);
         if (network == null) return;
         try {
             QIOPage<QIOSmartProcessingResourceEntry> page = QIOMaintenanceResourceService.getPage(
-                  session, network, player.world, message.filter, message.query, message.offset,
-                  message.requestedPageSize, message.expectedSourceRevision);
+                    session, network, player.world, message.filter, message.query, message.offset,
+                    message.requestedPageSize, message.expectedSourceRevision);
             QIOProcessingPacketHandler.INSTANCE.sendTo(
-                  PacketQIOMaintenanceResourcePageData.Message.create(message.windowId,
-                        session, message.requestId, message.filter, message.query, page), playerMP);
+                    PacketQIOMaintenanceResourcePageData.Message.create(message.windowId,
+                            session, message.requestId, message.filter, message.query, page), playerMP);
         } catch (IllegalArgumentException | IllegalStateException | SecurityException ignored) {
         }
     }
 
     private static boolean validSession(Message message, EntityPlayer player,
-          QIOProcessingTerminalSession session) {
+                                        QIOProcessingTerminalSession session) {
         return session != null && session.getFrequencyUUID() != null &&
-              session.getTerminalType() == QIOProcessingTerminalType.MAINTENANCE &&
-              session.validate(message.sessionNonce, player.getUniqueID(), session.getTargetKind(),
-                    QIOProcessingTerminalType.MAINTENANCE, message.terminalUUID,
-                    message.expectedTargetRevision, session.getFrequencyUUID(),
-                    session.getAccessRevision()) == QIOProcessingTerminalSession.Validation.ACCEPTED;
+                session.getTerminalType() == QIOProcessingTerminalType.MAINTENANCE &&
+                session.validate(message.sessionNonce, player.getUniqueID(), session.getTargetKind(),
+                        QIOProcessingTerminalType.MAINTENANCE, message.terminalUUID,
+                        message.expectedTargetRevision, session.getFrequencyUUID(),
+                        session.getAccessRevision()) == QIOProcessingTerminalSession.Validation.ACCEPTED;
     }
 
     public static final class Message implements IMessage {
@@ -95,9 +93,9 @@ public final class PacketQIOMaintenanceResourcePageRequest implements
         }
 
         private Message(int windowId, UUID sessionNonce, UUID terminalUUID,
-              long expectedTargetRevision, UUID requestId,
-              QIOSmartProcessingResourceFilter filter, String query, int offset,
-              int requestedPageSize, long expectedSourceRevision) {
+                        long expectedTargetRevision, UUID requestId,
+                        QIOSmartProcessingResourceFilter filter, String query, int offset,
+                        int requestedPageSize, long expectedSourceRevision) {
             this.windowId = windowId;
             this.sessionNonce = sessionNonce;
             this.terminalUUID = terminalUUID;
@@ -113,21 +111,21 @@ public final class PacketQIOMaintenanceResourcePageRequest implements
 
         @Nonnull
         public static Message create(int windowId, QIOProcessingTerminalContainerState state,
-              UUID requestId, QIOSmartProcessingResourceFilter filter, String query, int offset,
-              int requestedPageSize, long expectedSourceRevision) {
+                                     UUID requestId, QIOSmartProcessingResourceFilter filter, String query, int offset,
+                                     int requestedPageSize, long expectedSourceRevision) {
             return state == null || !state.isValid() ? new Message() : new Message(windowId,
-                  state.getSessionNonce(), state.getTerminalUUID(), state.getTargetRevision(),
-                  requestId, filter, normalizeQuery(query), offset, requestedPageSize,
-                  expectedSourceRevision);
+                    state.getSessionNonce(), state.getTerminalUUID(), state.getTargetRevision(),
+                    requestId, filter, normalizeQuery(query), offset, requestedPageSize,
+                    expectedSourceRevision);
         }
 
         static Message create(int windowId, QIOProcessingTerminalSession session,
-              UUID requestId, QIOSmartProcessingResourceFilter filter, String query, int offset,
-              int requestedPageSize, long expectedSourceRevision) {
+                              UUID requestId, QIOSmartProcessingResourceFilter filter, String query, int offset,
+                              int requestedPageSize, long expectedSourceRevision) {
             return session == null ? new Message() : new Message(windowId,
-                  session.getSessionNonce(), session.getTerminalUUID(), session.getTargetRevision(),
-                  requestId, filter, normalizeQuery(query), offset, requestedPageSize,
-                  expectedSourceRevision);
+                    session.getSessionNonce(), session.getTerminalUUID(), session.getTargetRevision(),
+                    requestId, filter, normalizeQuery(query), offset, requestedPageSize,
+                    expectedSourceRevision);
         }
 
         @Override
@@ -169,15 +167,15 @@ public final class PacketQIOMaintenanceResourcePageRequest implements
 
         private boolean structurallyValid() {
             return windowId >= 0 && sessionNonce != null && terminalUUID != null &&
-                  expectedTargetRevision >= 0 && requestId != null && filter != null &&
-                  query != null && query.length() <= MAX_QUERY_LENGTH && offset >= 0 &&
-                  requestedPageSize > 0 && requestedPageSize <= 256 && expectedSourceRevision >= -1;
+                    expectedTargetRevision >= 0 && requestId != null && filter != null &&
+                    query != null && query.length() <= MAX_QUERY_LENGTH && offset >= 0 &&
+                    requestedPageSize > 0 && requestedPageSize <= 256 && expectedSourceRevision >= -1;
         }
 
         private static String normalizeQuery(String value) {
             String normalized = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
             return normalized.length() <= MAX_QUERY_LENGTH ? normalized :
-                  normalized.substring(0, MAX_QUERY_LENGTH);
+                    normalized.substring(0, MAX_QUERY_LENGTH);
         }
 
         private static void writeUUID(ByteBuf buffer, UUID value) {

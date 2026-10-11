@@ -6,8 +6,8 @@ import mekanism.api.gas.GasRegistry;
 import mekanism.api.gas.GasStack;
 import mekanism.api.infuse.InfuseRegistry;
 import mekanism.api.transmitters.TransmissionType;
-import mekanism.client.render.obj.TransmitterModel;
 import mekanism.client.render.item.machine.RenderFluidTankItem;
+import mekanism.client.render.obj.TransmitterModel;
 import mekanism.client.render.tileentity.*;
 import mekanism.client.render.transmitter.RenderLogisticalTransporter;
 import mekanism.client.render.transmitter.RenderMechanicalPipe;
@@ -265,6 +265,7 @@ public class MekanismRenderer {
     private static float getBlue(int color) {
         return (color & 0xFF) / 255.0F;
     }
+
     public static float getAlpha(int color) {
         return (color >> 24 & 0xFF) / 255.0F;
     }
@@ -649,10 +650,10 @@ public class MekanismRenderer {
         Tessellator tessellator = Tessellator.getInstance();
         BufferBuilder bufferbuilder = tessellator.getBuffer();
         bufferbuilder.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_COLOR);
-        bufferbuilder.pos( width, y, 0).color(r, g, b, a).endVertex();
-        bufferbuilder.pos( x, y, 0).color(r, g, b, a).endVertex();
-        bufferbuilder.pos( x, height, 0).color(r, g, b, a).endVertex();
-        bufferbuilder.pos( width, height, 0).color(r, g, b, a).endVertex();
+        bufferbuilder.pos(width, y, 0).color(r, g, b, a).endVertex();
+        bufferbuilder.pos(x, y, 0).color(r, g, b, a).endVertex();
+        bufferbuilder.pos(x, height, 0).color(r, g, b, a).endVertex();
+        bufferbuilder.pos(width, height, 0).color(r, g, b, a).endVertex();
         tessellator.draw();
         GlStateManager.shadeModel(GL11.GL_FLAT);
         GlStateManager.disableBlend();

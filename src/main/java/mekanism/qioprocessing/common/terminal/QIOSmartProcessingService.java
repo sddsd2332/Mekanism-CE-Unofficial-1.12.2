@@ -12,17 +12,12 @@ import net.minecraft.world.World;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
-/** Main-thread smart-processing catalog and bounded preview projection. */
+/**
+ * Main-thread smart-processing catalog and bounded preview projection.
+ */
+
 /**
  * QIO 处理模块中的 QIOSmartProcessingService 类型。
  *
@@ -34,12 +29,12 @@ public final class QIOSmartProcessingService {
     private static final int MAX_CACHED_CATALOGS = 8;
     private static final int MAX_CACHED_VIEWS = 8;
     private static final Map<CatalogKey, CatalogSnapshot> CATALOG_CACHE =
-          new LinkedHashMap<>(16, 0.75F, true) {
-              @Override
-              protected boolean removeEldestEntry(Map.Entry<CatalogKey, CatalogSnapshot> eldest) {
-                  return size() > MAX_CACHED_CATALOGS;
-              }
-          };
+            new LinkedHashMap<>(16, 0.75F, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<CatalogKey, CatalogSnapshot> eldest) {
+                    return size() > MAX_CACHED_CATALOGS;
+                }
+            };
 
     private QIOSmartProcessingService() {
     }
@@ -47,19 +42,19 @@ public final class QIOSmartProcessingService {
     @Nonnull
     /** 查询智能处理终端的资源分页。 */
     public static QIOPage<QIOSmartProcessingResourceEntry> getResourcePage(
-          @Nonnull QIOProcessingTerminalSession session, @Nonnull QIOProcessingNetworkData network,
-          @Nonnull QIOStorageSnapshot storage, @Nonnull World world, @Nonnull UUID requester,
-          @Nonnull QIOSmartProcessingResourceFilter filter, @Nullable String query, int offset,
-          int requestedPageSize, long expectedSourceRevision) {
+            @Nonnull QIOProcessingTerminalSession session, @Nonnull QIOProcessingNetworkData network,
+            @Nonnull QIOStorageSnapshot storage, @Nonnull World world, @Nonnull UUID requester,
+            @Nonnull QIOSmartProcessingResourceFilter filter, @Nullable String query, int offset,
+            int requestedPageSize, long expectedSourceRevision) {
         validate(session, network, storage);
         Objects.requireNonNull(requester, "requester");
         Objects.requireNonNull(filter, "filter");
         if (offset < 0 || requestedPageSize <= 0 || requestedPageSize > 256 ||
-              expectedSourceRevision < -1) {
+                expectedSourceRevision < -1) {
             throw new IllegalArgumentException("Invalid smart-processing page bounds");
         }
         QIOOrderService.SchedulableResources schedulable = QIOOrderService.INSTANCE
-              .getSchedulableResources(world, network);
+                .getSchedulableResources(world, network);
         long sourceRevision = catalogRevision(schedulable, network);
         CatalogKey key = new CatalogKey(network.getFrequencyUUID(), requester, sourceRevision);
         CatalogSnapshot catalog;
@@ -73,7 +68,7 @@ public final class QIOSmartProcessingService {
         }
         List<QIOSmartProcessingResourceEntry> rows = catalog.view(filter, normalizeQuery(query));
         if (expectedSourceRevision >= 0 && expectedSourceRevision != sourceRevision ||
-              offset > rows.size()) {
+                offset > rows.size()) {
             offset = 0;
         }
         int end = Math.min(rows.size(), offset + requestedPageSize);
@@ -82,7 +77,7 @@ public final class QIOSmartProcessingService {
 
     @Nonnull
     private static CatalogSnapshot buildCatalog(@Nonnull QIOProcessingNetworkData network,
-          @Nonnull UUID requester, @Nonnull QIOOrderService.SchedulableResources schedulable) {
+                                                @Nonnull UUID requester, @Nonnull QIOOrderService.SchedulableResources schedulable) {
         Map<PortableResourceDescriptor, MutableEntry> entries = new LinkedHashMap<>();
         for (PortableResourceDescriptor resource : schedulable.getVisibleResources()) {
             entries.computeIfAbsent(resource, ignored -> new MutableEntry()).visible = true;
@@ -99,7 +94,7 @@ public final class QIOSmartProcessingService {
             long remaining = job.getRemainingGuaranteedRootAmount();
             entry.inProduction = saturatedAdd(entry.inProduction, remaining);
             if (remaining > 0 && job.getSource() == QIOCraftingJobSource.MANUAL &&
-                  requester.equals(job.getRequester())) {
+                    requester.equals(job.getRequester())) {
                 entry.mergeableInProduction = saturatedAdd(entry.mergeableInProduction, remaining);
                 entry.mergeGroupId = mergeGroupId(network.getFrequencyUUID(), requester, root);
             }
@@ -109,15 +104,15 @@ public final class QIOSmartProcessingService {
             MutableEntry entry = value.getValue();
             if (entry.visible || entry.inProduction > 0) {
                 rows.add(new QIOSmartProcessingResourceEntry(value.getKey(), 0, 0, 0,
-                      entry.inProduction, entry.schedulable, false,
-                      entry.mergeableInProduction, entry.mergeGroupId));
+                        entry.inProduction, entry.schedulable, false,
+                        entry.mergeableInProduction, entry.mergeGroupId));
             }
         }
         rows.sort(Comparator
-              .comparingInt((QIOSmartProcessingResourceEntry entry) ->
-                    entry.getResource().getKind().ordinal())
-              .thenComparing(entry -> entry.getResource().getRegistryName())
-              .thenComparing(QIOSmartProcessingResourceEntry::getResource));
+                .comparingInt((QIOSmartProcessingResourceEntry entry) ->
+                        entry.getResource().getKind().ordinal())
+                .thenComparing(entry -> entry.getResource().getRegistryName())
+                .thenComparing(QIOSmartProcessingResourceEntry::getResource));
         return new CatalogSnapshot(rows);
     }
 
@@ -130,24 +125,25 @@ public final class QIOSmartProcessingService {
     @Nonnull
     /** 将订单预览转换为带版本和筛选信息的快照。 */
     public static QIOSmartProcessingPreviewSnapshot previewSnapshot(@Nonnull QIOOrderPreview preview,
-          @Nullable UUID jobId) {
+                                                                    @Nullable UUID jobId) {
         return QIOSmartProcessingPreviewSnapshot.fromPreview(preview, jobId);
     }
 
     /** 校验智能处理请求会话和频率访问权限。 */
     public static void validate(@Nonnull QIOProcessingTerminalSession session,
-          @Nonnull QIOProcessingNetworkData network, @Nonnull QIOStorageSnapshot storage) {
-        Objects.requireNonNull(session, "session"); Objects.requireNonNull(network, "network");
+                                @Nonnull QIOProcessingNetworkData network, @Nonnull QIOStorageSnapshot storage) {
+        Objects.requireNonNull(session, "session");
+        Objects.requireNonNull(network, "network");
         Objects.requireNonNull(storage, "storage");
         if (!session.isOpen() || session.getTerminalType() != QIOProcessingTerminalType.SMART_PROCESSING ||
-            session.getFrequencyUUID() == null || !session.getFrequencyUUID().equals(network.getFrequencyUUID()) ||
-            session.getAccessRevision() != storage.getAccessRevision()) {
+                session.getFrequencyUUID() == null || !session.getFrequencyUUID().equals(network.getFrequencyUUID()) ||
+                session.getAccessRevision() != storage.getAccessRevision()) {
             throw new SecurityException("Smart-processing session is stale or unauthorized");
         }
     }
 
     private static long catalogRevision(QIOOrderService.SchedulableResources schedulable,
-          QIOProcessingNetworkData network) {
+                                        QIOProcessingNetworkData network) {
         long value = 17;
         value = mix(value, schedulable.getRevision());
         value = mix(value, schedulable.getResources().size());
@@ -170,7 +166,7 @@ public final class QIOSmartProcessingService {
 
     @Nonnull
     private static UUID mergeGroupId(@Nonnull UUID frequency, @Nonnull UUID requester,
-          @Nonnull PortableResourceDescriptor resource) {
+                                     @Nonnull PortableResourceDescriptor resource) {
         String identity = frequency + "|" + requester + "|" + resource;
         return UUID.nameUUIDFromBytes(identity.getBytes(StandardCharsets.UTF_8));
     }
@@ -200,7 +196,7 @@ public final class QIOSmartProcessingService {
                     }
                 }
                 case CUSTOM -> searchable.append(' ').append(resource.getFamily())
-                      .append(' ').append(resource.getCodecId());
+                        .append(' ').append(resource.getCodecId());
             }
         } catch (RuntimeException ignored) {
         }
@@ -238,7 +234,7 @@ public final class QIOSmartProcessingService {
         @Override
         public boolean equals(Object obj) {
             return obj instanceof CatalogKey other && revision == other.revision &&
-                  frequency.equals(other.frequency) && requester.equals(other.requester);
+                    frequency.equals(other.frequency) && requester.equals(other.requester);
         }
 
         @Override
@@ -254,20 +250,20 @@ public final class QIOSmartProcessingService {
     private static final class CatalogSnapshot {
         private final List<QIOSmartProcessingResourceEntry> rows;
         private final Map<ViewKey, List<QIOSmartProcessingResourceEntry>> views =
-              new LinkedHashMap<>(8, 0.75F, true) {
-                  @Override
-                  protected boolean removeEldestEntry(
-                        Map.Entry<ViewKey, List<QIOSmartProcessingResourceEntry>> eldest) {
-                      return size() > MAX_CACHED_VIEWS;
-                  }
-              };
+                new LinkedHashMap<>(8, 0.75F, true) {
+                    @Override
+                    protected boolean removeEldestEntry(
+                            Map.Entry<ViewKey, List<QIOSmartProcessingResourceEntry>> eldest) {
+                        return size() > MAX_CACHED_VIEWS;
+                    }
+                };
 
         private CatalogSnapshot(List<QIOSmartProcessingResourceEntry> rows) {
             this.rows = Collections.unmodifiableList(new ArrayList<>(rows));
         }
 
         private synchronized List<QIOSmartProcessingResourceEntry> view(
-              QIOSmartProcessingResourceFilter filter, String query) {
+                QIOSmartProcessingResourceFilter filter, String query) {
             ViewKey key = new ViewKey(filter, query);
             List<QIOSmartProcessingResourceEntry> cached = views.get(key);
             if (cached != null) return cached;

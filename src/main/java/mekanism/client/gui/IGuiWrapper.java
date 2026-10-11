@@ -128,10 +128,12 @@ public interface IGuiWrapper {
     @Nullable
     FontRenderer getFont();
 
-    /** Draws text statically when it fits, or as a clipped, edge-pausing marquee otherwise. */
+    /**
+     * Draws text statically when it fits, or as a clipped, edge-pausing marquee otherwise.
+     */
     default void drawMarqueeString(@Nonnull ITextComponent text, float minX, float minY,
-          float maxX, float maxY, int color, boolean shadow, float textScale,
-          long elapsedMillis) {
+                                   float maxX, float maxY, int color, boolean shadow, float textScale,
+                                   long elapsedMillis) {
         FontRenderer font = getFont();
         float availableWidth = maxX - minX;
         if (font == null || availableWidth <= 0 || maxY <= minY || textScale <= 0) return;
@@ -154,16 +156,16 @@ public interface IGuiWrapper {
         double scaleY = minecraft.displayHeight / (double) minecraft.currentScreen.height;
         int scissorX = (int) Math.floor((getLeft() + minX) * scaleX);
         int scissorY = (int) Math.floor(minecraft.displayHeight -
-              (getTop() + maxY) * scaleY);
+                (getTop() + maxY) * scaleY);
         int scissorWidth = Math.max(0, (int) Math.ceil((maxX - minX) * scaleX));
         int scissorHeight = Math.max(0, (int) Math.ceil((maxY - minY) * scaleY));
         if (previousScissor != null) {
             int left = Math.max(scissorX, previousScissor.get(0));
             int bottom = Math.max(scissorY, previousScissor.get(1));
             int right = Math.min(scissorX + scissorWidth,
-                  previousScissor.get(0) + previousScissor.get(2));
+                    previousScissor.get(0) + previousScissor.get(2));
             int top = Math.min(scissorY + scissorHeight,
-                  previousScissor.get(1) + previousScissor.get(3));
+                    previousScissor.get(1) + previousScissor.get(3));
             scissorX = left;
             scissorY = bottom;
             scissorWidth = Math.max(0, right - left);
@@ -178,15 +180,17 @@ public interface IGuiWrapper {
                 GL11.glDisable(GL11.GL_SCISSOR_TEST);
             } else {
                 GL11.glScissor(previousScissor.get(0), previousScissor.get(1),
-                      previousScissor.get(2), previousScissor.get(3));
+                        previousScissor.get(2), previousScissor.get(3));
             }
         }
     }
 
-    /** Keeps a label fixed and scrolls only its value when the complete line does not fit. */
+    /**
+     * Keeps a label fixed and scrolls only its value when the complete line does not fit.
+     */
     default void drawPrefixedMarqueeString(@Nullable ITextComponent prefix,
-          @Nonnull ITextComponent value, float minX, float minY, float maxX, float maxY,
-          int color, boolean shadow, float textScale, float gap, long elapsedMillis) {
+                                           @Nonnull ITextComponent value, float minX, float minY, float maxX, float maxY,
+                                           int color, boolean shadow, float textScale, float gap, long elapsedMillis) {
         FontRenderer font = getFont();
         if (font == null) return;
         String prefixText = prefix == null ? "" : prefix.getFormattedText();
@@ -202,7 +206,7 @@ public interface IGuiWrapper {
             }
             if (!valueText.isEmpty()) {
                 drawTextWithScale(font, value, minX + prefixWidth + actualGap, drawY,
-                      color, shadow, textScale);
+                        color, shadow, textScale);
             }
             return;
         }
@@ -210,15 +214,15 @@ public interface IGuiWrapper {
         float valueStart = minX + prefixWidth + actualGap;
         if (maxX - valueStart <= 1) {
             drawMarqueeString(new TextComponentString(prefixText +
-                        (actualGap == 0 ? "" : "  ") + valueText),
-                  minX, minY, maxX, maxY, color, shadow, textScale, elapsedMillis);
+                            (actualGap == 0 ? "" : "  ") + valueText),
+                    minX, minY, maxX, maxY, color, shadow, textScale, elapsedMillis);
             return;
         }
         if (prefix != null && !prefixText.isEmpty()) {
             drawTextWithScale(font, prefix, minX, drawY, color, shadow, textScale);
         }
         drawMarqueeString(value, valueStart, minY, maxX, maxY, color, shadow,
-              textScale, elapsedMillis);
+                textScale, elapsedMillis);
     }
 
     static float marqueeOffset(double contentWidth, double areaWidth, long elapsedMillis) {
@@ -241,7 +245,7 @@ public interface IGuiWrapper {
     }
 
     static void drawTextWithScale(FontRenderer font, ITextComponent text, float x, float y,
-          int color, boolean shadow, float scale) {
+                                  int color, boolean shadow, float scale) {
         float yAdd = 4 - (scale * 8) / 2F;
         GlStateManager.pushMatrix();
         GlStateManager.translate(x, y + yAdd, 0);

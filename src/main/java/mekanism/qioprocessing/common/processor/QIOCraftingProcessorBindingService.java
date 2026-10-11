@@ -14,7 +14,10 @@ import javax.annotation.Nonnull;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Server-authoritative exact-frequency binding for workbench processors. */
+/**
+ * Server-authoritative exact-frequency binding for workbench processors.
+ */
+
 /**
  * QIO 处理模块中的 QIOCraftingProcessorBindingService 类型。
  *
@@ -27,44 +30,44 @@ public final class QIOCraftingProcessorBindingService {
     }
 
     public static boolean bind(@Nonnull QIOCraftingProcessor processor,
-          @Nonnull FrequencyIdentity identity, @Nonnull UUID expectedFrequencyUUID,
-          @Nonnull EntityPlayer player) {
+                               @Nonnull FrequencyIdentity identity, @Nonnull UUID expectedFrequencyUUID,
+                               @Nonnull EntityPlayer player) {
         Objects.requireNonNull(identity, "identity");
         Objects.requireNonNull(expectedFrequencyUUID, "expectedFrequencyUUID");
         FrequencyManager<QIOFrequency> manager = FrequencyType.QIO.getManager(
-              identity.ownerUUID(), identity.securityMode());
+                identity.ownerUUID(), identity.securityMode());
         QIOFrequency frequency = manager == null ? null : manager.getFrequency(identity.key());
         return frequency != null && expectedFrequencyUUID.equals(
-              frequency.getFrequencyUUID()) && bind(processor, frequency, player);
+                frequency.getFrequencyUUID()) && bind(processor, frequency, player);
     }
 
     public static boolean bind(@Nonnull QIOCraftingProcessor processor,
-          @Nonnull QIOFrequency frequency, @Nonnull EntityPlayer player) {
+                               @Nonnull QIOFrequency frequency, @Nonnull EntityPlayer player) {
         Objects.requireNonNull(processor, "processor");
         Objects.requireNonNull(frequency, "frequency");
         Objects.requireNonNull(player, "player");
         if (player.world == null || player.world.isRemote || processor.getWorld() == null ||
-            processor.getWorld().isRemote || processor.getWorld() != player.world ||
-            !processor.isUsableByPlayer(player) ||
-            !SecurityUtils.canAccess(player, processor) ||
-            !SecurityUtils.canAccess(frequency.getSecurity(), player.getUniqueID(),
-                  frequency.getOwner())) {
+                processor.getWorld().isRemote || processor.getWorld() != player.world ||
+                !processor.isUsableByPlayer(player) ||
+                !SecurityUtils.canAccess(player, processor) ||
+                !SecurityUtils.canAccess(frequency.getSecurity(), player.getUniqueID(),
+                        frequency.getOwner())) {
             return false;
         }
         QIOFrequencyReference reference = QIOFrequencyStorageAccess.INSTANCE.createReference(
-              frequency, player.getUniqueID());
+                frequency, player.getUniqueID());
         return QIOFrequencyStorageAccess.INSTANCE.canAccess(reference,
-              player.getUniqueID()) && processor.applyAuthorizedBinding(frequency,
-              player.getUniqueID());
+                player.getUniqueID()) && processor.applyAuthorizedBinding(frequency,
+                player.getUniqueID());
     }
 
     public static boolean unbind(@Nonnull QIOCraftingProcessor processor,
-          @Nonnull EntityPlayer player) {
+                                 @Nonnull EntityPlayer player) {
         Objects.requireNonNull(processor, "processor");
         Objects.requireNonNull(player, "player");
         return player.world != null && !player.world.isRemote &&
-              processor.getWorld() == player.world && processor.isUsableByPlayer(player) &&
-              SecurityUtils.canAccess(player, processor) &&
-              processor.applyAuthorizedBinding(null, player.getUniqueID());
+                processor.getWorld() == player.world && processor.isUsableByPlayer(player) &&
+                SecurityUtils.canAccess(player, processor) &&
+                processor.applyAuthorizedBinding(null, player.getUniqueID());
     }
 }

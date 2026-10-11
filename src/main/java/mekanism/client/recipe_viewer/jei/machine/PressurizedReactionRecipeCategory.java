@@ -6,7 +6,7 @@ import mekanism.common.recipe.machines.PressurizedRecipe;
 import mezz.jei.api.IGuiHelper;
 
 public class PressurizedReactionRecipeCategory<WRAPPER extends PRCRecipeWrapper<PressurizedRecipe>>
-      extends mekanism.client.jei.machine.PressurizedReactionRecipeCategory<WRAPPER> {
+        extends mekanism.client.jei.machine.PressurizedReactionRecipeCategory<WRAPPER> {
 
     public PressurizedReactionRecipeCategory(IGuiHelper helper, IRecipeViewerRecipeType<?> recipeType) {
         super(helper, recipeType);

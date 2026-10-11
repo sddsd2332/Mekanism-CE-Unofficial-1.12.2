@@ -22,7 +22,7 @@ public class RenderAntiprotonicNucleosynthesizerItem {
         GlStateManager.rotate(180, 0, 0, 1);
         GlStateManager.translate(0, -1, 0);
         MekanismRenderer.bindTexture(MekanismUtils.getResource(ResourceType.RENDER, "AntiprotonicNucleosynthesizer.png"));
-        AntiprotonicNucleosynthesizer.render(0.0625F,false);
+        AntiprotonicNucleosynthesizer.render(0.0625F, false);
         GlStateManager.popMatrix();
     }
 }

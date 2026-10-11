@@ -9,7 +9,10 @@ import mekanism.api.gas.GasStack;
 import mekanism.api.transmitters.TransmissionType;
 import mekanism.common.Upgrade;
 import mekanism.common.Upgrade.IUpgradeInfoHandler;
-import mekanism.common.base.*;
+import mekanism.common.base.IComparatorSupport;
+import mekanism.common.base.ISideConfiguration;
+import mekanism.common.base.ISustainedData;
+import mekanism.common.base.ITankManager;
 import mekanism.common.block.states.BlockStateMachine;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.capabilities.gas.BasicGasTank;
@@ -235,19 +238,19 @@ public class TileEntityAmbientAccumulatorEnergy extends TileEntityMachine implem
     @Override
     public CachedRecipe<AmbientGasRecipe> createNewCachedRecipe(AmbientGasRecipe recipe, int cacheIndex) {
         return new NoInputCachedRecipe<>(recipe, () -> false,
-              () -> recipe.getInput().ingredient == cachedDimensionId,
-              OutputHelper.getChanceGasOutputHandler(outputTank, RecipeError.NOT_ENOUGH_OUTPUT_SPACE, accumulatorRecipeRandom()),
-              () -> recipe.getOutput().copy(),
-              output -> output == null || output.getMaxOutput() == null)
-              .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
-              .setActive(active -> {
-                  if (active || prevEnergy >= getEnergy()) {
-                      setActive(active);
-                  }
-              })
-              .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
-              .setRequiredTicks(() -> 1)
-              .setBaselineMaxOperations(this::getUpgradedUsage);
+                () -> recipe.getInput().ingredient == cachedDimensionId,
+                OutputHelper.getChanceGasOutputHandler(outputTank, RecipeError.NOT_ENOUGH_OUTPUT_SPACE, accumulatorRecipeRandom()),
+                () -> recipe.getOutput().copy(),
+                output -> output == null || output.getMaxOutput() == null)
+                .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
+                .setActive(active -> {
+                    if (active || prevEnergy >= getEnergy()) {
+                        setActive(active);
+                    }
+                })
+                .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
+                .setRequiredTicks(() -> 1)
+                .setBaselineMaxOperations(this::getUpgradedUsage);
     }
 
     public int getUpgradedUsage() {
@@ -348,6 +351,11 @@ public class TileEntityAmbientAccumulatorEnergy extends TileEntityMachine implem
     }
 
     @Override
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return type == mekanism.api.transmitters.TransmissionType.GAS;
+    }
+
+    @Override
     public int getRedstoneLevel() {
         return MekanismUtils.redstoneLevelFromContents(outputTank.getStored(), outputTank.getMaxGas());
     }
@@ -376,7 +384,8 @@ public class TileEntityAmbientAccumulatorEnergy extends TileEntityMachine implem
     public TileComponentEjector getEjector() {
         return ejectorComponent;
     }
-@Override
+
+    @Override
     public int getBlockGuiID(Block block, int metadata) {
         return BlockStateMachine.MachineType.get(block, metadata) != null ? BlockStateMachine.MachineType.get(block, metadata).guiId : -1;
     }

@@ -5,7 +5,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** Immutable result of validating one bound provider for one QIO automation mode. */
+/**
+ * Immutable result of validating one bound provider for one QIO automation mode.
+ */
 public final class ProviderConformanceReport {
 
     private final QIOAutomationMode mode;
@@ -14,7 +16,7 @@ public final class ProviderConformanceReport {
     ProviderConformanceReport(QIOAutomationMode mode, List<String> errors) {
         this.mode = mode;
         this.errors = errors.isEmpty() ? Collections.emptyList() :
-              Collections.unmodifiableList(new ArrayList<>(errors));
+                Collections.unmodifiableList(new ArrayList<>(errors));
     }
 
     @Nonnull

@@ -25,7 +25,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Main maintenance-terminal rule list and mutation coordinator. */
+/**
+ * Main maintenance-terminal rule list and mutation coordinator.
+ */
+
 /**
  * QIO 处理模块中的 GuiQIOMaintenanceRulesPanel 类型。
  *
@@ -33,7 +36,7 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class GuiQIOMaintenanceRulesPanel extends GuiElement
-      implements IRecipeViewerGhostTarget {
+        implements IRecipeViewerGhostTarget {
 
     private static final int PAGE_SIZE = 128;
     private static final long REQUEST_TIMEOUT_TICKS = 100;
@@ -45,11 +48,16 @@ public final class GuiQIOMaintenanceRulesPanel extends GuiElement
     private final QIOProcessingTerminalContainerState terminalState;
     private final GuiQIOMaintenanceRuleList rows;
     private final MekanismButton configureButton;
-    @Nullable private SessionKey requestedSession;
-    @Nullable private PendingRequest pageRequest;
-    @Nullable private PendingRequest mutationRequest;
-    @Nullable private UUID mutationRequestId;
-    @Nullable private QIOMaintenanceRule selectedRule;
+    @Nullable
+    private SessionKey requestedSession;
+    @Nullable
+    private PendingRequest pageRequest;
+    @Nullable
+    private PendingRequest mutationRequest;
+    @Nullable
+    private UUID mutationRequestId;
+    @Nullable
+    private QIOMaintenanceRule selectedRule;
     private long clientTick;
     private long lastRevision = Long.MIN_VALUE;
     private int lastCount = -1;
@@ -58,8 +66,8 @@ public final class GuiQIOMaintenanceRulesPanel extends GuiElement
     private boolean emptyPageRechecked;
 
     public GuiQIOMaintenanceRulesPanel(IGuiWrapper gui,
-          QIOMaintenanceRulePageContainer container,
-          int x, int y, int width, int height) {
+                                       QIOMaintenanceRulePageContainer container,
+                                       int x, int y, int width, int height) {
         super(gui, x, y, width, height);
         this.container = Objects.requireNonNull(container, "container");
         if (!(container instanceof QIOMaintenanceResourcePageContainer resources)) {
@@ -70,17 +78,17 @@ public final class GuiQIOMaintenanceRulesPanel extends GuiElement
         addChild(new GuiElementHolder(gui, x + 1, y - 1, 204, 68));
         addChild(new GuiElementHolder(gui, x + 1, y + 67, 204, 22));
         rows = addChild(new GuiQIOMaintenanceRuleList(gui, x + 2, y, this::rules,
-              this::selectRule, this::toggleRule));
+                this::selectRule, this::toggleRule));
         int buttonY = y + 68;
         configureButton = addChild(button(gui, x + 2, buttonY, 202,
-              "gui.mekanismqioprocessing.maintenance_configure", this::openConfiguration));
+                "gui.mekanismqioprocessing.maintenance_configure", this::openConfiguration));
         rebuildRows();
     }
 
     private MekanismButton button(IGuiWrapper gui, int x, int y, int width,
-          String key, Runnable action) {
+                                  String key, Runnable action) {
         return new MekanismButton(gui, x, y, width, 20,
-              new TextComponentTranslation(key), action, null);
+                new TextComponentTranslation(key), action, null);
     }
 
     @Override
@@ -104,7 +112,7 @@ public final class GuiQIOMaintenanceRulesPanel extends GuiElement
             rebuildRows();
         }
         if (pageRequest == null && rows.isAtLoadedEnd() &&
-              container.getMaintenanceRuleClientCache().getNextCursor() != null) {
+                container.getMaintenanceRuleClientCache().getNextCursor() != null) {
             requestMore();
         }
         updateButtons();
@@ -113,7 +121,7 @@ public final class GuiQIOMaintenanceRulesPanel extends GuiElement
     @Override
     public IRecipeViewerGhostTarget.IGhostIngredientConsumer getGhostHandler() {
         if (!terminalState.isValid() || mutationRequest != null ||
-              container.getMaintenanceRuleClientCache().getSourceRevision() < 0) return null;
+                container.getMaintenanceRuleClientCache().getSourceRevision() < 0) return null;
         return new IRecipeViewerGhostTarget.IGhostItemConsumer() {
             @Override
             public void accept(Object ingredient) {
@@ -135,8 +143,8 @@ public final class GuiQIOMaintenanceRulesPanel extends GuiElement
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (super.keyPressed(keyCode, scanCode, modifiers)) return true;
         if (keyCode == Keyboard.KEY_DELETE && visible && active &&
-            selectedRule != null && mutationRequest == null && !hasOpenWindow() &&
-            terminalState.isValid() && terminalState.getFrequencyUUID() != null) {
+                selectedRule != null && mutationRequest == null && !hasOpenWindow() &&
+                terminalState.isValid() && terminalState.getFrequencyUUID() != null) {
             return deleteRule(selectedRule);
         }
         return false;
@@ -162,16 +170,16 @@ public final class GuiQIOMaintenanceRulesPanel extends GuiElement
     }
 
     boolean configureRule(PortableResourceDescriptor resource, long target, long batch,
-          @Nullable QIOMaintenanceRule editingRule) {
+                          @Nullable QIOMaintenanceRule editingRule) {
         try {
             if (editingRule == null || !resource.equals(editingRule.getResource())) {
                 return sendMutation(QIOMaintenanceRuleMutation.create(resource, true,
-                      target, target, batch, 0, 100));
+                        target, target, batch, 0, 100));
             } else {
                 return sendMutation(QIOMaintenanceRuleMutation.update(editingRule.getRuleId(),
-                      editingRule.getRuleRevision(), editingRule.isEnabled(), target,
-                      target, batch, editingRule.getJobPriority(),
-                      editingRule.getRetryIntervalTicks()));
+                        editingRule.getRuleRevision(), editingRule.isEnabled(), target,
+                        target, batch, editingRule.getJobPriority(),
+                        editingRule.getRetryIntervalTicks()));
             }
         } catch (IllegalArgumentException ignored) {
             return false;
@@ -185,7 +193,7 @@ public final class GuiQIOMaintenanceRulesPanel extends GuiElement
     private void selectRule(int index) {
         List<QIOMaintenanceRule> rules = rules();
         QIOMaintenanceRule selected = index >= 0 && index < rules.size() ?
-              rules.get(index) : null;
+                rules.get(index) : null;
         selectedRule = selected != null && selected.equals(selectedRule) ? null : selected;
         rows.setSelectedIndex(selectedRule == null ? -1 : index);
     }
@@ -195,19 +203,19 @@ public final class GuiQIOMaintenanceRulesPanel extends GuiElement
     }
 
     private void openWindow(@Nullable QIOMaintenanceRule rule,
-          @Nullable PortableResourceDescriptor ignoredResource) {
+                            @Nullable PortableResourceDescriptor ignoredResource) {
         if (!terminalState.isValid() || terminalState.getFrequencyUUID() == null ||
-              hasOpenWindow()) return;
+                hasOpenWindow()) return;
         gui().addWindow(new GuiQIOMaintenanceRuleWindow(gui(),
-              (gui().getWidth() - 220) / 2, 15, this, resourceContainer, rule,
-              ignoredResource,
-              SelectedWindowData.UNSPECIFIED));
+                (gui().getWidth() - 220) / 2, 15, this, resourceContainer, rule,
+                ignoredResource,
+                SelectedWindowData.UNSPECIFIED));
     }
 
     private boolean hasOpenWindow() {
         return gui() instanceof mekanism.client.gui.GuiMekanism<?> mekanismGui &&
-              mekanismGui.getWindows().stream().anyMatch(
-                    window -> window instanceof GuiQIOMaintenanceRuleWindow);
+                mekanismGui.getWindows().stream().anyMatch(
+                        window -> window instanceof GuiQIOMaintenanceRuleWindow);
     }
 
     private void toggleRule(int index) {
@@ -215,19 +223,19 @@ public final class GuiQIOMaintenanceRulesPanel extends GuiElement
         if (index < 0 || index >= rules.size()) return;
         QIOMaintenanceRule rule = rules.get(index);
         sendMutation(QIOMaintenanceRuleMutation.update(rule.getRuleId(),
-              rule.getRuleRevision(), !rule.isEnabled(), rule.getTriggerAmount(),
-              rule.getTargetAmount(), rule.getMaximumSingleRequest(),
-              rule.getJobPriority(), rule.getRetryIntervalTicks()));
+                rule.getRuleRevision(), !rule.isEnabled(), rule.getTriggerAmount(),
+                rule.getTargetAmount(), rule.getMaximumSingleRequest(),
+                rule.getJobPriority(), rule.getRetryIntervalTicks()));
     }
 
     boolean deleteRule(@Nullable QIOMaintenanceRule rule) {
         return rule != null && sendMutation(QIOMaintenanceRuleMutation.delete(rule.getRuleId(),
-              rule.getRuleRevision()));
+                rule.getRuleRevision()));
     }
 
     private void requestMore() {
         if (pageRequest == null && terminalState.isValid() &&
-              container.getMaintenanceRuleClientCache().getNextCursor() != null) {
+                container.getMaintenanceRuleClientCache().getNextCursor() != null) {
             sendPage(container.getMaintenanceRuleClientCache().getNextCursor());
         }
     }
@@ -235,33 +243,33 @@ public final class GuiQIOMaintenanceRulesPanel extends GuiElement
     private void sendPage(@Nullable QIOPageCursor cursor) {
         if (!terminalState.isValid() || pageRequest != null) return;
         QIOProcessingPacketHandler.INSTANCE.sendToServer(
-              PacketQIOMaintenanceRulePageRequest.Message.create(
-                    container.getTerminalWindowId(), terminalState,
-                    PAGE_SIZE, cursor));
+                PacketQIOMaintenanceRulePageRequest.Message.create(
+                        container.getTerminalWindowId(), terminalState,
+                        PAGE_SIZE, cursor));
         pageRequest = new PendingRequest(
-              container.getMaintenanceRuleClientCache().getPageGeneration(), clientTick);
+                container.getMaintenanceRuleClientCache().getPageGeneration(), clientTick);
     }
 
     private boolean sendMutation(QIOMaintenanceRuleMutation mutation) {
         if (mutationRequest != null ||
-              container.getMaintenanceRuleClientCache().getSourceRevision() < 0) return false;
+                container.getMaintenanceRuleClientCache().getSourceRevision() < 0) return false;
         mutationRequestId = UUID.randomUUID();
         QIOProcessingPacketHandler.INSTANCE.sendToServer(
-              PacketQIOMaintenanceRuleMutation.Message.create(
-                    container.getTerminalWindowId(), terminalState,
-                    container.getMaintenanceRuleClientCache().getSourceRevision(), mutationRequestId,
-                    mutation));
+                PacketQIOMaintenanceRuleMutation.Message.create(
+                        container.getTerminalWindowId(), terminalState,
+                        container.getMaintenanceRuleClientCache().getSourceRevision(), mutationRequestId,
+                        mutation));
         mutationRequest = new PendingRequest(
-              container.getMaintenanceRuleClientCache().getMutationGeneration(), clientTick);
+                container.getMaintenanceRuleClientCache().getMutationGeneration(), clientTick);
         return true;
     }
 
     private void acknowledgeResponses() {
         if (pageRequest != null && pageRequest.generation !=
-              container.getMaintenanceRuleClientCache().getPageGeneration()) {
+                container.getMaintenanceRuleClientCache().getPageGeneration()) {
             pageRequest = null;
             if (container.getMaintenanceRuleClientCache().getRules().isEmpty() &&
-                !emptyPageRechecked && emptyPageAtTick < 0) {
+                    !emptyPageRechecked && emptyPageAtTick < 0) {
                 emptyPageAtTick = clientTick;
             } else if (!container.getMaintenanceRuleClientCache().getRules().isEmpty()) {
                 emptyPageAtTick = -1;
@@ -269,7 +277,7 @@ public final class GuiQIOMaintenanceRulesPanel extends GuiElement
             }
         }
         if (mutationRequest != null && mutationRequest.generation !=
-              container.getMaintenanceRuleClientCache().getMutationGeneration()) {
+                container.getMaintenanceRuleClientCache().getMutationGeneration()) {
             mutationRequest = null;
             mutationRequestId = null;
             selectedRule = null;
@@ -291,7 +299,7 @@ public final class GuiQIOMaintenanceRulesPanel extends GuiElement
             sendPage(null);
         }
         if (mutationRequest != null &&
-              clientTick - mutationRequest.sentAtTick >= REQUEST_TIMEOUT_TICKS) {
+                clientTick - mutationRequest.sentAtTick >= REQUEST_TIMEOUT_TICKS) {
             mutationRequest = null;
             mutationRequestId = null;
         }
@@ -299,14 +307,14 @@ public final class GuiQIOMaintenanceRulesPanel extends GuiElement
 
     private void ensureInitialPage() {
         if (!terminalState.isValid() || terminalState.getFrequencyUUID() == null ||
-            pageRequest != null || clientTick < initialRequestNotBeforeTick) {
+                pageRequest != null || clientTick < initialRequestNotBeforeTick) {
             return;
         }
         if (container.getMaintenanceRuleClientCache().getSourceRevision() < 0) {
             sendPage(null);
         } else if (!emptyPageRechecked && emptyPageAtTick >= 0 &&
-                   clientTick - emptyPageAtTick >= EMPTY_PAGE_RECHECK_TICKS &&
-                   container.getMaintenanceRuleClientCache().getRules().isEmpty()) {
+                clientTick - emptyPageAtTick >= EMPTY_PAGE_RECHECK_TICKS &&
+                container.getMaintenanceRuleClientCache().getRules().isEmpty()) {
             emptyPageRechecked = true;
             sendPage(null);
         }
@@ -331,7 +339,7 @@ public final class GuiQIOMaintenanceRulesPanel extends GuiElement
 
     private void updateButtons() {
         boolean ready = terminalState.isValid() && terminalState.getFrequencyUUID() != null &&
-              mutationRequest == null && container.getMaintenanceRuleClientCache().getSourceRevision() >= 0;
+                mutationRequest == null && container.getMaintenanceRuleClientCache().getSourceRevision() >= 0;
         configureButton.active = ready && !hasOpenWindow();
     }
 
@@ -353,7 +361,7 @@ public final class GuiQIOMaintenanceRulesPanel extends GuiElement
         private final long accessRevision;
 
         private SessionKey(UUID nonce, UUID terminalUUID, long targetRevision, UUID frequencyUUID,
-              long accessRevision) {
+                           long accessRevision) {
             this.nonce = nonce;
             this.terminalUUID = terminalUUID;
             this.targetRevision = targetRevision;
@@ -364,15 +372,15 @@ public final class GuiQIOMaintenanceRulesPanel extends GuiElement
         @Nullable
         private static SessionKey capture(QIOProcessingTerminalContainerState state) {
             return state.isValid() ? new SessionKey(state.getSessionNonce(), state.getTerminalUUID(),
-                  state.getTargetRevision(), state.getFrequencyUUID(), state.getAccessRevision()) : null;
+                    state.getTargetRevision(), state.getFrequencyUUID(), state.getAccessRevision()) : null;
         }
 
         @Override
         public boolean equals(Object obj) {
             if (!(obj instanceof SessionKey other)) return false;
             return targetRevision == other.targetRevision && accessRevision == other.accessRevision &&
-                  Objects.equals(nonce, other.nonce) && Objects.equals(terminalUUID, other.terminalUUID) &&
-                  Objects.equals(frequencyUUID, other.frequencyUUID);
+                    Objects.equals(nonce, other.nonce) && Objects.equals(terminalUUID, other.terminalUUID) &&
+                    Objects.equals(frequencyUUID, other.frequencyUUID);
         }
 
         @Override

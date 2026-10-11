@@ -41,7 +41,6 @@ public class TileEntityBoilerValve extends TileEntityBoilerCasing implements ICo
     public BoilerTank steamTank;
     public BoilerGasTank inputTank;
     public BoilerGasTank outputTank;
-    private int currentRedstoneLevel;
 
     private PortMode mode = PortMode.INPUT;
 
@@ -60,18 +59,18 @@ public class TileEntityBoilerValve extends TileEntityBoilerCasing implements ICo
     @Override
     protected IFluidTankHolder getInitialFluidTanks(IContentsListener listener) {
         return ProxiedFluidTankHolder.create(
-              side -> isFormed() && mode == PortMode.INPUT,
-              side -> isFormed() && mode == PortMode.OUTPUT_STEAM,
-              this::getValveFluidTanks
+                side -> isFormed() && mode == PortMode.INPUT,
+                side -> isFormed() && mode == PortMode.OUTPUT_STEAM,
+                this::getValveFluidTanks
         );
     }
 
     @Override
     protected IGasTankHolder getInitialGasTanks(IContentsListener listener) {
         return ProxiedGasTankHolder.create(
-              side -> isFormed() && mode == PortMode.INPUT,
-              side -> isFormed() && mode == PortMode.OUTPUT_COOLANT,
-              this::getValveGasTanks
+                side -> isFormed() && mode == PortMode.INPUT,
+                side -> isFormed() && mode == PortMode.OUTPUT_COOLANT,
+                this::getValveGasTanks
         );
     }
 
@@ -130,12 +129,8 @@ public class TileEntityBoilerValve extends TileEntityBoilerCasing implements ICo
             if (mode == PortMode.OUTPUT_COOLANT) {
                 GasUtils.emit(EnumSet.allOf(EnumFacing.class), outputTank, this);
             }
-            int newRedstoneLevel = getRedstoneLevel();
-            if (newRedstoneLevel != currentRedstoneLevel) {
-                updateComparatorOutputLevelSync();
-                currentRedstoneLevel = newRedstoneLevel;
-            }
         }
+        updateSharedComparatorSignal();
     }
 
     @Override
@@ -189,9 +184,20 @@ public class TileEntityBoilerValve extends TileEntityBoilerCasing implements ICo
     }
 
     @Override
-    public int getRedstoneLevel() {
-        return MekanismUtils.redstoneLevelFromContents(waterTank.getFluidAmount(), waterTank.getCapacity());
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return type == mekanism.api.transmitters.TransmissionType.FLUID;
     }
+
+    @Override
+    public int getRedstoneLevel() {
+        return structure == null ? 0 : structure.getCurrentRedstoneLevel();
+    }
+
+    @Override
+    public int getCurrentRedstoneLevel() {
+        return supportsComparator() ? getRedstoneLevel() : 0;
+    }
+
 
     @Override
     public void handlePacketData(ByteBuf dataStream) {

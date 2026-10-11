@@ -1,8 +1,8 @@
 package mekanism.client.gui.machine;
 
+import mekanism.api.TileNetworkList;
 import mekanism.client.gui.GuiMekanism;
 import mekanism.client.gui.GuiMekanismTile;
-import mekanism.api.TileNetworkList;
 import mekanism.client.gui.element.GuiInnerScreen;
 import mekanism.client.gui.element.bar.GuiVerticalPowerBar;
 import mekanism.client.gui.element.tab.GuiEnergyTab;
@@ -44,28 +44,28 @@ public class GuiResistiveHeater extends GuiMekanismTile<TileEntityResistiveHeate
         super.addGuiElements();
         addButton(new GuiInnerScreen(this, 48, 23, 80, 42, this::getScreenText).clearFormat());
         addButton(new GuiVerticalPowerBar(this, tileEntity.getEnergyContainer(), 164, 15))
-              .warning(WarningType.NOT_ENOUGH_ENERGY, () -> {
-                  MachineEnergyContainer energyContainer = tileEntity.getEnergyContainer();
-                  return energyContainer.isEmpty() && energyContainer.getEnergyPerTick() > 0;
-              }).warning(WarningType.NOT_ENOUGH_ENERGY_REDUCED_RATE, () -> {
-                  MachineEnergyContainer energyContainer = tileEntity.getEnergyContainer();
-                  return energyContainer.getEnergyPerTick() > energyContainer.getEnergy();
-              });
+                .warning(WarningType.NOT_ENOUGH_ENERGY, () -> {
+                    MachineEnergyContainer energyContainer = tileEntity.getEnergyContainer();
+                    return energyContainer.isEmpty() && energyContainer.getEnergyPerTick() > 0;
+                }).warning(WarningType.NOT_ENOUGH_ENERGY_REDUCED_RATE, () -> {
+                    MachineEnergyContainer energyContainer = tileEntity.getEnergyContainer();
+                    return energyContainer.getEnergyPerTick() > energyContainer.getEnergy();
+                });
         addButton(new GuiEnergyTab(this, tileEntity.getEnergyContainer(), tileEntity::getEnergyUsed));
         addButton(new GuiHeatTab(this, () -> {
             String temp = MekanismUtils.getTemperatureDisplay(tileEntity.getTemp(), TemperatureUnit.KELVIN);
             String transfer = MekanismUtils.getTemperatureDisplay(tileEntity.lastTransferLoss, TemperatureUnit.KELVIN, false);
             String environment = MekanismUtils.getTemperatureDisplay(tileEntity.lastEnvironmentLoss, TemperatureUnit.KELVIN, false);
             return Arrays.asList(
-                  new TextComponentString(LangUtils.localize("gui.temp") + ": " + temp),
-                  new TextComponentString(LangUtils.localize("gui.transferred") + ": " + transfer + "/t"),
-                  new TextComponentString(LangUtils.localize("gui.dissipated") + ": " + environment + "/t")
+                    new TextComponentString(LangUtils.localize("gui.temp") + ": " + temp),
+                    new TextComponentString(LangUtils.localize("gui.transferred") + ": " + transfer + "/t"),
+                    new TextComponentString(LangUtils.localize("gui.dissipated") + ": " + environment + "/t")
             );
         }));
         energyUsageField = addButton(new GuiTextField(this, 0, 50, 51, 76, 12)
-              .setMaxLength(7)
-              .setInputValidator(this::isDigitOrTextKey)
-              .configureDigitalInput(this::setEnergyUsage));
+                .setMaxLength(7)
+                .setInputValidator(this::isDigitOrTextKey)
+                .configureDigitalInput(this::setEnergyUsage));
         energyUsageField.setFocused(true);
     }
 
@@ -100,8 +100,8 @@ public class GuiResistiveHeater extends GuiMekanismTile<TileEntityResistiveHeate
 
     private List<ITextComponent> getScreenText() {
         return Arrays.asList(
-              new TextComponentString(LangUtils.localize("gui.temp") + ": " + getTemp()),
-              new TextComponentString(LangUtils.localize("gui.usage") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.energyUsage) + "/t")
+                new TextComponentString(LangUtils.localize("gui.temp") + ": " + getTemp()),
+                new TextComponentString(LangUtils.localize("gui.usage") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.energyUsage) + "/t")
         );
     }
 

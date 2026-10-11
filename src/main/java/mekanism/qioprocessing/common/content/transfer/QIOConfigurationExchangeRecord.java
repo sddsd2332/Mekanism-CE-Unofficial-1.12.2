@@ -13,7 +13,10 @@ import java.math.BigInteger;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Crash-recoverable ownership ledger for replacing one retained machine configuration port. */
+/**
+ * Crash-recoverable ownership ledger for replacing one retained machine configuration port.
+ */
+
 /**
  * QIO 处理模块中的 QIOConfigurationExchangeRecord 类型。
  *
@@ -29,7 +32,7 @@ public final class QIOConfigurationExchangeRecord {
      */
     public static final int SCHEMA_VERSION = 3;
     public static final String FORCE_RECOVERY_PENDING_PREFIX =
-          "QIO_FORCE_RECOVERY_PENDING_CLAIM: ";
+            "QIO_FORCE_RECOVERY_PENDING_CLAIM: ";
 
     public enum Phase {
         CLAIM_PREPARED,
@@ -95,57 +98,57 @@ public final class QIOConfigurationExchangeRecord {
 
     /** 创建一个机器端口配置交换记录。 */
     public QIOConfigurationExchangeRecord(@Nonnull UUID exchangeId,
-          @Nonnull UUID operationId, @Nullable UUID ownerJobId, @Nonnull UUID deviceUUID,
-          @Nonnull UUID leaseId, @Nonnull String portId, @Nonnull String portGroupId,
-          long laneId, @Nonnull MachineResourceStack target,
-          @Nullable MachineResourceStack original, @Nonnull UUID targetResourceUUID) {
+                                          @Nonnull UUID operationId, @Nullable UUID ownerJobId, @Nonnull UUID deviceUUID,
+                                          @Nonnull UUID leaseId, @Nonnull String portId, @Nonnull String portGroupId,
+                                          long laneId, @Nonnull MachineResourceStack target,
+                                          @Nullable MachineResourceStack original, @Nonnull UUID targetResourceUUID) {
         this(exchangeId, operationId, ownerJobId, deviceUUID, leaseId, portId, portGroupId,
-              laneId, target, original, UUID.randomUUID(), UUID.randomUUID(),
-              UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-              UUID.randomUUID(), UUID.randomUUID(), targetResourceUUID, Phase.CLAIM_PREPARED,
-              null, null, null, false, UUID.randomUUID(), null, false, false, null);
+                laneId, target, original, UUID.randomUUID(), UUID.randomUUID(),
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                UUID.randomUUID(), UUID.randomUUID(), targetResourceUUID, Phase.CLAIM_PREPARED,
+                null, null, null, false, UUID.randomUUID(), null, false, false, null);
     }
 
     /** 创建复用旧 QIO 条目的配置交换记录。 */
     @Nonnull
     public static QIOConfigurationExchangeRecord reused(@Nonnull UUID exchangeId,
-          @Nonnull UUID operationId, @Nullable UUID ownerJobId, @Nonnull UUID deviceUUID,
-          @Nonnull UUID leaseId, @Nonnull String portId, @Nonnull String portGroupId,
-          long laneId, @Nonnull MachineResourceStack target,
-          @Nonnull MachineResourceStack installed) {
+                                                        @Nonnull UUID operationId, @Nullable UUID ownerJobId, @Nonnull UUID deviceUUID,
+                                                        @Nonnull UUID leaseId, @Nonnull String portId, @Nonnull String portGroupId,
+                                                        long laneId, @Nonnull MachineResourceStack target,
+                                                        @Nonnull MachineResourceStack installed) {
         if (!target.sameResource(installed)) {
             throw new IllegalArgumentException("Reused configuration does not match the route target");
         }
         return new QIOConfigurationExchangeRecord(exchangeId, operationId, ownerJobId,
-              deviceUUID, leaseId, portId, portGroupId, laneId, target, installed,
-              UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-              UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-              new UUID(0, 0), Phase.COMMITTED, null, null, null, false,
-              UUID.randomUUID(), null, true, false, null);
+                deviceUUID, leaseId, portId, portGroupId, laneId, target, installed,
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                new UUID(0, 0), Phase.COMMITTED, null, null, null, false,
+                UUID.randomUUID(), null, true, false, null);
     }
 
     /** 创建带显式旧传输标识的复用配置交换记录。 */
     @Nonnull
     public static QIOConfigurationExchangeRecord reused(@Nonnull UUID exchangeId,
-          @Nonnull UUID operationId, @Nullable UUID ownerJobId, @Nonnull UUID deviceUUID,
-          @Nonnull UUID leaseId, @Nonnull String portId, @Nonnull String portGroupId,
-          long laneId, @Nonnull MachineResourceStack target) {
+                                                        @Nonnull UUID operationId, @Nullable UUID ownerJobId, @Nonnull UUID deviceUUID,
+                                                        @Nonnull UUID leaseId, @Nonnull String portId, @Nonnull String portGroupId,
+                                                        long laneId, @Nonnull MachineResourceStack target) {
         return reused(exchangeId, operationId, ownerJobId, deviceUUID, leaseId, portId,
-              portGroupId, laneId, target, target);
+                portGroupId, laneId, target, target);
     }
 
     private QIOConfigurationExchangeRecord(UUID exchangeId, UUID operationId,
-          @Nullable UUID ownerJobId, UUID deviceUUID, UUID leaseId, String portId,
-          String portGroupId, long laneId, MachineResourceStack target,
-          @Nullable MachineResourceStack original, UUID claimId, UUID claimRequestId,
-          UUID consumeRequestId, UUID releaseRequestId, UUID targetDebitTransferId,
-          UUID oldQioTransferId,
-          UUID oldExtractionReceiptId, UUID newInstallationReceiptId,
-          UUID targetResourceUUID, Phase phase, @Nullable BigInteger targetQioBaseline,
-          @Nullable BigInteger oldQioBaseline, @Nullable String diagnostic,
-          boolean claimOutstanding, UUID targetReturnTransferId,
-          @Nullable BigInteger targetReturnQioBaseline, boolean targetInstalled,
-          boolean targetReturned, @Nullable Phase contaminatedFromPhase) {
+                                           @Nullable UUID ownerJobId, UUID deviceUUID, UUID leaseId, String portId,
+                                           String portGroupId, long laneId, MachineResourceStack target,
+                                           @Nullable MachineResourceStack original, UUID claimId, UUID claimRequestId,
+                                           UUID consumeRequestId, UUID releaseRequestId, UUID targetDebitTransferId,
+                                           UUID oldQioTransferId,
+                                           UUID oldExtractionReceiptId, UUID newInstallationReceiptId,
+                                           UUID targetResourceUUID, Phase phase, @Nullable BigInteger targetQioBaseline,
+                                           @Nullable BigInteger oldQioBaseline, @Nullable String diagnostic,
+                                           boolean claimOutstanding, UUID targetReturnTransferId,
+                                           @Nullable BigInteger targetReturnQioBaseline, boolean targetInstalled,
+                                           boolean targetReturned, @Nullable Phase contaminatedFromPhase) {
         this.exchangeId = Objects.requireNonNull(exchangeId, "exchangeId");
         this.operationId = Objects.requireNonNull(operationId, "operationId");
         this.ownerJobId = ownerJobId;
@@ -156,9 +159,9 @@ public final class QIOConfigurationExchangeRecord {
         this.laneId = QIOProcessingNbt.requireNonNegative(laneId, "laneId");
         this.target = requirePortStack(target, this.portId, 1, "target");
         this.original = original == null ? null : requirePortStack(original, this.portId,
-              original.amount(), "original");
+                original.amount(), "original");
         if (this.original != null && this.original.sameResource(this.target) &&
-              phase != Phase.COMMITTED) {
+                phase != Phase.COMMITTED) {
             throw new IllegalArgumentException("A configuration exchange cannot replace an identical resource");
         }
         this.claimId = Objects.requireNonNull(claimId, "claimId");
@@ -166,21 +169,21 @@ public final class QIOConfigurationExchangeRecord {
         this.consumeRequestId = Objects.requireNonNull(consumeRequestId, "consumeRequestId");
         this.releaseRequestId = Objects.requireNonNull(releaseRequestId, "releaseRequestId");
         this.targetDebitTransferId = Objects.requireNonNull(targetDebitTransferId,
-              "targetDebitTransferId");
+                "targetDebitTransferId");
         this.targetReturnTransferId = Objects.requireNonNull(targetReturnTransferId,
-              "targetReturnTransferId");
+                "targetReturnTransferId");
         this.oldQioTransferId = Objects.requireNonNull(oldQioTransferId, "oldQioTransferId");
         this.oldExtractionReceiptId = Objects.requireNonNull(oldExtractionReceiptId,
-              "oldExtractionReceiptId");
+                "oldExtractionReceiptId");
         this.newInstallationReceiptId = Objects.requireNonNull(newInstallationReceiptId,
-              "newInstallationReceiptId");
+                "newInstallationReceiptId");
         this.targetResourceUUID = Objects.requireNonNull(targetResourceUUID,
-              "targetResourceUUID");
+                "targetResourceUUID");
         this.phase = Objects.requireNonNull(phase, "phase");
         this.targetQioBaseline = checkedAmount(targetQioBaseline, "targetQioBaseline");
         this.oldQioBaseline = checkedAmount(oldQioBaseline, "oldQioBaseline");
         this.targetReturnQioBaseline = checkedAmount(targetReturnQioBaseline,
-              "targetReturnQioBaseline");
+                "targetReturnQioBaseline");
         this.targetInstalled = targetInstalled;
         this.targetReturned = targetReturned;
         this.contaminatedFromPhase = contaminatedFromPhase;
@@ -189,42 +192,156 @@ public final class QIOConfigurationExchangeRecord {
         validatePhase();
     }
 
-    @Nonnull public UUID getExchangeId() { return exchangeId; }
-    @Nonnull public UUID getOperationId() { return operationId; }
-    @Nullable public UUID getOwnerJobId() { return ownerJobId; }
-    @Nonnull public UUID getDeviceUUID() { return deviceUUID; }
-    @Nonnull public UUID getLeaseId() { return leaseId; }
-    @Nonnull public String getPortId() { return portId; }
-    @Nonnull public String getPortGroupId() { return portGroupId; }
+    @Nonnull
+    public UUID getExchangeId() {
+        return exchangeId;
+    }
+
+    @Nonnull
+    public UUID getOperationId() {
+        return operationId;
+    }
+
+    @Nullable
+    public UUID getOwnerJobId() {
+        return ownerJobId;
+    }
+
+    @Nonnull
+    public UUID getDeviceUUID() {
+        return deviceUUID;
+    }
+
+    @Nonnull
+    public UUID getLeaseId() {
+        return leaseId;
+    }
+
+    @Nonnull
+    public String getPortId() {
+        return portId;
+    }
+
+    @Nonnull
+    public String getPortGroupId() {
+        return portGroupId;
+    }
+
     /** 返回目标机器通道编号。 */
-    public long getLaneId() { return laneId; }
-    @Nonnull public MachineResourceStack getTarget() { return target; }
-    @Nullable public MachineResourceStack getOriginal() { return original; }
-    @Nonnull public PortableResourceDescriptor getTargetResource() { return describe(target); }
-    @Nullable public PortableResourceDescriptor getOriginalResource() {
+    public long getLaneId() {
+        return laneId;
+    }
+
+    @Nonnull
+    public MachineResourceStack getTarget() {
+        return target;
+    }
+
+    @Nullable
+    public MachineResourceStack getOriginal() {
+        return original;
+    }
+
+    @Nonnull
+    public PortableResourceDescriptor getTargetResource() {
+        return describe(target);
+    }
+
+    @Nullable
+    public PortableResourceDescriptor getOriginalResource() {
         return original == null ? null : describe(original);
     }
-    @Nonnull public UUID getClaimId() { return claimId; }
-    @Nonnull public UUID getClaimRequestId() { return claimRequestId; }
-    @Nonnull public UUID getConsumeRequestId() { return consumeRequestId; }
-    @Nonnull public UUID getReleaseRequestId() { return releaseRequestId; }
-    @Nonnull public UUID getTargetDebitTransferId() { return targetDebitTransferId; }
+
+    @Nonnull
+    public UUID getClaimId() {
+        return claimId;
+    }
+
+    @Nonnull
+    public UUID getClaimRequestId() {
+        return claimRequestId;
+    }
+
+    @Nonnull
+    public UUID getConsumeRequestId() {
+        return consumeRequestId;
+    }
+
+    @Nonnull
+    public UUID getReleaseRequestId() {
+        return releaseRequestId;
+    }
+
+    @Nonnull
+    public UUID getTargetDebitTransferId() {
+        return targetDebitTransferId;
+    }
+
     /** Stable idempotency key for returning a debited target template to QIO. */
-    @Nonnull public UUID getTargetReturnTransferId() { return targetReturnTransferId; }
-    @Nonnull public UUID getOldQioTransferId() { return oldQioTransferId; }
-    @Nonnull public UUID getOldExtractionReceiptId() { return oldExtractionReceiptId; }
-    @Nonnull public UUID getNewInstallationReceiptId() { return newInstallationReceiptId; }
-    @Nonnull public UUID getTargetResourceUUID() { return targetResourceUUID; }
-    @Nonnull public Phase getPhase() { return phase; }
-    @Nullable public BigInteger getTargetQioBaseline() { return targetQioBaseline; }
-    @Nullable public BigInteger getOldQioBaseline() { return oldQioBaseline; }
-    @Nullable public BigInteger getTargetReturnQioBaseline() { return targetReturnQioBaseline; }
-    @Nullable public String getDiagnostic() { return diagnostic; }
+    @Nonnull
+    public UUID getTargetReturnTransferId() {
+        return targetReturnTransferId;
+    }
+
+    @Nonnull
+    public UUID getOldQioTransferId() {
+        return oldQioTransferId;
+    }
+
+    @Nonnull
+    public UUID getOldExtractionReceiptId() {
+        return oldExtractionReceiptId;
+    }
+
+    @Nonnull
+    public UUID getNewInstallationReceiptId() {
+        return newInstallationReceiptId;
+    }
+
+    @Nonnull
+    public UUID getTargetResourceUUID() {
+        return targetResourceUUID;
+    }
+
+    @Nonnull
+    public Phase getPhase() {
+        return phase;
+    }
+
+    @Nullable
+    public BigInteger getTargetQioBaseline() {
+        return targetQioBaseline;
+    }
+
+    @Nullable
+    public BigInteger getOldQioBaseline() {
+        return oldQioBaseline;
+    }
+
+    @Nullable
+    public BigInteger getTargetReturnQioBaseline() {
+        return targetReturnQioBaseline;
+    }
+
+    @Nullable
+    public String getDiagnostic() {
+        return diagnostic;
+    }
+
     /** 返回新配置是否已安装到机器端口。 */
-    public boolean isTargetInstalled() { return targetInstalled; }
+    public boolean isTargetInstalled() {
+        return targetInstalled;
+    }
+
     /** 返回新配置是否已从机器退回 QIO。 */
-    public boolean isTargetReturned() { return targetReturned; }
-    @Nullable public Phase getContaminatedFromPhase() { return contaminatedFromPhase; }
+    public boolean isTargetReturned() {
+        return targetReturned;
+    }
+
+    @Nullable
+    public Phase getContaminatedFromPhase() {
+        return contaminatedFromPhase;
+    }
     /** True when a target debit created an external ownership obligation. */
     /** 判断取消/恢复时是否仍必须退回新配置资源。 */
     public boolean requiresTargetReturn() {
@@ -234,14 +351,18 @@ public final class QIOConfigurationExchangeRecord {
     /** 判断当前阶段是否允许恢复服务取消该交换。 */
     public boolean canCancelAfterRecovery() {
         return contaminatedFromPhase == Phase.CLAIM_PREPARED ||
-              contaminatedFromPhase == Phase.CLAIMED ||
-              contaminatedFromPhase == Phase.TARGET_DEBIT_PREPARED ||
-              contaminatedFromPhase == Phase.TARGET_DEBITED ||
-              contaminatedFromPhase == Phase.OLD_QIO_CREDITED ||
-              contaminatedFromPhase == Phase.NEW_INSTALLED;
+                contaminatedFromPhase == Phase.CLAIMED ||
+                contaminatedFromPhase == Phase.TARGET_DEBIT_PREPARED ||
+                contaminatedFromPhase == Phase.TARGET_DEBITED ||
+                contaminatedFromPhase == Phase.OLD_QIO_CREDITED ||
+                contaminatedFromPhase == Phase.NEW_INSTALLED;
     }
+
     /** 返回是否仍持有 QIO claim。 */
-    public boolean hasOutstandingClaim() { return claimOutstanding; }
+    public boolean hasOutstandingClaim() {
+        return claimOutstanding;
+    }
+
     /** 返回是否已标记为等待强制恢复。 */
     public boolean isForceRecoveryPending() {
         return diagnostic != null && diagnostic.startsWith(FORCE_RECOVERY_PENDING_PREFIX);
@@ -266,7 +387,7 @@ public final class QIOConfigurationExchangeRecord {
     public void prepareTargetDebit(@Nonnull BigInteger baseline) {
         requirePhase(Phase.CLAIMED);
         targetQioBaseline = checkedAmount(Objects.requireNonNull(baseline, "baseline"),
-              "targetQioBaseline");
+                "targetQioBaseline");
         if (targetQioBaseline.signum() <= 0) {
             throw new IllegalArgumentException("Target QIO baseline must contain the template");
         }
@@ -285,7 +406,7 @@ public final class QIOConfigurationExchangeRecord {
     /** 记录 claim 已释放。 */
     public void markClaimReleased() {
         if (!claimOutstanding || phase != Phase.CONTAMINATED &&
-              phase != Phase.CLAIMED && phase != Phase.TARGET_DEBIT_PREPARED) {
+                phase != Phase.CLAIMED && phase != Phase.TARGET_DEBIT_PREPARED) {
             throw new IllegalStateException("Configuration exchange has no releasable claim");
         }
         claimOutstanding = false;
@@ -294,7 +415,7 @@ public final class QIOConfigurationExchangeRecord {
     /** 在目标尚未扣除前取消交换。 */
     public void cancelBeforeTargetDebit() {
         if (claimOutstanding || phase != Phase.CLAIM_PREPARED && phase != Phase.CLAIMED &&
-              phase != Phase.TARGET_DEBIT_PREPARED) {
+                phase != Phase.TARGET_DEBIT_PREPARED) {
             throw new IllegalStateException("Configuration exchange cannot cancel from " + phase);
         }
         phase = Phase.CANCELLED;
@@ -307,7 +428,7 @@ public final class QIOConfigurationExchangeRecord {
             throw new IllegalStateException("Configuration exchange has no debited target to return");
         }
         BigInteger checked = checkedAmount(Objects.requireNonNull(baseline, "baseline"),
-              "targetReturnQioBaseline");
+                "targetReturnQioBaseline");
         targetReturnQioBaseline = checked;
     }
 
@@ -324,7 +445,7 @@ public final class QIOConfigurationExchangeRecord {
     /** 在恢复已完成后取消交换并释放本地所有权。 */
     public void cancelAfterRecovery() {
         if (phase != Phase.CONTAMINATED || claimOutstanding || requiresTargetReturn() ||
-              !canCancelAfterRecovery()) {
+                !canCancelAfterRecovery()) {
             throw new IllegalStateException("Configuration exchange cannot be settled after recovery");
         }
         phase = Phase.CANCELLED;
@@ -334,10 +455,10 @@ public final class QIOConfigurationExchangeRecord {
 
     /** 在容量/版本变化后重试目标配置扣除。 */
     public boolean retryTargetDebit(@Nonnull BigInteger baseline, long contentsRevision,
-          long claimRevision) {
+                                    long claimRevision) {
         requirePhase(Phase.TARGET_DEBIT_PREPARED);
         BigInteger checked = checkedAmount(Objects.requireNonNull(baseline, "baseline"),
-              "targetQioBaseline");
+                "targetQioBaseline");
         if (checked.signum() <= 0) {
             throw new IllegalArgumentException("Target QIO baseline must contain the template");
         }
@@ -355,7 +476,7 @@ public final class QIOConfigurationExchangeRecord {
             throw new IllegalStateException("An empty configuration port has nothing to return");
         }
         oldQioBaseline = checkedAmount(Objects.requireNonNull(baseline, "baseline"),
-              "oldQioBaseline");
+                "oldQioBaseline");
         phase = Phase.OLD_RETURN_PREPARED;
     }
 
@@ -479,7 +600,7 @@ public final class QIOConfigurationExchangeRecord {
     @Nonnull
     /** 从 NBT 读取并校验交换阶段与 claim 所有权关系。 */
     public static QIOConfigurationExchangeRecord read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         int schema = data.getInteger("schema");
         if (schema != 1 && schema != 2 && schema != SCHEMA_VERSION) {
             throw new QIOProcessingDataException("Unsupported QIO configuration exchange schema");
@@ -487,7 +608,7 @@ public final class QIOConfigurationExchangeRecord {
         try {
             MachineResourceStack target = MachineResourceStack.read(data.getCompoundTag("target"));
             MachineResourceStack original = data.hasKey("original", NBT.TAG_COMPOUND) ?
-                  MachineResourceStack.read(data.getCompoundTag("original")) : null;
+                    MachineResourceStack.read(data.getCompoundTag("original")) : null;
             if (target == null || data.hasKey("original", NBT.TAG_COMPOUND) && original == null) {
                 throw new IllegalArgumentException("Invalid configuration exchange resource");
             }
@@ -498,44 +619,44 @@ public final class QIOConfigurationExchangeRecord {
             // on resource equality.
             boolean inferredInstalled = phase == Phase.NEW_INSTALLED || phase == Phase.COMMITTED;
             QIOConfigurationExchangeRecord record = new QIOConfigurationExchangeRecord(
-                  QIOProcessingNbt.readUUID(data, "exchangeId"),
-                  QIOProcessingNbt.readUUID(data, "operationId"),
-                  QIOProcessingNbt.readOptionalUUID(data, "ownerJobId"),
-                  QIOProcessingNbt.readUUID(data, "deviceUUID"),
-                  QIOProcessingNbt.readUUID(data, "leaseId"), data.getString("portId"),
-                  data.getString("portGroupId"), data.getLong("laneId"), target, original,
-                  QIOProcessingNbt.readUUID(data, "claimId"),
-                  QIOProcessingNbt.readUUID(data, "claimRequestId"),
-                  QIOProcessingNbt.readUUID(data, "consumeRequestId"),
-                  schema >= 2 ? QIOProcessingNbt.readUUID(data, "releaseRequestId") :
-                        UUID.randomUUID(),
-                  QIOProcessingNbt.readUUID(data, "targetDebitTransferId"),
-                  QIOProcessingNbt.readUUID(data, "oldQioTransferId"),
-                  QIOProcessingNbt.readUUID(data, "oldExtractionReceiptId"),
-                  QIOProcessingNbt.readUUID(data, "newInstallationReceiptId"),
-                  QIOProcessingNbt.readUUID(data, "targetResourceUUID"),
-                  phase,
-                  readAmount(data, "targetQioBaseline"), readAmount(data, "oldQioBaseline"),
-                  data.hasKey("diagnostic", NBT.TAG_STRING) ? data.getString("diagnostic") : null,
-                  schema >= 2 ? data.getBoolean("claimOutstanding") : phaseOwnsClaim(
-                        phase),
-                  schema >= 3 ? QIOProcessingNbt.readUUID(data, "targetReturnTransferId") :
-                        UUID.randomUUID(),
-                  schema >= 3 ? readAmount(data, "targetReturnQioBaseline") : null,
-                  schema >= 3 ? data.getBoolean("targetInstalled") : inferredInstalled,
-                  schema >= 3 && data.getBoolean("targetReturned"),
-                  schema >= 3 && data.hasKey("contaminatedFromPhase", NBT.TAG_STRING) ?
-                        QIOProcessingNbt.readEnum(data, "contaminatedFromPhase", Phase.class) : null);
+                    QIOProcessingNbt.readUUID(data, "exchangeId"),
+                    QIOProcessingNbt.readUUID(data, "operationId"),
+                    QIOProcessingNbt.readOptionalUUID(data, "ownerJobId"),
+                    QIOProcessingNbt.readUUID(data, "deviceUUID"),
+                    QIOProcessingNbt.readUUID(data, "leaseId"), data.getString("portId"),
+                    data.getString("portGroupId"), data.getLong("laneId"), target, original,
+                    QIOProcessingNbt.readUUID(data, "claimId"),
+                    QIOProcessingNbt.readUUID(data, "claimRequestId"),
+                    QIOProcessingNbt.readUUID(data, "consumeRequestId"),
+                    schema >= 2 ? QIOProcessingNbt.readUUID(data, "releaseRequestId") :
+                            UUID.randomUUID(),
+                    QIOProcessingNbt.readUUID(data, "targetDebitTransferId"),
+                    QIOProcessingNbt.readUUID(data, "oldQioTransferId"),
+                    QIOProcessingNbt.readUUID(data, "oldExtractionReceiptId"),
+                    QIOProcessingNbt.readUUID(data, "newInstallationReceiptId"),
+                    QIOProcessingNbt.readUUID(data, "targetResourceUUID"),
+                    phase,
+                    readAmount(data, "targetQioBaseline"), readAmount(data, "oldQioBaseline"),
+                    data.hasKey("diagnostic", NBT.TAG_STRING) ? data.getString("diagnostic") : null,
+                    schema >= 2 ? data.getBoolean("claimOutstanding") : phaseOwnsClaim(
+                            phase),
+                    schema >= 3 ? QIOProcessingNbt.readUUID(data, "targetReturnTransferId") :
+                            UUID.randomUUID(),
+                    schema >= 3 ? readAmount(data, "targetReturnQioBaseline") : null,
+                    schema >= 3 ? data.getBoolean("targetInstalled") : inferredInstalled,
+                    schema >= 3 && data.getBoolean("targetReturned"),
+                    schema >= 3 && data.hasKey("contaminatedFromPhase", NBT.TAG_STRING) ?
+                            QIOProcessingNbt.readEnum(data, "contaminatedFromPhase", Phase.class) : null);
             if (data.hasKey("lastRetryContentsRevision", NBT.TAG_LONG) ||
-                  data.hasKey("lastRetryClaimRevision", NBT.TAG_LONG)) {
+                    data.hasKey("lastRetryClaimRevision", NBT.TAG_LONG)) {
                 if (!data.hasKey("lastRetryContentsRevision", NBT.TAG_LONG) ||
-                      !data.hasKey("lastRetryClaimRevision", NBT.TAG_LONG)) {
+                        !data.hasKey("lastRetryClaimRevision", NBT.TAG_LONG)) {
                     throw new IllegalArgumentException("Incomplete configuration retry revision");
                 }
                 record.lastRetryContentsRevision = QIOProcessingNbt.requireNonNegative(
-                      data.getLong("lastRetryContentsRevision"), "lastRetryContentsRevision");
+                        data.getLong("lastRetryContentsRevision"), "lastRetryContentsRevision");
                 record.lastRetryClaimRevision = QIOProcessingNbt.requireNonNegative(
-                      data.getLong("lastRetryClaimRevision"), "lastRetryClaimRevision");
+                        data.getLong("lastRetryClaimRevision"), "lastRetryClaimRevision");
             }
             return record;
         } catch (QIOProcessingDataException e) {
@@ -547,25 +668,25 @@ public final class QIOConfigurationExchangeRecord {
 
     private void validatePhase() {
         boolean reused = phase == Phase.COMMITTED && original != null &&
-              original.sameResource(target) && targetResourceUUID.equals(new UUID(0, 0));
+                original.sameResource(target) && targetResourceUUID.equals(new UUID(0, 0));
         boolean targetBaselineRequired = !reused && phase.ordinal() >=
-              Phase.TARGET_DEBIT_PREPARED.ordinal() && phase != Phase.CONTAMINATED &&
-              phase != Phase.CANCELLED;
+                Phase.TARGET_DEBIT_PREPARED.ordinal() && phase != Phase.CONTAMINATED &&
+                phase != Phase.CANCELLED;
         boolean oldBaselineRequired = !reused && original != null &&
-              phase.ordinal() >= Phase.OLD_RETURN_PREPARED.ordinal() &&
-              phase != Phase.CONTAMINATED && phase != Phase.CANCELLED;
+                phase.ordinal() >= Phase.OLD_RETURN_PREPARED.ordinal() &&
+                phase != Phase.CONTAMINATED && phase != Phase.CANCELLED;
         // A cancelled exchange may retain the baselines used by a completed debit/return.
         // They are historical ownership evidence and are needed for idempotent receipt
         // reconciliation after a restart.  Only active phases require the exact presence
         // implied by their state machine phase; cancellation still validates the cross-field
         // relationships below (for example, a return baseline requires a target debit).
         if (phase != Phase.CONTAMINATED && phase != Phase.CANCELLED &&
-              (targetBaselineRequired != (targetQioBaseline != null) ||
-                    oldBaselineRequired && oldQioBaseline == null) ||
-              phase == Phase.CONTAMINATED && diagnostic == null) {
+                (targetBaselineRequired != (targetQioBaseline != null) ||
+                        oldBaselineRequired && oldQioBaseline == null) ||
+                phase == Phase.CONTAMINATED && diagnostic == null) {
             throw new IllegalArgumentException("Configuration exchange phase disagrees with its baselines: " +
-                  phase + ", targetBaseline=" + targetQioBaseline + ", oldBaseline=" +
-                  oldQioBaseline + ", diagnostic=" + diagnostic);
+                    phase + ", targetBaseline=" + targetQioBaseline + ", oldBaseline=" +
+                    oldQioBaseline + ", diagnostic=" + diagnostic);
         }
         if (targetInstalled && targetReturned) {
             throw new IllegalArgumentException("Configuration target cannot be both installed and returned");
@@ -581,7 +702,7 @@ public final class QIOConfigurationExchangeRecord {
         }
         if (phase == Phase.CANCELLED && targetReturnQioBaseline != null && !targetReturned) {
             throw new IllegalArgumentException(
-                  "Cancelled configuration exchange still has an unsettled target return");
+                    "Cancelled configuration exchange still has an unsettled target return");
         }
         if (phase == Phase.COMMITTED && !targetInstalled && !reused) {
             throw new IllegalArgumentException("Committed configuration exchange has no installed target");
@@ -602,11 +723,11 @@ public final class QIOConfigurationExchangeRecord {
 
     private boolean markRetryRevision(long contentsRevision, long claimRevision) {
         long checkedContents = QIOProcessingNbt.requireNonNegative(contentsRevision,
-              "contentsRevision");
+                "contentsRevision");
         long checkedClaim = QIOProcessingNbt.requireNonNegative(claimRevision,
-              "claimRevision");
+                "claimRevision");
         if (lastRetryContentsRevision == checkedContents &&
-              lastRetryClaimRevision == checkedClaim) return false;
+                lastRetryClaimRevision == checkedClaim) return false;
         lastRetryContentsRevision = checkedContents;
         lastRetryClaimRevision = checkedClaim;
         return true;
@@ -617,7 +738,7 @@ public final class QIOConfigurationExchangeRecord {
     }
 
     private static MachineResourceStack requirePortStack(MachineResourceStack stack,
-          String portId, long amount, String name) {
+                                                         String portId, long amount, String name) {
         Objects.requireNonNull(stack, name);
         if (!portId.equals(stack.portId()) || stack.amount() != amount) {
             throw new IllegalArgumentException(name + " does not match the configuration port");

@@ -24,7 +24,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-/** Exact-stack portable terminal container with generation and duplicate identity checks. */
+/**
+ * Exact-stack portable terminal container with generation and duplicate identity checks.
+ */
+
 /**
  * QIO 处理模块中的 ContainerPortableQIOProcessingTerminal 类型。
  *
@@ -32,49 +35,49 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public class ContainerPortableQIOProcessingTerminal extends MekanismItemContainer
-      implements QIOPortableTerminalContainer, QIOManagementDevicePageContainer,
-      QIOManagementPolicyPageContainer, QIOManagementRecipeContainer,
-      QIOWorkbenchConfigurationContainer,
-      QIOMaintenanceRulePageContainer,
-      QIOMaintenanceResourcePageContainer,
-      QIOCraftingMonitorPageContainer, QIOProcessingTerminalFrequencyContainer {
+        implements QIOPortableTerminalContainer, QIOManagementDevicePageContainer,
+        QIOManagementPolicyPageContainer, QIOManagementRecipeContainer,
+        QIOWorkbenchConfigurationContainer,
+        QIOMaintenanceRulePageContainer,
+        QIOMaintenanceResourcePageContainer,
+        QIOCraftingMonitorPageContainer, QIOProcessingTerminalFrequencyContainer {
 
     private final QIOPortableTerminalSessionTarget sessionTarget;
     private final QIOProcessingTerminalContainerState terminalState;
     private final QIOManagementDeviceClientCache deviceClientCache =
-          new QIOManagementDeviceClientCache();
+            new QIOManagementDeviceClientCache();
     private final QIOManagementDeviceGroupClientCache deviceGroupClientCache =
-          new QIOManagementDeviceGroupClientCache();
+            new QIOManagementDeviceGroupClientCache();
     private final QIOManagementPolicyClientCache policyClientCache =
-          new QIOManagementPolicyClientCache();
+            new QIOManagementPolicyClientCache();
     private final QIOManagementRecipeClientCache managementRecipeClientCache =
-          new QIOManagementRecipeClientCache();
+            new QIOManagementRecipeClientCache();
     private final QIOWorkbenchConfigurationClientCache workbenchConfigurationClientCache =
-          new QIOWorkbenchConfigurationClientCache();
+            new QIOWorkbenchConfigurationClientCache();
     private final QIOMaintenanceRuleClientCache maintenanceRuleClientCache =
-          new QIOMaintenanceRuleClientCache();
+            new QIOMaintenanceRuleClientCache();
     private final QIOSmartProcessingClientCache maintenanceResourceClientCache =
-          new QIOSmartProcessingClientCache();
+            new QIOSmartProcessingClientCache();
     private final QIOCraftingMonitorClientCache craftingMonitorClientCache =
-          new QIOCraftingMonitorClientCache();
+            new QIOCraftingMonitorClientCache();
     private final FrequencyContainerSync<QIOFrequency> frequencySync =
-          new FrequencyContainerSync<>();
+            new FrequencyContainerSync<>();
     private final QIOManagementPageRequestThrottle managementPageThrottle =
-          new QIOManagementPageRequestThrottle();
+            new QIOManagementPageRequestThrottle();
     private long lastMaintenanceRuleRequestTick = Long.MIN_VALUE;
     private long lastMaintenanceResourceRequestTick = Long.MIN_VALUE;
     private long lastCraftingMonitorRequestTick = Long.MIN_VALUE;
     private long lastCraftingMonitorDetailRequestTick = Long.MIN_VALUE;
 
     public ContainerPortableQIOProcessingTerminal(InventoryPlayer inventory,
-          EnumHand hand, int itemSlot, ItemStack openingStack) {
+                                                  EnumHand hand, int itemSlot, ItemStack openingStack) {
         super(inventory, hand, itemSlot, openingStack);
         sessionTarget = new QIOPortableTerminalSessionTarget(inventory, itemAccess,
-              isRemote());
+                isRemote());
         terminalState = new QIOProcessingTerminalContainerState(this,
-              this::getTerminalSession);
+                this::getTerminalSession);
         frequencySync.addTrackers(this, FrequencyType.QIO,
-              this::resolveCurrentFrequency);
+                this::resolveCurrentFrequency);
     }
 
     @Nullable
@@ -118,7 +121,7 @@ public class ContainerPortableQIOProcessingTerminal extends MekanismItemContaine
     public UUID getTerminalOwnerUUID() {
         ItemStack stack = getPortableStack();
         return stack.getItem() instanceof ItemPortableQIOProcessingTerminal item ?
-              item.getOwnerUUID(stack) : null;
+                item.getOwnerUUID(stack) : null;
     }
 
     @Override
@@ -205,7 +208,7 @@ public class ContainerPortableQIOProcessingTerminal extends MekanismItemContaine
 
     @Override
     public boolean tryRequestWorkbenchConfiguration(long currentTick,
-          @Nonnull RequestStream requestStream) {
+                                                    @Nonnull RequestStream requestStream) {
         return managementPageThrottle.tryWorkbenchConfiguration(currentTick, requestStream);
     }
 
@@ -270,7 +273,7 @@ public class ContainerPortableQIOProcessingTerminal extends MekanismItemContaine
     @Override
     protected boolean isValidStack(@Nonnull ItemStack current) {
         return super.isValidStack(current) &&
-              current.getItem() instanceof ItemPortableQIOProcessingTerminal;
+                current.getItem() instanceof ItemPortableQIOProcessingTerminal;
     }
 
     @Override
@@ -282,13 +285,13 @@ public class ContainerPortableQIOProcessingTerminal extends MekanismItemContaine
     }
 
     public boolean acceptAuthorizedMutation(long expectedGeneration,
-          long updatedGeneration) {
+                                            long updatedGeneration) {
         return sessionTarget.acceptMutation(expectedGeneration, updatedGeneration);
     }
 
     @Override
     protected HotBarSlot createHotBarSlot(@Nonnull InventoryPlayer inventory, int index,
-          int x, int y) {
+                                          int x, int y) {
         if (hand == EnumHand.MAIN_HAND && index == getItemSlot()) {
             return new HotBarSlot(inventory, index, x, y) {
                 @Override
@@ -303,7 +306,7 @@ public class ContainerPortableQIOProcessingTerminal extends MekanismItemContaine
     @Nonnull
     @Override
     public ItemStack slotClick(int slotId, int dragType, ClickType clickType,
-          EntityPlayer player) {
+                               EntityPlayer player) {
         if (!player.world.isRemote && !canInteractWith(player)) {
             return ItemStack.EMPTY;
         }
@@ -312,8 +315,8 @@ public class ContainerPortableQIOProcessingTerminal extends MekanismItemContaine
                 return ItemStack.EMPTY;
             }
             if (hand == EnumHand.MAIN_HAND && dragType >= 0 &&
-                dragType < hotBarSlots.size() &&
-                !hotBarSlots.get(dragType).canTakeStack(player)) {
+                    dragType < hotBarSlots.size() &&
+                    !hotBarSlots.get(dragType).canTakeStack(player)) {
                 return ItemStack.EMPTY;
             }
         }
@@ -338,25 +341,25 @@ public class ContainerPortableQIOProcessingTerminal extends MekanismItemContaine
     protected void addInventorySlots(@Nonnull InventoryPlayer inventory) {
         ItemStack stack = getStack();
         if (!(stack.getItem() instanceof ItemPortableQIOProcessingTerminal item) ||
-            item.getTerminalType() !=
-                  mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT &&
-            item.getTerminalType() !=
-                  mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.CRAFTING_MONITOR) {
+                item.getTerminalType() !=
+                        mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT &&
+                        item.getTerminalType() !=
+                                mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.CRAFTING_MONITOR) {
             super.addInventorySlots(inventory);
             return;
         }
 
         if (item.getTerminalType() ==
-            mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT) {
+                mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT) {
             addWorkbenchPatternInventorySlots(inventory);
             track(SyncableItemStack.create(() -> inventory.player.getHeldItemOffhand(),
-                  updated -> inventory.offHandInventory.set(0, updated)));
+                    updated -> inventory.offHandInventory.set(0, updated)));
             return;
         }
 
         // Empty portable screens still need live hand/hotbar tracking for exact-stack validation.
         track(SyncableItemStack.create(() -> inventory.player.getHeldItemOffhand(),
-              updated -> inventory.offHandInventory.set(0, updated)));
+                updated -> inventory.offHandInventory.set(0, updated)));
         if (hand == EnumHand.MAIN_HAND) {
             track(SyncableItemStack.create(itemAccess::getStack, itemAccess::setStack));
         }
@@ -364,7 +367,7 @@ public class ContainerPortableQIOProcessingTerminal extends MekanismItemContaine
             if (hand == EnumHand.MAIN_HAND && slot == itemAccess.getSlot()) continue;
             int trackedSlot = slot;
             track(SyncableItemStack.create(() -> inventory.mainInventory.get(trackedSlot),
-                  updated -> inventory.mainInventory.set(trackedSlot, updated)));
+                    updated -> inventory.mainInventory.set(trackedSlot, updated)));
         }
     }
 
@@ -374,15 +377,15 @@ public class ContainerPortableQIOProcessingTerminal extends MekanismItemContaine
         for (int slotY = 0; slotY < 3; slotY++) {
             for (int slotX = 0; slotX < 9; slotX++) {
                 MainInventorySlot slot = QIOWorkbenchEditorSlots.main(this, inventory,
-                      InventoryPlayer.getHotbarSize() + slotX + slotY * 9,
-                      x + slotX * 18, y + slotY * 18);
+                        InventoryPlayer.getHotbarSize() + slotX + slotY * 9,
+                        x + slotX * 18, y + slotY * 18);
                 addSlot(slot);
             }
         }
         for (int slotX = 0; slotX < InventoryPlayer.getHotbarSize(); slotX++) {
             boolean locked = hand == EnumHand.MAIN_HAND && slotX == itemAccess.getSlot();
             HotBarSlot slot = QIOWorkbenchEditorSlots.hotbar(this, inventory, slotX,
-                  x + slotX * 18, y + 58, locked);
+                    x + slotX * 18, y + 58, locked);
             addSlot(slot);
         }
     }
@@ -392,15 +395,15 @@ public class ContainerPortableQIOProcessingTerminal extends MekanismItemContaine
         ItemStack stack = getStack();
         if (stack.getItem() instanceof ItemPortableQIOProcessingTerminal item) {
             if (item.getTerminalType() ==
-                mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT) {
+                    mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT) {
                 return 280;
             }
             if (item.getTerminalType() ==
-                mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.CRAFTING_MONITOR) {
+                    mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.CRAFTING_MONITOR) {
                 return 258;
             }
             if (item.getTerminalType() ==
-                  mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MAINTENANCE) {
+                    mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MAINTENANCE) {
                 return 134;
             }
         }
@@ -411,13 +414,13 @@ public class ContainerPortableQIOProcessingTerminal extends MekanismItemContaine
     protected int getInventoryXOffset() {
         ItemStack stack = getStack();
         if (stack.getItem() instanceof ItemPortableQIOProcessingTerminal item &&
-            item.getTerminalType() ==
-                  mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT) {
+                item.getTerminalType() ==
+                        mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MANAGEMENT) {
             return 227;
         }
         if (stack.getItem() instanceof ItemPortableQIOProcessingTerminal item &&
-            item.getTerminalType() ==
-                  mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MAINTENANCE) {
+                item.getTerminalType() ==
+                        mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType.MAINTENANCE) {
             return 38;
         }
         return super.getInventoryXOffset();
@@ -427,10 +430,10 @@ public class ContainerPortableQIOProcessingTerminal extends MekanismItemContaine
     private QIOFrequency resolveCurrentFrequency() {
         ItemStack stack = getPortableStack();
         if (stack.isEmpty() ||
-            !(stack.getItem() instanceof ItemPortableQIOProcessingTerminal item)) {
+                !(stack.getItem() instanceof ItemPortableQIOProcessingTerminal item)) {
             return null;
         }
         return QIOProcessingFrequencyAccess.resolveAccessible(
-              item.getFrequencyReference(stack), inv.player.getUniqueID());
+                item.getFrequencyReference(stack), inv.player.getUniqueID());
     }
 }

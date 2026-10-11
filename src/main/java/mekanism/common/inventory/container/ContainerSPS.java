@@ -3,7 +3,7 @@ package mekanism.common.inventory.container;
 import mekanism.common.tile.prefab.TileEntityContainerBlock;
 import net.minecraft.entity.player.InventoryPlayer;
 
-public class ContainerSPS extends MekanismTileContainer<TileEntityContainerBlock>{
+public class ContainerSPS extends MekanismTileContainer<TileEntityContainerBlock> {
 
 
     public ContainerSPS(InventoryPlayer inventory, TileEntityContainerBlock tile) {

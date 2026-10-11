@@ -5,17 +5,12 @@ import mekanism.qioprocessing.common.content.QIOProcessingNbt;
 import mekanism.qioprocessing.common.content.plan.QIOPlanSourceRevisions;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.HashSet;
+import java.util.*;
 
-/** Immutable input captured on the server thread for one pure-data planning task. */
+/**
+ * Immutable input captured on the server thread for one pure-data planning task.
+ */
+
 /**
  * QIO 处理模块中的 QIOPlanningSnapshot 类型。
  *
@@ -25,12 +20,12 @@ import java.util.HashSet;
 public final class QIOPlanningSnapshot {
 
     private static final Comparator<QIOPlanningRoute> ROUTE_ORDER = Comparator
-          .comparingLong(QIOPlanningRoute::getRoutePriority).reversed()
-          .thenComparing(QIOPlanningRoute::getLogicalId)
-          .thenComparing(Comparator.comparingLong(
-                QIOPlanningRoute::getVariantPriority).reversed())
-          .thenComparing(QIOPlanningRoute::getStableId)
-          .thenComparing(QIOPlanningRoute::getSignature);
+            .comparingLong(QIOPlanningRoute::getRoutePriority).reversed()
+            .thenComparing(QIOPlanningRoute::getLogicalId)
+            .thenComparing(Comparator.comparingLong(
+                    QIOPlanningRoute::getVariantPriority).reversed())
+            .thenComparing(QIOPlanningRoute::getStableId)
+            .thenComparing(QIOPlanningRoute::getSignature);
 
     private final QIOPlanSourceRevisions sourceRevisions;
     private final Map<PortableResourceDescriptor, Long> availableResources;
@@ -41,12 +36,12 @@ public final class QIOPlanningSnapshot {
     private final long maximumOperations;
 
     public QIOPlanningSnapshot(@Nonnull QIOPlanSourceRevisions sourceRevisions,
-          @Nonnull Map<PortableResourceDescriptor, Long> availableResources,
-          @Nonnull List<QIOPlanningRoute> routes, int maximumDepth, int maximumNodes,
-          long maximumOperations) {
+                               @Nonnull Map<PortableResourceDescriptor, Long> availableResources,
+                               @Nonnull List<QIOPlanningRoute> routes, int maximumDepth, int maximumNodes,
+                               long maximumOperations) {
         this.sourceRevisions = Objects.requireNonNull(sourceRevisions, "sourceRevisions");
         this.availableResources = QIOProcessingNbt.copyAmounts(availableResources, true,
-              "availableResources");
+                "availableResources");
         if (maximumDepth <= 0 || maximumNodes <= 0 || maximumOperations <= 0) {
             throw new IllegalArgumentException("QIO planning budgets must be positive");
         }
@@ -60,7 +55,7 @@ public final class QIOPlanningSnapshot {
             QIOPlanningRoute checked = Objects.requireNonNull(route, "planning route");
             if (!routeIds.add(checked.getStableId())) {
                 throw new IllegalArgumentException("Duplicate QIO planning route " +
-                      checked.getStableId());
+                        checked.getStableId());
             }
             routeCopy.add(checked);
         }

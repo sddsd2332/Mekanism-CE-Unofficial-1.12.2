@@ -43,9 +43,9 @@ public class GuiSPSMultiblock extends GuiMekanismTile<TileEntitySPSCasing, Conta
     protected void addGuiElements() {
         super.addGuiElements();
         addButton(new GuiGasGauge(this, this::getInputTank, GuiGasGauge.Type.STANDARD, 7, 17)
-              .withColor(GuiGasGauge.GaugeColor.RED));
+                .withColor(GuiGasGauge.GaugeColor.RED));
         addButton(new GuiGasGauge(this, this::getOutputTank, GuiGasGauge.Type.STANDARD, 151, 17)
-              .withColor(GuiGasGauge.GaugeColor.RED));
+                .withColor(GuiGasGauge.GaugeColor.RED));
         addButton(new GuiInnerScreen(this, 27, 17, 122, 60, this::getScreenText).recipeViewerCategories(RecipeViewerRecipeType.SPS));
         addButton(new GuiDynamicHorizontalRateBar(this, new IBarInfoHandler() {
             @Override
@@ -72,13 +72,13 @@ public class GuiSPSMultiblock extends GuiMekanismTile<TileEntitySPSCasing, Conta
         SynchronizedSPSData structure = tileEntity.structure;
         boolean active = structure != null && structure.lastProcessed > 0;
         list.add(new TextComponentGroup().translation(MekanismLang.STATUS.getTranslationKey())
-              .string(" ")
-              .translation(active ? MekanismLang.ACTIVE.getTranslationKey() : MekanismLang.IDLE.getTranslationKey()));
+                .string(" ")
+                .translation(active ? MekanismLang.ACTIVE.getTranslationKey() : MekanismLang.IDLE.getTranslationKey()));
         if (structure != null) {
             list.add(new TextComponentGroup().translation(MekanismLang.SPS_ENERGY_INPUT.getTranslationKey())
-                  .string(" " + MekanismUtils.getEnergyDisplay(structure.lastReceivedEnergy)));
+                    .string(" " + MekanismUtils.getEnergyDisplay(structure.lastReceivedEnergy)));
             list.add(new TextComponentGroup().translation(MekanismLang.PROCESS_RATE_MB.getTranslationKey())
-                  .string(" " + structure.getProcessRate() + "mB/t"));
+                    .string(" " + structure.getProcessRate() + "mB/t"));
             list.add(new TextComponentGroup().string(LangUtils.localize("gui.formed") + ": true"));
         } else {
             list.add(new TextComponentGroup().string(LangUtils.localize("gui.formed") + ": false"));

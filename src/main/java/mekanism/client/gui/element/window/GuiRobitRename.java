@@ -20,10 +20,10 @@ public class GuiRobitRename extends GuiWindow {
         this.robit = robit;
         addChild(new TranslationButton(gui, relativeX + 56, relativeY + 32, 60, 20, MekanismLang.BUTTON_CONFIRM, this::changeName));
         nameField = addChild(new GuiTextField(gui, 0, relativeX + 21, relativeY + 17, width - 42, 12)
-              .setMaxLength(RobitMessage.MAX_NAME_LENGTH)
-              .setCanLoseFocus(false)
-              .allowColoredText()
-              .setEnterHandler(this::changeName));
+                .setMaxLength(RobitMessage.MAX_NAME_LENGTH)
+                .setCanLoseFocus(false)
+                .allowColoredText()
+                .setEnterHandler(this::changeName));
         nameField.setFocused(true);
     }
 

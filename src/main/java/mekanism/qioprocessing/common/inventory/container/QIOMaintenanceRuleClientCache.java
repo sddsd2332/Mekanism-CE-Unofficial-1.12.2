@@ -11,7 +11,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
-/** Client-only revision-consistent maintenance rule page cache. */
+/**
+ * Client-only revision-consistent maintenance rule page cache.
+ */
+
 /**
  * QIO 处理模块中的 QIOMaintenanceRuleClientCache 类型。
  *
@@ -38,18 +41,18 @@ public final class QIOMaintenanceRuleClientCache {
     private QIOMaintenanceRule lastAuthoritativeRule;
 
     public boolean applyPage(@Nonnull UUID responseSessionNonce,
-          long responseRevision, int offset, int responseTotalSize,
-          @Nonnull List<QIOMaintenanceRule> page,
-          @Nullable QIOPageCursor responseNextCursor) {
+                             long responseRevision, int offset, int responseTotalSize,
+                             @Nonnull List<QIOMaintenanceRule> page,
+                             @Nullable QIOPageCursor responseNextCursor) {
         if (responseRevision < 0 || offset < 0 || responseTotalSize < 0 ||
-            offset > responseTotalSize || page.size() > responseTotalSize - offset ||
-            !validNextCursor(responseSessionNonce, responseRevision,
-                  offset + page.size(), responseTotalSize, responseNextCursor)) {
+                offset > responseTotalSize || page.size() > responseTotalSize - offset ||
+                !validNextCursor(responseSessionNonce, responseRevision,
+                        offset + page.size(), responseTotalSize, responseNextCursor)) {
             return false;
         }
         if (offset == 0) {
             if (responseSessionNonce.equals(sessionNonce) && sourceRevision >= 0 &&
-                responseRevision < sourceRevision) {
+                    responseRevision < sourceRevision) {
                 return false;
             }
             rules.clear();
@@ -57,8 +60,8 @@ public final class QIOMaintenanceRuleClientCache {
             sourceRevision = responseRevision;
             totalSize = responseTotalSize;
         } else if (!responseSessionNonce.equals(sessionNonce) ||
-            responseRevision != sourceRevision || responseTotalSize != totalSize ||
-            offset != rules.size()) {
+                responseRevision != sourceRevision || responseTotalSize != totalSize ||
+                offset != rules.size()) {
             return false;
         }
         rules.addAll(page);
@@ -68,10 +71,10 @@ public final class QIOMaintenanceRuleClientCache {
     }
 
     public boolean applyMutation(@Nonnull UUID responseSessionNonce,
-          @Nonnull UUID requestId, @Nonnull MutationStatus status,
-          long responseRevision, @Nullable QIOMaintenanceRule authoritativeRule) {
+                                 @Nonnull UUID requestId, @Nonnull MutationStatus status,
+                                 long responseRevision, @Nullable QIOMaintenanceRule authoritativeRule) {
         if (responseRevision < 0 ||
-            sessionNonce != null && !responseSessionNonce.equals(sessionNonce)) {
+                sessionNonce != null && !responseSessionNonce.equals(sessionNonce)) {
             return false;
         }
         sessionNonce = responseSessionNonce;
@@ -139,12 +142,12 @@ public final class QIOMaintenanceRuleClientCache {
     }
 
     private static boolean validNextCursor(UUID nonce, long revision,
-          int nextOffset, int totalSize, @Nullable QIOPageCursor cursor) {
+                                           int nextOffset, int totalSize, @Nullable QIOPageCursor cursor) {
         if (cursor == null) {
             return nextOffset == totalSize;
         }
         return nextOffset < totalSize && nonce.equals(cursor.getSessionNonce()) &&
-              revision == cursor.getSourceRevision() && nextOffset == cursor.getOffset();
+                revision == cursor.getSourceRevision() && nextOffset == cursor.getOffset();
     }
 
     private static long nextGeneration(long generation) {

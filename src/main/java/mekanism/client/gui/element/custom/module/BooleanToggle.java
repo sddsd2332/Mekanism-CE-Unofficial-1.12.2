@@ -36,11 +36,11 @@ class BooleanToggle extends MiniElement {
     private void drawRadio(int mouseX, int mouseY, boolean selected, int relativeX, int relativeY, int selectedU) {
         if (selected) {
             GuiUtils.blit(getRelativeX() + relativeX, getRelativeY() + relativeY, selectedU, RADIO_SIZE, RADIO_SIZE, RADIO_SIZE,
-                  2 * RADIO_SIZE, 2 * RADIO_SIZE);
+                    2 * RADIO_SIZE, 2 * RADIO_SIZE);
         } else {
             boolean hovered = mouseOver(mouseX, mouseY, relativeX, relativeY, RADIO_SIZE, RADIO_SIZE);
             GuiUtils.blit(getRelativeX() + relativeX, getRelativeY() + relativeY, hovered ? RADIO_SIZE : 0, 0, RADIO_SIZE, RADIO_SIZE,
-                  2 * RADIO_SIZE, 2 * RADIO_SIZE);
+                    2 * RADIO_SIZE, 2 * RADIO_SIZE);
         }
     }
 
@@ -48,14 +48,14 @@ class BooleanToggle extends MiniElement {
     void renderForeground(int mouseX, int mouseY) {
         int textColor = parent.screenTextColor();
         parent.drawScaledScrollingString(data.getDescription(), xPos, yPos, TextAlignment.LEFT, textColor, parent.getScreenWidth() - GuiScrollList.TEXTURE_WIDTH,
-              2, false, 0.8F, GuiElement.getMillis());
+                2, false, 0.8F, GuiElement.getMillis());
 
         int trueShift = 4 + RADIO_SIZE;
         int falseShift = 50 + RADIO_SIZE;
         parent.drawScaledScrollingString(MekanismLang.TRUE.translate(), xPos + trueShift, yPos + 11, TextAlignment.LEFT, textColor,
-              50 - trueShift, 3, false, 0.8F, GuiElement.getMillis());
+                50 - trueShift, 3, false, 0.8F, GuiElement.getMillis());
         parent.drawScaledScrollingString(MekanismLang.FALSE.translate(), xPos + falseShift, yPos + 11, TextAlignment.LEFT, textColor,
-              parent.getScreenWidth() - GuiScrollList.TEXTURE_WIDTH - falseShift, 3, false, 0.8F, GuiElement.getMillis());
+                parent.getScreenWidth() - GuiScrollList.TEXTURE_WIDTH - falseShift, 3, false, 0.8F, GuiElement.getMillis());
     }
 
     @Override

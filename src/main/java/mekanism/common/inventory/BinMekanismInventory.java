@@ -67,7 +67,7 @@ public class BinMekanismInventory extends ItemStackMekanismInventory {
 
     public boolean isValid(ItemStack stack) {
         return !stack.isEmpty() && stack.getCount() > 0 && binSlot.isItemValid(stack) &&
-              binSlot.insertItem(stack, mekanism.api.Action.SIMULATE, mekanism.api.AutomationType.MANUAL).getCount() < stack.getCount();
+                binSlot.insertItem(stack, mekanism.api.Action.SIMULATE, mekanism.api.AutomationType.MANUAL).getCount() < stack.getCount();
     }
 
     public int getMaxStorage() {

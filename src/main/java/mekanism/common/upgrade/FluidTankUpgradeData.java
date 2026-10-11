@@ -31,10 +31,10 @@ public class FluidTankUpgradeData extends TierUpgradeData {
     public final NBTTagCompound outputSlot;
 
     public FluidTankUpgradeData(@Nonnull BaseTier upgradeTier, @Nonnull EnumFacing facing, @Nonnull EnumFacing clientFacing, int ticker,
-          boolean redstone, boolean redstoneLastTick, boolean doAutoSync, boolean active, boolean clientActive,
-          @Nonnull ContainerEditMode editMode, int valve, @Nullable FluidStack valveFluid, @Nullable FluidStack stored,
-          int currentRedstoneLevel, @Nonnull NBTTagCompound componentData, @Nonnull NBTTagCompound inputSlot,
-          @Nonnull NBTTagCompound outputSlot) {
+                                boolean redstone, boolean redstoneLastTick, boolean doAutoSync, boolean active, boolean clientActive,
+                                @Nonnull ContainerEditMode editMode, int valve, @Nullable FluidStack valveFluid, @Nullable FluidStack stored,
+                                int currentRedstoneLevel, @Nonnull NBTTagCompound componentData, @Nonnull NBTTagCompound inputSlot,
+                                @Nonnull NBTTagCompound outputSlot) {
         super(upgradeTier);
         this.facing = facing;
         this.clientFacing = clientFacing;

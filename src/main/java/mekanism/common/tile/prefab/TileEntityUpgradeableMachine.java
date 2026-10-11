@@ -105,10 +105,10 @@ public abstract class TileEntityUpgradeableMachine<INPUT extends MachineInput<IN
             return null;
         }
         return new FactoryUpgradeData(upgradeTier, facing, clientFacing, ticker, redstone, redstoneLastTick, doAutoSync, electricityStored.get(), isActive,
-              prevEnergy, getControlType(), writeUpgradeComponentData(), recipeType, false, new int[]{operatingTicks}, new long[]{getSavedUsedSoFarForUpgrade()},
-              getInfusionForUpgrade(), getEnergySlotForUpgrade(), getExtraSlotForUpgrade(), new ItemStack[]{getInputSlotForUpgrade()},
-              new ItemStack[]{getOutputSlotForUpgrade()}, new ItemStack[]{getSecondaryOutputSlotForUpgrade()}, getInputGasForUpgrade(), getOutputGasForUpgrade(),
-              getInputFluidForUpgrade());
+                prevEnergy, getControlType(), writeUpgradeComponentData(), recipeType, false, new int[]{operatingTicks}, new long[]{getSavedUsedSoFarForUpgrade()},
+                getInfusionForUpgrade(), getEnergySlotForUpgrade(), getExtraSlotForUpgrade(), new ItemStack[]{getInputSlotForUpgrade()},
+                new ItemStack[]{getOutputSlotForUpgrade()}, new ItemStack[]{getSecondaryOutputSlotForUpgrade()}, getInputGasForUpgrade(), getOutputGasForUpgrade(),
+                getInputFluidForUpgrade());
     }
 
     @Nonnull

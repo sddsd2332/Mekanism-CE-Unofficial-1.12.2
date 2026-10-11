@@ -28,15 +28,15 @@ public class FloatOption extends Option<FloatOption> implements FloatSupplier {
     }
 
 
-    public FloatOption(BaseConfig owner,String key, float defaultValue) {
+    public FloatOption(BaseConfig owner, String key, float defaultValue) {
         this(owner, key, defaultValue, null);
     }
 
-    public FloatOption(BaseConfig owner,String key) {
+    public FloatOption(BaseConfig owner, String key) {
         this(owner, key, 0);
     }
 
-    public FloatOption(BaseConfig owner,String key, float defaultValue, @Nullable String comment, float min, float max) {
+    public FloatOption(BaseConfig owner, String key, float defaultValue, @Nullable String comment, float min, float max) {
         this(owner, key, defaultValue, comment);
         this.hasRange = true;
         this.min = min;
@@ -79,7 +79,7 @@ public class FloatOption extends Option<FloatOption> implements FloatSupplier {
     @SuppressWarnings("Duplicates")//types are different
     @Override
     public void load(Configuration config) {
-        if (category.isEmpty()){
+        if (category.isEmpty()) {
             return;
         }
         Property prop;

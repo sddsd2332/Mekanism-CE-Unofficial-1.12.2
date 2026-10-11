@@ -34,8 +34,8 @@ public class ReactorLogicButton<TYPE extends Enum<TYPE>> extends MekanismButton 
     private final int index;
 
     public ReactorLogicButton(IGuiWrapper gui, int x, int y, int index, IntSupplier scrollSupplier, Supplier<TYPE[]> modesSupplier,
-          Supplier<TYPE> currentSupplier, Function<TYPE, ITextComponent> nameSupplier, Function<TYPE, String> descriptionSupplier,
-          Function<TYPE, ItemStack> stackSupplier, Function<TYPE, EnumColor> colorSupplier, Consumer<TYPE> onPress) {
+                              Supplier<TYPE> currentSupplier, Function<TYPE, ITextComponent> nameSupplier, Function<TYPE, String> descriptionSupplier,
+                              Function<TYPE, ItemStack> stackSupplier, Function<TYPE, EnumColor> colorSupplier, Consumer<TYPE> onPress) {
         super(gui, x, y, 128, 22, new TextComponentString(""), null, null);
         this.scrollSupplier = scrollSupplier;
         this.modesSupplier = modesSupplier;

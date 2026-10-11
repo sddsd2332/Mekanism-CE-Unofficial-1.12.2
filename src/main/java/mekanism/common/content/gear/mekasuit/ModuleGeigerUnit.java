@@ -3,8 +3,8 @@ package mekanism.common.content.gear.mekasuit;
 import mekanism.api.gear.ICustomModule;
 import mekanism.api.gear.IHUDElement;
 import mekanism.api.gear.IModule;
-import mekanism.common.content.gear.ModuleHelper;
 import mekanism.common.config.MekanismConfig;
+import mekanism.common.content.gear.ModuleHelper;
 import mekanism.common.lib.radiation.RadiationManager;
 import mekanism.common.lib.radiation.RadiationUtil;
 import mekanism.common.util.MekanismUtils;
@@ -28,7 +28,7 @@ public class ModuleGeigerUnit implements ICustomModule<ModuleGeigerUnit> {
             String text = Double.isNaN(magnitude) ? net.minecraft.client.resources.I18n.format("radiation.data.unavailable") : UnitDisplayUtils.getDisplayShort(magnitude, UnitDisplayUtils.RadiationUnit.SVH, 2);
             if (MekanismConfig.current().general.radiationDecayTimers.val() && magnitude > RadiationManager.BASELINE) {
                 text += " (" + TextUtils.getHoursMinutesFromTicks(
-                      RadiationUtil.getDecayTime(RadiationManager.INSTANCE.getClientMaxMagnitude(), true)) + ")";
+                        RadiationUtil.getDecayTime(RadiationManager.INSTANCE.getClientMaxMagnitude(), true)) + ")";
             }
             hudElementAdder.accept(ModuleHelper.get().hudElement(icon, text, magnitude <= RadiationManager.BASELINE ? IHUDElement.HUDColor.REGULAR : (magnitude < 0.1 ? IHUDElement.HUDColor.WARNING : IHUDElement.HUDColor.DANGER)));
         }

@@ -2,7 +2,10 @@ package mekanism.qioprocessing.common.inventory.container;
 
 import javax.annotation.Nonnull;
 
-/** Client-facing paging contract for the maintenance resource selector. */
+/**
+ * Client-facing paging contract for the maintenance resource selector.
+ */
+
 /**
  * QIO 处理模块中的 QIOMaintenanceResourcePageContainer 类型。
  *

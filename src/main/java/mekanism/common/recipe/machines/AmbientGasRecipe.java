@@ -13,11 +13,11 @@ public class AmbientGasRecipe extends MachineRecipe<IntegerInput, ChanceGasOutpu
     }
 
     public AmbientGasRecipe(int input, GasStack output, double chance) {
-        this(new IntegerInput(input), new ChanceGasOutput(output,chance));
+        this(new IntegerInput(input), new ChanceGasOutput(output, chance));
     }
 
-    public AmbientGasRecipe(int input, String output,double chance) {
-        this(new IntegerInput(input), new ChanceGasOutput(new GasStack(GasRegistry.getGas(output), 1),chance));
+    public AmbientGasRecipe(int input, String output, double chance) {
+        this(new IntegerInput(input), new ChanceGasOutput(new GasStack(GasRegistry.getGas(output), 1), chance));
     }
 
     public boolean canOperate(int cachedDimensionId, IExtendedGasTank outputTank) {

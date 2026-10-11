@@ -21,12 +21,12 @@ public class BasicSidedCapabilityResolver<HANDLER, BASE_HANDLER> implements ICap
     private HANDLER readOnlyHandler;
 
     public BasicSidedCapabilityResolver(@Nonnull BASE_HANDLER baseHandler, @Nonnull Capability<HANDLER> supportedCapability,
-          @Nonnull BasicProxyCreator<HANDLER, BASE_HANDLER> proxyCreator) {
+                                        @Nonnull BasicProxyCreator<HANDLER, BASE_HANDLER> proxyCreator) {
         this(baseHandler, supportedCapability, proxyCreator, true);
     }
 
     protected BasicSidedCapabilityResolver(@Nonnull BASE_HANDLER baseHandler, @Nonnull Capability<HANDLER> supportedCapability,
-          @Nonnull ProxyCreator<HANDLER, BASE_HANDLER> proxyCreator, boolean canHandle) {
+                                           @Nonnull ProxyCreator<HANDLER, BASE_HANDLER> proxyCreator, boolean canHandle) {
         this.supportedCapabilities = Collections.singletonList(supportedCapability);
         this.baseHandler = baseHandler;
         this.proxyCreator = proxyCreator;

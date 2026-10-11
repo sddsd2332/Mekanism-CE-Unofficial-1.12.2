@@ -49,7 +49,6 @@ import java.util.Collections;
 public class TileEntityInductionPort extends TileEntityInductionCasing implements IEnergyWrapper, IConfigurable, IActiveState, IComparatorSupport, mekanism.common.base.IWholeEnergyTransfer {
 
     private boolean ic2Registered = false;
-    private int currentRedstoneLevel;
 
     /**
      * false = input, true = output
@@ -87,11 +86,7 @@ public class TileEntityInductionPort extends TileEntityInductionCasing implement
         if (structure != null && structure.isFormed() && mode && getEnergy() > 0) {
             CableUtils.emit(this);
         }
-        int newRedstoneLevel = getRedstoneLevel();
-        if (newRedstoneLevel != currentRedstoneLevel) {
-            updateComparatorOutputLevelSync();
-            currentRedstoneLevel = newRedstoneLevel;
-        }
+        updateSharedComparatorSignal();
     }
 
     @Override
@@ -401,7 +396,19 @@ public class TileEntityInductionPort extends TileEntityInductionCasing implement
     }
 
     @Override
-    public int getRedstoneLevel() {
-        return MekanismUtils.redstoneLevelFromContents(getEnergy(), getMaxEnergy());
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return type == mekanism.api.transmitters.TransmissionType.ENERGY;
     }
+
+    @Override
+    public int getRedstoneLevel() {
+        return structure == null ? 0 : structure.getCurrentRedstoneLevel();
+    }
+
+    @Override
+    public int getCurrentRedstoneLevel() {
+        return supportsComparator() ? getRedstoneLevel() : 0;
+    }
+
+
 }

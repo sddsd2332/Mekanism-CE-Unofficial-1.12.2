@@ -9,7 +9,10 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Last known display/security identity; frequency UUID remains the authoritative key. */
+/**
+ * Last known display/security identity; frequency UUID remains the authoritative key.
+ */
+
 /**
  * QIO 处理模块中的 QIOFrequencyIdentitySnapshot 类型。
  *
@@ -26,7 +29,7 @@ public final class QIOFrequencyIdentitySnapshot {
     private final SecurityMode securityMode;
 
     public QIOFrequencyIdentitySnapshot(@Nonnull String name, @Nullable UUID ownerUUID,
-          @Nonnull SecurityMode securityMode) {
+                                        @Nonnull SecurityMode securityMode) {
         Objects.requireNonNull(name, "name");
         String trimmed = name.trim();
         if (trimmed.length() > MAX_NAME_LENGTH) {
@@ -65,12 +68,12 @@ public final class QIOFrequencyIdentitySnapshot {
 
     @Nonnull
     public static QIOFrequencyIdentitySnapshot read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         try {
             return new QIOFrequencyIdentitySnapshot(data.getString("name"),
-                  data.hasKey("ownerUUID", NBT.TAG_STRING) ?
-                        QIOProcessingNbt.readUUID(data, "ownerUUID") : null,
-                  QIOProcessingNbt.readEnum(data, "securityMode", SecurityMode.class));
+                    data.hasKey("ownerUUID", NBT.TAG_STRING) ?
+                            QIOProcessingNbt.readUUID(data, "ownerUUID") : null,
+                    QIOProcessingNbt.readEnum(data, "securityMode", SecurityMode.class));
         } catch (QIOProcessingDataException e) {
             throw e;
         } catch (RuntimeException e) {

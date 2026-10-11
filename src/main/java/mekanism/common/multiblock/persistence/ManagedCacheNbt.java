@@ -1,38 +1,36 @@
 package mekanism.common.multiblock.persistence;
 
-import net.minecraft.nbt.CompressedStreamTools;
-import net.minecraft.nbt.NBTBase;
-import net.minecraft.nbt.NBTSizeTracker;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.nbt.NBTTagList;
+import net.minecraft.nbt.*;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
+import java.io.*;
 import java.util.HashSet;
 import java.util.Set;
 
-/** Uncompressed, bounded NBT snapshots. No registry lookups and no optional-module dependencies. */
+/**
+ * Uncompressed, bounded NBT snapshots. No registry lookups and no optional-module dependencies.
+ */
 public final class ManagedCacheNbt {
     private static final int MAX_DEPTH = 64;
     private static final int MAX_NODES = 100_000;
 
-    private ManagedCacheNbt() {}
+    private ManagedCacheNbt() {
+    }
 
-    /** Must capture live machine state on its owning thread before calling this method. */
+    /**
+     * Must capture live machine state on its owning thread before calling this method.
+     */
     public static byte[] encode(NBTTagCompound root) throws IOException {
         inspectTree(root, 0, new Budget());
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (DataOutputStream output = new DataOutputStream(new OutputStream() {
-            @Override public void write(int value) throws IOException {
+            @Override
+            public void write(int value) throws IOException {
                 require(bytes.size() < ManagedCacheStore.MAX_CACHE_BYTES, "encoded size");
                 bytes.write(value);
             }
 
-            @Override public void write(byte[] value, int offset, int length) throws IOException {
+            @Override
+            public void write(byte[] value, int offset, int length) throws IOException {
                 require(length <= ManagedCacheStore.MAX_CACHE_BYTES - bytes.size(), "encoded size");
                 bytes.write(value, offset, length);
             }
@@ -87,11 +85,23 @@ public final class ManagedCacheNbt {
     private static void scan(DataInputStream input, int type, int depth, Budget budget) throws IOException {
         budget.node(depth);
         switch (type) {
-            case 1: skip(input, 1); return;
-            case 2: skip(input, 2); return;
-            case 3: case 5: skip(input, 4); return;
-            case 4: case 6: skip(input, 8); return;
-            case 7: case 11: case 12: {
+            case 1:
+                skip(input, 1);
+                return;
+            case 2:
+                skip(input, 2);
+                return;
+            case 3:
+            case 5:
+                skip(input, 4);
+                return;
+            case 4:
+            case 6:
+                skip(input, 8);
+                return;
+            case 7:
+            case 11:
+            case 12: {
                 int count = input.readInt();
                 require(count >= 0, "negative array length");
                 long size = (long) count * (type == 7 ? 1 : type == 11 ? 4 : 8);
@@ -99,7 +109,9 @@ public final class ManagedCacheNbt {
                 skip(input, (int) size);
                 return;
             }
-            case 8: input.readUTF(); return;
+            case 8:
+                input.readUTF();
+                return;
             case 9: {
                 int childType = input.readUnsignedByte();
                 int count = input.readInt();
@@ -117,7 +129,8 @@ public final class ManagedCacheNbt {
                     scan(input, childType, depth + 1, budget);
                 }
             }
-            default: throw new IOException("Invalid managed cache NBT tag type: " + type);
+            default:
+                throw new IOException("Invalid managed cache NBT tag type: " + type);
         }
     }
 
@@ -131,6 +144,7 @@ public final class ManagedCacheNbt {
 
     private static final class Budget {
         int nodes;
+
         void node(int depth) throws IOException {
             require(depth <= MAX_DEPTH && ++nodes <= MAX_NODES, "depth or node budget");
         }

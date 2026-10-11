@@ -12,11 +12,15 @@ import net.minecraft.item.ItemStack;
 import javax.annotation.Nonnull;
 import java.util.function.Consumer;
 
-/** Output slot for a QIO crafting window. It is consumed through onCrafted. */
+/**
+ * Output slot for a QIO crafting window. It is consumed through onCrafted.
+ */
 public class VirtualCraftingOutputSlot extends VirtualCraftingSlot implements IHasExtraData {
 
     private final QIOCraftingWindow craftingWindow;
-    /** Client mirror of the server's per-player recipe visibility state. */
+    /**
+     * Client mirror of the server's per-player recipe visibility state.
+     */
     private boolean canCraft;
 
     public VirtualCraftingOutputSlot(@Nonnull QIOCraftingWindow craftingWindow, @Nonnull IInventory inventory, int index, int x, int y) {
@@ -83,7 +87,7 @@ public class VirtualCraftingOutputSlot extends VirtualCraftingSlot implements IH
         } else {
             EntityPlayerMP serverPlayer = (EntityPlayerMP) player;
             tracker.accept(SyncableBoolean.create(
-                  () -> canCraft = craftingWindow.canViewRecipe(serverPlayer), value -> canCraft = value));
+                    () -> canCraft = craftingWindow.canViewRecipe(serverPlayer), value -> canCraft = value));
         }
     }
 }

@@ -7,12 +7,12 @@ import mekanism.api.IContentsListener;
 import mekanism.api.energy.IEnergyContainer;
 import mekanism.api.inventory.IInventorySlot;
 import mekanism.api.transmitters.TransmissionType;
+import mekanism.common.Upgrade;
 import mekanism.common.base.ISideConfiguration;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.capabilities.holder.energy.IEnergyContainerHolder;
 import mekanism.common.config.MekanismConfig;
-import mekanism.common.Upgrade;
 import mekanism.common.integration.computer.IComputerIntegration;
 import mekanism.common.inventory.container.MekanismContainer;
 import mekanism.common.recipe.RecipeHandler;
@@ -48,7 +48,7 @@ public abstract class TileEntityBasicMachine<INPUT extends MachineInput<INPUT>, 
 
     public RECIPE cachedRecipe = null;
     protected RecipeCacheLookupMonitor<RECIPE> recipeCacheLookupMonitor = new RecipeCacheLookupMonitor<>(this);
-    private IContentsListener recipeCacheChangeListener;
+    private final java.util.Map<IContentsListener, IContentsListener> recipeCacheChangeListeners = new java.util.IdentityHashMap<>();
     private final List<RecipeError> trackedRecipeErrorTypes;
     private final boolean[] trackedRecipeErrors;
     private int cachedRecipeVersion = -1;
@@ -82,7 +82,7 @@ public abstract class TileEntityBasicMachine<INPUT extends MachineInput<INPUT>, 
     @Override
     public boolean sideIsConsumer(EnumFacing side) {
         return configComponent == null ? super.sideIsConsumer(side) :
-              configComponent.hasSideForData(TransmissionType.ENERGY, facing, mekanism.common.tile.component.config.DataType.INPUT, side);
+                configComponent.hasSideForData(TransmissionType.ENERGY, facing, mekanism.common.tile.component.config.DataType.INPUT, side);
     }
 
     @Override
@@ -213,13 +213,10 @@ public abstract class TileEntityBasicMachine<INPUT extends MachineInput<INPUT>, 
     }
 
     protected IContentsListener getRecipeCacheChangeListener(IContentsListener listener) {
-        if (recipeCacheChangeListener == null) {
-            recipeCacheChangeListener = () -> {
-                listener.onContentsChanged();
-                recipeCacheLookupMonitor.onChange();
-            };
-        }
-        return recipeCacheChangeListener;
+        return recipeCacheChangeListeners.computeIfAbsent(listener, source -> () -> {
+            source.onContentsChanged();
+            recipeCacheLookupMonitor.onChange();
+        });
     }
 
     protected void processRecipe() {
@@ -233,7 +230,7 @@ public abstract class TileEntityBasicMachine<INPUT extends MachineInput<INPUT>, 
 
     protected final boolean isEmptyRecipeStateSettled() {
         return !getActive() && operatingTicks == 0 && prevEnergy == getEnergy() &&
-              recipeCacheLookupMonitor.canSkipProcessing();
+                recipeCacheLookupMonitor.canSkipProcessing();
     }
 
     protected double processRecipe(IEnergyContainer energyContainer) {
@@ -286,12 +283,18 @@ public abstract class TileEntityBasicMachine<INPUT extends MachineInput<INPUT>, 
     }
 
     protected boolean canOutputToSlot(int slotId, ItemStack output) {
-        IInventorySlot outputSlot = getInventorySlot(slotId);
+        return canOutputToSlot(getInventorySlot(slotId), output);
+    }
+
+    protected boolean canOutputToSlot(IInventorySlot outputSlot, ItemStack output) {
         return outputSlot != null && outputSlot.insertItem(output, Action.SIMULATE, AutomationType.INTERNAL).isEmpty();
     }
 
     protected ItemStack getSimulatedStackWithInsert(int slotId, ItemStack stack) {
-        IInventorySlot slot = getInventorySlot(slotId);
+        return getSimulatedStackWithInsert(getInventorySlot(slotId), stack);
+    }
+
+    protected ItemStack getSimulatedStackWithInsert(IInventorySlot slot, ItemStack stack) {
         if (slot == null) {
             return ItemStack.EMPTY;
         }

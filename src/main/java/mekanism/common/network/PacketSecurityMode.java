@@ -51,7 +51,7 @@ public class PacketSecurityMode implements IMessageHandler<SecurityModeMessage, 
                 }
                 ItemStack stack = container.getStack();
                 if (!stack.isEmpty() && stack.getItem() instanceof ISecurityItem item &&
-                      player.getUniqueID().equals(item.getOwnerUUID(stack))) {
+                        player.getUniqueID().equals(item.getOwnerUUID(stack))) {
                     item.setSecurity(stack, message.value);
                 }
             } else if (message.packetType == SecurityPacketType.ENTITY) {

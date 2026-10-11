@@ -189,7 +189,8 @@ public class TileEntityModificationStation extends TileEntityOperationalMachine 
     public boolean supportsAsync() {
         return false;
     }
-@Override
+
+    @Override
     public int getBlockGuiID(Block block, int metadata) {
         return BlockStateMachine.MachineType.get(block, metadata) != null ? BlockStateMachine.MachineType.get(block, metadata).guiId : -1;
     }

@@ -32,7 +32,7 @@ public class GuiQIODriveArray extends GuiMekanismTile<TileEntityQIODriveArray, C
             for (int x = 0; x < 6; x++) {
                 int slot = y * 6 + x;
                 addButton(new GuiQIODriveStatusSlot(this, xSize / 2 - (6 * 18 / 2) + x * 18 - 1,
-                      69 + y * 18, slot, tileEntity::getDriveStatusData));
+                        69 + y * 18, slot, tileEntity::getDriveStatusData));
             }
         }
     }

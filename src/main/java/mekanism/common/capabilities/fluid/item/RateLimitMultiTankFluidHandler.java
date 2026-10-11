@@ -20,7 +20,7 @@ public class RateLimitMultiTankFluidHandler extends ItemStackMekanismFluidHandle
         List<IExtendedFluidTank> tankProviders = new ArrayList<>();
         for (FluidTankSpec spec : fluidTanks) {
             tankProviders.add(new RateLimitFluidTank(spec.rate, spec.capacity, spec.canExtract,
-                  (fluid, automationType) -> spec.canInsert.test(fluid, automationType, getStack()), spec.isValid, this));
+                    (fluid, automationType) -> spec.canInsert.test(fluid, automationType, getStack()), spec.isValid, this));
         }
         tanks = Collections.unmodifiableList(tankProviders);
     }

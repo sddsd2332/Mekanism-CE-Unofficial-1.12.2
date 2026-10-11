@@ -13,7 +13,7 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 
 @SideOnly(Side.CLIENT)
 public class RenderWindGenerator extends TileEntitySpecialRenderer<TileEntityWindGenerator> {
-    
+
     private ModelWindGenerator model = new ModelWindGenerator();
 
     @Override

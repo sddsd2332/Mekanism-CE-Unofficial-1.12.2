@@ -7,9 +7,9 @@ import mekanism.qioprocessing.common.inventory.container.QIOProcessingTerminalCo
 import mekanism.qioprocessing.common.inventory.container.QIOWorkbenchConfigurationContainer;
 import mekanism.qioprocessing.common.network.PacketQIOWorkbenchConfigurationRequest.Operation;
 import mekanism.qioprocessing.common.terminal.QIOProcessingTerminalSession;
+import mekanism.qioprocessing.common.terminal.QIOWorkbenchClosurePreview;
 import mekanism.qioprocessing.common.terminal.QIOWorkbenchConfigurationSnapshot;
 import mekanism.qioprocessing.common.terminal.QIOWorkbenchCopyPreview;
-import mekanism.qioprocessing.common.terminal.QIOWorkbenchClosurePreview;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
@@ -20,7 +20,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.UUID;
 
-/** Client response for one workbench configuration request. */
+/**
+ * Client response for one workbench configuration request.
+ */
+
 /**
  * QIO 处理模块中的 PacketQIOWorkbenchConfigurationData 类型。
  *
@@ -28,7 +31,7 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class PacketQIOWorkbenchConfigurationData implements
-      IMessageHandler<PacketQIOWorkbenchConfigurationData.Message, IMessage> {
+        IMessageHandler<PacketQIOWorkbenchConfigurationData.Message, IMessage> {
 
     public enum Status {
         OK,
@@ -48,7 +51,10 @@ public final class PacketQIOWorkbenchConfigurationData implements
         SOURCE_CHANGED,
         TARGET_CHANGED,
         UNAVAILABLE,
-        BUSY
+        BUSY,
+        PAUSED_RESTART,
+        CANCELLED,
+        FAILED
     }
 
     @Override
@@ -57,30 +63,33 @@ public final class PacketQIOWorkbenchConfigurationData implements
         if (player == null || !player.world.isRemote) return null;
         PacketHandler.handlePacket(() -> {
             if (!message.valid ||
-                !(player.openContainer instanceof QIOWorkbenchConfigurationContainer container) ||
-                player.openContainer.windowId != message.windowId) return;
+                    !(player.openContainer instanceof QIOWorkbenchConfigurationContainer container) ||
+                    player.openContainer.windowId != message.windowId) return;
             QIOProcessingTerminalContainerState state = container.getTerminalState();
             if (!state.matches(message.sessionNonce, message.terminalUUID,
-                  message.targetRevision, message.frequencyUUID,
-                  message.accessRevision)) return;
+                    message.targetRevision, message.frequencyUUID,
+                    message.accessRevision)) return;
             if (message.snapshot != null) {
                 container.getWorkbenchConfigurationClientCache().applyPage(message.requestId,
-                      message.status, message.snapshot);
+                        message.status, message.snapshot);
             } else if (message.operation == Operation.PRODUCTS ||
-                      message.operation == Operation.RECIPES ||
-                      message.operation == Operation.CANDIDATES) {
+                    message.operation == Operation.RECIPES ||
+                    message.operation == Operation.CANDIDATES) {
                 container.getWorkbenchConfigurationClientCache().applyUnavailable(
-                      message.operation, message.requestId, message.status);
+                        message.operation, message.requestId, message.status);
             } else if (message.operation == Operation.MUTATE) {
                 container.getWorkbenchConfigurationClientCache().applyMutation(
-                      message.requestId, message.status);
+                        message.requestId, message.status);
             } else if (message.operation == Operation.CLOSURE_PREVIEW ||
-                      message.operation == Operation.CLOSURE_CONFIRM) {
+                    message.operation == Operation.CLOSURE_CONFIRM ||
+                    message.operation == Operation.CLOSURE_QUERY ||
+                    message.operation == Operation.CLOSURE_CANCEL ||
+                    message.operation == Operation.CLOSURE_RESUME) {
                 container.getWorkbenchConfigurationClientCache().applyClosure(
-                      message.requestId, message.status, message.closurePreview);
+                        message.requestId, message.status, message.closurePreview);
             } else {
                 container.getWorkbenchConfigurationClientCache().applyCopy(message.requestId,
-                      message.status, message.copyPreview);
+                        message.status, message.copyPreview);
             }
         }, player);
         return null;
@@ -97,9 +106,12 @@ public final class PacketQIOWorkbenchConfigurationData implements
         private UUID requestId;
         private Operation operation = Operation.PRODUCTS;
         private Status status = Status.UNAVAILABLE;
-        @Nullable private QIOWorkbenchConfigurationSnapshot snapshot;
-        @Nullable private QIOWorkbenchCopyPreview copyPreview;
-        @Nullable private QIOWorkbenchClosurePreview closurePreview;
+        @Nullable
+        private QIOWorkbenchConfigurationSnapshot snapshot;
+        @Nullable
+        private QIOWorkbenchCopyPreview copyPreview;
+        @Nullable
+        private QIOWorkbenchClosurePreview closurePreview;
         private boolean valid;
 
         public Message() {
@@ -107,19 +119,19 @@ public final class PacketQIOWorkbenchConfigurationData implements
 
         @Nonnull
         public static Message create(int windowId, QIOProcessingTerminalSession session,
-              UUID requestId, Operation operation, Status status,
-              @Nullable QIOWorkbenchConfigurationSnapshot snapshot,
-              @Nullable QIOWorkbenchCopyPreview copyPreview) {
+                                     UUID requestId, Operation operation, Status status,
+                                     @Nullable QIOWorkbenchConfigurationSnapshot snapshot,
+                                     @Nullable QIOWorkbenchCopyPreview copyPreview) {
             return create(windowId, session, requestId, operation, status, snapshot,
-                  copyPreview, null);
+                    copyPreview, null);
         }
 
         @Nonnull
         public static Message create(int windowId, QIOProcessingTerminalSession session,
-              UUID requestId, Operation operation, Status status,
-              @Nullable QIOWorkbenchConfigurationSnapshot snapshot,
-              @Nullable QIOWorkbenchCopyPreview copyPreview,
-              @Nullable QIOWorkbenchClosurePreview closurePreview) {
+                                     UUID requestId, Operation operation, Status status,
+                                     @Nullable QIOWorkbenchConfigurationSnapshot snapshot,
+                                     @Nullable QIOWorkbenchCopyPreview copyPreview,
+                                     @Nullable QIOWorkbenchClosurePreview closurePreview) {
             Message message = new Message();
             if (session != null && session.getFrequencyUUID() != null) {
                 message.windowId = windowId;
@@ -156,7 +168,7 @@ public final class PacketQIOWorkbenchConfigurationData implements
             if (copyPreview != null) PacketHandler.writeNBT(buffer, copyPreview.write());
             buffer.writeBoolean(closurePreview != null);
             if (closurePreview != null) PacketHandler.writeNBT(buffer,
-                  closurePreview.write());
+                    closurePreview.write());
         }
 
         @Override
@@ -173,21 +185,21 @@ public final class PacketQIOWorkbenchConfigurationData implements
                 int operationIndex = buffer.readUnsignedByte();
                 int statusIndex = buffer.readUnsignedByte();
                 if (operationIndex >= Operation.values().length ||
-                    statusIndex >= Status.values().length) return;
+                        statusIndex >= Status.values().length) return;
                 operation = Operation.values()[operationIndex];
                 status = Status.values()[statusIndex];
                 NBTTagCompound storedSnapshot = buffer.readBoolean() ?
-                      PacketHandler.readNBT(buffer) : null;
+                        PacketHandler.readNBT(buffer) : null;
                 snapshot = storedSnapshot == null ? null :
-                      QIOWorkbenchConfigurationSnapshot.read(storedSnapshot);
+                        QIOWorkbenchConfigurationSnapshot.read(storedSnapshot);
                 NBTTagCompound storedPreview = buffer.readBoolean() ?
-                      PacketHandler.readNBT(buffer) : null;
+                        PacketHandler.readNBT(buffer) : null;
                 copyPreview = storedPreview == null ? null :
-                      QIOWorkbenchCopyPreview.read(storedPreview);
+                        QIOWorkbenchCopyPreview.read(storedPreview);
                 NBTTagCompound storedClosurePreview = buffer.readBoolean() ?
-                      PacketHandler.readNBT(buffer) : null;
+                        PacketHandler.readNBT(buffer) : null;
                 closurePreview = storedClosurePreview == null ? null :
-                      QIOWorkbenchClosurePreview.read(storedClosurePreview);
+                        QIOWorkbenchClosurePreview.read(storedClosurePreview);
                 valid = shape();
             } catch (QIOProcessingDataException | RuntimeException ignored) {
                 valid = false;
@@ -197,34 +209,38 @@ public final class PacketQIOWorkbenchConfigurationData implements
             }
         }
 
-        public boolean isValid() { return valid; }
+        public boolean isValid() {
+            return valid;
+        }
 
         private boolean shape() {
             if (windowId < 0 || sessionNonce == null || terminalUUID == null ||
-                targetRevision < 0 || frequencyUUID == null || accessRevision < 0 ||
-                requestId == null || operation == null || status == null) {
+                    targetRevision < 0 || frequencyUUID == null || accessRevision < 0 ||
+                    requestId == null || operation == null || status == null) {
                 return false;
             }
             return switch (operation) {
                 case PRODUCTS, RECIPES, CANDIDATES -> copyPreview == null &&
-                      closurePreview == null &&
-                      (status == Status.OK) == (snapshot != null) &&
-                      (snapshot == null || snapshot.getPageKind().name().equals(
-                            operation.name()));
+                        closurePreview == null &&
+                        (status == Status.OK) == (snapshot != null) &&
+                        (snapshot == null || snapshot.getPageKind().name().equals(
+                                operation.name()));
                 case MUTATE -> snapshot == null && copyPreview == null &&
-                      closurePreview == null &&
-                      status != Status.OK && status != Status.READY;
+                        closurePreview == null &&
+                        status != Status.OK && status != Status.READY;
                 case COPY_PREVIEW -> snapshot == null &&
-                      closurePreview == null &&
-                      (status == Status.READY) == (copyPreview != null);
+                        closurePreview == null &&
+                        (status == Status.READY) == (copyPreview != null);
                 case COPY_CONFIRM -> snapshot == null && copyPreview == null &&
-                      closurePreview == null &&
-                      status != Status.OK && status != Status.READY;
-                case CLOSURE_PREVIEW -> snapshot == null && copyPreview == null &&
-                      (status == Status.READY) == (closurePreview != null);
+                        closurePreview == null &&
+                        status != Status.OK && status != Status.READY;
+                case CLOSURE_PREVIEW, CLOSURE_QUERY, CLOSURE_CANCEL, CLOSURE_RESUME ->
+                        snapshot == null && copyPreview == null && (status != Status.READY || closurePreview != null) &&
+                                (closurePreview == null || status == Status.READY || status == Status.BUSY ||
+                                        status == Status.PAUSED_RESTART || status == Status.CANCELLED || status == Status.FAILED);
                 case CLOSURE_CONFIRM -> snapshot == null && copyPreview == null &&
-                      closurePreview == null && status != Status.OK &&
-                      status != Status.READY;
+                        closurePreview == null && status != Status.OK &&
+                        status != Status.READY;
             };
         }
 

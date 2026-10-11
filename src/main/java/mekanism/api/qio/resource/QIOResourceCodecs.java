@@ -9,7 +9,9 @@ import net.minecraftforge.fluids.FluidStack;
 import javax.annotation.Nonnull;
 import java.util.Objects;
 
-/** Built-in resource codecs used by the legacy item, fluid and gas APIs. */
+/**
+ * Built-in resource codecs used by the legacy item, fluid and gas APIs.
+ */
 public final class QIOResourceCodecs {
 
     public static final String ITEM_FAMILY = "item";
@@ -173,7 +175,7 @@ public final class QIOResourceCodecs {
         public FluidStack readTemplate(@Nonnull NBTTagCompound payload, int codecVersion) {
             requireVersion(codecVersion);
             FluidStack stack = FluidStack.loadFluidStackFromNBT(
-                  Objects.requireNonNull(payload, "Fluid payload cannot be null"));
+                    Objects.requireNonNull(payload, "Fluid payload cannot be null"));
             if (stack == null) {
                 throw new IllegalArgumentException("Fluid resource is unavailable");
             }

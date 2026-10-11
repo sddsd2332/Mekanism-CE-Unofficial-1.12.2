@@ -11,7 +11,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Objects;
 
-/** One bounded row from an immutable craft plan's flat step/cycle table. */
+/**
+ * One bounded row from an immutable craft plan's flat step/cycle table.
+ */
+
 /**
  * QIO 处理模块中的 QIOCraftingMonitorPlanEntry 类型。
  *
@@ -32,7 +35,7 @@ public final class QIOCraftingMonitorPlanEntry {
     private final QIOCyclePlanNode cycle;
 
     private QIOCraftingMonitorPlanEntry(Kind kind, @Nullable QIOPlanStep step,
-          @Nullable QIOCyclePlanNode cycle) {
+                                        @Nullable QIOCyclePlanNode cycle) {
         this.kind = Objects.requireNonNull(kind, "kind");
         this.step = step;
         this.cycle = cycle;
@@ -44,13 +47,13 @@ public final class QIOCraftingMonitorPlanEntry {
     @Nonnull
     public static QIOCraftingMonitorPlanEntry step(@Nonnull QIOPlanStep step) {
         return new QIOCraftingMonitorPlanEntry(Kind.STEP,
-              Objects.requireNonNull(step, "step"), null);
+                Objects.requireNonNull(step, "step"), null);
     }
 
     @Nonnull
     public static QIOCraftingMonitorPlanEntry cycle(@Nonnull QIOCyclePlanNode cycle) {
         return new QIOCraftingMonitorPlanEntry(Kind.CYCLE, null,
-              Objects.requireNonNull(cycle, "cycle"));
+                Objects.requireNonNull(cycle, "cycle"));
     }
 
     @Nonnull
@@ -77,13 +80,13 @@ public final class QIOCraftingMonitorPlanEntry {
         NBTTagCompound data = new NBTTagCompound();
         data.setString("kind", kind.name());
         data.setTag(kind == Kind.STEP ? "step" : "cycle",
-              kind == Kind.STEP ? step.write() : cycle.write());
+                kind == Kind.STEP ? step.write() : cycle.write());
         return data;
     }
 
     @Nonnull
     public static QIOCraftingMonitorPlanEntry read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         try {
             Kind kind = QIOProcessingNbt.readEnum(data, "kind", Kind.class);
             if (kind == Kind.STEP && data.hasKey("step", NBT.TAG_COMPOUND)) {

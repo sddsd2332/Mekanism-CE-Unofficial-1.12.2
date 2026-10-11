@@ -4,14 +4,16 @@ import mekanism.client.gui.GuiMekanism;
 import mezz.jei.api.IRecipesGui;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiScreen;
-import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.client.event.GuiOpenEvent;
+import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.common.eventhandler.EventPriority;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
-/** Keeps QIO's client container alive while JEI/HEI opens its recipe screen. */
+/**
+ * Keeps QIO's client container alive while JEI/HEI opens its recipe screen.
+ */
 @SideOnly(Side.CLIENT)
 public final class QIORecipeViewerGuiHandler {
 

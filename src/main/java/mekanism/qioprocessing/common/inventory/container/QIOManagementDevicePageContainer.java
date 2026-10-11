@@ -9,7 +9,7 @@ import javax.annotation.Nonnull;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public interface QIOManagementDevicePageContainer
-      extends QIOProcessingTerminalSessionContainer {
+        extends QIOProcessingTerminalSessionContainer {
 
     @Nonnull
     QIOProcessingTerminalContainerState getTerminalState();

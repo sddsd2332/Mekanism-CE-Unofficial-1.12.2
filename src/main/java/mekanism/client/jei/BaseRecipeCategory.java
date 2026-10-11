@@ -243,7 +243,7 @@ public abstract class BaseRecipeCategory<WRAPPER extends IRecipeWrapper> impleme
         return addElement(new GuiProgress(CONSTANT_PROGRESS(), type, this, x, y));
     }
 
-    protected IProgressInfoHandler CONSTANT_PROGRESS(){
+    protected IProgressInfoHandler CONSTANT_PROGRESS() {
         return new IProgressInfoHandler() {
 
             @Override
@@ -271,7 +271,6 @@ public abstract class BaseRecipeCategory<WRAPPER extends IRecipeWrapper> impleme
             }
         };
     }
-
 
 
     protected IBarInfoHandler getBarProgressTimer() {

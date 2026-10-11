@@ -56,11 +56,11 @@ public class GuiLargeWindGenerator extends GuiGenerator<TileEntityLargeWindGener
             }
         });
         addButton(new MekanismImageButton(this, -21, 90, 18, 16, getButtonLocation("stock_control"), () -> sendButtonPacket(1),
-              getOnHover(() -> new TextComponentString(tileEntity.getMachineStop() ? LangUtils.localize("gui.forced_run") : LangUtils.localize("gui.forced_run_off"))))
-              .visibility(tileEntity::getBladeDamage));
+                getOnHover(() -> new TextComponentString(tileEntity.getMachineStop() ? LangUtils.localize("gui.forced_run") : LangUtils.localize("gui.forced_run_off"))))
+                .visibility(tileEntity::getBladeDamage));
         addButton(new MekanismImageButton(this, -21, 64, 18, 16, getButtonLocation("stock_control"), () -> sendButtonPacket(2),
-              getOnHover(() -> new TextComponentString(LangUtils.localize("gui.updateRun"))))
-              .visibility(tileEntity::getMachineStop2));
+                getOnHover(() -> new TextComponentString(LangUtils.localize("gui.updateRun"))))
+                .visibility(tileEntity::getMachineStop2));
     }
 
     @Override

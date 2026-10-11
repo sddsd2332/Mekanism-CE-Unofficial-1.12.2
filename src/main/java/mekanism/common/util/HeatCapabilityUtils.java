@@ -22,6 +22,15 @@ public final class HeatCapabilityUtils {
         if (handler != null) {
             return handler;
         }
+        return getLegacyHandler(provider, side);
+    }
+
+    /**
+     * Fallback after the modern capability was already resolved by an adjacent-handler cache.
+     */
+    @Nullable
+    @SuppressWarnings("removal")
+    public static IHeatHandler getLegacyHandler(@Nullable ICapabilityProvider provider, @Nullable EnumFacing side) {
         IHeatTransfer legacy = CapabilityUtils.getCapability(provider, Capabilities.HEAT_TRANSFER_CAPABILITY, side);
         if (legacy == null || side != null && !legacy.canConnectHeat(side)) {
             return null;

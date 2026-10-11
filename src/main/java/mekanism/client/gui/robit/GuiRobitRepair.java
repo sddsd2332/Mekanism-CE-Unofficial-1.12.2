@@ -47,12 +47,12 @@ public class GuiRobitRepair extends GuiRobit<ContainerRobitRepair> implements IC
     protected void addGuiElements() {
         super.addGuiElements();
         itemNameField = addButton(new GuiTextField(this, 0, 60, 21, 103, 12)
-              .setTextColor(-1)
-              .setDisabledTextColor(-1)
-              .setBackground(BackgroundType.NONE)
-              .setMaxLength(MAX_ITEM_NAME_LENGTH)
-              .setCanLoseFocus(false)
-              .setResponder(this::onNameChanged));
+                .setTextColor(-1)
+                .setDisabledTextColor(-1)
+                .setBackground(BackgroundType.NONE)
+                .setMaxLength(MAX_ITEM_NAME_LENGTH)
+                .setCanLoseFocus(false)
+                .setResponder(this::onNameChanged));
         itemNameField.setEnabled(repairContainer.getSlot(0).getHasStack());
         itemNameField.setFocused(true);
         inventorySlots.removeListener(this);
@@ -82,7 +82,7 @@ public class GuiRobitRepair extends GuiRobit<ContainerRobitRepair> implements IC
     @Override
     protected void drawForegroundText(int mouseX, int mouseY) {
         drawTitleTextWithOffset(new TextComponentString(LangUtils.localize("gui.robit.repair")), itemNameField.getRelativeX(),
-              6, itemNameField.getRelativeX() + itemNameField.getWidth() + 4, 0);
+                6, itemNameField.getRelativeX() + itemNameField.getWidth() + 4, 0);
         renderInventoryText(60);
         if (repairContainer.maximumCost > 0) {
             if (msDisplayCost == 0) {

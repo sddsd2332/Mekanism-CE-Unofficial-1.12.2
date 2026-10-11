@@ -290,7 +290,7 @@ public class GuiTextField extends GuiElement {
         if (iconType != null) {
             MekanismRenderer.bindTexture(iconType.getIcon());
             mekanism.client.gui.GuiUtils.blit(relativeX + 2, relativeY + (height / 2) - (int) Math.ceil(iconType.getHeight() / 2F),
-                  0, 0, iconType.getWidth(), iconType.getHeight(), iconType.getWidth(), iconType.getHeight());
+                    0, 0, iconType.getWidth(), iconType.getHeight(), iconType.getWidth(), iconType.getHeight());
             MekanismRenderer.resetColor();
         }
     }

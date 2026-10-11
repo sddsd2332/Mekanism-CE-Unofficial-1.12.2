@@ -12,7 +12,7 @@ import net.minecraft.util.EnumHand;
 import javax.annotation.Nonnull;
 
 public abstract class MekanismItemContainer extends MekanismContainer
-      implements IItemStackBackedContainer {
+        implements IItemStackBackedContainer {
 
     protected final EnumHand hand;
     protected final ItemStackSlotAccess itemAccess;
@@ -70,7 +70,7 @@ public abstract class MekanismItemContainer extends MekanismContainer
     public boolean canInteractWith(@Nonnull EntityPlayer player) {
         ItemStack current = getStack();
         return itemAccess.isOriginalStackPresent() && isValidStack(current) &&
-              (player.world.isRemote || SecurityUtils.canAccess(player, current));
+                (player.world.isRemote || SecurityUtils.canAccess(player, current));
     }
 
     @Nonnull

@@ -2,35 +2,22 @@ package mekanism.common.inventory.container;
 
 import mekanism.api.Action;
 import mekanism.common.Mekanism;
-import mekanism.common.content.qio.IQIOCraftingWindowHolder;
-import mekanism.common.content.qio.QIOCraftingWindow;
-import mekanism.common.content.qio.QIOFrequency;
-import mekanism.common.content.qio.QIOAmount;
-import mekanism.common.content.qio.QIOCapacitySummary;
-import mekanism.common.content.qio.QIOResourceEntry;
-import mekanism.common.content.qio.QIOStorageUnits;
 import mekanism.common.config.ClientConfig;
 import mekanism.common.config.MekanismConfig;
+import mekanism.common.content.qio.*;
 import mekanism.common.inventory.container.slot.VirtualCraftingOutputSlot;
 import mekanism.common.inventory.container.slot.VirtualCraftingSlot;
-import net.minecraft.inventory.ClickType;
-import net.minecraft.inventory.Slot;
-import net.minecraft.inventory.IContainerListener;
-import net.minecraft.item.ItemStack;
-import mekanism.common.network.qio.PacketQIOViewerData;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.entity.player.InventoryPlayer;
+import net.minecraft.inventory.ClickType;
+import net.minecraft.inventory.IContainerListener;
+import net.minecraft.inventory.Slot;
+import net.minecraft.item.ItemStack;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * Shared server/client container for Dashboard and Portable Dashboard viewers.
@@ -95,7 +82,9 @@ public class QIOItemViewerContainer extends MekanismContainer implements IQIOIte
         }
     }
 
-    /** Sets the persistent crafting owner before {@link #addSlotsAndOpen()}. */
+    /**
+     * Sets the persistent crafting owner before {@link #addSlotsAndOpen()}.
+     */
     protected final void setCraftingWindowHolder(@Nullable IQIOCraftingWindowHolder holder) {
         craftingHolder = holder;
     }
@@ -156,7 +145,9 @@ public class QIOItemViewerContainer extends MekanismContainer implements IQIOIte
         return slotElementStartIndex;
     }
 
-    /** Returns the crafting window currently focused by the client GUI. */
+    /**
+     * Returns the crafting window currently focused by the client GUI.
+     */
     public byte getSelectedCraftingGrid() {
         SelectedWindowData selected = getSelectedWindow();
         return selected != null && selected.type == SelectedWindowData.WindowType.CRAFTING ? selected.extraData : -1;
@@ -166,7 +157,7 @@ public class QIOItemViewerContainer extends MekanismContainer implements IQIOIte
     @Override
     public ItemStack slotClick(int slotID, int dragType, @Nonnull ClickType clickType, @Nonnull EntityPlayer player) {
         boolean serverCraftingOutput = !isRemote() && clickType != ClickType.QUICK_MOVE && slotID >= 0 &&
-              slotID < inventorySlots.size() && inventorySlots.get(slotID) instanceof VirtualCraftingOutputSlot;
+                slotID < inventorySlots.size() && inventorySlots.get(slotID) instanceof VirtualCraftingOutputSlot;
         ItemStack result = super.slotClick(slotID, dragType, clickType, player);
         if (serverCraftingOutput) {
             // Normal output clicks consume the inputs only on the server, just
@@ -270,7 +261,7 @@ public class QIOItemViewerContainer extends MekanismContainer implements IQIOIte
     }
 
     private boolean tryTransferToCraftingWindow(@Nonnull EntityPlayer player, @Nonnull Slot currentSlot,
-          @Nonnull ItemStack slotStack, @Nonnull ItemStack original, byte selected) {
+                                                @Nonnull ItemStack slotStack, @Nonnull ItemStack original, byte selected) {
         if (selected < 0) {
             return false;
         }
@@ -288,7 +279,7 @@ public class QIOItemViewerContainer extends MekanismContainer implements IQIOIte
 
     @Nonnull
     private ItemStack finishCraftingTransfer(@Nonnull EntityPlayer player, @Nonnull Slot slot, @Nonnull ItemStack current,
-          @Nonnull ItemStack original) {
+                                             @Nonnull ItemStack original) {
         if (current.isEmpty()) {
             slot.putStack(ItemStack.EMPTY);
         } else {
@@ -319,7 +310,9 @@ public class QIOItemViewerContainer extends MekanismContainer implements IQIOIte
         return Math.max(SLOTS_Y_MIN, Math.min(SLOTS_Y_MAX, MekanismConfig.current().client.qioItemViewerSlotsY.val()));
     }
 
-    /** Repositions the existing client container when the viewer is resized without reopening the server window. */
+    /**
+     * Repositions the existing client container when the viewer is resized without reopening the server window.
+     */
     public void repositionPlayerInventory() {
         int xOffset = getInventoryXOffset();
         int yOffset = getInventoryYOffset();
@@ -348,12 +341,16 @@ public class QIOItemViewerContainer extends MekanismContainer implements IQIOIte
         super.closeInventory(player);
     }
 
-    /** Applies a complete authoritative snapshot on the client. */
+    /**
+     * Applies a complete authoritative snapshot on the client.
+     */
     public void applyBatch(Collection<QIOResourceEntry> snapshot, long countCapacity, int typeCapacity) {
         applyBatchChunk(snapshot, new QIOCapacitySummary(QIOAmount.of(countCapacity), QIOAmount.of(typeCapacity), 0, 0), true);
     }
 
-    /** Applies one packet of a complete snapshot; only the first packet clears stale entries. */
+    /**
+     * Applies one packet of a complete snapshot; only the first packet clears stale entries.
+     */
     public void applyBatchChunk(Collection<QIOResourceEntry> snapshot, long countCapacity, int typeCapacity, boolean first) {
         applyBatchChunk(snapshot, new QIOCapacitySummary(QIOAmount.of(countCapacity), QIOAmount.of(typeCapacity), 0, 0), first);
     }
@@ -376,7 +373,9 @@ public class QIOItemViewerContainer extends MekanismContainer implements IQIOIte
         }
     }
 
-    /** Applies changed entries; zero amounts remove a resource. */
+    /**
+     * Applies changed entries; zero amounts remove a resource.
+     */
     public void applyUpdate(Collection<QIOResourceEntry> updates, long countCapacity, int typeCapacity) {
         applyUpdate(updates, new QIOCapacitySummary(QIOAmount.of(countCapacity), QIOAmount.of(typeCapacity), 0, 0));
     }

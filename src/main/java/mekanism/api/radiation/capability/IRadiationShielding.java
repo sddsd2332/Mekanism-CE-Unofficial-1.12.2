@@ -1,4 +1,5 @@
 package mekanism.api.radiation.capability;
+
 /**
  * Simple capability that can be added to things like armor to provide shielding against radiation.
  */

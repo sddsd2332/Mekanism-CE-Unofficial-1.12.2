@@ -167,17 +167,17 @@ public interface IFancyFontRenderer {
     }
 
     default void drawScrollingString(ITextComponent text, float x, float y, TextAlignment alignment, int color, float width, float maxLengthPad, boolean shadow,
-          long msVisible) {
+                                     long msVisible) {
         drawScrollingString(text, x, y, alignment, color, width, getFont().FONT_HEIGHT, maxLengthPad, shadow, msVisible);
     }
 
     default void drawScrollingString(ITextComponent text, float x, float y, TextAlignment alignment, int color, float width, float height, float maxLengthPad,
-          boolean shadow, long msVisible) {
+                                     boolean shadow, long msVisible) {
         drawScrollingString(text, x + maxLengthPad, y, x + width - maxLengthPad, y + height, alignment, color, shadow, msVisible);
     }
 
     default void drawScrollingString(ITextComponent text, float minX, float minY, float maxX, float maxY, TextAlignment alignment, int color, boolean shadow,
-          long msVisible) {
+                                     long msVisible) {
         int textWidth = getStringWidth(text);
         float availableWidth = maxX - minX;
         if (textWidth <= 0 || availableWidth <= 0) {
@@ -188,12 +188,12 @@ public interface IFancyFontRenderer {
     }
 
     default void drawScaledScrollingString(ITextComponent text, float x, float y, TextAlignment alignment, int color, float width, float maxLengthPad,
-          boolean shadow, float textScale, long msVisible) {
+                                           boolean shadow, float textScale, long msVisible) {
         drawScaledScrollingString(text, x, y, alignment, color, width, getFont().FONT_HEIGHT, maxLengthPad, shadow, textScale, msVisible);
     }
 
     default void drawScaledScrollingString(ITextComponent text, float x, float y, TextAlignment alignment, int color, float width, float height, float maxLengthPad,
-          boolean shadow, float textScale, long msVisible) {
+                                           boolean shadow, float textScale, long msVisible) {
         float minX = x + maxLengthPad;
         float maxX = x + width - maxLengthPad;
         float minY = y;
@@ -202,7 +202,7 @@ public interface IFancyFontRenderer {
     }
 
     default void drawScaledScrollingString(ITextComponent text, float minX, float minY, float maxX, float maxY, TextAlignment alignment, int color,
-          boolean shadow, float textScale, long msVisible) {
+                                           boolean shadow, float textScale, long msVisible) {
         float availableWidth = maxX - minX;
         int textWidth = getStringWidth(text);
         if (textWidth <= 0 || availableWidth <= 0) {

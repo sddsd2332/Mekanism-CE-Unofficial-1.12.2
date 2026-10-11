@@ -5,7 +5,10 @@ import io.netty.buffer.ByteBuf;
 import mekanism.api.*;
 import mekanism.common.Mekanism;
 import mekanism.common.Upgrade;
-import mekanism.common.base.*;
+import mekanism.common.base.IAdvancedBoundingBlock;
+import mekanism.common.base.IGuiProvider;
+import mekanism.common.base.ISpecialSelectionWireframeTile;
+import mekanism.common.base.IUpgradeTile;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.capabilities.holder.slot.IInventorySlotHolder;
 import mekanism.common.capabilities.holder.slot.InventorySlotHelper;
@@ -714,7 +717,8 @@ public class TileEntityLargeWindGenerator extends TileEntityGenerator implements
     public int[] getSlotsForFace(@Nonnull EnumFacing side) {
         return InventoryUtils.EMPTY;
     }
-@Override
+
+    @Override
     public int getBlockGuiID(Block block, int metadata) {
         return 3;
     }
@@ -888,7 +892,7 @@ public class TileEntityLargeWindGenerator extends TileEntityGenerator implements
     @SideOnly(Side.CLIENT)
     private int getSelectionWireframeAnimationState() {
         return Math.floorMod((int) Math.round(getSelectionWireframeAngle() / SELECTION_WIREFRAME_ANGLE_STEP),
-              SELECTION_WIREFRAME_ANIMATION_STATES);
+                SELECTION_WIREFRAME_ANIMATION_STATES);
     }
 
     @Override
@@ -978,12 +982,12 @@ public class TileEntityLargeWindGenerator extends TileEntityGenerator implements
 
     private static AxisAlignedBB createRenderBoundingBox(BlockPos pos, int xRadius, int zRadius) {
         return new AxisAlignedBB(
-              pos.getX() - xRadius,
-              pos.getY() + RENDER_MIN_Y_OFFSET,
-              pos.getZ() - zRadius,
-              pos.getX() + xRadius + 1,
-              pos.getY() + RENDER_MAX_Y_OFFSET,
-              pos.getZ() + zRadius + 1
+                pos.getX() - xRadius,
+                pos.getY() + RENDER_MIN_Y_OFFSET,
+                pos.getZ() - zRadius,
+                pos.getX() + xRadius + 1,
+                pos.getY() + RENDER_MAX_Y_OFFSET,
+                pos.getZ() + zRadius + 1
         );
     }
 

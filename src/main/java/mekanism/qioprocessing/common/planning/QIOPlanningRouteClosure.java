@@ -6,20 +6,13 @@ import net.minecraft.util.ResourceLocation;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Deque;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.function.BooleanSupplier;
 
-/** Builds a bounded exact-route dependency closure around one requested output. */
+/**
+ * Builds a bounded exact-route dependency closure around one requested output.
+ */
+
 /**
  * QIO 处理模块中的 QIOPlanningRouteClosure 类型。
  *
@@ -29,11 +22,11 @@ import java.util.function.BooleanSupplier;
 public final class QIOPlanningRouteClosure {
 
     private static final Comparator<QIOPlanningRoute> ROUTE_ORDER = Comparator
-          .comparingLong(QIOPlanningRoute::getRoutePriority).reversed()
-          .thenComparing(QIOPlanningRoute::getLogicalId)
-          .thenComparing(Comparator.comparingLong(
-                QIOPlanningRoute::getVariantPriority).reversed())
-          .thenComparing(QIOPlanningRoute::getStableId);
+            .comparingLong(QIOPlanningRoute::getRoutePriority).reversed()
+            .thenComparing(QIOPlanningRoute::getLogicalId)
+            .thenComparing(Comparator.comparingLong(
+                    QIOPlanningRoute::getVariantPriority).reversed())
+            .thenComparing(QIOPlanningRoute::getStableId);
 
     private QIOPlanningRouteClosure() {
     }
@@ -45,36 +38,36 @@ public final class QIOPlanningRouteClosure {
 
     @Nonnull
     public static List<QIOPlanningRoute> collect(@Nonnull PortableResourceDescriptor target,
-          @Nonnull Map<PortableResourceDescriptor, Long> available,
-          @Nonnull ProviderIndex providers,
-          @Nonnull QIOWorkbenchRecipeCatalog.Snapshot workbench,
-          @Nonnull Map<ResourceLocation, Long> workbenchPriorities,
-          @Nonnull Set<PortableResourceDescriptor> producibleResources, int maximumRoutes) {
+                                                 @Nonnull Map<PortableResourceDescriptor, Long> available,
+                                                 @Nonnull ProviderIndex providers,
+                                                 @Nonnull QIOWorkbenchRecipeCatalog.Snapshot workbench,
+                                                 @Nonnull Map<ResourceLocation, Long> workbenchPriorities,
+                                                 @Nonnull Set<PortableResourceDescriptor> producibleResources, int maximumRoutes) {
         return collect(target, available, providers, workbench, workbenchPriorities,
-              producibleResources, maximumRoutes, null);
+                producibleResources, maximumRoutes, null);
     }
 
     @Nonnull
     public static List<QIOPlanningRoute> collect(@Nonnull PortableResourceDescriptor target,
-          @Nonnull Map<PortableResourceDescriptor, Long> available,
-          @Nonnull ProviderIndex providers,
-          @Nonnull QIOWorkbenchRecipeCatalog.Snapshot workbench,
-          @Nonnull Map<ResourceLocation, Long> workbenchPriorities,
-          @Nonnull Set<PortableResourceDescriptor> producibleResources, int maximumRoutes,
-          @Nullable QIOWorkbenchConfiguration workbenchConfiguration) {
+                                                 @Nonnull Map<PortableResourceDescriptor, Long> available,
+                                                 @Nonnull ProviderIndex providers,
+                                                 @Nonnull QIOWorkbenchRecipeCatalog.Snapshot workbench,
+                                                 @Nonnull Map<ResourceLocation, Long> workbenchPriorities,
+                                                 @Nonnull Set<PortableResourceDescriptor> producibleResources, int maximumRoutes,
+                                                 @Nullable QIOWorkbenchConfiguration workbenchConfiguration) {
         return collect(target, available, providers, workbench, workbenchPriorities,
-              producibleResources, maximumRoutes, workbenchConfiguration, () -> false);
+                producibleResources, maximumRoutes, workbenchConfiguration, () -> false);
     }
 
     @Nonnull
     public static List<QIOPlanningRoute> collect(@Nonnull PortableResourceDescriptor target,
-          @Nonnull Map<PortableResourceDescriptor, Long> available,
-          @Nonnull ProviderIndex providers,
-          @Nonnull QIOWorkbenchRecipeCatalog.Snapshot workbench,
-          @Nonnull Map<ResourceLocation, Long> workbenchPriorities,
-          @Nonnull Set<PortableResourceDescriptor> producibleResources, int maximumRoutes,
-          @Nullable QIOWorkbenchConfiguration workbenchConfiguration,
-          @Nonnull BooleanSupplier cancelled) {
+                                                 @Nonnull Map<PortableResourceDescriptor, Long> available,
+                                                 @Nonnull ProviderIndex providers,
+                                                 @Nonnull QIOWorkbenchRecipeCatalog.Snapshot workbench,
+                                                 @Nonnull Map<ResourceLocation, Long> workbenchPriorities,
+                                                 @Nonnull Set<PortableResourceDescriptor> producibleResources, int maximumRoutes,
+                                                 @Nullable QIOWorkbenchConfiguration workbenchConfiguration,
+                                                 @Nonnull BooleanSupplier cancelled) {
         Objects.requireNonNull(target, "target");
         Objects.requireNonNull(available, "available");
         Objects.requireNonNull(providers, "providers");
@@ -86,19 +79,17 @@ public final class QIOPlanningRouteClosure {
             throw new IllegalArgumentException("maximumRoutes must be positive");
         }
         Map<String, QIOPlanningRoute> selected = new LinkedHashMap<>();
-        Set<PortableResourceDescriptor> visited = new LinkedHashSet<>();
+        Set<PortableResourceDescriptor> enqueued = new LinkedHashSet<>();
         Deque<PortableResourceDescriptor> pending = new ArrayDeque<>();
         pending.add(target);
+        enqueued.add(target);
         while (!pending.isEmpty() && selected.size() < maximumRoutes) {
             checkpoint(cancelled);
             PortableResourceDescriptor resource = pending.removeFirst();
-            if (!visited.add(resource)) {
-                continue;
-            }
             List<QIOPlanningRoute> candidates = new ArrayList<>(providers.get(resource));
             int remaining = maximumRoutes - selected.size();
             candidates.addAll(workbench.materialize(resource, available, producibleResources,
-                  workbenchPriorities, remaining, workbenchConfiguration, cancelled));
+                    workbenchPriorities, remaining, workbenchConfiguration, cancelled));
             candidates.sort(ROUTE_ORDER);
             for (QIOPlanningRoute route : candidates) {
                 checkpoint(cancelled);
@@ -106,11 +97,21 @@ public final class QIOPlanningRouteClosure {
                     break;
                 }
                 if (selected.putIfAbsent(route.getStableId(), route) == null) {
-                    pending.addAll(route.getExactInputs().keySet());
+                    if (selected.size() > 65_536)
+                        throw new QIOPlanningLimitException("QIO reachable route budget exceeded");
+                    for (PortableResourceDescriptor input : route.possibleInputs()) {
+                        if (enqueued.add(input)) pending.addLast(input);
+                        if (enqueued.size() > 65_536)
+                            throw new QIOPlanningLimitException("QIO reachable resource budget exceeded");
+                    }
                 }
             }
         }
+        if (!pending.isEmpty())
+            throw new QIOPlanningLimitException("QIO route closure stopped before all dependencies were expanded");
         List<QIOPlanningRoute> result = new ArrayList<>(selected.values());
+        QIOPlanningMetrics.current().maximum(QIOPlanningMetrics.Metric.PEAK_ROUTES, selected.size());
+        QIOPlanningMetrics.current().maximum(QIOPlanningMetrics.Metric.PEAK_RESOURCES, enqueued.size());
         result.sort(Comparator.comparing(QIOPlanningRoute::getStableId));
         return Collections.unmodifiableList(result);
     }
@@ -118,7 +119,7 @@ public final class QIOPlanningRouteClosure {
     private static void checkpoint(BooleanSupplier cancelled) {
         if (cancelled.getAsBoolean() || Thread.currentThread().isInterrupted()) {
             throw new java.util.concurrent.CancellationException(
-                  "QIO route closure cancelled");
+                    "QIO route closure cancelled");
         }
     }
 
@@ -130,7 +131,7 @@ public final class QIOPlanningRouteClosure {
         private ProviderIndex(List<QIOPlanningRoute> routes) {
             Objects.requireNonNull(routes, "routes");
             Map<PortableResourceDescriptor, List<QIOPlanningRoute>> mutable =
-                  new LinkedHashMap<>();
+                    new LinkedHashMap<>();
             for (QIOPlanningRoute route : routes) {
                 QIOPlanningRoute checked = Objects.requireNonNull(route, "route");
                 for (PortableResourceDescriptor output : checked.getGuaranteedOutputs().keySet()) {
@@ -152,7 +153,7 @@ public final class QIOPlanningRouteClosure {
         @Nonnull
         public List<QIOPlanningRoute> get(@Nonnull PortableResourceDescriptor output) {
             return routesByOutput.getOrDefault(Objects.requireNonNull(output, "output"),
-                  Collections.emptyList());
+                    Collections.emptyList());
         }
 
         @Nonnull

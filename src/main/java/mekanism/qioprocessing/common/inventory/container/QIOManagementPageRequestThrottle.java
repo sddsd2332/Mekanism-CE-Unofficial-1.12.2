@@ -1,6 +1,9 @@
 package mekanism.qioprocessing.common.inventory.container;
 
-/** Independent one-request-per-tick guards for management request streams. */
+/**
+ * Independent one-request-per-tick guards for management request streams.
+ */
+
 /**
  * QIO 处理模块中的 QIOManagementPageRequestThrottle 类型。
  *
@@ -63,7 +66,7 @@ final class QIOManagementPageRequestThrottle {
     }
 
     boolean tryWorkbenchConfiguration(long currentTick,
-          QIOWorkbenchConfigurationContainer.RequestStream requestStream) {
+                                      QIOWorkbenchConfigurationContainer.RequestStream requestStream) {
         return switch (requestStream) {
             case PRODUCTS -> {
                 if (currentTick <= lastWorkbenchProductsRequestTick) yield false;

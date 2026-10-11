@@ -5,7 +5,6 @@ import mekanism.api.IIncrementalEnum;
 import mekanism.api.NBTConstants;
 import mekanism.api.gas.GasStack;
 import mekanism.api.math.MathUtils;
-import mekanism.client.render.MekanismRenderer;
 import mekanism.common.MekanismFluids;
 import mekanism.common.capabilities.ItemCapabilityWrapper;
 import mekanism.common.capabilities.gas.item.RateLimitGasHandler;
@@ -126,8 +125,8 @@ public class ItemFlamethrower extends ItemMekanism implements ILegacyGasItem, IM
     @Override
     public ICapabilityProvider initCapabilities(ItemStack stack, NBTTagCompound nbt) {
         return new ItemCapabilityWrapper(stack, RateLimitGasHandler.create(() -> getGasTransferRate(stack), () -> getGasCapacity(stack),
-              mekanism.api.functions.ConstantPredicates.notExternal(), mekanism.api.functions.ConstantPredicates.alwaysTrueBi(),
-              gasStack -> gasStack != null && gasStack.getGas() == MekanismFluids.Hydrogen, "stored"));
+                mekanism.api.functions.ConstantPredicates.notExternal(), mekanism.api.functions.ConstantPredicates.alwaysTrueBi(),
+                gasStack -> gasStack != null && gasStack.getGas() == MekanismFluids.Hydrogen, "stored"));
     }
 
     public ItemStack getEmptyItem() {

@@ -29,7 +29,7 @@ public class InventorySlotHelper {
     }
 
     public static InventorySlotHelper forSide(Supplier<EnumFacing> facingSupplier, @Nullable Predicate<RelativeSide> insertPredicate,
-          @Nullable Predicate<RelativeSide> extractPredicate) {
+                                              @Nullable Predicate<RelativeSide> extractPredicate) {
         return new InventorySlotHelper(new InventorySlotHolder(facingSupplier, insertPredicate, extractPredicate));
     }
 

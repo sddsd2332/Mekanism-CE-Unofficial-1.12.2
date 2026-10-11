@@ -2,7 +2,9 @@ package mekanism.common.lib.radiation;
 
 import javax.annotation.Nullable;
 
-/** Tracks the smallest change visible at the two-decimal SI precision used by radiation displays. */
+/**
+ * Tracks the smallest change visible at the two-decimal SI precision used by radiation displays.
+ */
 final class PreviousRadiationData {
 
     private final double magnitude;

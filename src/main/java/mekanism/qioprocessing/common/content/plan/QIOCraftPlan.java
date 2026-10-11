@@ -10,22 +10,13 @@ import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * Immutable first-version plan envelope. DAG nodes are added by the route planner without changing
  * the material and identity contract established here.
  */
+
 /**
  * QIO 处理模块中的 QIOCraftPlan 类型。
  *
@@ -51,28 +42,28 @@ public final class QIOCraftPlan {
     private final String structuralSignature;
 
     public QIOCraftPlan(@Nonnull UUID planId, int revision,
-          @Nonnull QIOPlanSourceRevisions sourceRevisions,
-          @Nonnull PortableResourceDescriptor rootResource, long rootAmount,
-          @Nonnull Map<PortableResourceDescriptor, Long> externalRequirements) {
+                        @Nonnull QIOPlanSourceRevisions sourceRevisions,
+                        @Nonnull PortableResourceDescriptor rootResource, long rootAmount,
+                        @Nonnull Map<PortableResourceDescriptor, Long> externalRequirements) {
         this(planId, revision, sourceRevisions, rootResource, rootAmount, externalRequirements,
-              Collections.emptyList(), Collections.emptyList());
+                Collections.emptyList(), Collections.emptyList());
     }
 
     public QIOCraftPlan(@Nonnull UUID planId, int revision,
-          @Nonnull QIOPlanSourceRevisions sourceRevisions,
-          @Nonnull PortableResourceDescriptor rootResource, long rootAmount,
-          @Nonnull Map<PortableResourceDescriptor, Long> externalRequirements,
-          @Nonnull List<QIOPlanStep> steps) {
+                        @Nonnull QIOPlanSourceRevisions sourceRevisions,
+                        @Nonnull PortableResourceDescriptor rootResource, long rootAmount,
+                        @Nonnull Map<PortableResourceDescriptor, Long> externalRequirements,
+                        @Nonnull List<QIOPlanStep> steps) {
         this(planId, revision, sourceRevisions, rootResource, rootAmount,
-              externalRequirements, steps, Collections.emptyList());
+                externalRequirements, steps, Collections.emptyList());
     }
 
     public QIOCraftPlan(@Nonnull UUID planId, int revision,
-          @Nonnull QIOPlanSourceRevisions sourceRevisions,
-          @Nonnull PortableResourceDescriptor rootResource, long rootAmount,
-          @Nonnull Map<PortableResourceDescriptor, Long> externalRequirements,
-          @Nonnull List<QIOPlanStep> steps,
-          @Nonnull List<QIOCyclePlanNode> cycleNodes) {
+                        @Nonnull QIOPlanSourceRevisions sourceRevisions,
+                        @Nonnull PortableResourceDescriptor rootResource, long rootAmount,
+                        @Nonnull Map<PortableResourceDescriptor, Long> externalRequirements,
+                        @Nonnull List<QIOPlanStep> steps,
+                        @Nonnull List<QIOCyclePlanNode> cycleNodes) {
         this.planId = Objects.requireNonNull(planId, "planId");
         this.revision = QIOProcessingNbt.requirePositive(revision, "planRevision");
         this.sourceRevisions = Objects.requireNonNull(sourceRevisions, "sourceRevisions");
@@ -82,14 +73,38 @@ public final class QIOCraftPlan {
         }
         this.rootAmount = rootAmount;
         this.externalRequirements = QIOProcessingNbt.copyAmounts(externalRequirements, true,
-              "externalRequirements");
+                "externalRequirements");
         this.steps = checkedSteps(steps);
         this.cycleNodes = checkedCycles(cycleNodes, this.steps);
         materialRequirements = QIOPlanMaterialRequirements.derive(this.externalRequirements,
-              this.steps);
+                this.steps);
         hasWorkbenchSteps = this.steps.stream().anyMatch(step ->
-              step.getProviderKind() == QIOPlanStep.ProviderKind.WORKBENCH);
+                step.getProviderKind() == QIOPlanStep.ProviderKind.WORKBENCH);
         structuralSignature = calculateSignature();
+    }
+
+    /**
+     * Rebinds an already validated immutable graph to a new request with identical planning inputs.
+     */
+    @Nonnull
+    public QIOCraftPlan withIdentity(@Nonnull UUID planId, int revision,
+                                     @Nonnull QIOPlanSourceRevisions sourceRevisions) {
+        return new QIOCraftPlan(this, planId, revision, sourceRevisions);
+    }
+
+    private QIOCraftPlan(QIOCraftPlan source, UUID planId, int revision,
+                         QIOPlanSourceRevisions sourceRevisions) {
+        this.planId = Objects.requireNonNull(planId, "planId");
+        this.revision = QIOProcessingNbt.requirePositive(revision, "planRevision");
+        this.sourceRevisions = Objects.requireNonNull(sourceRevisions, "sourceRevisions");
+        rootResource = source.rootResource;
+        rootAmount = source.rootAmount;
+        externalRequirements = source.externalRequirements;
+        steps = source.steps;
+        cycleNodes = source.cycleNodes;
+        materialRequirements = source.materialRequirements;
+        hasWorkbenchSteps = source.hasWorkbenchSteps;
+        structuralSignature = source.structuralSignature;
     }
 
     @Nonnull
@@ -180,21 +195,21 @@ public final class QIOCraftPlan {
         int schema = data.getInteger("planSchemaVersion");
         if (schema != SCHEMA_VERSION) {
             throw new QIOProcessingDataException("Unsupported QIO plan schema " + schema +
-                  ", expected " + SCHEMA_VERSION);
+                    ", expected " + SCHEMA_VERSION);
         }
         try {
             if (!data.hasKey("planId", NBT.TAG_STRING) ||
-                  !data.hasKey("revision", NBT.TAG_INT) ||
-                  !data.hasKey("sourceRevisions", NBT.TAG_COMPOUND) ||
-                  !data.hasKey("rootResource", NBT.TAG_COMPOUND) ||
-                  !data.hasKey("rootAmount", NBT.TAG_LONG) ||
-                  !data.hasKey("externalRequirements", NBT.TAG_LIST) ||
-                  !data.hasKey("materialRequirements", NBT.TAG_COMPOUND) ||
-                  !data.hasKey("steps", NBT.TAG_LIST) ||
-                  !data.hasKey("cycleNodes", NBT.TAG_LIST) ||
-                  !data.hasKey("structuralSignature", NBT.TAG_STRING)) {
+                    !data.hasKey("revision", NBT.TAG_INT) ||
+                    !data.hasKey("sourceRevisions", NBT.TAG_COMPOUND) ||
+                    !data.hasKey("rootResource", NBT.TAG_COMPOUND) ||
+                    !data.hasKey("rootAmount", NBT.TAG_LONG) ||
+                    !data.hasKey("externalRequirements", NBT.TAG_LIST) ||
+                    !data.hasKey("materialRequirements", NBT.TAG_COMPOUND) ||
+                    !data.hasKey("steps", NBT.TAG_LIST) ||
+                    !data.hasKey("cycleNodes", NBT.TAG_LIST) ||
+                    !data.hasKey("structuralSignature", NBT.TAG_STRING)) {
                 throw new QIOProcessingDataException(
-                      "QIO plan is missing required current-schema state");
+                        "QIO plan is missing required current-schema state");
             }
             NBTTagList stepList = data.getTagList("steps", NBT.TAG_COMPOUND);
             if (stepList.tagCount() > MAX_PLAN_STEPS) {
@@ -209,19 +224,20 @@ public final class QIOCraftPlan {
                 throw new QIOProcessingDataException("QIO craft plan contains too many cycle nodes");
             }
             List<QIOCyclePlanNode> cycles = new ArrayList<>(cycleList.tagCount());
-            for (int i = 0; i < cycleList.tagCount(); i++) cycles.add(QIOCyclePlanNode.read(cycleList.getCompoundTagAt(i)));
+            for (int i = 0; i < cycleList.tagCount(); i++)
+                cycles.add(QIOCyclePlanNode.read(cycleList.getCompoundTagAt(i)));
             QIOCraftPlan plan = new QIOCraftPlan(QIOProcessingNbt.readUUID(data, "planId"),
-                  data.getInteger("revision"),
-                  QIOPlanSourceRevisions.read(data.getCompoundTag("sourceRevisions")),
-                  PortableResourceDescriptor.read(data.getCompoundTag("rootResource")),
-                  data.getLong("rootAmount"),
-                  QIOProcessingNbt.readAmounts(data, "externalRequirements", MAX_RESOURCE_ENTRIES),
-                  steps, cycles);
+                    data.getInteger("revision"),
+                    QIOPlanSourceRevisions.read(data.getCompoundTag("sourceRevisions")),
+                    PortableResourceDescriptor.read(data.getCompoundTag("rootResource")),
+                    data.getLong("rootAmount"),
+                    QIOProcessingNbt.readAmounts(data, "externalRequirements", MAX_RESOURCE_ENTRIES),
+                    steps, cycles);
             QIOPlanMaterialRequirements storedRequirements =
-                  QIOPlanMaterialRequirements.read(data.getCompoundTag("materialRequirements"));
+                    QIOPlanMaterialRequirements.read(data.getCompoundTag("materialRequirements"));
             if (!storedRequirements.write().equals(plan.materialRequirements.write())) {
                 throw new QIOProcessingDataException(
-                      "QIO plan material requirements disagree with its steps");
+                        "QIO plan material requirements disagree with its steps");
             }
             String storedSignature = data.getString("structuralSignature");
             if (!plan.structuralSignature.equals(storedSignature)) {
@@ -238,24 +254,24 @@ public final class QIOCraftPlan {
     private String calculateSignature() {
         StringBuilder canonical = new StringBuilder();
         canonical.append("v=").append(SCHEMA_VERSION)
-              .append("|root=").append(rootResource)
-              .append("|amount=").append(rootAmount);
+                .append("|root=").append(rootResource)
+                .append("|amount=").append(rootAmount);
         for (Map.Entry<PortableResourceDescriptor, Long> entry : externalRequirements.entrySet()) {
             canonical.append("|in=").append(entry.getKey()).append('@').append(entry.getValue());
         }
         for (Map.Entry<PortableResourceDescriptor, Long> entry :
-              materialRequirements.getExactAmounts().entrySet()) {
+                materialRequirements.getExactAmounts().entrySet()) {
             canonical.append("|exactClaim=").append(entry.getKey()).append('@')
-                  .append(entry.getValue());
+                    .append(entry.getValue());
         }
         for (QIOCandidateRequirement requirement :
-              materialRequirements.getCandidateRequirements()) {
+                materialRequirements.getCandidateRequirements()) {
             canonical.append("|candidateClaim=").append(requirement.getRequirementId())
-                  .append('@').append(requirement.getRequiredUnits());
+                    .append('@').append(requirement.getRequiredUnits());
             for (QIOCandidateOption option : requirement.getOptions()) {
                 canonical.append(':').append(option.getCandidateId()).append('@')
-                      .append(option.getResource()).append('@')
-                      .append(option.getAmountPerUnit());
+                        .append(option.getResource()).append('@')
+                        .append(option.getAmountPerUnit());
             }
         }
         for (QIOPlanStep step : steps) {
@@ -283,7 +299,7 @@ public final class QIOCraftPlan {
             for (long dependency : step.getDependencies()) {
                 if (!byId.containsKey(dependency)) {
                     throw new IllegalArgumentException("QIO plan node " + step.getNodeId() +
-                          " references missing dependency " + dependency);
+                            " references missing dependency " + dependency);
                 }
             }
         }
@@ -292,7 +308,7 @@ public final class QIOCraftPlan {
     }
 
     private static List<QIOCyclePlanNode> checkedCycles(List<QIOCyclePlanNode> cycles,
-          List<QIOPlanStep> steps) {
+                                                        List<QIOPlanStep> steps) {
         Objects.requireNonNull(cycles, "cycleNodes");
         if (cycles.size() > MAX_PLAN_STEPS) throw new IllegalArgumentException("Too many cycle nodes");
         Set<Long> stepIds = new HashSet<>();
@@ -312,15 +328,15 @@ public final class QIOCraftPlan {
                 if (!stepIds.contains(member) || !members.add(member))
                     throw new IllegalArgumentException("Invalid or duplicate QIO cycle member " + member);
                 long expectedOperations = Math.multiplyExact(checked.getTotalRounds(),
-                      checked.getMemberQuotas().get(member));
+                        checked.getMemberQuotas().get(member));
                 if (stepsById.get(member).getOperations() != expectedOperations) {
                     throw new IllegalArgumentException(
-                          "QIO cycle member operation count disagrees with its quota");
+                            "QIO cycle member operation count disagrees with its quota");
                 }
             }
             copy.add(checked);
         }
-        copy.sort((left,right)->Long.compare(left.getNodeId(),right.getNodeId()));
+        copy.sort((left, right) -> Long.compare(left.getNodeId(), right.getNodeId()));
         return Collections.unmodifiableList(copy);
     }
 
@@ -334,7 +350,7 @@ public final class QIOCraftPlan {
             if (dependencyCount == 0) ready.addLast(step.getNodeId());
             for (long dependency : step.getDependencies()) {
                 dependents.computeIfAbsent(dependency, ignored -> new ArrayList<>())
-                      .add(step.getNodeId());
+                        .add(step.getNodeId());
             }
         }
         int resolved = 0;
@@ -342,7 +358,7 @@ public final class QIOCraftPlan {
             long nodeId = ready.removeFirst();
             resolved++;
             for (long dependent : dependents.getOrDefault(nodeId,
-                  Collections.emptyList())) {
+                    Collections.emptyList())) {
                 int remaining = remainingDependencies.get(dependent) - 1;
                 remainingDependencies.put(dependent, remaining);
                 if (remaining == 0) ready.addLast(dependent);

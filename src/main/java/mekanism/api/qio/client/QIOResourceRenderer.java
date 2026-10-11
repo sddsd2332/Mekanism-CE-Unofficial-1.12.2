@@ -30,25 +30,33 @@ public interface QIOResourceRenderer<T> {
     @Nonnull
     String getDisplayName(@Nonnull T resource);
 
-    /** Stable text used by registry-name sorting. */
+    /**
+     * Stable text used by registry-name sorting.
+     */
     @Nonnull
     default String getRegistryName(@Nonnull T resource) {
         return getCodecId().toString();
     }
 
-    /** Stable text used by mod-name sorting. */
+    /**
+     * Stable text used by mod-name sorting.
+     */
     @Nonnull
     default String getModId(@Nonnull T resource) {
         return getCodecId().getNamespace();
     }
 
-    /** Tooltip lines before the QIO stored-count line is appended. */
+    /**
+     * Tooltip lines before the QIO stored-count line is appended.
+     */
     @Nonnull
     default List<String> getTooltip(@Nonnull T resource) {
         return Collections.singletonList(getDisplayName(resource));
     }
 
-    /** Optional ingredient understood by an installed recipe viewer. */
+    /**
+     * Optional ingredient understood by an installed recipe viewer.
+     */
     @Nullable
     default Object getIngredient(@Nonnull T resource) {
         return null;

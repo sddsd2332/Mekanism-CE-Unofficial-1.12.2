@@ -1,26 +1,18 @@
 package mekanism.qioprocessing.common.content.profile;
 
 import mekanism.qioprocessing.common.content.QIOProcessingDataException;
-import mekanism.qioprocessing.common.content.QIOProcessingNbt;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.nbt.NBTTagString;
 import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
-/** One ordered route-selection profile used by a QIO automation provider. */
+/**
+ * One ordered route-selection profile used by a QIO automation provider.
+ */
+
 /**
  * QIO 处理模块中的 QIOAutomationRecipeProfile 类型。
  *
@@ -31,7 +23,7 @@ public final class QIOAutomationRecipeProfile {
 
     public static final long DEFAULT_CRAFT_AMOUNT = 1;
     public static final long MAX_CRAFT_AMOUNT = Long.MAX_VALUE;
-    private static final int SCHEMA_VERSION = 1;
+    private static final int SCHEMA_VERSION = 2;
     private static final int MAX_ENTRIES = 1_000_000;
     private static final int MAX_KEY_LENGTH = 8_192;
 
@@ -51,7 +43,10 @@ public final class QIOAutomationRecipeProfile {
     private final List<String> orderedProducts = new ArrayList<>();
     private final Map<String, List<String>> orderedRoutes = new LinkedHashMap<>();
     private final Map<String, Long> routeCraftAmounts = new LinkedHashMap<>();
+    // Batch defaults are shared by recipe family, never by block type or factory tier.
+    private final Map<String, Long> familyCraftAmounts = new LinkedHashMap<>();
     private long craftAmount = DEFAULT_CRAFT_AMOUNT;
+    private Set<String> customOrderedFamilies;
 
     public QIOAutomationRecipeProfile(@Nonnull RouteFilterMode routeFilterMode) {
         this.routeFilterMode = Objects.requireNonNull(routeFilterMode, "routeFilterMode");
@@ -66,27 +61,86 @@ public final class QIOAutomationRecipeProfile {
         return craftAmount;
     }
 
+    public long getCraftAmount(@Nonnull String family) {
+        return familyCraftAmounts.getOrDefault(checkedKey(family, "recipeFamily"), craftAmount);
+    }
+
+    public boolean setCraftAmount(@Nonnull String family, long amount) {
+        String checked = checkedKey(family, "recipeFamily");
+        long value = clampCraftAmount(amount, MAX_CRAFT_AMOUNT);
+        if (getCraftAmount(checked) == value) return false;
+        if (value == craftAmount) familyCraftAmounts.remove(checked);
+        else familyCraftAmounts.put(checked, value);
+        String prefix = familyPrefix(checked);
+        routeCraftAmounts.entrySet().removeIf(entry -> entry.getKey().startsWith(prefix) &&
+                entry.getValue() == value);
+        return true;
+    }
+
+    private static String familyPrefix(String family) {
+        return family.length() + ":" + family;
+    }
+
+    private long defaultAmountForRoute(String key) {
+        int separator = key.indexOf(':');
+        if (separator > 0 && separator < 6) {
+            try {
+                int length = Integer.parseInt(key.substring(0, separator));
+                int end = separator + 1 + length;
+                if (length > 0 && end <= key.length()) {
+                    return familyCraftAmounts.getOrDefault(key.substring(separator + 1, end), craftAmount);
+                }
+            } catch (NumberFormatException ignored) {
+                // Unscoped test keys have only the profile default.
+            }
+        }
+        return craftAmount;
+    }
+
     public boolean isEmpty() {
         return enabledRoutes.isEmpty() && disabledRoutes.isEmpty() && orderedProducts.isEmpty() &&
-              orderedRoutes.isEmpty() && routeCraftAmounts.isEmpty() &&
-              craftAmount == DEFAULT_CRAFT_AMOUNT;
+                orderedRoutes.isEmpty() && routeCraftAmounts.isEmpty() &&
+                familyCraftAmounts.isEmpty() && craftAmount == DEFAULT_CRAFT_AMOUNT;
     }
 
     public boolean hasCustomOrder() {
         return !orderedProducts.isEmpty() || !orderedRoutes.isEmpty();
     }
 
+    public boolean hasCustomOrder(@Nonnull String family) {
+        String checked = checkedKey(family, "recipeFamily");
+        if (customOrderedFamilies == null) {
+            Set<String> indexed = new HashSet<>();
+            for (String key : orderedProducts) indexOrderFamily(indexed, key);
+            for (String key : orderedRoutes.keySet()) indexOrderFamily(indexed, key);
+            customOrderedFamilies = indexed;
+        }
+        return customOrderedFamilies.contains(checked);
+    }
+
+    private static void indexOrderFamily(Set<String> families, String key) {
+        int separator = key.indexOf(':');
+        if (separator <= 0 || separator >= 6) return;
+        try {
+            int length = Integer.parseInt(key.substring(0, separator));
+            int end = separator + 1 + length;
+            if (length > 0 && end <= key.length()) families.add(key.substring(separator + 1, end));
+        } catch (NumberFormatException ignored) {
+            // The retained unscoped helper API has no family-specific order.
+        }
+    }
+
     public boolean isRouteEnabled(@Nonnull String routeKey) {
         String checked = checkedKey(routeKey, "routeKey");
         return routeFilterMode == RouteFilterMode.WHITELIST ? enabledRoutes.contains(checked) :
-              !disabledRoutes.contains(checked);
+                !disabledRoutes.contains(checked);
     }
 
     public boolean setRouteEnabled(@Nonnull String routeKey, boolean enabled) {
         String checked = checkedKey(routeKey, "routeKey");
         return routeFilterMode == RouteFilterMode.WHITELIST ?
-              enabled ? enabledRoutes.add(checked) : enabledRoutes.remove(checked) :
-              enabled ? disabledRoutes.remove(checked) : disabledRoutes.add(checked);
+                enabled ? enabledRoutes.add(checked) : enabledRoutes.remove(checked) :
+                enabled ? disabledRoutes.remove(checked) : disabledRoutes.add(checked);
     }
 
     public boolean setRoutesEnabled(@Nonnull Collection<String> routeKeys, boolean enabled) {
@@ -99,7 +153,7 @@ public final class QIOAutomationRecipeProfile {
 
     public long getEffectiveCraftAmount(@Nonnull String routeKey, long maximum) {
         return clampCraftAmount(routeCraftAmounts.getOrDefault(
-              checkedKey(routeKey, "routeKey"), craftAmount), maximum);
+                checkedKey(routeKey, "routeKey"), defaultAmountForRoute(routeKey)), maximum);
     }
 
     public boolean hasRouteCraftAmount(@Nonnull String routeKey) {
@@ -119,7 +173,7 @@ public final class QIOAutomationRecipeProfile {
     public boolean setRouteCraftAmount(@Nonnull String routeKey, long amount, long maximum) {
         String checkedKey = checkedKey(routeKey, "routeKey");
         long checkedAmount = clampCraftAmount(amount, maximum);
-        if (checkedAmount == craftAmount) {
+        if (checkedAmount == defaultAmountForRoute(checkedKey)) {
             return routeCraftAmounts.remove(checkedKey) != null;
         }
         Long previous = routeCraftAmounts.put(checkedKey, checkedAmount);
@@ -137,36 +191,36 @@ public final class QIOAutomationRecipeProfile {
 
     @Nonnull
     public List<String> getCurrentRouteOrder(@Nonnull String productKey,
-          @Nonnull Collection<String> defaultOrder) {
+                                             @Nonnull Collection<String> defaultOrder) {
         return normalizedOrder(orderedRoutes.get(checkedKey(productKey, "productKey")),
-              defaultOrder);
+                defaultOrder);
     }
 
     public boolean moveProduct(@Nonnull Collection<String> defaultOrder,
-          @Nonnull String productKey, int direction) {
+                               @Nonnull String productKey, int direction) {
         return move(defaultOrder, productKey, direction, false, false);
     }
 
     public boolean moveProductToEdge(@Nonnull Collection<String> defaultOrder,
-          @Nonnull String productKey, boolean top) {
+                                     @Nonnull String productKey, boolean top) {
         return move(defaultOrder, productKey, 0, true, top);
     }
 
     public boolean moveRoute(@Nonnull String productKey,
-          @Nonnull Collection<String> defaultOrder, @Nonnull String routeKey, int direction) {
+                             @Nonnull Collection<String> defaultOrder, @Nonnull String routeKey, int direction) {
         return moveRouteInternal(productKey, defaultOrder, routeKey, direction, false, false);
     }
 
     public boolean moveRouteToEdge(@Nonnull String productKey,
-          @Nonnull Collection<String> defaultOrder, @Nonnull String routeKey, boolean top) {
+                                   @Nonnull Collection<String> defaultOrder, @Nonnull String routeKey, boolean top) {
         return moveRouteInternal(productKey, defaultOrder, routeKey, 0, true, top);
     }
 
     public boolean resetProduct(@Nonnull String productKey,
-          @Nonnull Collection<String> defaultRouteOrder,
-          @Nonnull Collection<String> defaultProductOrder) {
+                                @Nonnull Collection<String> defaultRouteOrder,
+                                @Nonnull Collection<String> defaultProductOrder) {
         String checkedProduct = checkedKey(productKey, "productKey");
-        boolean changed = orderedRoutes.remove(checkedProduct) != null;
+        boolean changed = removeRouteOrder(checkedProduct, defaultRouteOrder);
         changed |= enabledRoutes.removeAll(defaultRouteOrder);
         changed |= disabledRoutes.removeAll(defaultRouteOrder);
         changed |= routeCraftAmounts.keySet().removeAll(defaultRouteOrder);
@@ -190,79 +244,104 @@ public final class QIOAutomationRecipeProfile {
     }
 
     public boolean resetAll() {
+        customOrderedFamilies = null;
         boolean changed = !isEmpty();
         enabledRoutes.clear();
         disabledRoutes.clear();
         orderedProducts.clear();
         orderedRoutes.clear();
         routeCraftAmounts.clear();
+        familyCraftAmounts.clear();
         craftAmount = DEFAULT_CRAFT_AMOUNT;
         return changed;
     }
 
-    public boolean prune(@Nonnull QIOAutomationRecipeProfileLayout layout) {
-        Objects.requireNonNull(layout, "layout");
-        Set<String> validRoutes = layout.getRouteKeys();
-        Set<String> validProducts = new LinkedHashSet<>(layout.getDefaultProductOrder());
-        boolean changed = enabledRoutes.removeIf(key -> !validRoutes.contains(key));
-        changed |= disabledRoutes.removeIf(key -> !validRoutes.contains(key));
-        changed |= orderedProducts.removeIf(key -> !validProducts.contains(key));
-
-        List<String> products = getCurrentProductOrder(layout.getDefaultProductOrder());
-        if (products.equals(layout.getDefaultProductOrder())) {
-            if (!orderedProducts.isEmpty()) {
-                orderedProducts.clear();
-                changed = true;
-            }
-        } else if (!products.equals(orderedProducts)) {
-            orderedProducts.clear();
-            orderedProducts.addAll(products);
-            changed = true;
+    /** Reset the displayed capability projection, not the frequency-wide table. */
+    public boolean reset(@Nonnull QIOAutomationRecipeProfileLayout layout) {
+        customOrderedFamilies = null;
+        Set<String> keys = layout.getRouteKeys();
+        boolean changed = enabledRoutes.removeAll(keys);
+        changed |= disabledRoutes.removeAll(keys);
+        changed |= routeCraftAmounts.keySet().removeAll(keys);
+        changed |= orderedProducts.removeAll(layout.getDefaultProductOrder());
+        for (String product : layout.getDefaultProductOrder()) {
+            changed |= removeRouteOrder(product, layout.getDefaultRouteOrder(product));
         }
-
-        Iterator<Map.Entry<String, List<String>>> orderIterator = orderedRoutes.entrySet().iterator();
-        while (orderIterator.hasNext()) {
-            Map.Entry<String, List<String>> entry = orderIterator.next();
-            List<String> defaults = layout.getDefaultRouteOrder(entry.getKey());
-            if (defaults.isEmpty()) {
-                orderIterator.remove();
-                changed = true;
-                continue;
-            }
-            List<String> normalized = normalizedOrder(entry.getValue(), defaults);
-            if (normalized.equals(defaults)) {
-                orderIterator.remove();
-                changed = true;
-            } else if (!normalized.equals(entry.getValue())) {
-                entry.setValue(normalized);
-                changed = true;
-            }
-        }
-
-        long clampedGlobal = clampCraftAmount(craftAmount, layout.getMaximumCraftAmount());
-        if (clampedGlobal != craftAmount) {
-            craftAmount = clampedGlobal;
-            changed = true;
-        }
-        Iterator<Map.Entry<String, Long>> amountIterator = routeCraftAmounts.entrySet().iterator();
-        while (amountIterator.hasNext()) {
-            Map.Entry<String, Long> entry = amountIterator.next();
-            QIOAutomationRecipeProfileLayout.Route route = layout.getRoute(entry.getKey());
-            if (route == null) {
-                amountIterator.remove();
-                changed = true;
-                continue;
-            }
-            long clamped = clampCraftAmount(entry.getValue(), route.getMaximumCraftAmount());
-            if (clamped == craftAmount) {
-                amountIterator.remove();
-                changed = true;
-            } else if (clamped != entry.getValue()) {
-                entry.setValue(clamped);
-                changed = true;
-            }
-        }
+        changed |= familyCraftAmounts.remove(layout.getRecipeFamily()) != null;
         return changed;
+    }
+
+    private boolean removeRouteOrder(String product, Collection<String> routes) {
+        customOrderedFamilies = null;
+        List<String> order = orderedRoutes.get(product);
+        if (order == null) return false;
+        boolean changed = order.removeAll(routes);
+        if (order.isEmpty()) orderedRoutes.remove(product);
+        return changed;
+    }
+
+    /** Restrict a detached card/snapshot only. Never prune the live shared table. */
+    public boolean prune(@Nonnull QIOAutomationRecipeProfileLayout layout) {
+        customOrderedFamilies = null;
+        Objects.requireNonNull(layout, "layout");
+        Set<String> routes = layout.getRouteKeys();
+        Set<String> products = new LinkedHashSet<>(layout.getDefaultProductOrder());
+        boolean changed = enabledRoutes.removeIf(key -> !routes.contains(key));
+        changed |= disabledRoutes.removeIf(key -> !routes.contains(key));
+        changed |= routeCraftAmounts.keySet().removeIf(key -> !routes.contains(key));
+        changed |= orderedProducts.removeIf(key -> !products.contains(key));
+        Iterator<Map.Entry<String, List<String>>> iterator = orderedRoutes.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<String, List<String>> entry = iterator.next();
+            changed |= entry.getValue().removeIf(key -> !routes.contains(key));
+            if (entry.getValue().isEmpty()) {
+                iterator.remove();
+                changed = true;
+            }
+        }
+        changed |= familyCraftAmounts.keySet().removeIf(key -> !key.equals(layout.getRecipeFamily()));
+        return changed;
+    }
+
+    /** Snapshot one declared family without unrelated frequency settings. */
+    @Nonnull
+    public QIOAutomationRecipeProfile copyForFamily(@Nonnull String family) {
+        String prefix = familyPrefix(checkedKey(family, "recipeFamily"));
+        QIOAutomationRecipeProfile result = copy();
+        result.enabledRoutes.removeIf(key -> !key.startsWith(prefix));
+        result.disabledRoutes.removeIf(key -> !key.startsWith(prefix));
+        result.routeCraftAmounts.keySet().removeIf(key -> !key.startsWith(prefix));
+        result.orderedProducts.removeIf(key -> !key.startsWith(prefix));
+        result.orderedRoutes.keySet().removeIf(key -> !key.startsWith(prefix));
+        result.familyCraftAmounts.keySet().removeIf(key -> !key.equals(family));
+        return result;
+    }
+
+    /** Replace only validated visible entries. Other families and absent routes survive. */
+    public boolean mergeProjection(@Nonnull QIOAutomationRecipeProfile source,
+                                   @Nonnull QIOAutomationRecipeProfileLayout layout) {
+        if (routeFilterMode != source.routeFilterMode) {
+            throw new IllegalArgumentException("QIO automation profile filter modes do not match");
+        }
+        NBTTagCompound before = write();
+        for (String key : layout.getRouteKeys()) {
+            setRouteEnabled(key, source.isRouteEnabled(key));
+            routeCraftAmounts.remove(key);
+            if (source.routeCraftAmounts.containsKey(key)) {
+                routeCraftAmounts.put(key, source.routeCraftAmounts.get(key));
+            }
+        }
+        String family = layout.getRecipeFamily();
+        long importedDefault = source.getCraftAmount(family);
+        if (importedDefault == craftAmount) familyCraftAmounts.remove(family);
+        else familyCraftAmounts.put(family, importedDefault);
+        setProductOrder(layout.getDefaultProductOrder(),
+                source.getCurrentProductOrder(layout.getDefaultProductOrder()));
+        for (String product : layout.getDefaultProductOrder()) {
+            List<String> routes = layout.getDefaultRouteOrder(product);
+            setRouteOrder(product, routes, source.getCurrentRouteOrder(product, routes));
+        }
+        return !before.equals(write());
     }
 
     @Nonnull
@@ -272,23 +351,26 @@ public final class QIOAutomationRecipeProfile {
         copy.disabledRoutes.addAll(disabledRoutes);
         copy.orderedProducts.addAll(orderedProducts);
         orderedRoutes.forEach((key, value) -> copy.orderedRoutes.put(key,
-              new ArrayList<>(value)));
+                new ArrayList<>(value)));
         copy.routeCraftAmounts.putAll(routeCraftAmounts);
         copy.craftAmount = craftAmount;
+        copy.familyCraftAmounts.putAll(familyCraftAmounts);
         return copy;
     }
 
     /** Replaces this profile while preserving its immutable filter identity. */
     public boolean replaceWith(@Nonnull QIOAutomationRecipeProfile other) {
+        customOrderedFamilies = null;
         Objects.requireNonNull(other, "other");
         if (routeFilterMode != other.routeFilterMode) {
             throw new IllegalArgumentException("QIO automation profile filter modes do not match");
         }
         if (craftAmount == other.craftAmount && enabledRoutes.equals(other.enabledRoutes) &&
-            disabledRoutes.equals(other.disabledRoutes) &&
-            orderedProducts.equals(other.orderedProducts) &&
-            orderedRoutes.equals(other.orderedRoutes) &&
-            routeCraftAmounts.equals(other.routeCraftAmounts)) {
+                disabledRoutes.equals(other.disabledRoutes) &&
+                orderedProducts.equals(other.orderedProducts) &&
+                orderedRoutes.equals(other.orderedRoutes) &&
+                routeCraftAmounts.equals(other.routeCraftAmounts) &&
+                familyCraftAmounts.equals(other.familyCraftAmounts)) {
             return false;
         }
         enabledRoutes.clear();
@@ -299,10 +381,12 @@ public final class QIOAutomationRecipeProfile {
         orderedProducts.addAll(other.orderedProducts);
         orderedRoutes.clear();
         other.orderedRoutes.forEach((key, value) -> orderedRoutes.put(key,
-              new ArrayList<>(value)));
+                new ArrayList<>(value)));
         routeCraftAmounts.clear();
         routeCraftAmounts.putAll(other.routeCraftAmounts);
         craftAmount = other.craftAmount;
+        familyCraftAmounts.clear();
+        familyCraftAmounts.putAll(other.familyCraftAmounts);
         return true;
     }
 
@@ -331,33 +415,42 @@ public final class QIOAutomationRecipeProfile {
             amounts.appendTag(entry);
         });
         data.setTag("routeCraftAmounts", amounts);
+        NBTTagList familyAmounts = new NBTTagList();
+        familyCraftAmounts.forEach((family, amount) -> {
+            NBTTagCompound entry = new NBTTagCompound();
+            entry.setString("family", family);
+            entry.setLong("amount", amount);
+            familyAmounts.appendTag(entry);
+        });
+        data.setTag("familyCraftAmounts", familyAmounts);
         return data;
     }
 
     @Nonnull
     public static QIOAutomationRecipeProfile read(@Nonnull NBTTagCompound data,
-          @Nonnull RouteFilterMode expectedMode) throws QIOProcessingDataException {
+                                                  @Nonnull RouteFilterMode expectedMode) throws QIOProcessingDataException {
         Objects.requireNonNull(data, "data");
         Objects.requireNonNull(expectedMode, "expectedMode");
         try {
             if (data.getInteger("schema") != SCHEMA_VERSION ||
-                !data.hasKey("routeFilterMode", NBT.TAG_STRING) ||
-                !data.hasKey("craftAmount", NBT.TAG_LONG) ||
-                !data.hasKey("enabledRoutes", NBT.TAG_LIST) ||
-                !data.hasKey("disabledRoutes", NBT.TAG_LIST) ||
-                !data.hasKey("orderedProducts", NBT.TAG_LIST) ||
-                !data.hasKey("orderedRoutes", NBT.TAG_LIST) ||
-                !data.hasKey("routeCraftAmounts", NBT.TAG_LIST)) {
+                    !data.hasKey("routeFilterMode", NBT.TAG_STRING) ||
+                    !data.hasKey("craftAmount", NBT.TAG_LONG) ||
+                    !data.hasKey("enabledRoutes", NBT.TAG_LIST) ||
+                    !data.hasKey("disabledRoutes", NBT.TAG_LIST) ||
+                    !data.hasKey("orderedProducts", NBT.TAG_LIST) ||
+                    !data.hasKey("orderedRoutes", NBT.TAG_LIST) ||
+                    !data.hasKey("routeCraftAmounts", NBT.TAG_LIST) ||
+                    !data.hasKey("familyCraftAmounts", NBT.TAG_LIST)) {
                 throw new QIOProcessingDataException("QIO automation profile is incomplete");
             }
             RouteFilterMode storedMode = RouteFilterMode.valueOf(
-                  data.getString("routeFilterMode"));
+                    data.getString("routeFilterMode"));
             if (storedMode != expectedMode) {
                 throw new QIOProcessingDataException("QIO automation profile filter identity disagrees with its contents");
             }
             QIOAutomationRecipeProfile profile = new QIOAutomationRecipeProfile(expectedMode);
             profile.craftAmount = requirePositive(data.getLong("craftAmount"),
-                  "profileCraftAmount");
+                    "profileCraftAmount");
             profile.enabledRoutes.addAll(readStrings(data, "enabledRoutes"));
             profile.disabledRoutes.addAll(readStrings(data, "disabledRoutes"));
             profile.orderedProducts.addAll(readStrings(data, "orderedProducts"));
@@ -372,7 +465,7 @@ public final class QIOAutomationRecipeProfile {
                 List<String> routes = readStrings(entry, "routes");
                 associations += routes.size();
                 if (associations > MAX_ENTRIES || profile.orderedRoutes.put(productKey,
-                      routes) != null) {
+                        routes) != null) {
                     throw new QIOProcessingDataException("QIO automation profile route order is invalid");
                 }
             }
@@ -381,9 +474,18 @@ public final class QIOAutomationRecipeProfile {
                 NBTTagCompound entry = amounts.getCompoundTagAt(index);
                 String routeKey = checkedKey(entry.getString("routeKey"), "routeKey");
                 long amount = requirePositive(entry.getLong("amount"),
-                      "routeCraftAmount");
+                        "routeCraftAmount");
                 if (profile.routeCraftAmounts.put(routeKey, amount) != null) {
                     throw new QIOProcessingDataException("Duplicate QIO route craft amount");
+                }
+            }
+            NBTTagList familyAmounts = boundedList(data, "familyCraftAmounts");
+            for (int index = 0; index < familyAmounts.tagCount(); index++) {
+                NBTTagCompound entry = familyAmounts.getCompoundTagAt(index);
+                String family = checkedKey(entry.getString("family"), "recipeFamily");
+                if (profile.familyCraftAmounts.put(family,
+                        requirePositive(entry.getLong("amount"), "familyCraftAmount")) != null) {
+                    throw new QIOProcessingDataException("Duplicate QIO recipe family amount");
                 }
             }
             return profile;
@@ -396,7 +498,7 @@ public final class QIOAutomationRecipeProfile {
 
     public static long clampCraftAmount(long amount, long maximum) {
         return Math.max(DEFAULT_CRAFT_AMOUNT,
-              Math.min(Math.max(DEFAULT_CRAFT_AMOUNT, maximum), amount));
+                Math.min(Math.max(DEFAULT_CRAFT_AMOUNT, maximum), amount));
     }
 
     private static long requirePositive(long value, String name) {
@@ -407,7 +509,7 @@ public final class QIOAutomationRecipeProfile {
     }
 
     private boolean move(Collection<String> defaultOrder, String key, int direction,
-          boolean edge, boolean top) {
+                         boolean edge, boolean top) {
         String checked = checkedKey(key, "productKey");
         List<String> current = getCurrentProductOrder(defaultOrder);
         int index = current.indexOf(checked);
@@ -421,7 +523,7 @@ public final class QIOAutomationRecipeProfile {
     }
 
     private boolean moveRouteInternal(String productKey, Collection<String> defaultOrder,
-          String routeKey, int direction, boolean edge, boolean top) {
+                                      String routeKey, int direction, boolean edge, boolean top) {
         String checkedProduct = checkedKey(productKey, "productKey");
         String checkedRoute = checkedKey(routeKey, "routeKey");
         List<String> current = getCurrentRouteOrder(checkedProduct, defaultOrder);
@@ -436,40 +538,49 @@ public final class QIOAutomationRecipeProfile {
     }
 
     private boolean setProductOrder(Collection<String> defaultOrder, List<String> requested) {
-        List<String> defaults = normalizedOrder(null, defaultOrder);
-        List<String> normalized = normalizedOrder(requested, defaults);
-        if (normalized.equals(defaults)) {
-            if (orderedProducts.isEmpty()) {
-                return false;
-            }
-            orderedProducts.clear();
-            return true;
-        }
-        if (normalized.equals(orderedProducts)) {
-            return false;
-        }
+        customOrderedFamilies = null;
+        List<String> merged = mergeOrder(orderedProducts, defaultOrder, requested);
+        if (merged.equals(orderedProducts)) return false;
         orderedProducts.clear();
-        orderedProducts.addAll(normalized);
+        orderedProducts.addAll(merged);
         return true;
     }
 
     private boolean setRouteOrder(String productKey, Collection<String> defaultOrder,
-          List<String> requested) {
-        List<String> defaults = normalizedOrder(null, defaultOrder);
-        List<String> normalized = normalizedOrder(requested, defaults);
-        List<String> previous = orderedRoutes.get(productKey);
-        if (normalized.equals(defaults)) {
-            return orderedRoutes.remove(productKey) != null;
-        }
-        if (normalized.equals(previous)) {
-            return false;
-        }
-        orderedRoutes.put(productKey, normalized);
+                                  List<String> requested) {
+        customOrderedFamilies = null;
+        List<String> previous = orderedRoutes.getOrDefault(productKey, Collections.emptyList());
+        List<String> merged = mergeOrder(previous, defaultOrder, requested);
+        if (merged.equals(previous)) return false;
+        if (merged.isEmpty()) orderedRoutes.remove(productKey);
+        else orderedRoutes.put(productKey, merged);
         return true;
     }
 
+    /** Preserve every out-of-view key and its relative order. */
+    private static List<String> mergeOrder(List<String> stored, Collection<String> domain,
+                                           List<String> requested) {
+        List<String> defaults = normalizedOrder(null, domain);
+        Set<String> visible = new HashSet<>(defaults);
+        List<String> desired = normalizedOrder(requested, defaults);
+        if (desired.equals(defaults)) {
+            List<String> result = new ArrayList<>(stored);
+            result.removeIf(visible::contains);
+            return result;
+        }
+        List<String> result = new ArrayList<>();
+        int index = 0;
+        for (String key : stored) {
+            if (visible.contains(key)) {
+                if (index < desired.size()) result.add(desired.get(index++));
+            } else result.add(key);
+        }
+        while (index < desired.size()) result.add(desired.get(index++));
+        return result;
+    }
+
     private static List<String> normalizedOrder(Collection<String> preferred,
-          Collection<String> defaultOrder) {
+                                                Collection<String> defaultOrder) {
         LinkedHashSet<String> defaults = new LinkedHashSet<>();
         for (String key : defaultOrder) {
             defaults.add(checkedKey(key, "orderKey"));
@@ -501,7 +612,7 @@ public final class QIOAutomationRecipeProfile {
     }
 
     private static List<String> readStrings(NBTTagCompound data, String key)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         NBTTagList list = data.getTagList(key, NBT.TAG_STRING);
         if (list.tagCount() > MAX_ENTRIES) {
             throw new QIOProcessingDataException(key + " exceeds the QIO profile safety limit");
@@ -519,7 +630,7 @@ public final class QIOAutomationRecipeProfile {
     }
 
     private static NBTTagList boundedList(NBTTagCompound data, String key)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         if (!data.hasKey(key, NBT.TAG_LIST)) {
             throw new QIOProcessingDataException("Missing QIO profile list " + key);
         }

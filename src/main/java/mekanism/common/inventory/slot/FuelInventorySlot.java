@@ -19,7 +19,7 @@ public class FuelInventorySlot extends BasicInventorySlot {
     private final ToIntFunction<ItemStack> fuelValue;
 
     private FuelInventorySlot(Predicate<ItemStack> canExtract, Predicate<ItemStack> canInsert, Predicate<ItemStack> validator, ToIntFunction<ItemStack> fuelValue,
-          @Nullable IContentsListener listener, int x, int y) {
+                              @Nullable IContentsListener listener, int x, int y) {
         super(canExtract, canInsert, validator, listener, x, y);
         this.fuelValue = fuelValue;
     }

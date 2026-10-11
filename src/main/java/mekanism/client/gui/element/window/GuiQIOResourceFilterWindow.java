@@ -30,7 +30,9 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Codec-aware exact-resource editor shared by QIO importers and exporters. */
+/**
+ * Codec-aware exact-resource editor shared by QIO importers and exporters.
+ */
 public class GuiQIOResourceFilterWindow extends GuiWindow {
 
     private final TileEntityQIOFilterHandler tile;
@@ -39,7 +41,7 @@ public class GuiQIOResourceFilterWindow extends GuiWindow {
     private QIOFilter filter;
     private final TooltipToggleButton fuzzyButton;
     private String status = EnumColor.DARK_GREEN +
-          MekanismLang.STATUS_OK.translate().getFormattedText();
+            MekanismLang.STATUS_OK.translate().getFormattedText();
     private int statusTicks;
 
     public GuiQIOResourceFilterWindow(IGuiWrapper gui, TileEntityQIOFilterHandler tile) {
@@ -47,9 +49,9 @@ public class GuiQIOResourceFilterWindow extends GuiWindow {
     }
 
     public GuiQIOResourceFilterWindow(IGuiWrapper gui, TileEntityQIOFilterHandler tile,
-          @Nullable QIOFilter filter, int index) {
+                                      @Nullable QIOFilter filter, int index) {
         super(gui, (gui.getWidth() - 185) / 2, 15, 185, 100,
-              SelectedWindowData.UNSPECIFIED);
+                SelectedWindowData.UNSPECIFIED);
         this.tile = tile;
         QIOFilter copied = filter == null ? null : filter.copy();
         this.filter = copied == null ? filter : copied;
@@ -57,29 +59,29 @@ public class GuiQIOResourceFilterWindow extends GuiWindow {
         interactionStrategy = InteractionStrategy.CONTAINER;
 
         addChild(new GuiInnerScreen(gui, relativeX + 29, relativeY + 18, 116, 51,
-              this::getScreenText).clearFormat());
+                this::getScreenText).clearFormat());
         GuiSlot resourceSlot = addChild(new GuiSlot(SlotType.NORMAL, gui,
-              relativeX + 7, relativeY + 18).setRenderHover(true)
-              .click((element, mouseX, mouseY, button) -> updateFromCarried(button))
-              .tooltip(this::getResourceTooltip));
+                relativeX + 7, relativeY + 18).setRenderHover(true)
+                .click((element, mouseX, mouseY, button) -> updateFromCarried(button))
+                .tooltip(this::getResourceTooltip));
         resourceSlot.setGhostHandler(createGhostHandler());
         addChild(new TranslationButton(gui, relativeX + 29, relativeY + 71, 60, 20,
-              index < 0 ? MekanismLang.BUTTON_CANCEL : MekanismLang.BUTTON_DELETE,
-              this::cancelOrDelete));
+                index < 0 ? MekanismLang.BUTTON_CANCEL : MekanismLang.BUTTON_DELETE,
+                this::cancelOrDelete));
         addChild(new TranslationButton(gui, relativeX + 91, relativeY + 71, 60, 20,
-              MekanismLang.BUTTON_SAVE, this::save));
+                MekanismLang.BUTTON_SAVE, this::save));
         fuzzyButton = addChild(new TooltipToggleButton(gui, relativeX + 148,
-              relativeY + 18, 11, getButtonLocation("fuzzy"), this::isFuzzy,
-              this::toggleFuzzy, MekanismLang.FUZZY_MODE.translate(),
-              MekanismLang.FUZZY_MODE.translate()));
+                relativeY + 18, 11, getButtonLocation("fuzzy"), this::isFuzzy,
+                this::toggleFuzzy, MekanismLang.FUZZY_MODE.translate(),
+                MekanismLang.FUZZY_MODE.translate()));
         updateFuzzyVisibility();
         if (index < 0) {
             addChild(new MekanismImageButton(gui, relativeX + 6, relativeY + 6, 11, 14,
-                  getButtonLocation("back"), () -> {
-                      IGuiWrapper parent = gui();
-                      parent.addWindow(new GuiQIOFilterSelectWindow(parent, tile));
-                      close();
-                  }).setTooltip(MekanismLang.BACK.translate()));
+                    getButtonLocation("back"), () -> {
+                IGuiWrapper parent = gui();
+                parent.addWindow(new GuiQIOFilterSelectWindow(parent, tile));
+                close();
+            }).setTooltip(MekanismLang.BACK.translate()));
         } else {
             super.addCloseButton();
         }
@@ -92,7 +94,7 @@ public class GuiQIOResourceFilterWindow extends GuiWindow {
 
     private boolean updateFromCarried(int button) {
         ItemStack carried = minecraft.player == null ? ItemStack.EMPTY :
-              minecraft.player.inventory.getItemStack();
+                minecraft.player.inventory.getItemStack();
         if (carried.isEmpty()) {
             if (button == 0 && GuiScreen.isShiftKeyDown()) {
                 filter = null;
@@ -122,7 +124,7 @@ public class GuiQIOResourceFilterWindow extends GuiWindow {
         }
         boolean enabled = filter == null || filter.isEnabled();
         QIOFilter replacement = QIOFilterResourceHelper.createFilter(descriptor,
-              isFuzzy());
+                isFuzzy());
         if (replacement == null) {
             setInvalid();
             return false;
@@ -157,7 +159,7 @@ public class GuiQIOResourceFilterWindow extends GuiWindow {
         text.add(new TextComponentString(QIOFilterGuiResource.typeName(filter)));
         if (isItemResource()) {
             text.add(MekanismLang.QIO_FUZZY_MODE.translate(isFuzzy() ?
-                  MekanismLang.ON.translate() : MekanismLang.OFF.translate()));
+                    MekanismLang.ON.translate() : MekanismLang.OFF.translate()));
         }
         return text;
     }
@@ -189,12 +191,12 @@ public class GuiQIOResourceFilterWindow extends GuiWindow {
     private boolean isItemResource() {
         QIOResourceDescriptor descriptor = QIOFilterGuiResource.descriptor(filter);
         return descriptor != null &&
-              descriptor.getCodecId().equals(mekanism.api.qio.resource.QIOResourceCodecs.ITEM_STACK_ID);
+                descriptor.getCodecId().equals(mekanism.api.qio.resource.QIOResourceCodecs.ITEM_STACK_ID);
     }
 
     private boolean isFuzzy() {
         return filter instanceof QIOItemStackFilter &&
-              ((QIOItemStackFilter) filter).isFuzzyMode();
+                ((QIOItemStackFilter) filter).isFuzzyMode();
     }
 
     private void toggleFuzzy() {
@@ -244,6 +246,6 @@ public class GuiQIOResourceFilterWindow extends GuiWindow {
         super.renderForeground(mouseX, mouseY);
         QIOFilterGuiResource.render(gui(), filter, relativeX + 8, relativeY + 19, 16);
         drawTitleText(new TextComponentTranslation(index < 0 ?
-              "gui.qio.filter.new" : "gui.qio.filter.edit"), 6);
+                "gui.qio.filter.new" : "gui.qio.filter.edit"), 6);
     }
 }

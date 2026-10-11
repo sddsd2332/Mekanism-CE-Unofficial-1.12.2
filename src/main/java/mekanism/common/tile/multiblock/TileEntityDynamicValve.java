@@ -34,7 +34,6 @@ public class TileEntityDynamicValve extends TileEntityDynamicTank implements ICo
 
     public DynamicFluidTank fluidTank;
     public DynamicGasTank gasTank;
-    private int currentRedstoneLevel;
 
     public boolean eject;
 
@@ -48,18 +47,18 @@ public class TileEntityDynamicValve extends TileEntityDynamicTank implements ICo
     @Override
     protected IFluidTankHolder getInitialFluidTanks(IContentsListener listener) {
         return ProxiedFluidTankHolder.create(
-              side -> isFormed() && !eject && (structure == null || !structure.hasGas()),
-              side -> isFormed() && structure != null && structure.hasFluid(),
-              side -> isFormed() ? Collections.singletonList(fluidTank) : Collections.emptyList()
+                side -> isFormed() && !eject && (structure == null || !structure.hasGas()),
+                side -> isFormed() && structure != null && structure.hasFluid(),
+                side -> isFormed() ? Collections.singletonList(fluidTank) : Collections.emptyList()
         );
     }
 
     @Override
     protected IGasTankHolder getInitialGasTanks(IContentsListener listener) {
         return ProxiedGasTankHolder.create(
-              side -> isFormed() && !eject && (structure == null || !structure.hasFluid()),
-              side -> isFormed() && structure != null && structure.hasGas(),
-              side -> isFormed() ? Collections.singletonList(gasTank) : Collections.emptyList()
+                side -> isFormed() && !eject && (structure == null || !structure.hasFluid()),
+                side -> isFormed() && structure != null && structure.hasGas(),
+                side -> isFormed() ? Collections.singletonList(gasTank) : Collections.emptyList()
         );
     }
 
@@ -83,11 +82,7 @@ public class TileEntityDynamicValve extends TileEntityDynamicTank implements ICo
     @Override
     public void onUpdateServer() {
         super.onUpdateServer();
-        int newRedstoneLevel = getRedstoneLevel();
-        if (newRedstoneLevel != currentRedstoneLevel) {
-            updateComparatorOutputLevelSync();
-            currentRedstoneLevel = newRedstoneLevel;
-        }
+        updateSharedComparatorSignal();
         if (structure != null && structure.isFormed() && eject) {
             if (fluidTank.getFluid() != null && fluidTank.getFluid().getFluid() != null) {
                 FluidUtils.emit(EnumSet.allOf(EnumFacing.class), fluidTank, this);
@@ -124,11 +119,20 @@ public class TileEntityDynamicValve extends TileEntityDynamicTank implements ICo
     }
 
     @Override
-    public int getRedstoneLevel() {
-        int stored = Math.max(fluidTank.getFluidAmount(), gasTank.getGasAmount());
-        int capacity = Math.max(fluidTank.getCapacity(), gasTank.getMaxGas());
-        return MekanismUtils.redstoneLevelFromContents(stored, capacity);
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return type == mekanism.api.transmitters.TransmissionType.GAS || type == mekanism.api.transmitters.TransmissionType.FLUID;
     }
+
+    @Override
+    public int getRedstoneLevel() {
+        return structure == null ? 0 : structure.getCurrentRedstoneLevel();
+    }
+
+    @Override
+    public int getCurrentRedstoneLevel() {
+        return supportsComparator() ? getRedstoneLevel() : 0;
+    }
+
 
     @Override
     public void handlePacketData(ByteBuf dataStream) {

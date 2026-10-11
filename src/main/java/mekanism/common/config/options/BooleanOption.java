@@ -61,7 +61,7 @@ public class BooleanOption extends Option<BooleanOption> implements BooleanSuppl
 
     @Override
     public void load(Configuration config) {
-        if (category.isEmpty()){
+        if (category.isEmpty()) {
             return;
         }
         Property prop = config.get(this.category, this.key, this.defaultValue, this.comment);

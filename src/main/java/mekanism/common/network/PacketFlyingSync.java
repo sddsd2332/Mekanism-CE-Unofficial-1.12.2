@@ -14,16 +14,16 @@ public class PacketFlyingSync implements IMessageHandler<FlyingSyncMessage, IMes
 
     @Override
     public IMessage onMessage(FlyingSyncMessage message, MessageContext context) {
-        EntityPlayer player =  PacketHandler.getPlayer(context);
+        EntityPlayer player = PacketHandler.getPlayer(context);
         if (player == null) {
             return null;
         }
         PacketHandler.handlePacket(() -> {
-            if (player instanceof  EntityPlayerSP p){
+            if (player instanceof EntityPlayerSP p) {
                 p.capabilities.allowFlying = message.allowFlying;
                 p.capabilities.isFlying = message.isFlying;
             }
-        },player);
+        }, player);
         return null;
     }
 

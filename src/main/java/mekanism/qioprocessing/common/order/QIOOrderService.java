@@ -15,24 +15,12 @@ import mekanism.qioprocessing.common.content.job.QIOCraftingJobSource;
 import mekanism.qioprocessing.common.content.material.QIOMaterialClaimCoordinator;
 import mekanism.qioprocessing.common.content.plan.QIOCraftPlan;
 import mekanism.qioprocessing.common.content.plan.QIOPlanSourceRevisions;
+import mekanism.qioprocessing.common.content.workbench.QIOWorkbenchConfiguration;
 import mekanism.qioprocessing.common.execution.QIOProcessingExecutionService;
-import mekanism.qioprocessing.common.planning.QIOPlanningExecutor;
-import mekanism.qioprocessing.common.planning.QIOPlanner;
-import mekanism.qioprocessing.common.planning.QIOPlanningRequest;
-import mekanism.qioprocessing.common.planning.QIOPlanningResult;
-import mekanism.qioprocessing.common.planning.QIOPlanningService;
-import mekanism.qioprocessing.common.planning.QIOPlanningSnapshot;
-import mekanism.qioprocessing.common.planning.QIOPlanningSnapshotFactory;
-import mekanism.qioprocessing.common.planning.QIOPlanningRoute;
-import mekanism.qioprocessing.common.planning.QIOPlanningRouteClosure;
-import mekanism.qioprocessing.common.planning.QIOProviderCatalog;
-import mekanism.qioprocessing.common.planning.QIOProviderRouteCatalog;
-import mekanism.qioprocessing.common.planning.QIORecipeCatalogService;
-import mekanism.qioprocessing.common.planning.QIOWorkbenchRecipeCatalog;
+import mekanism.qioprocessing.common.machine.QIOAutomationDeviceRegistry;
+import mekanism.qioprocessing.common.planning.*;
 import mekanism.qioprocessing.common.processor.QIOCraftingProcessorDeviceRegistry;
 import mekanism.qioprocessing.common.processor.QIOCraftingProcessorDeviceRegistry.LoadedProcessor;
-import mekanism.qioprocessing.common.machine.QIOAutomationDeviceRegistry;
-import mekanism.qioprocessing.common.content.workbench.QIOWorkbenchConfiguration;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.world.World;
 import net.minecraftforge.common.DimensionManager;
@@ -42,20 +30,13 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.function.BooleanSupplier;
 
-/** Main-thread preview and formal order submission coordinator. */
+/**
+ * Main-thread preview and formal order submission coordinator.
+ */
+
 /**
  * QIO 处理模块中的 QIOOrderService 类型。
  *
@@ -71,6 +52,7 @@ public final class QIOOrderService {
     private static final int MAX_PREVIEW_PLANNING_ATTEMPTS = 3;
     private static final int MAX_CACHED_ROUTE_CLOSURES = 16;
     private static final int MAX_CACHED_ROUTES_PER_CLOSURE = 16_384;
+    private static final int MAX_CACHED_FREQUENCY_VIEWS = 64;
     private static final ThreadMXBean THREAD_MX_BEAN = ManagementFactory.getThreadMXBean();
 
     public enum RequestStatus {
@@ -79,7 +61,8 @@ public final class QIOOrderService {
         NO_PROCESSOR_OR_PROVIDER,
         TOO_MANY_PREVIEWS,
         SERVICE_STOPPED,
-        CATALOG_LOADING
+        CATALOG_LOADING,
+        BUSY
     }
 
     public enum ConfirmStatus {
@@ -175,19 +158,29 @@ public final class QIOOrderService {
     public static final class PlanningCaptureResult {
 
         private final RequestStatus status;
-        @Nullable private final PlanningCapture capture;
+        @Nullable
+        private final PlanningCapture capture;
 
         private PlanningCaptureResult(RequestStatus status, @Nullable PlanningCapture capture) {
             this.status = Objects.requireNonNull(status, "status");
             this.capture = capture;
         }
 
-        @Nonnull public RequestStatus getStatus() { return status; }
-        @Nullable public PlanningCapture getCapture() { return capture; }
+        @Nonnull
+        public RequestStatus getStatus() {
+            return status;
+        }
+
+        @Nullable
+        public PlanningCapture getCapture() {
+            return capture;
+        }
     }
 
     /** Pure-data source snapshot from which dependency closure and planning can run off-thread. */
     public static final class PlanningCapture {
+        @Nullable
+        private volatile PlanningPreparation preparation;
 
         private final int dimensionId;
         private final UUID frequencyUUID;
@@ -199,16 +192,23 @@ public final class QIOOrderService {
         private final Set<PortableResourceDescriptor> schedulableOutputs;
         private final QIOWorkbenchConfiguration workbenchConfiguration;
         private final QIOPlanSourceRevisions sourceRevisions;
+        private final String generation;
+        private final long validationRevision;
+        private final long directoryEpoch;
+        private final long serverEpoch;
+        private final long routeRevision;
 
         private PlanningCapture(int dimensionId, UUID frequencyUUID,
-              PortableResourceDescriptor target,
-              Map<PortableResourceDescriptor, Long> available,
-              QIOWorkbenchRecipeCatalog.Snapshot workbench,
-              QIOPlanningRouteClosure.ProviderIndex providerIndex,
-              Map<ResourceLocation, Long> workbenchPriorities,
-              Set<PortableResourceDescriptor> schedulableOutputs,
-              QIOWorkbenchConfiguration workbenchConfiguration,
-              QIOPlanSourceRevisions sourceRevisions) {
+                                PortableResourceDescriptor target,
+                                Map<PortableResourceDescriptor, Long> available,
+                                QIOWorkbenchRecipeCatalog.Snapshot workbench,
+                                QIOPlanningRouteClosure.ProviderIndex providerIndex,
+                                Map<ResourceLocation, Long> workbenchPriorities,
+                                Set<PortableResourceDescriptor> schedulableOutputs,
+                                QIOWorkbenchConfiguration workbenchConfiguration,
+                                QIOPlanSourceRevisions sourceRevisions, String generation,
+                                long validationRevision, long directoryEpoch, long serverEpoch,
+                                long routeRevision) {
             this.dimensionId = dimensionId;
             this.frequencyUUID = Objects.requireNonNull(frequencyUUID, "frequencyUUID");
             this.target = Objects.requireNonNull(target, "target");
@@ -216,17 +216,52 @@ public final class QIOOrderService {
             this.workbench = Objects.requireNonNull(workbench, "workbench");
             this.providerIndex = Objects.requireNonNull(providerIndex, "providerIndex");
             this.workbenchPriorities = Collections.unmodifiableMap(new LinkedHashMap<>(
-                  workbenchPriorities));
+                    workbenchPriorities));
             this.schedulableOutputs = Collections.unmodifiableSet(new LinkedHashSet<>(
-                  schedulableOutputs));
+                    schedulableOutputs));
             this.workbenchConfiguration = Objects.requireNonNull(workbenchConfiguration,
-                  "workbenchConfiguration");
+                    "workbenchConfiguration");
             this.sourceRevisions = Objects.requireNonNull(sourceRevisions, "sourceRevisions");
+            this.generation = Objects.requireNonNull(generation, "generation");
+            this.validationRevision = validationRevision;
+            this.directoryEpoch = directoryEpoch;
+            this.serverEpoch = serverEpoch;
+            this.routeRevision = routeRevision;
         }
 
-        public int getDimensionId() { return dimensionId; }
-        @Nonnull public PortableResourceDescriptor getTarget() { return target; }
-        @Nonnull public QIOPlanSourceRevisions getSourceRevisions() { return sourceRevisions; }
+        public int getDimensionId() {
+            return dimensionId;
+        }
+
+        @Nonnull
+        public PortableResourceDescriptor getTarget() {
+            return target;
+        }
+
+        @Nonnull
+        public QIOPlanSourceRevisions getSourceRevisions() {
+            return sourceRevisions;
+        }
+
+        String getGeneration() {
+            return generation;
+        }
+
+        long getValidationRevision() {
+            return validationRevision;
+        }
+
+        long getDirectoryEpoch() {
+            return directoryEpoch;
+        }
+
+        long getServerEpoch() {
+            return serverEpoch;
+        }
+
+        long getRouteRevision() {
+            return routeRevision;
+        }
     }
 
     private static final class PreviewPlanningOutcome {
@@ -236,7 +271,7 @@ public final class QIOOrderService {
         private final long planningNanos;
 
         private PreviewPlanningOutcome(QIOPlanningResult result,
-              long routePreparationNanos, long planningNanos) {
+                                       long routePreparationNanos, long planningNanos) {
             this.result = Objects.requireNonNull(result, "result");
             this.routePreparationNanos = Math.max(0, routePreparationNanos);
             this.planningNanos = Math.max(0, planningNanos);
@@ -251,12 +286,12 @@ public final class QIOOrderService {
         private final long revision;
 
         private SchedulableResources(Set<PortableResourceDescriptor> resources,
-              Set<PortableResourceDescriptor> visibleResources, long revision) {
+                                     Set<PortableResourceDescriptor> visibleResources, long revision) {
             LinkedHashSet<PortableResourceDescriptor> checkedResources =
-                  new LinkedHashSet<>(resources);
+                    new LinkedHashSet<>(resources);
             this.resources = Collections.unmodifiableSet(checkedResources);
             LinkedHashSet<PortableResourceDescriptor> checkedVisible =
-                  new LinkedHashSet<>(visibleResources);
+                    new LinkedHashSet<>(visibleResources);
             // Every executable output must remain visible even if a caller supplied a
             // narrower display set.
             checkedVisible.addAll(checkedResources);
@@ -285,34 +320,46 @@ public final class QIOOrderService {
     }
 
     private final Map<UUID, QIOOrderPreview> previews = new LinkedHashMap<>();
-    private final Map<UUID, EffectiveRouteView> effectiveRouteViews = new LinkedHashMap<>();
-    private final Map<UUID, Long> observedProviderDeviceRevisions = new LinkedHashMap<>();
+    private final QIOPreviewPlanCache previewPlanCache = new QIOPreviewPlanCache();
+    private long cacheEpoch;
+    private final Map<UUID, EffectiveRouteView> effectiveRouteViews = frequencyCache();
+    private final Map<UUID, Long> observedProviderDeviceRevisions = frequencyCache();
     private final Map<RouteClosureKey, List<QIOPlanningRoute>> routeClosures =
-          new LinkedHashMap<>(32, 0.75F, true) {
-              @Override
-              protected boolean removeEldestEntry(
-                    Map.Entry<RouteClosureKey, List<QIOPlanningRoute>> eldest) {
-                  return size() > MAX_CACHED_ROUTE_CLOSURES;
-              }
-          };
+            new LinkedHashMap<>(32, 0.75F, true) {
+                @Override
+                protected boolean removeEldestEntry(
+                        Map.Entry<RouteClosureKey, List<QIOPlanningRoute>> eldest) {
+                    return size() > MAX_CACHED_ROUTE_CLOSURES;
+                }
+            };
 
     private QIOOrderService() {
     }
 
-    @Nonnull
-    public PreviewRequestResult requestPreview(@Nonnull World world,
-          @Nonnull QIOFrequencyReference frequency, @Nonnull UUID requester,
-          @Nonnull PortableResourceDescriptor target, long amount, long priority,
-          long currentTick) {
-        return requestPreview(world, frequency, requester, target, amount, priority,
-              false, currentTick);
+    /** Global LRU: cold frequencies may be recaptured, but cannot pin snapshots indefinitely. */
+    static <T> Map<UUID, T> frequencyCache() {
+        return new LinkedHashMap<UUID, T>(16, .75F, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<UUID, T> eldest) {
+                return size() > MAX_CACHED_FREQUENCY_VIEWS;
+            }
+        };
     }
 
     @Nonnull
     public PreviewRequestResult requestPreview(@Nonnull World world,
-          @Nonnull QIOFrequencyReference frequency, @Nonnull UUID requester,
-          @Nonnull PortableResourceDescriptor target, long amount, long priority,
-          boolean mergeRequested, long currentTick) {
+                                               @Nonnull QIOFrequencyReference frequency, @Nonnull UUID requester,
+                                               @Nonnull PortableResourceDescriptor target, long amount, long priority,
+                                               long currentTick) {
+        return requestPreview(world, frequency, requester, target, amount, priority,
+                false, currentTick);
+    }
+
+    @Nonnull
+    public PreviewRequestResult requestPreview(@Nonnull World world,
+                                               @Nonnull QIOFrequencyReference frequency, @Nonnull UUID requester,
+                                               @Nonnull PortableResourceDescriptor target, long amount, long priority,
+                                               boolean mergeRequested, long currentTick) {
         Objects.requireNonNull(world, "world");
         Objects.requireNonNull(frequency, "frequency");
         Objects.requireNonNull(requester, "requester");
@@ -321,6 +368,7 @@ public final class QIOOrderService {
             throw new IllegalArgumentException("Invalid QIO preview request");
         }
         long requestStartedNanos = System.nanoTime();
+        long requestCpuStarted = mekanism.qioprocessing.common.planning.QIOPlanningMetrics.cpuNow();
         QIOProcessingConfig config = MekanismConfig.current().qioProcessing;
         synchronized (this) {
             expire(currentTick);
@@ -336,32 +384,34 @@ public final class QIOOrderService {
         try {
             QIOProcessingNetworkData network = network(frequency);
             PlanningCaptureResult captured = capturePlanning(world, network,
-                  view.getSnapshot(), target);
+                    view.getSnapshot(), target);
             if (captured.getStatus() != RequestStatus.ACCEPTED ||
-                captured.getCapture() == null) {
+                    captured.getCapture() == null) {
                 return new PreviewRequestResult(captured.getStatus(), null);
             }
             UUID previewId = UUID.randomUUID();
             long expiresAt = saturatedAdd(currentTick, config.previewTimeoutTicks.val());
             MergeResolution merge = resolveMerge(network, requester, target, priority,
-                  mergeRequested);
+                    mergeRequested);
             long mainThreadPreparationNanos = Math.max(0,
-                  System.nanoTime() - requestStartedNanos);
+                    System.nanoTime() - requestStartedNanos);
             QIOOrderPreview preview = new QIOOrderPreview(previewId, requester, frequency,
-                  target, amount, merge.priority, currentTick, expiresAt, merge.mergeOrder,
-                  requestStartedNanos, mainThreadPreparationNanos);
+                    target, amount, merge.priority, currentTick, expiresAt, merge.mergeOrder,
+                    requestStartedNanos, mainThreadPreparationNanos);
+            preview.recordMainCpu(requestCpuStarted);
             synchronized (this) {
                 if (ownedPreviewCount(requester) >= config.previewsPerPlayer.val()) {
                     return new PreviewRequestResult(RequestStatus.TOO_MANY_PREVIEWS, null);
                 }
                 previews.put(previewId, preview);
             }
-            if (!submitPreview(preview, captured.getCapture())) {
+            RequestStatus submitted = submitPreview(preview, captured.getCapture());
+            if (submitted != RequestStatus.ACCEPTED) {
                 synchronized (this) {
                     previews.remove(previewId);
                 }
                 preview.cancel();
-                return new PreviewRequestResult(RequestStatus.SERVICE_STOPPED, null);
+                return new PreviewRequestResult(submitted, null);
             }
             return new PreviewRequestResult(RequestStatus.ACCEPTED, preview);
         } finally {
@@ -371,53 +421,94 @@ public final class QIOOrderService {
 
     private long ownedPreviewCount(UUID requester) {
         return previews.values().stream().filter(preview ->
-              requester.equals(preview.getRequester()) && isLive(preview.getState())).count();
+                requester.equals(preview.getRequester()) && isLive(preview.getState())).count();
     }
 
-    private boolean submitPreview(QIOOrderPreview preview, PlanningCapture capture) {
+    private RequestStatus submitPreview(QIOOrderPreview preview, PlanningCapture capture) {
+        long[] accumulatedCpu = new long[2];
+        boolean[] cacheChecked = new boolean[1];
+        QIOPreviewPlanCache.Key planCacheKey = new QIOPreviewPlanCache.Key(
+                capture.frequencyUUID, preview.getRequester(), capture.dimensionId,
+                capture.target, preview.getAmount(), capture.sourceRevisions, capture.available,
+                capture.generation, capture.validationRevision, capture.directoryEpoch,
+                capture.serverEpoch, capture.routeRevision);
+        long expectedCacheEpoch = previewPlanCache.epoch();
         QIOPlanningExecutor.Submission submission;
         try {
             submission = QIOPlanningService.INSTANCE.submitTask(capture,
-                  (input, cancellation) -> {
-                      long routeStarted = workerCpuTime();
-                      PlanningPreparation preparation = prepareCaptured(input,
-                            cancellation::isCancelled);
-                      long routeNanos = Math.max(0, workerCpuTime() - routeStarted);
-                      preview.beginPlanning();
-                      if (preparation.getSnapshot() == null) {
-                          return new PreviewPlanningOutcome(QIOPlanningResult.failure(
-                                QIOPlanningResult.Status.NO_ROUTE,
-                                preparation.getStatus().name(), 0, 0), routeNanos, 0);
-                      }
-                      QIOPlanningRequest request = new QIOPlanningRequest(
-                            preview.getPreviewId(), 1, preparation.getSnapshot(),
-                            preview.getTarget(), preview.getAmount());
-                      long planningStarted = workerCpuTime();
-                      QIOPlanningResult result = QIOPlanner.INSTANCE.plan(request, cancellation);
-                      long planningNanos = Math.max(0,
-                            workerCpuTime() - planningStarted);
-                      return new PreviewPlanningOutcome(result, routeNanos, planningNanos);
-                  }, completed -> complete(preview.getPreviewId(), capture, completed));
+                    (input, cancellation) -> {
+                        if (cancellation.isCancelled()) {
+                            throw new java.util.concurrent.CancellationException(
+                                    "QIO preview planning cancelled");
+                        }
+                        // Validation resumes the same admitted task. Count a request's lookup
+                        // once rather than reporting hundreds of cache misses for its yields.
+                        if (!cacheChecked[0]) {
+                            cacheChecked[0] = true;
+                            QIOPlanningResult cached = previewPlanCache.get(planCacheKey,
+                                    preview.getPreviewId(), 1);
+                            if (cached != null) {
+                                preview.beginPlanning();
+                                return new PreviewPlanningOutcome(cached, 0, 0);
+                            }
+                        }
+                        long routeStarted = workerCpuTime();
+                        PlanningPreparation preparation = prepareCaptured(input,
+                                cancellation::isCancelled);
+                        accumulatedCpu[0] += Math.max(0, workerCpuTime() - routeStarted);
+                        long routeNanos = accumulatedCpu[0];
+                        preview.beginPlanning();
+                        if (preparation.getSnapshot() == null) {
+                            return new PreviewPlanningOutcome(QIOPlanningResult.failure(
+                                    QIOPlanningResult.Status.NO_ROUTE,
+                                    preparation.getStatus().name(), 0, 0), routeNanos, 0);
+                        }
+                        QIOPlanningRequest request = new QIOPlanningRequest(
+                                preview.getPreviewId(), 1, preparation.getSnapshot(),
+                                preview.getTarget(), preview.getAmount());
+                        long planningStarted = workerCpuTime();
+                        QIOPlanningResult result;
+                        try {
+                            result = QIOPlanner.INSTANCE.plan(request, cancellation);
+                        } finally {
+                            accumulatedCpu[1] += Math.max(0, workerCpuTime() - planningStarted);
+                        }
+                        if (!cancellation.isCancelled()) {
+                            // Cache admission is an optimization; a sizing or retention failure
+                            // must never turn an otherwise valid plan into a failed preview.
+                            try {
+                                if (input.directoryEpoch == QIOWorkbenchDirectoryService.INSTANCE.getEpoch() &&
+                                        QIOWorkbenchValidationService.INSTANCE.isCurrentServer(input.serverEpoch)) {
+                                    previewPlanCache.put(planCacheKey.withValidationRevision(input.workbench.getValidationRevision()),
+                                            result, expectedCacheEpoch);
+                                }
+                            } catch (RuntimeException ignored) {
+                                // Keep publishing the planner result.
+                            }
+                        }
+                        return new PreviewPlanningOutcome(result, routeNanos, accumulatedCpu[1]);
+                    }, completed -> complete(preview.getPreviewId(), capture, completed));
         } catch (IllegalStateException e) {
-            return false;
+            return RequestStatus.SERVICE_STOPPED;
         }
         if (!submission.isAccepted()) {
-            return false;
+            return submission.getStatus() == QIOPlanningExecutor.SubmissionStatus.BUSY ?
+                    RequestStatus.BUSY : RequestStatus.SERVICE_STOPPED;
         }
         preview.bindTask(submission.getTaskId());
-        return true;
+        return RequestStatus.ACCEPTED;
     }
 
     static MergeResolution resolveMerge(@Nonnull QIOProcessingNetworkData network,
-          @Nonnull UUID requester, @Nonnull PortableResourceDescriptor target,
-          long requestedPriority, boolean mergeRequested) {
+                                        @Nonnull UUID requester, @Nonnull PortableResourceDescriptor target,
+                                        long requestedPriority, boolean mergeRequested) {
         if (!mergeRequested) return new MergeResolution(requestedPriority, false);
         boolean found = false;
         long inheritedPriority = Long.MIN_VALUE;
         for (QIOCraftingJob job : network.getJobs()) {
             if (job.getState().isTerminal() || job.getSource() != QIOCraftingJobSource.MANUAL ||
-                !requester.equals(job.getRequester()) ||
-                !target.equals(job.getActivePlan().getRootResource())) {
+                    !requester.equals(job.getRequester()) ||
+                    !target.equals(job.getActivePlan().getRootResource())) {
                 continue;
             }
             found = true;
@@ -446,7 +537,7 @@ public final class QIOOrderService {
 
     @Nonnull
     public synchronized ConfirmResult confirm(@Nonnull UUID previewId,
-          @Nonnull UUID requester, long currentTick) {
+                                              @Nonnull UUID requester, long currentTick) {
         QIOOrderPreview preview = previews.get(Objects.requireNonNull(previewId, "previewId"));
         if (preview == null) {
             return new ConfirmResult(ConfirmStatus.NOT_FOUND, null);
@@ -459,11 +550,11 @@ public final class QIOOrderService {
             return new ConfirmResult(ConfirmStatus.EXPIRED, null);
         }
         if (preview.getState() != QIOOrderPreview.State.READY || preview.getResult() == null ||
-              preview.getResult().getPlan() == null) {
+                preview.getResult().getPlan() == null) {
             return new ConfirmResult(ConfirmStatus.NOT_READY, null);
         }
         IQIOStorageView view = QIOFrequencyStorageAccess.INSTANCE.open(preview.getFrequency(),
-              requester);
+                requester);
         if (view == null) {
             return new ConfirmResult(ConfirmStatus.ACCESS_DENIED, null);
         }
@@ -473,15 +564,15 @@ public final class QIOOrderService {
             QIOCraftingJob job = network.getJob(previewId);
             if (job != null) {
                 if (job.getSource() != QIOCraftingJobSource.MANUAL ||
-                      !requester.equals(job.getRequester()) ||
-                      !job.getActivePlan().getPlanId().equals(plan.getPlanId())) {
+                        !requester.equals(job.getRequester()) ||
+                        !job.getActivePlan().getPlanId().equals(plan.getPlanId())) {
                     return new ConfirmResult(ConfirmStatus.PERSISTENCE_ERROR, null);
                 }
                 try {
                     QIOProcessingNetworkManager.INSTANCE.persistenceBarrier().persist(network);
                     if (!job.getState().isTerminal()) {
                         QIOMaterialClaimCoordinator.refresh(network, job.getJobId(), view,
-                              QIOProcessingNetworkManager.INSTANCE.persistenceBarrier());
+                                QIOProcessingNetworkManager.INSTANCE.persistenceBarrier());
                     }
                 } catch (IOException | RuntimeException e) {
                     return new ConfirmResult(ConfirmStatus.PERSISTENCE_ERROR, job);
@@ -492,23 +583,23 @@ public final class QIOOrderService {
             }
             QIOProviderCatalog providers = network.getProviderCatalog();
             if (!matchesCurrentSources(plan.getSourceRevisions(), view,
-                  providerSourceRevision(providers),
-                  network.getTaskCommitmentRevision())) {
+                    providerSourceRevision(providers),
+                    network.getTaskCommitmentRevision())) {
                 previews.remove(previewId);
                 preview.cancel();
                 return new ConfirmResult(ConfirmStatus.STALE, null);
             }
             try {
                 job = network.createJob(previewId, QIOCraftingJobSource.MANUAL, requester,
-                      preview.getPriority(), currentTick, plan,
-                      MekanismConfig.current().qioProcessing.nonTerminalJobsPerFrequency.val());
+                        preview.getPriority(), currentTick, plan,
+                        MekanismConfig.current().qioProcessing.nonTerminalJobsPerFrequency.val());
             } catch (IllegalStateException e) {
                 return new ConfirmResult(ConfirmStatus.JOB_LIMIT, null);
             }
             try {
                 QIOProcessingNetworkManager.INSTANCE.persistenceBarrier().persist(network);
                 QIOMaterialClaimCoordinator.refresh(network, job.getJobId(), view,
-                      QIOProcessingNetworkManager.INSTANCE.persistenceBarrier());
+                        QIOProcessingNetworkManager.INSTANCE.persistenceBarrier());
             } catch (IOException | RuntimeException e) {
                 return new ConfirmResult(ConfirmStatus.PERSISTENCE_ERROR, job);
             }
@@ -522,7 +613,7 @@ public final class QIOOrderService {
 
     @Nullable
     public synchronized QIOOrderPreview getPreview(@Nonnull UUID previewId,
-          @Nonnull UUID requester) {
+                                                   @Nonnull UUID requester) {
         QIOOrderPreview preview = previews.get(Objects.requireNonNull(previewId, "previewId"));
         return preview != null && preview.getRequester().equals(requester) ? preview : null;
     }
@@ -539,7 +630,7 @@ public final class QIOOrderService {
     }
 
     public synchronized boolean cancelPreview(@Nonnull UUID previewId,
-          @Nonnull UUID requester) {
+                                              @Nonnull UUID requester) {
         QIOOrderPreview preview = previews.get(Objects.requireNonNull(previewId, "previewId"));
         if (preview == null || !preview.getRequester().equals(requester) || !preview.cancel()) {
             return false;
@@ -551,12 +642,12 @@ public final class QIOOrderService {
 
     @Nonnull
     public synchronized CancelStatus cancelOrder(@Nonnull QIOFrequencyReference frequency,
-          @Nonnull UUID jobId, @Nonnull UUID requester) {
+                                                 @Nonnull UUID jobId, @Nonnull UUID requester) {
         Objects.requireNonNull(frequency, "frequency");
         Objects.requireNonNull(jobId, "jobId");
         Objects.requireNonNull(requester, "requester");
         QIOProcessingNetworkData network = QIOProcessingNetworkManager.INSTANCE.get(
-              frequency.getFrequencyUUID());
+                frequency.getFrequencyUUID());
         QIOCraftingJob job = network == null ? null : network.getJob(jobId);
         if (job == null) {
             return CancelStatus.NOT_FOUND;
@@ -590,6 +681,8 @@ public final class QIOOrderService {
     }
 
     public synchronized void clear() {
+        cacheEpoch++;
+        previewPlanCache.clear();
         for (QIOOrderPreview preview : previews.values()) {
             cancelWorker(preview);
             preview.cancel();
@@ -603,18 +696,18 @@ public final class QIOOrderService {
     /** Builds the same route and storage snapshot used by manual previews without creating one. */
     @Nonnull
     public PlanningPreparation preparePlanning(@Nonnull World world,
-          @Nonnull QIOProcessingNetworkData network, @Nonnull QIOStorageSnapshot storage,
-          @Nonnull PortableResourceDescriptor target) {
+                                               @Nonnull QIOProcessingNetworkData network, @Nonnull QIOStorageSnapshot storage,
+                                               @Nonnull PortableResourceDescriptor target) {
         PlanningCaptureResult captured = capturePlanning(world, network, storage, target);
         return captured.getCapture() == null ? new PlanningPreparation(captured.getStatus(), null) :
-              prepareCaptured(captured.getCapture(), () -> false);
+                prepareCaptured(captured.getCapture(), () -> false);
     }
 
     /** Captures live server state without traversing the target dependency graph. */
     @Nonnull
     public synchronized PlanningCaptureResult capturePlanning(@Nonnull World world,
-          @Nonnull QIOProcessingNetworkData network, @Nonnull QIOStorageSnapshot storage,
-          @Nonnull PortableResourceDescriptor target) {
+                                                              @Nonnull QIOProcessingNetworkData network, @Nonnull QIOStorageSnapshot storage,
+                                                              @Nonnull PortableResourceDescriptor target) {
         Objects.requireNonNull(world, "world");
         Objects.requireNonNull(network, "network");
         Objects.requireNonNull(storage, "storage");
@@ -628,70 +721,102 @@ public final class QIOOrderService {
         if (!QIORecipeCatalogService.INSTANCE.isReady()) {
             return new PlanningCaptureResult(RequestStatus.CATALOG_LOADING, null);
         }
-        QIOWorkbenchConfiguration workbenchConfiguration =
-              network.getWorkbenchConfiguration().copy();
         QIORecipeCatalogService.State recipeState = QIORecipeCatalogService.INSTANCE.getState(
-              workbenchConfiguration);
+                network.getWorkbenchPlanningConfiguration(), world.provider.getDimension());
+        if (QIORecipeCatalogService.INSTANCE.isValidating(network.getWorkbenchPlanningConfiguration(), world.provider.getDimension())) {
+            return new PlanningCaptureResult(RequestStatus.CATALOG_LOADING, null);
+        }
+        QIOWorkbenchConfiguration workbenchConfiguration = network.getWorkbenchPlanningConfiguration().copy();
         QIOProviderCatalog providerState = observeProviders(network);
         List<LoadedProcessor> processors = QIOCraftingProcessorDeviceRegistry.INSTANCE
-              .getAvailable(network.getFrequencyUUID());
+                .getAvailable(network.getFrequencyUUID());
         EffectiveRouteView routeView = effectiveRouteView(network, providerState,
-              recipeState, processors);
+                recipeState, processors);
         Map<PortableResourceDescriptor, Long> available =
-              QIOPlanningSnapshotFactory.captureAvailableResources(storage);
+                QIOPlanningSnapshotFactory.captureAvailableResources(storage);
         if (!routeView.schedulableOutputs.contains(target)) {
             return new PlanningCaptureResult(RequestStatus.NO_PROCESSOR_OR_PROVIDER, null);
         }
         QIOPlanSourceRevisions revisions = new QIOPlanSourceRevisions(
-              storage.getContentsRevision(), storage.getCapacityRevision(),
-              storage.getClaimRevision(), storage.getAccessRevision(),
-              recipeState.getRevision(), providerSourceRevision(providerState),
-              configurationRevision(network), network.getTaskCommitmentRevision());
+                storage.getContentsRevision(), storage.getCapacityRevision(),
+                storage.getClaimRevision(), storage.getAccessRevision(),
+                recipeState.getRevision(), providerSourceRevision(providerState),
+                configurationRevision(network), network.getTaskCommitmentRevision());
         PlanningCapture capture = new PlanningCapture(world.provider.getDimension(),
-              network.getFrequencyUUID(), target, available, recipeState.getSnapshot(),
-              routeView.providerIndex,
-              routeView.workbenchPriorities, routeView.schedulableOutputs,
-              workbenchConfiguration, revisions);
+                network.getFrequencyUUID(), target, available, recipeState.getSnapshot(),
+                routeView.providerIndex,
+                routeView.workbenchPriorities, routeView.schedulableOutputs,
+                workbenchConfiguration, revisions,
+                recipeState.getSnapshot().getGeneration().getGenerationId(),
+                recipeState.getSnapshot().getValidationRevision(),
+                QIOWorkbenchDirectoryService.INSTANCE.getEpoch(),
+                QIOWorkbenchValidationService.INSTANCE.getServerEpoch(), routeView.revision);
         return new PlanningCaptureResult(RequestStatus.ACCEPTED, capture);
     }
 
     /** Performs route closure using only immutable data captured on the server thread. */
     @Nonnull
     public PlanningPreparation prepareCaptured(@Nonnull PlanningCapture capture,
-          @Nonnull BooleanSupplier cancelled) {
+                                               @Nonnull BooleanSupplier cancelled) {
+        try (mekanism.qioprocessing.common.planning.QIOPlanningMetrics.Scope timing =
+                     mekanism.qioprocessing.common.planning.QIOPlanningMetrics.current().measure(
+                             mekanism.qioprocessing.common.planning.QIOPlanningMetrics.Phase.ROUTE)) {
+            return prepareCapturedNow(capture, cancelled);
+        }
+    }
+
+    private PlanningPreparation prepareCapturedNow(PlanningCapture capture, BooleanSupplier cancelled) {
         Objects.requireNonNull(capture, "capture");
         Objects.requireNonNull(cancelled, "cancelled");
+        if (cancelled.getAsBoolean())
+            throw new java.util.concurrent.CancellationException("QIO route preparation cancelled");
+        if (capture.preparation != null) {
+            mekanism.qioprocessing.common.planning.QIOPlanningMetrics.current().add(
+                    mekanism.qioprocessing.common.planning.QIOPlanningMetrics.Metric.STRUCTURE_CACHE_HITS, 1);
+            return capture.preparation;
+        }
         RouteClosureKey cacheKey = new RouteClosureKey(capture.frequencyUUID,
-              capture.target, capture.sourceRevisions);
+                capture.target, capture.sourceRevisions, capture.workbench.getValidationRevision(), capture.dimensionId);
         List<QIOPlanningRoute> routes;
+        long capturedEpoch;
         synchronized (this) {
+            capturedEpoch = cacheEpoch;
             routes = routeClosures.get(cacheKey);
         }
         if (routes == null) {
+            mekanism.qioprocessing.common.planning.QIOPlanningMetrics.current().add(
+                    mekanism.qioprocessing.common.planning.QIOPlanningMetrics.Metric.STRUCTURE_CACHE_MISSES, 1);
             routes = QIOPlanningRouteClosure.collect(capture.target, capture.available,
-                  capture.providerIndex, capture.workbench, capture.workbenchPriorities,
-                  capture.schedulableOutputs, Integer.MAX_VALUE,
-                  capture.workbenchConfiguration, cancelled);
+                    capture.providerIndex, capture.workbench, capture.workbenchPriorities,
+                    capture.schedulableOutputs, Integer.MAX_VALUE,
+                    capture.workbenchConfiguration, cancelled);
             if (routes.size() <= MAX_CACHED_ROUTES_PER_CLOSURE) {
                 synchronized (this) {
-                    routeClosures.put(cacheKey, routes);
+                    if (capturedEpoch == cacheEpoch && !cancelled.getAsBoolean()) {
+                        routeClosures.put(cacheKey, routes);
+                    }
                 }
             }
         } else if (cancelled.getAsBoolean()) {
             throw new java.util.concurrent.CancellationException(
-                  "QIO route closure cancelled");
+                    "QIO route closure cancelled");
+        } else {
+            mekanism.qioprocessing.common.planning.QIOPlanningMetrics.current().add(
+                    mekanism.qioprocessing.common.planning.QIOPlanningMetrics.Metric.STRUCTURE_CACHE_HITS, 1);
         }
         if (routes.isEmpty()) {
             return new PlanningPreparation(RequestStatus.NO_PROCESSOR_OR_PROVIDER, null);
         }
         QIOPlanningSnapshot snapshot = QIOPlanningSnapshotFactory.create(
-              capture.sourceRevisions, capture.available, routes);
-        return new PlanningPreparation(RequestStatus.ACCEPTED, snapshot);
+                capture.sourceRevisions, capture.available, routes);
+        PlanningPreparation prepared = new PlanningPreparation(RequestStatus.ACCEPTED, snapshot);
+        capture.preparation = prepared;
+        return prepared;
     }
 
     @Nonnull
     public synchronized SchedulableResources getSchedulableResources(@Nonnull World world,
-          @Nonnull QIOProcessingNetworkData network) {
+                                                                     @Nonnull QIOProcessingNetworkData network) {
         Objects.requireNonNull(world, "world");
         Objects.requireNonNull(network, "network");
         if (world.isRemote) {
@@ -705,23 +830,23 @@ public final class QIOOrderService {
             // empty projection keeps terminals responsive without exposing a provisional index
             // that could bind/clear production orders.
             return new SchedulableResources(Collections.emptySet(), Collections.emptySet(),
-                  QIORecipeCatalogService.INSTANCE.getRevision());
+                    QIORecipeCatalogService.INSTANCE.getRevision());
         }
         QIORecipeCatalogService.State recipeState = QIORecipeCatalogService.INSTANCE.getState(
-              network.getWorkbenchConfiguration());
+                network.getWorkbenchPlanningConfiguration(), world.provider.getDimension());
         QIOProviderCatalog providerState = observeProviders(network);
         List<LoadedProcessor> processors = QIOCraftingProcessorDeviceRegistry.INSTANCE
-              .getAvailable(network.getFrequencyUUID());
+                .getAvailable(network.getFrequencyUUID());
         EffectiveRouteView view = effectiveRouteView(network, providerState, recipeState,
-              processors);
+                processors);
         return new SchedulableResources(view.schedulableOutputs, view.visibleOutputs,
-              view.revision);
+                view.revision);
     }
 
     /** Revalidates route/security inputs while allowing storage quantities to be claim-resolved. */
     public synchronized boolean isAutomatedPlanCurrent(@Nonnull World world,
-          @Nonnull QIOProcessingNetworkData network, @Nonnull QIOStorageSnapshot storage,
-          @Nonnull QIOPlanSourceRevisions revisions) {
+                                                       @Nonnull QIOProcessingNetworkData network, @Nonnull QIOStorageSnapshot storage,
+                                                       @Nonnull QIOPlanSourceRevisions revisions) {
         Objects.requireNonNull(world, "world");
         Objects.requireNonNull(network, "network");
         Objects.requireNonNull(storage, "storage");
@@ -737,56 +862,63 @@ public final class QIOOrderService {
         }
         QIOProviderCatalog providers = observeProviders(network);
         return revisions.getAccessRevision() == storage.getAccessRevision() &&
-              revisions.getRecipeCatalogRevision() == QIORecipeCatalogService.INSTANCE
-                    .getRevision(network.getWorkbenchConfiguration()) &&
-              revisions.getProviderCatalogRevision() == providerSourceRevision(providers) &&
-              revisions.getPolicyRevision() == configurationRevision(network);
+                revisions.getRecipeCatalogRevision() == QIORecipeCatalogService.INSTANCE
+                        .getRevision(network.getWorkbenchPlanningConfiguration()) &&
+                revisions.getProviderCatalogRevision() == providerSourceRevision(providers) &&
+                revisions.getPolicyRevision() == configurationRevision(network);
     }
 
     private synchronized void complete(UUID previewId, PlanningCapture capture,
-          QIOPlanningExecutor.PlanningResult<PreviewPlanningOutcome> completed) {
+                                       QIOPlanningExecutor.PlanningResult<PreviewPlanningOutcome> completed) {
         QIOOrderPreview preview = previews.get(previewId);
         if (preview == null || (preview.getState() != QIOOrderPreview.State.PREPARING &&
-              preview.getState() != QIOOrderPreview.State.PLANNING) ||
-              !completed.getTaskId().equals(preview.getPlanningTaskId())) {
+                preview.getState() != QIOOrderPreview.State.PLANNING) ||
+                !completed.getTaskId().equals(preview.getPlanningTaskId())) {
             return;
         }
+        preview.recordValidationWait(completed.getValidationWaitNanos());
+        preview.recordMetrics(completed.getMetrics());
         PreviewPlanningOutcome outcome = completed.getStatus() ==
-              QIOPlanningExecutor.ResultStatus.SUCCESS ? completed.getValue() : null;
+                QIOPlanningExecutor.ResultStatus.SUCCESS ? completed.getValue() : null;
         long routePreparationNanos = outcome == null ? 0 : outcome.routePreparationNanos;
         long planningNanos = outcome == null ? 0 : outcome.planningNanos;
 
         IQIOStorageView currentView = QIOFrequencyStorageAccess.INSTANCE.open(
-              preview.getFrequency(), preview.getRequester());
+                preview.getFrequency(), preview.getRequester());
         QIOProcessingNetworkData currentNetwork = currentView == null ? null :
-              network(preview.getFrequency());
+                network(preview.getFrequency());
         boolean currentSources = false;
         try {
             if (currentView != null && currentView.isValid() && currentNetwork != null) {
                 QIOProviderCatalog providers = observeProviders(currentNetwork);
                 currentSources = matchesCurrentSources(capture.sourceRevisions, currentView,
-                      providerSourceRevision(providers),
-                      currentNetwork.getTaskCommitmentRevision());
+                        providerSourceRevision(providers),
+                        currentNetwork.getTaskCommitmentRevision());
             }
-            if (!currentSources && currentView != null && currentView.isValid() &&
-                currentNetwork != null && preview.getPlanningAttempt() <
-                      MAX_PREVIEW_PLANNING_ATTEMPTS) {
+            if (outcome != null && !currentSources && currentView != null && currentView.isValid() &&
+                    currentNetwork != null && preview.getPlanningAttempt() <
+                    MAX_PREVIEW_PLANNING_ATTEMPTS) {
                 World world = DimensionManager.getWorld(capture.dimensionId);
                 if (world != null && !world.isRemote) {
                     long recaptureStarted = System.nanoTime();
+                    long recaptureCpuStarted = mekanism.qioprocessing.common.planning.QIOPlanningMetrics.cpuNow();
                     PlanningCaptureResult refreshed = capturePlanning(world, currentNetwork,
-                          currentView.getSnapshot(), preview.getTarget());
+                            currentView.getSnapshot(), preview.getTarget());
                     long recaptureNanos = Math.max(0,
-                          System.nanoTime() - recaptureStarted);
+                            System.nanoTime() - recaptureStarted);
                     if (refreshed.getCapture() != null && preview.retry(recaptureNanos,
-                          routePreparationNanos, planningNanos,
-                          completed.getElapsedNanos())) {
-                        if (submitPreview(preview, refreshed.getCapture())) {
+                            routePreparationNanos, planningNanos,
+                            completed.getQueueNanos(), completed.getExecutionNanos(),
+                            completed.getCompletionWaitNanos())) {
+                        preview.recordMainCpu(recaptureCpuStarted);
+                        RequestStatus submitted = submitPreview(preview, refreshed.getCapture());
+                        if (submitted == RequestStatus.ACCEPTED) {
                             return;
                         }
                         preview.complete(QIOPlanningResult.failure(
-                              QIOPlanningResult.Status.INTERNAL_ERROR,
-                              "QIO planning service stopped during retry", 0, 0), 0, 0, 0);
+                                        QIOPlanningResult.Status.INTERNAL_ERROR,
+                                        "QIO planning retry submission: " + submitted.name(), 0, 0),
+                                0, 0, 0, 0, 0);
                         return;
                     }
                 }
@@ -796,9 +928,9 @@ public final class QIOOrderService {
         }
 
         QIOPlanningResult result;
-        if (!currentSources) {
-            result = QIOPlanningResult.failure(QIOPlanningResult.Status.INTERNAL_ERROR,
-                  "QIO planning inputs changed repeatedly before publication", 0, 0);
+        if (outcome != null && !currentSources) {
+            result = QIOPlanningResult.failure(QIOPlanningResult.Status.VERSION_CHANGED,
+                    "QIO planning inputs changed repeatedly before publication", 0, 0);
         } else if (outcome != null) {
             result = outcome.result;
         } else {
@@ -807,12 +939,19 @@ public final class QIOOrderService {
                 case TIMED_OUT -> QIOPlanningResult.Status.TOO_COMPLEX;
                 default -> QIOPlanningResult.Status.INTERNAL_ERROR;
             };
+            if (completed.getError() instanceof mekanism.qioprocessing.common.planning.QIOPlanningLimitException) {
+                status = QIOPlanningResult.Status.TOO_COMPLEX;
+            }
+            if (completed.getError() instanceof mekanism.qioprocessing.common.planning.QIOPlanningContextException context) {
+                status = context.getStatus();
+            }
             String diagnostic = completed.getError() == null ? completed.getStatus().name() :
-                  completed.getError().getMessage();
+                    completed.getError().getMessage();
             result = QIOPlanningResult.failure(status, diagnostic, 0, 0);
         }
         preview.complete(result, routePreparationNanos, planningNanos,
-              completed.getElapsedNanos());
+                completed.getQueueNanos(), completed.getExecutionNanos(),
+                completed.getCompletionWaitNanos());
     }
 
     private void expire(long currentTick) {
@@ -827,28 +966,28 @@ public final class QIOOrderService {
     }
 
     private static boolean matchesCurrentSources(QIOPlanSourceRevisions revisions,
-          IQIOStorageView view, long providerRevision, long taskRevision) {
+                                                 IQIOStorageView view, long providerRevision, long taskRevision) {
         return revisions.getContentRevision() == view.getContentsRevision() &&
-              revisions.getCapacityRevision() == view.getCapacityRevision() &&
-              revisions.getClaimRevision() == view.getClaimRevision() &&
-              revisions.getAccessRevision() == view.getAccessRevision() &&
-              revisions.getRecipeCatalogRevision() == networkRecipeRevision(
-                    view.getFrequencyUUID()) &&
-              revisions.getProviderCatalogRevision() == providerRevision &&
-              revisions.getPolicyRevision() == networkPolicyRevision(view.getFrequencyUUID()) &&
-              revisions.getTaskCommitmentRevision() == taskRevision;
+                revisions.getCapacityRevision() == view.getCapacityRevision() &&
+                revisions.getClaimRevision() == view.getClaimRevision() &&
+                revisions.getAccessRevision() == view.getAccessRevision() &&
+                revisions.getRecipeCatalogRevision() == networkRecipeRevision(
+                        view.getFrequencyUUID()) &&
+                revisions.getProviderCatalogRevision() == providerRevision &&
+                revisions.getPolicyRevision() == networkPolicyRevision(view.getFrequencyUUID()) &&
+                revisions.getTaskCommitmentRevision() == taskRevision;
     }
 
     private static QIOProcessingNetworkData network(QIOFrequencyReference frequency) {
         return QIOProcessingNetworkManager.INSTANCE.getOrCreate(frequency.getFrequencyUUID(),
-              new QIOFrequencyIdentitySnapshot(frequency.getFrequencyName(),
-                    frequency.getOwnerUUID(), frequency.getSecurityMode()));
+                new QIOFrequencyIdentitySnapshot(frequency.getFrequencyName(),
+                        frequency.getOwnerUUID(), frequency.getSecurityMode()));
     }
 
     private static boolean isLive(QIOOrderPreview.State state) {
         return state == QIOOrderPreview.State.PREPARING ||
-              state == QIOOrderPreview.State.PLANNING || state == QIOOrderPreview.State.READY ||
-              state == QIOOrderPreview.State.FAILED;
+                state == QIOOrderPreview.State.PLANNING || state == QIOOrderPreview.State.READY ||
+                state == QIOOrderPreview.State.FAILED;
     }
 
     private static void cancelWorker(QIOOrderPreview preview) {
@@ -856,6 +995,7 @@ public final class QIOOrderService {
         QIOPlanningExecutor executor = QIOPlanningService.INSTANCE.getExecutor();
         if (taskId != null && executor != null) {
             executor.cancel(taskId);
+            preview.recordMetrics(executor.snapshotMetrics(taskId));
         }
     }
 
@@ -882,15 +1022,15 @@ public final class QIOOrderService {
     private static long networkRecipeRevision(UUID frequencyUUID) {
         QIOProcessingNetworkData network = QIOProcessingNetworkManager.INSTANCE.get(frequencyUUID);
         return network == null ? -1 : QIORecipeCatalogService.INSTANCE.getRevision(
-              network.getWorkbenchConfiguration());
+                network.getWorkbenchPlanningConfiguration());
     }
 
     private static long configurationRevision(QIOProcessingNetworkData network) {
         long configured = mixRevision(mixRevision(network.getPolicies().getRevision(),
-              network.getAutomationRecipeProfiles().getRevision()),
-              network.getWorkbenchConfiguration().getRevision());
+                        network.getAutomationRecipeProfiles().getRevision()),
+                network.getWorkbenchPlanningConfiguration().getRevision());
         return mixRevision(configured, PLANNING_CONFIGURATION_ALGORITHM_REVISION) &
-              Long.MAX_VALUE;
+                Long.MAX_VALUE;
     }
 
     @Nonnull
@@ -901,19 +1041,24 @@ public final class QIOOrderService {
             return network.getProviderCatalog();
         }
         QIOProviderRouteCatalog.Snapshot onlineProviders = QIOProviderRouteCatalog.capture(
-              network.getFrequencyUUID(), QIOAutomationDeviceRegistry.INSTANCE,
-              (provider, route, recipe) -> 0);
+                network.getFrequencyUUID(), QIOAutomationDeviceRegistry.INSTANCE,
+                (provider, route, recipe) -> 0);
         network.observeProviderCatalog(onlineProviders,
-              MekanismConfig.current().qioProcessing.providerRoutesPerFrequency.val());
+                MekanismConfig.current().qioProcessing.providerRoutesPerFrequency.val());
         observedProviderDeviceRevisions.put(network.getFrequencyUUID(),
-              network.getAutomationDevices().getRevision());
+                network.getAutomationDevices().getRevision());
         return network.getProviderCatalog();
+    }
+
+    /** Refreshes the frequency-scoped Provider projection before a terminal reads it. */
+    public synchronized void refreshProviderCatalog(@Nonnull QIOProcessingNetworkData network) {
+        observeProviders(Objects.requireNonNull(network, "network"));
     }
 
     @Nonnull
     private EffectiveRouteView effectiveRouteView(QIOProcessingNetworkData network,
-          QIOProviderCatalog providerState, QIORecipeCatalogService.State recipeState,
-          List<LoadedProcessor> processors) {
+                                                  QIOProviderCatalog providerState, QIORecipeCatalogService.State recipeState,
+                                                  List<LoadedProcessor> processors) {
         List<UUID> processorIds = new ArrayList<>(processors.size());
         for (LoadedProcessor processor : processors) {
             processorIds.add(processor.processorUUID());
@@ -922,15 +1067,15 @@ public final class QIOOrderService {
         long policyRevision = configurationRevision(network);
         long deviceRevision = network.getAutomationDevices().getRevision();
         if (current != null && current.matches(recipeState.getRevision(),
-              providerState.getRevision(), providerState.getAvailabilityRevision(),
-              policyRevision, deviceRevision, processorIds)) {
+                providerState.getRevision(), providerState.getAvailabilityRevision(),
+                policyRevision, deviceRevision, processorIds, recipeState.getSnapshot())) {
             return current;
         }
 
         List<QIOPlanningRoute> providerRoutes = providerState.getRoutes(network.getPolicies(),
-              network.getAutomationRecipeProfiles());
+                network.getAutomationRecipeProfiles());
         QIOPlanningRouteClosure.ProviderIndex providerIndex =
-              QIOPlanningRouteClosure.indexProviders(providerRoutes);
+                QIOPlanningRouteClosure.indexProviders(providerRoutes);
         Map<ResourceLocation, Long> workbenchPriorities = new LinkedHashMap<>();
         Set<ResourceLocation> visibleWorkbenchRecipes = new LinkedHashSet<>();
         QIOWorkbenchRecipeCatalog.Snapshot workbench = recipeState.getSnapshot();
@@ -939,8 +1084,8 @@ public final class QIOOrderService {
             List<String> defaultOrder = new ArrayList<>(recipeIds.size());
             recipeIds.forEach(recipeId -> defaultOrder.add(recipeId.toString()));
             String productKey = QIOWorkbenchRecipeCatalog.productKey(output);
-            List<String> ordered = network.getWorkbenchConfiguration().orderedRecipes(
-                  productKey, defaultOrder);
+            List<String> ordered = network.getWorkbenchPlanningConfiguration().orderedRecipes(
+                    productKey, defaultOrder);
             for (int index = 0; index < ordered.size(); index++) {
                 ResourceLocation recipeId;
                 try {
@@ -949,9 +1094,9 @@ public final class QIOOrderService {
                     continue;
                 }
                 QIOWorkbenchRecipeCatalog.RecipeDefinition definition =
-                      workbench.getRecipeDefinition(recipeId);
-                if (definition == null || !network.getWorkbenchConfiguration()
-                      .isRecipeEnabled(recipeId.toString(), definition.getSignature())) {
+                        workbench.getRecipeDefinition(recipeId);
+                if (definition == null || !network.getWorkbenchPlanningConfiguration()
+                        .isRecipeEnabled(recipeId.toString(), definition.getSignature())) {
                     continue;
                 }
                 // A configured recipe is useful in the directory even while its execution
@@ -963,38 +1108,38 @@ public final class QIOOrderService {
             }
         }
         Set<PortableResourceDescriptor> schedulable = new LinkedHashSet<>(
-              providerIndex.getOutputs());
+                providerIndex.getOutputs());
         schedulable.addAll(recipeState.getSnapshot().getDeclaredOutputs(
-              workbenchPriorities.keySet()));
+                workbenchPriorities.keySet()));
         Set<PortableResourceDescriptor> visible = new LinkedHashSet<>(schedulable);
         visible.addAll(recipeState.getSnapshot().getDeclaredOutputs(visibleWorkbenchRecipes));
         List<PortableResourceDescriptor> orderedOutputs = new ArrayList<>(schedulable);
         Collections.sort(orderedOutputs);
         Set<PortableResourceDescriptor> immutableOutputs = Collections.unmodifiableSet(
-              new LinkedHashSet<>(orderedOutputs));
+                new LinkedHashSet<>(orderedOutputs));
         List<PortableResourceDescriptor> orderedVisible = new ArrayList<>(visible);
         Collections.sort(orderedVisible);
         Set<PortableResourceDescriptor> immutableVisibleOutputs =
-              Collections.unmodifiableSet(new LinkedHashSet<>(orderedVisible));
+                Collections.unmodifiableSet(new LinkedHashSet<>(orderedVisible));
         long revision = routeViewRevision(recipeState.getRevision(), providerState,
-              policyRevision, deviceRevision, processorIds, immutableOutputs,
-              immutableVisibleOutputs);
+                policyRevision, deviceRevision, processorIds, immutableOutputs,
+                immutableVisibleOutputs);
         EffectiveRouteView next = new EffectiveRouteView(recipeState.getRevision(),
-              providerState.getRevision(), providerState.getAvailabilityRevision(),
-              policyRevision, deviceRevision, processorIds, providerIndex,
-              workbenchPriorities, immutableOutputs, immutableVisibleOutputs, revision);
+                providerState.getRevision(), providerState.getAvailabilityRevision(),
+                policyRevision, deviceRevision, processorIds, providerIndex,
+                workbenchPriorities, immutableOutputs, immutableVisibleOutputs, revision, recipeState.getSnapshot());
         effectiveRouteViews.put(network.getFrequencyUUID(), next);
         return next;
     }
 
     @Nullable
     private static boolean workbenchRecipeAvailableOnAnyProcessor(
-          QIOProcessingNetworkData network,
-          List<LoadedProcessor> processors, ResourceLocation recipeId) {
+            QIOProcessingNetworkData network,
+            List<LoadedProcessor> processors, ResourceLocation recipeId) {
         String id = recipeId.toString();
         for (LoadedProcessor processor : processors) {
             if (network.getPolicies().isRouteEnabled(processor.processorUUID(),
-                  QIOWorkbenchRecipeCatalog.PROVIDER_ID.toString(), id, id)) {
+                    QIOWorkbenchRecipeCatalog.PROVIDER_ID.toString(), id, id)) {
                 return true;
             }
         }
@@ -1003,22 +1148,24 @@ public final class QIOOrderService {
 
     private static long providerSourceRevision(QIOProviderCatalog providers) {
         return mixRevision(providers.getRevision(), providers.getAvailabilityRevision()) &
-              Long.MAX_VALUE;
+                Long.MAX_VALUE;
     }
 
     private static long routeViewRevision(long recipeRevision, QIOProviderCatalog providers,
-          long policyRevision, long deviceRevision, List<UUID> processorIds,
-          Set<PortableResourceDescriptor> outputs,
-          Set<PortableResourceDescriptor> visibleOutputs) {
+                                          long policyRevision, long deviceRevision, List<UUID> processorIds,
+                                          Set<PortableResourceDescriptor> outputs,
+                                          Set<PortableResourceDescriptor> visibleOutputs) {
         long value = mixRevision(recipeRevision, providers.getRevision());
         value = mixRevision(value, providers.getAvailabilityRevision());
         value = mixRevision(value, policyRevision);
         value = mixRevision(value, deviceRevision);
         for (UUID processorId : processorIds) value = mixRevision(value, processorId.hashCode());
-        for (PortableResourceDescriptor output : outputs) value = mixRevision(value,
-              output.hashCode());
-        for (PortableResourceDescriptor output : visibleOutputs) value = mixRevision(value,
-              output.hashCode());
+        for (PortableResourceDescriptor output : outputs)
+            value = mixRevision(value,
+                    output.hashCode());
+        for (PortableResourceDescriptor output : visibleOutputs)
+            value = mixRevision(value,
+                    output.hashCode());
         return value & Long.MAX_VALUE;
     }
 
@@ -1027,6 +1174,8 @@ public final class QIOOrderService {
     }
 
     private static final class RouteClosureKey {
+        private final long validationRevision;
+        private final int dimension;
 
         private final UUID frequencyUUID;
         private final PortableResourceDescriptor target;
@@ -1040,7 +1189,9 @@ public final class QIOOrderService {
         private final long taskRevision;
 
         private RouteClosureKey(UUID frequencyUUID, PortableResourceDescriptor target,
-              QIOPlanSourceRevisions revisions) {
+                                QIOPlanSourceRevisions revisions, long validationRevision, int dimension) {
+            this.validationRevision = validationRevision;
+            this.dimension = dimension;
             this.frequencyUUID = frequencyUUID;
             this.target = target;
             contentRevision = revisions.getContentRevision();
@@ -1056,25 +1207,26 @@ public final class QIOOrderService {
         @Override
         public boolean equals(Object other) {
             if (!(other instanceof RouteClosureKey key)) return false;
-            return contentRevision == key.contentRevision &&
-                  capacityRevision == key.capacityRevision &&
-                  claimRevision == key.claimRevision && accessRevision == key.accessRevision &&
-                  recipeRevision == key.recipeRevision &&
-                  providerRevision == key.providerRevision &&
-                  policyRevision == key.policyRevision && taskRevision == key.taskRevision &&
-                  frequencyUUID.equals(key.frequencyUUID) && target.equals(key.target);
+            return dimension == key.dimension && validationRevision == key.validationRevision && contentRevision == key.contentRevision &&
+                    capacityRevision == key.capacityRevision &&
+                    claimRevision == key.claimRevision && accessRevision == key.accessRevision &&
+                    recipeRevision == key.recipeRevision &&
+                    providerRevision == key.providerRevision &&
+                    policyRevision == key.policyRevision && taskRevision == key.taskRevision &&
+                    frequencyUUID.equals(key.frequencyUUID) && target.equals(key.target);
         }
 
         @Override
         public int hashCode() {
             return Objects.hash(frequencyUUID, target, contentRevision, capacityRevision,
-                  claimRevision, accessRevision, recipeRevision, providerRevision,
-                  policyRevision, taskRevision);
+                    claimRevision, accessRevision, recipeRevision, providerRevision,
+                    policyRevision, taskRevision, validationRevision, dimension);
         }
     }
 
     private static final class EffectiveRouteView {
 
+        private final QIOWorkbenchRecipeCatalog.Snapshot snapshot;
         private final long recipeRevision;
         private final long providerRevision;
         private final long providerAvailabilityRevision;
@@ -1088,12 +1240,13 @@ public final class QIOOrderService {
         private final long revision;
 
         private EffectiveRouteView(long recipeRevision, long providerRevision,
-              long providerAvailabilityRevision, long policyRevision, long deviceRevision,
-              List<UUID> processorIds,
-              QIOPlanningRouteClosure.ProviderIndex providerIndex,
-              Map<ResourceLocation, Long> workbenchPriorities,
-              Set<PortableResourceDescriptor> schedulableOutputs,
-              Set<PortableResourceDescriptor> visibleOutputs, long revision) {
+                                   long providerAvailabilityRevision, long policyRevision, long deviceRevision,
+                                   List<UUID> processorIds,
+                                   QIOPlanningRouteClosure.ProviderIndex providerIndex,
+                                   Map<ResourceLocation, Long> workbenchPriorities,
+                                   Set<PortableResourceDescriptor> schedulableOutputs,
+                                   Set<PortableResourceDescriptor> visibleOutputs, long revision, QIOWorkbenchRecipeCatalog.Snapshot snapshot) {
+            this.snapshot = snapshot;
             this.recipeRevision = recipeRevision;
             this.providerRevision = providerRevision;
             this.providerAvailabilityRevision = providerAvailabilityRevision;
@@ -1102,20 +1255,20 @@ public final class QIOOrderService {
             this.processorIds = Collections.unmodifiableList(new ArrayList<>(processorIds));
             this.providerIndex = providerIndex;
             this.workbenchPriorities = Collections.unmodifiableMap(new LinkedHashMap<>(
-                  workbenchPriorities));
+                    workbenchPriorities));
             this.schedulableOutputs = schedulableOutputs;
             this.visibleOutputs = visibleOutputs;
             this.revision = revision;
         }
 
         private boolean matches(long recipeRevision, long providerRevision,
-              long providerAvailabilityRevision, long policyRevision, long deviceRevision,
-              List<UUID> processorIds) {
-            return this.recipeRevision == recipeRevision &&
-                  this.providerRevision == providerRevision &&
-                  this.providerAvailabilityRevision == providerAvailabilityRevision &&
-                  this.policyRevision == policyRevision && this.deviceRevision == deviceRevision &&
-                  this.processorIds.equals(processorIds);
+                                long providerAvailabilityRevision, long policyRevision, long deviceRevision,
+                                List<UUID> processorIds, QIOWorkbenchRecipeCatalog.Snapshot snapshot) {
+            return this.snapshot == snapshot && this.recipeRevision == recipeRevision &&
+                    this.providerRevision == providerRevision &&
+                    this.providerAvailabilityRevision == providerAvailabilityRevision &&
+                    this.policyRevision == policyRevision && this.deviceRevision == deviceRevision &&
+                    this.processorIds.equals(processorIds);
         }
     }
 

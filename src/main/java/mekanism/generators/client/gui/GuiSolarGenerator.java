@@ -29,15 +29,15 @@ public class GuiSolarGenerator extends GuiGenerator<TileEntitySolarGenerator, Co
         addButton(new GuiEnergyTab(this, () -> getEnergyTabText(tileEntity.getProduction())));
         addButton(new GuiVerticalPowerBar(this, tileEntity.getEnergyContainer(), 164, 15));
         addButton(new GuiStateTexture(this, 18, 35, tileEntity::canSeeSun,
-              new ResourceLocation(MekanismGenerators.MODID, "gui/sees_sun.png"),
-              new ResourceLocation(MekanismGenerators.MODID, "gui/no_sun.png")));
+                new ResourceLocation(MekanismGenerators.MODID, "gui/sees_sun.png"),
+                new ResourceLocation(MekanismGenerators.MODID, "gui/no_sun.png")));
     }
 
     private List<ITextComponent> getScreenText() {
         return Arrays.asList(
-              energy(tileEntity.getEnergy(), tileEntity.getMaxEnergy()),
-              text(LangUtils.localize("gui.producing") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getProduction()) + "/t"),
-              text(LangUtils.localize("gui.out") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getMaxOutput()) + "/t")
+                energy(tileEntity.getEnergy(), tileEntity.getMaxEnergy()),
+                text(LangUtils.localize("gui.producing") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getProduction()) + "/t"),
+                text(LangUtils.localize("gui.out") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getMaxOutput()) + "/t")
         );
     }
 }

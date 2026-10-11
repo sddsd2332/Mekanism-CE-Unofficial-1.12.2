@@ -39,17 +39,17 @@ public final class PacketQIOAutomationBinding implements IMessageHandler<PacketQ
 
     private static void handle(Message message, EntityPlayer player) {
         if (!(player.openContainer instanceof MekanismTileContainer<?> container) ||
-            container.windowId != message.windowId || !container.canInteractWith(player)) {
+                container.windowId != message.windowId || !container.canInteractWith(player)) {
             return;
         }
         TileEntity tile = message.position.getTileEntity(player.world);
         if (tile == null || tile != container.getTileEntity() ||
-            !PacketHandler.canAccessTile(player, tile, true)) {
+                !PacketHandler.canAccessTile(player, tile, true)) {
             return;
         }
         if (message.bind) {
             QIOAutomationBindingService.bind(tile, message.identity, message.frequencyUUID,
-                  player.getUniqueID());
+                    player.getUniqueID());
         } else {
             QIOAutomationBindingService.unbind(tile, player.getUniqueID());
         }
@@ -70,7 +70,7 @@ public final class PacketQIOAutomationBinding implements IMessageHandler<PacketQ
         }
 
         private Message(boolean bind, int windowId, Coord4D position,
-              @Nullable FrequencyIdentity identity, @Nullable UUID frequencyUUID) {
+                        @Nullable FrequencyIdentity identity, @Nullable UUID frequencyUUID) {
             this.bind = bind;
             this.windowId = windowId;
             this.position = position;
@@ -80,12 +80,12 @@ public final class PacketQIOAutomationBinding implements IMessageHandler<PacketQ
         }
 
         public static Message bind(int windowId, TileEntity tile, FrequencyIdentity identity,
-              UUID frequencyUUID) {
+                                   UUID frequencyUUID) {
             return new Message(true, windowId, Coord4D.get(tile), identity, frequencyUUID);
         }
 
         static Message bind(int windowId, Coord4D position, FrequencyIdentity identity,
-              UUID frequencyUUID) {
+                            UUID frequencyUUID) {
             return new Message(true, windowId, position, identity, frequencyUUID);
         }
 

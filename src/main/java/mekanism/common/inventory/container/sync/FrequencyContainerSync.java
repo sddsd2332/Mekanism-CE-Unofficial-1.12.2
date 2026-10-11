@@ -10,7 +10,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
-/** Frequency state and list trackers for containers that cannot extend FrequencyItemContainer. */
+/**
+ * Frequency state and list trackers for containers that cannot extend FrequencyItemContainer.
+ */
 public final class FrequencyContainerSync<FREQ extends Frequency> {
 
     private List<FREQ> publicCache = Collections.emptyList();
@@ -21,7 +23,7 @@ public final class FrequencyContainerSync<FREQ extends Frequency> {
     private boolean tracking;
 
     public void addTrackers(MekanismContainer container, FrequencyType<FREQ> frequencyType,
-          Supplier<FREQ> serverFrequency) {
+                            Supplier<FREQ> serverFrequency) {
         if (tracking) {
             throw new IllegalStateException("Frequency container sync is already tracking a container");
         }
@@ -34,11 +36,11 @@ public final class FrequencyContainerSync<FREQ extends Frequency> {
         } else {
             container.track(SyncableFrequency.create(frequencyType, serverFrequency, this::setFrequency));
             container.track(SyncableFrequencyList.create(frequencyType,
-                  () -> frequencyType.getManager(null, SecurityMode.PUBLIC).getFrequencies(), value -> publicCache = value));
+                    () -> frequencyType.getManager(null, SecurityMode.PUBLIC).getFrequencies(), value -> publicCache = value));
             container.track(SyncableFrequencyList.create(frequencyType,
-                  () -> frequencyType.getManager(container.getPlayerUUID(), SecurityMode.PRIVATE).getFrequencies(), value -> privateCache = value));
+                    () -> frequencyType.getManager(container.getPlayerUUID(), SecurityMode.PRIVATE).getFrequencies(), value -> privateCache = value));
             container.track(SyncableFrequencyList.create(frequencyType,
-                  () -> frequencyType.getManager(container.getPlayerUUID(), SecurityMode.TRUSTED).getFrequencies(), value -> trustedCache = value));
+                    () -> frequencyType.getManager(container.getPlayerUUID(), SecurityMode.TRUSTED).getFrequencies(), value -> trustedCache = value));
         }
     }
 

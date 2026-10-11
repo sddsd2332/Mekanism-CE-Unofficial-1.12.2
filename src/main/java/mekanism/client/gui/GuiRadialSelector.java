@@ -159,7 +159,7 @@ public class GuiRadialSelector extends GuiScreen {
                 GlStateManager.color(0.8F, 0.8F, 0.8F, 0.3F);
                 drawTorus(0, 360, 0, SELECT_RADIUS_WITH_PARENT);
             } else {
-                GlStateManager.color( 0.3F, 0.3F, 0.3F, 0.5F);
+                GlStateManager.color(0.3F, 0.3F, 0.3F, 0.5F);
                 drawTorus(0, 360, 0, SELECT_RADIUS_WITH_PARENT);
             }
             MekanismRenderer.resetColor();
@@ -339,7 +339,6 @@ public class GuiRadialSelector extends GuiScreen {
             }
         }
     }
-
 
 
     public static final float DEG_TO_RAD = ((float) Math.PI / 180F);

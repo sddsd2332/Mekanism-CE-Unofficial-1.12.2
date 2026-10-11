@@ -24,9 +24,9 @@ public class AmbientAccumulator {
     public static final String NAME = Mekanism.MOD_NAME + " Ambient Accumulator";
 
     @ZenMethod
-    public static void addRecipe(int Input, IGasStack gasOutput,double chance) {
+    public static void addRecipe(int Input, IGasStack gasOutput, double chance) {
         if (IngredientHelper.checkNotNull(NAME, gasOutput)) {
-            CrafttweakerIntegration.LATE_ADDITIONS.add(new AddMekanismRecipe<>(NAME, Recipe.AMBIENT_ACCUMULATOR, new AmbientGasRecipe(Input, GasHelper.toGas(gasOutput),chance)));
+            CrafttweakerIntegration.LATE_ADDITIONS.add(new AddMekanismRecipe<>(NAME, Recipe.AMBIENT_ACCUMULATOR, new AmbientGasRecipe(Input, GasHelper.toGas(gasOutput), chance)));
         }
     }
 

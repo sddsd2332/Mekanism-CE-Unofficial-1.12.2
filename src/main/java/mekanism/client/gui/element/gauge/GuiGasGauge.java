@@ -46,7 +46,7 @@ public class GuiGasGauge extends GuiTankGauge<GasStack, IExtendedGasTank> {
     }
 
     public GuiGasGauge(Supplier<IExtendedGasTank> tankSupplier, Supplier<List<IExtendedGasTank>> tanksSupplier, GaugeType type, IGuiWrapper gui, int x, int y,
-          int sizeX, int sizeY) {
+                       int sizeX, int sizeY) {
         super(type, gui, x, y, sizeX, sizeY, new ITankInfoHandler<IExtendedGasTank>() {
             @Nullable
             @Override
@@ -130,15 +130,15 @@ public class GuiGasGauge extends GuiTankGauge<GasStack, IExtendedGasTank> {
         tooltip.add(stack.getGas().getLocalizedName() + ": " + amountText);
         if (stack.getGas().isRadiation()) {
             tooltip.add(EnumColor.GREY + LangUtils.localize("chemical.mekanism.attribute.radiation") + EnumColor.INDIGO +
-                  UnitDisplayUtils.getDisplayShort(stack.getGas().getRadioactivity(), UnitDisplayUtils.RadiationUnit.SVH, 2));
+                    UnitDisplayUtils.getDisplayShort(stack.getGas().getRadioactivity(), UnitDisplayUtils.RadiationUnit.SVH, 2));
         }
         if (RecipeHandler.Recipe.GAS_FUEL_TO_ENERGY_RECIPE.containsRecipe(stack.getGas())) {
             GasStackFuelToEnergyRecipe recipe = RecipeHandler.getGasStackFuelToEnergyRecipe(stack);
             if (recipe != null) {
                 tooltip.add(LangUtils.localize("chemical.mekanism.attribute.fuel.burn_ticks") + EnumColor.INDIGO + recipe.getInput().ingredient.amount +
-                      TextFormatting.RESET + " t");
+                        TextFormatting.RESET + " t");
                 tooltip.add(LangUtils.localize("chemical.mekanism.attribute.fuel.energy_density") + EnumColor.INDIGO +
-                      MekanismUtils.getEnergyDisplay(recipe.getOutput().energyOutput * recipe.getInput().ingredient.amount));
+                        MekanismUtils.getEnergyDisplay(recipe.getOutput().energyOutput * recipe.getInput().ingredient.amount));
             }
         }
         return tooltip;

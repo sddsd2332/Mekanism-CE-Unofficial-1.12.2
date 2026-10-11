@@ -3,7 +3,10 @@ package mekanism.common.tile.machine;
 import io.netty.buffer.ByteBuf;
 import mekanism.api.*;
 import mekanism.common.Mekanism;
-import mekanism.common.base.*;
+import mekanism.common.base.IActiveState;
+import mekanism.common.base.IBoundingBlock;
+import mekanism.common.base.IRedstoneControl;
+import mekanism.common.base.ISpecialSelectionWireframeTile;
 import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.capabilities.energy.MachineEnergyContainer;
 import mekanism.common.capabilities.holder.energy.EnergyContainerHelper;
@@ -64,7 +67,7 @@ public class TileEntitySeismicVibrator extends TileEntityElectricBlock implement
     protected IEnergyContainerHolder getInitialEnergyContainers(IContentsListener listener) {
         EnergyContainerHelper builder = createEnergyContainerHelper();
         builder.addContainer(energyContainer = MachineEnergyContainer.input(this::getEnergy, this::setEnergy, this::getMaxEnergy, () -> BASE_ENERGY_PER_TICK, listener),
-              RelativeSide.BACK);
+                RelativeSide.BACK);
         return builder.build();
     }
 
@@ -248,7 +251,8 @@ public class TileEntitySeismicVibrator extends TileEntityElectricBlock implement
     public BlockFaceShape getOffsetBlockFaceShape(@Nonnull EnumFacing face, @Nonnull Vec3i offset) {
         return BlockFaceShape.SOLID;
     }
-@Override
+
+    @Override
     @SideOnly(Side.CLIENT)
     public Class<?> getSelectionWireframeModelClass() {
         return mekanism.client.model.ModelSeismicVibrator.class;

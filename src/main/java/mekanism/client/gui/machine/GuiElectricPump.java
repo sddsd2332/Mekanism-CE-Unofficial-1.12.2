@@ -37,9 +37,9 @@ public class GuiElectricPump extends GuiMekanismTile<TileEntityElectricPump, Con
         addButton(new GuiInnerScreen(this, 54, 23, 80, 42, this::getScreenText));
         addButton(new GuiDownArrow(this, 32, 39));
         addButton(new GuiVerticalPowerBar(this, tileEntity.getEnergyContainer(), 164, 15))
-              .warning(WarningType.NOT_ENOUGH_ENERGY, () -> tileEntity.getEnergy() < tileEntity.energyPerTick || tileEntity.getEnergy() == 0);
+                .warning(WarningType.NOT_ENOUGH_ENERGY, () -> tileEntity.getEnergy() < tileEntity.energyPerTick || tileEntity.getEnergy() == 0);
         addButton(new GuiFluidGauge(this, tileEntity.fluidTank, GuiFluidGauge.Type.STANDARD, 6, 13))
-              .warning(WarningType.NO_SPACE_IN_OUTPUT, () -> tileEntity.fluidTank.getNeeded() < tileEntity.estimateIncrementAmount());
+                .warning(WarningType.NO_SPACE_IN_OUTPUT, () -> tileEntity.fluidTank.getNeeded() < tileEntity.estimateIncrementAmount());
         addButton(new GuiEnergyTab(this, tileEntity.getEnergyContainer(), tileEntity::usedEnergy));
     }
 

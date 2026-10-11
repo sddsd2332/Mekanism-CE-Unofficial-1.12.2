@@ -9,7 +9,9 @@ import net.minecraft.util.text.ITextComponent;
 
 import java.util.List;
 
-/** Modal confirmation dialog matching the 26.2 frequency deletion flow. */
+/**
+ * Modal confirmation dialog matching the 26.2 frequency deletion flow.
+ */
 public class GuiConfirmationDialog extends GuiWindow {
 
     private static final int WIDTH = 140;
@@ -18,25 +20,25 @@ public class GuiConfirmationDialog extends GuiWindow {
     private final List<String> lines;
 
     private GuiConfirmationDialog(IGuiWrapper gui, int x, int y, int height, ITextComponent message,
-          Runnable onConfirm, DialogType type) {
+                                  Runnable onConfirm, DialogType type) {
         super(gui, x, y, WIDTH, height, WindowType.CONFIRMATION);
         lines = getFont().listFormattedStringToWidth(message.getFormattedText(), WIDTH - 2 * PADDING);
         interactionStrategy = InteractionStrategy.NONE;
         active = true;
         addChild(new TranslationButton(gui, relativeX + WIDTH / 2 - 51, relativeY + height - 24, 50, 18,
-              MekanismLang.BUTTON_CANCEL, this::close));
+                MekanismLang.BUTTON_CANCEL, this::close));
         addChild(new TranslationButton(gui, relativeX + WIDTH / 2 + 1, relativeY + height - 24, 50, 18,
-              MekanismLang.BUTTON_CONFIRM, () -> {
-                  onConfirm.run();
-                  close();
-              }, null, type == DialogType.DANGER ? () -> EnumColor.RED : null));
+                MekanismLang.BUTTON_CONFIRM, () -> {
+            onConfirm.run();
+            close();
+        }, null, type == DialogType.DANGER ? () -> EnumColor.RED : null));
     }
 
     public static void show(IGuiWrapper gui, ITextComponent message, Runnable onConfirm, DialogType type) {
         int textHeight = gui.getFont().listFormattedStringToWidth(message.getFormattedText(), WIDTH - 2 * PADDING).size() * 9;
         int height = 33 + Math.max(9, textHeight);
         gui.addWindow(new GuiConfirmationDialog(gui, (gui.getWidth() - WIDTH) / 2,
-              (gui.getHeight() - height) / 2, height, message, onConfirm, type));
+                (gui.getHeight() - height) / 2, height, message, onConfirm, type));
     }
 
     @Override

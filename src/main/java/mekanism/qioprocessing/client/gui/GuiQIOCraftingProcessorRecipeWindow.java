@@ -15,7 +15,10 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-/** Movable display window for one factory crafting lane. */
+/**
+ * Movable display window for one factory crafting lane.
+ */
+
 /**
  * QIO 处理模块中的 GuiQIOCraftingProcessorRecipeWindow 类型。
  *
@@ -33,9 +36,9 @@ final class GuiQIOCraftingProcessorRecipeWindow extends GuiWindow {
     private boolean closed;
 
     GuiQIOCraftingProcessorRecipeWindow(IGuiWrapper gui, int x, int y,
-          QIOCraftingProcessor processor, int lane, Runnable closeHandler) {
+                                        QIOCraftingProcessor processor, int lane, Runnable closeHandler) {
         super(gui, x, y, WIDTH, HEIGHT, new SelectedWindowData(
-              QIOProcessingWindowTypes.CRAFTING_PROCESSOR_RECIPE, (byte) lane));
+                QIOProcessingWindowTypes.CRAFTING_PROCESSOR_RECIPE, (byte) lane));
         this.processor = Objects.requireNonNull(processor, "processor");
         this.closeHandler = Objects.requireNonNull(closeHandler, "closeHandler");
         if (lane < 0 || lane >= processor.getVisibleLaneCount()) {
@@ -44,18 +47,18 @@ final class GuiQIOCraftingProcessorRecipeWindow extends GuiWindow {
         this.lane = lane;
         interactionStrategy = InteractionStrategy.ALL;
         addChild(new GuiQIOVirtualWorkbenchRecipe(gui, relativeX + 8,
-              relativeY + 27, this::displayLane,
-              () -> processor.getScaledLaneProgress(this.lane), true));
+                relativeY + 27, this::displayLane,
+                () -> processor.getScaledLaneProgress(this.lane), true));
         addChild(new GuiInnerScreen(gui, relativeX + 6, relativeY + 84,
-              WIDTH - 12, 29, this::laneInformation).clearFormat().padding(3)
-              .clearSpacing().textScale(0.75F));
+                WIDTH - 12, 29, this::laneInformation).clearFormat().padding(3)
+                .clearSpacing().textScale(0.75F));
     }
 
     @Override
     public void renderForeground(int mouseX, int mouseY) {
         super.renderForeground(mouseX, mouseY);
         drawTitleText(new TextComponentTranslation(
-              "gui.mekanismqioprocessing.processor_lane_recipe_title", lane + 1), 5);
+                "gui.mekanismqioprocessing.processor_lane_recipe_title", lane + 1), 5);
     }
 
     @Override
@@ -75,15 +78,15 @@ final class GuiQIOCraftingProcessorRecipeWindow extends GuiWindow {
     private List<ITextComponent> laneInformation() {
         QIOProcessorDisplaySnapshot.Lane display = displayLane();
         ITextComponent state = QIOProcessorGuiText.laneState(
-              display == null ? null : display.getState());
+                display == null ? null : display.getState());
         long batch = display == null ? 0 : display.getOperationCount();
         return Arrays.asList(
-              new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.processor_lane_state_batch",
-                    state, TextUtils.format(batch)),
-              new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.processor_lane_progress",
-                    TextUtils.format(processor.getLaneCurrentTicks(lane)),
-                    TextUtils.format(processor.getLaneTotalTicks(lane))));
+                new TextComponentTranslation(
+                        "gui.mekanismqioprocessing.processor_lane_state_batch",
+                        state, TextUtils.format(batch)),
+                new TextComponentTranslation(
+                        "gui.mekanismqioprocessing.processor_lane_progress",
+                        TextUtils.format(processor.getLaneCurrentTicks(lane)),
+                        TextUtils.format(processor.getLaneTotalTicks(lane))));
     }
 }

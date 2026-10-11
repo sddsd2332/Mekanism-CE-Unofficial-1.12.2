@@ -33,7 +33,7 @@ public class GuiSortingTab extends GuiInsetElement<TileEntityFactory> {
     public void drawBackground(int mouseX, int mouseY, float partialTicks) {
         super.drawBackground(mouseX, mouseY, partialTicks);
         drawScaledScrollingString(new TextComponentString(LangUtils.transOnOff(dataSource.isSorting())), 0, 24, TextAlignment.CENTER, titleTextColor(), width, 3,
-              false, 1, getMillis());
+                false, 1, getMillis());
     }
 
     @Override

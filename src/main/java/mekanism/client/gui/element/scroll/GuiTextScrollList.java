@@ -72,7 +72,7 @@ public class GuiTextScrollList extends GuiScrollList {
 
     @Override
     public void renderForeground(int mouseX, int mouseY) {
-        super.renderForeground( mouseX, mouseY);
+        super.renderForeground(mouseX, mouseY);
         if (!textEntries.isEmpty()) {
             //Render the text into the entries
             int scrollIndex = getCurrentSelection();
@@ -82,7 +82,7 @@ public class GuiTextScrollList extends GuiScrollList {
                 int index = scrollIndex + i;
                 if (index < maxElements) {
                     drawScaledScrollingString(new TextComponentGroup().getString(textEntries.get(index)), 0, 2 + elementHeight * i,
-                          TextAlignment.LEFT, screenTextColor(), barXShift, 2, false, 0.8F, GuiElement.getMillis());
+                            TextAlignment.LEFT, screenTextColor(), barXShift, 2, false, 0.8F, GuiElement.getMillis());
                 }
             }
         }
@@ -94,7 +94,7 @@ public class GuiTextScrollList extends GuiScrollList {
         int scrollIndex = getCurrentSelection();
         if (selected != -1 && selected >= scrollIndex && selected <= scrollIndex + getFocusedElements() - 1) {
             blit(relativeX + 1, relativeY + 1 + (selected - scrollIndex) * elementHeight, barXShift - 2, elementHeight,
-                  4, 2, 2, 2, TEXTURE_WIDTH, TEXTURE_HEIGHT);
+                    4, 2, 2, 2, TEXTURE_WIDTH, TEXTURE_HEIGHT);
         }
     }
 

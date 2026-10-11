@@ -7,7 +7,7 @@ import mekanism.common.lib.distribution.Target;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 
-public class EnergySaveTarget extends Target<EnergySaveTarget.SaveHandler,Double,Double> {
+public class EnergySaveTarget extends Target<EnergySaveTarget.SaveHandler, Double, Double> {
 
     public EnergySaveTarget(int expectedSize) {
         super(expectedSize);

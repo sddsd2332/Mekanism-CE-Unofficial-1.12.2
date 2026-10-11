@@ -20,14 +20,18 @@ public interface IQIODriveItem {
         return null;
     }
 
-    /** Returns the registered capacity definition used by this physical drive. */
+    /**
+     * Returns the registered capacity definition used by this physical drive.
+     */
     @Nullable
     default QIODriveDefinition getDriveDefinition(ItemStack stack) {
         QIODriveTier tier = getDriveTier();
         return tier == null ? null : tier.getDefinition();
     }
 
-    /** Existing drives remain mixed unless an item explicitly declares a specialization. */
+    /**
+     * Existing drives remain mixed unless an item explicitly declares a specialization.
+     */
     default QIODriveType getDriveType() {
         return QIODriveType.MIXED;
     }
@@ -52,7 +56,7 @@ public interface IQIODriveItem {
         QIODriveType legacyType = getDriveType(stack);
         QIODriveType baseLegacyType = getDriveType();
         return legacyType != null && legacyType != baseLegacyType ? legacyType.getSpecialization() :
-              getDriveSpecialization();
+                getDriveSpecialization();
     }
 
     default long getCountCapacity() {
@@ -96,14 +100,14 @@ public interface IQIODriveItem {
         QIODriveDefinition definition = getDriveDefinition(stack);
         QIODriveSpecialization specialization = getDriveSpecialization(stack);
         return definition == null || specialization == null ? QIOAmount.ZERO :
-              specialization.getExactCountCapacity(definition);
+                specialization.getExactCountCapacity(definition);
     }
 
     default QIOAmount getExactStorageCapacity(ItemStack stack) {
         QIODriveDefinition definition = getDriveDefinition(stack);
         QIODriveSpecialization specialization = getDriveSpecialization(stack);
         return definition == null || specialization == null ? QIOAmount.ZERO :
-              specialization.getExactStorageCapacity(definition);
+                specialization.getExactStorageCapacity(definition);
     }
 
     default boolean hasUnlimitedCountCapacity(ItemStack stack) {
@@ -154,8 +158,8 @@ public interface IQIODriveItem {
     default DriveMetadata getDriveMetadata(ItemStack stack) {
         long count = ItemDataUtils.getLong(stack, NBTConstants.QIO_META_COUNT);
         long storageUnits = ItemDataUtils.hasData(stack, NBTConstants.QIO_META_STORAGE_UNITS) ?
-              ItemDataUtils.getLong(stack, NBTConstants.QIO_META_STORAGE_UNITS) :
-              QIOStorageUnits.toStorageUnits(QIOResourceKind.ITEM, count);
+                ItemDataUtils.getLong(stack, NBTConstants.QIO_META_STORAGE_UNITS) :
+                QIOStorageUnits.toStorageUnits(QIOResourceKind.ITEM, count);
         return new DriveMetadata(count, ItemDataUtils.getInt(stack, NBTConstants.QIO_META_TYPES), storageUnits);
     }
 

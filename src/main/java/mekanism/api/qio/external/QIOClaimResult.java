@@ -2,13 +2,11 @@ package mekanism.api.qio.external;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
-/** Immutable result of an idempotent QIO claim request. */
+/**
+ * Immutable result of an idempotent QIO claim request.
+ */
 public final class QIOClaimResult {
 
     public enum Status {
@@ -35,8 +33,8 @@ public final class QIOClaimResult {
     private final Map<UUID, Long> consumedAmounts;
 
     public QIOClaimResult(@Nonnull UUID requestId, @Nonnull Status status, long claimRevision,
-          @Nullable QIOResourceClaim claim, @Nonnull Map<UUID, Long> committedAmounts,
-          @Nonnull Map<UUID, Long> unavailableAmounts, @Nonnull Map<UUID, Long> consumedAmounts) {
+                          @Nullable QIOResourceClaim claim, @Nonnull Map<UUID, Long> committedAmounts,
+                          @Nonnull Map<UUID, Long> unavailableAmounts, @Nonnull Map<UUID, Long> consumedAmounts) {
         this.requestId = Objects.requireNonNull(requestId, "requestId");
         this.status = Objects.requireNonNull(status, "status");
         if (claimRevision < 0) {
@@ -91,17 +89,17 @@ public final class QIOClaimResult {
         Objects.requireNonNull(amounts, "amounts");
         Map<UUID, Long> copy = new LinkedHashMap<>();
         amounts.entrySet().stream()
-              .sorted(Map.Entry.comparingByKey())
-              .forEach(entry -> {
-                  UUID resource = Objects.requireNonNull(entry.getKey(), "resourceUUID");
-                  Long amount = Objects.requireNonNull(entry.getValue(), "resourceAmount");
-                  if (amount < 0) {
-                      throw new IllegalArgumentException("QIO claim result amounts cannot be negative");
-                  }
-                  if (amount > 0) {
-                      copy.put(resource, amount);
-                  }
-              });
+                .sorted(Map.Entry.comparingByKey())
+                .forEach(entry -> {
+                    UUID resource = Objects.requireNonNull(entry.getKey(), "resourceUUID");
+                    Long amount = Objects.requireNonNull(entry.getValue(), "resourceAmount");
+                    if (amount < 0) {
+                        throw new IllegalArgumentException("QIO claim result amounts cannot be negative");
+                    }
+                    if (amount > 0) {
+                        copy.put(resource, amount);
+                    }
+                });
         return Collections.unmodifiableMap(copy);
     }
 }

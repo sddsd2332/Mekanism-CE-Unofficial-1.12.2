@@ -7,8 +7,9 @@ import mekanism.api.Pos3D;
 import mekanism.client.SparkleAnimation.INodeChecker;
 import mekanism.client.entity.ParticleLaser;
 import mekanism.client.gui.GuiModuleTweaker;
-import mekanism.client.model.QIODriveArrayModel;
+import mekanism.client.gui.qio.*;
 import mekanism.client.gui.robit.*;
+import mekanism.client.model.QIODriveArrayModel;
 import mekanism.client.render.*;
 import mekanism.client.render.bloom.MekaSuitBloomRenderer;
 import mekanism.client.render.entity.RenderBalloon;
@@ -28,10 +29,7 @@ import mekanism.client.render.obj.MekanismOBJLoader;
 import mekanism.client.render.tileentity.*;
 import mekanism.client.render.transmitter.*;
 import mekanism.client.sound.SoundHandler;
-import mekanism.common.CommonProxy;
-import mekanism.common.Mekanism;
-import mekanism.common.MekanismBlocks;
-import mekanism.common.MekanismItems;
+import mekanism.common.*;
 import mekanism.common.base.IFactory.RecipeType;
 import mekanism.common.base.ITierItem;
 import mekanism.common.block.BlockMachine;
@@ -69,22 +67,8 @@ import mekanism.common.tile.multiblock.*;
 import mekanism.common.tile.prefab.TileEntityAdvancedElectricMachine;
 import mekanism.common.tile.prefab.TileEntityDoubleElectricMachine;
 import mekanism.common.tile.prefab.TileEntityElectricMachine;
+import mekanism.common.tile.qio.*;
 import mekanism.common.tile.transmitter.*;
-import mekanism.common.tile.qio.TileEntityQIODriveArray;
-import mekanism.common.tile.qio.TileEntityQIODashboard;
-import mekanism.common.tile.qio.TileEntityQIOComponent;
-import mekanism.common.tile.qio.TileEntityQIOImporter;
-import mekanism.common.tile.qio.TileEntityQIOExporter;
-import mekanism.common.tile.qio.TileEntityQIORedstoneAdapter;
-import mekanism.client.gui.qio.GuiQIODriveArray;
-import mekanism.client.gui.qio.GuiQIOFrequencySelect;
-import mekanism.client.gui.qio.GuiQIODashboard;
-import mekanism.client.gui.qio.GuiPortableQIODashboard;
-import mekanism.client.gui.qio.GuiQIOImporter;
-import mekanism.client.gui.qio.GuiQIOExporter;
-import mekanism.client.gui.qio.GuiQIORedstoneAdapter;
-import mekanism.client.gui.qio.GuiQIOItemFrequencySelect;
-import mekanism.common.QIOGuiConstants;
 import mekanism.common.util.TextComponentGroup;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
@@ -251,6 +235,7 @@ public class ClientProxy extends CommonProxy {
         registerItemRender(MekanismItems.MufflingUpgrade);
         registerItemRender(MekanismItems.GasUpgrade);
         registerItemRender(MekanismItems.AnchorUpgrade);
+        registerItemRender(MekanismItems.ComparatorUpgrade);
         registerItemRender(MekanismItems.StoneGeneratorUpgrade);
         registerItemRender(MekanismItems.Robit);
         registerItemRender(MekanismItems.AtomicDisassembler);
@@ -357,7 +342,7 @@ public class ClientProxy extends CommonProxy {
         registerItemRender(MekanismItems.MODULE_VEIN_MINING);
         registerItemRender(MekanismItems.MODULE_TELEPORTATION);
 
-        if (Mekanism.hooks.FarmersDelightLegacyLoaded){
+        if (Mekanism.hooks.FarmersDelightLegacyLoaded) {
             registerItemRender(MekanismItems.MODULE_LASER_CUTTER);
         }
 
@@ -770,11 +755,11 @@ public class ClientProxy extends CommonProxy {
             }
             case QIOGuiConstants.PORTABLE_DASHBOARD -> {
                 return stack.getItem() instanceof ItemPortableQIODashboard ?
-                      new GuiPortableQIODashboard(player.inventory, new PortableQIODashboardContainer(player.inventory, hand, itemSlot, stack)) : null;
+                        new GuiPortableQIODashboard(player.inventory, new PortableQIODashboardContainer(player.inventory, hand, itemSlot, stack)) : null;
             }
             case QIOGuiConstants.PORTABLE_FREQUENCY -> {
                 return stack.getItem() instanceof ItemPortableQIODashboard ?
-                      new GuiQIOItemFrequencySelect(player.inventory, hand, itemSlot, stack) : null;
+                        new GuiQIOItemFrequencySelect(player.inventory, hand, itemSlot, stack) : null;
             }
             case 19 -> {
                 if (MachineType.get(stack) == MachineType.PERSONAL_CHEST) {
@@ -840,95 +825,139 @@ public class ClientProxy extends CommonProxy {
         TileEntity tileEntity = world.getTileEntity(pos);
         return switch (ID) {
             //0, 1 USED BEFORE SWITCH
-            case 2 -> new mekanism.client.gui.machine.GuiDigitalMiner(player.inventory, (TileEntityDigitalMiner) tileEntity);
+            case 2 ->
+                    new mekanism.client.gui.machine.GuiDigitalMiner(player.inventory, (TileEntityDigitalMiner) tileEntity);
             case 3 ->
                     new mekanism.client.gui.machine.GuiEnrichmentChamber(player.inventory, (TileEntityElectricMachine<EnrichmentRecipe>) tileEntity);
             case 4 ->
                     new mekanism.client.gui.machine.GuiOsmiumCompressor(player.inventory, (TileEntityAdvancedElectricMachine<OsmiumCompressorRecipe>) tileEntity);
-            case 5 -> new mekanism.client.gui.machine.GuiCombiner(player.inventory, (TileEntityDoubleElectricMachine<CombinerRecipe>) tileEntity);
-            case 6 -> new mekanism.client.gui.machine.GuiCrusher(player.inventory, (TileEntityElectricMachine<CrusherRecipe>) tileEntity);
-            case 7 -> new mekanism.client.gui.machine.GuiRotaryCondensentrator(player.inventory, (TileEntityRotaryCondensentrator) tileEntity);
+            case 5 ->
+                    new mekanism.client.gui.machine.GuiCombiner(player.inventory, (TileEntityDoubleElectricMachine<CombinerRecipe>) tileEntity);
+            case 6 ->
+                    new mekanism.client.gui.machine.GuiCrusher(player.inventory, (TileEntityElectricMachine<CrusherRecipe>) tileEntity);
+            case 7 ->
+                    new mekanism.client.gui.machine.GuiRotaryCondensentrator(player.inventory, (TileEntityRotaryCondensentrator) tileEntity);
             case 8 -> new mekanism.client.gui.GuiEnergyCube(player.inventory, (TileEntityEnergyCube) tileEntity);
             case 10 -> new mekanism.client.gui.GuiGasTank(player.inventory, (TileEntityGasTank) tileEntity);
             case 11 -> new mekanism.client.gui.machine.GuiFactory(player.inventory, (TileEntityFactory) tileEntity);
-            case 12 -> new mekanism.client.gui.machine.GuiMetallurgicInfuser(player.inventory, (TileEntityMetallurgicInfuser) tileEntity);
+            case 12 ->
+                    new mekanism.client.gui.machine.GuiMetallurgicInfuser(player.inventory, (TileEntityMetallurgicInfuser) tileEntity);
             case 13 -> new mekanism.client.gui.GuiTeleporter(player.inventory, (TileEntityTeleporter) tileEntity);
             //EMPTY 14
             case 15 ->
                     new mekanism.client.gui.machine.GuiPurificationChamber(player.inventory, (TileEntityAdvancedElectricMachine<PurificationRecipe>) tileEntity);
             case 16 ->
                     new mekanism.client.gui.machine.GuiEnergizedSmelter(player.inventory, (TileEntityElectricMachine<SmeltingRecipe>) tileEntity);
-            case 17 -> new mekanism.client.gui.machine.GuiElectricPump(player.inventory, (TileEntityElectricPump) tileEntity);
+            case 17 ->
+                    new mekanism.client.gui.machine.GuiElectricPump(player.inventory, (TileEntityElectricPump) tileEntity);
             case 18 -> new mekanism.client.gui.GuiDynamicTank(player.inventory, (TileEntityDynamicTank) tileEntity);
-            case 19 -> new mekanism.client.gui.GuiPersonalStorageTile(player.inventory, (TileEntityPersonalChest) tileEntity);
+            case 19 ->
+                    new mekanism.client.gui.GuiPersonalStorageTile(player.inventory, (TileEntityPersonalChest) tileEntity);
             //EMPTY 20, 21, 22, 23, 24, 25
-            case 29 -> new mekanism.client.gui.machine.GuiChemicalOxidizer(player.inventory, (TileEntityChemicalOxidizer) tileEntity);
-            case 30 -> new mekanism.client.gui.machine.GuiChemicalInfuser(player.inventory, (TileEntityChemicalInfuser) tileEntity);
+            case 29 ->
+                    new mekanism.client.gui.machine.GuiChemicalOxidizer(player.inventory, (TileEntityChemicalOxidizer) tileEntity);
+            case 30 ->
+                    new mekanism.client.gui.machine.GuiChemicalInfuser(player.inventory, (TileEntityChemicalInfuser) tileEntity);
             case 31 ->
                     new mekanism.client.gui.machine.GuiChemicalInjectionChamber(player.inventory, (TileEntityAdvancedElectricMachine<InjectionRecipe>) tileEntity);
-            case 32 -> new mekanism.client.gui.machine.GuiElectrolyticSeparator(player.inventory, (TileEntityElectrolyticSeparator) tileEntity);
+            case 32 ->
+                    new mekanism.client.gui.machine.GuiElectrolyticSeparator(player.inventory, (TileEntityElectrolyticSeparator) tileEntity);
             case 33 ->
                     new mekanism.client.gui.GuiThermalEvaporationController(player.inventory, (TileEntityThermalEvaporationController) tileEntity);
-            case 34 -> new mekanism.client.gui.machine.GuiPrecisionSawmill(player.inventory, (TileEntityPrecisionSawmill) tileEntity);
+            case 34 ->
+                    new mekanism.client.gui.machine.GuiPrecisionSawmill(player.inventory, (TileEntityPrecisionSawmill) tileEntity);
             case 35 ->
                     new mekanism.client.gui.machine.GuiChemicalDissolutionChamber(player.inventory, (TileEntityChemicalDissolutionChamber) tileEntity);
-            case 36 -> new mekanism.client.gui.machine.GuiChemicalWasher(player.inventory, (TileEntityChemicalWasher) tileEntity);
-            case 37 -> new mekanism.client.gui.machine.GuiChemicalCrystallizer(player.inventory, (TileEntityChemicalCrystallizer) tileEntity);
+            case 36 ->
+                    new mekanism.client.gui.machine.GuiChemicalWasher(player.inventory, (TileEntityChemicalWasher) tileEntity);
+            case 37 ->
+                    new mekanism.client.gui.machine.GuiChemicalCrystallizer(player.inventory, (TileEntityChemicalCrystallizer) tileEntity);
             //EMPTY 38
-            case 39 -> new mekanism.client.gui.machine.GuiSeismicVibrator(player.inventory, (TileEntitySeismicVibrator) tileEntity);
+            case 39 ->
+                    new mekanism.client.gui.machine.GuiSeismicVibrator(player.inventory, (TileEntitySeismicVibrator) tileEntity);
             case 40 -> new mekanism.client.gui.machine.GuiPRC(player.inventory, (TileEntityPRC) tileEntity);
             case 41 -> new mekanism.client.gui.GuiFluidTank(player.inventory, (TileEntityFluidTank) tileEntity);
-            case 42 -> new mekanism.client.gui.machine.GuiFluidicPlenisher(player.inventory, (TileEntityFluidicPlenisher) tileEntity);
-            case 44 -> new mekanism.client.gui.GuiLaserAmplifier(player.inventory, (TileEntityLaserAmplifier) tileEntity);
-            case 45 -> new mekanism.client.gui.GuiLaserTractorBeam(player.inventory, (TileEntityLaserTractorBeam) tileEntity);
-            case 46 -> new mekanism.client.gui.GuiQuantumEntangloporter(player.inventory, (TileEntityQuantumEntangloporter) tileEntity);
-            case 47 -> new mekanism.client.gui.machine.GuiSolarNeutronActivator(player.inventory, (TileEntitySolarNeutronActivator) tileEntity);
-            case 48 -> new mekanism.client.gui.machine.GuiAmbientAccumulator(player.inventory, (TileEntityAmbientAccumulator) tileEntity);
-            case 49 -> new mekanism.client.gui.GuiInductionMatrix(player.inventory, (TileEntityInductionCasing) tileEntity);
+            case 42 ->
+                    new mekanism.client.gui.machine.GuiFluidicPlenisher(player.inventory, (TileEntityFluidicPlenisher) tileEntity);
+            case 44 ->
+                    new mekanism.client.gui.GuiLaserAmplifier(player.inventory, (TileEntityLaserAmplifier) tileEntity);
+            case 45 ->
+                    new mekanism.client.gui.GuiLaserTractorBeam(player.inventory, (TileEntityLaserTractorBeam) tileEntity);
+            case 46 ->
+                    new mekanism.client.gui.GuiQuantumEntangloporter(player.inventory, (TileEntityQuantumEntangloporter) tileEntity);
+            case 47 ->
+                    new mekanism.client.gui.machine.GuiSolarNeutronActivator(player.inventory, (TileEntitySolarNeutronActivator) tileEntity);
+            case 48 ->
+                    new mekanism.client.gui.machine.GuiAmbientAccumulator(player.inventory, (TileEntityAmbientAccumulator) tileEntity);
+            case 49 ->
+                    new mekanism.client.gui.GuiInductionMatrix(player.inventory, (TileEntityInductionCasing) tileEntity);
             case 50 -> new mekanism.client.gui.GuiMatrixStats(player.inventory, (TileEntityInductionCasing) tileEntity);
-            case 52 -> new mekanism.client.gui.machine.GuiOredictionificator(player.inventory, (TileEntityOredictionificator) tileEntity);
-            case 53 -> new mekanism.client.gui.machine.GuiResistiveHeater(player.inventory, (TileEntityResistiveHeater) tileEntity);
-            case 54 -> new mekanism.client.gui.GuiThermoelectricBoiler(player.inventory, (TileEntityBoilerCasing) tileEntity);
+            case 52 ->
+                    new mekanism.client.gui.machine.GuiOredictionificator(player.inventory, (TileEntityOredictionificator) tileEntity);
+            case 53 ->
+                    new mekanism.client.gui.machine.GuiResistiveHeater(player.inventory, (TileEntityResistiveHeater) tileEntity);
+            case 54 ->
+                    new mekanism.client.gui.GuiThermoelectricBoiler(player.inventory, (TileEntityBoilerCasing) tileEntity);
             case 55 -> new mekanism.client.gui.GuiBoilerStats(player.inventory, (TileEntityBoilerCasing) tileEntity);
-            case 56 -> new mekanism.client.gui.machine.GuiFormulaicAssemblicator(player.inventory, (TileEntityFormulaicAssemblicator) tileEntity);
+            case 56 ->
+                    new mekanism.client.gui.machine.GuiFormulaicAssemblicator(player.inventory, (TileEntityFormulaicAssemblicator) tileEntity);
             case 57 -> new mekanism.client.gui.GuiSecurityDesk(player.inventory, (TileEntitySecurityDesk) tileEntity);
-            case 58 -> new mekanism.client.gui.machine.GuiFuelwoodHeater(player.inventory, (TileEntityFuelwoodHeater) tileEntity);
-            case 59 -> new mekanism.client.gui.GuiLogisticalSorter(player.inventory, (TileEntityLogisticalSorter) tileEntity);
-            case 60 -> new mekanism.client.gui.machine.GuiIsotopicCentrifuge(player.inventory, (TileEntityIsotopicCentrifuge) tileEntity);
-            case 61 -> new mekanism.client.gui.machine.GuiNutritionalLiquifier(player.inventory, (TileEntityNutritionalLiquifier) tileEntity);
-            case 62 -> new mekanism.client.gui.machine.GuiOrganicFarm(player.inventory, (TileEntityOrganicFarm) tileEntity);
+            case 58 ->
+                    new mekanism.client.gui.machine.GuiFuelwoodHeater(player.inventory, (TileEntityFuelwoodHeater) tileEntity);
+            case 59 ->
+                    new mekanism.client.gui.GuiLogisticalSorter(player.inventory, (TileEntityLogisticalSorter) tileEntity);
+            case 60 ->
+                    new mekanism.client.gui.machine.GuiIsotopicCentrifuge(player.inventory, (TileEntityIsotopicCentrifuge) tileEntity);
+            case 61 ->
+                    new mekanism.client.gui.machine.GuiNutritionalLiquifier(player.inventory, (TileEntityNutritionalLiquifier) tileEntity);
+            case 62 ->
+                    new mekanism.client.gui.machine.GuiOrganicFarm(player.inventory, (TileEntityOrganicFarm) tileEntity);
             case 63 ->
                     new mekanism.client.gui.machine.GuiAntiprotonicNucleosynthesizer(player.inventory, (TileEntityAntiprotonicNucleosynthesizer) tileEntity);
-            case 64 -> new mekanism.client.gui.machine.GuiStamping(player.inventory, (TileEntityElectricMachine<StampingRecipe>) tileEntity);
-            case 65 -> new mekanism.client.gui.machine.GuiRolling(player.inventory, (TileEntityElectricMachine<RollingRecipe>) tileEntity);
-            case 66 -> new mekanism.client.gui.machine.GuiBrushed(player.inventory, (TileEntityElectricMachine<BrushedRecipe>) tileEntity);
-            case 67 -> new mekanism.client.gui.machine.GuiTurning(player.inventory, (TileEntityElectricMachine<TurningRecipe>) tileEntity);
-            case 68 -> new mekanism.client.gui.machine.GuiAlloy(player.inventory, (TileEntityDoubleElectricMachine<AlloyRecipe>) tileEntity);
+            case 64 ->
+                    new mekanism.client.gui.machine.GuiStamping(player.inventory, (TileEntityElectricMachine<StampingRecipe>) tileEntity);
+            case 65 ->
+                    new mekanism.client.gui.machine.GuiRolling(player.inventory, (TileEntityElectricMachine<RollingRecipe>) tileEntity);
+            case 66 ->
+                    new mekanism.client.gui.machine.GuiBrushed(player.inventory, (TileEntityElectricMachine<BrushedRecipe>) tileEntity);
+            case 67 ->
+                    new mekanism.client.gui.machine.GuiTurning(player.inventory, (TileEntityElectricMachine<TurningRecipe>) tileEntity);
+            case 68 ->
+                    new mekanism.client.gui.machine.GuiAlloy(player.inventory, (TileEntityDoubleElectricMachine<AlloyRecipe>) tileEntity);
            /*
             case 69:
                 return new GuiCellCultivate(player.inventory, (TileEntityCellCultivate) tileEntity);
             */
-            case 70 -> new mekanism.client.gui.machine.GuiCellExtractor(player.inventory, (TileEntityCellExtractor) tileEntity);
-            case 71 -> new mekanism.client.gui.machine.GuiCellSeparator(player.inventory, (TileEntityCellSeparator) tileEntity);
+            case 70 ->
+                    new mekanism.client.gui.machine.GuiCellExtractor(player.inventory, (TileEntityCellExtractor) tileEntity);
+            case 71 ->
+                    new mekanism.client.gui.machine.GuiCellSeparator(player.inventory, (TileEntityCellSeparator) tileEntity);
             case 72 -> new mekanism.client.gui.machine.GuiRecycler(player.inventory, (TileEntityRecycler) tileEntity);
             case 73 ->
                     new mekanism.client.gui.machine.GuiAmbientAccumulatorEnergy(player.inventory, (TileEntityAmbientAccumulatorEnergy) tileEntity);
             case 74 -> new mekanism.client.gui.GuiHybridStorage(player.inventory, (TileEntityHybridStorage) tileEntity);
-            case 75 -> new mekanism.client.gui.GuiModificationStation(player.inventory, (TileEntityModificationStation) tileEntity);
+            case 75 ->
+                    new mekanism.client.gui.GuiModificationStation(player.inventory, (TileEntityModificationStation) tileEntity);
             case 76 -> new mekanism.client.gui.GuiSPS(player.inventory, (TileEntitySPS) tileEntity);
             case 77 -> new GuiModuleTweaker(player.inventory);
             case 78 -> new mekanism.client.gui.GuiSPSMultiblock(player.inventory, (TileEntitySPSCasing) tileEntity);
-            case 79 -> new mekanism.client.gui.GuiDimensionalStabilizer(player.inventory, (TileEntityDimensionalStabilizer) tileEntity);
-            case QIOGuiConstants.DRIVE_ARRAY -> new GuiQIODriveArray(player.inventory, (TileEntityQIODriveArray) tileEntity);
-            case QIOGuiConstants.DRIVE_ARRAY_FREQUENCY -> new GuiQIOFrequencySelect(player.inventory, (TileEntityQIODriveArray) tileEntity);
-            case QIOGuiConstants.DASHBOARD -> new GuiQIODashboard(player.inventory, (TileEntityQIODashboard) tileEntity);
+            case 79 ->
+                    new mekanism.client.gui.GuiDimensionalStabilizer(player.inventory, (TileEntityDimensionalStabilizer) tileEntity);
+            case QIOGuiConstants.DRIVE_ARRAY ->
+                    new GuiQIODriveArray(player.inventory, (TileEntityQIODriveArray) tileEntity);
+            case QIOGuiConstants.DRIVE_ARRAY_FREQUENCY ->
+                    new GuiQIOFrequencySelect(player.inventory, (TileEntityQIODriveArray) tileEntity);
+            case QIOGuiConstants.DASHBOARD ->
+                    new GuiQIODashboard(player.inventory, (TileEntityQIODashboard) tileEntity);
             case QIOGuiConstants.IMPORTER -> new GuiQIOImporter(player.inventory, (TileEntityQIOImporter) tileEntity);
             case QIOGuiConstants.EXPORTER -> new GuiQIOExporter(player.inventory, (TileEntityQIOExporter) tileEntity);
-            case QIOGuiConstants.REDSTONE_ADAPTER -> new GuiQIORedstoneAdapter(player.inventory, (TileEntityQIORedstoneAdapter) tileEntity);
-            case QIOGuiConstants.COMPONENT_FREQUENCY -> new GuiQIOFrequencySelect(player.inventory, (TileEntityQIOComponent) tileEntity,
-                  tileEntity instanceof TileEntityQIOImporter ? QIOGuiConstants.IMPORTER :
-                        tileEntity instanceof TileEntityQIOExporter ? QIOGuiConstants.EXPORTER :
-                              tileEntity instanceof TileEntityQIORedstoneAdapter ? QIOGuiConstants.REDSTONE_ADAPTER : QIOGuiConstants.DASHBOARD);
+            case QIOGuiConstants.REDSTONE_ADAPTER ->
+                    new GuiQIORedstoneAdapter(player.inventory, (TileEntityQIORedstoneAdapter) tileEntity);
+            case QIOGuiConstants.COMPONENT_FREQUENCY ->
+                    new GuiQIOFrequencySelect(player.inventory, (TileEntityQIOComponent) tileEntity,
+                            tileEntity instanceof TileEntityQIOImporter ? QIOGuiConstants.IMPORTER :
+                                    tileEntity instanceof TileEntityQIOExporter ? QIOGuiConstants.EXPORTER :
+                                            tileEntity instanceof TileEntityQIORedstoneAdapter ? QIOGuiConstants.REDSTONE_ADAPTER : QIOGuiConstants.DASHBOARD);
             default -> null;
         };
     }
@@ -981,19 +1010,19 @@ public class ClientProxy extends CommonProxy {
                 }, MekanismBlocks.PlasticBlock, MekanismBlocks.GlowPlasticBlock, MekanismBlocks.RoadPlasticBlock, MekanismBlocks.ReinforcedPlasticBlock,
                 MekanismBlocks.SlickPlasticBlock, MekanismBlocks.PlasticFence);
         Minecraft.getMinecraft().getBlockColors().registerBlockColorHandler((state, worldIn, pos, tintIndex) -> {
-            if (tintIndex != 1 || worldIn == null || pos == null) {
-                return -1;
-            }
-            TileEntity tile = worldIn.getTileEntity(pos);
-            if (tile instanceof TileEntityQIOComponent qio) {
-                EnumColor color = qio.getQIOColor();
-                if (color != null) {
-                    return color.rgbCode[0] << 16 | color.rgbCode[1] << 8 | color.rgbCode[2];
-                }
-            }
-            return -1;
-        }, MekanismBlocks.QIO_DRIVE_ARRAY, MekanismBlocks.QIO_DASHBOARD, MekanismBlocks.QIO_IMPORTER,
-              MekanismBlocks.QIO_EXPORTER, MekanismBlocks.QIO_REDSTONE_ADAPTER);
+                    if (tintIndex != 1 || worldIn == null || pos == null) {
+                        return -1;
+                    }
+                    TileEntity tile = worldIn.getTileEntity(pos);
+                    if (tile instanceof TileEntityQIOComponent qio) {
+                        EnumColor color = qio.getQIOColor();
+                        if (color != null) {
+                            return color.rgbCode[0] << 16 | color.rgbCode[1] << 8 | color.rgbCode[2];
+                        }
+                    }
+                    return -1;
+                }, MekanismBlocks.QIO_DRIVE_ARRAY, MekanismBlocks.QIO_DASHBOARD, MekanismBlocks.QIO_IMPORTER,
+                MekanismBlocks.QIO_EXPORTER, MekanismBlocks.QIO_REDSTONE_ADAPTER);
         Minecraft.getMinecraft().getItemColors().registerItemColorHandler((stack, tintIndex) -> {
             if (MachineType.get(stack) == MachineType.FLUID_TANK) {
                 EnumColor color = ((ItemBlockMachine) stack.getItem()).getBaseTier(stack).getColor();
@@ -1018,15 +1047,15 @@ public class ClientProxy extends CommonProxy {
             return -1;
         }, MekanismItems.MEKASUIT_HELMET, MekanismItems.MEKASUIT_BODYARMOR, MekanismItems.MEKASUIT_PANTS, MekanismItems.MEKASUIT_BOOTS);
         Minecraft.getMinecraft().getItemColors().registerItemColorHandler((stack, tintIndex) -> {
-            if (tintIndex == 1 && stack.getItem() instanceof IColoredItem coloredItem) {
-                EnumColor color = coloredItem.getColor(stack);
-                return color == null ? IColoredItem.DEFAULT_TINT : color.rgbCode[0] << 16 | color.rgbCode[1] << 8 | color.rgbCode[2];
-            }
-            return -1;
-        }, MekanismItems.PORTABLE_QIO_DASHBOARD,
-              Item.getItemFromBlock(MekanismBlocks.QIO_DRIVE_ARRAY), Item.getItemFromBlock(MekanismBlocks.QIO_DASHBOARD),
-              Item.getItemFromBlock(MekanismBlocks.QIO_IMPORTER), Item.getItemFromBlock(MekanismBlocks.QIO_EXPORTER),
-              Item.getItemFromBlock(MekanismBlocks.QIO_REDSTONE_ADAPTER));
+                    if (tintIndex == 1 && stack.getItem() instanceof IColoredItem coloredItem) {
+                        EnumColor color = coloredItem.getColor(stack);
+                        return color == null ? IColoredItem.DEFAULT_TINT : color.rgbCode[0] << 16 | color.rgbCode[1] << 8 | color.rgbCode[2];
+                    }
+                    return -1;
+                }, MekanismItems.PORTABLE_QIO_DASHBOARD,
+                Item.getItemFromBlock(MekanismBlocks.QIO_DRIVE_ARRAY), Item.getItemFromBlock(MekanismBlocks.QIO_DASHBOARD),
+                Item.getItemFromBlock(MekanismBlocks.QIO_IMPORTER), Item.getItemFromBlock(MekanismBlocks.QIO_EXPORTER),
+                Item.getItemFromBlock(MekanismBlocks.QIO_REDSTONE_ADAPTER));
 
         MinecraftForge.EVENT_BUS.register(new ClientConnectionHandler());
         //  MinecraftForge.EVENT_BUS.register(new ClientPlayerTracker());
@@ -1136,7 +1165,7 @@ public class ClientProxy extends CommonProxy {
         for (EnumFacing facing : EnumFacing.values()) {
             for (boolean active : new boolean[]{false, true}) {
                 ModelResourceLocation location = new ModelResourceLocation(driveArray,
-                      "active=" + active + ",facing=" + facing.getName());
+                        "active=" + active + ",facing=" + facing.getName());
                 IBakedModel base = modelRegistry.getObject(location);
                 if (base != null) {
                     modelRegistry.putObject(location, new QIODriveArrayModel(base, blockDriveModels));

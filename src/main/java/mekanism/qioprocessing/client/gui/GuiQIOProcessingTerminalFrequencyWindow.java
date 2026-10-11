@@ -21,7 +21,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-/** In-place terminal frequency selector with exact UUID and session checks. */
+/**
+ * In-place terminal frequency selector with exact UUID and session checks.
+ */
+
 /**
  * QIO 处理模块中的 GuiQIOProcessingTerminalFrequencyWindow 类型。
  *
@@ -34,21 +37,21 @@ public final class GuiQIOProcessingTerminalFrequencyWindow extends GuiQIOFrequen
     private final QIOProcessingTerminalFrequencyContainer terminalContainer;
 
     public GuiQIOProcessingTerminalFrequencyWindow(IGuiWrapper gui,
-          QIOProcessingTerminalFrequencyContainer container,
-          SelectedWindowData windowData) {
+                                                   QIOProcessingTerminalFrequencyContainer container,
+                                                   SelectedWindowData windowData) {
         super(gui, new Selector(container),
-              new TextComponentTranslation("gui.mekanismqioprocessing.terminal_frequency"),
-              windowData);
+                new TextComponentTranslation("gui.mekanismqioprocessing.terminal_frequency"),
+                windowData);
         terminalContainer = container;
     }
 
     public GuiQIOProcessingTerminalFrequencyWindow(IGuiWrapper gui,
-          ContainerQIOCraftingProcessor container,
-          SelectedWindowData windowData) {
+                                                   ContainerQIOCraftingProcessor container,
+                                                   SelectedWindowData windowData) {
         super(gui, new ProcessorSelector(container),
-              new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.crafting_processor_frequency"),
-              windowData);
+                new TextComponentTranslation(
+                        "gui.mekanismqioprocessing.crafting_processor_frequency"),
+                windowData);
         terminalContainer = null;
     }
 
@@ -56,7 +59,7 @@ public final class GuiQIOProcessingTerminalFrequencyWindow extends GuiQIOFrequen
     public void tick() {
         super.tick();
         if (terminalContainer != null && !terminalContainer.getTerminalState().isValid() &&
-            gui() instanceof GuiMekanism<?> gui) {
+                gui() instanceof GuiMekanism<?> gui) {
             gui.queueWindowClose(this);
         }
     }
@@ -74,9 +77,9 @@ public final class GuiQIOProcessingTerminalFrequencyWindow extends GuiQIOFrequen
             QIOFrequency frequency = findExact(identity);
             if (frequency != null) {
                 QIOProcessingPacketHandler.INSTANCE.sendToServer(
-                      PacketQIOProcessingTerminalBinding.Message.bind(
-                            container.getTerminalWindowId(), container.getTerminalState(),
-                            frequency.getIdentity(), frequency.getFrequencyUUID()));
+                        PacketQIOProcessingTerminalBinding.Message.bind(
+                                container.getTerminalWindowId(), container.getTerminalState(),
+                                frequency.getIdentity(), frequency.getFrequencyUUID()));
             }
         }
 
@@ -87,8 +90,8 @@ public final class GuiQIOProcessingTerminalFrequencyWindow extends GuiQIOFrequen
         @Override
         public void sendUnbindFrequency() {
             QIOProcessingPacketHandler.INSTANCE.sendToServer(
-                  PacketQIOProcessingTerminalBinding.Message.unbind(
-                        container.getTerminalWindowId(), container.getTerminalState()));
+                    PacketQIOProcessingTerminalBinding.Message.unbind(
+                            container.getTerminalWindowId(), container.getTerminalState()));
         }
 
         @Nullable
@@ -130,7 +133,7 @@ public final class GuiQIOProcessingTerminalFrequencyWindow extends GuiQIOFrequen
             }
             String name = MekanismClient.clientUUIDMap.get(owner);
             if (name == null && net.minecraft.client.Minecraft.getMinecraft().player != null &&
-                owner.equals(net.minecraft.client.Minecraft.getMinecraft().player.getUniqueID())) {
+                    owner.equals(net.minecraft.client.Minecraft.getMinecraft().player.getUniqueID())) {
                 name = net.minecraft.client.Minecraft.getMinecraft().player.getName();
             }
             return name == null ? "" : name;
@@ -183,10 +186,10 @@ public final class GuiQIOProcessingTerminalFrequencyWindow extends GuiQIOFrequen
             QIOFrequency frequency = findExact(identity);
             if (frequency != null) {
                 QIOProcessingPacketHandler.INSTANCE.sendToServer(
-                      PacketQIOCraftingProcessorBinding.Message.bind(
-                            container.windowId,
-                            container.getTileEntity(), frequency.getIdentity(),
-                            frequency.getFrequencyUUID()));
+                        PacketQIOCraftingProcessorBinding.Message.bind(
+                                container.windowId,
+                                container.getTileEntity(), frequency.getIdentity(),
+                                frequency.getFrequencyUUID()));
             }
         }
 
@@ -197,9 +200,9 @@ public final class GuiQIOProcessingTerminalFrequencyWindow extends GuiQIOFrequen
         @Override
         public void sendUnbindFrequency() {
             QIOProcessingPacketHandler.INSTANCE.sendToServer(
-                  PacketQIOCraftingProcessorBinding.Message.unbind(
-                        container.windowId,
-                        container.getTileEntity()));
+                    PacketQIOCraftingProcessorBinding.Message.unbind(
+                            container.windowId,
+                            container.getTileEntity()));
         }
 
         @Nullable
@@ -241,7 +244,7 @@ public final class GuiQIOProcessingTerminalFrequencyWindow extends GuiQIOFrequen
             }
             String name = MekanismClient.clientUUIDMap.get(owner);
             if (name == null && net.minecraft.client.Minecraft.getMinecraft().player != null &&
-                owner.equals(net.minecraft.client.Minecraft.getMinecraft().player.getUniqueID())) {
+                    owner.equals(net.minecraft.client.Minecraft.getMinecraft().player.getUniqueID())) {
                 name = net.minecraft.client.Minecraft.getMinecraft().player.getName();
             }
             return name == null ? "" : name;

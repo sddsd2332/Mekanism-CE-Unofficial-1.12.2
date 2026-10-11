@@ -29,7 +29,7 @@ public class GuiOredictionificatorFilterRow extends GuiElement {
     private final IntSupplier scrollSupplier;
 
     public GuiOredictionificatorFilterRow(IGuiWrapper gui, TileEntityOredictionificator tile, int x, int y, int width, int height, int row,
-          IntSupplier scrollSupplier) {
+                                          IntSupplier scrollSupplier) {
         super(gui, x, y, width, height);
         this.tile = tile;
         this.row = row;
@@ -62,9 +62,9 @@ public class GuiOredictionificatorFilterRow extends GuiElement {
         gui().renderItem(renderStack, relativeX + 3, relativeY + 3);
         int textWidth = width - 40;
         drawScaledScrollingString(new TextComponentString(LangUtils.localize("gui.filter")), 22, 2, TextAlignment.LEFT, 0x404040, textWidth, 3, false, 1,
-              GuiElement.getMillis());
+                GuiElement.getMillis());
         drawScaledScrollingString(new TextComponentString(filter.filter), 22, 11, TextAlignment.LEFT, 0x404040, textWidth, 3, false, 0.8F,
-              GuiElement.getMillis());
+                GuiElement.getMillis());
         drawEnabledToggle(filter);
         super.renderForeground(mouseX, mouseY);
     }

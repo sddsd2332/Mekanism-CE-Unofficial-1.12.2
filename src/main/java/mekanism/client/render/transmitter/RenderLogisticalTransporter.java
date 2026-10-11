@@ -192,7 +192,7 @@ public class RenderLogisticalTransporter extends RenderTransmitterBase<TileEntit
      * Shrink the in transit list as much as possible. Don't try to render things of the same type that are in the same spot with the same color, ignoring stack size
      */
     private void reduceTransit(Collection<TransporterStack> inTransit, Collection<TransporterStack> reducedTransit,
-          Set<TransportInformation> information) {
+                               Set<TransportInformation> information) {
         for (TransporterStack stack : inTransit) {
             if (stack != null && !stack.itemStack.isEmpty() && information.add(new TransportInformation(stack))) {
                 //Ensure the stack is valid AND we did not already have information matching the stack

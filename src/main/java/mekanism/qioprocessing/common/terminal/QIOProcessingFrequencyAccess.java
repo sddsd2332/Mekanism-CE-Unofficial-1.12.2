@@ -11,7 +11,10 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Exact UUID-aware QIO frequency resolution used by terminal block and item sessions. */
+/**
+ * Exact UUID-aware QIO frequency resolution used by terminal block and item sessions.
+ */
+
 /**
  * QIO 处理模块中的 QIOProcessingFrequencyAccess 类型。
  *
@@ -29,7 +32,7 @@ public final class QIOProcessingFrequencyAccess {
             return null;
         }
         FrequencyManager<QIOFrequency> manager = FrequencyType.QIO.getManager(
-              reference.getOwnerUUID(), reference.getSecurityMode());
+                reference.getOwnerUUID(), reference.getSecurityMode());
         if (manager == null) {
             return null;
         }
@@ -39,25 +42,25 @@ public final class QIOProcessingFrequencyAccess {
 
     @Nullable
     public static QIOFrequency resolveAccessible(@Nullable QIOFrequencyReference reference,
-          @Nullable UUID requester) {
+                                                 @Nullable UUID requester) {
         QIOFrequency frequency = resolve(reference);
         return frequency != null && QIOFrequencyStorageAccess.INSTANCE.canAccess(
-              reference, requester) ? frequency : null;
+                reference, requester) ? frequency : null;
     }
 
     public static long getAccessibleRevision(@Nullable QIOFrequencyReference reference,
-          @Nullable UUID requester) {
+                                             @Nullable UUID requester) {
         QIOFrequency frequency = resolveAccessible(reference, requester);
         return frequency == null ? -1 : frequency.getAccessRevision();
     }
 
     public static boolean matches(@Nonnull QIOFrequencyReference reference,
-          @Nullable QIOFrequency frequency) {
+                                  @Nullable QIOFrequency frequency) {
         Objects.requireNonNull(reference, "reference");
         return frequency != null && frequency.isValid() && !frequency.isRemoved() &&
-              reference.getFrequencyUUID().equals(frequency.getFrequencyUUID()) &&
-              reference.getFrequencyName().equals(frequency.getName()) &&
-              Objects.equals(reference.getOwnerUUID(), frequency.getOwner()) &&
-              reference.getSecurityMode() == frequency.getSecurity();
+                reference.getFrequencyUUID().equals(frequency.getFrequencyUUID()) &&
+                reference.getFrequencyName().equals(frequency.getName()) &&
+                Objects.equals(reference.getOwnerUUID(), frequency.getOwner()) &&
+                reference.getSecurityMode() == frequency.getSecurity();
     }
 }

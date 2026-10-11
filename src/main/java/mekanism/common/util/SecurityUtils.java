@@ -5,7 +5,6 @@ import mekanism.client.MekanismClient;
 import mekanism.common.Mekanism;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.entity.EntityRobit;
-import mekanism.common.frequency.Frequency;
 import mekanism.common.security.*;
 import mekanism.common.security.ISecurityTile.SecurityMode;
 import net.minecraft.entity.player.EntityPlayer;
@@ -15,8 +14,8 @@ import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraftforge.fml.relauncher.Side;
 
-import java.util.UUID;
 import javax.annotation.Nullable;
+import java.util.UUID;
 
 public final class SecurityUtils {
 
@@ -62,7 +61,9 @@ public final class SecurityUtils {
         return canAccess(security.getSecurity().getMode(), subject, security.getSecurity().getOwnerUUID());
     }
 
-    /** Applies owner, trusted-list and security-station override rules without requiring a player entity. */
+    /**
+     * Applies owner, trusted-list and security-station override rules without requiring a player entity.
+     */
     public static boolean canAccess(SecurityMode mode, @Nullable UUID subject, @Nullable UUID owner) {
         if (!MekanismConfig.current().general.allowProtection.val()) {
             return true;
@@ -103,7 +104,7 @@ public final class SecurityUtils {
             return false;
         }
         net.minecraft.server.MinecraftServer server = net.minecraftforge.fml.common.FMLCommonHandler.instance()
-              .getMinecraftServerInstance();
+                .getMinecraftServerInstance();
         if (server == null) {
             return false;
         }

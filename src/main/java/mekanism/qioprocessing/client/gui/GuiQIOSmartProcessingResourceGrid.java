@@ -24,7 +24,10 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/** Presentation-only, virtualized grid for resources that can be ordered. */
+/**
+ * Presentation-only, virtualized grid for resources that can be ordered.
+ */
+
 /**
  * QIO 处理模块中的 GuiQIOSmartProcessingResourceGrid 类型。
  *
@@ -32,12 +35,12 @@ import java.util.function.Supplier;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 final class GuiQIOSmartProcessingResourceGrid extends GuiElement
-      implements IJEIIngredientHelper {
+        implements IJEIIngredientHelper {
 
     private static final ResourceLocation SLOTS = MekanismUtils.getResource(
-          MekanismUtils.ResourceType.GUI_SLOT, "slots.png");
+            MekanismUtils.ResourceType.GUI_SLOT, "slots.png");
     private static final ResourceLocation SLOTS_DARK = MekanismUtils.getResource(
-          MekanismUtils.ResourceType.GUI_SLOT, "slots_dark.png");
+            MekanismUtils.ResourceType.GUI_SLOT, "slots_dark.png");
     private static final int SELECTION_COLOR = 0xFFFFC44D;
     private static final int CRAFTABLE_COLOR = 0xFF49C46B;
 
@@ -50,9 +53,9 @@ final class GuiQIOSmartProcessingResourceGrid extends GuiElement
     private final GuiScrollBar scrollBar;
 
     GuiQIOSmartProcessingResourceGrid(IGuiWrapper gui, int x, int y, int columns, int rows,
-          Supplier<QIOSmartProcessingClientCache> cacheSupplier,
-          Supplier<PortableResourceDescriptor> selectedSupplier,
-          Consumer<QIOSmartProcessingResourceEntry> selectionConsumer) {
+                                      Supplier<QIOSmartProcessingClientCache> cacheSupplier,
+                                      Supplier<PortableResourceDescriptor> selectedSupplier,
+                                      Consumer<QIOSmartProcessingResourceEntry> selectionConsumer) {
         super(gui, x, y, columns * 18 + 18, rows * 18);
         this.columns = columns;
         this.rows = rows;
@@ -60,7 +63,7 @@ final class GuiQIOSmartProcessingResourceGrid extends GuiElement
         this.selectedSupplier = selectedSupplier;
         this.selectionConsumer = selectionConsumer;
         scrollBar = addChild(new GuiScrollBar(gui, relativeX + columns * 18 + 4,
-              relativeY, rows * 18, this::getTotalRows, () -> rows));
+                relativeY, rows * 18, this::getTotalRows, () -> rows));
         active = true;
     }
 
@@ -107,7 +110,7 @@ final class GuiQIOSmartProcessingResourceGrid extends GuiElement
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
         return isMouseOverCheckWindows(mouseX, mouseY) && scrollBar.adjustScroll(delta) ||
-              super.mouseScrolled(mouseX, mouseY, delta);
+                super.mouseScrolled(mouseX, mouseY, delta);
     }
 
     @Override
@@ -185,14 +188,14 @@ final class GuiQIOSmartProcessingResourceGrid extends GuiElement
 
     private int getSlot(double mouseX, double mouseY) {
         if (mouseX < getX() || mouseY < getY() || mouseX >= getX() + columns * 18 ||
-              mouseY >= getY() + rows * 18) return -1;
+                mouseY >= getY() + rows * 18) return -1;
         int slotX = (int) ((mouseX - getGuiLeft() - relativeX) / 18);
         int slotY = (int) ((mouseY - getGuiTop() - relativeY) / 18);
         if (slotX < 0 || slotY < 0 || slotX >= columns || slotY >= rows) return -1;
         int startX = getX() + slotX * 18 + 1;
         int startY = getY() + slotY * 18 + 1;
         if (mouseX < startX || mouseX >= startX + 16 || mouseY < startY ||
-              mouseY >= startY + 16 || !checkWindows(mouseX, mouseY)) return -1;
+                mouseY >= startY + 16 || !checkWindows(mouseX, mouseY)) return -1;
         return slotY * columns + slotX;
     }
 
@@ -204,7 +207,7 @@ final class GuiQIOSmartProcessingResourceGrid extends GuiElement
         }
         if (entry.getInProduction() > 0) {
             renderSlotText(UnitDisplayUtils.getDisplay(entry.getInProduction(), 1),
-                  x + 1, y + 1, entry.isMergeable() ? SELECTION_COLOR : 0xFFFFFFFF);
+                    x + 1, y + 1, entry.isMergeable() ? SELECTION_COLOR : 0xFFFFFFFF);
         }
     }
 
@@ -224,16 +227,16 @@ final class GuiQIOSmartProcessingResourceGrid extends GuiElement
         List<String> tooltip = new ArrayList<>(3);
         if (!entry.isSchedulable()) {
             tooltip.add(new TextComponentTranslation(
-                  "gui.mekanismqioprocessing.order_unschedulable").getFormattedText());
+                    "gui.mekanismqioprocessing.order_unschedulable").getFormattedText());
         }
         if (entry.getInProduction() > 0) {
             tooltip.add(new TextComponentTranslation(
-                  "gui.mekanismqioprocessing.order_in_production",
-                  TextUtils.format(entry.getInProduction())).getFormattedText());
+                    "gui.mekanismqioprocessing.order_in_production",
+                    TextUtils.format(entry.getInProduction())).getFormattedText());
             if (entry.isMergeable()) {
                 tooltip.add(new TextComponentTranslation(
-                      "gui.mekanismqioprocessing.order_mergeable",
-                      TextUtils.format(entry.getMergeableInProduction())).getFormattedText());
+                        "gui.mekanismqioprocessing.order_mergeable",
+                        TextUtils.format(entry.getMergeableInProduction())).getFormattedText());
             }
         }
         return tooltip;

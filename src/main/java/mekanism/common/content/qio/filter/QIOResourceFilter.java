@@ -8,7 +8,9 @@ import net.minecraft.nbt.NBTTagCompound;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-/** Exact codec-defined filter for built-in or addon resources. */
+/**
+ * Exact codec-defined filter for built-in or addon resources.
+ */
 public class QIOResourceFilter extends QIOFilter {
 
     public static final String TYPE = "resource";
@@ -66,6 +68,6 @@ public class QIOResourceFilter extends QIOFilter {
     @Override
     protected void readPayload(NBTTagCompound data) {
         descriptor = data.hasKey("descriptor", 10) ?
-              QIOResourceDescriptor.read(data.getCompoundTag("descriptor")) : null;
+                QIOResourceDescriptor.read(data.getCompoundTag("descriptor")) : null;
     }
 }

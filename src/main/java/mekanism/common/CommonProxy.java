@@ -10,15 +10,11 @@ import mekanism.common.block.states.BlockStateMachine.MachineType;
 import mekanism.common.config.MekanismConfig;
 import mekanism.common.entity.EntityRobit;
 import mekanism.common.inventory.container.*;
-import mekanism.common.inventory.container.item.DictionaryContainer;
-import mekanism.common.inventory.container.item.ItemStackSlotAccess;
-import mekanism.common.inventory.container.item.PersonalStorageItemContainer;
-import mekanism.common.inventory.container.item.PortableTeleporterContainer;
-import mekanism.common.inventory.container.item.SeismicReaderContainer;
+import mekanism.common.inventory.container.item.*;
 import mekanism.common.inventory.container.robit.*;
 import mekanism.common.item.ItemDictionary;
-import mekanism.common.item.ItemPortableTeleporter;
 import mekanism.common.item.ItemPortableQIODashboard;
+import mekanism.common.item.ItemPortableTeleporter;
 import mekanism.common.item.ItemSeismicReader;
 import mekanism.common.security.ISecurityItem;
 import mekanism.common.tile.*;
@@ -26,18 +22,9 @@ import mekanism.common.tile.factory.TileEntityFactory;
 import mekanism.common.tile.laser.TileEntityLaserAmplifier;
 import mekanism.common.tile.laser.TileEntityLaserTractorBeam;
 import mekanism.common.tile.machine.*;
-import mekanism.common.tile.multiblock.TileEntityDynamicTank;
-import mekanism.common.tile.multiblock.TileEntityInductionCasing;
-import mekanism.common.tile.multiblock.TileEntityBoilerCasing;
-import mekanism.common.tile.multiblock.TileEntitySPSCasing;
-import mekanism.common.tile.multiblock.TileEntityThermalEvaporationController;
-import mekanism.common.tile.qio.TileEntityQIODriveArray;
-import mekanism.common.tile.qio.TileEntityQIODashboard;
-import mekanism.common.tile.qio.TileEntityQIOComponent;
-import mekanism.common.tile.qio.TileEntityQIOImporter;
-import mekanism.common.tile.qio.TileEntityQIOExporter;
-import mekanism.common.tile.qio.TileEntityQIORedstoneAdapter;
+import mekanism.common.tile.multiblock.*;
 import mekanism.common.tile.prefab.*;
+import mekanism.common.tile.qio.*;
 import mekanism.common.voice.VoiceServerManager;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
@@ -89,7 +76,9 @@ public class CommonProxy implements IGuiProvider {
     public void registerBlockRenders() {
     }
 
-    /** Client hook used to refresh recipe-viewer transfer availability. */
+    /**
+     * Client hook used to refresh recipe-viewer transfer availability.
+     */
     public void onQIOViewerResourcesChanged() {
     }
 
@@ -189,7 +178,7 @@ public class CommonProxy implements IGuiProvider {
                 break;
             case 19:
                 if (MachineType.get(stack) == MachineType.PERSONAL_CHEST && stack.getCount() == 1
-                      && stack.getItem() instanceof ISecurityItem securityItem && securityItem.getOwnerUUID(stack) != null) {
+                        && stack.getItem() instanceof ISecurityItem securityItem && securityItem.getOwnerUUID(stack) != null) {
                     //Ensure the item didn't change. From testing even if it did things still seemed to work properly but better safe than sorry
                     return new PersonalStorageItemContainer(player.inventory, hand, itemSlot, stack);
                 }
@@ -321,14 +310,22 @@ public class CommonProxy implements IGuiProvider {
             case 76 -> new ContainerSPS(player.inventory, (TileEntityContainerBlock) tileEntity);
             case 77 -> new ModuleTweakerContainer(player.inventory);
             case 78 -> new ContainerSPSMultiblock(player.inventory, (TileEntityContainerBlock) tileEntity);
-            case 79 -> new ContainerDimensionalStabilizer(player.inventory, (TileEntityDimensionalStabilizer) tileEntity);
-            case QIOGuiConstants.DRIVE_ARRAY -> new ContainerQIODriveArray(player.inventory, (TileEntityQIODriveArray) tileEntity);
-            case QIOGuiConstants.DRIVE_ARRAY_FREQUENCY -> new ContainerQIOFrequencySelect(player.inventory, (TileEntityQIODriveArray) tileEntity);
-            case QIOGuiConstants.DASHBOARD -> new ContainerQIODashboard(player.inventory, (TileEntityQIODashboard) tileEntity);
-            case QIOGuiConstants.IMPORTER -> new ContainerQIOImporter(player.inventory, (TileEntityQIOImporter) tileEntity);
-            case QIOGuiConstants.EXPORTER -> new ContainerQIOExporter(player.inventory, (TileEntityQIOExporter) tileEntity);
-            case QIOGuiConstants.REDSTONE_ADAPTER -> new ContainerQIORedstoneAdapter(player.inventory, (TileEntityQIORedstoneAdapter) tileEntity);
-            case QIOGuiConstants.COMPONENT_FREQUENCY -> new ContainerQIOFrequencySelect(player.inventory, (TileEntityQIOComponent) tileEntity);
+            case 79 ->
+                    new ContainerDimensionalStabilizer(player.inventory, (TileEntityDimensionalStabilizer) tileEntity);
+            case QIOGuiConstants.DRIVE_ARRAY ->
+                    new ContainerQIODriveArray(player.inventory, (TileEntityQIODriveArray) tileEntity);
+            case QIOGuiConstants.DRIVE_ARRAY_FREQUENCY ->
+                    new ContainerQIOFrequencySelect(player.inventory, (TileEntityQIODriveArray) tileEntity);
+            case QIOGuiConstants.DASHBOARD ->
+                    new ContainerQIODashboard(player.inventory, (TileEntityQIODashboard) tileEntity);
+            case QIOGuiConstants.IMPORTER ->
+                    new ContainerQIOImporter(player.inventory, (TileEntityQIOImporter) tileEntity);
+            case QIOGuiConstants.EXPORTER ->
+                    new ContainerQIOExporter(player.inventory, (TileEntityQIOExporter) tileEntity);
+            case QIOGuiConstants.REDSTONE_ADAPTER ->
+                    new ContainerQIORedstoneAdapter(player.inventory, (TileEntityQIORedstoneAdapter) tileEntity);
+            case QIOGuiConstants.COMPONENT_FREQUENCY ->
+                    new ContainerQIOFrequencySelect(player.inventory, (TileEntityQIOComponent) tileEntity);
             default -> null;
         };
     }
@@ -390,7 +387,8 @@ public class CommonProxy implements IGuiProvider {
             case 77 -> false;
             case 78 -> tile instanceof TileEntitySPSCasing;
             case 79 -> tile instanceof TileEntityDimensionalStabilizer;
-            case QIOGuiConstants.DRIVE_ARRAY, QIOGuiConstants.DRIVE_ARRAY_FREQUENCY -> tile instanceof TileEntityQIODriveArray;
+            case QIOGuiConstants.DRIVE_ARRAY, QIOGuiConstants.DRIVE_ARRAY_FREQUENCY ->
+                    tile instanceof TileEntityQIODriveArray;
             case QIOGuiConstants.DASHBOARD -> tile instanceof TileEntityQIODashboard;
             case QIOGuiConstants.IMPORTER -> tile instanceof TileEntityQIOImporter;
             case QIOGuiConstants.EXPORTER -> tile instanceof TileEntityQIOExporter;
@@ -403,7 +401,7 @@ public class CommonProxy implements IGuiProvider {
     public static boolean canOpenServerGui(EntityPlayer player, TileEntity tileEntity) {
         if (tileEntity instanceof TileEntityBasicBlock basicBlock && !basicBlock.canPlayerOpenGui(player)) {
             player.sendMessage(new TextComponentString(EnumColor.DARK_BLUE + Mekanism.LOG_TAG + " " + EnumColor.RED +
-                  "This machine GUI is already open by another player."));
+                    "This machine GUI is already open by another player."));
             return false;
         }
         return true;
@@ -413,7 +411,8 @@ public class CommonProxy implements IGuiProvider {
 
     }
 
-    protected void postInit() {}
+    protected void postInit() {
+    }
 
     public double getReach(EntityPlayer player) {
         if (player instanceof EntityPlayerMP) {

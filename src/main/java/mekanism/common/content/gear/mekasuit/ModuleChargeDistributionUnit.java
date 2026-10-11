@@ -108,7 +108,9 @@ public class ModuleChargeDistributionUnit implements ICustomModule<ModuleChargeD
         return stacks;
     }
 
-    /** return rejects */
+    /**
+     * return rejects
+     */
     private double charge(IEnergyContainer energyContainer, ItemStack stack, double amount) {
         if (!stack.isEmpty() && amount > 0) {
             IStrictEnergyHandler handler = EnergyCompatUtils.getStrictEnergyHandler(stack);

@@ -12,7 +12,9 @@ import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nullable;
 
-/** Item-side color cache used by frequency-linked items. */
+/**
+ * Item-side color cache used by frequency-linked items.
+ */
 public interface IColoredItem {
 
     int DEFAULT_TINT = 0x555555;
@@ -34,12 +36,16 @@ public interface IColoredItem {
         }
     }
 
-    /** Synchronizes the cached item color with the frequency stored on this item. */
+    /**
+     * Synchronizes the cached item color with the frequency stored on this item.
+     */
     default void syncColorWithFrequency(ItemStack stack) {
         syncColorWithFrequency(stack, null);
     }
 
-    /** Synchronizes using an already resolved frequency when one is available. */
+    /**
+     * Synchronizes using an already resolved frequency when one is available.
+     */
     default void syncColorWithFrequency(ItemStack stack, @Nullable Frequency resolvedFrequency) {
         if (!(this instanceof IFrequencyItem frequencyItem)) {
             return;

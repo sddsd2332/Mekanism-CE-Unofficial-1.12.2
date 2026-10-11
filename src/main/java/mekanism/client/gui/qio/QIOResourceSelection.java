@@ -18,13 +18,17 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-/** Deterministic client-side selection rules shared by QIO resource target slots. */
+/**
+ * Deterministic client-side selection rules shared by QIO resource target slots.
+ */
 public final class QIOResourceSelection {
 
     private QIOResourceSelection() {
     }
 
-    /** A normal ingredient selection never silently unwraps an item container. */
+    /**
+     * A normal ingredient selection never silently unwraps an item container.
+     */
     @Nonnull
     public static Resolution fromIngredient(@Nullable Object ingredient) {
         if (ingredient instanceof ItemStack) {
@@ -33,26 +37,28 @@ public final class QIOResourceSelection {
         } else if (ingredient instanceof FluidStack) {
             FluidStack stack = (FluidStack) ingredient;
             return stack.amount <= 0 || stack.getFluid() == null ? Resolution.none() :
-                  Resolution.of(QIOResourceCodecs.fluid(stack));
+                    Resolution.of(QIOResourceCodecs.fluid(stack));
         } else if (ingredient instanceof GasStack) {
             GasStack stack = (GasStack) ingredient;
             return stack.amount <= 0 || stack.getGas() == null ? Resolution.none() :
-                  Resolution.of(QIOResourceCodecs.gas(stack));
+                    Resolution.of(QIOResourceCodecs.gas(stack));
         } else if (ingredient != null) {
             return resolve(QIOResourceSelectionAdapterRegistry.INSTANCE
-                  .getIngredientCandidates(ingredient));
+                    .getIngredientCandidates(ingredient));
         }
         return Resolution.none();
     }
 
-    /** Left click selects the item state; right click selects one unambiguous contained resource. */
+    /**
+     * Left click selects the item state; right click selects one unambiguous contained resource.
+     */
     @Nonnull
     public static Resolution fromCarried(@Nullable ItemStack carried, int button) {
         if (carried == null || carried.isEmpty()) {
             return Resolution.none();
         }
         return button == 0 ? Resolution.of(QIOResourceCodecs.item(carried)) :
-              button == 1 ? fromContainer(carried) : Resolution.none();
+                button == 1 ? fromContainer(carried) : Resolution.none();
     }
 
     @Nonnull
@@ -82,7 +88,7 @@ public final class QIOResourceSelection {
             }
         }
         for (QIOResourceDescriptor descriptor : QIOResourceSelectionAdapterRegistry.INSTANCE
-              .getContainedResourceCandidates(container)) {
+                .getContainedResourceCandidates(container)) {
             addSafe(candidates, descriptor);
         }
         return resolve(candidates);
@@ -100,13 +106,13 @@ public final class QIOResourceSelection {
             return Resolution.none();
         }
         return candidates.size() == 1 ? Resolution.of(candidates.iterator().next()) :
-              Resolution.ambiguous();
+                Resolution.ambiguous();
     }
 
     private static void addSafe(Set<QIOResourceDescriptor> candidates,
-          @Nullable QIOResourceDescriptor descriptor) {
+                                @Nullable QIOResourceDescriptor descriptor) {
         if (descriptor != null && descriptor.isResolved() &&
-              QIONetworkResourceLimits.isSafeDescriptorPayload(descriptor.getPayload())) {
+                QIONetworkResourceLimits.isSafeDescriptorPayload(descriptor.getPayload())) {
             candidates.add(descriptor);
         }
     }
@@ -135,8 +141,8 @@ public final class QIOResourceSelection {
         @Nonnull
         private static Resolution of(@Nonnull QIOResourceDescriptor descriptor) {
             return descriptor.isResolved() &&
-                  QIONetworkResourceLimits.isSafeDescriptorPayload(descriptor.getPayload()) ?
-                  new Resolution(descriptor, false) : none();
+                    QIONetworkResourceLimits.isSafeDescriptorPayload(descriptor.getPayload()) ?
+                    new Resolution(descriptor, false) : none();
         }
 
         @Nullable

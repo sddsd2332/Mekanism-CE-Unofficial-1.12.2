@@ -127,7 +127,7 @@ public class ModelLargeChemicalWasher extends ModelBase {
         bb_main.cubeList.add(new ModelBox(bb_main, 84, 170, 11.0F, -45.0F, 13.0F, 3, 2, 3, 0.0F, false));
     }
 
-    public void render(double tick, float size, boolean on, TextureManager manager,boolean isEnableGlow) {
+    public void render(double tick, float size, boolean on, TextureManager manager, boolean isEnableGlow) {
 
         GlStateManager.pushMatrix();
         GlStateManager.shadeModel(GL11.GL_SMOOTH);

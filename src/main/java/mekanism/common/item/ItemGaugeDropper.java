@@ -1,13 +1,11 @@
 package mekanism.common.item;
 
-import mekanism.api.Coord4D;
 import mekanism.api.MekanismAPI;
 import mekanism.api.fluid.IExtendedFluidTank;
 import mekanism.api.functions.ConstantPredicates;
 import mekanism.api.gas.GasStack;
-import mekanism.client.render.MekanismRenderer;
-import mekanism.common.capabilities.ItemCapabilityWrapper;
 import mekanism.common.advancements.MekanismCriteriaTriggers;
+import mekanism.common.capabilities.ItemCapabilityWrapper;
 import mekanism.common.capabilities.fluid.BasicFluidTank;
 import mekanism.common.capabilities.fluid.VariableCapacityFluidTank;
 import mekanism.common.capabilities.fluid.item.ItemStackMekanismFluidHandler;
@@ -100,7 +98,7 @@ public class ItemGaugeDropper extends ItemMekanism implements ILegacyGasItem {
         if (player.isSneaking() && !world.isRemote) {
             GasStack gas = getStoredGas(stack);
             FluidStack fluidStack = FluidContainerUtils.getFluidContained(stack);
-            if (gas != null){
+            if (gas != null) {
                 if (gas.getGas().isRadiation() && !MekanismAPI.getRadiationManager().dumpRadiation(world, player.getPosition(), gas)) {
                     player.sendMessage(new net.minecraft.util.text.TextComponentTranslation("cmd.mek.radiation.unavailable"));
                     return new ActionResult<>(EnumActionResult.FAIL, stack);
@@ -164,9 +162,9 @@ public class ItemGaugeDropper extends ItemMekanism implements ILegacyGasItem {
     @Override
     public ICapabilityProvider initCapabilities(ItemStack stack, NBTTagCompound nbt) {
         return new ItemCapabilityWrapper(stack,
-              RateLimitGasHandler.create(() -> getGasTransferRate(stack), () -> getGasCapacity(stack), ConstantPredicates.alwaysTrueBi(),
-                    (gasStack, automationType) -> getLegacyFluid(stack) == null, ConstantPredicates.alwaysTrue(), "gasStack"),
-              new GaugeDropperFluidHandler());
+                RateLimitGasHandler.create(() -> getGasTransferRate(stack), () -> getGasCapacity(stack), ConstantPredicates.alwaysTrueBi(),
+                        (gasStack, automationType) -> getLegacyFluid(stack) == null, ConstantPredicates.alwaysTrue(), "gasStack"),
+                new GaugeDropperFluidHandler());
     }
 
     @Nullable
@@ -206,7 +204,7 @@ public class ItemGaugeDropper extends ItemMekanism implements ILegacyGasItem {
     private static class GaugeDropperFluidHandler extends ItemStackMekanismFluidHandler {
 
         private final IExtendedFluidTank tank = VariableCapacityFluidTank.create(() -> CAPACITY, BasicFluidTank.alwaysTrueBi,
-              (fluidStack, automationType) -> GasInventorySlot.getStoredGas(getStack(), "gasStack") == null, BasicFluidTank.alwaysTrue, this);
+                (fluidStack, automationType) -> GasInventorySlot.getStoredGas(getStack(), "gasStack") == null, BasicFluidTank.alwaysTrue, this);
 
         @Override
         protected List<IExtendedFluidTank> getInitialTanks() {

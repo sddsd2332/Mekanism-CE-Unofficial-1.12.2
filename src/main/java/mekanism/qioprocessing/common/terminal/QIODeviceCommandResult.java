@@ -34,24 +34,44 @@ public final class QIODeviceCommandResult {
     private final boolean paused;
 
     public QIODeviceCommandResult(@Nonnull UUID requestId, @Nonnull UUID deviceUUID,
-          @Nonnull Status status, long directoryRevision, long configurationRevision,
-          boolean paused) {
+                                  @Nonnull Status status, long directoryRevision, long configurationRevision,
+                                  boolean paused) {
         this.requestId = Objects.requireNonNull(requestId, "requestId");
         this.deviceUUID = Objects.requireNonNull(deviceUUID, "deviceUUID");
         this.status = Objects.requireNonNull(status, "status");
         this.directoryRevision = QIOProcessingNbt.requireNonNegative(directoryRevision,
-              "directoryRevision");
+                "directoryRevision");
         this.configurationRevision = QIOProcessingNbt.requireNonNegative(
-              configurationRevision, "configurationRevision");
+                configurationRevision, "configurationRevision");
         this.paused = paused;
     }
 
-    @Nonnull public UUID getRequestId() { return requestId; }
-    @Nonnull public UUID getDeviceUUID() { return deviceUUID; }
-    @Nonnull public Status getStatus() { return status; }
-    public long getDirectoryRevision() { return directoryRevision; }
-    public long getConfigurationRevision() { return configurationRevision; }
-    public boolean isPaused() { return paused; }
+    @Nonnull
+    public UUID getRequestId() {
+        return requestId;
+    }
+
+    @Nonnull
+    public UUID getDeviceUUID() {
+        return deviceUUID;
+    }
+
+    @Nonnull
+    public Status getStatus() {
+        return status;
+    }
+
+    public long getDirectoryRevision() {
+        return directoryRevision;
+    }
+
+    public long getConfigurationRevision() {
+        return configurationRevision;
+    }
+
+    public boolean isPaused() {
+        return paused;
+    }
 
     @Nonnull
     public NBTTagCompound write() {
@@ -67,13 +87,13 @@ public final class QIODeviceCommandResult {
 
     @Nonnull
     public static QIODeviceCommandResult read(@Nonnull NBTTagCompound data)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         try {
             return new QIODeviceCommandResult(QIOProcessingNbt.readUUID(data, "requestId"),
-                  QIOProcessingNbt.readUUID(data, "deviceUUID"),
-                  QIOProcessingNbt.readEnum(data, "status", Status.class),
-                  data.getLong("directoryRevision"), data.getLong("configurationRevision"),
-                  data.getBoolean("paused"));
+                    QIOProcessingNbt.readUUID(data, "deviceUUID"),
+                    QIOProcessingNbt.readEnum(data, "status", Status.class),
+                    data.getLong("directoryRevision"), data.getLong("configurationRevision"),
+                    data.getBoolean("paused"));
         } catch (QIOProcessingDataException e) {
             throw e;
         } catch (RuntimeException e) {

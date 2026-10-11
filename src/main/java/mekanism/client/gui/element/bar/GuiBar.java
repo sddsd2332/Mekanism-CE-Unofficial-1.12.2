@@ -78,10 +78,10 @@ public abstract class GuiBar<INFO extends IBarInfoHandler> extends GuiTexturedEl
                 // the one drawn to the background if the contents of things are translucent
                 if (horizontal) {
                     int halfHeight = (height - 2) / 2;
-                    blit( relativeX + 1, relativeY + 1 + halfHeight, 0, halfHeight, width - 2, halfHeight, 256, 256);
+                    blit(relativeX + 1, relativeY + 1 + halfHeight, 0, halfHeight, width - 2, halfHeight, 256, 256);
                 } else {//vertical
                     int halfWidth = (width - 2) / 2;
-                    blit( relativeX + 1 + halfWidth, relativeY + 1, halfWidth, 0, halfWidth, height - 2, 256, 256);
+                    blit(relativeX + 1 + halfWidth, relativeY + 1, halfWidth, 0, halfWidth, height - 2, 256, 256);
                 }
             }
         }
@@ -91,7 +91,7 @@ public abstract class GuiBar<INFO extends IBarInfoHandler> extends GuiTexturedEl
 
     @Override
     public void renderToolTip(int mouseX, int mouseY) {
-        super.renderToolTip( mouseX, mouseY);
+        super.renderToolTip(mouseX, mouseY);
         ITextComponent tooltip = handler.getTooltip();
         if (tooltip != null) {
             displayTooltip(tooltip, mouseX, mouseY);

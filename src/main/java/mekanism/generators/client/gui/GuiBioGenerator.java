@@ -33,9 +33,9 @@ public class GuiBioGenerator extends GuiGenerator<TileEntityBioGenerator, Contai
 
     private List<ITextComponent> getScreenText() {
         return Arrays.asList(
-              energy(tileEntity.getEnergy()),
-              text(LangUtils.localize("gui.bioGenerator.bioFuel") + ": " + TextUtils.format(tileEntity.bioFuelTank.getFluidAmount())),
-              text(LangUtils.localize("gui.out") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getMaxOutput()) + "/t")
+                energy(tileEntity.getEnergy()),
+                text(LangUtils.localize("gui.bioGenerator.bioFuel") + ": " + TextUtils.format(tileEntity.bioFuelTank.getFluidAmount())),
+                text(LangUtils.localize("gui.out") + ": " + MekanismUtils.getEnergyDisplay(tileEntity.getMaxOutput()) + "/t")
         );
     }
 }

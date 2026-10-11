@@ -55,7 +55,7 @@ public enum DataType implements IIncrementalEnum<DataType> {
 
     public boolean canInput() {
         return this == INPUT || canAutoPull() || this == INPUT_1 || this == INPUT_2 || this == INPUT_OUTPUT || this == INPUT_EXTRA || this == INPUT_EXTRA_OUTPUT
-              || this == ENERGY || this == EXTRA || this == GAS || this == FLUID;
+                || this == ENERGY || this == EXTRA || this == GAS || this == FLUID;
     }
 
     public boolean canAutoPull() {

@@ -11,31 +11,19 @@ import mekanism.api.qio.external.QIOStorageEntry;
 import mekanism.api.qio.external.QIOTransferResult;
 import mekanism.common.Mekanism;
 import mekanism.common.content.qio.QIOFrequencyStorageAccess;
-import mekanism.qioprocessing.api.machine.MachineActivitySnapshot;
-import mekanism.qioprocessing.api.machine.MachineOperationLease;
-import mekanism.qioprocessing.api.machine.MachineOperationToken;
-import mekanism.qioprocessing.api.machine.MachinePortBaseline;
-import mekanism.qioprocessing.api.machine.QIOOutputBufferEntry;
+import mekanism.qioprocessing.api.machine.*;
 import mekanism.qioprocessing.api.resource.PortableResourceDescriptor;
 import mekanism.qioprocessing.common.content.QIOFrequencyIdentitySnapshot;
 import mekanism.qioprocessing.common.content.QIOProcessingNetworkData;
 import mekanism.qioprocessing.common.content.QIOProcessingNetworkManager;
 import mekanism.qioprocessing.common.content.transfer.QIODurableTransferRecord;
-import mekanism.qioprocessing.common.execution.QIOProcessingExecutionService;
 import net.minecraft.tileentity.TileEntity;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * QIO 自动输出升级的机器本地控制器。
@@ -47,7 +35,9 @@ import java.util.UUID;
 public final class QIOAutomaticOutputService {
 
     public static final QIOAutomaticOutputService INSTANCE = new QIOAutomaticOutputService();
-    /** 单台设备在一轮中最多建立的持久输出操作数，避免异常 Provider 无限产生日志/租约。 */
+    /**
+     * 单台设备在一轮中最多建立的持久输出操作数，避免异常 Provider 无限产生日志/租约。
+     */
     private static final int MAX_OUTPUT_OPERATIONS_PER_TICK = 256;
 
     private QIOAutomaticOutputService() {
@@ -85,8 +75,15 @@ public final class QIOAutomaticOutputService {
         processDevice(host, tile, tick, true, false);
     }
 
+    /**
+     * Disabled feature: drive only already owned durable operations, never claim fresh machine output.
+     */
+    void tickRecoveryDevice(DefaultQIOAutomationHost host, TileEntity tile, long tick) {
+        processDevice(host, tile, tick, false, false);
+    }
+
     private void processDevice(DefaultQIOAutomationHost host, TileEntity tile, long tick,
-          boolean startNewOperations, boolean preflightNewOperations) {
+                               boolean startNewOperations, boolean preflightNewOperations) {
         Objects.requireNonNull(host, "Automatic output host cannot be null");
         Objects.requireNonNull(tile, "Automatic output tile cannot be null");
         if (host.tile() != tile) {
@@ -96,8 +93,8 @@ public final class QIOAutomaticOutputService {
             throw new IllegalArgumentException("Automatic output tick cannot be negative");
         }
         if ((host.getState() != mekanism.qioprocessing.api.machine.QIOAutomationHost.State.ACTIVE &&
-            host.getState() != mekanism.qioprocessing.api.machine.QIOAutomationHost.State.DRAINING_CHANGE) ||
-            host.getEnabledMode() != QIOAutomationMode.OUTPUT_ONLY) {
+                host.getState() != mekanism.qioprocessing.api.machine.QIOAutomationHost.State.DRAINING_CHANGE) ||
+                host.getEnabledMode() != QIOAutomationMode.OUTPUT_ONLY) {
             return;
         }
         QIOFrequencyReference reference = host.getFrequencyReference();
@@ -105,7 +102,7 @@ public final class QIOAutomaticOutputService {
             return;
         }
         if (QIOProcessingNetworkManager.INSTANCE.getIsolationStatus(
-              reference.getFrequencyUUID()) != null) {
+                reference.getFrequencyUUID()) != null) {
             pauseOutputRecoveryOrRetry(host, "processing network is isolated");
             return;
         }
@@ -113,7 +110,7 @@ public final class QIOAutomaticOutputService {
         try {
             provider = MachineRecipeProviderRegistry.find(tile);
             if (provider == null || !provider.validateQIOConformance(
-                  QIOAutomationMode.OUTPUT_ONLY).isConformant()) {
+                    QIOAutomationMode.OUTPUT_ONLY).isConformant()) {
                 pauseOutputRecoveryOrRetry(host, "automatic output provider is unavailable");
                 return;
             }
@@ -144,21 +141,21 @@ public final class QIOAutomaticOutputService {
                 // Materializing it through getOrCreate would reset a DAMAGED network and could
                 // erase the durable transfer needed to decide who owns the machine output.
                 if (QIOProcessingNetworkManager.INSTANCE.getIsolationStatus(
-                      reference.getFrequencyUUID()) != null) {
+                        reference.getFrequencyUUID()) != null) {
                     pauseOutputRecoveryOrRetry(host, "processing network is isolated");
                     return;
                 }
                 network = QIOProcessingNetworkManager.INSTANCE.get(
-                      reference.getFrequencyUUID());
+                        reference.getFrequencyUUID());
                 if (network == null) {
                     pauseOutputRecoveryOrRetry(host, "processing network is unavailable");
                     return;
                 }
             } else {
                 network = QIOProcessingNetworkManager.INSTANCE.getOrCreate(
-                      reference.getFrequencyUUID(), new QIOFrequencyIdentitySnapshot(
-                            reference.getFrequencyName(), reference.getOwnerUUID(),
-                            reference.getSecurityMode()));
+                        reference.getFrequencyUUID(), new QIOFrequencyIdentitySnapshot(
+                                reference.getFrequencyName(), reference.getOwnerUUID(),
+                                reference.getSecurityMode()));
             }
         } catch (RuntimeException e) {
             // The processing network may be reloading independently from the machine tile.
@@ -168,7 +165,7 @@ public final class QIOAutomaticOutputService {
         }
         if (host.hasDeferredOutputRecovery()) {
             DefaultQIOAutomationHost.DeferredOutputRecoveryResult recovery =
-                  host.attemptDeferredOutputRecovery();
+                    host.attemptDeferredOutputRecovery();
             if (recovery != DefaultQIOAutomationHost.DeferredOutputRecoveryResult.NONE) {
                 return;
             }
@@ -190,7 +187,7 @@ public final class QIOAutomaticOutputService {
             // through the normal quarantine path instead of escaping the pre-component hook.
             pauseOutputRecoveryOrRetry(host, "automatic output settlement checkpoint is unavailable");
             Mekanism.logger.warn("Unable to settle QIO automatic output history for device {}; retrying",
-                  host.getPersistentDeviceUUID(), e);
+                    host.getPersistentDeviceUUID(), e);
             return;
         }
 
@@ -202,7 +199,7 @@ public final class QIOAutomaticOutputService {
          */
         Set<String> blockedGroups = new HashSet<>();
         List<QIOOutputBufferEntry> pendingBuffers = new ArrayList<>(
-              host.getOutputBufferEntries().values());
+                host.getOutputBufferEntries().values());
         for (QIOOutputBufferEntry pending : pendingBuffers) {
             QIOOutputBufferEntry entry = host.getOutputBufferEntries().get(pending.bufferId());
             if (entry == null) {
@@ -218,7 +215,7 @@ public final class QIOAutomaticOutputService {
             // complete and the buffer can be delivered in this same tick. A transient QIO
             // capacity/provider failure still leaves the entry held and blocks only its group.
             if (entry != null && entry.phase() != QIOOutputBufferEntry.Phase.PREPARED &&
-                  reconcileHeldMachineTransfer(network, host, ports, entry)) {
+                    reconcileHeldMachineTransfer(network, host, ports, entry)) {
                 deliverToQIO(host, network, entry, reference);
                 entry = host.getOutputBufferEntries().get(entry.bufferId());
             }
@@ -228,16 +225,18 @@ public final class QIOAutomaticOutputService {
             }
         }
         if (startNewOperations && host.getState() ==
-            mekanism.qioprocessing.api.machine.QIOAutomationHost.State.ACTIVE) {
+                mekanism.qioprocessing.api.machine.QIOAutomationHost.State.ACTIVE) {
             startMachineExtraction(host, ports, network, tick, reference,
-                  blockedGroups, outputOperationLimit(ports), preflightNewOperations);
+                    blockedGroups, outputOperationLimit(ports), preflightNewOperations);
         }
     }
 
-    /** 从网络中的孤立传输记录恢复尚未重新登记的机器输出操作。 */
+    /**
+     * 从网络中的孤立传输记录恢复尚未重新登记的机器输出操作。
+     */
     private boolean recoverRolledBackOutputOperation(DefaultQIOAutomationHost host,
-          List<MachinePort> ports, QIOProcessingNetworkData network,
-          long tick) {
+                                                     List<MachinePort> ports, QIOProcessingNetworkData network,
+                                                     long tick) {
         if (!host.getOutputBufferEntries().isEmpty()) {
             return false;
         }
@@ -246,10 +245,10 @@ public final class QIOAutomaticOutputService {
         QIODurableTransferRecord candidate = null;
         for (QIODurableTransferRecord transfer : network.getDurableTransfers()) {
             if (transfer.getType() != QIODurableTransferRecord.Type.MACHINE_TO_JOB ||
-                transfer.getOwnerJobId() != null || transfer.getLeaseId() == null ||
-                transfer.getMachineBaselines().size() != 1 || !transfer.getSource().startsWith(source) ||
-                !transfer.getDestination().startsWith(destination) || transfer.getPlanRevision() != 0 ||
-                !transfer.getNodeId().startsWith("output/")) {
+                    transfer.getOwnerJobId() != null || transfer.getLeaseId() == null ||
+                    transfer.getMachineBaselines().size() != 1 || !transfer.getSource().startsWith(source) ||
+                    !transfer.getDestination().startsWith(destination) || transfer.getPlanRevision() != 0 ||
+                    !transfer.getNodeId().startsWith("output/")) {
                 continue;
             }
             if (host.getOperationTokens().containsKey(transfer.getOwnerOperationId())) {
@@ -271,21 +270,21 @@ public final class QIOAutomaticOutputService {
             return true;
         }
         Map.Entry<PortableResourceDescriptor, Long> resource =
-              candidate.getResources().entrySet().iterator().next();
+                candidate.getResources().entrySet().iterator().next();
         MachineResourceStack expected = baseline.contents().withAmount(resource.getValue());
         if (describe(expected) == null || !resource.getKey().equals(describe(expected)) ||
-            !baseline.matches(port) && !baseline.matchesAfterExtraction(port, expected)) {
+                !baseline.matches(port) && !baseline.matchesAfterExtraction(port, expected)) {
             host.markRecoveryPending("Rolled-back automatic output port changed before recovery");
             return true;
         }
         boolean sourceIntact = baseline.matches(port);
         boolean sourceExtracted = baseline.matchesAfterExtraction(port, expected);
         boolean settledForwardTransfer = candidate.getPhase() ==
-              QIODurableTransferRecord.Phase.COMMITTED &&
-              candidate.getResolution() == QIODurableTransferRecord.Resolution.FORWARD_COMMITTED;
+                QIODurableTransferRecord.Phase.COMMITTED &&
+                candidate.getResolution() == QIODurableTransferRecord.Resolution.FORWARD_COMMITTED;
         if ((candidate.getResolution() != QIODurableTransferRecord.Resolution.NONE ||
-              candidate.getPhase() == QIODurableTransferRecord.Phase.ROLLBACK_REQUIRED) &&
-              !(settledForwardTransfer && sourceIntact)) {
+                candidate.getPhase() == QIODurableTransferRecord.Phase.ROLLBACK_REQUIRED) &&
+                !(settledForwardTransfer && sourceIntact)) {
             // A settled or rollback-required transfer has crossed a durable ownership
             // boundary. Replaying it is only safe for the explicit whole-tile rollback case
             // where the exact original machine baseline is present again; otherwise leave it
@@ -294,9 +293,9 @@ public final class QIOAutomaticOutputService {
             return true;
         }
         if (!sourceIntact && sourceExtracted &&
-              candidate.getPhase() == QIODurableTransferRecord.Phase.PREPARED &&
-              candidate.getResolution() == QIODurableTransferRecord.Resolution.NONE &&
-              candidate.getSourceReceipt() == null && candidate.getDestinationReceipt() == null) {
+                candidate.getPhase() == QIODurableTransferRecord.Phase.PREPARED &&
+                candidate.getResolution() == QIODurableTransferRecord.Resolution.NONE &&
+                candidate.getSourceReceipt() == null && candidate.getDestinationReceipt() == null) {
             // A PREPARED orphan has no durable source receipt. If the exact post-extraction
             // baseline is already visible, the ordinary ejector may have taken the stack while
             // the local capability was missing; discard only this unreceipted intent instead
@@ -307,7 +306,7 @@ public final class QIOAutomaticOutputService {
             } catch (IOException | RuntimeException e) {
                 host.markRetryPending();
                 Mekanism.logger.warn("Unable to discard externally ejected rolled-back automatic output for device {}; retrying",
-                      host.getPersistentDeviceUUID(), e);
+                        host.getPersistentDeviceUUID(), e);
             }
             return true;
         }
@@ -316,7 +315,7 @@ public final class QIOAutomaticOutputService {
         QIOOutputBufferEntry entry;
         try {
             entry = QIOOutputBufferEntry.prepared(candidate.getTransferId(), operationId, leaseId,
-                  baseline, expected, tick);
+                    baseline, expected, tick);
         } catch (RuntimeException e) {
             host.markRecoveryPending("Rolled-back automatic output buffer is malformed");
             return true;
@@ -326,12 +325,12 @@ public final class QIOAutomaticOutputService {
             return true;
         }
         MachineOperationLease lease = host.tryAcquireLease(leaseId, operationId,
-              MachineOperationLease.Mode.OUTPUT_DRAIN, Math.max(0, port.laneId()), tick,
-              candidate.getMachineBaselines());
+                MachineOperationLease.Mode.OUTPUT_DRAIN, Math.max(0, port.laneId()), tick,
+                candidate.getMachineBaselines());
         if (lease == null || !host.attachOperationToken(MachineOperationToken.outputDrain(
-              operationId, leaseId, Math.max(0, port.laneId()))) ||
-            !host.transitionOperation(operationId, MachineOperationToken.State.COLLECTING,
-                  MachineOperationLease.State.COLLECTING)) {
+                operationId, leaseId, Math.max(0, port.laneId()))) ||
+                !host.transitionOperation(operationId, MachineOperationToken.State.COLLECTING,
+                        MachineOperationLease.State.COLLECTING)) {
             host.markRecoveryPending("Unable to restore rolled-back automatic output ownership");
             return true;
         }
@@ -353,21 +352,21 @@ public final class QIOAutomaticOutputService {
             } else {
                 host.markRecoveryPending("Unable to restore extracted automatic output buffer");
             }
-            } catch (IOException e) {
+        } catch (IOException e) {
+            pauseOutputRecoveryOrRetry(host,
+                    "automatic output rollback checkpoint is unavailable");
+            Mekanism.logger.warn("Unable to recover rolled-back QIO automatic output for device {}; retrying",
+                    host.getPersistentDeviceUUID(), e);
+        } catch (RuntimeException e) {
+            if (isStructuralFailure(e)) {
+                host.markRecoveryPending("Automatic output rollback recovery failed: " + diagnostic(e));
+            } else {
                 pauseOutputRecoveryOrRetry(host,
-                      "automatic output rollback checkpoint is unavailable");
-                Mekanism.logger.warn("Unable to recover rolled-back QIO automatic output for device {}; retrying",
-                      host.getPersistentDeviceUUID(), e);
-            } catch (RuntimeException e) {
-                if (isStructuralFailure(e)) {
-                    host.markRecoveryPending("Automatic output rollback recovery failed: " + diagnostic(e));
-                } else {
-                    pauseOutputRecoveryOrRetry(host,
-                          "automatic output rollback recovery endpoint is rebuilding");
-                }
-                Mekanism.logger.error("Unable to recover rolled-back QIO automatic output for device {}",
-                      host.getPersistentDeviceUUID(), e);
+                        "automatic output rollback recovery endpoint is rebuilding");
             }
+            Mekanism.logger.error("Unable to recover rolled-back QIO automatic output for device {}",
+                    host.getPersistentDeviceUUID(), e);
+        }
         return true;
     }
 
@@ -379,9 +378,9 @@ public final class QIOAutomaticOutputService {
      * 若 QIO 暂时无容量，未完成的缓冲会锁住该组并留到下一 tick 重试。</p>
      */
     private int startMachineExtraction(DefaultQIOAutomationHost host,
-          List<MachinePort> ports, QIOProcessingNetworkData network, long tick,
-          QIOFrequencyReference reference, Set<String> blockedGroups, int operationLimit,
-          boolean preflightNewOperations) {
+                                       List<MachinePort> ports, QIOProcessingNetworkData network, long tick,
+                                       QIOFrequencyReference reference, Set<String> blockedGroups, int operationLimit,
+                                       boolean preflightNewOperations) {
         int started = 0;
         boolean progress;
         boolean endpointBlocked = false;
@@ -389,7 +388,7 @@ public final class QIOAutomaticOutputService {
             progress = false;
             for (MachinePort port : ports) {
                 if (started >= operationLimit ||
-                      port == null || port.isConfiguration() || !port.role().allowsOutput()) {
+                        port == null || port.isConfiguration() || !port.role().allowsOutput()) {
                     continue;
                 }
                 String groupId = port.portGroupId();
@@ -436,7 +435,7 @@ public final class QIOAutomaticOutputService {
                     }
                 }
                 QIOOutputBufferEntry created = startOneMachineExtraction(host, ports, network,
-                      tick, port, output);
+                        tick, port, output);
                 if (created == null) {
                     // The operation may have been discarded as entirely local state, or it
                     // may have entered a retry/quarantine path. Either way do not spin on
@@ -446,7 +445,7 @@ public final class QIOAutomaticOutputService {
                 }
                 QIOOutputBufferEntry current = host.getOutputBufferEntries().get(created.bufferId());
                 if (current != null && current.phase() != QIOOutputBufferEntry.Phase.PREPARED &&
-                      reconcileHeldMachineTransfer(network, host, ports, current)) {
+                        reconcileHeldMachineTransfer(network, host, ports, current)) {
                     deliverToQIO(host, network, current, reference);
                     current = host.getOutputBufferEntries().get(current.bufferId());
                 }
@@ -479,7 +478,7 @@ public final class QIOAutomaticOutputService {
      * created immediately afterwards is the authority across a concurrent QIO mutation.
      */
     private static long probeQIOCapacity(QIOFrequencyReference reference,
-          MachineResourceStack output) {
+                                         MachineResourceStack output) {
         PortableResourceDescriptor resource = describe(output);
         if (resource == null || output.amount() <= 0) {
             return -1;
@@ -487,7 +486,7 @@ public final class QIOAutomaticOutputService {
         IQIOStorageView view = null;
         try {
             view = QIOFrequencyStorageAccess.INSTANCE.open(reference,
-                  reference.getBindingPlayerUUID());
+                    reference.getBindingPlayerUUID());
             return view == null ? -1 : simulateInsert(view, resource, output.amount());
         } catch (RuntimeException e) {
             return -1;
@@ -503,7 +502,7 @@ public final class QIOAutomaticOutputService {
      * a device with no buffered ownership keeps the lighter retry marker instead.
      */
     private static void pauseOutputRecoveryOrRetry(DefaultQIOAutomationHost host,
-          String reason) {
+                                                   String reason) {
         if (!host.pauseAutomaticOutputCollection(reason)) {
             host.markRetryPending();
         }
@@ -528,11 +527,13 @@ public final class QIOAutomaticOutputService {
         return units;
     }
 
-    /** 为一个具体资源建立租约、token、缓冲和 durable transfer，并尝试抽取。 */
+    /**
+     * 为一个具体资源建立租约、token、缓冲和 durable transfer，并尝试抽取。
+     */
     @Nullable
     private QIOOutputBufferEntry startOneMachineExtraction(DefaultQIOAutomationHost host,
-          List<MachinePort> ports, QIOProcessingNetworkData network, long tick,
-          MachinePort port, MachineResourceStack extraction) {
+                                                           List<MachinePort> ports, QIOProcessingNetworkData network, long tick,
+                                                           MachinePort port, MachineResourceStack extraction) {
         PortableResourceDescriptor resource = describe(extraction);
         if (resource == null) {
             // A missing resource codec/mod is a retryable availability issue;
@@ -551,18 +552,18 @@ public final class QIOAutomaticOutputService {
             // No ownership was acquired, so this is a pure retry condition.
             host.markRetryPending();
             Mekanism.logger.warn("Unable to capture QIO automatic output baseline for device {}; retrying",
-                  host.getPersistentDeviceUUID(), e);
+                    host.getPersistentDeviceUUID(), e);
             return null;
         }
         MachineOperationLease lease;
         try {
             lease = host.tryAcquireLease(leaseId, operationId,
-                  MachineOperationLease.Mode.OUTPUT_DRAIN, Math.max(0, port.laneId()), tick,
-                  Collections.singletonList(baseline));
+                    MachineOperationLease.Mode.OUTPUT_DRAIN, Math.max(0, port.laneId()), tick,
+                    Collections.singletonList(baseline));
         } catch (RuntimeException e) {
             host.markRetryPending();
             Mekanism.logger.warn("Unable to acquire QIO automatic output lease for device {}; retrying",
-                  host.getPersistentDeviceUUID(), e);
+                    host.getPersistentDeviceUUID(), e);
             return null;
         }
         if (lease == null) {
@@ -571,12 +572,12 @@ public final class QIOAutomaticOutputService {
         boolean attached;
         try {
             attached = host.attachOperationToken(MachineOperationToken.outputDrain(operationId, leaseId,
-                  Math.max(0, port.laneId())));
+                    Math.max(0, port.laneId())));
         } catch (RuntimeException e) {
             host.releaseUnattachedLease(leaseId);
             host.markRetryPending();
             Mekanism.logger.warn("Unable to attach QIO automatic output token for device {}; retrying",
-                  host.getPersistentDeviceUUID(), e);
+                    host.getPersistentDeviceUUID(), e);
             return null;
         }
         if (!attached) {
@@ -588,17 +589,17 @@ public final class QIOAutomaticOutputService {
         boolean transitionRuntimeFailure = false;
         try {
             transitioned = host.transitionOperation(operationId, MachineOperationToken.State.COLLECTING,
-                  MachineOperationLease.State.COLLECTING);
+                    MachineOperationLease.State.COLLECTING);
         } catch (RuntimeException e) {
             transitioned = false;
             transitionRuntimeFailure = true;
             host.markRetryPending();
             Mekanism.logger.warn("Unable to transition QIO automatic output operation for device {}; retrying",
-                  host.getPersistentDeviceUUID(), e);
+                    host.getPersistentDeviceUUID(), e);
         }
         if (!transitioned) {
             if (!discardUnownedOutputOperation(host, ports, network, operationId) &&
-                  !transitionRuntimeFailure) {
+                    !transitionRuntimeFailure) {
                 host.contaminateLease(leaseId, "Unable to establish automatic output operation token");
             }
             return host.getOutputBufferEntries().get(bufferId);
@@ -606,19 +607,19 @@ public final class QIOAutomaticOutputService {
         QIOOutputBufferEntry entry;
         try {
             entry = QIOOutputBufferEntry.prepared(bufferId, operationId, leaseId,
-                  baseline, extraction, tick);
+                    baseline, extraction, tick);
         } catch (RuntimeException e) {
             if (!discardUnownedOutputOperation(host, ports, network, operationId)) {
                 if (isStructuralFailure(e)) {
                     host.contaminateLease(leaseId,
-                          "Automatic output buffer preparation failed: " + diagnostic(e));
+                            "Automatic output buffer preparation failed: " + diagnostic(e));
                 } else {
                     pauseOutputRecoveryOrRetry(host,
-                          "automatic output buffer preparation endpoint is rebuilding");
+                            "automatic output buffer preparation endpoint is rebuilding");
                 }
             }
             Mekanism.logger.error("Unable to create QIO automatic output buffer for device {}",
-                  host.getPersistentDeviceUUID(), e);
+                    host.getPersistentDeviceUUID(), e);
             return host.getOutputBufferEntries().get(bufferId);
         }
         boolean prepared;
@@ -631,14 +632,14 @@ public final class QIOAutomaticOutputService {
             if (!discardUnownedOutputOperation(host, ports, network, operationId)) {
                 if (isStructuralFailure(e)) {
                     host.contaminateLease(leaseId,
-                          "Automatic output buffer preparation failed: " + diagnostic(e));
+                            "Automatic output buffer preparation failed: " + diagnostic(e));
                 } else {
                     pauseOutputRecoveryOrRetry(host,
-                          "automatic output buffer persistence endpoint is rebuilding");
+                            "automatic output buffer persistence endpoint is rebuilding");
                 }
             }
             Mekanism.logger.error("Unable to persist QIO automatic output buffer for device {}",
-                  host.getPersistentDeviceUUID(), e);
+                    host.getPersistentDeviceUUID(), e);
         }
         if (!prepared) {
             if (!prepareRuntimeFailure && !discardUnownedOutputOperation(host, ports, network, operationId)) {
@@ -652,30 +653,32 @@ public final class QIOAutomaticOutputService {
             extractPreparedOutput(host, network, entry, port, extraction, resource);
         } catch (IOException e) {
             pauseOutputRecoveryOrRetry(host,
-                  "automatic output transfer checkpoint is unavailable");
+                    "automatic output transfer checkpoint is unavailable");
             Mekanism.logger.error("Unable to prepare QIO automatic output transfer for device {}",
-                  host.getPersistentDeviceUUID(), e);
+                    host.getPersistentDeviceUUID(), e);
         } catch (RuntimeException e) {
             if (!discardUnownedOutputOperation(host, ports, network, operationId)) {
                 if (isStructuralFailure(e)) {
                     host.contaminateLease(leaseId,
-                          "Automatic output transfer preparation failed: " + diagnostic(e));
+                            "Automatic output transfer preparation failed: " + diagnostic(e));
                 } else {
                     pauseOutputRecoveryOrRetry(host,
-                          "automatic output transfer endpoint is rebuilding");
+                            "automatic output transfer endpoint is rebuilding");
                 }
             }
             Mekanism.logger.error("Unable to prepare QIO automatic output transfer for device {}",
-                  host.getPersistentDeviceUUID(), e);
+                    host.getPersistentDeviceUUID(), e);
         }
         return host.getOutputBufferEntries().get(bufferId);
     }
 
-    /** 判断共享端口组当前是否仍被未释放租约占用。 */
+    /**
+     * 判断共享端口组当前是否仍被未释放租约占用。
+     */
     private static boolean isPortGroupOccupied(DefaultQIOAutomationHost host, String groupId) {
         for (MachineOperationLease lease : host.getLeases().values()) {
             if (lease.state() != MachineOperationLease.State.RELEASED &&
-                  lease.portGroupIds().contains(groupId)) {
+                    lease.portGroupIds().contains(groupId)) {
                 return true;
             }
         }
@@ -687,18 +690,20 @@ public final class QIOAutomaticOutputService {
      * The baseline check is important: without it, a crash after a machine debit but before
      * the buffer/transfer reached disk could silently lose the machine resource.
      */
-    /** 清理已证明没有外部资源所有权的孤立自动输出操作。 */
+    /**
+     * 清理已证明没有外部资源所有权的孤立自动输出操作。
+     */
     private boolean discardUnownedOutputOperation(DefaultQIOAutomationHost host,
-          List<MachinePort> ports, QIOProcessingNetworkData network, UUID operationId) {
+                                                  List<MachinePort> ports, QIOProcessingNetworkData network, UUID operationId) {
         MachineOperationToken token = host.getOperationTokens().get(operationId);
         if (token == null || token.kind() != MachineOperationToken.Kind.OUTPUT_DRAIN) {
             return false;
         }
         MachineOperationLease lease = host.getLeases().get(token.leaseId());
         if (lease == null || lease.mode() != MachineOperationLease.Mode.OUTPUT_DRAIN ||
-              lease.baselines().isEmpty() || !token.transferReceipts().isEmpty() ||
-              host.getOutputBufferEntries().values().stream().anyMatch(entry ->
-                    entry.operationId().equals(operationId))) {
+                lease.baselines().isEmpty() || !token.transferReceipts().isEmpty() ||
+                host.getOutputBufferEntries().values().stream().anyMatch(entry ->
+                        entry.operationId().equals(operationId))) {
             return false;
         }
         if (hasDurableOutputOwnership(network, host, operationId, lease)) {
@@ -713,11 +718,13 @@ public final class QIOAutomaticOutputService {
         return host.discardUnownedOutputOperation(operationId);
     }
 
-    /** 扫描并清除没有缓冲、回执或 durable transfer 的本地主机孤立状态。 */
+    /**
+     * 扫描并清除没有缓冲、回执或 durable transfer 的本地主机孤立状态。
+     */
     private void clearUnownedOutputOperation(DefaultQIOAutomationHost host,
-          List<MachinePort> ports, QIOProcessingNetworkData network) {
+                                             List<MachinePort> ports, QIOProcessingNetworkData network) {
         MachineOperationToken[] tokens = host.getOperationTokens().values().toArray(
-              new MachineOperationToken[0]);
+                new MachineOperationToken[0]);
         for (MachineOperationToken token : tokens) {
             if (token.kind() != MachineOperationToken.Kind.OUTPUT_DRAIN) {
                 continue;
@@ -730,21 +737,23 @@ public final class QIOAutomaticOutputService {
         }
     }
 
-    /** 判断网络是否仍保存属于该机器的输出所有权记录。 */
+    /**
+     * 判断网络是否仍保存属于该机器的输出所有权记录。
+     */
     private boolean hasDurableOutputOwnership(QIOProcessingNetworkData network,
-          DefaultQIOAutomationHost host, UUID operationId, MachineOperationLease lease) {
+                                              DefaultQIOAutomationHost host, UUID operationId, MachineOperationLease lease) {
         try {
             String devicePrefix = "machine/" + host.getPersistentDeviceUUID() + "/";
             String bufferPrefix = "output-buffer/" + host.getPersistentDeviceUUID() + "/";
             for (QIODurableTransferRecord transfer : network.getDurableTransfers()) {
                 if (operationId.equals(transfer.getOwnerOperationId()) ||
-                      lease.leaseId().equals(transfer.getLeaseId())) {
+                        lease.leaseId().equals(transfer.getLeaseId())) {
                     return true;
                 }
                 if (transfer.getType() == QIODurableTransferRecord.Type.MACHINE_TO_JOB &&
-                      transfer.getOwnerJobId() == null &&
-                      transfer.getSource().startsWith(devicePrefix) &&
-                      transfer.getDestination().startsWith(bufferPrefix)) {
+                        transfer.getOwnerJobId() == null &&
+                        transfer.getSource().startsWith(devicePrefix) &&
+                        transfer.getDestination().startsWith(bufferPrefix)) {
                     // A standalone machine-to-buffer transfer without a matching local token
                     // is still an ownership record; never infer that it is disposable.
                     return true;
@@ -757,10 +766,12 @@ public final class QIOAutomaticOutputService {
         }
     }
 
-    /** 根据 PREPARED 缓冲的端口基线继续尚未完成的机器抽取。 */
+    /**
+     * 根据 PREPARED 缓冲的端口基线继续尚未完成的机器抽取。
+     */
     private void resumeMachineExtraction(DefaultQIOAutomationHost host,
-          List<MachinePort> ports, QIOProcessingNetworkData network,
-          QIOOutputBufferEntry entry) {
+                                         List<MachinePort> ports, QIOProcessingNetworkData network,
+                                         QIOOutputBufferEntry entry) {
         MachinePort port = findPort(ports, entry.baseline().portId());
         MachineResourceStack expected = entry.extraction();
         if (port == null || expected == null) {
@@ -792,11 +803,11 @@ public final class QIOAutomaticOutputService {
             }
             MachineOperationToken token = host.getOperationTokens().get(entry.operationId());
             if (!entry.baseline().matches(port) &&
-                  transfer.getPhase() == QIODurableTransferRecord.Phase.PREPARED &&
-                  transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE &&
-                  (token == null || !token.hasTransferReceipt(transfer.getTransferId())) &&
-                  (entry.baseline().matchesAfterExtraction(port, expected) ||
-                        host.isOrdinaryOutputHandoffAllowed(entry.operationId()))) {
+                    transfer.getPhase() == QIODurableTransferRecord.Phase.PREPARED &&
+                    transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE &&
+                    (token == null || !token.hasTransferReceipt(transfer.getTransferId())) &&
+                    (entry.baseline().matchesAfterExtraction(port, expected) ||
+                            host.isOrdinaryOutputHandoffAllowed(entry.operationId()))) {
                 // No durable source receipt exists. Only an exact post-extraction baseline or
                 // an explicit quarantine handoff marker proves that the ordinary ejector owns
                 // this mutation; arbitrary changes remain a structural mismatch.
@@ -810,8 +821,8 @@ public final class QIOAutomaticOutputService {
                 // discard the intent and release the local lease. Only a transfer which already
                 // crossed SOURCE_DEBITED is allowed to credit the QIO buffer.
                 if (transfer.getPhase() == QIODurableTransferRecord.Phase.PREPARED &&
-                      transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE &&
-                      (token == null || !token.hasTransferReceipt(transfer.getTransferId()))) {
+                        transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE &&
+                        (token == null || !token.hasTransferReceipt(transfer.getTransferId()))) {
                     discardPreparedExternalHandoff(host, network, entry, transfer);
                     return;
                 }
@@ -826,50 +837,54 @@ public final class QIOAutomaticOutputService {
             }
         } catch (IOException e) {
             pauseOutputRecoveryOrRetry(host,
-                  "automatic output recovery checkpoint is unavailable");
+                    "automatic output recovery checkpoint is unavailable");
             Mekanism.logger.warn("Unable to resume QIO automatic output extraction for device {}; retrying",
-                  host.getPersistentDeviceUUID(), e);
+                    host.getPersistentDeviceUUID(), e);
         } catch (RuntimeException e) {
             if (isStructuralFailure(e)) {
                 host.contaminateLease(entry.leaseId(),
-                      "Automatic output extraction recovery failed: " + diagnostic(e));
+                        "Automatic output extraction recovery failed: " + diagnostic(e));
             } else {
                 pauseOutputRecoveryOrRetry(host,
-                      "automatic output extraction endpoint is rebuilding");
+                        "automatic output extraction endpoint is rebuilding");
             }
             Mekanism.logger.error("Unable to resume QIO automatic output extraction for device {}",
-                  host.getPersistentDeviceUUID(), e);
+                    host.getPersistentDeviceUUID(), e);
         }
     }
 
-    /** Removes a PREPARED machine intent after ordinary ejection owns the physical stack. */
+    /**
+     * Removes a PREPARED machine intent after ordinary ejection owns the physical stack.
+     */
     private void discardPreparedExternalHandoff(DefaultQIOAutomationHost host,
-          QIOProcessingNetworkData network, QIOOutputBufferEntry entry,
-          QIODurableTransferRecord transfer) {
+                                                QIOProcessingNetworkData network, QIOOutputBufferEntry entry,
+                                                QIODurableTransferRecord transfer) {
         try {
             if (transfer.getPhase() != QIODurableTransferRecord.Phase.PREPARED ||
-                  transfer.getResolution() != QIODurableTransferRecord.Resolution.NONE) {
+                    transfer.getResolution() != QIODurableTransferRecord.Resolution.NONE) {
                 return;
             }
             network.discardPreparedGenericTransfer(transfer.getTransferId());
             flush(network);
             if (!host.discardPreparedOutputAfterExternalHandoff(entry.operationId(),
-                  entry.bufferId())) {
+                    entry.bufferId())) {
                 host.markRecoveryPending("Unable to release externally ejected automatic output ownership");
             }
         } catch (IOException | RuntimeException e) {
             // Keep the local record when the network checkpoint is unavailable. The next tick
             // can retry the same phase without creating a second QIO credit.
             pauseOutputRecoveryOrRetry(host,
-                  "automatic output handoff checkpoint is unavailable");
+                    "automatic output handoff checkpoint is unavailable");
             Mekanism.logger.warn("Unable to discard externally ejected QIO automatic output for device {}; retrying",
-                  host.getPersistentDeviceUUID(), e);
+                    host.getPersistentDeviceUUID(), e);
         }
     }
 
-    /** A PREPARED phase is creditable only when a separate durable receipt exists. */
+    /**
+     * A PREPARED phase is creditable only when a separate durable receipt exists.
+     */
     private static boolean isMachineExtractionDurablyReceipted(DefaultQIOAutomationHost host,
-          QIOOutputBufferEntry entry, QIODurableTransferRecord transfer) {
+                                                               QIOOutputBufferEntry entry, QIODurableTransferRecord transfer) {
         if (transfer == null || transfer.getPhase() != QIODurableTransferRecord.Phase.PREPARED) {
             return true;
         }
@@ -877,10 +892,12 @@ public final class QIOAutomaticOutputService {
         return token != null && token.hasTransferReceipt(transfer.getTransferId());
     }
 
-    /** 校验端口基线后抽取产物，并把实际数量写入输出缓冲。 */
+    /**
+     * 校验端口基线后抽取产物，并把实际数量写入输出缓冲。
+     */
     private void extractPreparedOutput(DefaultQIOAutomationHost host, QIOProcessingNetworkData network,
-          QIOOutputBufferEntry entry, MachinePort port, MachineResourceStack expected,
-          PortableResourceDescriptor resource) throws IOException {
+                                       QIOOutputBufferEntry entry, MachinePort port, MachineResourceStack expected,
+                                       PortableResourceDescriptor resource) throws IOException {
         if (!entry.baseline().matches(port)) {
             host.contaminateLease(entry.leaseId(), "Automatic output port changed before extraction");
             return;
@@ -888,31 +905,36 @@ public final class QIOAutomaticOutputService {
         QIODurableTransferRecord transfer = ensureMachineTransfer(network, host, entry, resource, expected.amount());
         MachineResourceStack extracted;
         try {
-            extracted = port.extract(expected);
+            // Only local baseline validation/debit belongs under the machine lock. Durable
+            // transfer creation/checkpoints and destination network work stay outside it.
+            java.util.function.Supplier<MachineResourceStack> debit = () ->
+                    entry.baseline().matches(port) ? port.extract(expected) : null;
+            extracted = host.tile() instanceof mekanism.api.IContainerTransaction owner
+                    ? owner.callContainerTransaction(debit) : debit.get();
         } catch (RuntimeException e) {
             // Addon-backed ports can be rebuilt between the simulation and execute calls.
             // If the exact baseline is still present, this is retryable and must not poison
             // the collecting ownership record.
             if (entry.baseline().matches(port)) {
                 pauseOutputRecoveryOrRetry(host,
-                      "automatic output extraction endpoint is rebuilding");
+                        "automatic output extraction endpoint is rebuilding");
                 return;
             }
             if (!isMachineExtractionDurablyReceipted(host, entry, transfer) &&
-                  (entry.baseline().matchesAfterExtraction(port, expected) ||
-                        host.isOrdinaryOutputHandoffAllowed(entry.operationId()))) {
+                    (entry.baseline().matchesAfterExtraction(port, expected) ||
+                            host.isOrdinaryOutputHandoffAllowed(entry.operationId()))) {
                 discardPreparedExternalHandoff(host, network, entry, transfer);
                 return;
             }
             if (entry.baseline().matchesAfterExtraction(port, expected) &&
-                  isMachineExtractionDurablyReceipted(host, entry, transfer)) {
+                    isMachineExtractionDurablyReceipted(host, entry, transfer)) {
                 if (host.holdOutput(entry.bufferId(), resource, expected.amount())) {
                     completeMachineTransfer(network, transfer, host, entry);
                 }
                 return;
             }
             host.contaminateLease(entry.leaseId(),
-                  "Automatic output extraction changed its prepared baseline");
+                    "Automatic output extraction changed its prepared baseline");
             return;
         }
         if (extracted == null || extracted.amount() != expected.amount() || !extracted.sameResource(expected)) {
@@ -923,8 +945,8 @@ public final class QIOAutomaticOutputService {
                 return;
             }
             if (!isMachineExtractionDurablyReceipted(host, entry, transfer) &&
-                  (entry.baseline().matchesAfterExtraction(port, expected) ||
-                        host.isOrdinaryOutputHandoffAllowed(entry.operationId()))) {
+                    (entry.baseline().matchesAfterExtraction(port, expected) ||
+                            host.isOrdinaryOutputHandoffAllowed(entry.operationId()))) {
                 discardPreparedExternalHandoff(host, network, entry, transfer);
                 return;
             }
@@ -932,8 +954,8 @@ public final class QIOAutomaticOutputService {
             // The exact post-extraction baseline is enough to credit the persistent
             // buffer and finish the already-prepared durable transfer exactly once.
             if (entry.baseline().matchesAfterExtraction(port, expected) &&
-                  isMachineExtractionDurablyReceipted(host, entry, transfer) &&
-                  host.holdOutput(entry.bufferId(), resource, expected.amount())) {
+                    isMachineExtractionDurablyReceipted(host, entry, transfer) &&
+                    host.holdOutput(entry.bufferId(), resource, expected.amount())) {
                 completeMachineTransfer(network, transfer, host, entry);
                 return;
             }
@@ -946,16 +968,18 @@ public final class QIOAutomaticOutputService {
         completeMachineTransfer(network, transfer, host, entry);
     }
 
-    /** 将 HELD/DELIVERING 输出缓冲按容量和回执逐步写回 QIO。 */
+    /**
+     * 将 HELD/DELIVERING 输出缓冲按容量和回执逐步写回 QIO。
+     */
     private long deliverToQIO(DefaultQIOAutomationHost host, QIOProcessingNetworkData network,
-          QIOOutputBufferEntry entry, QIOFrequencyReference reference) {
+                              QIOOutputBufferEntry entry, QIOFrequencyReference reference) {
         IQIOStorageView view;
         try {
             view = QIOFrequencyStorageAccess.INSTANCE.open(reference,
-                  reference.getBindingPlayerUUID());
+                    reference.getBindingPlayerUUID());
         } catch (RuntimeException e) {
             pauseOutputRecoveryOrRetry(host,
-                  "automatic output delivery endpoint is rebuilding");
+                    "automatic output delivery endpoint is rebuilding");
             return 0;
         }
         if (view == null) {
@@ -972,8 +996,8 @@ public final class QIOAutomaticOutputService {
                     insertable = simulateInsert(view, entry.resource(), entry.amount());
                     if (insertable <= 0) {
                         host.updateActivitySnapshot(new MachineActivitySnapshot(
-                        host.getOperationTokens().get(entry.operationId()).laneId(), entry.operationId(), "",
-                              MachineActivitySnapshot.State.OUTPUT_BLOCKED, 0, 0, 0, "qio_full"));
+                                host.getOperationTokens().get(entry.operationId()).laneId(), entry.operationId(), "",
+                                MachineActivitySnapshot.State.OUTPUT_BLOCKED, 0, 0, 0, "qio_full"));
                         return 0;
                     }
                     UUID transferId = UUID.randomUUID();
@@ -983,7 +1007,7 @@ public final class QIOAutomaticOutputService {
                 } else {
                     insertable = transfer.getResources().getOrDefault(entry.resource(), 0L);
                 }
-            if (!host.beginOutputDelivery(entry.bufferId(), transfer.getTransferId(), insertable)) {
+                if (!host.beginOutputDelivery(entry.bufferId(), transfer.getTransferId(), insertable)) {
                     throw new IllegalStateException("Unable to persist automatic output delivery state");
                 }
                 delivering = host.getOutputBufferEntries().get(entry.bufferId());
@@ -993,16 +1017,16 @@ public final class QIOAutomaticOutputService {
 
             if (transfer.getPhase() == QIODurableTransferRecord.Phase.PREPARED) {
                 transfer.markSourceDebited("output-buffer/" + host.getPersistentDeviceUUID() + '/' + entry.bufferId(),
-                      host.getConfigurationRevision());
+                        host.getConfigurationRevision());
                 network.markTransferChanged(transfer.getTransferId());
                 flush(network);
             }
             QIOTransferResult result = insert(view, delivering.resource(), delivering.qioTransferId(),
-                  delivering.qioRequestedAmount(), transfer.getQIOBaselines().get(delivering.resource()));
+                    delivering.qioRequestedAmount(), transfer.getQIOBaselines().get(delivering.resource()));
             if (!result.isSuccess()) {
                 if (result.getStatus() == QIOTransferResult.Status.TRANSFER_ID_CONFLICT ||
-                    result.getStatus() == QIOTransferResult.Status.INVALID_REQUEST ||
-                    result.getStatus() == QIOTransferResult.Status.RECONCILIATION_CONFLICT) {
+                        result.getStatus() == QIOTransferResult.Status.INVALID_REQUEST ||
+                        result.getStatus() == QIOTransferResult.Status.RECONCILIATION_CONFLICT) {
                     host.contaminateLease(entry.leaseId(), "QIO rejected the durable automatic output transfer");
                 }
                 return 0;
@@ -1013,12 +1037,12 @@ public final class QIOAutomaticOutputService {
             }
             if (transfer.getPhase() == QIODurableTransferRecord.Phase.SOURCE_DEBITED) {
                 transfer.markDestinationCredited("qio/" + reference.getFrequencyUUID() + "/receipt/" +
-                      result.getTransferId());
+                        result.getTransferId());
                 network.markTransferChanged(transfer.getTransferId());
                 flush(network);
             }
             if (!host.applyOutputDeliveryReceipt(entry.bufferId(), result.getTransferId(),
-                  result.getTransferredAmount())) {
+                    result.getTransferredAmount())) {
                 throw new IllegalStateException("Unable to apply QIO automatic output receipt to its source buffer");
             }
             if (transfer.getPhase() == QIODurableTransferRecord.Phase.DESTINATION_CREDITED) {
@@ -1029,33 +1053,35 @@ public final class QIOAutomaticOutputService {
             return result.getTransferredAmount();
         } catch (IOException e) {
             pauseOutputRecoveryOrRetry(host,
-                  "automatic output delivery checkpoint is unavailable");
+                    "automatic output delivery checkpoint is unavailable");
             Mekanism.logger.error("Unable to deliver QIO automatic output for device {}",
-                  host.getPersistentDeviceUUID(), e);
+                    host.getPersistentDeviceUUID(), e);
             return 0;
         } catch (RuntimeException e) {
             if (isStructuralFailure(e)) {
                 host.contaminateLease(entry.leaseId(),
-                      "Automatic output delivery reconciliation failed: " + diagnostic(e));
+                        "Automatic output delivery reconciliation failed: " + diagnostic(e));
             } else {
                 // Storage views and dynamic QIO implementations may throw while their backing
                 // inventory is being rebuilt. The durable delivery record is still the source
                 // of truth; leave it intact for an idempotent retry.
                 pauseOutputRecoveryOrRetry(host,
-                      "automatic output delivery endpoint is rebuilding");
+                        "automatic output delivery endpoint is rebuilding");
             }
             Mekanism.logger.error("Unable to deliver QIO automatic output for device {}",
-                  host.getPersistentDeviceUUID(), e);
+                    host.getPersistentDeviceUUID(), e);
             return 0;
         } finally {
             view.close();
         }
     }
 
-    /** 查找或创建机器到输出缓冲的 durable transfer。 */
+    /**
+     * 查找或创建机器到输出缓冲的 durable transfer。
+     */
     private QIODurableTransferRecord ensureMachineTransfer(QIOProcessingNetworkData network,
-          DefaultQIOAutomationHost host, QIOOutputBufferEntry entry, PortableResourceDescriptor resource,
-          long amount) {
+                                                           DefaultQIOAutomationHost host, QIOOutputBufferEntry entry, PortableResourceDescriptor resource,
+                                                           long amount) {
         QIODurableTransferRecord existing = network.getDurableTransfer(entry.bufferId());
         if (existing != null) {
             if (!machineTransferMatches(existing, host, entry, resource, amount)) {
@@ -1064,19 +1090,21 @@ public final class QIOAutomaticOutputService {
             return existing;
         }
         QIODurableTransferRecord transfer = new QIODurableTransferRecord(entry.bufferId(), UUID.randomUUID(),
-              QIODurableTransferRecord.Type.MACHINE_TO_JOB, null, entry.operationId(), 0,
-              "output/" + entry.baseline().portId(), entry.leaseId(),
-              "machine/" + host.getPersistentDeviceUUID() + '/' + entry.baseline().portGroupId(),
-              "output-buffer/" + host.getPersistentDeviceUUID() + '/' + entry.bufferId(),
-              Collections.singletonMap(resource, amount), Collections.singletonList(entry.baseline()));
+                QIODurableTransferRecord.Type.MACHINE_TO_JOB, null, entry.operationId(), 0,
+                "output/" + entry.baseline().portId(), entry.leaseId(),
+                "machine/" + host.getPersistentDeviceUUID() + '/' + entry.baseline().portGroupId(),
+                "output-buffer/" + host.getPersistentDeviceUUID() + '/' + entry.bufferId(),
+                Collections.singletonMap(resource, amount), Collections.singletonList(entry.baseline()));
         network.addDurableTransfer(transfer);
         return transfer;
     }
 
-    /** 对账已有的机器抽取 transfer，避免重复取出或丢失资源。 */
+    /**
+     * 对账已有的机器抽取 transfer，避免重复取出或丢失资源。
+     */
     private boolean reconcileHeldMachineTransfer(QIOProcessingNetworkData network,
-          DefaultQIOAutomationHost host, List<MachinePort> ports,
-          QIOOutputBufferEntry entry) {
+                                                 DefaultQIOAutomationHost host, List<MachinePort> ports,
+                                                 QIOOutputBufferEntry entry) {
         QIODurableTransferRecord transfer = network.getDurableTransfer(entry.bufferId());
         PortableResourceDescriptor resource = entry.resource();
         MachineResourceStack extraction = entry.extraction();
@@ -1092,10 +1120,10 @@ public final class QIOAutomaticOutputService {
             // turn a transient endpoint change into a quarantine.  Identity/receipt checks are
             // still strict, so a genuinely mismatched transfer remains isolated.
             if (transfer != null &&
-                  transfer.getResolution() == QIODurableTransferRecord.Resolution.FORWARD_COMMITTED) {
+                    transfer.getResolution() == QIODurableTransferRecord.Resolution.FORWARD_COMMITTED) {
                 if (!machineTransferMatches(transfer, host, entry, resource, extraction.amount())) {
                     host.contaminateLease(entry.leaseId(),
-                          "Held output disagrees with its durable machine transfer");
+                            "Held output disagrees with its durable machine transfer");
                     return false;
                 }
                 completeMachineTransfer(network, transfer, host, entry);
@@ -1105,21 +1133,21 @@ public final class QIOAutomaticOutputService {
             MachinePort port = findPort(ports, entry.baseline().portId());
             if (port == null) {
                 host.contaminateLease(entry.leaseId(),
-                      "Held output disagrees with its durable machine transfer");
+                        "Held output disagrees with its durable machine transfer");
                 return false;
             }
             if (transfer == null) {
                 if (!entry.baseline().matchesAfterExtraction(port, extraction)) {
                     host.contaminateLease(entry.leaseId(),
-                          "Held output disagrees with its durable machine transfer");
+                            "Held output disagrees with its durable machine transfer");
                     return false;
                 }
                 transfer = ensureMachineTransfer(network, host, entry, resource,
-                      extraction.amount());
+                        extraction.amount());
             } else if (!machineTransferMatches(transfer, host, entry, resource,
-                  extraction.amount())) {
+                    extraction.amount())) {
                 host.contaminateLease(entry.leaseId(),
-                      "Held output disagrees with its durable machine transfer");
+                        "Held output disagrees with its durable machine transfer");
                 return false;
             }
             // Once the exact machine-to-buffer transfer is durably committed, the buffer is
@@ -1128,34 +1156,36 @@ public final class QIOAutomaticOutputService {
             // already-owned buffer and could quarantine a healthy continuously running machine.
             if (!entry.baseline().matchesAfterExtraction(port, extraction)) {
                 host.contaminateLease(entry.leaseId(),
-                      "Held output disagrees with its durable machine transfer");
+                        "Held output disagrees with its durable machine transfer");
                 return false;
             }
             completeMachineTransfer(network, transfer, host, entry);
             return true;
         } catch (IOException e) {
             pauseOutputRecoveryOrRetry(host,
-                  "automatic output transfer reconciliation checkpoint is unavailable");
+                    "automatic output transfer reconciliation checkpoint is unavailable");
             return false;
         } catch (RuntimeException e) {
             if (isStructuralFailure(e)) {
                 host.contaminateLease(entry.leaseId(),
-                      "Held output transfer reconciliation failed: " + diagnostic(e));
+                        "Held output transfer reconciliation failed: " + diagnostic(e));
             } else {
                 pauseOutputRecoveryOrRetry(host,
-                      "automatic output transfer endpoint is rebuilding");
+                        "automatic output transfer endpoint is rebuilding");
             }
             return false;
         }
     }
 
-    /** 在机器抽取已确认后结算对应 durable transfer。 */
+    /**
+     * 在机器抽取已确认后结算对应 durable transfer。
+     */
     private void completeMachineTransfer(QIOProcessingNetworkData network, QIODurableTransferRecord transfer,
-          DefaultQIOAutomationHost host, QIOOutputBufferEntry entry) throws IOException {
+                                         DefaultQIOAutomationHost host, QIOOutputBufferEntry entry) throws IOException {
         boolean changed = false;
         if (transfer.getPhase() == QIODurableTransferRecord.Phase.PREPARED) {
             transfer.markSourceDebited("machine/" + host.getPersistentDeviceUUID() + "/lease/" + entry.leaseId(),
-                  host.getConfigurationRevision());
+                    host.getConfigurationRevision());
             changed = true;
         }
         if (transfer.getPhase() == QIODurableTransferRecord.Phase.SOURCE_DEBITED) {
@@ -1172,20 +1202,24 @@ public final class QIOAutomaticOutputService {
         }
     }
 
-    /** 创建输出缓冲到 QIO 的 durable transfer，并绑定操作所有权。 */
+    /**
+     * 创建输出缓冲到 QIO 的 durable transfer，并绑定操作所有权。
+     */
     private QIODurableTransferRecord createDeliveryTransfer(DefaultQIOAutomationHost host,
-          QIOOutputBufferEntry entry, UUID transferId, long amount, IQIOStorageView view) {
+                                                            QIOOutputBufferEntry entry, UUID transferId, long amount, IQIOStorageView view) {
         return new QIODurableTransferRecord(transferId, UUID.randomUUID(), QIODurableTransferRecord.Type.JOB_TO_QIO,
-              null, entry.operationId(), 0, "automatic-output", entry.leaseId(),
-              "output-buffer/" + host.getPersistentDeviceUUID() + '/' + entry.bufferId(),
-              "qio/" + view.getFrequencyUUID(), Collections.singletonMap(entry.resource(), amount),
-              Collections.singletonMap(entry.resource(), storedAmount(view, entry.resource())));
+                null, entry.operationId(), 0, "automatic-output", entry.leaseId(),
+                "output-buffer/" + host.getPersistentDeviceUUID() + '/' + entry.bufferId(),
+                "qio/" + view.getFrequencyUUID(), Collections.singletonMap(entry.resource(), amount),
+                Collections.singletonMap(entry.resource(), storedAmount(view, entry.resource())));
     }
 
-    /** 获取当前缓冲对应的投递 transfer；缺失时抛出结构诊断。 */
+    /**
+     * 获取当前缓冲对应的投递 transfer；缺失时抛出结构诊断。
+     */
     private QIODurableTransferRecord requireDeliveryTransfer(QIOProcessingNetworkData network,
-          DefaultQIOAutomationHost host, QIOOutputBufferEntry entry,
-          QIOFrequencyReference reference) {
+                                                             DefaultQIOAutomationHost host, QIOOutputBufferEntry entry,
+                                                             QIOFrequencyReference reference) {
         QIODurableTransferRecord transfer = network.getDurableTransfer(entry.qioTransferId());
         if (transfer == null || !deliveryTransferMatches(transfer, host, entry, reference)) {
             throw new IllegalStateException("Missing or mismatched automatic output QIO delivery transfer");
@@ -1196,8 +1230,8 @@ public final class QIOAutomaticOutputService {
     @Nullable
     /** 按缓冲/操作标识查找已有的输出投递 transfer。 */
     private QIODurableTransferRecord findDeliveryTransfer(QIOProcessingNetworkData network,
-          DefaultQIOAutomationHost host, QIOOutputBufferEntry entry,
-          QIOFrequencyReference reference) {
+                                                          DefaultQIOAutomationHost host, QIOOutputBufferEntry entry,
+                                                          QIOFrequencyReference reference) {
         QIODurableTransferRecord pending = null;
         QIODurableTransferRecord replay = null;
         MachineOperationToken token = host.getOperationTokens().get(entry.operationId());
@@ -1209,7 +1243,7 @@ public final class QIOAutomaticOutputService {
                     }
                     pending = transfer;
                 } else if (transfer.getResolution() == QIODurableTransferRecord.Resolution.FORWARD_COMMITTED &&
-                      token != null && !token.hasTransferReceipt(transfer.getTransferId())) {
+                        token != null && !token.hasTransferReceipt(transfer.getTransferId())) {
                     if (replay != null) {
                         throw new IllegalStateException("Output buffer has multiple unacknowledged QIO delivery transfers");
                     }
@@ -1218,18 +1252,20 @@ public final class QIOAutomaticOutputService {
             }
         }
         if (pending != null && replay != null) {
-                    throw new IllegalStateException("Output buffer has multiple pending QIO delivery transfers");
+            throw new IllegalStateException("Output buffer has multiple pending QIO delivery transfers");
         }
         return pending == null ? replay : pending;
     }
 
-    /** 根据已确认回执推进主机缓冲和 token 的结算状态。 */
+    /**
+     * 根据已确认回执推进主机缓冲和 token 的结算状态。
+     */
     private void settleReceiptedTransfers(DefaultQIOAutomationHost host, QIOProcessingNetworkData network) {
         boolean changed = false;
         for (QIODurableTransferRecord transfer : network.getDurableTransfers()) {
             if (transfer.getType() != QIODurableTransferRecord.Type.JOB_TO_QIO ||
-                transfer.getPhase() != QIODurableTransferRecord.Phase.DESTINATION_CREDITED ||
-                transfer.getResolution() != QIODurableTransferRecord.Resolution.NONE) {
+                    transfer.getPhase() != QIODurableTransferRecord.Phase.DESTINATION_CREDITED ||
+                    transfer.getResolution() != QIODurableTransferRecord.Resolution.NONE) {
                 continue;
             }
             MachineOperationToken token = host.getOperationTokens().get(transfer.getOwnerOperationId());
@@ -1248,17 +1284,19 @@ public final class QIOAutomaticOutputService {
         }
     }
 
-    /** 删除已经完成、释放且可安全忘记的本地操作。 */
+    /**
+     * 删除已经完成、释放且可安全忘记的本地操作。
+     */
     private void pruneSettledOperations(DefaultQIOAutomationHost host, QIOProcessingNetworkData network) {
         for (MachineOperationToken token : host.getOperationTokens().values().toArray(new MachineOperationToken[0])) {
             if (token.state() != MachineOperationToken.State.COMPLETED ||
-                !host.isPersistedCompletedOperation(token.operationId())) {
+                    !host.isPersistedCompletedOperation(token.operationId())) {
                 continue;
             }
             boolean pending = false;
             for (QIODurableTransferRecord transfer : network.getDurableTransfers()) {
                 if (token.operationId().equals(transfer.getOwnerOperationId()) &&
-                    transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE) {
+                        transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE) {
                     pending = true;
                     break;
                 }
@@ -1270,13 +1308,15 @@ public final class QIOAutomaticOutputService {
                     host.forgetSettledOperation(token.operationId());
                 } catch (IOException | RuntimeException e) {
                     throw new IllegalStateException(
-                          "Unable to prune a durably settled automatic output operation", e);
+                            "Unable to prune a durably settled automatic output operation", e);
                 }
             }
         }
     }
 
-    /** 模拟写入 QIO，返回当前容量实际可接收的数量。 */
+    /**
+     * 模拟写入 QIO，返回当前容量实际可接收的数量。
+     */
     private static long simulateInsert(IQIOStorageView view, PortableResourceDescriptor resource, long amount) {
         if (resource == null || amount <= 0) {
             return 0;
@@ -1284,9 +1324,11 @@ public final class QIOAutomaticOutputService {
         return directInsert(view, resource, amount, Action.SIMULATE);
     }
 
-    /** Inserts through the ordinary QIO storage path without creating a durable receipt. */
+    /**
+     * Inserts through the ordinary QIO storage path without creating a durable receipt.
+     */
     private static long directInsert(IQIOStorageView view,
-          PortableResourceDescriptor resource, long amount, Action action) {
+                                     PortableResourceDescriptor resource, long amount, Action action) {
         return switch (resource.getKind()) {
             case ITEM -> view.insert(resource.resolveItem(), amount, action);
             case FLUID -> view.insert(resource.resolveFluid(), amount, action);
@@ -1295,102 +1337,108 @@ public final class QIOAutomaticOutputService {
         };
     }
 
-    /** 校验机器抽取 transfer 是否仍对应给定端口和资源。 */
+    /**
+     * 校验机器抽取 transfer 是否仍对应给定端口和资源。
+     */
     private static boolean machineTransferMatches(QIODurableTransferRecord transfer,
-          DefaultQIOAutomationHost host, QIOOutputBufferEntry entry,
-          PortableResourceDescriptor resource, long amount) {
+                                                  DefaultQIOAutomationHost host, QIOOutputBufferEntry entry,
+                                                  PortableResourceDescriptor resource, long amount) {
         if (transfer == null || resource == null || amount <= 0 ||
-              !transfer.getTransferId().equals(entry.bufferId()) ||
-              transfer.getType() != QIODurableTransferRecord.Type.MACHINE_TO_JOB ||
-              transfer.getOwnerJobId() != null ||
-              !entry.operationId().equals(transfer.getOwnerOperationId()) ||
-              transfer.getPlanRevision() != 0 ||
-              !transfer.getNodeId().equals("output/" + entry.baseline().portId()) ||
-              !entry.leaseId().equals(transfer.getLeaseId()) ||
-              !transfer.getSource().equals("machine/" + host.getPersistentDeviceUUID() + '/' +
-                    entry.baseline().portGroupId()) ||
-              !transfer.getDestination().equals("output-buffer/" + host.getPersistentDeviceUUID() + '/' +
-                    entry.bufferId()) ||
-              !Collections.singletonMap(resource, amount).equals(transfer.getResources()) ||
-              !transfer.getQIOResourceUUIDs().isEmpty() || !transfer.getQIOBaselines().isEmpty() ||
-              !transfer.getMachineBaselines().equals(Collections.singletonList(entry.baseline())) ||
-              transfer.getExpectedContentsRevision() != -1 ||
-              transfer.getExpectedClaimRevision() != -1 ||
-              transfer.getCompensationTransferId() != null ||
-              transfer.getPhase() == QIODurableTransferRecord.Phase.ROLLBACK_REQUIRED) {
+                !transfer.getTransferId().equals(entry.bufferId()) ||
+                transfer.getType() != QIODurableTransferRecord.Type.MACHINE_TO_JOB ||
+                transfer.getOwnerJobId() != null ||
+                !entry.operationId().equals(transfer.getOwnerOperationId()) ||
+                transfer.getPlanRevision() != 0 ||
+                !transfer.getNodeId().equals("output/" + entry.baseline().portId()) ||
+                !entry.leaseId().equals(transfer.getLeaseId()) ||
+                !transfer.getSource().equals("machine/" + host.getPersistentDeviceUUID() + '/' +
+                        entry.baseline().portGroupId()) ||
+                !transfer.getDestination().equals("output-buffer/" + host.getPersistentDeviceUUID() + '/' +
+                        entry.bufferId()) ||
+                !Collections.singletonMap(resource, amount).equals(transfer.getResources()) ||
+                !transfer.getQIOResourceUUIDs().isEmpty() || !transfer.getQIOBaselines().isEmpty() ||
+                !transfer.getMachineBaselines().equals(Collections.singletonList(entry.baseline())) ||
+                transfer.getExpectedContentsRevision() != -1 ||
+                transfer.getExpectedClaimRevision() != -1 ||
+                transfer.getCompensationTransferId() != null ||
+                transfer.getPhase() == QIODurableTransferRecord.Phase.ROLLBACK_REQUIRED) {
             return false;
         }
         String sourceReceipt = "machine/" + host.getPersistentDeviceUUID() + "/lease/" +
-              entry.leaseId();
+                entry.leaseId();
         String destinationReceipt = "output-buffer/" + host.getPersistentDeviceUUID() + '/' +
-              entry.bufferId();
+                entry.bufferId();
         return switch (transfer.getPhase()) {
             case PREPARED -> transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE &&
-                  transfer.getSourceReceipt() == null && transfer.getDestinationReceipt() == null &&
-                  transfer.getSourceStateRevision() == -1;
+                    transfer.getSourceReceipt() == null && transfer.getDestinationReceipt() == null &&
+                    transfer.getSourceStateRevision() == -1;
             case SOURCE_DEBITED -> transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE &&
-                  sourceReceipt.equals(transfer.getSourceReceipt()) &&
-                  transfer.getSourceStateRevision() >= 0 && transfer.getDestinationReceipt() == null;
+                    sourceReceipt.equals(transfer.getSourceReceipt()) &&
+                    transfer.getSourceStateRevision() >= 0 && transfer.getDestinationReceipt() == null;
             case DESTINATION_CREDITED -> transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE &&
-                  sourceReceipt.equals(transfer.getSourceReceipt()) &&
-                  destinationReceipt.equals(transfer.getDestinationReceipt()) &&
-                  transfer.getSourceStateRevision() >= 0;
+                    sourceReceipt.equals(transfer.getSourceReceipt()) &&
+                    destinationReceipt.equals(transfer.getDestinationReceipt()) &&
+                    transfer.getSourceStateRevision() >= 0;
             case COMMITTED -> transfer.getResolution() == QIODurableTransferRecord.Resolution.FORWARD_COMMITTED &&
-                  sourceReceipt.equals(transfer.getSourceReceipt()) &&
-                  destinationReceipt.equals(transfer.getDestinationReceipt()) &&
-                  transfer.getSourceStateRevision() >= 0;
+                    sourceReceipt.equals(transfer.getSourceReceipt()) &&
+                    destinationReceipt.equals(transfer.getDestinationReceipt()) &&
+                    transfer.getSourceStateRevision() >= 0;
             case ROLLBACK_REQUIRED -> false;
         };
     }
 
-    /** 校验 QIO 投递 transfer 是否仍对应指定输出缓冲。 */
+    /**
+     * 校验 QIO 投递 transfer 是否仍对应指定输出缓冲。
+     */
     private static boolean deliveryTransferMatches(QIODurableTransferRecord transfer,
-          DefaultQIOAutomationHost host, QIOOutputBufferEntry entry,
-          QIOFrequencyReference reference) {
+                                                   DefaultQIOAutomationHost host, QIOOutputBufferEntry entry,
+                                                   QIOFrequencyReference reference) {
         PortableResourceDescriptor resource = entry.resource();
         boolean held = entry.phase() == QIOOutputBufferEntry.Phase.HELD;
         long amount = held && transfer != null ? transfer.getResources().getOrDefault(resource, 0L) :
-              entry.qioRequestedAmount();
+                entry.qioRequestedAmount();
         boolean transferIdMatches = held ? transfer != null : entry.qioTransferId() != null &&
-              transfer != null && entry.qioTransferId().equals(transfer.getTransferId());
+                transfer != null && entry.qioTransferId().equals(transfer.getTransferId());
         if (transfer == null || resource == null || amount <= 0 || !transferIdMatches ||
-              held && amount > entry.amount() ||
-              transfer.getType() != QIODurableTransferRecord.Type.JOB_TO_QIO ||
-              transfer.getOwnerJobId() != null ||
-              !entry.operationId().equals(transfer.getOwnerOperationId()) ||
-              transfer.getPlanRevision() != 0 || !transfer.getNodeId().equals("automatic-output") ||
-              !entry.leaseId().equals(transfer.getLeaseId()) ||
-              !transfer.getSource().equals("output-buffer/" + host.getPersistentDeviceUUID() + '/' +
-                    entry.bufferId()) ||
-              !transfer.getDestination().equals("qio/" + reference.getFrequencyUUID()) ||
-              !Collections.singletonMap(resource, amount).equals(transfer.getResources()) ||
-              !transfer.getQIOResourceUUIDs().isEmpty() ||
-              !transfer.getQIOBaselines().keySet().equals(Collections.singleton(resource)) ||
-              !transfer.getMachineBaselines().isEmpty() ||
-              transfer.getExpectedContentsRevision() != -1 ||
-              transfer.getExpectedClaimRevision() != -1 ||
-              transfer.getCompensationTransferId() != null ||
-              transfer.getPhase() == QIODurableTransferRecord.Phase.ROLLBACK_REQUIRED) {
+                held && amount > entry.amount() ||
+                transfer.getType() != QIODurableTransferRecord.Type.JOB_TO_QIO ||
+                transfer.getOwnerJobId() != null ||
+                !entry.operationId().equals(transfer.getOwnerOperationId()) ||
+                transfer.getPlanRevision() != 0 || !transfer.getNodeId().equals("automatic-output") ||
+                !entry.leaseId().equals(transfer.getLeaseId()) ||
+                !transfer.getSource().equals("output-buffer/" + host.getPersistentDeviceUUID() + '/' +
+                        entry.bufferId()) ||
+                !transfer.getDestination().equals("qio/" + reference.getFrequencyUUID()) ||
+                !Collections.singletonMap(resource, amount).equals(transfer.getResources()) ||
+                !transfer.getQIOResourceUUIDs().isEmpty() ||
+                !transfer.getQIOBaselines().keySet().equals(Collections.singleton(resource)) ||
+                !transfer.getMachineBaselines().isEmpty() ||
+                transfer.getExpectedContentsRevision() != -1 ||
+                transfer.getExpectedClaimRevision() != -1 ||
+                transfer.getCompensationTransferId() != null ||
+                transfer.getPhase() == QIODurableTransferRecord.Phase.ROLLBACK_REQUIRED) {
             return false;
         }
         return switch (transfer.getPhase()) {
             case PREPARED -> transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE &&
-                  transfer.getSourceReceipt() == null && transfer.getDestinationReceipt() == null &&
-                  transfer.getSourceStateRevision() == -1;
+                    transfer.getSourceReceipt() == null && transfer.getDestinationReceipt() == null &&
+                    transfer.getSourceStateRevision() == -1;
             case SOURCE_DEBITED -> transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE &&
-                  transfer.getSourceReceipt() != null && transfer.getDestinationReceipt() == null &&
-                  transfer.getSourceStateRevision() >= 0;
+                    transfer.getSourceReceipt() != null && transfer.getDestinationReceipt() == null &&
+                    transfer.getSourceStateRevision() >= 0;
             case DESTINATION_CREDITED -> transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE &&
-                  transfer.getSourceReceipt() != null && transfer.getDestinationReceipt() != null &&
-                  transfer.getSourceStateRevision() >= 0;
+                    transfer.getSourceReceipt() != null && transfer.getDestinationReceipt() != null &&
+                    transfer.getSourceStateRevision() >= 0;
             case COMMITTED -> transfer.getResolution() == QIODurableTransferRecord.Resolution.FORWARD_COMMITTED &&
-                  transfer.getSourceReceipt() != null && transfer.getDestinationReceipt() != null &&
-                  transfer.getSourceStateRevision() >= 0;
+                    transfer.getSourceReceipt() != null && transfer.getDestinationReceipt() != null &&
+                    transfer.getSourceStateRevision() >= 0;
             case ROLLBACK_REQUIRED -> false;
         };
     }
 
-    /** 将异常转换为有限长度、可显示的诊断文本。 */
+    /**
+     * 将异常转换为有限长度、可显示的诊断文本。
+     */
     private static String diagnostic(Throwable error) {
         String message = error.getMessage();
         if (message == null || message.isEmpty()) {
@@ -1404,19 +1452,23 @@ public final class QIOAutomaticOutputService {
      * that a durable identity, baseline, or ownership relationship changed may quarantine the
      * operation; treating every provider exception as corruption strands valid machines.
      */
-    /** 判断异常是否代表结构/所有权不一致，而非普通暂时不可用。 */
+    /**
+     * 判断异常是否代表结构/所有权不一致，而非普通暂时不可用。
+     */
     private static boolean isStructuralFailure(Throwable error) {
         String message = diagnostic(error).toLowerCase(java.util.Locale.ROOT);
         return message.contains("identity") || message.contains("mismatch") ||
-              message.contains("baseline") || message.contains("ownership") ||
-              message.contains("transfer conflict") || message.contains("multiple pending") ||
-              message.contains("multiple unacknowledged") || message.contains("invalid request") ||
-              message.contains("reconciliation conflict");
+                message.contains("baseline") || message.contains("ownership") ||
+                message.contains("transfer conflict") || message.contains("multiple pending") ||
+                message.contains("multiple unacknowledged") || message.contains("invalid request") ||
+                message.contains("reconciliation conflict");
     }
 
-    /** 执行一次实际 QIO 写入，并统一处理空结果。 */
+    /**
+     * 执行一次实际 QIO 写入，并统一处理空结果。
+     */
     private static QIOTransferResult insert(IQIOStorageView view, PortableResourceDescriptor resource,
-          UUID transferId, long amount, @Nonnull BigInteger baseline) {
+                                            UUID transferId, long amount, @Nonnull BigInteger baseline) {
         Objects.requireNonNull(resource, "Output resource cannot be null");
         Objects.requireNonNull(transferId, "Output transfer id cannot be null");
         Objects.requireNonNull(baseline, "Output transfer baseline cannot be null");
@@ -1428,9 +1480,11 @@ public final class QIOAutomaticOutputService {
         };
     }
 
-    /** 查询 QIO 中某资源当前已存储的总量。 */
+    /**
+     * 查询 QIO 中某资源当前已存储的总量。
+     */
     private static BigInteger storedAmount(IQIOStorageView view,
-          PortableResourceDescriptor resource) {
+                                           PortableResourceDescriptor resource) {
         BigInteger amount = BigInteger.ZERO;
         UUID matched = null;
         for (QIOStorageEntry entry : view.getSnapshot().getEntries()) {
@@ -1439,7 +1493,7 @@ public final class QIOAutomaticOutputService {
             }
             if (matched != null && !matched.equals(entry.getResourceUUID())) {
                 throw new IllegalStateException(
-                      "QIO snapshot maps one portable resource to multiple UUIDs");
+                        "QIO snapshot maps one portable resource to multiple UUIDs");
             }
             matched = entry.getResourceUUID();
             amount = entry.getExactStoredAmount();
@@ -1468,7 +1522,9 @@ public final class QIOAutomaticOutputService {
         return null;
     }
 
-    /** 请求网络管理器把当前 durable transfer 变更写入持久层。 */
+    /**
+     * 请求网络管理器把当前 durable transfer 变更写入持久层。
+     */
     private static void flush(QIOProcessingNetworkData network) throws IOException {
         QIOProcessingNetworkManager.INSTANCE.checkpointNetwork(network.getFrequencyUUID());
     }

@@ -11,7 +11,9 @@ import javax.annotation.Nonnull;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/** Digital icon button that cycles through enum values. */
+/**
+ * Digital icon button that cycles through enum values.
+ */
 public class GuiDigitalIconToggle<TYPE extends Enum<TYPE> & GuiDigitalIconToggle.IIconToggleOption> extends GuiInnerScreen {
 
     private final Supplier<TYPE> typeSupplier;
@@ -19,7 +21,7 @@ public class GuiDigitalIconToggle<TYPE extends Enum<TYPE> & GuiDigitalIconToggle
     private final TYPE[] options;
 
     public GuiDigitalIconToggle(IGuiWrapper gui, int x, int y, int width, int height, Class<TYPE> enumClass,
-          Supplier<TYPE> typeSupplier, Consumer<TYPE> typeSetter) {
+                                Supplier<TYPE> typeSupplier, Consumer<TYPE> typeSetter) {
         super(gui, x, y, width, height);
         this.typeSupplier = typeSupplier;
         this.typeSetter = typeSetter;

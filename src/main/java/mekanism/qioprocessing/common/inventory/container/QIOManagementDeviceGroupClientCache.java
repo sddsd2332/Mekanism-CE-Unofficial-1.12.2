@@ -10,7 +10,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
-/** Revision-consistent client cache for management machine-type pages. */
+/**
+ * Revision-consistent client cache for management machine-type pages.
+ */
+
 /**
  * QIO 处理模块中的 QIOManagementDeviceGroupClientCache 类型。
  *
@@ -20,21 +23,23 @@ import java.util.UUID;
 public final class QIOManagementDeviceGroupClientCache {
 
     private final List<QIOManagementDeviceGroupSnapshot> groups = new ArrayList<>();
-    @Nullable private UUID sessionNonce;
+    @Nullable
+    private UUID sessionNonce;
     private long sourceRevision = -1;
     private int totalSize;
-    @Nullable private QIOPageCursor nextCursor;
+    @Nullable
+    private QIOPageCursor nextCursor;
     private long generation;
 
     public boolean apply(@Nonnull UUID responseSessionNonce, long responseRevision,
-          int offset, int responseTotalSize,
-          @Nonnull List<QIOManagementDeviceGroupSnapshot> page,
-          @Nullable QIOPageCursor responseNextCursor) {
+                         int offset, int responseTotalSize,
+                         @Nonnull List<QIOManagementDeviceGroupSnapshot> page,
+                         @Nullable QIOPageCursor responseNextCursor) {
         if (responseRevision < 0 || offset < 0 || responseTotalSize < 0 ||
-            offset > responseTotalSize || page.size() > responseTotalSize - offset) return false;
+                offset > responseTotalSize || page.size() > responseTotalSize - offset) return false;
         if (offset == 0) {
             if (responseSessionNonce.equals(sessionNonce) && sourceRevision >= 0 &&
-                responseRevision < sourceRevision) {
+                    responseRevision < sourceRevision) {
                 return false;
             }
             groups.clear();
@@ -42,8 +47,8 @@ public final class QIOManagementDeviceGroupClientCache {
             sourceRevision = responseRevision;
             totalSize = responseTotalSize;
         } else if (!responseSessionNonce.equals(sessionNonce) ||
-            responseRevision != sourceRevision || responseTotalSize != totalSize ||
-            offset != groups.size()) return false;
+                responseRevision != sourceRevision || responseTotalSize != totalSize ||
+                offset != groups.size()) return false;
         groups.addAll(page);
         nextCursor = responseNextCursor;
         generation = next(generation);
@@ -63,10 +68,22 @@ public final class QIOManagementDeviceGroupClientCache {
         return Collections.unmodifiableList(new ArrayList<>(groups));
     }
 
-    public long getSourceRevision() { return sourceRevision; }
-    public int getTotalSize() { return totalSize; }
-    @Nullable public QIOPageCursor getNextCursor() { return nextCursor; }
-    public long getGeneration() { return generation; }
+    public long getSourceRevision() {
+        return sourceRevision;
+    }
+
+    public int getTotalSize() {
+        return totalSize;
+    }
+
+    @Nullable
+    public QIOPageCursor getNextCursor() {
+        return nextCursor;
+    }
+
+    public long getGeneration() {
+        return generation;
+    }
 
     public boolean hasPageFor(@Nonnull UUID expectedSessionNonce) {
         return sourceRevision >= 0 && expectedSessionNonce.equals(sessionNonce);

@@ -1,12 +1,11 @@
 package mekanism.common.transmitters.grid;
 
-import mekanism.api.Coord4D;
-import mekanism.api.transmitters.DynamicNetwork;
 import mekanism.api.transmitters.IGridTransmitter;
 import mekanism.common.content.network.distribution.FluidHandlerTarget;
-import mekanism.common.util.*;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.EnumFacing;
+import mekanism.common.content.network.distribution.ResourceAcceptorCache;
+import mekanism.common.util.EmitUtils;
+import mekanism.common.util.FluidContainerUtils;
+import mekanism.common.util.LangUtils;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fluids.Fluid;
 import net.minecraftforge.fluids.FluidStack;
@@ -17,9 +16,8 @@ import net.minecraftforge.fml.common.eventhandler.Event;
 
 import javax.annotation.Nullable;
 import java.util.Collection;
-import java.util.EnumSet;
 
-public class FluidNetwork extends DynamicNetwork<IFluidHandler, FluidNetwork, FluidStack> {
+public class FluidNetwork extends BufferedNetwork<IFluidHandler, FluidNetwork, FluidStack> {
 
     public int transferDelay = 0;
 
@@ -32,11 +30,24 @@ public class FluidNetwork extends DynamicNetwork<IFluidHandler, FluidNetwork, Fl
 
     public FluidStack buffer;
     public int prevStored;
+    private float lastSentScale;
+    private FluidStack lastSentFluid;
 
     public int prevTransferAmount = 0;
 
+    private final ResourceAcceptorCache<IFluidHandler> acceptorCache = new ResourceAcceptorCache<>();
     private FluidHandlerTarget target;
     private FluidHandlerTarget reusableTarget;
+
+    @Override
+    protected double getSaveAmount() {
+        return getBufferAmount();
+    }
+
+    @Override
+    protected boolean hasIntegerShares() {
+        return true;
+    }
 
     public FluidNetwork() {
     }
@@ -54,6 +65,7 @@ public class FluidNetwork extends DynamicNetwork<IFluidHandler, FluidNetwork, Fl
 
     @Override
     public void adoptTransmittersAndAcceptorsFrom(FluidNetwork net) {
+        super.adoptTransmittersAndAcceptorsFrom(net);
         if (net.buffer != null) {
             if (buffer == null) {
                 setBuffer(net.buffer);
@@ -64,7 +76,6 @@ public class FluidNetwork extends DynamicNetwork<IFluidHandler, FluidNetwork, Fl
             }
             net.setBuffer(null);
         }
-        super.adoptTransmittersAndAcceptorsFrom(net);
     }
 
     @Nullable
@@ -95,7 +106,7 @@ public class FluidNetwork extends DynamicNetwork<IFluidHandler, FluidNetwork, Fl
     @Override
     public void clampBuffer() {
         if (buffer != null && buffer.amount > getCapacity()) {
-            setBuffer(buffer);
+            setBuffer(getCapacity() <= 0 ? null : buffer);
         }
     }
 
@@ -123,12 +134,15 @@ public class FluidNetwork extends DynamicNetwork<IFluidHandler, FluidNetwork, Fl
     }
 
     public void setBuffer(@Nullable FluidStack stack) {
+        FluidStack previous = buffer;
         if (stack == null || stack.amount <= 0 || stack.getFluid() == null) {
             buffer = null;
         } else {
             int capacity = getCapacity();
             buffer = FluidContainerUtils.copyWithAmount(stack, capacity <= 0 ? stack.amount : Math.min(stack.amount, capacity));
         }
+        if (previous == null ? buffer != null : buffer == null || previous.amount != buffer.amount || !previous.isFluidEqual(buffer))
+            bufferChanged();
     }
 
     public int growBuffer(int amount) {
@@ -137,7 +151,7 @@ public class FluidNetwork extends DynamicNetwork<IFluidHandler, FluidNetwork, Fl
         }
         int current = buffer.amount;
         int capacity = getCapacity();
-        int newAmount = capacity <= 0 ? current + amount : Math.min(capacity, current + amount);
+        int newAmount = (int) Math.min(capacity <= 0 ? Integer.MAX_VALUE : capacity, (long) current + amount);
         setBuffer(FluidContainerUtils.copyWithAmount(buffer, newAmount));
         return newAmount - current;
     }
@@ -162,13 +176,13 @@ public class FluidNetwork extends DynamicNetwork<IFluidHandler, FluidNetwork, Fl
             } else {
                 transferDelay--;
             }
-            int stored = buffer != null ? buffer.amount : 0;
-            if (stored != prevStored) {
-                needsUpdate = true;
-            }
-            prevStored = stored;
-            if (didTransfer != prevTransfer || needsUpdate) {
+            float scale = getScale();
+            boolean typeChanged = buffer == null ? lastSentFluid != null : lastSentFluid == null || !buffer.isFluidEqual(lastSentFluid);
+            prevStored = getBufferAmount();
+            if (didTransfer != prevTransfer || needsUpdate || typeChanged || scaleChanged(scale, lastSentScale)) {
                 MinecraftForge.EVENT_BUS.post(new FluidTransferEvent(this, buffer, didTransfer));
+                lastSentScale = scale;
+                lastSentFluid = buffer == null ? null : buffer.copy();
                 needsUpdate = false;
             }
             prevTransfer = didTransfer;
@@ -177,52 +191,46 @@ public class FluidNetwork extends DynamicNetwork<IFluidHandler, FluidNetwork, Fl
 
     @Override
     public void onParallelTick() {
-        if (buffer != null) {
-            collectTargets(buffer);
-        }
+        // Collect beside distribution: do not retain live targets across other networks' callbacks.
     }
 
     @Override
     public void onUpdate() {
-        if (FMLCommonHandler.instance().getEffectiveSide() != null && FMLCommonHandler.instance().getEffectiveSide().isServer()) {
-            if (buffer == null) {
-                return;
+        if (!isRemote()) {
+            try {
+                if (buffer == null) {
+                    acceptorCache.clear();
+                    return;
+                }
+                collectTargets(buffer);
+                prevTransferAmount = tickEmit(buffer);
+                if (prevTransferAmount > 0) {
+                    didTransfer = true;
+                    transferDelay = 2;
+                }
+                shrinkBuffer(prevTransferAmount);
+            } finally {
+                if (reusableTarget != null) reusableTarget.reset(null);
+                target = null;
             }
-            prevTransferAmount = tickEmit(buffer);
-            if (prevTransferAmount > 0) {
-                didTransfer = true;
-                transferDelay = 2;
-            }
-            shrinkBuffer(prevTransferAmount);
         }
+    }
+
+    @Override
+    public void deregister() {
+        acceptorCache.clear();
+        if (reusableTarget != null) reusableTarget.reset(null);
+        target = null;
+        super.deregister();
     }
 
     private void collectTargets(FluidStack fluidToSend) {
         target = null;
+        if (reusableTarget == null) reusableTarget = new FluidHandlerTarget(fluidToSend, possibleAcceptors.size() * 2);
+        else reusableTarget.reset(fluidToSend);
         FluidHandlerTarget collectedTarget = reusableTarget;
-        if (collectedTarget == null) {
-            collectedTarget = reusableTarget = new FluidHandlerTarget(fluidToSend, possibleAcceptors.size() * 2);
-        } else {
-            collectedTarget.reset(fluidToSend);
-        }
-        for (Coord4D coord : possibleAcceptors) {
-            EnumSet<EnumFacing> sides = acceptorDirections.get(coord);
-            if (sides == null || sides.isEmpty()) {
-                continue;
-            }
-            TileEntity tile = coord.getTileEntity(getWorld());
-            if (tile == null) {
-                continue;
-            }
-            for (EnumFacing side : sides) {
-                if (CapabilityUtils.hasCapability(tile, CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, side)) {
-                    IFluidHandler acceptor = CapabilityUtils.getCapability(tile, CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, side);
-                    if (acceptor != null && PipeUtils.canFill(acceptor, fluidToSend)) {
-                        collectedTarget.addHandler(acceptor);
-                    }
-                }
-            }
-        }
+        acceptorCache.collect(getWorld(), possibleAcceptors, acceptorDirections, acceptorRevision,
+                CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, (side, handler) -> collectedTarget.addHandler(handler));
         target = collectedTarget;
     }
 

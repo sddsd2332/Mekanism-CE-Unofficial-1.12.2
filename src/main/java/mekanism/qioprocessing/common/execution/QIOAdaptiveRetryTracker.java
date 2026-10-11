@@ -1,18 +1,13 @@
 package mekanism.qioprocessing.common.execution;
 
 import javax.annotation.Nonnull;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.function.BiPredicate;
 
-/** Transient adaptive retry state for QIO jobs that made no progress on their last pass. */
+/**
+ * Transient adaptive retry state for QIO jobs that made no progress on their last pass.
+ */
+
 /**
  * QIO 处理模块中的 QIOAdaptiveRetryTracker 类型。
  *
@@ -34,15 +29,15 @@ final class QIOAdaptiveRetryTracker {
 
     /** 记录一次无进展并按退避策略增加重试延迟。 */
     synchronized void recordBlocked(@Nonnull UUID jobId, @Nonnull UUID frequencyUUID,
-          @Nonnull Collection<UUID> deviceUUIDs, long gameTick) {
+                                    @Nonnull Collection<UUID> deviceUUIDs, long gameTick) {
         Objects.requireNonNull(jobId, "jobId");
         Objects.requireNonNull(frequencyUUID, "frequencyUUID");
         Objects.requireNonNull(deviceUUIDs, "deviceUUIDs");
         RetryEntry previous = entries.get(jobId);
         int delay = previous == null ? MIN_RETRY_TICKS :
-              Math.min(MAX_RETRY_TICKS, previous.delayTicks + 1);
+                Math.min(MAX_RETRY_TICKS, previous.delayTicks + 1);
         entries.put(jobId, new RetryEntry(frequencyUUID, deviceUUIDs, delay,
-              saturatedAdd(gameTick, delay)));
+                saturatedAdd(gameTick, delay)));
     }
 
     /** 记录任务取得进展并清除退避状态。 */
@@ -106,10 +101,10 @@ final class QIOAdaptiveRetryTracker {
         private final long nextAttemptTick;
 
         private RetryEntry(UUID frequencyUUID, Collection<UUID> deviceUUIDs, int delayTicks,
-              long nextAttemptTick) {
+                           long nextAttemptTick) {
             this.frequencyUUID = frequencyUUID;
             this.deviceUUIDs = deviceUUIDs.isEmpty() ? Collections.emptySet() :
-                  Collections.unmodifiableSet(new LinkedHashSet<>(deviceUUIDs));
+                    Collections.unmodifiableSet(new LinkedHashSet<>(deviceUUIDs));
             this.delayTicks = delayTicks;
             this.nextAttemptTick = nextAttemptTick;
         }

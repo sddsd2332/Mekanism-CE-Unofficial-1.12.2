@@ -18,7 +18,10 @@ import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
 
 import java.util.UUID;
 
-/** Looks up the authoritative device-default row before opening an editor. */
+/**
+ * Looks up the authoritative device-default row before opening an editor.
+ */
+
 /**
  * QIO 处理模块中的 PacketQIOManagementPolicyLookupRequest 类型。
  *
@@ -26,7 +29,7 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class PacketQIOManagementPolicyLookupRequest implements
-      IMessageHandler<PacketQIOManagementPolicyLookupRequest.Message, IMessage> {
+        IMessageHandler<PacketQIOManagementPolicyLookupRequest.Message, IMessage> {
 
     @Override
     public IMessage onMessage(Message message, MessageContext context) {
@@ -42,34 +45,34 @@ public final class PacketQIOManagementPolicyLookupRequest implements
 
     private static void handle(Message message, EntityPlayer player) {
         if (!(player instanceof EntityPlayerMP playerMP) ||
-            !(player.openContainer instanceof QIOManagementPolicyPageContainer container) ||
-            player.openContainer.windowId != message.windowId ||
-            !player.openContainer.canInteractWith(player)) {
+                !(player.openContainer instanceof QIOManagementPolicyPageContainer container) ||
+                player.openContainer.windowId != message.windowId ||
+                !player.openContainer.canInteractWith(player)) {
             return;
         }
         QIOProcessingTerminalSession session = container.getTerminalSession();
         if (session == null || session.getTerminalType() !=
-            QIOProcessingTerminalType.MANAGEMENT ||
-            session.validate(message.sessionNonce, player.getUniqueID(),
-                  session.getTargetKind(), QIOProcessingTerminalType.MANAGEMENT,
-                  message.terminalUUID, message.expectedTargetRevision,
-                  session.getFrequencyUUID(), session.getAccessRevision()) !=
-                  QIOProcessingTerminalSession.Validation.ACCEPTED ||
-            session.getFrequencyUUID() == null ||
-            !container.tryRequestPolicyLookup(player.world.getTotalWorldTime())) {
+                QIOProcessingTerminalType.MANAGEMENT ||
+                session.validate(message.sessionNonce, player.getUniqueID(),
+                        session.getTargetKind(), QIOProcessingTerminalType.MANAGEMENT,
+                        message.terminalUUID, message.expectedTargetRevision,
+                        session.getFrequencyUUID(), session.getAccessRevision()) !=
+                        QIOProcessingTerminalSession.Validation.ACCEPTED ||
+                session.getFrequencyUUID() == null ||
+                !container.tryRequestPolicyLookup(player.world.getTotalWorldTime())) {
             return;
         }
         QIOProcessingNetworkData network = QIOProcessingNetworkManager.INSTANCE.get(
-              session.getFrequencyUUID());
+                session.getFrequencyUUID());
         if (network == null) {
             return;
         }
         try {
             QIOPolicyEntrySnapshot entry = QIOManagementPolicyService.getDeviceDefault(
-                  session, network, session.getAccessRevision(), message.deviceUUID);
+                    session, network, session.getAccessRevision(), message.deviceUUID);
             QIOProcessingPacketHandler.INSTANCE.sendTo(
-                  PacketQIOManagementPolicyLookupData.Message.create(message.windowId,
-                        session, message.requestId, entry), playerMP);
+                    PacketQIOManagementPolicyLookupData.Message.create(message.windowId,
+                            session, message.requestId, entry), playerMP);
         } catch (IllegalArgumentException | IllegalStateException | SecurityException ignored) {
         }
     }
@@ -88,7 +91,7 @@ public final class PacketQIOManagementPolicyLookupRequest implements
         }
 
         private Message(int windowId, UUID sessionNonce, UUID terminalUUID,
-              long expectedTargetRevision, UUID requestId, UUID deviceUUID) {
+                        long expectedTargetRevision, UUID requestId, UUID deviceUUID) {
             this.windowId = windowId;
             this.sessionNonce = sessionNonce;
             this.terminalUUID = terminalUUID;
@@ -99,18 +102,18 @@ public final class PacketQIOManagementPolicyLookupRequest implements
         }
 
         public static Message create(int windowId,
-              QIOProcessingTerminalContainerState state, UUID requestId,
-              UUID deviceUUID) {
+                                     QIOProcessingTerminalContainerState state, UUID requestId,
+                                     UUID deviceUUID) {
             return state == null || !state.isValid() ? new Message() :
-                  new Message(windowId, state.getSessionNonce(), state.getTerminalUUID(),
-                        state.getTargetRevision(), requestId, deviceUUID);
+                    new Message(windowId, state.getSessionNonce(), state.getTerminalUUID(),
+                            state.getTargetRevision(), requestId, deviceUUID);
         }
 
         static Message create(int windowId, QIOProcessingTerminalSession session,
-              UUID requestId, UUID deviceUUID) {
+                              UUID requestId, UUID deviceUUID) {
             return session == null ? new Message() : new Message(windowId,
-                  session.getSessionNonce(), session.getTerminalUUID(),
-                  session.getTargetRevision(), requestId, deviceUUID);
+                    session.getSessionNonce(), session.getTerminalUUID(),
+                    session.getTargetRevision(), requestId, deviceUUID);
         }
 
         @Override
@@ -145,7 +148,7 @@ public final class PacketQIOManagementPolicyLookupRequest implements
 
         private boolean structurallyValid() {
             return windowId >= 0 && sessionNonce != null && terminalUUID != null &&
-                  expectedTargetRevision >= 0 && requestId != null && deviceUUID != null;
+                    expectedTargetRevision >= 0 && requestId != null && deviceUUID != null;
         }
 
         private static void writeUUID(ByteBuf buffer, UUID uuid) {

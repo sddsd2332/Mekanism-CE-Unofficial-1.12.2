@@ -8,7 +8,9 @@ import net.minecraftforge.fluids.capability.IFluidTankProperties;
 
 import javax.annotation.Nullable;
 
-/** Reads one-item fluid containers without copying or serializing their Forge capabilities. */
+/**
+ * Reads one-item fluid containers without copying or serializing their Forge capabilities.
+ */
 final class QIOFluidContainerSnapshot {
 
     private QIOFluidContainerSnapshot() {
@@ -21,7 +23,7 @@ final class QIOFluidContainerSnapshot {
         }
         try {
             IFluidHandlerItem handler = candidate.getCapability(
-                  CapabilityFluidHandler.FLUID_HANDLER_ITEM_CAPABILITY, null);
+                    CapabilityFluidHandler.FLUID_HANDLER_ITEM_CAPABILITY, null);
             if (handler == null) return null;
             IFluidTankProperties[] properties = handler.getTankProperties();
             if (properties == null || properties.length != 1 || properties[0] == null) {
@@ -29,8 +31,8 @@ final class QIOFluidContainerSnapshot {
             }
             FluidStack stored = properties[0].getContents();
             if (stored == null || stored.getFluid() == null || stored.amount <= 0 ||
-                stored.amount > properties[0].getCapacity() ||
-                !properties[0].canDrainFluidType(stored)) {
+                    stored.amount > properties[0].getCapacity() ||
+                    !properties[0].canDrainFluidType(stored)) {
                 return null;
             }
             FluidStack simulated = handler.drain(stored.copy(), false);
@@ -41,8 +43,8 @@ final class QIOFluidContainerSnapshot {
     }
 
     private static boolean sameFluidAmount(@Nullable FluidStack expected,
-          @Nullable FluidStack actual) {
+                                           @Nullable FluidStack actual) {
         return expected != null && actual != null && expected.amount == actual.amount &&
-              expected.isFluidEqual(actual);
+                expected.isFluidEqual(actual);
     }
 }

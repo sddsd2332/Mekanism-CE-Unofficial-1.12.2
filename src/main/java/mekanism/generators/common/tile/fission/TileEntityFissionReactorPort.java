@@ -28,11 +28,7 @@ import net.minecraftforge.fml.common.FMLCommonHandler;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 public class TileEntityFissionReactorPort extends TileEntityFissionReactorCasing implements IConfigurable, IActiveState {
 
@@ -50,18 +46,18 @@ public class TileEntityFissionReactorPort extends TileEntityFissionReactorCasing
     @Override
     protected IFluidTankHolder getInitialFluidTanks(IContentsListener listener) {
         return ProxiedFluidTankHolder.create(
-              side -> isFormed() && mode == PortMode.INPUT && structure.gasCoolantTank.getStored() == 0,
-              side -> isFormed() && mode == PortMode.OUTPUT_COOLANT,
-              this::getFissionFluidTanks
+                side -> isFormed() && mode == PortMode.INPUT && structure.gasCoolantTank.getStored() == 0,
+                side -> isFormed() && mode == PortMode.OUTPUT_COOLANT,
+                this::getFissionFluidTanks
         );
     }
 
     @Override
     protected IGasTankHolder getInitialGasTanks(IContentsListener listener) {
         return ProxiedGasTankHolder.create(
-              side -> isFormed() && mode == PortMode.INPUT,
-              side -> isFormed() && mode != PortMode.INPUT,
-              this::getFissionGasTanks
+                side -> isFormed() && mode == PortMode.INPUT,
+                side -> isFormed() && mode != PortMode.INPUT,
+                this::getFissionGasTanks
         );
     }
 
@@ -208,7 +204,7 @@ public class TileEntityFissionReactorPort extends TileEntityFissionReactorCasing
                 case OUTPUT_WASTE -> LangUtils.localize("fission.port.mode.output_waste");
             };
             player.sendMessage(new TextComponentString(EnumColor.DARK_BLUE + Mekanism.LOG_TAG + " " + EnumColor.GREY +
-                  LangUtils.localize("tooltip.configurator.reactorPortEject") + " " + EnumColor.AQUA + modeText));
+                    LangUtils.localize("tooltip.configurator.reactorPortEject") + " " + EnumColor.AQUA + modeText));
             Mekanism.packetHandler.sendUpdatePacket(this);
             markNoUpdateSync();
         }

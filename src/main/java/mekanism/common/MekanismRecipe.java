@@ -411,7 +411,7 @@ public class MekanismRecipe {
                         if (drops != null) {
                             for (ItemStack stack : drops) {
                                 if (stack.isEmpty() || stack.getItem() == primaryOutput ||
-                                      primaryOutput == Items.POTATO && stack.getItem() == Items.POISONOUS_POTATO) {
+                                        primaryOutput == Items.POTATO && stack.getItem() == Items.POISONOUS_POTATO) {
                                     continue;
                                 }
                                 ItemStack nutrientOutput = stack.copy();
@@ -429,9 +429,9 @@ public class MekanismRecipe {
                             return;
                         }
                         RecipeHandler.addOrganicFarmRecipe(new ItemStack(inputSeed), MekanismFluids.NutrientSolution,
-                              new ItemStack(primaryOutput, 24), nutrientChanceOutputs);
+                                new ItemStack(primaryOutput, 24), nutrientChanceOutputs);
                         RecipeHandler.addOrganicFarmRecipe(new ItemStack(inputSeed), new FluidStack(FluidRegistry.WATER, 1),
-                              new ItemStack(primaryOutput, 3), waterChanceOutputs);
+                                new ItemStack(primaryOutput, 3), waterChanceOutputs);
                     } catch (Exception e) {
                         Mekanism.logger.error("Unable to add recipe for Organic Farm because {} is entered incorrectly", block);
                     }
@@ -480,11 +480,7 @@ public class MekanismRecipe {
         }
 
         if (MekanismConfig.current().general.machinesManager.isEnabled(BlockStateMachine.MachineType.RECYCLER)) {
-            if (MekanismConfig.current().mekce.EnableAddArrItemRecyclerRecipe.val()) {
-                getRegistriesStacks().forEach(RecipeHandler::addRecyclerRecipe);
-            } else {
-                RecipeHandler.addRecyclerRecipe(new ItemStack(Blocks.STONE));
-            }
+            RecipeHandler.addRecyclerRecipe(new ItemStack(Blocks.STONE));
             ItemStack Substrate = new ItemStack(MekanismItems.Substrate);
             if (RecipeHandler.Recipe.RECYCLER.containsRecipe(Substrate)) {
                 RecipeHandler.Recipe.RECYCLER.remove(RecipeHandler.Recipe.RECYCLER.get().get(new ItemStackInput(Substrate)));

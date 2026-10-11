@@ -127,8 +127,8 @@ public class TileEntityDynamicTank extends TileEntityMultiblock<SynchronizedTank
         }
         boolean sanitized = structure.sanitizeStoredSubstances();
         boolean changed = sanitized || !gasStacksEqual(previousGas, structure.gasstored) || !fluidStacksEqual(previousFluid, structure.fluidStored)
-              || !ItemStack.areItemStacksEqual(previousInput, structure.inputSlot.getStack())
-              || !ItemStack.areItemStacksEqual(previousOutput, structure.outputSlot.getStack());
+                || !ItemStack.areItemStacksEqual(previousInput, structure.inputSlot.getStack())
+                || !ItemStack.areItemStacksEqual(previousOutput, structure.outputSlot.getStack());
         if (changed) {
             markNoUpdateSync();
             Mekanism.packetHandler.sendUpdatePacket(this);

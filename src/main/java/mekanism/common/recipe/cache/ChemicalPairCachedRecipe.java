@@ -22,8 +22,8 @@ public class ChemicalPairCachedRecipe<RECIPE> extends CachedRecipe<RECIPE> {
     private GasStack output;
 
     public ChemicalPairCachedRecipe(RECIPE recipe, BooleanSupplier recheckAllErrors, IInputHandler<GasStack, GasStack> leftInputHandler,
-          IInputHandler<GasStack, GasStack> rightInputHandler,
-          IOutputHandler<GasStack> outputHandler, ChemicalPairInput input, GasOutput output) {
+                                    IInputHandler<GasStack, GasStack> rightInputHandler,
+                                    IOutputHandler<GasStack> outputHandler, ChemicalPairInput input, GasOutput output) {
         super(recipe, recheckAllErrors);
         this.leftInputHandler = Objects.requireNonNull(leftInputHandler);
         this.rightInputHandler = Objects.requireNonNull(rightInputHandler);
@@ -48,16 +48,16 @@ public class ChemicalPairCachedRecipe<RECIPE> extends CachedRecipe<RECIPE> {
             }
             if (!matchesType(leftInput, input.leftGas) || !matchesType(rightInput, input.rightGas)) {
                 CachedRecipeHelper.twoInputCalculateOperationsThisTick(tracker, leftInputHandler, () -> input.rightGas, rightInputHandler,
-                      () -> input.leftGas, (left, right) -> {
-                          leftRecipeInput = left;
-                          rightRecipeInput = right;
-                      }, outputHandler, (left, right) -> recipeOutput.output, output -> this.output = output, this::isEmpty, this::isEmpty);
+                        () -> input.leftGas, (left, right) -> {
+                            leftRecipeInput = left;
+                            rightRecipeInput = right;
+                        }, outputHandler, (left, right) -> recipeOutput.output, output -> this.output = output, this::isEmpty, this::isEmpty);
             } else {
                 CachedRecipeHelper.twoInputCalculateOperationsThisTick(tracker, leftInputHandler, () -> input.leftGas, rightInputHandler,
-                      () -> input.rightGas, (left, right) -> {
-                          leftRecipeInput = left;
-                          rightRecipeInput = right;
-                      }, outputHandler, (left, right) -> recipeOutput.output, output -> this.output = output, this::isEmpty, this::isEmpty);
+                        () -> input.rightGas, (left, right) -> {
+                            leftRecipeInput = left;
+                            rightRecipeInput = right;
+                        }, outputHandler, (left, right) -> recipeOutput.output, output -> this.output = output, this::isEmpty, this::isEmpty);
             }
         }
     }
@@ -70,7 +70,7 @@ public class ChemicalPairCachedRecipe<RECIPE> extends CachedRecipe<RECIPE> {
         }
         GasStack rightInput = rightInputHandler.getInput();
         return !isEmpty(rightInput) && (matches(leftInput, input.leftGas) && matches(rightInput, input.rightGas) ||
-                                        matches(leftInput, input.rightGas) && matches(rightInput, input.leftGas));
+                matches(leftInput, input.rightGas) && matches(rightInput, input.leftGas));
     }
 
     @Override

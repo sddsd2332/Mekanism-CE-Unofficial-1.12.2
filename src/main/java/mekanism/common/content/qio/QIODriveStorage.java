@@ -10,14 +10,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * World-level owner of QIO drive records and the duplicate-UUID mount lock.
@@ -49,7 +42,9 @@ public final class QIODriveStorage {
         }
     }
 
-    /** Exposed for deterministic storage tests and tooling. */
+    /**
+     * Exposed for deterministic storage tests and tooling.
+     */
     public synchronized void createOrLoad(File worldDirectory) {
         if (worldDirectory == null) {
             return;
@@ -105,7 +100,7 @@ public final class QIODriveStorage {
 
     @Nullable
     public synchronized QIODriveRecord getOrCreate(UUID driveId, QIODriveTier tier,
-          QIODriveSpecialization specialization) {
+                                                   QIODriveSpecialization specialization) {
         return getOrCreate(driveId, tier == null ? null : tier.getDefinition(), specialization);
     }
 
@@ -121,7 +116,7 @@ public final class QIODriveStorage {
 
     @Nullable
     public synchronized QIODriveRecord getOrCreate(UUID driveId, QIODriveDefinition definition,
-          QIODriveSpecialization specialization) {
+                                                   QIODriveSpecialization specialization) {
         QIODriveRecord record = getOrCreateInitial(driveId, definition, specialization);
         if (record == null) {
             return null;
@@ -147,12 +142,12 @@ public final class QIODriveStorage {
 
     @Nullable
     synchronized QIODriveRecord getOrCreateInitial(UUID driveId, QIODriveDefinition definition,
-          QIODriveSpecialization specialization) {
+                                                   QIODriveSpecialization specialization) {
         requireLoaded();
         if (driveId == null || !QIODriveDefinition.isRegistered(definition) ||
-              !QIODriveSpecializationRegistry.INSTANCE.isRegistered(specialization) ||
-              !specialization.supports(definition) ||
-              damagedDrives.contains(driveId)) {
+                !QIODriveSpecializationRegistry.INSTANCE.isRegistered(specialization) ||
+                !specialization.supports(definition) ||
+                damagedDrives.contains(driveId)) {
             return null;
         }
         QIODriveRecord record = records.get(driveId);
@@ -169,20 +164,22 @@ public final class QIODriveStorage {
         return record;
     }
 
-    /** Applies a compatible definition only after this exact mount won ownership. */
+    /**
+     * Applies a compatible definition only after this exact mount won ownership.
+     */
     @Nullable
     synchronized QIODriveRecord applyMountedDefinition(@Nullable UUID driveId,
-          @Nullable QIODriveDefinition definition, @Nullable QIODriveType driveType, @Nullable QIODriveMount mount) {
+                                                       @Nullable QIODriveDefinition definition, @Nullable QIODriveType driveType, @Nullable QIODriveMount mount) {
         return applyMountedDefinition(driveId, definition,
-              driveType == null ? null : driveType.getSpecialization(), mount);
+                driveType == null ? null : driveType.getSpecialization(), mount);
     }
 
     @Nullable
     synchronized QIODriveRecord applyMountedDefinition(@Nullable UUID driveId,
-          @Nullable QIODriveDefinition definition, @Nullable QIODriveSpecialization specialization,
-          @Nullable QIODriveMount mount) {
+                                                       @Nullable QIODriveDefinition definition, @Nullable QIODriveSpecialization specialization,
+                                                       @Nullable QIODriveMount mount) {
         if (driveId == null || !QIODriveDefinition.isRegistered(definition) ||
-              !QIODriveSpecializationRegistry.INSTANCE.isRegistered(specialization) || mount == null) {
+                !QIODriveSpecializationRegistry.INSTANCE.isRegistered(specialization) || mount == null) {
             return null;
         }
         QIODriveMount active = activeMounts.get(driveId);
@@ -288,7 +285,9 @@ public final class QIODriveStorage {
         return MountResult.DUPLICATE_UUID;
     }
 
-    /** Returns true when an existing, stably earlier mount already owns this UUID. */
+    /**
+     * Returns true when an existing, stably earlier mount already owns this UUID.
+     */
     public synchronized boolean isDuplicateMount(@Nullable UUID driveId, @Nullable QIODriveMount mount) {
         if (driveId == null || mount == null) {
             return false;

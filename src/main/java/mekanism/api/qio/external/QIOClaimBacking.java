@@ -1,13 +1,11 @@
 package mekanism.api.qio.external;
 
 import javax.annotation.Nonnull;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
-/** Immutable view of the part of a logical claim currently backed by physical QIO storage. */
+/**
+ * Immutable view of the part of a logical claim currently backed by physical QIO storage.
+ */
 public final class QIOClaimBacking {
 
     private final QIOResourceClaim claim;
@@ -17,7 +15,7 @@ public final class QIOClaimBacking {
     private final Map<UUID, Long> unsupportedAmounts;
 
     public QIOClaimBacking(@Nonnull QIOResourceClaim claim, long contentsRevision,
-          long claimRevision, @Nonnull Map<UUID, Long> backedAmounts) {
+                           long claimRevision, @Nonnull Map<UUID, Long> backedAmounts) {
         this.claim = Objects.requireNonNull(claim, "claim");
         if (contentsRevision < 0 || claimRevision < 0) {
             throw new IllegalArgumentException("QIO claim backing revisions cannot be negative");
@@ -63,7 +61,7 @@ public final class QIOClaimBacking {
     }
 
     private static Map<UUID, Long> copyBackedAmounts(QIOResourceClaim claim,
-          Map<UUID, Long> amounts) {
+                                                     Map<UUID, Long> amounts) {
         Objects.requireNonNull(amounts, "backedAmounts");
         Map<UUID, Long> copy = new LinkedHashMap<>();
         amounts.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {

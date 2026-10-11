@@ -2,6 +2,7 @@ package mekanism.common.capabilities.resolver.manager;
 
 import mekanism.api.energy.*;
 import mekanism.common.capabilities.Capabilities;
+import mekanism.common.capabilities.holder.energy.ConfigEnergyContainerHolder;
 import mekanism.common.capabilities.holder.energy.IEnergyContainerHolder;
 import mekanism.common.capabilities.proxy.ProxyStrictEnergyHandler;
 import net.minecraft.util.EnumFacing;
@@ -17,6 +18,8 @@ public class EnergyHandlerManager implements ICapabilityHandlerManager<IEnergyCo
     private final IEnergyContainerHolder holder;
     private final ISidedStrictEnergyHandler baseHandler;
     private final boolean canHandle;
+    @Nullable
+    private final ConfigEnergyContainerHolder nativeConfigHolder;
     private final Map<EnumFacing, IStrictEnergyHandler> handlers;
     @Nullable
     private IStrictEnergyHandler readOnlyHandler;
@@ -25,6 +28,9 @@ public class EnergyHandlerManager implements ICapabilityHandlerManager<IEnergyCo
         this.holder = holder;
         this.baseHandler = baseHandler;
         canHandle = holder != null;
+        // Subclasses may override container or permission lookup; retain their original dispatch.
+        nativeConfigHolder = getClass() == EnergyHandlerManager.class && holder != null &&
+                holder.getClass() == ConfigEnergyContainerHolder.class ? (ConfigEnergyContainerHolder) holder : null;
         handlers = canHandle ? new EnumMap<>(EnumFacing.class) : Collections.emptyMap();
     }
 
@@ -43,11 +49,24 @@ public class EnergyHandlerManager implements ICapabilityHandlerManager<IEnergyCo
     @Override
     public List<Capability<?>> getSupportedCapabilities() {
         return Arrays.asList(Capabilities.STRICT_ENERGY_CAPABILITY, Capabilities.ENERGY_STORAGE_CAPABILITY, Capabilities.ENERGY_ACCEPTOR_CAPABILITY,
-              Capabilities.ENERGY_OUTPUTTER_CAPABILITY);
+                Capabilities.ENERGY_OUTPUTTER_CAPABILITY);
+    }
+
+    @Override
+    public boolean supports(@Nonnull Capability<?> capability) {
+        if (getClass() != EnergyHandlerManager.class) {
+            return ICapabilityHandlerManager.super.supports(capability);
+        }
+        // Injected at startup: read the capability fields live, without a temporary list.
+        return capability == Capabilities.STRICT_ENERGY_CAPABILITY || capability == Capabilities.ENERGY_STORAGE_CAPABILITY ||
+                capability == Capabilities.ENERGY_ACCEPTOR_CAPABILITY || capability == Capabilities.ENERGY_OUTPUTTER_CAPABILITY;
     }
 
     @Override
     public boolean canResolve(@Nonnull Capability<?> capability, @Nullable EnumFacing side) {
+        if (nativeConfigHolder != null && capability != null && capability == Capabilities.ENERGY_ACCEPTOR_CAPABILITY) {
+            return nativeConfigHolder.hasInputEnergyContainers(side);
+        }
         if (!supports(capability) || !canHandle() || getContainers(side).isEmpty()) {
             return false;
         }
@@ -65,6 +84,16 @@ public class EnergyHandlerManager implements ICapabilityHandlerManager<IEnergyCo
         return true;
     }
 
+    /**
+     * The hot native acceptor eligibility check, without allocating the capability list.
+     */
+    public boolean canResolveAcceptor(@Nullable EnumFacing side) {
+        if (nativeConfigHolder != null) {
+            return nativeConfigHolder.hasInputEnergyContainers(side);
+        }
+        return side != null && canHandle && !getContainers(side).isEmpty() && holder.canInsert(side);
+    }
+
     @Nullable
     @Override
     public <T> T resolve(@Nonnull Capability<T> capability, @Nullable EnumFacing side) {
@@ -73,9 +102,9 @@ public class EnergyHandlerManager implements ICapabilityHandlerManager<IEnergyCo
         }
         IStrictEnergyHandler handler = getHandler(side);
         if (capability == Capabilities.STRICT_ENERGY_CAPABILITY ||
-              capability == Capabilities.ENERGY_STORAGE_CAPABILITY && handler instanceof IStrictEnergyStorage ||
-              capability == Capabilities.ENERGY_ACCEPTOR_CAPABILITY && handler instanceof IStrictEnergyAcceptor ||
-              capability == Capabilities.ENERGY_OUTPUTTER_CAPABILITY && handler instanceof IStrictEnergyOutputter) {
+                capability == Capabilities.ENERGY_STORAGE_CAPABILITY && handler instanceof IStrictEnergyStorage ||
+                capability == Capabilities.ENERGY_ACCEPTOR_CAPABILITY && handler instanceof IStrictEnergyAcceptor ||
+                capability == Capabilities.ENERGY_OUTPUTTER_CAPABILITY && handler instanceof IStrictEnergyOutputter) {
             return (T) handler;
         }
         return null;

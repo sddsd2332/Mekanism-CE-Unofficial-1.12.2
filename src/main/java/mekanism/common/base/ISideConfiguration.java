@@ -18,7 +18,7 @@ import java.util.List;
  *
  * @author AidanBrady
  */
-public interface ISideConfiguration extends IGetBackMachine{
+public interface ISideConfiguration extends IGetBackMachine {
 
     /**
      * Gets the tile's configuration component.

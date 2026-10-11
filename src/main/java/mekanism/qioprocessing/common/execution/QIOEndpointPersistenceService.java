@@ -1,8 +1,8 @@
 package mekanism.qioprocessing.common.execution;
 
 import mekanism.common.Mekanism;
-import mekanism.qioprocessing.common.machine.DefaultQIOAutomationHost;
 import mekanism.qioprocessing.api.machine.QIOAutomationHost;
+import mekanism.qioprocessing.common.machine.DefaultQIOAutomationHost;
 import mekanism.qioprocessing.common.tile.QIOCraftingProcessor;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.math.ChunkPos;
@@ -16,21 +16,14 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.IdentityHashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * Captures completed external endpoint state without waiting for the next global world save.
  * Requests are grouped by chunk and acknowledged only after the asynchronous chunk writer has
  * consumed the captured snapshot.
  */
+
 /**
  * QIO 处理模块中的 QIOEndpointPersistenceService 类型。
  *
@@ -40,7 +33,7 @@ import java.util.UUID;
 public final class QIOEndpointPersistenceService {
 
     public static final QIOEndpointPersistenceService INSTANCE =
-          new QIOEndpointPersistenceService();
+            new QIOEndpointPersistenceService();
 
     private final Map<TileEntity, PendingEndpoint> pending = new IdentityHashMap<>();
     private final Map<AnvilChunkLoader, ChunkLoaderFields> loaderFields = new IdentityHashMap<>();
@@ -51,14 +44,16 @@ public final class QIOEndpointPersistenceService {
      * operation that was not present in the snapshot which was actually written.
      */
     private final Map<AnvilChunkLoader, Map<Long, List<PendingChunkWrite>>> writes =
-          new IdentityHashMap<>();
+            new IdentityHashMap<>();
 
     private QIOEndpointPersistenceService() {
     }
 
-    /** 请求在处理器端点快照中持久化一个已完成操作。 */
+    /**
+     * 请求在处理器端点快照中持久化一个已完成操作。
+     */
     public synchronized void requestProcessor(@Nonnull QIOCraftingProcessor processor,
-          @Nonnull UUID operationId) {
+                                              @Nonnull UUID operationId) {
         UUID checked = Objects.requireNonNull(operationId, "operationId");
         if (isOperationTracked(processor, checked)) {
             return;
@@ -71,9 +66,11 @@ public final class QIOEndpointPersistenceService {
         endpoint.operationIds.add(checked);
     }
 
-    /** 请求在机器主机端点快照中持久化一个已完成操作。 */
+    /**
+     * 请求在机器主机端点快照中持久化一个已完成操作。
+     */
     public synchronized void requestAutomationHost(@Nonnull TileEntity tile,
-          @Nonnull DefaultQIOAutomationHost host, @Nonnull UUID operationId) {
+                                                   @Nonnull DefaultQIOAutomationHost host, @Nonnull UUID operationId) {
         UUID checked = Objects.requireNonNull(operationId, "operationId");
         if (isOperationTracked(tile, checked)) {
             return;
@@ -86,10 +83,12 @@ public final class QIOEndpointPersistenceService {
         endpoint.operationIds.add(checked);
     }
 
-    /** 请求在端点快照中持久化一条传输回执。 */
+    /**
+     * 请求在端点快照中持久化一条传输回执。
+     */
     public synchronized void requestAutomationHostReceipt(@Nonnull TileEntity tile,
-          @Nonnull QIOAutomationHost host, @Nonnull UUID operationId,
-          @Nonnull UUID receiptId) {
+                                                          @Nonnull QIOAutomationHost host, @Nonnull UUID operationId,
+                                                          @Nonnull UUID receiptId) {
         UUID checkedOperation = Objects.requireNonNull(operationId, "operationId");
         UUID checkedReceipt = Objects.requireNonNull(receiptId, "receiptId");
         if (isReceiptTracked(tile, checkedOperation, checkedReceipt)) {
@@ -101,10 +100,12 @@ public final class QIOEndpointPersistenceService {
             pending.put(tile, endpoint);
         }
         endpoint.receipts.computeIfAbsent(checkedOperation, ignored -> new LinkedHashSet<>())
-              .add(checkedReceipt);
+                .add(checkedReceipt);
     }
 
-    /** 按区块合并待写快照，并只确认实际完成写入的快照。 */
+    /**
+     * 按区块合并待写快照，并只确认实际完成写入的快照。
+     */
     public void flushPending() {
         List<PendingEndpoint> batch;
         synchronized (this) {
@@ -120,11 +121,11 @@ public final class QIOEndpointPersistenceService {
             for (PendingChunkWrite write : values.values()) {
                 synchronized (this) {
                     Map<Long, List<PendingChunkWrite>> byChunk = writes.computeIfAbsent(
-                          write.loader, ignored -> new LinkedHashMap<>());
+                            write.loader, ignored -> new LinkedHashMap<>());
                     List<PendingChunkWrite> generations = byChunk.computeIfAbsent(write.key,
-                          ignored -> new ArrayList<>());
+                            ignored -> new ArrayList<>());
                     PendingChunkWrite tail = generations.isEmpty() ? null :
-                          generations.get(generations.size() - 1);
+                            generations.get(generations.size() - 1);
                     // Requests collected before the first save in this flush share one snapshot.
                     // Once saveChunk has queued that snapshot, subsequent requests need a new
                     // generation and must wait for the first one to finish.
@@ -155,7 +156,9 @@ public final class QIOEndpointPersistenceService {
         }
     }
 
-    /** 丢弃指定世界的待写快照，避免卸载世界后访问失效端点。 */
+    /**
+     * 丢弃指定世界的待写快照，避免卸载世界后访问失效端点。
+     */
     public synchronized void discardWorld(@Nonnull World world) {
         pending.entrySet().removeIf(entry -> entry.getKey().getWorld() == world);
         writes.values().forEach(value -> value.entrySet().removeIf(entry -> {
@@ -164,12 +167,14 @@ public final class QIOEndpointPersistenceService {
         }));
         writes.entrySet().removeIf(entry -> entry.getValue().isEmpty());
         if (world instanceof WorldServer serverWorld &&
-              serverWorld.getChunkProvider().chunkLoader instanceof AnvilChunkLoader loader) {
+                serverWorld.getChunkProvider().chunkLoader instanceof AnvilChunkLoader loader) {
             loaderFields.remove(loader);
         }
     }
 
-    /** 清空所有待写端点和区块生成记录。 */
+    /**
+     * 清空所有待写端点和区块生成记录。
+     */
     public synchronized void clear() {
         pending.clear();
         writes.clear();
@@ -177,7 +182,7 @@ public final class QIOEndpointPersistenceService {
     }
 
     private void addToChunkGroup(Map<WorldServer, Map<Long, PendingChunkWrite>> grouped,
-          PendingEndpoint endpoint) {
+                                 PendingEndpoint endpoint) {
         TileEntity tile = endpoint.tile;
         World world = tile.getWorld();
         if (!(world instanceof WorldServer serverWorld)) {
@@ -190,7 +195,7 @@ public final class QIOEndpointPersistenceService {
             return;
         }
         if (tile.isInvalid() || !world.isBlockLoaded(tile.getPos(), false) ||
-              world.getTileEntity(tile.getPos()) != tile) {
+                world.getTileEntity(tile.getPos()) != tile) {
             return;
         }
         if (!(serverWorld.getChunkProvider().chunkLoader instanceof AnvilChunkLoader loader)) {
@@ -198,7 +203,7 @@ public final class QIOEndpointPersistenceService {
                 // IChunkLoader exposes no queue state for custom implementations.  Its flush
                 // contract is the only portable way to know that saveChunk has reached storage.
                 serverWorld.getChunkProvider().chunkLoader.saveChunk(serverWorld,
-                      world.getChunk(tile.getPos()));
+                        world.getChunk(tile.getPos()));
                 serverWorld.getChunkProvider().chunkLoader.flush();
                 endpoint.acknowledge();
             } catch (MinecraftException | IOException | RuntimeException e) {
@@ -209,11 +214,13 @@ public final class QIOEndpointPersistenceService {
         Chunk chunk = world.getChunk(tile.getPos());
         long key = chunkKey(chunk.x, chunk.z);
         grouped.computeIfAbsent(serverWorld, ignored -> new LinkedHashMap<>())
-              .computeIfAbsent(key, ignored -> new PendingChunkWrite(serverWorld, loader, chunk,
-                    key)).endpoints.add(endpoint);
+                .computeIfAbsent(key, ignored -> new PendingChunkWrite(serverWorld, loader, chunk,
+                        key)).endpoints.add(endpoint);
     }
 
-    /** Returns true when the operation is already waiting in memory or in a chunk generation. */
+    /**
+     * Returns true when the operation is already waiting in memory or in a chunk generation.
+     */
     private boolean isOperationTracked(@Nonnull TileEntity tile, @Nonnull UUID operationId) {
         PendingEndpoint waiting = pending.get(tile);
         if (waiting != null && waiting.operationIds.contains(operationId)) {
@@ -247,14 +254,14 @@ public final class QIOEndpointPersistenceService {
     }
 
     private boolean isReceiptTracked(@Nonnull TileEntity tile, @Nonnull UUID operationId,
-          @Nonnull UUID receiptId) {
+                                     @Nonnull UUID receiptId) {
         PendingEndpoint waiting = pending.get(tile);
         if (waiting != null && waiting.hasReceipt(operationId, receiptId)) {
             return true;
         }
         World world = tile.getWorld();
         if (!(world instanceof WorldServer serverWorld) ||
-              !(serverWorld.getChunkProvider().chunkLoader instanceof AnvilChunkLoader loader)) {
+                !(serverWorld.getChunkProvider().chunkLoader instanceof AnvilChunkLoader loader)) {
             return false;
         }
         long key = chunkKey(tile.getPos().getX() >> 4, tile.getPos().getZ() >> 4);
@@ -321,12 +328,12 @@ public final class QIOEndpointPersistenceService {
                 }
             }
             Mekanism.logger.error("Unable to checkpoint completed QIO endpoint chunk {},{} in dimension {}",
-                  write.chunk.x, write.chunk.z, write.world.provider.getDimension(), e);
+                    write.chunk.x, write.chunk.z, write.world.provider.getDimension(), e);
         }
     }
 
     private boolean isChunkWritePending(AnvilChunkLoader loader, Chunk chunk)
-          throws ReflectiveOperationException {
+            throws ReflectiveOperationException {
         ChunkLoaderFields fields = fields(loader);
         ChunkPos pos = new ChunkPos(chunk.x, chunk.z);
         Object saving = fields.saving.get(loader);
@@ -334,7 +341,7 @@ public final class QIOEndpointPersistenceService {
         // Anvil moves entries from queued to saving.  Checking the source first ensures a move
         // between the two contains calls is still observed by the destination check.
         return queued instanceof Map && ((Map<?, ?>) queued).containsKey(pos) ||
-              saving instanceof Set && ((Set<?>) saving).contains(pos);
+                saving instanceof Set && ((Set<?>) saving).contains(pos);
     }
 
     private ChunkLoaderFields fields(AnvilChunkLoader loader) throws ReflectiveOperationException {
@@ -370,8 +377,8 @@ public final class QIOEndpointPersistenceService {
         } else {
             current.operationIds.addAll(endpoint.operationIds);
             endpoint.receipts.forEach((operationId, values) ->
-                  current.receipts.computeIfAbsent(operationId,
-                        ignored -> new LinkedHashSet<>()).addAll(values));
+                    current.receipts.computeIfAbsent(operationId,
+                            ignored -> new LinkedHashSet<>()).addAll(values));
         }
     }
 
@@ -423,7 +430,7 @@ public final class QIOEndpointPersistenceService {
         private final Map<UUID, Set<UUID>> receipts = new LinkedHashMap<>();
 
         private PendingEndpoint(TileEntity tile, @Nullable QIOCraftingProcessor processor,
-              @Nullable QIOAutomationHost host) {
+                                @Nullable QIOAutomationHost host) {
             this.tile = tile;
             this.processor = processor;
             this.host = host;
@@ -445,13 +452,13 @@ public final class QIOEndpointPersistenceService {
                 }
                 if (changed && processor.getFrequencyReference() != null) {
                     QIOProcessingExecutionService.INSTANCE.wakeDevice(
-                          processor.getFrequencyReference().getFrequencyUUID(),
-                          processor.getProcessorState().getProcessorUUID());
+                            processor.getFrequencyReference().getFrequencyUUID(),
+                            processor.getProcessorState().getProcessorUUID());
                 }
             } else if (host != null) {
                 operationIds.forEach(host::confirmCompletedOperationPersisted);
                 receipts.forEach((operationId, values) -> values.forEach(receiptId ->
-                      host.confirmTransferReceiptPersisted(operationId, receiptId)));
+                        host.confirmTransferReceiptPersisted(operationId, receiptId)));
             }
         }
 

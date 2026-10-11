@@ -2,16 +2,7 @@ package mekanism.common.content.qio;
 
 import mekanism.api.Action;
 import mekanism.api.gas.GasStack;
-import mekanism.api.qio.external.IQIOStorageListener;
-import mekanism.api.qio.external.IQIOStorageView;
-import mekanism.api.qio.external.QIOClaimRequest;
-import mekanism.api.qio.external.QIOClaimResult;
-import mekanism.api.qio.external.QIOClaimBacking;
-import mekanism.api.qio.external.QIOResourceClaim;
-import mekanism.api.qio.external.QIOStorageChangeBatch;
-import mekanism.api.qio.external.QIOStorageEntry;
-import mekanism.api.qio.external.QIOStorageSnapshot;
-import mekanism.api.qio.external.QIOTransferResult;
+import mekanism.api.qio.external.*;
 import mekanism.api.qio.resource.QIOResourceDescriptor;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.fluids.FluidStack;
@@ -19,15 +10,13 @@ import net.minecraftforge.fluids.FluidStack;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.IdentityHashMap;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
-/** Shared lifecycle and listener implementation for dashboard and frequency-reference views. */
+/**
+ * Shared lifecycle and listener implementation for dashboard and frequency-reference views.
+ */
 final class QIOStorageViewImpl implements IQIOStorageView {
 
     private final QIOFrequency frequency;
@@ -37,14 +26,14 @@ final class QIOStorageViewImpl implements IQIOStorageView {
     @Nullable
     private final Consumer<QIOStorageViewImpl> trackingStopped;
     private final Set<IQIOStorageListener> listeners =
-          Collections.newSetFromMap(new IdentityHashMap<>());
+            Collections.newSetFromMap(new IdentityHashMap<>());
     private final IQIOStorageListener frequencyListener = this::onFrequencyChanged;
     private boolean listening;
     private boolean closed;
 
     QIOStorageViewImpl(@Nonnull QIOFrequency frequency, @Nonnull BooleanSupplier ownerValidity,
-          @Nullable Consumer<QIOStorageViewImpl> trackingStarted,
-          @Nullable Consumer<QIOStorageViewImpl> trackingStopped) {
+                       @Nullable Consumer<QIOStorageViewImpl> trackingStarted,
+                       @Nullable Consumer<QIOStorageViewImpl> trackingStopped) {
         this.frequency = frequency;
         this.ownerValidity = ownerValidity;
         this.trackingStarted = trackingStarted;
@@ -118,85 +107,85 @@ final class QIOStorageViewImpl implements IQIOStorageView {
     @Override
     public long insert(ItemStack stack, long amount, Action action) {
         return isCurrentlyValid() ? frequency.massInsert(
-              stack == null ? ItemStack.EMPTY : stack.copy(), amount, action) : 0;
+                stack == null ? ItemStack.EMPTY : stack.copy(), amount, action) : 0;
     }
 
     @Override
     public long insert(FluidStack stack, long amount, Action action) {
         return isCurrentlyValid() && stack != null ?
-              frequency.massInsert(stack.copy(), amount, action) : 0;
+                frequency.massInsert(stack.copy(), amount, action) : 0;
     }
 
     @Override
     public long insert(GasStack stack, long amount, Action action) {
         return isCurrentlyValid() && stack != null ?
-              frequency.massInsert(stack.copy(), amount, action) : 0;
+                frequency.massInsert(stack.copy(), amount, action) : 0;
     }
 
     @Override
     public long insert(@Nonnull QIOResourceDescriptor descriptor, long amount,
-          @Nonnull Action action) {
+                       @Nonnull Action action) {
         return isCurrentlyValid() ? frequency.massInsert(descriptor, amount, action) : 0;
     }
 
     @Nonnull
     @Override
     public QIOTransferResult insertIdempotent(@Nonnull UUID transferId, ItemStack stack,
-          long amount, @Nonnull BigInteger expectedStoredAmount) {
+                                              long amount, @Nonnull BigInteger expectedStoredAmount) {
         return isCurrentlyValid() ? frequency.insertExternalTransfer(transferId, stack, amount,
-              expectedStoredAmount) : new QIOTransferResult(transferId,
-              QIOTransferResult.Status.FAILED, Math.max(1, amount), 0);
+                expectedStoredAmount) : new QIOTransferResult(transferId,
+                QIOTransferResult.Status.FAILED, Math.max(1, amount), 0);
     }
 
     @Nonnull
     @Override
     public QIOTransferResult insertIdempotent(@Nonnull UUID transferId, FluidStack stack,
-          long amount, @Nonnull BigInteger expectedStoredAmount) {
+                                              long amount, @Nonnull BigInteger expectedStoredAmount) {
         return isCurrentlyValid() ? frequency.insertExternalTransfer(transferId, stack, amount,
-              expectedStoredAmount) : new QIOTransferResult(transferId,
-              QIOTransferResult.Status.FAILED, Math.max(1, amount), 0);
+                expectedStoredAmount) : new QIOTransferResult(transferId,
+                QIOTransferResult.Status.FAILED, Math.max(1, amount), 0);
     }
 
     @Nonnull
     @Override
     public QIOTransferResult insertIdempotent(@Nonnull UUID transferId, GasStack stack,
-          long amount, @Nonnull BigInteger expectedStoredAmount) {
+                                              long amount, @Nonnull BigInteger expectedStoredAmount) {
         return isCurrentlyValid() ? frequency.insertExternalTransfer(transferId, stack, amount,
-              expectedStoredAmount) : new QIOTransferResult(transferId,
-              QIOTransferResult.Status.FAILED, Math.max(1, amount), 0);
+                expectedStoredAmount) : new QIOTransferResult(transferId,
+                QIOTransferResult.Status.FAILED, Math.max(1, amount), 0);
     }
 
     @Nonnull
     @Override
     public QIOTransferResult insertIdempotent(@Nonnull UUID transferId,
-          @Nonnull QIOResourceDescriptor descriptor, long amount,
-          @Nonnull BigInteger expectedStoredAmount) {
+                                              @Nonnull QIOResourceDescriptor descriptor, long amount,
+                                              @Nonnull BigInteger expectedStoredAmount) {
         return isCurrentlyValid() ? frequency.insertExternalTransfer(transferId, descriptor,
-              amount, expectedStoredAmount) : new QIOTransferResult(transferId,
-              QIOTransferResult.Status.FAILED, Math.max(1, amount), 0);
+                amount, expectedStoredAmount) : new QIOTransferResult(transferId,
+                QIOTransferResult.Status.FAILED, Math.max(1, amount), 0);
     }
 
     @Override
     public long extract(ItemStack stack, long amount, Action action) {
         return isCurrentlyValid() ? frequency.massExtract(
-              stack == null ? ItemStack.EMPTY : stack.copy(), amount, action) : 0;
+                stack == null ? ItemStack.EMPTY : stack.copy(), amount, action) : 0;
     }
 
     @Override
     public long extract(FluidStack stack, long amount, Action action) {
         return isCurrentlyValid() && stack != null ?
-              frequency.massExtract(stack.copy(), amount, action) : 0;
+                frequency.massExtract(stack.copy(), amount, action) : 0;
     }
 
     @Override
     public long extract(GasStack stack, long amount, Action action) {
         return isCurrentlyValid() && stack != null ?
-              frequency.massExtract(stack.copy(), amount, action) : 0;
+                frequency.massExtract(stack.copy(), amount, action) : 0;
     }
 
     @Override
     public long extract(@Nonnull QIOResourceDescriptor descriptor, long amount,
-          @Nonnull Action action) {
+                        @Nonnull Action action) {
         return isCurrentlyValid() ? frequency.massExtract(descriptor, amount, action) : 0;
     }
 
@@ -239,7 +228,7 @@ final class QIOStorageViewImpl implements IQIOStorageView {
 
     boolean isCurrentlyValid() {
         return !closed && frequency.isValid() && !frequency.isRemoved() &&
-              QIOStorageManager.isLoaded() && ownerValidity.getAsBoolean();
+                QIOStorageManager.isLoaded() && ownerValidity.getAsBoolean();
     }
 
     void invalidate(boolean notify) {
@@ -256,8 +245,8 @@ final class QIOStorageViewImpl implements IQIOStorageView {
         }
         if (notify && !listeners.isEmpty()) {
             QIOStorageChangeBatch invalidation = QIOStorageChangeBatch.invalidated(
-                  frequency.getContentsRevision(), frequency.getCapacityRevision(),
-                  frequency.getClaimRevision(), frequency.getAccessRevision());
+                    frequency.getContentsRevision(), frequency.getCapacityRevision(),
+                    frequency.getClaimRevision(), frequency.getAccessRevision());
             for (IQIOStorageListener listener : new ArrayList<>(listeners)) {
                 try {
                     listener.onQIOStorageChanged(invalidation);

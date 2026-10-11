@@ -7,12 +7,7 @@ import mekanism.qioprocessing.common.content.QIOProcessingNetworkData;
 import mekanism.qioprocessing.common.inventory.container.QIOManagementDevicePageContainer;
 import mekanism.qioprocessing.common.inventory.container.QIOProcessingTerminalContainerState;
 import mekanism.qioprocessing.common.inventory.container.QIOProcessingTerminalFrequencyContainer;
-import mekanism.qioprocessing.common.terminal.QIOManagementDeviceGroupService;
-import mekanism.qioprocessing.common.terminal.QIOManagementDeviceGroupSnapshot;
-import mekanism.qioprocessing.common.terminal.QIOPage;
-import mekanism.qioprocessing.common.terminal.QIOPageCursor;
-import mekanism.qioprocessing.common.terminal.QIOProcessingTerminalSession;
-import mekanism.qioprocessing.common.terminal.QIOProcessingTerminalType;
+import mekanism.qioprocessing.common.terminal.*;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
@@ -29,7 +24,7 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class PacketQIOManagementDeviceGroupPageRequest implements
-      IMessageHandler<PacketQIOManagementDeviceGroupPageRequest.Message, IMessage> {
+        IMessageHandler<PacketQIOManagementDeviceGroupPageRequest.Message, IMessage> {
 
     @Override
     public IMessage onMessage(Message message, MessageContext context) {
@@ -41,30 +36,30 @@ public final class PacketQIOManagementDeviceGroupPageRequest implements
 
     private static void handle(Message message, EntityPlayer player) {
         if (!(player instanceof EntityPlayerMP playerMP) ||
-            !(player.openContainer instanceof QIOManagementDevicePageContainer container) ||
-            !(player.openContainer instanceof QIOProcessingTerminalFrequencyContainer frequencyContainer) ||
-            player.openContainer.windowId != message.windowId ||
-            !player.openContainer.canInteractWith(player) ||
-            !container.tryRequestDeviceGroupPage(player.world.getTotalWorldTime())) return;
+                !(player.openContainer instanceof QIOManagementDevicePageContainer container) ||
+                !(player.openContainer instanceof QIOProcessingTerminalFrequencyContainer frequencyContainer) ||
+                player.openContainer.windowId != message.windowId ||
+                !player.openContainer.canInteractWith(player) ||
+                !container.tryRequestDeviceGroupPage(player.world.getTotalWorldTime())) return;
         QIOProcessingTerminalSession session = container.getTerminalSession();
         if (session == null || session.getTerminalType() != QIOProcessingTerminalType.MANAGEMENT ||
-            session.getFrequencyUUID() == null ||
-            session.validate(message.sessionNonce, player.getUniqueID(),
-                  session.getTargetKind(), QIOProcessingTerminalType.MANAGEMENT,
-                  message.terminalUUID, message.expectedTargetRevision,
-                  session.getFrequencyUUID(), session.getAccessRevision()) !=
-                  QIOProcessingTerminalSession.Validation.ACCEPTED) return;
+                session.getFrequencyUUID() == null ||
+                session.validate(message.sessionNonce, player.getUniqueID(),
+                        session.getTargetKind(), QIOProcessingTerminalType.MANAGEMENT,
+                        message.terminalUUID, message.expectedTargetRevision,
+                        session.getFrequencyUUID(), session.getAccessRevision()) !=
+                        QIOProcessingTerminalSession.Validation.ACCEPTED) return;
         QIOProcessingNetworkData network = QIOProcessingNetworkAccess.getOrCreate(
-              frequencyContainer, session, player);
+                frequencyContainer, session, player);
         if (network == null) return;
         try {
             QIOPage<QIOManagementDeviceGroupSnapshot> page =
-                  QIOManagementDeviceGroupService.getPage(session, network,
-                        session.getAccessRevision(), message.cursor,
-                        message.requestedPageSize);
+                    QIOManagementDeviceGroupService.getPage(session, network,
+                            session.getAccessRevision(), message.cursor,
+                            message.requestedPageSize);
             QIOProcessingPacketHandler.INSTANCE.sendTo(
-                  PacketQIOManagementDeviceGroupPageData.Message.create(message.windowId,
-                        session, page), playerMP);
+                    PacketQIOManagementDeviceGroupPageData.Message.create(message.windowId,
+                            session, page), playerMP);
         } catch (IllegalArgumentException | IllegalStateException | SecurityException ignored) {
         }
     }
@@ -76,15 +71,16 @@ public final class PacketQIOManagementDeviceGroupPageRequest implements
         private UUID terminalUUID;
         private long expectedTargetRevision;
         private int requestedPageSize;
-        @Nullable private QIOPageCursor cursor;
+        @Nullable
+        private QIOPageCursor cursor;
         private boolean valid;
 
         public Message() {
         }
 
         public static Message create(int windowId,
-              QIOProcessingTerminalContainerState state, int requestedPageSize,
-              @Nullable QIOPageCursor cursor) {
+                                     QIOProcessingTerminalContainerState state, int requestedPageSize,
+                                     @Nullable QIOPageCursor cursor) {
             Message message = new Message();
             if (state != null && state.isValid()) {
                 message.windowId = windowId;
@@ -99,7 +95,7 @@ public final class PacketQIOManagementDeviceGroupPageRequest implements
         }
 
         static Message create(int windowId, QIOProcessingTerminalSession session,
-              int requestedPageSize, @Nullable QIOPageCursor cursor) {
+                              int requestedPageSize, @Nullable QIOPageCursor cursor) {
             Message message = new Message();
             if (session != null) {
                 message.windowId = windowId;
@@ -140,13 +136,15 @@ public final class PacketQIOManagementDeviceGroupPageRequest implements
             }
         }
 
-        public boolean isValid() { return valid; }
+        public boolean isValid() {
+            return valid;
+        }
 
         private boolean shape() {
             return windowId >= 0 && sessionNonce != null && terminalUUID != null &&
-                  expectedTargetRevision >= 0 && requestedPageSize > 0 &&
-                  requestedPageSize <= 1_024 &&
-                  (cursor == null || sessionNonce.equals(cursor.getSessionNonce()));
+                    expectedTargetRevision >= 0 && requestedPageSize > 0 &&
+                    requestedPageSize <= 1_024 &&
+                    (cursor == null || sessionNonce.equals(cursor.getSessionNonce()));
         }
 
         private static void writeUUID(ByteBuf buffer, UUID uuid) {

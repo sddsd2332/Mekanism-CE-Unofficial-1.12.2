@@ -302,8 +302,7 @@ public class TileEntityFormulaicAssemblicator extends TileEntityElectricBlock im
     }
 
     @Override
-    public void markDirty() {
-        super.markDirty();
+    protected void onMarkDirty() {
         recalculateRecipe();
     }
 
@@ -742,12 +741,12 @@ public class TileEntityFormulaicAssemblicator extends TileEntityElectricBlock im
         for (int i = 0; i < 9; i++) {
             int index = i;
             container.track(SyncableItemStack.create(
-                  () -> formula == null ? ItemStack.EMPTY : formula.input.get(index),
-                  stack -> {
-                      if (formula != null) {
-                          formula.input.set(index, stack);
-                      }
-                  }));
+                    () -> formula == null ? ItemStack.EMPTY : formula.input.get(index),
+                    stack -> {
+                        if (formula != null) {
+                            formula.input.set(index, stack);
+                        }
+                    }));
         }
     }
 
@@ -846,6 +845,7 @@ public class TileEntityFormulaicAssemblicator extends TileEntityElectricBlock im
     public boolean isCapabilityDisabled(@Nonnull Capability<?> capability, EnumFacing side) {
         return configComponent.isCapabilityDisabled(capability, side, facing) || super.isCapabilityDisabled(capability, side);
     }
+
     @Override
     public int getBlockGuiID(Block block, int metadata) {
         return MachineType.get(block, metadata) != null ? MachineType.get(block, metadata).guiId : -1;

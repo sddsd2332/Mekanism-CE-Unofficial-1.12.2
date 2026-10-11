@@ -1,6 +1,5 @@
 package mekanism.common.command;
 
-import java.util.*;
 import mekanism.api.Coord4D;
 import mekanism.api.EnumColor;
 import mekanism.api.MekanismAPI;
@@ -20,6 +19,11 @@ import net.minecraft.util.text.ITextComponent;
 import net.minecraft.world.World;
 import net.minecraftforge.server.command.CommandTreeBase;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
 public class RadiationCommand extends CommandTreeBase {
     public RadiationCommand() {
         register("add", this::add);
@@ -32,30 +36,51 @@ public class RadiationCommand extends CommandTreeBase {
 
     private void register(String name, CommandMek.CmdExecute action) {
         addSubcommand(new Cmd(name, "cmd.mek.radiation." + name, action) {
-            @Override public int getRequiredPermissionLevel() { return 2; }
-            @Override public List<String> getTabCompletions(MinecraftServer server, ICommandSender sender, String[] args, BlockPos pos) {
+            @Override
+            public int getRequiredPermissionLevel() {
+                return 2;
+            }
+
+            @Override
+            public List<String> getTabCompletions(MinecraftServer server, ICommandSender sender, String[] args, BlockPos pos) {
                 return complete(name, server, args, pos);
             }
+
             // Resolve multi-target selectors ourselves, once, rather than letting CommandHandler
             // expand and re-execute the entire command separately for each selected entity.
-            @Override public boolean isUsernameIndex(String[] args, int index) { return false; }
+            @Override
+            public boolean isUsernameIndex(String[] args, int index) {
+                return false;
+            }
         });
     }
 
-    @Override public String getName() { return "radiation"; }
-    @Override public String getUsage(ICommandSender sender) { return "cmd.mek.radiation.usage"; }
-    @Override public int getRequiredPermissionLevel() { return 2; }
+    @Override
+    public String getName() {
+        return "radiation";
+    }
+
+    @Override
+    public String getUsage(ICommandSender sender) {
+        return "cmd.mek.radiation.usage";
+    }
+
+    @Override
+    public int getRequiredPermissionLevel() {
+        return 2;
+    }
 
     public void add(MinecraftServer server, ICommandSender sender, String[] args) throws CommandException {
         if (args.length != 1 && args.length != 4 && args.length != 5) throw usage("add");
         double magnitude = magnitude(args[0]);
         Coord4D location = location(server, sender, args, 1);
         World world = targetWorld(server, sender, args.length == 5, location.dimensionId);
-        if (!MekanismAPI.getRadiationManager().radiate(world, location.getPos(), magnitude)) throw new CommandException("cmd.mek.radiation.unavailable");
+        if (!MekanismAPI.getRadiationManager().radiate(world, location.getPos(), magnitude))
+            throw new CommandException("cmd.mek.radiation.unavailable");
         sender.sendMessage(MekanismLang.COMMAND_RADIATION_ADD.translateColored(EnumColor.GREY,
-              RadiationManager.RadiationScale.getSeverityColor(magnitude),
-              UnitDisplayUtils.getDisplayShort(magnitude, UnitDisplayUtils.RadiationUnit.SVH, 3),
-              EnumColor.INDIGO, position(location.getPos()), EnumColor.INDIGO, Integer.toString(location.dimensionId)));
+                RadiationManager.RadiationScale.getSeverityColor(magnitude),
+                UnitDisplayUtils.getDisplayShort(magnitude, UnitDisplayUtils.RadiationUnit.SVH, 3),
+                EnumColor.INDIGO, position(location.getPos()), EnumColor.INDIGO, Integer.toString(location.dimensionId)));
         result(sender, returnLevel(magnitude));
     }
 
@@ -66,9 +91,9 @@ public class RadiationCommand extends CommandTreeBase {
         double magnitude = MekanismAPI.getRadiationManager().getRadiationLevel(world, location.getPos());
         if (!Double.isFinite(magnitude)) throw new CommandException("cmd.mek.radiation.unavailable");
         sender.sendMessage(MekanismLang.COMMAND_RADIATION_GET.translateColored(EnumColor.GREY,
-              EnumColor.INDIGO, position(location.getPos()), EnumColor.INDIGO, Integer.toString(location.dimensionId),
-              RadiationManager.RadiationScale.getSeverityColor(magnitude),
-              UnitDisplayUtils.getDisplayShort(magnitude, UnitDisplayUtils.RadiationUnit.SVH, 3)));
+                EnumColor.INDIGO, position(location.getPos()), EnumColor.INDIGO, Integer.toString(location.dimensionId),
+                RadiationManager.RadiationScale.getSeverityColor(magnitude),
+                UnitDisplayUtils.getDisplayShort(magnitude, UnitDisplayUtils.RadiationUnit.SVH, 3)));
         result(sender, returnLevel(magnitude));
     }
 
@@ -108,14 +133,14 @@ public class RadiationCommand extends CommandTreeBase {
             EnumColor color = RadiationManager.RadiationScale.getSeverityColor(amount);
             if (reduce) {
                 sender.sendMessage(self
-                      ? MekanismLang.COMMAND_RADIATION_REDUCE.translateColored(EnumColor.GREY, color, display)
-                      : MekanismLang.COMMAND_RADIATION_REDUCE_TARGET.translateColored(EnumColor.GREY,
-                            EnumColor.INDIGO, entity.getDisplayName(), color, display));
+                        ? MekanismLang.COMMAND_RADIATION_REDUCE.translateColored(EnumColor.GREY, color, display)
+                        : MekanismLang.COMMAND_RADIATION_REDUCE_TARGET.translateColored(EnumColor.GREY,
+                        EnumColor.INDIGO, entity.getDisplayName(), color, display));
             } else {
                 sender.sendMessage(self
-                      ? MekanismLang.COMMAND_RADIATION_ADD_ENTITY.translateColored(EnumColor.GREY, color, display)
-                      : MekanismLang.COMMAND_RADIATION_ADD_ENTITY_TARGET.translateColored(EnumColor.GREY,
-                            color, display, EnumColor.INDIGO, entity.getDisplayName()));
+                        ? MekanismLang.COMMAND_RADIATION_ADD_ENTITY.translateColored(EnumColor.GREY, color, display)
+                        : MekanismLang.COMMAND_RADIATION_ADD_ENTITY_TARGET.translateColored(EnumColor.GREY,
+                        color, display, EnumColor.INDIGO, entity.getDisplayName()));
             }
         }
         sender.setCommandStat(CommandResultStats.Type.AFFECTED_ENTITIES, affected);
@@ -132,8 +157,8 @@ public class RadiationCommand extends CommandTreeBase {
             radiation.set(RadiationManager.BASELINE);
             affected++;
             sender.sendMessage(args.length == 0
-                  ? MekanismLang.COMMAND_RADIATION_CLEAR.translateColored(EnumColor.GREY)
-                  : MekanismLang.COMMAND_RADIATION_CLEAR_ENTITY.translateColored(EnumColor.GREY, EnumColor.INDIGO, entity.getDisplayName()));
+                    ? MekanismLang.COMMAND_RADIATION_CLEAR.translateColored(EnumColor.GREY)
+                    : MekanismLang.COMMAND_RADIATION_CLEAR_ENTITY.translateColored(EnumColor.GREY, EnumColor.INDIGO, entity.getDisplayName()));
         }
         sender.setCommandStat(CommandResultStats.Type.AFFECTED_ENTITIES, affected);
         result(sender, affected);
@@ -148,8 +173,11 @@ public class RadiationCommand extends CommandTreeBase {
 
     public void removeAll(MinecraftServer server, ICommandSender sender, String[] args) throws CommandException {
         if (args.length != 0) throw usage("removeAll");
-        try { RadiationManager.INSTANCE.clearSources(server.worlds); }
-        catch (IllegalStateException error) { throw new CommandException("cmd.mek.radiation.unavailable"); }
+        try {
+            RadiationManager.INSTANCE.clearSources(server.worlds);
+        } catch (IllegalStateException error) {
+            throw new CommandException("cmd.mek.radiation.unavailable");
+        }
         sender.sendMessage(MekanismLang.COMMAND_RADIATION_REMOVE_ALL.translateColored(EnumColor.GREY));
         result(sender, 1);
     }
@@ -165,8 +193,12 @@ public class RadiationCommand extends CommandTreeBase {
     }
 
     private static boolean numeric(String value) {
-        try { Double.parseDouble(value); return true; }
-        catch (NumberFormatException ignored) { return false; }
+        try {
+            Double.parseDouble(value);
+            return true;
+        } catch (NumberFormatException ignored) {
+            return false;
+        }
     }
 
     static Coord4D location(MinecraftServer server, ICommandSender sender, String[] args, int offset) throws CommandException {
@@ -177,7 +209,10 @@ public class RadiationCommand extends CommandTreeBase {
         if (args.length == offset + 4) {
             boolean found = false;
             if (server != null && server.worlds != null) for (World candidate : server.worlds) {
-                if (candidate != null && candidate.provider.getDimension() == dim) { found = true; break; }
+                if (candidate != null && candidate.provider.getDimension() == dim) {
+                    found = true;
+                    break;
+                }
             }
             if (!found) throw new CommandException("cmd.mek.radiation.dimension.invalid", dim);
         }
@@ -196,14 +231,14 @@ public class RadiationCommand extends CommandTreeBase {
             Vec3d left = up.crossProduct(forward);
             Vec3d resolved = base.add(left.scale(local[0])).add(up.scale(local[1])).add(forward.scale(local[2]));
             if (!Double.isFinite(resolved.x) || !Double.isFinite(resolved.y) || !Double.isFinite(resolved.z) ||
-                  Math.abs(resolved.x) > 30_000_000 || Math.abs(resolved.y) > 30_000_000 || Math.abs(resolved.z) > 30_000_000) {
+                    Math.abs(resolved.x) > 30_000_000 || Math.abs(resolved.y) > 30_000_000 || Math.abs(resolved.z) > 30_000_000) {
                 throw new NumberInvalidException("commands.generic.num.invalid", resolved.toString());
             }
             return new Coord4D(resolved.x, resolved.y, resolved.z, dim);
         }
         // Vec3 semantics retain fractional sender position for relative coordinates; no y=0..256 clamp.
         return new Coord4D(parseDouble(base.x, args[offset], true),
-              parseDouble(base.y, args[offset + 1], false), parseDouble(base.z, args[offset + 2], true), dim);
+                parseDouble(base.y, args[offset + 1], false), parseDouble(base.z, args[offset + 2], true), dim);
     }
 
     static int returnLevel(double magnitude) {

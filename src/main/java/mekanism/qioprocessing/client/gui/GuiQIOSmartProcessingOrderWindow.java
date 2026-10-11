@@ -26,13 +26,12 @@ import net.minecraft.util.text.ITextComponent;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraft.util.text.TextComponentTranslation;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
-/** Virtualized order catalog and asynchronous production-plan editor. */
+/**
+ * Virtualized order catalog and asynchronous production-plan editor.
+ */
+
 /**
  * QIO 处理模块中的 GuiQIOSmartProcessingOrderWindow 类型。
  *
@@ -40,7 +39,7 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class GuiQIOSmartProcessingOrderWindow extends GuiWindow
-      implements IRecipeViewerGhostTarget {
+        implements IRecipeViewerGhostTarget {
 
     private static final int COLUMNS = 11;
     private static final int ROWS = 5;
@@ -60,7 +59,7 @@ public final class GuiQIOSmartProcessingOrderWindow extends GuiWindow
     private final MekanismButton previewButton;
     private final List<GuiQIOSmartProcessingFilterTab> filterTabs = new ArrayList<>();
     private QIOSmartProcessingResourceFilter selectedFilter =
-          QIOSmartProcessingResourceFilter.ALL;
+            QIOSmartProcessingResourceFilter.ALL;
     private QIOSmartProcessingResourceEntry selected;
     private SessionKey session;
     private long clientTick;
@@ -83,35 +82,35 @@ public final class GuiQIOSmartProcessingOrderWindow extends GuiWindow
     private UUID lastAnalysisPreviewId;
 
     public GuiQIOSmartProcessingOrderWindow(IGuiWrapper gui, int x, int y,
-          QIOSmartProcessingPageContainer container, SelectedWindowData windowData) {
+                                            QIOSmartProcessingPageContainer container, SelectedWindowData windowData) {
         super(gui, x, y, 220, 190, windowData);
         this.container = container;
         state = container.getTerminalState();
         interactionStrategy = InteractionStrategy.ALL;
 
         searchField = addChild(new GuiTextField(gui, this, relativeX + 7, relativeY + 18,
-              206, 12).setMaxLength(64).setBackground(BackgroundType.ELEMENT_HOLDER)
-              .setResponder(this::onSearchChanged));
+                206, 12).setMaxLength(64).setBackground(BackgroundType.ELEMENT_HOLDER)
+                .setResponder(this::onSearchChanged));
         grid = addChild(new GuiQIOSmartProcessingResourceGrid(gui, relativeX + 2,
-              relativeY + 33, COLUMNS, ROWS, container::getSmartProcessingClientCache,
-              this::selectedResource, this::selectResource).rotatingSelection());
+                relativeY + 33, COLUMNS, ROWS, container::getSmartProcessingClientCache,
+                this::selectedResource, this::selectResource).rotatingSelection());
         amountField = addChild(new GuiTextField(gui, this, relativeX + 7, relativeY + 127,
-              54, 14).setMaxLength(18).setInputValidator(Character::isDigit));
+                54, 14).setMaxLength(18).setInputValidator(Character::isDigit));
         amountField.setText("1");
         amountField.setResponder(ignored -> onOrderInputChanged());
         previewButton = addChild(new MekanismButton(gui, relativeX + 64, relativeY + 127,
-              149, 14, new TextComponentTranslation(
-                     "gui.mekanismqioprocessing.order_preview"), this::requestPreview, null));
+                149, 14, new TextComponentTranslation(
+                "gui.mekanismqioprocessing.order_preview"), this::requestPreview, null));
         addChild(new GuiQIOPlanningStatusScreen(gui, relativeX + 7, relativeY + 145,
-              206, 40, false, this::statusContent));
+                206, 40, false, this::statusContent));
 
         QIOSmartProcessingResourceFilter[] filters =
-              QIOSmartProcessingResourceFilter.values();
+                QIOSmartProcessingResourceFilter.values();
         for (int index = 0; index < filters.length; index++) {
             QIOSmartProcessingResourceFilter filter = filters[index];
             GuiQIOSmartProcessingFilterTab tab = addChild(
-                  new GuiQIOSmartProcessingFilterTab(gui, filter, relativeX - 26,
-                        relativeY + 20 + index * 28, () -> selectFilter(filter)));
+                    new GuiQIOSmartProcessingFilterTab(gui, filter, relativeX - 26,
+                            relativeY + 20 + index * 28, () -> selectFilter(filter)));
             filterTabs.add(tab);
         }
         updateFilterTabs();
@@ -140,20 +139,20 @@ public final class GuiQIOSmartProcessingOrderWindow extends GuiWindow
         }
         long pageTimeout = cache.getSourceRevision() < 0 ? INITIAL_PAGE_TIMEOUT : TIMEOUT;
         if (pagePending != null && QIOClientTiming.elapsed(clientTick, pagePending.sentAt,
-              pageTimeout)) {
+                pageTimeout)) {
             cache.cancelExpectedPageRequest(pageRequestId);
             pagePending = null;
             pageRequestId = null;
         }
         if (actionPending != null && QIOClientTiming.elapsed(clientTick, actionPending.sentAt,
-              TIMEOUT)) {
+                TIMEOUT)) {
             cache.cancelExpectedPreviewRequest(actionRequestId);
             actionPending = null;
             actionRequestId = null;
         }
 
         if (searchDirty && QIOClientTiming.elapsed(clientTick, searchEditedAt,
-              SEARCH_DEBOUNCE)) {
+                SEARCH_DEBOUNCE)) {
             searchDirty = false;
             resetDirectory(selectedFilter, normalizedSearch());
         }
@@ -162,25 +161,25 @@ public final class GuiQIOSmartProcessingOrderWindow extends GuiWindow
         cancelMismatchedPreview();
         QIOSmartProcessingPreviewSnapshot preview = cache.getPreview();
         if (preview != null && (preview.getState().name().equals("PREPARING") ||
-              preview.getState().name().equals("PLANNING")) &&
-               actionPending == null && QIOClientTiming.elapsed(clientTick,
-                     lastPreviewPollTick, PREVIEW_POLL_INTERVAL)) {
+                preview.getState().name().equals("PLANNING")) &&
+                actionPending == null && QIOClientTiming.elapsed(clientTick,
+                lastPreviewPollTick, PREVIEW_POLL_INTERVAL)) {
             lastPreviewPollTick = clientTick;
             poll();
         } else if (actionPending == null && pagePending == null && session != null &&
-              session.frequency != null && clientTick >= initialRequestNotBeforeTick) {
+                session.frequency != null && clientTick >= initialRequestNotBeforeTick) {
             int missingOffset = grid.getMissingPageOffset(PAGE_SIZE);
             if (missingOffset >= 0) {
                 sendPage(missingOffset);
             } else if (QIOClientTiming.elapsed(clientTick, lastCatalogRequestTick,
-                  CATALOG_REFRESH_INTERVAL)) {
+                    CATALOG_REFRESH_INTERVAL)) {
                 sendPage(grid.getFirstVisiblePageOffset(PAGE_SIZE));
             }
         }
         if (cache.getPageGeneration() != lastPageGeneration) {
             lastPageGeneration = cache.getPageGeneration();
             if (lastSourceRevision >= 0 && cache.getSourceRevision() >= 0 &&
-                  lastSourceRevision != cache.getSourceRevision()) {
+                    lastSourceRevision != cache.getSourceRevision()) {
                 grid.resetScroll();
             }
             lastSourceRevision = cache.getSourceRevision();
@@ -195,7 +194,7 @@ public final class GuiQIOSmartProcessingOrderWindow extends GuiWindow
 
     private void sendPage(int offset) {
         if (session == null || session.frequency == null || pagePending != null ||
-              lastOutboundTick == clientTick) return;
+                lastOutboundTick == clientTick) return;
         QIOSmartProcessingClientCache cache = cache();
         pageRequestId = UUID.randomUUID();
         if (!cache.expectPageRequest(pageRequestId, selectedFilter, normalizedSearch(), offset)) {
@@ -203,10 +202,10 @@ public final class GuiQIOSmartProcessingOrderWindow extends GuiWindow
             return;
         }
         QIOProcessingPacketHandler.INSTANCE.sendToServer(
-              PacketQIOSmartProcessingResourcePageRequest.Message.create(
-                    container.getTerminalWindowId(), state,
-                    pageRequestId, selectedFilter, normalizedSearch(), offset, PAGE_SIZE,
-                    cache.getSourceRevision()));
+                PacketQIOSmartProcessingResourcePageRequest.Message.create(
+                        container.getTerminalWindowId(), state,
+                        pageRequestId, selectedFilter, normalizedSearch(), offset, PAGE_SIZE,
+                        cache.getSourceRevision()));
         pagePending = new Pending(cache.getPageGeneration(), clientTick);
         lastCatalogRequestTick = clientTick;
         lastOutboundTick = clientTick;
@@ -215,7 +214,7 @@ public final class GuiQIOSmartProcessingOrderWindow extends GuiWindow
     private void requestPreview() {
         long amount = requestedAmount();
         if (selected == null || !selected.isSchedulable() || amount <= 0 ||
-              actionPending != null || session == null) return;
+                actionPending != null || session == null) return;
         if (lastOutboundTick == clientTick) {
             queuedAction = QueuedAction.PREVIEW;
             return;
@@ -226,10 +225,10 @@ public final class GuiQIOSmartProcessingOrderWindow extends GuiWindow
             return;
         }
         QIOProcessingPacketHandler.INSTANCE.sendToServer(
-              PacketQIOSmartProcessingPreviewAction.Message.request(
-                    container.getTerminalWindowId(), state,
-                    actionRequestId, selected.getResource().write(), amount, 0,
-                    selected.isMergeable()));
+                PacketQIOSmartProcessingPreviewAction.Message.request(
+                        container.getTerminalWindowId(), state,
+                        actionRequestId, selected.getResource().write(), amount, 0,
+                        selected.isMergeable()));
         actionPending = new Pending(cache().getPreviewGeneration(), clientTick);
         queuedAction = null;
         lastOutboundTick = clientTick;
@@ -239,7 +238,7 @@ public final class GuiQIOSmartProcessingOrderWindow extends GuiWindow
         QIOSmartProcessingPreviewSnapshot preview = cache().getPreview();
         if (preview == null || actionPending != null || lastOutboundTick == clientTick) return;
         sendSimpleAction(PacketQIOSmartProcessingPreviewAction.Action.POLL,
-              preview.getPreviewId());
+                preview.getPreviewId());
     }
 
     private void confirm() {
@@ -256,10 +255,10 @@ public final class GuiQIOSmartProcessingOrderWindow extends GuiWindow
             return;
         }
         QIOProcessingPacketHandler.INSTANCE.sendToServer(
-              PacketQIOSmartProcessingPreviewAction.Message.confirm(
-                    container.getTerminalWindowId(), state,
-                    actionRequestId, preview.getPreviewId(), selected.getResource().write(),
-                    amount));
+                PacketQIOSmartProcessingPreviewAction.Message.confirm(
+                        container.getTerminalWindowId(), state,
+                        actionRequestId, preview.getPreviewId(), selected.getResource().write(),
+                        amount));
         actionPending = new Pending(cache().getPreviewGeneration(), clientTick);
         queuedAction = null;
         lastOutboundTick = clientTick;
@@ -271,21 +270,21 @@ public final class GuiQIOSmartProcessingOrderWindow extends GuiWindow
             queuedAction = QueuedAction.CANCEL;
         } else if (preview != null && actionPending == null) {
             sendSimpleAction(PacketQIOSmartProcessingPreviewAction.Action.CANCEL,
-                  preview.getPreviewId());
+                    preview.getPreviewId());
         }
     }
 
     private void sendSimpleAction(PacketQIOSmartProcessingPreviewAction.Action action,
-          UUID previewId) {
+                                  UUID previewId) {
         actionRequestId = UUID.randomUUID();
         if (!cache().expectPreviewRequest(actionRequestId)) {
             actionRequestId = null;
             return;
         }
         QIOProcessingPacketHandler.INSTANCE.sendToServer(
-              PacketQIOSmartProcessingPreviewAction.Message.action(
-                    container.getTerminalWindowId(), state,
-                    actionRequestId, action, previewId));
+                PacketQIOSmartProcessingPreviewAction.Message.action(
+                        container.getTerminalWindowId(), state,
+                        actionRequestId, action, previewId));
         actionPending = new Pending(cache().getPreviewGeneration(), clientTick);
         if (action != PacketQIOSmartProcessingPreviewAction.Action.POLL) queuedAction = null;
         lastOutboundTick = clientTick;
@@ -346,27 +345,27 @@ public final class GuiQIOSmartProcessingOrderWindow extends GuiWindow
     private void cancelMismatchedPreview() {
         QIOSmartProcessingPreviewSnapshot preview = cache().getPreview();
         if (preview != null && preview.getState().name().equals("CONFIRMED") &&
-              !previewMatchesCurrent(preview)) {
+                !previewMatchesCurrent(preview)) {
             cache().clearPreviewProjection();
             return;
         }
         if (preview != null && !previewMatchesCurrent(preview) && actionPending == null &&
-              lastOutboundTick != clientTick) {
+                lastOutboundTick != clientTick) {
             sendSimpleAction(PacketQIOSmartProcessingPreviewAction.Action.CANCEL,
-                  preview.getPreviewId());
+                    preview.getPreviewId());
         }
     }
 
     private boolean previewReadyAndCurrent() {
         QIOSmartProcessingPreviewSnapshot preview = cache().getPreview();
         return preview != null && preview.getState().name().equals("READY") &&
-              previewMatchesCurrent(preview);
+                previewMatchesCurrent(preview);
     }
 
     private boolean previewMatchesCurrent(QIOSmartProcessingPreviewSnapshot preview) {
         return selected != null && preview.getTarget() != null &&
-              selected.getResource().equals(preview.getTarget()) &&
-              requestedAmount() == preview.getAmount();
+                selected.getResource().equals(preview.getTarget()) &&
+                requestedAmount() == preview.getAmount();
     }
 
     private long requestedAmount() {
@@ -432,83 +431,87 @@ public final class GuiQIOSmartProcessingOrderWindow extends GuiWindow
     private void updateButtons() {
         QIOSmartProcessingPreviewSnapshot preview = cache().getPreview();
         boolean reusablePreview = preview == null || preview.getState().name().equals("CONFIRMED") ||
-              preview.getState().name().equals("CANCELLED") ||
-              preview.getState().name().equals("EXPIRED");
+                preview.getState().name().equals("CANCELLED") ||
+                preview.getState().name().equals("EXPIRED");
         previewButton.active = selected != null && selected.isSchedulable() &&
-              requestedAmount() > 0 && reusablePreview && actionPending == null &&
-              queuedAction == null && session != null;
+                requestedAmount() > 0 && reusablePreview && actionPending == null &&
+                queuedAction == null && session != null;
     }
 
     private GuiQIOPlanningStatusScreen.Content statusContent() {
         List<ITextComponent> text = new ArrayList<>();
         if (session == null || session.frequency == null) {
             text.add(new TextComponentTranslation(
-                  "gui.mekanismqioprocessing.order_need_frequency"));
+                    "gui.mekanismqioprocessing.order_need_frequency"));
             return GuiQIOPlanningStatusScreen.Content.lines(text);
         }
         QIOSmartProcessingPreviewSnapshot preview = cache().getPreview();
         if (preview == null) {
             if (pagePending != null && cache().getTotalSize() == 0) {
                 text.add(new TextComponentTranslation(
-                      "gui.mekanismqioprocessing.order_loading"));
+                        "gui.mekanismqioprocessing.order_loading"));
             } else if (cache().getTotalSize() == 0) {
                 text.add(new TextComponentTranslation(
-                      "gui.mekanismqioprocessing.order_empty"));
+                        "gui.mekanismqioprocessing.order_empty"));
             } else if (selected != null && !selected.isSchedulable()) {
                 text.add(new TextComponentTranslation(
-                      "gui.mekanismqioprocessing.order_unschedulable"));
+                        "gui.mekanismqioprocessing.order_unschedulable"));
             } else {
                 text.add(new TextComponentTranslation(
-                      "gui.mekanismqioprocessing.order_select"));
+                        "gui.mekanismqioprocessing.order_select"));
             }
             return GuiQIOPlanningStatusScreen.Content.lines(text);
         }
         boolean pending = preview.getState().name().equals("PREPARING") ||
-              preview.getState().name().equals("PLANNING");
+                preview.getState().name().equals("PLANNING");
         text.add(new TextComponentTranslation(
-              "gui.mekanismqioprocessing.order_preview_state",
-              new TextComponentTranslation("gui.mekanismqioprocessing.order_state_" +
-                    preview.getState().name().toLowerCase(Locale.ROOT)),
-              TextUtils.format(preview.getPlannedOperations())));
+                "gui.mekanismqioprocessing.order_preview_state",
+                new TextComponentTranslation("gui.mekanismqioprocessing.order_state_" +
+                        preview.getState().name().toLowerCase(Locale.ROOT)),
+                TextUtils.format(preview.getPlannedOperations())));
         text.add(new TextComponentTranslation(
-              "gui.mekanismqioprocessing.order_preview_summary",
-              pending ? GuiQIOPlanningStatusScreen.duration(0, true) :
-                    TextUtils.format(preview.getPlanEntries().size()),
-              pending ? GuiQIOPlanningStatusScreen.duration(0, true) :
-                    TextUtils.format(preview.getExternalRequirements().size())));
+                "gui.mekanismqioprocessing.order_preview_summary",
+                pending ? GuiQIOPlanningStatusScreen.duration(0, true) :
+                        TextUtils.format(preview.getPlanEntries().size()),
+                pending ? GuiQIOPlanningStatusScreen.duration(0, true) :
+                        TextUtils.format(preview.getExternalRequirements().size())));
         text.add(new TextComponentTranslation(
-              "gui.mekanismqioprocessing.order_planning_time",
-              GuiQIOPlanningStatusScreen.duration(preview.getPlanningNanos(), pending)));
+                "gui.mekanismqioprocessing.order_planning_time",
+                GuiQIOPlanningStatusScreen.duration(preview.getPlanningNanos(), pending)));
 
         ITextComponent details = GuiQIOPlanningStatusScreen.detailedTimings(preview, pending);
         if (preview.isStepsTruncated() || preview.isExternalRequirementsTruncated()) {
             details = GuiQIOPlanningStatusScreen.appendDetail(details,
-                  new TextComponentTranslation(
-                        "gui.mekanismqioprocessing.order_preview_truncated"));
+                    new TextComponentTranslation(
+                            "gui.mekanismqioprocessing.order_preview_truncated"));
         }
         if (!preview.getDiagnostic().isEmpty()) {
             details = GuiQIOPlanningStatusScreen.appendDetail(details,
-                  diagnosticText(preview));
+                    diagnosticText(preview));
         }
         if (preview.getJobId() != null) {
             details = GuiQIOPlanningStatusScreen.appendDetail(details,
-                  new TextComponentTranslation(
-                        "gui.mekanismqioprocessing.order_job_created"));
+                    new TextComponentTranslation(
+                            "gui.mekanismqioprocessing.order_job_created"));
         }
         return GuiQIOPlanningStatusScreen.Content.detail(text,
-              new TextComponentTranslation(
-                    "gui.mekanismqioprocessing.order_detailed_status"), details);
+                new TextComponentTranslation(
+                        "gui.mekanismqioprocessing.order_detailed_status"), details).withMetrics(preview.getMetrics());
     }
 
-    private static ITextComponent diagnosticText(QIOSmartProcessingPreviewSnapshot preview) {
+    static ITextComponent diagnosticText(QIOSmartProcessingPreviewSnapshot preview) {
         String diagnostic = preview.getDiagnostic();
+        if (diagnostic.equals(mekanism.qioprocessing.common.planning.QIOPlanningResult.OPTIMIZATION_LIMIT_DIAGNOSTIC))
+            return new TextComponentTranslation("gui.mekanismqioprocessing.order_optimization_limit");
+        if (diagnostic.startsWith("QIO search incomplete: "))
+            return new TextComponentTranslation("gui.mekanismqioprocessing.order_search_incomplete");
         String cyclePrefix = "Circular QIO recipe route: ";
         if (preview.getPlanningStatus() ==
-            mekanism.qioprocessing.common.planning.QIOPlanningResult.Status.UNRESOLVABLE_CYCLE &&
-            diagnostic.startsWith(cyclePrefix)) {
+                mekanism.qioprocessing.common.planning.QIOPlanningResult.Status.UNRESOLVABLE_CYCLE &&
+                diagnostic.startsWith(cyclePrefix)) {
             return new TextComponentTranslation(
-                  "gui.mekanismqioprocessing.order_circular_route",
-                  localizeCyclePath(diagnostic.substring(cyclePrefix.length())));
+                    "gui.mekanismqioprocessing.order_circular_route",
+                    localizeCyclePath(diagnostic.substring(cyclePrefix.length())));
         }
         return new TextComponentString(diagnostic);
     }
@@ -556,7 +559,7 @@ public final class GuiQIOSmartProcessingOrderWindow extends GuiWindow
                 if (stack == null) return null;
                 try {
                     return cache().canSelectRecipeViewerTarget(state.getSessionNonce(),
-                          PortableResourceDescriptor.itemIgnoringCapabilities(stack)) ? stack : null;
+                            PortableResourceDescriptor.itemIgnoringCapabilities(stack)) ? stack : null;
                 } catch (RuntimeException ignored) {
                     return null;
                 }
@@ -567,7 +570,7 @@ public final class GuiQIOSmartProcessingOrderWindow extends GuiWindow
                 ItemStack stack = supportedTarget(ingredient);
                 if (stack != null) {
                     cache().selectRecipeViewerTarget(state.getSessionNonce(),
-                          PortableResourceDescriptor.itemIgnoringCapabilities(stack));
+                            PortableResourceDescriptor.itemIgnoringCapabilities(stack));
                 }
             }
         };
@@ -579,7 +582,7 @@ public final class GuiQIOSmartProcessingOrderWindow extends GuiWindow
         QIOSmartProcessingPreviewSnapshot preview = cache().getPreview();
         if (preview != null && actionPending == null && lastOutboundTick != clientTick) {
             sendSimpleAction(PacketQIOSmartProcessingPreviewAction.Action.CANCEL,
-                  preview.getPreviewId());
+                    preview.getPreviewId());
         }
         super.close();
     }
@@ -595,16 +598,16 @@ public final class GuiQIOSmartProcessingOrderWindow extends GuiWindow
             return;
         }
         if (!previewMatchesCurrent(preview) ||
-            !preview.getState().name().equals("READY") &&
-            !preview.getState().name().equals("FAILED") ||
-            preview.getPreviewId().equals(lastAnalysisPreviewId)) {
+                !preview.getState().name().equals("READY") &&
+                        !preview.getState().name().equals("FAILED") ||
+                preview.getPreviewId().equals(lastAnalysisPreviewId)) {
             return;
         }
         dismissAnalysis(false);
         lastAnalysisPreviewId = preview.getPreviewId();
         analysisWindow = new GuiQIOSmartProcessingAnalysisWindow(gui(),
-              (getGuiWidth() - GuiQIOSmartProcessingAnalysisWindow.WIDTH) / 2, 2,
-              preview, cache()::getPreview, this::confirm, this::analysisClosed);
+                (getGuiWidth() - GuiQIOSmartProcessingAnalysisWindow.WIDTH) / 2, 2,
+                preview, cache()::getPreview, this::confirm, this::analysisClosed);
         gui().addWindow(analysisWindow);
     }
 
@@ -635,7 +638,7 @@ public final class GuiQIOSmartProcessingOrderWindow extends GuiWindow
     public void renderForeground(int mouseX, int mouseY) {
         super.renderForeground(mouseX, mouseY);
         drawTitleText(new TextComponentTranslation(
-              "gui.mekanismqioprocessing.order_title"), 6);
+                "gui.mekanismqioprocessing.order_title"), 6);
     }
 
     private QIOSmartProcessingClientCache cache() {
@@ -675,15 +678,15 @@ public final class GuiQIOSmartProcessingOrderWindow extends GuiWindow
 
         private static SessionKey of(QIOProcessingTerminalContainerState state) {
             return state.isValid() ? new SessionKey(state.getSessionNonce(),
-                  state.getTerminalUUID(), state.getFrequencyUUID(), state.getTargetRevision(),
-                  state.getAccessRevision()) : null;
+                    state.getTerminalUUID(), state.getFrequencyUUID(), state.getTargetRevision(),
+                    state.getAccessRevision()) : null;
         }
 
         @Override
         public boolean equals(Object obj) {
             return obj instanceof SessionKey other && target == other.target && access == other.access &&
-                  Objects.equals(nonce, other.nonce) && Objects.equals(terminal, other.terminal) &&
-                  Objects.equals(frequency, other.frequency);
+                    Objects.equals(nonce, other.nonce) && Objects.equals(terminal, other.terminal) &&
+                    Objects.equals(frequency, other.frequency);
         }
 
         @Override

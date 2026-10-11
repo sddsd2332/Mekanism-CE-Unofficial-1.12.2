@@ -28,7 +28,7 @@ public class ChemicalWasherRecipeCategory<WRAPPER extends ChemicalWasherRecipeWr
 
     public ChemicalWasherRecipeCategory(IGuiHelper helper) {
         super(helper, "mekanism:gui/Null.png", Recipe.CHEMICAL_WASHER.getJEICategory(),
-              "tile.MachineBlock2.ChemicalWasher.name", 4, 4, 169, 69, ProgressType.LARGE_RIGHT);
+                "tile.MachineBlock2.ChemicalWasher.name", 4, 4, 169, 69, ProgressType.LARGE_RIGHT);
     }
 
     @Override

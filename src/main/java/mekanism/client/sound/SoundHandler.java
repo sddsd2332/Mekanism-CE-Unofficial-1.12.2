@@ -114,7 +114,7 @@ public class SoundHandler {
                 }
             }
             case GRAVITATIONAL_MODULATOR -> {
-                if (!gravitationalModulationSounds.contains(uuid)){
+                if (!gravitationalModulationSounds.contains(uuid)) {
                     EntityPlayer player = world.getPlayerEntityByUUID(uuid);
                     if (player != null) {
                         gravitationalModulationSounds.add(uuid);
@@ -181,11 +181,6 @@ public class SoundHandler {
             soundEngine = event.getManager();
         }
     }
-
-
-
-
-
 
 
     @SubscribeEvent(priority = EventPriority.LOWEST)

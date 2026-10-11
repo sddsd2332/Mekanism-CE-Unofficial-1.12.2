@@ -12,7 +12,10 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Resolves the live frequency behind an open terminal and materializes its processing network. */
+/**
+ * Resolves the live frequency behind an open terminal and materializes its processing network.
+ */
+
 /**
  * QIO 处理模块中的 QIOProcessingNetworkAccess 类型。
  *
@@ -32,8 +35,8 @@ public final class QIOProcessingNetworkAccess {
     @Nullable
     /** 通过频率引用取得或创建网络，并在访问失败时返回隔离结果。 */
     public static QIOProcessingNetworkData getOrCreate(
-          @Nonnull QIOProcessingTerminalFrequencyContainer container,
-          @Nonnull QIOProcessingTerminalSession session, @Nonnull EntityPlayer player) {
+            @Nonnull QIOProcessingTerminalFrequencyContainer container,
+            @Nonnull QIOProcessingTerminalSession session, @Nonnull EntityPlayer player) {
         Objects.requireNonNull(container, "container");
         Objects.requireNonNull(session, "session");
         Objects.requireNonNull(player, "player");
@@ -43,20 +46,20 @@ public final class QIOProcessingNetworkAccess {
         }
         QIOFrequency frequency = container.getTerminalFrequency();
         if (frequency == null || !expectedUUID.equals(frequency.getFrequencyUUID()) ||
-            !frequency.isValid() || frequency.isRemoved() ||
-            frequency.getAccessRevision() != session.getAccessRevision()) {
+                !frequency.isValid() || frequency.isRemoved() ||
+                frequency.getAccessRevision() != session.getAccessRevision()) {
             return null;
         }
         QIOFrequencyReference reference = QIOFrequencyStorageAccess.INSTANCE.createReference(
-              frequency, player.getUniqueID());
+                frequency, player.getUniqueID());
         if (!QIOFrequencyStorageAccess.INSTANCE.canAccess(reference,
-              player.getUniqueID())) {
+                player.getUniqueID())) {
             return null;
         }
         try {
             return QIOProcessingNetworkManager.INSTANCE.getOrCreate(expectedUUID,
-                  new QIOFrequencyIdentitySnapshot(reference.getFrequencyName(),
-                        reference.getOwnerUUID(), reference.getSecurityMode()));
+                    new QIOFrequencyIdentitySnapshot(reference.getFrequencyName(),
+                            reference.getOwnerUUID(), reference.getSecurityMode()));
         } catch (IllegalArgumentException | IllegalStateException | SecurityException ignored) {
             return null;
         }

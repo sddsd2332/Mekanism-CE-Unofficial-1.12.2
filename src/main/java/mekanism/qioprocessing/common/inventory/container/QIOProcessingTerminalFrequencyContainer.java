@@ -7,7 +7,10 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.UUID;
 
-/** Client-facing frequency state shared by block and portable processing terminals. */
+/**
+ * Client-facing frequency state shared by block and portable processing terminals.
+ */
+
 /**
  * QIO 处理模块中的 QIOProcessingTerminalFrequencyContainer 类型。
  *
@@ -15,7 +18,7 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public interface QIOProcessingTerminalFrequencyContainer extends
-      QIOProcessingTerminalSessionContainer {
+        QIOProcessingTerminalSessionContainer {
 
     int getTerminalWindowId();
 

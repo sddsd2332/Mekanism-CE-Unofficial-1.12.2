@@ -13,7 +13,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.LongSupplier;
 
-/** Colored drive-state overlay with explicit duplicate and damaged-drive tooltips. */
+/**
+ * Colored drive-state overlay with explicit duplicate and damaged-drive tooltips.
+ */
 public class GuiQIODriveStatusSlot extends GuiElement {
 
     private static final int STATUS_TOOLTIP_INDEX = 2;
@@ -51,7 +53,7 @@ public class GuiQIODriveStatusSlot extends GuiElement {
         super.renderToolTip(mouseX, mouseY);
         if (isMouseOverTooltip(mouseX, mouseY)) {
             List<String> tooltip = Collections.singletonList(MekanismLang.QIO_DRIVE_STATUS_DETAIL.translateColored(
-                  EnumColor.GREY, EnumColor.INDIGO, getStatus().getDisplayName()).getFormattedText());
+                    EnumColor.GREY, EnumColor.INDIGO, getStatus().getDisplayName()).getFormattedText());
             Slot hoveredSlot = gui().getSlotUnderMouse(mouseX, mouseY);
             if (gui().getCarriedItem().isEmpty() && hoveredSlot != null && hoveredSlot.getHasStack()) {
                 gui().renderItemTooltipWithExtra(hoveredSlot.getStack(), mouseX, mouseY, tooltip, STATUS_TOOLTIP_INDEX);
@@ -79,7 +81,7 @@ public class GuiQIODriveStatusSlot extends GuiElement {
     @Override
     public boolean isMouseOverTooltip(double mouseX, double mouseY) {
         return visible && mouseX >= getX() && mouseY >= getY() && mouseX < getRight() && mouseY < getBottom() &&
-              checkWindows(mouseX, mouseY, true);
+                checkWindows(mouseX, mouseY, true);
     }
 
     @Override

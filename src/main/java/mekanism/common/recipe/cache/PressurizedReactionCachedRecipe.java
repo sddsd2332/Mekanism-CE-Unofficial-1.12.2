@@ -28,8 +28,8 @@ public class PressurizedReactionCachedRecipe extends CachedRecipe<PressurizedRec
     private PressurizedOutput output;
 
     public PressurizedReactionCachedRecipe(PressurizedRecipe recipe, BooleanSupplier recheckAllErrors, IInputHandler<ItemStack, ItemStack> itemInputHandler,
-          IInputHandler<FluidStack, FluidStack> fluidInputHandler, IInputHandler<GasStack, GasStack> gasInputHandler,
-          IOutputHandler<PressurizedOutput> outputHandler) {
+                                           IInputHandler<FluidStack, FluidStack> fluidInputHandler, IInputHandler<GasStack, GasStack> gasInputHandler,
+                                           IOutputHandler<PressurizedOutput> outputHandler) {
         super(recipe, recheckAllErrors);
         this.itemInputHandler = Objects.requireNonNull(itemInputHandler);
         this.fluidInputHandler = Objects.requireNonNull(fluidInputHandler);

@@ -62,11 +62,11 @@ import java.util.Map;
 public class TileEntityAntiprotonicNucleosynthesizer extends TileEntityUpgradeableMachine<NucleosynthesizerInput, ItemStackOutput, NucleosynthesizerRecipe> implements ISustainedData, ISpecialSelectionWireframeTile, ITankManager {
 
     private static final List<RecipeError> TRACKED_ERROR_TYPES = Arrays.asList(
-          RecipeError.NOT_ENOUGH_ENERGY,
-          RecipeError.NOT_ENOUGH_INPUT,
-          RecipeError.NOT_ENOUGH_SECONDARY_INPUT,
-          RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
-          RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
+            RecipeError.NOT_ENOUGH_ENERGY,
+            RecipeError.NOT_ENOUGH_INPUT,
+            RecipeError.NOT_ENOUGH_SECONDARY_INPUT,
+            RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
+            RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
     );
     private static final String[] methods = new String[]{"getEnergy", "getProgress", "isActive", "facing", "canOperate", "getMaxEnergy", "getEnergyNeeded",
             "getGasStored"};
@@ -258,25 +258,25 @@ public class TileEntityAntiprotonicNucleosynthesizer extends TileEntityUpgradeab
     @Override
     public CachedRecipe<NucleosynthesizerRecipe> createNewCachedRecipe(NucleosynthesizerRecipe recipe, int cacheIndex) {
         return new TwoInputCachedRecipe<>(recipe, this::shouldRecheckAllRecipeErrors,
-              InputHelper.getInputHandler(inputSlot, RecipeError.NOT_ENOUGH_INPUT),
-              InputHelper.getGasInputHandler(inputGasTank, RecipeError.NOT_ENOUGH_SECONDARY_INPUT),
-              OutputHelper.getOutputHandler(outputSlot, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
-              () -> recipe.getInput().getSolid(), () -> recipe.getInput().getGas(),
-              (item, gas) -> MachineInput.inputContains(item, recipe.getInput().getSolid())
-                    && gas != null && gas.isGasEqual(recipe.getInput().getGas()),
-              (item, gas) -> recipe.getOutput().output.copy(), ItemStack::isEmpty, gas -> gas == null || gas.amount <= 0, ItemStack::isEmpty)
-              .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
-              .setActive(active -> {
-                  if (active || prevEnergy >= getEnergy()) {
-                      setActive(active);
-                  }
-              })
-              .setEnergyRequirements(() -> MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK + recipe.extraEnergy), getMainEnergyContainer())
-              .setRequiredTicks(() -> ticksRequired)
-              .setBaselineMaxOperations(() -> getBaselineMaxOperations(MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK + recipe.extraEnergy), true))
-              .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
-              .setErrorsChanged(this::onRecipeErrorsChanged)
-              .setOnFinish(this::onCachedRecipeFinish);
+                InputHelper.getInputHandler(inputSlot, RecipeError.NOT_ENOUGH_INPUT),
+                InputHelper.getGasInputHandler(inputGasTank, RecipeError.NOT_ENOUGH_SECONDARY_INPUT),
+                OutputHelper.getOutputHandler(outputSlot, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
+                () -> recipe.getInput().getSolid(), () -> recipe.getInput().getGas(),
+                (item, gas) -> MachineInput.inputContains(item, recipe.getInput().getSolid())
+                        && gas != null && gas.isGasEqual(recipe.getInput().getGas()),
+                (item, gas) -> recipe.getOutput().output.copy(), ItemStack::isEmpty, gas -> gas == null || gas.amount <= 0, ItemStack::isEmpty)
+                .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
+                .setActive(active -> {
+                    if (active || prevEnergy >= getEnergy()) {
+                        setActive(active);
+                    }
+                })
+                .setEnergyRequirements(() -> MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK + recipe.extraEnergy), getMainEnergyContainer())
+                .setRequiredTicks(() -> ticksRequired)
+                .setBaselineMaxOperations(() -> getBaselineMaxOperations(MekanismUtils.getEnergyPerTick(this, BASE_ENERGY_PER_TICK + recipe.extraEnergy), true))
+                .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
+                .setErrorsChanged(this::onRecipeErrorsChanged)
+                .setOnFinish(this::onCachedRecipeFinish);
     }
 
     @Override
@@ -384,6 +384,7 @@ public class TileEntityAntiprotonicNucleosynthesizer extends TileEntityUpgradeab
             inputGasTank.setStackSize(stored.amount, Action.EXECUTE);
         }
     }
+
     @Override
     @SideOnly(Side.CLIENT)
     public Class<?> getSelectionWireframeModelClass() {

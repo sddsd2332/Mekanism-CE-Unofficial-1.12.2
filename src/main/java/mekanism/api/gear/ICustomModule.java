@@ -104,9 +104,7 @@ public interface ICustomModule<MODULE extends ICustomModule<MODULE>> {
      * radial menu allows toggling whether the module is active.
      *
      * @param module Module instance.
-     *
      * @return {@code true} if this module has radial modes that can be changed while disabled.
-     *
      * @since 10.3.2
      */
     default boolean canChangeRadialModeWhenDisabled(IModule<MODULE> module) {
@@ -120,9 +118,7 @@ public interface ICustomModule<MODULE extends ICustomModule<MODULE>> {
      *
      * @param module Module instance.
      * @param stack  The stack to get the mode of.
-     *
      * @return Mode display text or {@code null} if no text should be displayed.
-     *
      * @since 10.3.2
      */
     @Nullable
@@ -146,7 +142,6 @@ public interface ICustomModule<MODULE extends ICustomModule<MODULE>> {
     }
 
 
-
     /**
      * Called by the Meka-Tool to attempt to add all supported radial types of the module. This will only be called if {@link ModuleData#handlesModeChange()} is
      * {@code true}.
@@ -154,7 +149,6 @@ public interface ICustomModule<MODULE extends ICustomModule<MODULE>> {
      * @param module Module instance.
      * @param stack  The stack to get the supported radial types of.
      * @param adder  Consumer used to add any supported radial modes.
-     *
      * @see #canChangeRadialModeWhenDisabled(IModule)
      * @since 10.3.2
      */
@@ -169,9 +163,7 @@ public interface ICustomModule<MODULE extends ICustomModule<MODULE>> {
      * @param stack      The stack to get the mode of.
      * @param radialData Radial data of the mode being retrieved.
      * @param <MODE>     Radial Mode.
-     *
      * @return Radial Mode if this module can handle the given Radial Data, or {@code null} if it can't.
-     *
      * @see #canChangeRadialModeWhenDisabled(IModule)
      * @since 10.3.2
      */
@@ -191,9 +183,7 @@ public interface ICustomModule<MODULE extends ICustomModule<MODULE>> {
      * @param radialData Radial data of the mode being set.
      * @param mode       Mode to attempt to set if this module can handle modes of this type.
      * @param <MODE>     Radial Mode.
-     *
      * @return {@code true} if this module was able to handle the given radial data.
-     *
      * @see #canChangeRadialModeWhenDisabled(IModule)
      * @since 10.3.2
      */
@@ -361,11 +351,10 @@ public interface ICustomModule<MODULE extends ICustomModule<MODULE>> {
     }
 
 
-
-    default void tickServerUpdate(IModule<MODULE> module,ItemStack stack, World world, Entity entity, int itemSlot, boolean isSelected) {
+    default void tickServerUpdate(IModule<MODULE> module, ItemStack stack, World world, Entity entity, int itemSlot, boolean isSelected) {
     }
 
-    default void tickClientUpdate(IModule<MODULE> module,ItemStack stack, World world, Entity entity, int itemSlot, boolean isSelected) {
+    default void tickClientUpdate(IModule<MODULE> module, ItemStack stack, World world, Entity entity, int itemSlot, boolean isSelected) {
     }
 }
 

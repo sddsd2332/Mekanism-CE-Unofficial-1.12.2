@@ -23,7 +23,10 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
-/** Routes JEI transfer to exactly the QIO window that owned focus before JEI opened. */
+/**
+ * Routes JEI transfer to exactly the QIO window that owned focus before JEI opened.
+ */
+
 /**
  * QIO 处理模块中的 QIOProcessingRecipeTransferHandler 类型。
  *
@@ -31,7 +34,7 @@ import java.util.Map;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class QIOProcessingRecipeTransferHandler<CONTAINER extends QIOItemViewerContainer & QIOSmartProcessingPageContainer>
-      implements IRecipeTransferHandler<CONTAINER> {
+        implements IRecipeTransferHandler<CONTAINER> {
 
     enum TargetMode {
         CRAFTING,
@@ -44,7 +47,7 @@ public final class QIOProcessingRecipeTransferHandler<CONTAINER extends QIOItemV
     private final QIOCraftingTransferHandler<CONTAINER> crafting;
 
     public QIOProcessingRecipeTransferHandler(Class<CONTAINER> containerClass,
-          IRecipeTransferHandlerHelper helper, IStackHelper stackHelper) {
+                                              IRecipeTransferHandlerHelper helper, IStackHelper stackHelper) {
         this.containerClass = containerClass;
         this.helper = helper;
         crafting = new QIOCraftingTransferHandler<>(containerClass, helper, stackHelper);
@@ -58,17 +61,17 @@ public final class QIOProcessingRecipeTransferHandler<CONTAINER extends QIOItemV
     @Nullable
     @Override
     public IRecipeTransferError transferRecipe(CONTAINER container,
-          IRecipeLayout recipeLayout, EntityPlayer player, boolean maxTransfer,
-          boolean doTransfer) {
+                                               IRecipeLayout recipeLayout, EntityPlayer player, boolean maxTransfer,
+                                               boolean doTransfer) {
         TargetMode mode = targetMode(container.getSelectedWindow());
         if (mode == TargetMode.CRAFTING) {
             return crafting.transferRecipe(container, recipeLayout, player, maxTransfer,
-                  doTransfer);
+                    doTransfer);
         }
         if (mode != TargetMode.ORDER || !container.getTerminalState().isValid() ||
-            container.getTerminalState().getSessionNonce() == null) {
+                container.getTerminalState().getSessionNonce() == null) {
             return helper.createUserErrorWithTooltip(I18n.translateToLocal(
-                  "gui.mekanismqioprocessing.jei_no_target"));
+                    "gui.mekanismqioprocessing.jei_no_target"));
         }
         ItemStack output = recipeOutput(recipeLayout);
         if (output.isEmpty()) return helper.createInternalError();
@@ -79,14 +82,14 @@ public final class QIOProcessingRecipeTransferHandler<CONTAINER extends QIOItemV
             return helper.createInternalError();
         }
         if (!container.getSmartProcessingClientCache().canSelectRecipeViewerTarget(
-              container.getTerminalState().getSessionNonce(), target)) {
+                container.getTerminalState().getSessionNonce(), target)) {
             return helper.createUserErrorWithTooltip(I18n.translateToLocal(
-                  "gui.mekanismqioprocessing.jei_unschedulable"));
+                    "gui.mekanismqioprocessing.jei_unschedulable"));
         }
         if (doTransfer && !container.getSmartProcessingClientCache()
-              .selectRecipeViewerTarget(container.getTerminalState().getSessionNonce(), target)) {
+                .selectRecipeViewerTarget(container.getTerminalState().getSessionNonce(), target)) {
             return helper.createUserErrorWithTooltip(I18n.translateToLocal(
-                  "gui.mekanismqioprocessing.jei_stale_session"));
+                    "gui.mekanismqioprocessing.jei_stale_session"));
         }
         return null;
     }
@@ -94,23 +97,23 @@ public final class QIOProcessingRecipeTransferHandler<CONTAINER extends QIOItemV
     static TargetMode targetMode(@Nullable SelectedWindowData selected) {
         if (selected == null) return TargetMode.NONE;
         if (selected.type == SelectedWindowData.WindowType.CRAFTING &&
-            selected.extraData >= 0 && selected.extraData < 3) {
+                selected.extraData >= 0 && selected.extraData < 3) {
             return TargetMode.CRAFTING;
         }
         return selected.type == QIOProcessingWindowTypes.SMART_PROCESSING_ORDER ?
-              TargetMode.ORDER : TargetMode.NONE;
+                TargetMode.ORDER : TargetMode.NONE;
     }
 
     private static ItemStack recipeOutput(IRecipeLayout layout) {
         List<Map.Entry<Integer, ? extends IGuiIngredient<ItemStack>>> ingredients =
-              new ArrayList<>(layout.getItemStacks().getGuiIngredients().entrySet());
+                new ArrayList<>(layout.getItemStacks().getGuiIngredients().entrySet());
         ingredients.sort(Comparator.comparingInt(Map.Entry::getKey));
         for (Map.Entry<Integer, ? extends IGuiIngredient<ItemStack>> entry : ingredients) {
             IGuiIngredient<ItemStack> ingredient = entry.getValue();
             if (!ingredient.isInput() && ingredient.getDisplayedIngredient() != null &&
-                !ingredient.getDisplayedIngredient().isEmpty()) {
+                    !ingredient.getDisplayedIngredient().isEmpty()) {
                 return QIORecipeStackUtils.copyForRecipeSelection(
-                      ingredient.getDisplayedIngredient());
+                        ingredient.getDisplayedIngredient());
             }
         }
         return ItemStack.EMPTY;

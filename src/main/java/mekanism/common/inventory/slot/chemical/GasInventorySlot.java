@@ -38,8 +38,8 @@ public class GasInventorySlot extends mekanism.common.inventory.slot.gas.GasInve
         Objects.requireNonNull(gasTank, "Gas tank cannot be null");
         Objects.requireNonNull(modeSupplier, "Mode supplier cannot be null");
         return new GasInventorySlot(gasTank, getFillExtractPredicate(gasTank, mekanism.common.inventory.slot.gas.GasInventorySlot::getCapability),
-              stack -> !modeSupplier.getAsBoolean() && fillInsertCheck(gasTank, stack, mekanism.common.inventory.slot.gas.GasInventorySlot::getCapability),
-              GAS_ITEM_VALIDATOR, listener, x, y);
+                stack -> !modeSupplier.getAsBoolean() && fillInsertCheck(gasTank, stack, mekanism.common.inventory.slot.gas.GasInventorySlot::getCapability),
+                GAS_ITEM_VALIDATOR, listener, x, y);
     }
 
     /**
@@ -49,8 +49,8 @@ public class GasInventorySlot extends mekanism.common.inventory.slot.gas.GasInve
     public static GasInventorySlot fill(IExtendedGasTank gasTank, @Nullable IContentsListener listener, int x, int y) {
         Objects.requireNonNull(gasTank, "Gas tank cannot be null");
         return new GasInventorySlot(gasTank, getFillExtractPredicate(gasTank, mekanism.common.inventory.slot.gas.GasInventorySlot::getCapability),
-              stack -> fillInsertCheck(gasTank, stack, mekanism.common.inventory.slot.gas.GasInventorySlot::getCapability),
-              GAS_ITEM_VALIDATOR, listener, x, y);
+                stack -> fillInsertCheck(gasTank, stack, mekanism.common.inventory.slot.gas.GasInventorySlot::getCapability),
+                GAS_ITEM_VALIDATOR, listener, x, y);
     }
 
     /**
@@ -71,28 +71,28 @@ public class GasInventorySlot extends mekanism.common.inventory.slot.gas.GasInve
         Objects.requireNonNull(gasTank, "Gas tank cannot be null");
         Objects.requireNonNull(worldSupplier, "World supplier cannot be null");
         return new GasInventorySlot(gasTank, worldSupplier,
-              getFillOrConvertExtractPredicate(gasTank, mekanism.common.inventory.slot.gas.GasInventorySlot::getCapability, worldSupplier),
-              getFillOrConvertInsertPredicate(gasTank, mekanism.common.inventory.slot.gas.GasInventorySlot::getCapability, worldSupplier),
-              getFillOrConvertValidator(gasTank, worldSupplier), listener, x, y);
+                getFillOrConvertExtractPredicate(gasTank, mekanism.common.inventory.slot.gas.GasInventorySlot::getCapability, worldSupplier),
+                getFillOrConvertInsertPredicate(gasTank, mekanism.common.inventory.slot.gas.GasInventorySlot::getCapability, worldSupplier),
+                getFillOrConvertValidator(gasTank, worldSupplier), listener, x, y);
     }
 
     protected GasInventorySlot(IExtendedGasTank gasTank, Predicate<ItemStack> canExtract, Predicate<ItemStack> canInsert,
-          @Nullable IContentsListener listener, int x, int y) {
+                               @Nullable IContentsListener listener, int x, int y) {
         super(gasTank, canExtract, canInsert, listener, x, y);
     }
 
     protected GasInventorySlot(IExtendedGasTank gasTank, Predicate<ItemStack> canExtract, Predicate<ItemStack> canInsert,
-          Predicate<ItemStack> validator, @Nullable IContentsListener listener, int x, int y) {
+                               Predicate<ItemStack> validator, @Nullable IContentsListener listener, int x, int y) {
         super(gasTank, canExtract, canInsert, validator, listener, x, y);
     }
 
     protected GasInventorySlot(IExtendedGasTank gasTank, Supplier<?> worldSupplier, Predicate<ItemStack> canExtract,
-          Predicate<ItemStack> canInsert, @Nullable IContentsListener listener, int x, int y) {
+                               Predicate<ItemStack> canInsert, @Nullable IContentsListener listener, int x, int y) {
         super(gasTank, worldSupplier, canExtract, canInsert, listener, x, y);
     }
 
     protected GasInventorySlot(IExtendedGasTank gasTank, Supplier<?> worldSupplier, Predicate<ItemStack> canExtract,
-          Predicate<ItemStack> canInsert, Predicate<ItemStack> validator, @Nullable IContentsListener listener, int x, int y) {
+                               Predicate<ItemStack> canInsert, Predicate<ItemStack> validator, @Nullable IContentsListener listener, int x, int y) {
         super(gasTank, worldSupplier, canExtract, canInsert, validator, listener, x, y);
     }
 }

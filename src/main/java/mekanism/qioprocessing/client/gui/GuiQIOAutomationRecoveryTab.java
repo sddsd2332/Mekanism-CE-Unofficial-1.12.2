@@ -1,10 +1,10 @@
 package mekanism.qioprocessing.client.gui;
 
+import mekanism.api.processing.QIOAutomationMode;
 import mekanism.client.SpecialColors;
 import mekanism.client.gui.IGuiWrapper;
 import mekanism.client.gui.element.GuiInsetElement;
 import mekanism.client.render.MekanismRenderer;
-import mekanism.api.processing.QIOAutomationMode;
 import mekanism.common.util.MekanismUtils;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.text.TextComponentTranslation;
@@ -14,7 +14,10 @@ import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
-/** Recovery-only side tab that requests a server-audited QIO automation force clear. */
+/**
+ * Recovery-only side tab that requests a server-audited QIO automation force clear.
+ */
+
 /**
  * QIO 处理模块中的 GuiQIOAutomationRecoveryTab 类型。
  *
@@ -24,7 +27,7 @@ import java.util.function.Supplier;
 public final class GuiQIOAutomationRecoveryTab extends GuiInsetElement<Void> {
 
     private static final ResourceLocation ICON = MekanismUtils.getResource(
-          MekanismUtils.ResourceType.GUI_BUTTON, "repair.png");
+            MekanismUtils.ResourceType.GUI_BUTTON, "repair.png");
 
     private final BooleanSupplier errorVisible;
     private final Supplier<QIOAutomationMode> modeSupplier;
@@ -32,19 +35,19 @@ public final class GuiQIOAutomationRecoveryTab extends GuiInsetElement<Void> {
     private final Runnable recoveryAction;
 
     public GuiQIOAutomationRecoveryTab(IGuiWrapper gui, int x, int y,
-          BooleanSupplier errorVisible, Runnable recoveryAction) {
+                                       BooleanSupplier errorVisible, Runnable recoveryAction) {
         this(gui, x, y, errorVisible, () -> null, () -> null, recoveryAction);
     }
 
     public GuiQIOAutomationRecoveryTab(IGuiWrapper gui, int x, int y,
-          BooleanSupplier errorVisible, Supplier<QIOAutomationMode> modeSupplier,
-          Runnable recoveryAction) {
+                                       BooleanSupplier errorVisible, Supplier<QIOAutomationMode> modeSupplier,
+                                       Runnable recoveryAction) {
         this(gui, x, y, errorVisible, modeSupplier, () -> null, recoveryAction);
     }
 
     public GuiQIOAutomationRecoveryTab(IGuiWrapper gui, int x, int y,
-          BooleanSupplier errorVisible, Supplier<QIOAutomationMode> modeSupplier,
-          Supplier<String> diagnosticSupplier, Runnable recoveryAction) {
+                                       BooleanSupplier errorVisible, Supplier<QIOAutomationMode> modeSupplier,
+                                       Supplier<String> diagnosticSupplier, Runnable recoveryAction) {
         this(gui, x, y, errorVisible, modeSupplier, diagnosticSupplier, recoveryAction, false);
     }
 
@@ -61,13 +64,13 @@ public final class GuiQIOAutomationRecoveryTab extends GuiInsetElement<Void> {
      * @param left 是否使用左侧 Tab 外观和交互偏移
      */
     public GuiQIOAutomationRecoveryTab(IGuiWrapper gui, int x, int y,
-          BooleanSupplier errorVisible, Supplier<QIOAutomationMode> modeSupplier,
-          Supplier<String> diagnosticSupplier, Runnable recoveryAction, boolean left) {
+                                       BooleanSupplier errorVisible, Supplier<QIOAutomationMode> modeSupplier,
+                                       Supplier<String> diagnosticSupplier, Runnable recoveryAction, boolean left) {
         super(ICON, gui, null, x, y, 26, 18, left);
         this.errorVisible = Objects.requireNonNull(errorVisible, "Error visibility supplier cannot be null");
         this.modeSupplier = Objects.requireNonNull(modeSupplier, "Mode supplier cannot be null");
         this.diagnosticSupplier = Objects.requireNonNull(diagnosticSupplier,
-              "Diagnostic supplier cannot be null");
+                "Diagnostic supplier cannot be null");
         this.recoveryAction = Objects.requireNonNull(recoveryAction, "Recovery action cannot be null");
         updateState();
     }
@@ -92,8 +95,8 @@ public final class GuiQIOAutomationRecoveryTab extends GuiInsetElement<Void> {
     public void renderToolTip(int mouseX, int mouseY) {
         super.renderToolTip(mouseX, mouseY);
         java.util.List<String> lines = new java.util.ArrayList<>(Arrays.asList(
-              new TextComponentTranslation(titleKey()).getFormattedText(),
-              new TextComponentTranslation(tooltipKey()).getFormattedText()));
+                new TextComponentTranslation(titleKey()).getFormattedText(),
+                new TextComponentTranslation(tooltipKey()).getFormattedText()));
         String diagnostic = diagnosticSupplier.get();
         if (diagnostic != null && !diagnostic.isEmpty()) {
             lines.add(diagnostic);
@@ -104,14 +107,14 @@ public final class GuiQIOAutomationRecoveryTab extends GuiInsetElement<Void> {
     private String titleKey() {
         QIOAutomationMode mode = modeSupplier.get();
         return mode == null ? "gui.mekanismqioprocessing.force_recovery" :
-              "gui.mekanismqioprocessing.force_recovery_" + mode.name().toLowerCase();
+                "gui.mekanismqioprocessing.force_recovery_" + mode.name().toLowerCase();
     }
 
     private String tooltipKey() {
         QIOAutomationMode mode = modeSupplier.get();
         return mode == null ? "gui.mekanismqioprocessing.force_recovery_tooltip" :
-              "gui.mekanismqioprocessing.force_recovery_tooltip_" +
-                    mode.name().toLowerCase();
+                "gui.mekanismqioprocessing.force_recovery_tooltip_" +
+                        mode.name().toLowerCase();
     }
 
     @Override

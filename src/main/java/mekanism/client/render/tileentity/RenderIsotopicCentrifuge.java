@@ -61,7 +61,7 @@ public class RenderIsotopicCentrifuge extends TileEntitySpecialRenderer<TileEnti
         bindTexture(MekanismUtils.getResource(ResourceType.RENDER, "IsotopicCentrifuge.png"));
         MekanismRenderer.rotate(tileEntity.facing, 0, 180, 90, 270);
         GlStateManager.rotate(180, 0, 0, 1);
-        model.render(0.0625F,true);
+        model.render(0.0625F, true);
         GlStateManager.popMatrix();
         MekanismRenderer.machineRenderer().render(tileEntity, x, y, z, partialTick, destroyStage, alpha);
     }
@@ -79,12 +79,15 @@ public class RenderIsotopicCentrifuge extends TileEntitySpecialRenderer<TileEnti
 
         for (int i = 0; i < stages; i++) {
             displays[i] = MekanismRenderer.DisplayInteger.createAndStart();
-            toReturn.minZ = 0.325 + .01;;
+            toReturn.minZ = 0.325 + .01;
+            ;
             toReturn.maxZ = 0.7375 - .01;
-            toReturn.minX = 0.325 + .01;;
+            toReturn.minX = 0.325 + .01;
+            ;
             toReturn.maxX = 0.7375 - .01;
-            toReturn.minY = 0.9375+ .01;;  //prevent z fighting at low fuel levels
-            toReturn.maxY = 0.9375 + ((float) i / stages) * 0.75  - .01;
+            toReturn.minY = 0.9375 + .01;
+            ;  //prevent z fighting at low fuel levels
+            toReturn.maxY = 0.9375 + ((float) i / stages) * 0.75 - .01;
             MekanismRenderer.renderObject(toReturn);
             MekanismRenderer.DisplayInteger.endList();
         }

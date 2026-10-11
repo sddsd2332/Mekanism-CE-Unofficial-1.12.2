@@ -2,7 +2,6 @@ package mekanism.common.item;
 
 import mekanism.api.EnumColor;
 import mekanism.api.gas.GasStack;
-import mekanism.client.render.MekanismRenderer;
 import mekanism.client.render.ModelCustomArmor;
 import mekanism.client.render.ModelCustomArmor.ArmorModel;
 import mekanism.common.Mekanism;
@@ -164,8 +163,8 @@ public class ItemScubaTank extends ItemArmor implements ILegacyGasItem, IItemHUD
     @Override
     public ICapabilityProvider initCapabilities(ItemStack stack, NBTTagCompound nbt) {
         return new ItemCapabilityWrapper(stack, RateLimitGasHandler.create(() -> getGasTransferRate(stack), () -> getGasCapacity(stack),
-              mekanism.api.functions.ConstantPredicates.notExternal(), mekanism.api.functions.ConstantPredicates.alwaysTrueBi(),
-              gasStack -> gasStack != null && gasStack.getGas() == MekanismFluids.Oxygen, "stored"));
+                mekanism.api.functions.ConstantPredicates.notExternal(), mekanism.api.functions.ConstantPredicates.alwaysTrueBi(),
+                gasStack -> gasStack != null && gasStack.getGas() == MekanismFluids.Oxygen, "stored"));
     }
 
 
@@ -200,7 +199,7 @@ public class ItemScubaTank extends ItemArmor implements ILegacyGasItem, IItemHUD
             //We are changing by an odd amount, so toggle the mode
             boolean newState = !getFlowing(stack);
             setFlowing(stack, newState);
-                displayChange.sendMessage(player,()->new TextComponentGroup().translation("tooltip.flowing", LangUtils.onOffColoured(newState)));
+            displayChange.sendMessage(player, () -> new TextComponentGroup().translation("tooltip.flowing", LangUtils.onOffColoured(newState)));
         }
     }
 

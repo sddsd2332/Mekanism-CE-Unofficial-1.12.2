@@ -1,37 +1,33 @@
 package mekanism.qioprocessing.common.content;
 
+import mekanism.api.processing.MachineRecipeRoute;
+import mekanism.api.processing.QIOAutomationMode;
 import mekanism.common.Mekanism;
+import mekanism.qioprocessing.api.machine.QIOAutomationDeviceLocation;
 import mekanism.qioprocessing.api.resource.PortableResourceDescriptor;
 import mekanism.qioprocessing.common.content.buffer.QIOJobBuffer;
-import mekanism.qioprocessing.common.content.job.QIOCraftingJob;
-import mekanism.qioprocessing.common.content.job.QIOCraftingJobSource;
-import mekanism.qioprocessing.common.content.job.QIOCraftingJobState;
-import mekanism.qioprocessing.common.content.job.QIOOperationAssignment;
-import mekanism.qioprocessing.common.content.job.QIOPlanRevisionTransition;
-import mekanism.qioprocessing.common.content.job.QIOStepRuntime;
+import mekanism.qioprocessing.common.content.device.QIOAutomationDeviceCatalog;
+import mekanism.qioprocessing.common.content.device.QIOAutomationDeviceSnapshot;
+import mekanism.qioprocessing.common.content.job.*;
+import mekanism.qioprocessing.common.content.maintenance.QIOMaintenanceRule;
+import mekanism.qioprocessing.common.content.maintenance.QIOMaintenanceRuleCatalog;
 import mekanism.qioprocessing.common.content.material.QIOMaterialCommitment;
 import mekanism.qioprocessing.common.content.material.QIOPendingClaimMutation;
 import mekanism.qioprocessing.common.content.material.QIOWaitingMaterialIndex;
+import mekanism.qioprocessing.common.content.passive.QIOPassiveOperation;
 import mekanism.qioprocessing.common.content.plan.QIOCraftPlan;
 import mekanism.qioprocessing.common.content.plan.QIOPlanStep;
-import mekanism.qioprocessing.common.content.scheduling.ActiveExecutionSlot;
-import mekanism.qioprocessing.common.content.scheduling.QIOExecutionSlotPool;
-import mekanism.qioprocessing.common.content.transfer.QIODurableTransferRecord;
-import mekanism.qioprocessing.common.content.transfer.QIOConfigurationExchangeRecord;
-import mekanism.qioprocessing.common.planning.QIOProviderCatalog;
-import mekanism.qioprocessing.common.planning.QIOProviderRouteCatalog;
-import mekanism.api.processing.MachineRecipeRoute;
-import mekanism.api.processing.QIOAutomationMode;
 import mekanism.qioprocessing.common.content.policy.QIOPolicyCatalog;
 import mekanism.qioprocessing.common.content.profile.QIOAutomationRecipeProfileCatalog;
+import mekanism.qioprocessing.common.content.scheduling.ActiveExecutionSlot;
+import mekanism.qioprocessing.common.content.scheduling.QIOExecutionSlotPool;
+import mekanism.qioprocessing.common.content.transfer.QIOConfigurationExchangeRecord;
+import mekanism.qioprocessing.common.content.transfer.QIODurableTransferRecord;
 import mekanism.qioprocessing.common.content.workbench.QIOWorkbenchConfiguration;
-import mekanism.qioprocessing.common.content.passive.QIOPassiveOperation;
-import mekanism.qioprocessing.common.content.maintenance.QIOMaintenanceRule;
-import mekanism.qioprocessing.common.content.maintenance.QIOMaintenanceRuleCatalog;
-import mekanism.qioprocessing.common.content.device.QIOAutomationDeviceCatalog;
-import mekanism.qioprocessing.common.content.device.QIOAutomationDeviceSnapshot;
+import mekanism.qioprocessing.common.content.workbench.QIOWorkbenchEncodingRecord;
+import mekanism.qioprocessing.common.planning.QIOProviderCatalog;
+import mekanism.qioprocessing.common.planning.QIOProviderRouteCatalog;
 import mekanism.qioprocessing.common.util.QIOHashing;
-import mekanism.qioprocessing.api.machine.QIOAutomationDeviceLocation;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.util.ResourceLocation;
@@ -39,20 +35,13 @@ import net.minecraftforge.common.util.Constants.NBT;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
 import java.math.BigInteger;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
-/** Authoritative, serially-mutated QIO Processing state for one stable frequency UUID. */
+/**
+ * Authoritative, serially-mutated QIO Processing state for one stable frequency UUID.
+ */
+
 /**
  * QIO 处理模块中的 QIOProcessingNetworkData 类型。
  *
@@ -61,16 +50,16 @@ import java.util.UUID;
  */
 public final class QIOProcessingNetworkData {
 
-    public static final int SCHEMA_VERSION = 7;
+    public static final int SCHEMA_VERSION = 8;
     public static final String PROGRESSIVE_ROOT_DELIVERY_NODE_ID = "progressive-root-delivery";
     private static final int MAX_PERSISTED_JOBS = 1_000_000;
     private static final int MAX_PERSISTED_TRANSFERS = 1_000_000;
     private static final int MAX_PERSISTED_PASSIVE_OPERATIONS = 1_000_000;
     private static final int MAX_WORKBENCH_RECOVERY_KEYS = 256;
     private static final Comparator<QIOCraftingJob> CLAIM_ORDER = Comparator
-          .comparingLong(QIOCraftingJob::getBasePriority).reversed()
-          .thenComparingLong(QIOCraftingJob::getEnqueueSequence)
-          .thenComparing(job -> job.getJobId().toString());
+            .comparingLong(QIOCraftingJob::getBasePriority).reversed()
+            .thenComparingLong(QIOCraftingJob::getEnqueueSequence)
+            .thenComparing(job -> job.getJobId().toString());
 
     private final UUID frequencyUUID;
     private QIOFrequencyIdentitySnapshot lastKnownFrequencyIdentity;
@@ -85,7 +74,7 @@ public final class QIOProcessingNetworkData {
     private final Map<UUID, QIOJobBuffer> jobBuffers = new LinkedHashMap<>();
     private final Map<UUID, QIODurableTransferRecord> durableTransfers = new LinkedHashMap<>();
     private final Map<UUID, QIOConfigurationExchangeRecord> configurationExchanges =
-          new LinkedHashMap<>();
+            new LinkedHashMap<>();
     private final Map<UUID, QIOPassiveOperation> passiveOperations = new LinkedHashMap<>();
     private final Set<UUID> waitingExecutionSlotJobs = new LinkedHashSet<>();
     // Transient scheduler indexes keep the per-tick hot path independent of retained history.
@@ -102,9 +91,10 @@ public final class QIOProcessingNetworkData {
     private QIOExecutionSlotPool executionSlots = new QIOExecutionSlotPool();
     private QIOPolicyCatalog policies = new QIOPolicyCatalog();
     private QIOAutomationRecipeProfileCatalog automationRecipeProfiles =
-          new QIOAutomationRecipeProfileCatalog();
+            new QIOAutomationRecipeProfileCatalog();
     private QIOWorkbenchConfiguration workbenchConfiguration =
-          new QIOWorkbenchConfiguration();
+            new QIOWorkbenchConfiguration();
+    private final Map<UUID, QIOWorkbenchEncodingRecord> workbenchEncodingJobs = new LinkedHashMap<>();
     /** Invalidated workbench data is retained for manual recovery instead of blocking the network. */
     @Nullable
     private NBTTagCompound workbenchConfigurationRecovery;
@@ -118,10 +108,10 @@ public final class QIOProcessingNetworkData {
 
     /** 创建指定频率的空网络状态。 */
     public QIOProcessingNetworkData(@Nonnull UUID frequencyUUID,
-          @Nonnull QIOFrequencyIdentitySnapshot lastKnownFrequencyIdentity) {
+                                    @Nonnull QIOFrequencyIdentitySnapshot lastKnownFrequencyIdentity) {
         this.frequencyUUID = Objects.requireNonNull(frequencyUUID, "frequencyUUID");
         this.lastKnownFrequencyIdentity = Objects.requireNonNull(lastKnownFrequencyIdentity,
-              "lastKnownFrequencyIdentity");
+                "lastKnownFrequencyIdentity");
         lifecycle = QIOProcessingNetworkLifecycle.ACTIVE;
         workbenchConfiguration.bindGenerationChangeListener(this::markDirty);
     }
@@ -230,7 +220,7 @@ public final class QIOProcessingNetworkData {
 
     @Nonnull
     public List<QIOConfigurationExchangeRecord> getOperationConfigurationExchanges(
-          @Nonnull UUID operationId) {
+            @Nonnull UUID operationId) {
         List<QIOConfigurationExchangeRecord> result = new ArrayList<>();
         for (QIOConfigurationExchangeRecord exchange : configurationExchanges.values()) {
             if (exchange.getOperationId().equals(operationId)) {
@@ -245,7 +235,7 @@ public final class QIOProcessingNetworkData {
     public void addConfigurationExchange(@Nonnull QIOConfigurationExchangeRecord exchange) {
         Objects.requireNonNull(exchange, "exchange");
         if (configurationExchanges.size() >= MAX_PERSISTED_TRANSFERS ||
-              configurationExchanges.putIfAbsent(exchange.getExchangeId(), exchange) != null) {
+                configurationExchanges.putIfAbsent(exchange.getExchangeId(), exchange) != null) {
             throw new IllegalStateException("Cannot add duplicate/excess QIO configuration exchange");
         }
         markDirty();
@@ -253,7 +243,7 @@ public final class QIOProcessingNetworkData {
 
     public void markConfigurationExchangeChanged(@Nonnull UUID exchangeId) {
         if (!configurationExchanges.containsKey(Objects.requireNonNull(exchangeId,
-              "exchangeId"))) {
+                "exchangeId"))) {
             throw new IllegalArgumentException("Unknown QIO configuration exchange " + exchangeId);
         }
         markDirty();
@@ -265,7 +255,7 @@ public final class QIOProcessingNetworkData {
         configurationExchanges.entrySet().removeIf(entry -> {
             QIOConfigurationExchangeRecord exchange = entry.getValue();
             boolean remove = exchange.getOperationId().equals(checked) &&
-                  exchange.getPhase().isSettled();
+                    exchange.getPhase().isSettled();
             if (remove) {
                 removedExchanges.add(exchange.getTargetReturnTransferId());
             }
@@ -274,7 +264,7 @@ public final class QIOProcessingNetworkData {
         for (UUID transferId : removedExchanges) {
             QIODurableTransferRecord transfer = durableTransfers.get(transferId);
             if (transfer != null && transfer.getResolution() ==
-                  QIODurableTransferRecord.Resolution.FORWARD_COMMITTED) {
+                    QIODurableTransferRecord.Resolution.FORWARD_COMMITTED) {
                 durableTransfers.remove(transferId);
             }
         }
@@ -284,8 +274,8 @@ public final class QIOProcessingNetworkData {
     public boolean hasUnsettledConfigurationExchange(@Nonnull UUID operationId) {
         UUID checked = Objects.requireNonNull(operationId, "operationId");
         return configurationExchanges.values().stream().anyMatch(exchange ->
-              exchange.getOperationId().equals(checked) &&
-                    !exchange.getPhase().isSettled());
+                exchange.getOperationId().equals(checked) &&
+                        !exchange.getPhase().isSettled());
     }
 
     @Nullable
@@ -302,7 +292,7 @@ public final class QIOProcessingNetworkData {
     public void addPassiveOperation(@Nonnull QIOPassiveOperation operation) {
         Objects.requireNonNull(operation, "operation");
         if (passiveOperations.size() >= MAX_PERSISTED_PASSIVE_OPERATIONS ||
-              passiveOperations.putIfAbsent(operation.getOperationId(), operation) != null) {
+                passiveOperations.putIfAbsent(operation.getOperationId(), operation) != null) {
             throw new IllegalStateException("Cannot add duplicate/excess QIO passive operation");
         }
         refreshPassiveIndexes(operation);
@@ -311,7 +301,7 @@ public final class QIOProcessingNetworkData {
 
     public void markPassiveOperationChanged(@Nonnull UUID operationId) {
         QIOPassiveOperation operation = passiveOperations.get(Objects.requireNonNull(operationId,
-              "operationId"));
+                "operationId"));
         if (operation == null) {
             throw new IllegalArgumentException("Unknown QIO passive operation " + operationId);
         }
@@ -334,7 +324,7 @@ public final class QIOProcessingNetworkData {
     /** 判断设备是否已有活动被动操作。 */
     public boolean hasActivePassiveOperation(@Nonnull UUID deviceUUID) {
         return activePassiveDeviceCounts.containsKey(
-              Objects.requireNonNull(deviceUUID, "deviceUUID"));
+                Objects.requireNonNull(deviceUUID, "deviceUUID"));
     }
 
     public void acknowledgeTerminalPassiveHistory(@Nonnull UUID operationId) {
@@ -360,6 +350,51 @@ public final class QIOProcessingNetworkData {
     @Nonnull
     public QIOWorkbenchConfiguration getWorkbenchConfiguration() {
         return workbenchConfiguration;
+    }
+
+    /** Server-thread runtime source shared by orders, maintenance and processors; never serialized. */
+    public QIOWorkbenchConfiguration getWorkbenchPlanningConfiguration() {
+        return mekanism.qioprocessing.common.workbench.WorkbenchBookRuntime.planningConfiguration(frequencyUUID);
+    }
+
+    public void workbenchBookChanged() {
+        requestMaintenanceRouteAudit();
+    }
+
+    public List<QIOWorkbenchEncodingRecord> getWorkbenchEncodingJobs() {
+        return Collections.unmodifiableList(new ArrayList<>(workbenchEncodingJobs.values()));
+    }
+
+    @Nullable
+    public QIOWorkbenchEncodingRecord getWorkbenchEncodingJob(UUID id) {
+        return workbenchEncodingJobs.get(id);
+    }
+
+    /** Owner-thread only. The receipt and imported configuration share one atomic network save. */
+    public void saveWorkbenchEncodingJob(QIOWorkbenchEncodingRecord record) {
+        long footprint = record.getStorageFootprint();
+        for (QIOWorkbenchEncodingRecord stored : workbenchEncodingJobs.values()) {
+            if (!stored.getId().equals(record.getId())) footprint += stored.getStorageFootprint();
+        }
+        QIOWorkbenchEncodingRecord existing = workbenchEncodingJobs.get(record.getId());
+        if (existing != null && !existing.getOwner().equals(record.getOwner())) {
+            throw new IllegalArgumentException("Encoding job ownership mismatch");
+        }
+        List<UUID> evicted = new ArrayList<>();
+        int count = workbenchEncodingJobs.size() + (existing == null ? 1 : 0);
+        for (QIOWorkbenchEncodingRecord candidate : workbenchEncodingJobs.values()) {
+            if (footprint <= 32L * 1024 * 1024 && count <= 128) break;
+            if (candidate.isTerminal() && !candidate.getId().equals(record.getId())) {
+                evicted.add(candidate.getId());
+                footprint -= candidate.getStorageFootprint();
+                count--;
+            }
+        }
+        if (footprint > 32L * 1024 * 1024 || count > 128)
+            throw new IllegalStateException("Workbench encoding job capacity reached");
+        evicted.forEach(workbenchEncodingJobs::remove);
+        workbenchEncodingJobs.put(record.getId(), record);
+        markDirty();
     }
 
     public boolean hasWorkbenchConfigurationRecovery() {
@@ -410,7 +445,7 @@ public final class QIOProcessingNetworkData {
     }
 
     public boolean observeProviderCatalog(@Nonnull QIOProviderRouteCatalog.Snapshot snapshot,
-          int maximumRoutes) {
+                                          int maximumRoutes) {
         if (providerCatalog.observe(snapshot, automationDevices, maximumRoutes)) {
             requestMaintenanceRouteAudit();
             markDirty();
@@ -420,11 +455,11 @@ public final class QIOProcessingNetworkData {
     }
 
     public boolean observeAutomationDeviceRoutes(@Nonnull UUID deviceUUID,
-          @Nonnull QIOAutomationMode mode, @Nonnull String profileScopeId,
-          @Nonnull ResourceLocation providerId, @Nonnull List<MachineRecipeRoute> routes,
-          int maximumRoutes) {
+                                                 @Nonnull QIOAutomationMode mode, @Nonnull String profileScopeId,
+                                                 @Nonnull ResourceLocation providerId, @Nonnull List<MachineRecipeRoute> routes,
+                                                 int maximumRoutes) {
         if (providerCatalog.observeDeviceRoutes(deviceUUID, mode, profileScopeId, providerId,
-              routes, maximumRoutes)) {
+                routes, maximumRoutes)) {
             requestMaintenanceRouteAudit();
             markDirty();
             return true;
@@ -442,7 +477,7 @@ public final class QIOProcessingNetworkData {
     }
 
     public boolean observeAutomationDevice(@Nonnull QIOAutomationDeviceSnapshot snapshot,
-          int maximumDevices) {
+                                           int maximumDevices) {
         if (automationDevices.observe(snapshot, maximumDevices)) {
             markDirty();
             return true;
@@ -451,7 +486,7 @@ public final class QIOProcessingNetworkData {
     }
 
     public boolean markAutomationDeviceOffline(@Nonnull UUID deviceUUID,
-          @Nonnull QIOAutomationDeviceLocation expectedLocation, long currentTick) {
+                                               @Nonnull QIOAutomationDeviceLocation expectedLocation, long currentTick) {
         if (automationDevices.markOffline(deviceUUID, expectedLocation, currentTick)) {
             requestMaintenanceRouteAudit();
             markDirty();
@@ -461,7 +496,7 @@ public final class QIOProcessingNetworkData {
     }
 
     public boolean forgetOfflineAutomationDevice(@Nonnull UUID deviceUUID,
-          long expectedDirectoryRevision) {
+                                                 long expectedDirectoryRevision) {
         if (automationDevices.remove(deviceUUID, expectedDirectoryRevision)) {
             providerCatalog.forgetDevice(deviceUUID);
             requestMaintenanceRouteAudit();
@@ -473,7 +508,7 @@ public final class QIOProcessingNetworkData {
 
     /** Removes a device which authoritatively left this frequency at the expected location. */
     public boolean forgetAutomationDeviceMembership(@Nonnull UUID deviceUUID,
-          @Nonnull QIOAutomationDeviceLocation expectedLocation) {
+                                                    @Nonnull QIOAutomationDeviceLocation expectedLocation) {
         if (automationDevices.removeAtLocation(deviceUUID, expectedLocation)) {
             providerCatalog.forgetDevice(deviceUUID);
             requestMaintenanceRouteAudit();
@@ -485,22 +520,22 @@ public final class QIOProcessingNetworkData {
 
     @Nonnull
     public QIOMaintenanceRule createMaintenanceRule(
-          @Nonnull PortableResourceDescriptor resource, @Nonnull UUID creator, boolean enabled,
-          long triggerAmount, long targetAmount, long maximumSingleRequest, long jobPriority,
-          int retryIntervalTicks, long currentTick, int maximumRules) {
+            @Nonnull PortableResourceDescriptor resource, @Nonnull UUID creator, boolean enabled,
+            long triggerAmount, long targetAmount, long maximumSingleRequest, long jobPriority,
+            int retryIntervalTicks, long currentTick, int maximumRules) {
         QIOMaintenanceRule rule = maintenanceRules.create(resource, creator, enabled,
-              triggerAmount, targetAmount, maximumSingleRequest, jobPriority,
-              retryIntervalTicks, currentTick, maximumRules);
+                triggerAmount, targetAmount, maximumSingleRequest, jobPriority,
+                retryIntervalTicks, currentTick, maximumRules);
         markDirty();
         return rule;
     }
 
     public void updateMaintenanceRule(@Nonnull UUID ruleId, long expectedRevision,
-          @Nonnull UUID editor, boolean enabled, long triggerAmount, long targetAmount,
-          long maximumSingleRequest, long jobPriority, int retryIntervalTicks,
-          long currentTick) {
+                                      @Nonnull UUID editor, boolean enabled, long triggerAmount, long targetAmount,
+                                      long maximumSingleRequest, long jobPriority, int retryIntervalTicks,
+                                      long currentTick) {
         maintenanceRules.update(ruleId, expectedRevision, editor, enabled, triggerAmount,
-              targetAmount, maximumSingleRequest, jobPriority, retryIntervalTicks, currentTick);
+                targetAmount, maximumSingleRequest, jobPriority, retryIntervalTicks, currentTick);
         markDirty();
     }
 
@@ -520,12 +555,12 @@ public final class QIOProcessingNetworkData {
     }
 
     public void setGlobalDefaultPolicy(@Nonnull QIOPolicyCatalog.Toggle toggle,
-          long priority) {
+                                       long priority) {
         setGlobalDefaultPolicy(toggle, priority, 0);
     }
 
     public void setGlobalDefaultPolicy(@Nonnull QIOPolicyCatalog.Toggle toggle,
-          long priority, long passivePriority) {
+                                       long priority, long passivePriority) {
         long before = policies.getRevision();
         policies.setGlobalDefaultPolicy(toggle, priority, passivePriority);
         if (policies.getRevision() != before) {
@@ -534,50 +569,50 @@ public final class QIOProcessingNetworkData {
     }
 
     public void setGlobalRoutePolicy(@Nonnull String providerId,
-          @Nonnull String routeId,
-          @Nonnull String recipeKey, @Nonnull QIOPolicyCatalog.Toggle toggle,
-          @Nullable Long priority) {
+                                     @Nonnull String routeId,
+                                     @Nonnull String recipeKey, @Nonnull QIOPolicyCatalog.Toggle toggle,
+                                     @Nullable Long priority) {
         setGlobalRoutePolicy(providerId, routeId, recipeKey, toggle, priority, null);
     }
 
     public void setGlobalRoutePolicy(@Nonnull String providerId,
-          @Nonnull String routeId, @Nonnull String recipeKey,
-          @Nonnull QIOPolicyCatalog.Toggle toggle, @Nullable Long priority,
-          @Nullable Long passivePriority) {
+                                     @Nonnull String routeId, @Nonnull String recipeKey,
+                                     @Nonnull QIOPolicyCatalog.Toggle toggle, @Nullable Long priority,
+                                     @Nullable Long passivePriority) {
         long before = policies.getRevision();
         policies.setGlobalRoutePolicy(providerId, routeId, recipeKey, toggle, priority,
-              passivePriority);
+                passivePriority);
         if (policies.getRevision() != before) {
             markDirty();
         }
     }
 
     public void setDeviceDefaultPolicy(@Nonnull UUID deviceUUID,
-          @Nonnull QIOPolicyCatalog.Toggle toggle, long machinePriority,
-          long passivePriority) {
+                                       @Nonnull QIOPolicyCatalog.Toggle toggle, long machinePriority,
+                                       long passivePriority) {
         long before = policies.getRevision();
         policies.setDeviceDefaultPolicy(deviceUUID, toggle, machinePriority,
-              passivePriority);
+                passivePriority);
         if (policies.getRevision() != before) {
             markDirty();
         }
     }
 
     public void setDeviceRoutePolicy(@Nonnull UUID deviceUUID,
-          @Nonnull String providerId, @Nonnull String routeId,
-          @Nonnull String recipeKey, @Nonnull QIOPolicyCatalog.Toggle toggle,
-          @Nullable Long priority) {
+                                     @Nonnull String providerId, @Nonnull String routeId,
+                                     @Nonnull String recipeKey, @Nonnull QIOPolicyCatalog.Toggle toggle,
+                                     @Nullable Long priority) {
         setDeviceRoutePolicy(deviceUUID, providerId, routeId, recipeKey, toggle,
-              priority, null);
+                priority, null);
     }
 
     public void setDeviceRoutePolicy(@Nonnull UUID deviceUUID,
-          @Nonnull String providerId, @Nonnull String routeId,
-          @Nonnull String recipeKey, @Nonnull QIOPolicyCatalog.Toggle toggle,
-          @Nullable Long priority, @Nullable Long passivePriority) {
+                                     @Nonnull String providerId, @Nonnull String routeId,
+                                     @Nonnull String recipeKey, @Nonnull QIOPolicyCatalog.Toggle toggle,
+                                     @Nullable Long priority, @Nullable Long passivePriority) {
         long before = policies.getRevision();
         policies.setDeviceRoutePolicy(deviceUUID, providerId, routeId, recipeKey,
-              toggle, priority, passivePriority);
+                toggle, priority, passivePriority);
         if (policies.getRevision() != before) {
             markDirty();
         }
@@ -609,7 +644,7 @@ public final class QIOProcessingNetworkData {
     public void deferWaitingProviderJob(@Nonnull UUID jobId) {
         QIOCraftingJob job = requireJob(jobId);
         if (job.getState() == QIOCraftingJobState.WAITING_PROVIDER &&
-              !job.hasActiveOperations()) {
+                !job.hasActiveOperations()) {
             dispatchCandidateJobs.remove(jobId);
             waitingProviderJobs.add(jobId);
         }
@@ -649,11 +684,11 @@ public final class QIOProcessingNetworkData {
         QIOMaterialCommitment commitment = commitments.get(checkedJobId);
         QIOJobBuffer buffer = jobBuffers.get(checkedJobId);
         if (job == null || commitment == null || buffer == null ||
-              !job.getState().isTerminal() || job.getExecutionSlotToken() != null ||
-              job.hasActiveOperations() || !buffer.isEmpty() ||
-              commitment.getPendingMutation() != null ||
-              commitment.getState() != QIOMaterialCommitment.State.CONSUMED &&
-                    commitment.getState() != QIOMaterialCommitment.State.RELEASED) {
+                !job.getState().isTerminal() || job.getExecutionSlotToken() != null ||
+                job.hasActiveOperations() || !buffer.isEmpty() ||
+                commitment.getPendingMutation() != null ||
+                commitment.getState() != QIOMaterialCommitment.State.CONSUMED &&
+                        commitment.getState() != QIOMaterialCommitment.State.RELEASED) {
             return false;
         }
         for (QIODurableTransferRecord transfer : durableTransfers.values()) {
@@ -668,7 +703,7 @@ public final class QIOProcessingNetworkData {
         }
 
         waitingMaterialIndex.update(checkedJobId,
-              commitment.getMissingResourceKeys(), Collections.emptySet());
+                commitment.getMissingResourceKeys(), Collections.emptySet());
         jobs.remove(checkedJobId);
         commitments.remove(checkedJobId);
         jobBuffers.remove(checkedJobId);
@@ -686,7 +721,7 @@ public final class QIOProcessingNetworkData {
 
     /** 在任务步骤中登记机器/处理器操作分配。 */
     public void startStepOperation(@Nonnull UUID jobId, long nodeId,
-          @Nonnull QIOOperationAssignment assignment) {
+                                   @Nonnull QIOOperationAssignment assignment) {
         QIOCraftingJob job = requireJob(jobId);
         if (job.getExecutionSlotToken() == null || job.getState().isTerminal()) {
             throw new IllegalStateException("QIO job cannot dispatch without an execution slot");
@@ -699,14 +734,14 @@ public final class QIOProcessingNetworkData {
 
     /** 更新任务步骤操作的状态和进度。 */
     public boolean updateStepOperation(@Nonnull UUID jobId, long nodeId,
-          @Nonnull UUID operationId, @Nonnull QIOOperationAssignment.State state,
-          long currentTick, long totalTicks, @Nullable String diagnostic) {
+                                       @Nonnull UUID operationId, @Nonnull QIOOperationAssignment.State state,
+                                       long currentTick, long totalTicks, @Nullable String diagnostic) {
         QIOCraftingJob job = requireJob(jobId);
         long previousRevision = job.getRuntimeRevision();
         job.updateStepOperation(nodeId, operationId, state, currentTick, totalTicks, diagnostic);
         transitionJob(job, state == QIOOperationAssignment.State.COLLECTING ||
-              state == QIOOperationAssignment.State.OUTPUT_BLOCKED ?
-              QIOCraftingJobState.COLLECTING : QIOCraftingJobState.PROCESSING);
+                state == QIOOperationAssignment.State.OUTPUT_BLOCKED ?
+                QIOCraftingJobState.COLLECTING : QIOCraftingJobState.PROCESSING);
         if (job.getRuntimeRevision() == previousRevision) {
             return false;
         }
@@ -716,18 +751,18 @@ public final class QIOProcessingNetworkData {
 
     /** 结算任务步骤操作。 */
     public void completeStepOperation(@Nonnull UUID jobId, long nodeId,
-          @Nonnull UUID operationId) {
+                                      @Nonnull UUID operationId) {
         QIOCraftingJob job = requireJob(jobId);
         job.completeStepOperation(nodeId, operationId);
         transitionJob(job, job.areAllStepsComplete() ? QIOCraftingJobState.DELIVERING :
-              QIOCraftingJobState.PROCESSING);
+                QIOCraftingJobState.PROCESSING);
         settleProgressiveRootOutput(jobId);
         markDirty();
     }
 
     /** 记录任务步骤操作失败。 */
     public void failStepOperation(@Nonnull UUID jobId, long nodeId,
-          @Nonnull UUID operationId, @Nonnull String diagnostic) {
+                                  @Nonnull UUID operationId, @Nonnull String diagnostic) {
         QIOCraftingJob job = requireJob(jobId);
         job.failStepOperation(nodeId, operationId, diagnostic);
         transitionJob(job, QIOCraftingJobState.WAITING_PROVIDER);
@@ -736,7 +771,7 @@ public final class QIOProcessingNetworkData {
 
     /** 将任务步骤操作标记为污染并保留恢复诊断。 */
     public void contaminateStepOperation(@Nonnull UUID jobId, long nodeId,
-          @Nonnull UUID operationId, @Nonnull String diagnostic) {
+                                         @Nonnull UUID operationId, @Nonnull String diagnostic) {
         QIOCraftingJob job = requireJob(jobId);
         job.failStepOperation(nodeId, operationId, diagnostic);
         job.markForcedRecovery(diagnostic);
@@ -748,7 +783,7 @@ public final class QIOProcessingNetworkData {
     /** Records a forced machine recovery as a player-decision point for one job operation. */
     /** 将任务操作标记为强制恢复后的可重派发状态。 */
     public boolean markForcedRecoveryOperation(@Nonnull UUID jobId, long nodeId,
-          @Nonnull UUID operationId, @Nonnull String diagnostic) {
+                                               @Nonnull UUID operationId, @Nonnull String diagnostic) {
         QIOCraftingJob job = requireJob(jobId);
         QIOStepRuntime runtime = job.getStepRuntime(nodeId);
         if (runtime == null || runtime.getOperation(operationId) == null) {
@@ -777,11 +812,11 @@ public final class QIOProcessingNetworkData {
     /** Accepts the monitor's explicit redispatch decision after a forced recovery. */
     /** 接受任务强制恢复后的重新派发。 */
     public boolean acceptForcedRecoveryRedispatch(@Nonnull UUID jobId,
-          long expectedRuntimeRevision) {
+                                                  long expectedRuntimeRevision) {
         QIOCraftingJob job = requireJob(jobId);
         if (job.getRuntimeRevision() != expectedRuntimeRevision ||
-            job.getState() != QIOCraftingJobState.OPERATION_CONTAMINATED ||
-            job.hasActiveOperations()) {
+                job.getState() != QIOCraftingJobState.OPERATION_CONTAMINATED ||
+                job.hasActiveOperations()) {
             return false;
         }
         job.acceptForcedRecoveryRedispatch();
@@ -798,7 +833,7 @@ public final class QIOProcessingNetworkData {
 
     /** 在版本匹配时更新任务优先级。 */
     public boolean updateJobPriority(@Nonnull UUID jobId, long expectedRuntimeRevision,
-          long priority) {
+                                     long priority) {
         QIOCraftingJob job = requireJob(jobId);
         if (job.getRuntimeRevision() != expectedRuntimeRevision || job.getState().isTerminal()) {
             return false;
@@ -822,7 +857,7 @@ public final class QIOProcessingNetworkData {
         job.requestReplan(nextPlan);
         waitingExecutionSlotJobs.remove(jobId);
         transitionJob(job, hasPhysicalJobAssets(jobId) ?
-              QIOCraftingJobState.REPLAN_DRAINING : QIOCraftingJobState.REPLAN_REQUIRED);
+                QIOCraftingJobState.REPLAN_DRAINING : QIOCraftingJobState.REPLAN_REQUIRED);
         advanceTaskCommitmentRevision();
         markDirty();
     }
@@ -831,7 +866,7 @@ public final class QIOProcessingNetworkData {
     public void beginJobReplanning(@Nonnull UUID jobId) {
         QIOCraftingJob job = requireJob(jobId);
         if (job.getState().isTerminal() || job.isCancellationRequested() ||
-              job.getRevisionTransition() != null) {
+                job.getRevisionTransition() != null) {
             throw new IllegalStateException("QIO job cannot enter asynchronous replanning");
         }
         waitingExecutionSlotJobs.remove(jobId);
@@ -842,7 +877,7 @@ public final class QIOProcessingNetworkData {
     public void failJobReplanning(@Nonnull UUID jobId) {
         QIOCraftingJob job = requireJob(jobId);
         if (job.getState() != QIOCraftingJobState.PLANNING ||
-              job.getRevisionTransition() != null || hasPhysicalJobAssets(jobId)) {
+                job.getRevisionTransition() != null || hasPhysicalJobAssets(jobId)) {
             throw new IllegalStateException("QIO job is not an idle planning job");
         }
         job.transitionTo(QIOCraftingJobState.WAITING_PROVIDER);
@@ -863,18 +898,18 @@ public final class QIOProcessingNetworkData {
     public boolean hasPhysicalJobAssets(@Nonnull UUID jobId) {
         QIOCraftingJob job = requireJob(jobId);
         if (job.getExecutionSlotToken() != null || job.hasActiveOperations() ||
-              !requireJobBuffer(jobId).isEmpty()) {
+                !requireJobBuffer(jobId).isEmpty()) {
             return true;
         }
         for (QIODurableTransferRecord transfer : durableTransfers.values()) {
             if (Objects.equals(jobId, transfer.getOwnerJobId()) &&
-                  transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE) {
+                    transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE) {
                 return true;
             }
         }
         for (QIOConfigurationExchangeRecord exchange : configurationExchanges.values()) {
             if (Objects.equals(jobId, exchange.getOwnerJobId()) &&
-                  !exchange.getPhase().isSettled()) {
+                    !exchange.getPhase().isSettled()) {
                 return true;
             }
         }
@@ -884,13 +919,13 @@ public final class QIOProcessingNetworkData {
     public void finishReplanDrain(@Nonnull UUID jobId) {
         QIOCraftingJob job = requireJob(jobId);
         if (job.getState() != QIOCraftingJobState.REPLAN_DRAINING ||
-              job.getRevisionTransition() == null || job.hasActiveOperations() ||
-              !requireJobBuffer(jobId).isEmpty()) {
+                job.getRevisionTransition() == null || job.hasActiveOperations() ||
+                !requireJobBuffer(jobId).isEmpty()) {
             throw new IllegalStateException("QIO plan revision still has physical assets to drain");
         }
         for (QIODurableTransferRecord transfer : durableTransfers.values()) {
             if (Objects.equals(jobId, transfer.getOwnerJobId()) &&
-                  transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE) {
+                    transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE) {
                 throw new IllegalStateException("QIO plan revision still has an active transfer");
             }
         }
@@ -906,12 +941,12 @@ public final class QIOProcessingNetworkData {
     public void finishPlanningDrain(@Nonnull UUID jobId) {
         QIOCraftingJob job = requireJob(jobId);
         if (job.getState() != QIOCraftingJobState.PLANNING || job.hasActiveOperations() ||
-              !requireJobBuffer(jobId).isEmpty()) {
+                !requireJobBuffer(jobId).isEmpty()) {
             throw new IllegalStateException("QIO planning job still has physical assets to drain");
         }
         for (QIODurableTransferRecord transfer : durableTransfers.values()) {
             if (Objects.equals(jobId, transfer.getOwnerJobId()) &&
-                  transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE) {
+                    transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE) {
                 throw new IllegalStateException("QIO planning job still has an active transfer");
             }
         }
@@ -923,23 +958,23 @@ public final class QIOProcessingNetworkData {
     }
 
     public void prepareReplanClaim(@Nonnull UUID jobId,
-          @Nonnull QIOPlanRevisionTransition.ClaimMode mode, @Nonnull UUID requestId,
-          @Nullable UUID sourceClaimId, long contentsRevision, long claimRevision,
-          @Nonnull Map<PortableResourceDescriptor, Long> targetAmounts) {
+                                   @Nonnull QIOPlanRevisionTransition.ClaimMode mode, @Nonnull UUID requestId,
+                                   @Nullable UUID sourceClaimId, long contentsRevision, long claimRevision,
+                                   @Nonnull Map<PortableResourceDescriptor, Long> targetAmounts) {
         QIOCraftingJob job = requireJob(jobId);
         if (job.getState() != QIOCraftingJobState.REPLAN_REQUIRED ||
-              job.getRevisionTransition() == null || hasPhysicalJobAssets(jobId)) {
+                job.getRevisionTransition() == null || hasPhysicalJobAssets(jobId)) {
             throw new IllegalStateException("QIO job is not ready to prepare its new claim");
         }
         job.getRevisionTransition().prepareClaim(mode, requestId, sourceClaimId,
-              contentsRevision, claimRevision, targetAmounts);
+                contentsRevision, claimRevision, targetAmounts);
         markDirty();
     }
 
     public void clearReplanClaimIntent(@Nonnull UUID jobId) {
         QIOCraftingJob job = requireJob(jobId);
         if (job.getRevisionTransition() == null ||
-              !job.getRevisionTransition().hasClaimIntent()) {
+                !job.getRevisionTransition().hasClaimIntent()) {
             throw new IllegalStateException("QIO job has no replan claim intent");
         }
         job.getRevisionTransition().clearClaimIntent();
@@ -947,26 +982,26 @@ public final class QIOProcessingNetworkData {
     }
 
     public void completeReplan(@Nonnull UUID jobId,
-          @Nonnull Map<PortableResourceDescriptor, Long> committed, long claimRevision) {
+                               @Nonnull Map<PortableResourceDescriptor, Long> committed, long claimRevision) {
         QIOCraftingJob job = requireJob(jobId);
         QIOPlanRevisionTransition transition = job.getRevisionTransition();
         if (transition == null || job.getState() != QIOCraftingJobState.REPLAN_REQUIRED ||
-              hasPhysicalJobAssets(jobId)) {
+                hasPhysicalJobAssets(jobId)) {
             throw new IllegalStateException("QIO job cannot activate its pending plan");
         }
         QIOMaterialCommitment old = requireCommitment(jobId);
         waitingMaterialIndex.update(jobId, old.getMissingResourceKeys(), Collections.emptySet());
         QIOCraftPlan pending = transition.getPendingPlan();
         QIOMaterialCommitment replacement = new QIOMaterialCommitment(jobId,
-              pending.getRevision(), transition.getTargetClaimId(), job.getBasePriority(),
-              job.getEnqueueSequence(), pending.getMaterialRequirements());
+                pending.getRevision(), transition.getTargetClaimId(), job.getBasePriority(),
+                job.getEnqueueSequence(), pending.getMaterialRequirements());
         replacement.applyActiveClaim(committed, claimRevision);
         commitments.put(jobId, replacement);
         job.activatePendingPlan();
         waitingMaterialIndex.update(jobId, Collections.emptySet(),
-              replacement.getMissingResourceKeys());
+                replacement.getMissingResourceKeys());
         transitionJob(job, replacement.isFullyCommitted() ?
-              QIOCraftingJobState.WAITING_EXECUTION_SLOT : QIOCraftingJobState.WAITING_MATERIALS);
+                QIOCraftingJobState.WAITING_EXECUTION_SLOT : QIOCraftingJobState.WAITING_MATERIALS);
         advanceTaskCommitmentRevision();
         updateClaimWakeGeneration(jobId, false);
         markDirty();
@@ -977,16 +1012,16 @@ public final class QIOProcessingNetworkData {
         QIOCraftingJob job = requireJob(jobId);
         boolean wasWakeCandidate = isClaimWakeCandidate(jobId);
         if (!job.getState().isTerminal() && !job.isCancellationRequested() &&
-              taskCommitmentRevision == Long.MAX_VALUE) {
+                taskCommitmentRevision == Long.MAX_VALUE) {
             throw new IllegalStateException("QIO task commitment revision exhausted");
         }
         if (!job.requestCancellation()) {
             return false;
         }
         if (job.getState() == QIOCraftingJobState.PLANNING &&
-              job.getRevisionTransition() == null) {
+                job.getRevisionTransition() == null) {
             job.transitionTo(hasPhysicalJobAssets(jobId) ?
-                  QIOCraftingJobState.PROCESSING : QIOCraftingJobState.WAITING_MATERIALS);
+                    QIOCraftingJobState.PROCESSING : QIOCraftingJobState.WAITING_MATERIALS);
         }
         if (job.getRevisionTransition() != null) {
             job.cancelPendingReplan();
@@ -1020,28 +1055,28 @@ public final class QIOProcessingNetworkData {
     }
 
     public void stageJobMachineInput(@Nonnull UUID jobId,
-          @Nonnull Map<PortableResourceDescriptor, Long> resources) {
+                                     @Nonnull Map<PortableResourceDescriptor, Long> resources) {
         requireJobBuffer(jobId).stageMachineInput(resources);
         markDirty();
     }
 
     public void commitJobMachineInput(@Nonnull UUID jobId,
-          @Nonnull Map<PortableResourceDescriptor, Long> resources) {
+                                      @Nonnull Map<PortableResourceDescriptor, Long> resources) {
         requireJobBuffer(jobId).commitMachineInput(resources);
         markDirty();
     }
 
     public void restoreJobMachineInput(@Nonnull UUID jobId,
-          @Nonnull Map<PortableResourceDescriptor, Long> resources) {
+                                       @Nonnull Map<PortableResourceDescriptor, Long> resources) {
         requireJobBuffer(jobId).restoreMachineInput(resources);
         markDirty();
     }
 
     public void creditJobProduced(@Nonnull UUID jobId,
-          @Nonnull Map<PortableResourceDescriptor, Long> resources) {
+                                  @Nonnull Map<PortableResourceDescriptor, Long> resources) {
         QIOJobBuffer buffer = requireJobBuffer(jobId);
         resources.forEach((resource, amount) -> buffer.add(QIOJobBuffer.Compartment.PRODUCED,
-              resource, amount));
+                resource, amount));
         markDirty();
     }
 
@@ -1053,7 +1088,7 @@ public final class QIOProcessingNetworkData {
     public long settleProgressiveRootOutput(@Nonnull UUID jobId) {
         QIOCraftingJob job = requireJob(jobId);
         if (job.getState().isTerminal() || job.isCancellationRequested() ||
-              job.getRemainingGuaranteedRootAmount() <= 0) {
+                job.getRemainingGuaranteedRootAmount() <= 0) {
             return 0;
         }
         QIOJobBuffer buffer = requireJobBuffer(jobId);
@@ -1072,19 +1107,19 @@ public final class QIOProcessingNetworkData {
             }
             long unfinished = runtime.getRequiredOperations() - runtime.getCompletedOperations();
             outstandingInputs = saturatedAdd(outstandingInputs,
-                  saturatedMultiply(perOperation, unfinished));
+                    saturatedMultiply(perOperation, unfinished));
         }
         long alreadyStaged = buffer.get(QIOJobBuffer.Compartment.IN_PROCESS_RETURN, root);
         long unstagedInputs = Math.max(0, outstandingInputs - alreadyStaged);
         long available = saturatedAdd(produced,
-              buffer.get(QIOJobBuffer.Compartment.RESERVED, root));
+                buffer.get(QIOJobBuffer.Compartment.RESERVED, root));
         long safeProduced = Math.min(produced, Math.max(0, available - unstagedInputs));
 
         long pendingDelivery = saturatedAdd(
-              buffer.get(QIOJobBuffer.Compartment.SETTLED_OUTPUT, root),
-              buffer.get(QIOJobBuffer.Compartment.RETURNING, root));
+                buffer.get(QIOJobBuffer.Compartment.SETTLED_OUTPUT, root),
+                buffer.get(QIOJobBuffer.Compartment.RETURNING, root));
         long deliveryAllowance = Math.max(0,
-              job.getRemainingGuaranteedRootAmount() - pendingDelivery);
+                job.getRemainingGuaranteedRootAmount() - pendingDelivery);
         long settled = Math.min(safeProduced, deliveryAllowance);
         if (settled > 0) {
             buffer.settleProducedOutput(root, settled);
@@ -1094,9 +1129,9 @@ public final class QIOProcessingNetworkData {
     }
 
     public boolean hasStagedJobMachineInput(@Nonnull UUID jobId,
-          @Nonnull Map<PortableResourceDescriptor, Long> resources) {
+                                            @Nonnull Map<PortableResourceDescriptor, Long> resources) {
         return requireJobBuffer(jobId).contains(QIOJobBuffer.Compartment.IN_PROCESS_RETURN,
-              resources);
+                resources);
     }
 
     /** 绑定网络状态变化回调。 */
@@ -1124,7 +1159,7 @@ public final class QIOProcessingNetworkData {
             for (QIOCraftingJob job : jobs.values()) {
                 if (!job.getState().isTerminal()) {
                     transitionJob(job, next == QIOProcessingNetworkLifecycle.ORPHANED_FREQUENCY ?
-                          QIOCraftingJobState.ORPHANED_FREQUENCY : QIOCraftingJobState.WAITING_ACCESS);
+                            QIOCraftingJobState.ORPHANED_FREQUENCY : QIOCraftingJobState.WAITING_ACCESS);
                 }
             }
             markDirty();
@@ -1134,16 +1169,16 @@ public final class QIOProcessingNetworkData {
     @Nonnull
     /** 创建并登记一个新的合成任务。 */
     public QIOCraftingJob createJob(@Nonnull QIOCraftingJobSource source, @Nullable UUID requester,
-          long priority, long createdAtTick, @Nonnull QIOCraftPlan plan, int maximumNonTerminalJobs) {
+                                    long priority, long createdAtTick, @Nonnull QIOCraftPlan plan, int maximumNonTerminalJobs) {
         return createJob(UUID.randomUUID(), source, requester, priority, createdAtTick, plan,
-              maximumNonTerminalJobs);
+                maximumNonTerminalJobs);
     }
 
     @Nonnull
     /** 从持久化标识创建并登记任务。 */
     public QIOCraftingJob createJob(@Nonnull UUID jobId, @Nonnull QIOCraftingJobSource source,
-          @Nullable UUID requester, long priority, long createdAtTick, @Nonnull QIOCraftPlan plan,
-          int maximumNonTerminalJobs) {
+                                    @Nullable UUID requester, long priority, long createdAtTick, @Nonnull QIOCraftPlan plan,
+                                    int maximumNonTerminalJobs) {
         if (maximumNonTerminalJobs <= 0) {
             throw new IllegalArgumentException("maximumNonTerminalJobs must be positive");
         }
@@ -1163,16 +1198,16 @@ public final class QIOProcessingNetworkData {
         }
         long enqueueSequence = enqueueCounter++;
         QIOCraftingJob job = new QIOCraftingJob(jobId, source, requester, priority,
-              enqueueSequence, createdAtTick, Objects.requireNonNull(plan, "plan"));
+                enqueueSequence, createdAtTick, Objects.requireNonNull(plan, "plan"));
         QIOMaterialCommitment commitment = new QIOMaterialCommitment(jobId, plan.getRevision(),
-              UUID.randomUUID(), priority, enqueueSequence, plan.getMaterialRequirements());
+                UUID.randomUUID(), priority, enqueueSequence, plan.getMaterialRequirements());
         transitionJob(job, commitment.getMissingAmounts().isEmpty() ?
-              QIOCraftingJobState.WAITING_EXECUTION_SLOT : QIOCraftingJobState.WAITING_MATERIALS);
+                QIOCraftingJobState.WAITING_EXECUTION_SLOT : QIOCraftingJobState.WAITING_MATERIALS);
         jobs.put(jobId, job);
         commitments.put(jobId, commitment);
         jobBuffers.put(jobId, new QIOJobBuffer(jobId));
         waitingMaterialIndex.update(jobId, Collections.emptySet(),
-              commitment.getMissingResourceKeys());
+                commitment.getMissingResourceKeys());
         advanceTaskCommitmentRevision();
         if (isClaimWakeCandidate(jobId)) {
             advanceClaimWakeGeneration();
@@ -1211,18 +1246,18 @@ public final class QIOProcessingNetworkData {
         QIOCraftingJob job = jobId == null ? null : jobs.get(jobId);
         QIOMaterialCommitment commitment = jobId == null ? null : commitments.get(jobId);
         if (job == null || commitment == null || job.getState().isTerminal() ||
-              job.isCancellationRequested()) {
+                job.isCancellationRequested()) {
             return false;
         }
         if (job.getState() != QIOCraftingJobState.WAITING_MATERIALS &&
-              job.getState() != QIOCraftingJobState.WAITING_ACCESS) {
+                job.getState() != QIOCraftingJobState.WAITING_ACCESS) {
             return false;
         }
         return (commitment.getState() == QIOMaterialCommitment.State.ACTIVE ||
-              commitment.getState() == QIOMaterialCommitment.State.NEEDS_RECONCILIATION) &&
-              (commitment.getPendingMutation() != null ||
-                    !commitment.getMissingAmounts().isEmpty() ||
-                    job.getState() == QIOCraftingJobState.WAITING_ACCESS);
+                commitment.getState() == QIOMaterialCommitment.State.NEEDS_RECONCILIATION) &&
+                (commitment.getPendingMutation() != null ||
+                        !commitment.getMissingAmounts().isEmpty() ||
+                        job.getState() == QIOCraftingJobState.WAITING_ACCESS);
     }
 
     public boolean hasClaimRefreshCandidates() {
@@ -1250,16 +1285,16 @@ public final class QIOProcessingNetworkData {
         QIOCraftingJob job = jobId == null ? null : jobs.get(jobId);
         QIOMaterialCommitment commitment = jobId == null ? null : commitments.get(jobId);
         if (job == null || commitment == null || job.getExecutionSlotToken() != null ||
-              job.getState().isTerminal() || job.isCancellationRequested()) {
+                job.getState().isTerminal() || job.isCancellationRequested()) {
             return false;
         }
         if (job.getState() != QIOCraftingJobState.WAITING_MATERIALS &&
-              job.getState() != QIOCraftingJobState.WAITING_ACCESS &&
-              job.getState() != QIOCraftingJobState.WAITING_EXECUTION_SLOT) {
+                job.getState() != QIOCraftingJobState.WAITING_ACCESS &&
+                job.getState() != QIOCraftingJobState.WAITING_EXECUTION_SLOT) {
             return false;
         }
         return commitment.getState() == QIOMaterialCommitment.State.ACTIVE ||
-              commitment.getState() == QIOMaterialCommitment.State.NEEDS_RECONCILIATION;
+                commitment.getState() == QIOMaterialCommitment.State.NEEDS_RECONCILIATION;
     }
 
     public boolean hasClaimWakeCandidates() {
@@ -1276,13 +1311,13 @@ public final class QIOProcessingNetworkData {
     }
 
     public void prepareClaimMutation(@Nonnull UUID jobId,
-          @Nonnull QIOPendingClaimMutation mutation) {
+                                     @Nonnull QIOPendingClaimMutation mutation) {
         requireCommitment(jobId).prepare(mutation);
         markDirty();
     }
 
     public void prepareClaimRelease(@Nonnull UUID jobId,
-          @Nonnull QIOPendingClaimMutation mutation) {
+                                    @Nonnull QIOPendingClaimMutation mutation) {
         boolean wasWakeCandidate = isClaimWakeCandidate(jobId);
         QIOCraftingJob job = requireJob(jobId);
         if (job.getExecutionSlotToken() != null || !requireJobBuffer(jobId).isEmpty()) {
@@ -1290,7 +1325,7 @@ public final class QIOProcessingNetworkData {
         }
         QIOMaterialCommitment commitment = requireCommitment(jobId);
         waitingMaterialIndex.update(jobId, commitment.getMissingResourceKeys(),
-              Collections.emptySet());
+                Collections.emptySet());
         commitment.beginRelease(mutation);
         transitionJob(job, QIOCraftingJobState.CANCEL_REQUESTED);
         updateClaimWakeGeneration(jobId, wasWakeCandidate);
@@ -1304,25 +1339,25 @@ public final class QIOProcessingNetworkData {
         }
         QIOMaterialCommitment commitment = requireCommitment(jobId);
         waitingMaterialIndex.update(jobId, commitment.getMissingResourceKeys(),
-              Collections.emptySet());
+                Collections.emptySet());
         commitment.markReleased(claimRevision);
         transitionJob(job, QIOCraftingJobState.CANCELLED);
         markDirty();
     }
 
     public void applyActiveClaim(@Nonnull UUID jobId,
-          @Nonnull Map<PortableResourceDescriptor, Long> committed, long claimRevision) {
+                                 @Nonnull Map<PortableResourceDescriptor, Long> committed, long claimRevision) {
         boolean wasWakeCandidate = isClaimWakeCandidate(jobId);
         QIOMaterialCommitment commitment = requireCommitment(jobId);
         Collection<PortableResourceDescriptor> previousMissing =
-              new ArrayList<>(commitment.getMissingResourceKeys());
+                new ArrayList<>(commitment.getMissingResourceKeys());
         commitment.applyActiveClaim(committed, claimRevision);
         waitingMaterialIndex.update(jobId, previousMissing,
-              commitment.getMissingResourceKeys());
+                commitment.getMissingResourceKeys());
         QIOCraftingJob job = requireJob(jobId);
         if (job.getExecutionSlotToken() == null && !job.getState().isTerminal()) {
             transitionJob(job, commitment.isFullyCommitted() ?
-                  QIOCraftingJobState.WAITING_EXECUTION_SLOT : QIOCraftingJobState.WAITING_MATERIALS);
+                    QIOCraftingJobState.WAITING_EXECUTION_SLOT : QIOCraftingJobState.WAITING_MATERIALS);
         }
         updateClaimWakeGeneration(jobId, wasWakeCandidate);
         markDirty();
@@ -1332,7 +1367,7 @@ public final class QIOProcessingNetworkData {
         boolean wasWakeCandidate = isClaimWakeCandidate(jobId);
         QIOMaterialCommitment commitment = requireCommitment(jobId);
         waitingMaterialIndex.update(jobId, commitment.getMissingResourceKeys(),
-              Collections.emptySet());
+                Collections.emptySet());
         commitment.markNeedsReconciliation();
         transitionJob(requireJob(jobId), QIOCraftingJobState.WAITING_ACCESS);
         updateClaimWakeGeneration(jobId, wasWakeCandidate);
@@ -1343,8 +1378,8 @@ public final class QIOProcessingNetworkData {
         boolean changed = false;
         for (QIOCraftingJob job : jobs.values()) {
             if ((job.getState() == QIOCraftingJobState.WAITING_MATERIALS ||
-                  job.getState() == QIOCraftingJobState.WAITING_EXECUTION_SLOT) &&
-                  isClaimWakeCandidate(job.getJobId())) {
+                    job.getState() == QIOCraftingJobState.WAITING_EXECUTION_SLOT) &&
+                    isClaimWakeCandidate(job.getJobId())) {
                 // Keep the commitment and any durable request ID intact. Access loss alone does
                 // not prove whether a submitted core mutation committed.
                 transitionJob(job, QIOCraftingJobState.WAITING_ACCESS);
@@ -1363,7 +1398,7 @@ public final class QIOProcessingNetworkData {
         boolean wasWakeCandidate = isClaimWakeCandidate(jobId);
         QIOMaterialCommitment commitment = requireCommitment(jobId);
         if (job.getState() != QIOCraftingJobState.WAITING_EXECUTION_SLOT ||
-              !commitment.isFullyCommitted() || job.isCancellationRequested()) {
+                !commitment.isFullyCommitted() || job.isCancellationRequested()) {
             throw new IllegalStateException("QIO job is not eligible for an execution slot");
         }
         if (dispatchCounter == Long.MAX_VALUE) {
@@ -1380,7 +1415,7 @@ public final class QIOProcessingNetworkData {
     }
 
     public boolean releaseExecutionSlot(@Nonnull UUID jobId,
-          @Nonnull QIOCraftingJobState nextState) {
+                                        @Nonnull QIOCraftingJobState nextState) {
         QIOCraftingJob job = requireJob(jobId);
         boolean wasWakeCandidate = isClaimWakeCandidate(jobId);
         if (!executionSlots.release(job)) {
@@ -1406,9 +1441,9 @@ public final class QIOProcessingNetworkData {
             QIOCraftingJob job = requireJob(transfer.getOwnerJobId());
             QIOMaterialCommitment commitment = requireCommitment(job.getJobId());
             if (job.getState() != QIOCraftingJobState.RESERVING ||
-                  transfer.getPlanRevision() != job.getActivePlan().getRevision() ||
-                  !transfer.getResources().equals(commitment.getCommittedAmounts()) ||
-                  !commitment.isFullyCommitted()) {
+                    transfer.getPlanRevision() != job.getActivePlan().getRevision() ||
+                    !transfer.getResources().equals(commitment.getCommittedAmounts()) ||
+                    !commitment.isFullyCommitted()) {
                 durableTransfers.remove(transfer.getTransferId());
                 throw new IllegalArgumentException("QIO reservation transfer disagrees with its job");
             }
@@ -1424,23 +1459,23 @@ public final class QIOProcessingNetworkData {
      */
     @Nonnull
     public QIODurableTransferRecord ensureConfigurationTargetReturnTransfer(
-          @Nonnull QIOConfigurationExchangeRecord exchange, @Nonnull BigInteger qioBaseline) {
+            @Nonnull QIOConfigurationExchangeRecord exchange, @Nonnull BigInteger qioBaseline) {
         Objects.requireNonNull(exchange, "exchange");
         Objects.requireNonNull(qioBaseline, "qioBaseline");
         if (!exchange.requiresTargetReturn()) {
             throw new IllegalStateException("Configuration exchange has no target return obligation");
         }
         if (exchange.getTargetQioBaseline() == null ||
-              !qioBaseline.equals(exchange.getTargetQioBaseline().subtract(BigInteger.ONE))) {
+                !qioBaseline.equals(exchange.getTargetQioBaseline().subtract(BigInteger.ONE))) {
             throw new IllegalStateException(
-                  "Configuration target return baseline disagrees with the target debit");
+                    "Configuration target return baseline disagrees with the target debit");
         }
         QIODurableTransferRecord existing = durableTransfers.get(
-              exchange.getTargetReturnTransferId());
+                exchange.getTargetReturnTransferId());
         if (existing != null) {
             if (!isConfigurationTargetReturnTransfer(existing, exchange, qioBaseline, false)) {
                 throw new IllegalStateException(
-                      "Configuration target return transfer disagrees with its exchange");
+                        "Configuration target return transfer disagrees with its exchange");
             }
             return existing;
         }
@@ -1448,47 +1483,47 @@ public final class QIOProcessingNetworkData {
             throw new IllegalArgumentException("Configuration target return baseline cannot be negative");
         }
         Map<PortableResourceDescriptor, Long> resources = Collections.singletonMap(
-              exchange.getTargetResource(), 1L);
+                exchange.getTargetResource(), 1L);
         Map<PortableResourceDescriptor, BigInteger> baselines = Collections.singletonMap(
-              exchange.getTargetResource(), qioBaseline);
+                exchange.getTargetResource(), qioBaseline);
         UUID ownerOperationId = exchange.getOwnerJobId() == null ? exchange.getOperationId() : null;
         UUID ownerJobId = exchange.getOwnerJobId();
         int planRevision = ownerJobId == null ? 0 :
-              getJob(ownerJobId) == null ? 1 : getJob(ownerJobId).getActivePlan().getRevision();
+                getJob(ownerJobId) == null ? 1 : getJob(ownerJobId).getActivePlan().getRevision();
         QIODurableTransferRecord transfer = new QIODurableTransferRecord(
-              exchange.getTargetReturnTransferId(), UUID.randomUUID(),
-              QIODurableTransferRecord.Type.JOB_TO_QIO, ownerJobId, ownerOperationId,
-              planRevision, "configuration-return/" + exchange.getExchangeId() + "/" +
-                    exchange.getOperationId(),
-              exchange.getLeaseId(),
-              "configuration-held/" + exchange.getDeviceUUID() + "/" + exchange.getExchangeId() +
-                    "/" + exchange.getOperationId(),
-              "qio/" + frequencyUUID, resources, baselines);
+                exchange.getTargetReturnTransferId(), UUID.randomUUID(),
+                QIODurableTransferRecord.Type.JOB_TO_QIO, ownerJobId, ownerOperationId,
+                planRevision, "configuration-return/" + exchange.getExchangeId() + "/" +
+                exchange.getOperationId(),
+                exchange.getLeaseId(),
+                "configuration-held/" + exchange.getDeviceUUID() + "/" + exchange.getExchangeId() +
+                        "/" + exchange.getOperationId(),
+                "qio/" + frequencyUUID, resources, baselines);
         addDurableTransfer(transfer);
         return transfer;
     }
 
     private boolean isConfigurationTargetReturnTransfer(
-          QIODurableTransferRecord transfer, QIOConfigurationExchangeRecord exchange,
-          BigInteger baseline, boolean allowCommitted) {
+            QIODurableTransferRecord transfer, QIOConfigurationExchangeRecord exchange,
+            BigInteger baseline, boolean allowCommitted) {
         return transfer.getType() == QIODurableTransferRecord.Type.JOB_TO_QIO &&
-              transfer.getTransferId().equals(exchange.getTargetReturnTransferId()) &&
-              Objects.equals(transfer.getOwnerJobId(), exchange.getOwnerJobId()) &&
-              Objects.equals(transfer.getOwnerOperationId(),
-                    exchange.getOwnerJobId() == null ? exchange.getOperationId() : null) &&
-              transfer.getLeaseId() != null && transfer.getLeaseId().equals(exchange.getLeaseId()) &&
-              transfer.getNodeId().equals("configuration-return/" + exchange.getExchangeId() + "/" +
-                    exchange.getOperationId()) &&
-              transfer.getSource().equals("configuration-held/" + exchange.getDeviceUUID() + "/" +
-                    exchange.getExchangeId() + "/" + exchange.getOperationId()) &&
-              transfer.getDestination().equals("qio/" + frequencyUUID) &&
-              transfer.getResources().equals(Collections.singletonMap(
-                    exchange.getTargetResource(), 1L)) &&
-              transfer.getQIOBaselines().equals(Collections.singletonMap(
-                    exchange.getTargetResource(), baseline)) &&
-              (allowCommitted && transfer.getResolution() ==
-                    QIODurableTransferRecord.Resolution.FORWARD_COMMITTED ||
-                    transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE);
+                transfer.getTransferId().equals(exchange.getTargetReturnTransferId()) &&
+                Objects.equals(transfer.getOwnerJobId(), exchange.getOwnerJobId()) &&
+                Objects.equals(transfer.getOwnerOperationId(),
+                        exchange.getOwnerJobId() == null ? exchange.getOperationId() : null) &&
+                transfer.getLeaseId() != null && transfer.getLeaseId().equals(exchange.getLeaseId()) &&
+                transfer.getNodeId().equals("configuration-return/" + exchange.getExchangeId() + "/" +
+                        exchange.getOperationId()) &&
+                transfer.getSource().equals("configuration-held/" + exchange.getDeviceUUID() + "/" +
+                        exchange.getExchangeId() + "/" + exchange.getOperationId()) &&
+                transfer.getDestination().equals("qio/" + frequencyUUID) &&
+                transfer.getResources().equals(Collections.singletonMap(
+                        exchange.getTargetResource(), 1L)) &&
+                transfer.getQIOBaselines().equals(Collections.singletonMap(
+                        exchange.getTargetResource(), baseline)) &&
+                (allowCommitted && transfer.getResolution() ==
+                        QIODurableTransferRecord.Resolution.FORWARD_COMMITTED ||
+                        transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE);
     }
 
     @Nullable
@@ -1497,8 +1532,8 @@ public final class QIOProcessingNetworkData {
         QIODurableTransferRecord found = null;
         for (QIODurableTransferRecord transfer : durableTransfers.values()) {
             if (transfer.getType() == QIODurableTransferRecord.Type.QIO_TO_JOB &&
-                  Objects.equals(jobId, transfer.getOwnerJobId()) &&
-                  transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE) {
+                    Objects.equals(jobId, transfer.getOwnerJobId()) &&
+                    transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE) {
                 if (found != null) {
                     throw new IllegalStateException("QIO job has more than one active reservation transfer");
                 }
@@ -1511,11 +1546,11 @@ public final class QIOProcessingNetworkData {
     @Nonnull
     /** 返回任务拥有的未结算 transfer。 */
     public List<QIODurableTransferRecord> getActiveJobTransfers(@Nonnull UUID jobId,
-          @Nonnull QIODurableTransferRecord.Type type) {
+                                                                @Nonnull QIODurableTransferRecord.Type type) {
         List<QIODurableTransferRecord> result = new ArrayList<>();
         for (QIODurableTransferRecord transfer : durableTransfers.values()) {
             if (Objects.equals(jobId, transfer.getOwnerJobId()) && transfer.getType() == type &&
-                  transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE) {
+                    transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE) {
                 result.add(transfer);
             }
         }
@@ -1526,12 +1561,12 @@ public final class QIOProcessingNetworkData {
     @Nonnull
     /** 返回独立机器操作拥有的未结算 transfer。 */
     public List<QIODurableTransferRecord> getActiveOperationTransfers(
-          @Nonnull UUID operationId, @Nonnull QIODurableTransferRecord.Type type) {
+            @Nonnull UUID operationId, @Nonnull QIODurableTransferRecord.Type type) {
         List<QIODurableTransferRecord> result = new ArrayList<>();
         for (QIODurableTransferRecord transfer : durableTransfers.values()) {
             if (Objects.equals(operationId, transfer.getOwnerOperationId()) &&
-                  transfer.getType() == type &&
-                  transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE) {
+                    transfer.getType() == type &&
+                    transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE) {
                 result.add(transfer);
             }
         }
@@ -1541,7 +1576,7 @@ public final class QIOProcessingNetworkData {
 
     /** 记录通用 transfer 来源已扣除。 */
     public void markGenericTransferSourceDebited(@Nonnull UUID transferId,
-          @Nonnull String receipt, long sourceRevision) {
+                                                 @Nonnull String receipt, long sourceRevision) {
         QIODurableTransferRecord transfer = requireGenericTransfer(transferId);
         transfer.markSourceDebited(receipt, sourceRevision);
         markDirty();
@@ -1549,7 +1584,7 @@ public final class QIOProcessingNetworkData {
 
     /** 记录通用 transfer 目标已入账。 */
     public void markGenericTransferDestinationCredited(@Nonnull UUID transferId,
-          @Nonnull String receipt) {
+                                                       @Nonnull String receipt) {
         QIODurableTransferRecord transfer = requireGenericTransfer(transferId);
         transfer.markDestinationCredited(receipt);
         markDirty();
@@ -1580,11 +1615,11 @@ public final class QIOProcessingNetworkData {
     public void discardUnconfirmedPassiveMachineTransfer(@Nonnull UUID transferId) {
         QIODurableTransferRecord transfer = requireGenericTransfer(transferId);
         if (transfer.getType() != QIODurableTransferRecord.Type.JOB_TO_MACHINE ||
-              transfer.getOwnerJobId() != null || transfer.getOwnerOperationId() == null ||
-              transfer.getPhase() != QIODurableTransferRecord.Phase.SOURCE_DEBITED ||
-              transfer.getResolution() != QIODurableTransferRecord.Resolution.NONE) {
+                transfer.getOwnerJobId() != null || transfer.getOwnerOperationId() == null ||
+                transfer.getPhase() != QIODurableTransferRecord.Phase.SOURCE_DEBITED ||
+                transfer.getResolution() != QIODurableTransferRecord.Resolution.NONE) {
             throw new IllegalStateException(
-                  "Only an unconfirmed passive machine input can be discarded");
+                    "Only an unconfirmed passive machine input can be discarded");
         }
         durableTransfers.remove(transferId);
         markDirty();
@@ -1596,24 +1631,24 @@ public final class QIOProcessingNetworkData {
         Objects.requireNonNull(operationId, "operationId");
         for (QIODurableTransferRecord transfer : durableTransfers.values()) {
             if (operationId.equals(transfer.getOwnerOperationId()) &&
-                transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE) {
+                    transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE) {
                 throw new IllegalStateException("Cannot remove an operation with an active durable transfer");
             }
         }
         for (QIOConfigurationExchangeRecord exchange : configurationExchanges.values()) {
             if (operationId.equals(exchange.getOperationId()) &&
-                  !exchange.getPhase().isSettled()) {
+                    !exchange.getPhase().isSettled()) {
                 throw new IllegalStateException(
-                      "Cannot remove an operation with an active configuration exchange");
+                        "Cannot remove an operation with an active configuration exchange");
             }
         }
         int before = durableTransfers.size();
         durableTransfers.entrySet().removeIf(entry -> operationId.equals(
-              entry.getValue().getOwnerOperationId()));
+                entry.getValue().getOwnerOperationId()));
         int removed = before - durableTransfers.size();
         int exchangesBefore = configurationExchanges.size();
         configurationExchanges.entrySet().removeIf(entry -> operationId.equals(
-              entry.getValue().getOperationId()));
+                entry.getValue().getOperationId()));
         removed = Math.addExact(removed, exchangesBefore - configurationExchanges.size());
         if (removed > 0) {
             markDirty();
@@ -1642,16 +1677,16 @@ public final class QIOProcessingNetworkData {
                 continue;
             }
             if (transfer.getType() == QIODurableTransferRecord.Type.JOB_TO_MACHINE &&
-                transfer.getOwnerJobId() != null) {
+                    transfer.getOwnerJobId() != null) {
                 QIOJobBuffer buffer = jobBuffers.get(transfer.getOwnerJobId());
                 if (buffer != null) {
                     for (Map.Entry<PortableResourceDescriptor, Long> resource :
-                          transfer.getResources().entrySet()) {
+                            transfer.getResources().entrySet()) {
                         long staged = Math.min(resource.getValue(), buffer.get(
-                              QIOJobBuffer.Compartment.IN_PROCESS_RETURN, resource.getKey()));
+                                QIOJobBuffer.Compartment.IN_PROCESS_RETURN, resource.getKey()));
                         if (staged > 0) {
                             buffer.remove(QIOJobBuffer.Compartment.IN_PROCESS_RETURN,
-                                  resource.getKey(), staged);
+                                    resource.getKey(), staged);
                         }
                     }
                 }
@@ -1668,7 +1703,7 @@ public final class QIOProcessingNetworkData {
             if (exchange.requiresTargetReturn()) {
                 if (!exchange.isForceRecoveryPending()) {
                     exchange.contaminate(QIOConfigurationExchangeRecord.FORCE_RECOVERY_PENDING_PREFIX +
-                          "operation ownership was explicitly cleared");
+                            "operation ownership was explicitly cleared");
                     markConfigurationExchangeChanged(exchange.getExchangeId());
                 }
                 return false;
@@ -1684,12 +1719,12 @@ public final class QIOProcessingNetworkData {
 
     private boolean isPendingConfigurationTargetReturn(QIODurableTransferRecord transfer) {
         if (transfer.getResolution() != QIODurableTransferRecord.Resolution.NONE ||
-              transfer.getType() != QIODurableTransferRecord.Type.JOB_TO_QIO) {
+                transfer.getType() != QIODurableTransferRecord.Type.JOB_TO_QIO) {
             return false;
         }
         for (QIOConfigurationExchangeRecord exchange : configurationExchanges.values()) {
             if (exchange.getTargetReturnTransferId().equals(transfer.getTransferId()) &&
-                  exchange.requiresTargetReturn()) {
+                    exchange.requiresTargetReturn()) {
                 return true;
             }
         }
@@ -1706,7 +1741,7 @@ public final class QIOProcessingNetworkData {
             return true;
         }
         return transfer.getOwnerJobId() != null &&
-              transfer.getNodeId().endsWith("/" + operationId);
+                transfer.getNodeId().endsWith("/" + operationId);
     }
 
     /**
@@ -1723,9 +1758,9 @@ public final class QIOProcessingNetworkData {
         int removed = 0;
         for (QIODurableTransferRecord transfer : new ArrayList<>(durableTransfers.values())) {
             if (operationId.equals(transfer.getOwnerOperationId()) &&
-                  transfer.getType() != QIODurableTransferRecord.Type.JOB_TO_QIO &&
-                  transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE &&
-                  transfer.getPhase() == QIODurableTransferRecord.Phase.PREPARED) {
+                    transfer.getType() != QIODurableTransferRecord.Type.JOB_TO_QIO &&
+                    transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE &&
+                    transfer.getPhase() == QIODurableTransferRecord.Phase.PREPARED) {
                 durableTransfers.remove(transfer.getTransferId());
                 removed++;
             }
@@ -1739,7 +1774,7 @@ public final class QIOProcessingNetworkData {
             if (exchange.requiresTargetReturn()) {
                 if (!exchange.isForceRecoveryPending()) {
                     exchange.contaminate(QIOConfigurationExchangeRecord.FORCE_RECOVERY_PENDING_PREFIX +
-                          "operation ownership was explicitly cleared");
+                            "operation ownership was explicitly cleared");
                     markConfigurationExchangeChanged(exchange.getExchangeId());
                 }
                 return false;
@@ -1762,7 +1797,7 @@ public final class QIOProcessingNetworkData {
         int removed = 0;
         for (QIODurableTransferRecord transfer : new ArrayList<>(durableTransfers.values())) {
             if (operationId.equals(transfer.getOwnerOperationId()) &&
-                  transfer.getType() != QIODurableTransferRecord.Type.JOB_TO_QIO) {
+                    transfer.getType() != QIODurableTransferRecord.Type.JOB_TO_QIO) {
                 durableTransfers.remove(transfer.getTransferId());
                 removed++;
             }
@@ -1776,7 +1811,7 @@ public final class QIOProcessingNetworkData {
             if (exchange.requiresTargetReturn()) {
                 if (!exchange.isForceRecoveryPending()) {
                     exchange.contaminate(QIOConfigurationExchangeRecord.FORCE_RECOVERY_PENDING_PREFIX +
-                          "operation ownership was explicitly cleared");
+                            "operation ownership was explicitly cleared");
                     markConfigurationExchangeChanged(exchange.getExchangeId());
                 }
                 return false;
@@ -1794,17 +1829,17 @@ public final class QIOProcessingNetworkData {
     /** 删除已由恢复服务结算的配置交换记录。 */
     public boolean removeForcedRecoveryConfigurationExchange(@Nonnull UUID exchangeId) {
         QIOConfigurationExchangeRecord exchange = configurationExchanges.get(
-              Objects.requireNonNull(exchangeId, "exchangeId"));
+                Objects.requireNonNull(exchangeId, "exchangeId"));
         if (exchange == null || exchange.hasOutstandingClaim() ||
-              exchange.getPhase() != QIOConfigurationExchangeRecord.Phase.CANCELLED &&
-                    (exchange.getPhase() != QIOConfigurationExchangeRecord.Phase.CONTAMINATED ||
-                          !exchange.isForceRecoveryPending())) {
+                exchange.getPhase() != QIOConfigurationExchangeRecord.Phase.CANCELLED &&
+                        (exchange.getPhase() != QIOConfigurationExchangeRecord.Phase.CONTAMINATED ||
+                                !exchange.isForceRecoveryPending())) {
             return false;
         }
         QIODurableTransferRecord returnTransfer = durableTransfers.get(
-              exchange.getTargetReturnTransferId());
+                exchange.getTargetReturnTransferId());
         if (returnTransfer != null && returnTransfer.getResolution() !=
-              QIODurableTransferRecord.Resolution.FORWARD_COMMITTED) {
+                QIODurableTransferRecord.Resolution.FORWARD_COMMITTED) {
             return false;
         }
         configurationExchanges.remove(exchangeId);
@@ -1817,21 +1852,21 @@ public final class QIOProcessingNetworkData {
 
     /** Removes one settled job operation's handoff history after its endpoint was saved. */
     public int removeCommittedJobOperationTransfers(@Nonnull UUID jobId,
-          @Nonnull String operationNodeId) {
+                                                    @Nonnull String operationNodeId) {
         Objects.requireNonNull(jobId, "jobId");
         Objects.requireNonNull(operationNodeId, "operationNodeId");
         for (QIODurableTransferRecord transfer : durableTransfers.values()) {
             if (jobId.equals(transfer.getOwnerJobId()) &&
-                  operationNodeId.equals(transfer.getNodeId()) &&
-                  transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE) {
+                    operationNodeId.equals(transfer.getNodeId()) &&
+                    transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE) {
                 throw new IllegalStateException(
-                      "Cannot remove a job operation with an active durable transfer");
+                        "Cannot remove a job operation with an active durable transfer");
             }
         }
         int before = durableTransfers.size();
         durableTransfers.entrySet().removeIf(entry -> jobId.equals(
-              entry.getValue().getOwnerJobId()) && operationNodeId.equals(
-                    entry.getValue().getNodeId()));
+                entry.getValue().getOwnerJobId()) && operationNodeId.equals(
+                entry.getValue().getNodeId()));
         int removed = before - durableTransfers.size();
         if (removed > 0) {
             markDirty();
@@ -1840,31 +1875,31 @@ public final class QIOProcessingNetworkData {
     }
 
     public int removeCommittedJobOperationTransfers(@Nonnull UUID jobId,
-          @Nonnull UUID operationId) {
+                                                    @Nonnull UUID operationId) {
         Objects.requireNonNull(operationId, "operationId");
         for (QIOConfigurationExchangeRecord exchange : configurationExchanges.values()) {
             if (jobId.equals(exchange.getOwnerJobId()) &&
-                  operationId.equals(exchange.getOperationId()) &&
-                  !exchange.getPhase().isSettled()) {
+                    operationId.equals(exchange.getOperationId()) &&
+                    !exchange.getPhase().isSettled()) {
                 throw new IllegalStateException(
-                      "Cannot remove a job operation with an active configuration exchange");
+                        "Cannot remove a job operation with an active configuration exchange");
             }
         }
         String suffix = "/" + operationId;
         List<String> nodeIds = durableTransfers.values().stream()
-              .filter(transfer -> jobId.equals(transfer.getOwnerJobId()) &&
-                    transfer.getNodeId().endsWith(suffix))
-              .map(QIODurableTransferRecord::getNodeId).distinct()
-              .collect(java.util.stream.Collectors.toList());
+                .filter(transfer -> jobId.equals(transfer.getOwnerJobId()) &&
+                        transfer.getNodeId().endsWith(suffix))
+                .map(QIODurableTransferRecord::getNodeId).distinct()
+                .collect(java.util.stream.Collectors.toList());
         int removed = 0;
         for (String nodeId : nodeIds) {
             removed = Math.addExact(removed,
-                  removeCommittedJobOperationTransfers(jobId, nodeId));
+                    removeCommittedJobOperationTransfers(jobId, nodeId));
         }
         int exchangesBefore = configurationExchanges.size();
         configurationExchanges.entrySet().removeIf(entry -> jobId.equals(
-              entry.getValue().getOwnerJobId()) && operationId.equals(
-                    entry.getValue().getOperationId()));
+                entry.getValue().getOwnerJobId()) && operationId.equals(
+                entry.getValue().getOperationId()));
         removed = Math.addExact(removed, exchangesBefore - configurationExchanges.size());
         if (exchangesBefore != configurationExchanges.size()) markDirty();
         return removed;
@@ -1880,12 +1915,12 @@ public final class QIOProcessingNetworkData {
         }
         int before = durableTransfers.size();
         durableTransfers.entrySet().removeIf(entry -> jobId.equals(
-              entry.getValue().getOwnerJobId()) && entry.getValue().getResolution() !=
-                    QIODurableTransferRecord.Resolution.NONE);
+                entry.getValue().getOwnerJobId()) && entry.getValue().getResolution() !=
+                QIODurableTransferRecord.Resolution.NONE);
         int removed = before - durableTransfers.size();
         int exchangesBefore = configurationExchanges.size();
         configurationExchanges.entrySet().removeIf(entry -> jobId.equals(
-              entry.getValue().getOwnerJobId()) && entry.getValue().getPhase().isSettled());
+                entry.getValue().getOwnerJobId()) && entry.getValue().getPhase().isSettled());
         removed = Math.addExact(removed, exchangesBefore - configurationExchanges.size());
         if (removed > 0) {
             markDirty();
@@ -1897,12 +1932,12 @@ public final class QIOProcessingNetworkData {
     public void debitJobMachineTransfer(@Nonnull UUID transferId) {
         QIODurableTransferRecord transfer = requireGenericTransfer(transferId);
         if (transfer.getType() != QIODurableTransferRecord.Type.JOB_TO_MACHINE ||
-              transfer.getPhase() != QIODurableTransferRecord.Phase.PREPARED) {
+                transfer.getPhase() != QIODurableTransferRecord.Phase.PREPARED) {
             throw new IllegalStateException("QIO transfer is not a prepared job-to-machine handoff");
         }
         QIOJobBuffer buffer = requireJobBuffer(transfer.getOwnerJobId());
         if (!buffer.contains(QIOJobBuffer.Compartment.IN_PROCESS_RETURN,
-              transfer.getResources())) {
+                transfer.getResources())) {
             buffer.stageMachineInput(transfer.getResources());
         }
         transfer.markSourceDebited("job-buffer-staged", networkRevision);
@@ -1913,12 +1948,12 @@ public final class QIOProcessingNetworkData {
     public void creditMachineOutputTransfer(@Nonnull UUID transferId) {
         QIODurableTransferRecord transfer = requireGenericTransfer(transferId);
         if (transfer.getType() != QIODurableTransferRecord.Type.MACHINE_TO_JOB ||
-              transfer.getPhase() != QIODurableTransferRecord.Phase.SOURCE_DEBITED) {
+                transfer.getPhase() != QIODurableTransferRecord.Phase.SOURCE_DEBITED) {
             throw new IllegalStateException("QIO transfer is not a debited machine output handoff");
         }
         QIOJobBuffer buffer = requireJobBuffer(transfer.getOwnerJobId());
         transfer.getResources().forEach((resource, amount) ->
-              buffer.add(QIOJobBuffer.Compartment.PRODUCED, resource, amount));
+                buffer.add(QIOJobBuffer.Compartment.PRODUCED, resource, amount));
         transfer.markDestinationCredited("job-buffer-produced");
         markDirty();
     }
@@ -1927,12 +1962,12 @@ public final class QIOProcessingNetworkData {
     public void completeJobMachineTransfer(@Nonnull UUID transferId) {
         QIODurableTransferRecord transfer = requireGenericTransfer(transferId);
         if (transfer.getType() != QIODurableTransferRecord.Type.JOB_TO_MACHINE ||
-              transfer.getPhase() != QIODurableTransferRecord.Phase.DESTINATION_CREDITED) {
+                transfer.getPhase() != QIODurableTransferRecord.Phase.DESTINATION_CREDITED) {
             throw new IllegalStateException("QIO transfer is not a credited job-to-machine handoff");
         }
         QIOJobBuffer buffer = requireJobBuffer(transfer.getOwnerJobId());
         if (buffer.contains(QIOJobBuffer.Compartment.IN_PROCESS_RETURN,
-              transfer.getResources())) {
+                transfer.getResources())) {
             buffer.commitMachineInput(transfer.getResources());
         }
         transfer.commitForward();
@@ -1948,13 +1983,13 @@ public final class QIOProcessingNetworkData {
     public void rollbackUncreditedJobMachineTransfer(@Nonnull UUID transferId) {
         QIODurableTransferRecord transfer = requireGenericTransfer(transferId);
         if (transfer.getType() != QIODurableTransferRecord.Type.JOB_TO_MACHINE ||
-              transfer.getPhase() != QIODurableTransferRecord.Phase.SOURCE_DEBITED) {
+                transfer.getPhase() != QIODurableTransferRecord.Phase.SOURCE_DEBITED) {
             throw new IllegalStateException(
-                  "QIO transfer is not an uncredited job-to-machine handoff");
+                    "QIO transfer is not an uncredited job-to-machine handoff");
         }
         QIOJobBuffer buffer = requireJobBuffer(transfer.getOwnerJobId());
         if (!buffer.contains(QIOJobBuffer.Compartment.IN_PROCESS_RETURN,
-              transfer.getResources())) {
+                transfer.getResources())) {
             throw new IllegalStateException("QIO job no longer owns the staged machine input");
         }
         buffer.restoreMachineInput(transfer.getResources());
@@ -1966,15 +2001,15 @@ public final class QIOProcessingNetworkData {
     public void stageJobReturnTransfer(@Nonnull UUID transferId) {
         QIODurableTransferRecord transfer = requireGenericTransfer(transferId);
         if (transfer.getType() != QIODurableTransferRecord.Type.JOB_TO_QIO ||
-              transfer.getPhase() != QIODurableTransferRecord.Phase.PREPARED ||
-              transfer.getResources().size() != 1) {
+                transfer.getPhase() != QIODurableTransferRecord.Phase.PREPARED ||
+                transfer.getResources().size() != 1) {
             throw new IllegalStateException("QIO transfer is not a prepared job return");
         }
         Map.Entry<PortableResourceDescriptor, Long> resource =
-              transfer.getResources().entrySet().iterator().next();
+                transfer.getResources().entrySet().iterator().next();
         QIOJobBuffer buffer = requireJobBuffer(transfer.getOwnerJobId());
         if (!buffer.contains(QIOJobBuffer.Compartment.RETURNING,
-              transfer.getResources())) {
+                transfer.getResources())) {
             if (PROGRESSIVE_ROOT_DELIVERY_NODE_ID.equals(transfer.getNodeId())) {
                 buffer.stageSettledOutputReturn(resource.getKey(), resource.getValue());
             } else {
@@ -1989,18 +2024,18 @@ public final class QIOProcessingNetworkData {
     public void completeJobReturnTransfer(@Nonnull UUID transferId) {
         QIODurableTransferRecord transfer = requireGenericTransfer(transferId);
         if (transfer.getType() != QIODurableTransferRecord.Type.JOB_TO_QIO ||
-              transfer.getPhase() != QIODurableTransferRecord.Phase.DESTINATION_CREDITED ||
-              transfer.getResources().size() != 1) {
+                transfer.getPhase() != QIODurableTransferRecord.Phase.DESTINATION_CREDITED ||
+                transfer.getResources().size() != 1) {
             throw new IllegalStateException("QIO transfer is not a credited job return");
         }
         Map.Entry<PortableResourceDescriptor, Long> resource =
-              transfer.getResources().entrySet().iterator().next();
+                transfer.getResources().entrySet().iterator().next();
         requireJobBuffer(transfer.getOwnerJobId()).commitReturn(resource.getKey(),
-              resource.getValue());
+                resource.getValue());
         QIOCraftingJob job = requireJob(transfer.getOwnerJobId());
         if ((job.getState() == QIOCraftingJobState.DELIVERING ||
-              PROGRESSIVE_ROOT_DELIVERY_NODE_ID.equals(transfer.getNodeId())) &&
-              resource.getKey().equals(job.getActivePlan().getRootResource())) {
+                PROGRESSIVE_ROOT_DELIVERY_NODE_ID.equals(transfer.getNodeId())) &&
+                resource.getKey().equals(job.getActivePlan().getRootResource())) {
             job.recordRootDelivery(resource.getValue());
         }
         transfer.commitForward();
@@ -2009,7 +2044,7 @@ public final class QIOProcessingNetworkData {
 
     /** 记录 QIO 预留来源扣除回执。 */
     public void markReservationSourceDebited(@Nonnull UUID transferId, @Nonnull String receipt,
-          long claimRevision) {
+                                             long claimRevision) {
         QIODurableTransferRecord transfer = requireReservationTransfer(transferId);
         transfer.markSourceDebited(receipt, claimRevision);
         markDirty();
@@ -2061,7 +2096,7 @@ public final class QIOProcessingNetworkData {
         QIOCraftingJob job = requireJob(jobId);
         QIOMaterialCommitment commitment = requireCommitment(jobId);
         if (job.getState() != QIOCraftingJobState.RESERVING || job.getExecutionSlotToken() == null ||
-              !commitment.getRequiredAmounts().isEmpty() || !requireJobBuffer(jobId).isEmpty()) {
+                !commitment.getRequiredAmounts().isEmpty() || !requireJobBuffer(jobId).isEmpty()) {
             throw new IllegalStateException("QIO job is not an empty reservation");
         }
         commitment.markConsumed(claimRevision);
@@ -2071,7 +2106,7 @@ public final class QIOProcessingNetworkData {
 
     /** 放弃尚未扣除来源的预留并把任务转入等待状态。 */
     public void abortPreparedReservation(@Nonnull UUID transferId,
-          @Nonnull QIOCraftingJobState nextState) {
+                                         @Nonnull QIOCraftingJobState nextState) {
         QIODurableTransferRecord transfer = requireReservationTransfer(transferId);
         if (transfer.getPhase() != QIODurableTransferRecord.Phase.PREPARED) {
             throw new IllegalStateException("A debited reservation transfer cannot be discarded");
@@ -2121,7 +2156,7 @@ public final class QIOProcessingNetworkData {
         for (UUID jobId : waitingExecutionSlotJobs) {
             QIOCraftingJob job = jobs.get(jobId);
             if (job != null && job.getState() == QIOCraftingJobState.WAITING_EXECUTION_SLOT &&
-                  !job.isCancellationRequested()) {
+                    !job.isCancellationRequested()) {
                 candidates.add(job);
             }
         }
@@ -2147,22 +2182,22 @@ public final class QIOProcessingNetworkData {
             blockers.add("active_execution_slots");
         }
         if (durableTransfers.values().stream().anyMatch(transfer ->
-              transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE)) {
+                transfer.getResolution() == QIODurableTransferRecord.Resolution.NONE)) {
             blockers.add("pending_transfers");
         }
         if (configurationExchanges.values().stream().anyMatch(exchange ->
-              !exchange.getPhase().isSettled())) {
+                !exchange.getPhase().isSettled())) {
             blockers.add("pending_configuration_exchanges");
         }
         if (commitments.values().stream().anyMatch(commitment ->
-              commitment.getPendingMutation() != null ||
-                    commitment.getState() != QIOMaterialCommitment.State.CONSUMED &&
-                          commitment.getState() != QIOMaterialCommitment.State.RELEASED)) {
+                commitment.getPendingMutation() != null ||
+                        commitment.getState() != QIOMaterialCommitment.State.CONSUMED &&
+                                commitment.getState() != QIOMaterialCommitment.State.RELEASED)) {
             blockers.add("material_claims");
         }
         if (passiveOperations.values().stream().anyMatch(operation ->
-              !operation.getState().isTerminal() || !operation.getInputBuffer().isEmpty() ||
-                    !operation.getOutputBuffer().isEmpty())) {
+                !operation.getState().isTerminal() || !operation.getInputBuffer().isEmpty() ||
+                        !operation.getOutputBuffer().isEmpty())) {
             blockers.add("passive_operations");
         }
         if (!maintenanceRules.getPendingEvaluations().isEmpty()) {
@@ -2191,12 +2226,15 @@ public final class QIOProcessingNetworkData {
         data.setTag("activeExecutionSlotsByJobId", executionSlots.write());
         data.setTag("durableTransfers", writeValues(durableTransfers.values(), QIODurableTransferRecord::write));
         data.setTag("configurationExchanges", writeValues(configurationExchanges.values(),
-              QIOConfigurationExchangeRecord::write));
+                QIOConfigurationExchangeRecord::write));
         data.setTag("passiveOperations", writeValues(passiveOperations.values(),
-              QIOPassiveOperation::write));
+                QIOPassiveOperation::write));
         data.setTag("policies", policies.write());
         data.setTag("automationRecipeProfiles", automationRecipeProfiles.write());
         data.setTag("workbenchConfiguration", workbenchConfiguration.write());
+        NBTTagList encodingJobs = new NBTTagList();
+        workbenchEncodingJobs.values().forEach(record -> encodingJobs.appendTag(record.write()));
+        data.setTag("workbenchEncodingJobs", encodingJobs);
         if (workbenchConfigurationRecovery != null) {
             data.setTag("workbenchConfigurationRecovery", workbenchConfigurationRecovery.copy());
         }
@@ -2206,38 +2244,46 @@ public final class QIOProcessingNetworkData {
         return data;
     }
 
+    static void requireMachineRecipeTableSchema(int schema) throws QIOIncompatibleRecipePolicyException {
+        if (schema == 7) {
+            throw new QIOIncompatibleRecipePolicyException(
+                    "Network schema 7 predates the shared machine recipe table. No automatic policy migration or transaction reset is allowed.");
+        }
+    }
+
     @Nonnull
     /** 从 NBT 读取网络并验证所有交叉引用。 */
     public static QIOProcessingNetworkData read(@Nonnull NBTTagCompound data,
-          @Nullable UUID expectedFrequencyUUID) throws QIOProcessingDataException {
+                                                @Nullable UUID expectedFrequencyUUID) throws QIOProcessingDataException {
         int schema = data.getInteger("networkDataSchemaVersion");
+        requireMachineRecipeTableSchema(schema);
         if (schema != SCHEMA_VERSION) {
             throw new QIOProcessingDataException("Unsupported QIO Processing network schema " + schema +
-                  ", expected " + SCHEMA_VERSION);
+                    ", expected " + SCHEMA_VERSION);
         }
         UUID frequencyUUID = QIOProcessingNbt.readUUID(data, "frequencyUUID");
         if (expectedFrequencyUUID != null && !expectedFrequencyUUID.equals(frequencyUUID)) {
             throw new QIOProcessingDataException("QIO Processing file name and frequency UUID disagree");
         }
         QIOProcessingNetworkData network = new QIOProcessingNetworkData(frequencyUUID,
-              QIOFrequencyIdentitySnapshot.read(data.getCompoundTag("lastKnownFrequencyIdentity")));
+                QIOFrequencyIdentitySnapshot.read(data.getCompoundTag("lastKnownFrequencyIdentity")));
         network.lifecycle = QIOProcessingNbt.readEnum(data, "networkLifecycle",
-              QIOProcessingNetworkLifecycle.class);
+                QIOProcessingNetworkLifecycle.class);
         network.networkRevision = requirePersistedCounter(data.getLong("networkRevision"), "networkRevision");
         if (!data.hasKey("taskCommitmentRevision", NBT.TAG_LONG) ||
-              !data.hasKey("waitingMaterialIndex", NBT.TAG_LIST) ||
-              !data.hasKey("activeExecutionSlotsByJobId", NBT.TAG_LIST) ||
-              !data.hasKey("policies", NBT.TAG_COMPOUND) ||
-              !data.hasKey("automationRecipeProfiles", NBT.TAG_COMPOUND) ||
-              !data.hasKey("workbenchConfiguration", NBT.TAG_COMPOUND) ||
-              !data.hasKey("maintenanceRules", NBT.TAG_COMPOUND) ||
-              !data.hasKey("automationDevices", NBT.TAG_COMPOUND) ||
-              !data.hasKey("providerCatalog", NBT.TAG_COMPOUND)) {
+                !data.hasKey("waitingMaterialIndex", NBT.TAG_LIST) ||
+                !data.hasKey("activeExecutionSlotsByJobId", NBT.TAG_LIST) ||
+                !data.hasKey("policies", NBT.TAG_COMPOUND) ||
+                !data.hasKey("automationRecipeProfiles", NBT.TAG_COMPOUND) ||
+                !data.hasKey("workbenchConfiguration", NBT.TAG_COMPOUND) ||
+                !data.hasKey("maintenanceRules", NBT.TAG_COMPOUND) ||
+                !data.hasKey("automationDevices", NBT.TAG_COMPOUND) ||
+                !data.hasKey("providerCatalog", NBT.TAG_COMPOUND)) {
             throw new QIOProcessingDataException(
-                  "QIO Processing network is missing required current-schema state");
+                    "QIO Processing network is missing required current-schema state");
         }
         network.taskCommitmentRevision = requirePersistedCounter(
-              data.getLong("taskCommitmentRevision"), "taskCommitmentRevision");
+                data.getLong("taskCommitmentRevision"), "taskCommitmentRevision");
         network.schedulerClock = requirePersistedCounter(data.getLong("schedulerClock"), "schedulerClock");
         network.enqueueCounter = requirePersistedCounter(data.getLong("enqueueCounter"), "enqueueCounter");
         network.dispatchCounter = requirePersistedCounter(data.getLong("dispatchCounter"), "dispatchCounter");
@@ -2262,22 +2308,22 @@ public final class QIOProcessingNetworkData {
         NBTTagList commitments = boundedList(data, "materialCommitments", MAX_PERSISTED_JOBS);
         for (int i = 0; i < commitments.tagCount(); i++) {
             QIOMaterialCommitment commitment = QIOMaterialCommitment.read(
-                  commitments.getCompoundTagAt(i));
+                    commitments.getCompoundTagAt(i));
             if (network.commitments.put(commitment.getJobId(), commitment) != null) {
                 throw new QIOProcessingDataException("Duplicate QIO material commitment " +
-                      commitment.getJobId());
+                        commitment.getJobId());
             }
         }
         network.waitingMaterialIndex = QIOWaitingMaterialIndex.read(
-              data.getTagList("waitingMaterialIndex", NBT.TAG_COMPOUND));
+                data.getTagList("waitingMaterialIndex", NBT.TAG_COMPOUND));
         network.executionSlots = QIOExecutionSlotPool.read(
-              data.getTagList("activeExecutionSlotsByJobId", NBT.TAG_COMPOUND));
+                data.getTagList("activeExecutionSlotsByJobId", NBT.TAG_COMPOUND));
         network.policies = QIOPolicyCatalog.read(data.getCompoundTag("policies"));
         network.automationRecipeProfiles = QIOAutomationRecipeProfileCatalog.read(
-              data.getCompoundTag("automationRecipeProfiles"));
+                data.getCompoundTag("automationRecipeProfiles"));
         try {
             network.workbenchConfiguration = QIOWorkbenchConfiguration.read(
-                  data.getCompoundTag("workbenchConfiguration"));
+                    data.getCompoundTag("workbenchConfiguration"));
         } catch (QIOProcessingDataException error) {
             // Configuration schema changes must not prevent the frequency from loading. Keep a
             // bounded copy for manual recovery/inspection and start with an empty editable set.
@@ -2285,22 +2331,34 @@ public final class QIOProcessingNetworkData {
             // Never re-emit an unbounded legacy blob: that would re-trigger the UTF/NBT failure
             // which caused the quarantine in the first place.
             network.workbenchConfigurationRecovery = compactWorkbenchRecovery(
-                  invalidConfiguration);
+                    invalidConfiguration);
             network.workbenchConfiguration = new QIOWorkbenchConfiguration();
             network.repairedOnLoad = true;
             Mekanism.logger.warn(
-                  "QIO workbench configuration was incompatible and has been cleared for manual recovery",
-                  error);
+                    "QIO workbench configuration was incompatible and has been cleared for manual recovery",
+                    error);
         }
         if (data.hasKey("workbenchConfigurationRecovery", NBT.TAG_COMPOUND)) {
             NBTTagCompound recovery = data.getCompoundTag("workbenchConfigurationRecovery");
             network.workbenchConfigurationRecovery = compactWorkbenchRecovery(recovery);
         }
         network.workbenchConfiguration.bindGenerationChangeListener(network::markDirty);
+        NBTTagList encodingJobs = data.getTagList("workbenchEncodingJobs", NBT.TAG_COMPOUND);
+        if (encodingJobs.tagCount() > 128) throw new QIOProcessingDataException("Too many workbench encoding jobs");
+        long encodingFootprint = 0;
+        for (int index = 0; index < encodingJobs.tagCount(); index++) {
+            QIOWorkbenchEncodingRecord record = QIOWorkbenchEncodingRecord.read(encodingJobs.getCompoundTagAt(index));
+            encodingFootprint += record.getStorageFootprint();
+            if (encodingFootprint > 32L * 1024 * 1024)
+                throw new QIOProcessingDataException("Encoding jobs exceed network budget");
+            if (network.workbenchEncodingJobs.put(record.getId(), record) != null) {
+                throw new QIOProcessingDataException("Duplicate workbench encoding job");
+            }
+        }
         network.maintenanceRules = QIOMaintenanceRuleCatalog.read(frequencyUUID,
-              data.getCompoundTag("maintenanceRules"));
+                data.getCompoundTag("maintenanceRules"));
         network.automationDevices = QIOAutomationDeviceCatalog.read(
-              data.getCompoundTag("automationDevices"));
+                data.getCompoundTag("automationDevices"));
         network.providerCatalog = QIOProviderCatalog.read(data.getCompoundTag("providerCatalog"));
         network.providerCatalog.validateDevices(network.automationDevices);
         if (network.automationDevices.markAllOfflineAfterLoad()) {
@@ -2309,31 +2367,31 @@ public final class QIOProcessingNetworkData {
         NBTTagList transfers = boundedList(data, "durableTransfers", MAX_PERSISTED_TRANSFERS);
         for (int i = 0; i < transfers.tagCount(); i++) {
             QIODurableTransferRecord transfer = QIODurableTransferRecord.read(
-                  transfers.getCompoundTagAt(i));
+                    transfers.getCompoundTagAt(i));
             if (network.durableTransfers.put(transfer.getTransferId(), transfer) != null) {
                 throw new QIOProcessingDataException("Duplicate durable QIO transfer " +
-                      transfer.getTransferId());
+                        transfer.getTransferId());
             }
         }
         if (data.hasKey("configurationExchanges", NBT.TAG_LIST)) {
             NBTTagList exchanges = boundedList(data, "configurationExchanges",
-                  MAX_PERSISTED_TRANSFERS);
+                    MAX_PERSISTED_TRANSFERS);
             for (int i = 0; i < exchanges.tagCount(); i++) {
                 QIOConfigurationExchangeRecord exchange =
-                      QIOConfigurationExchangeRecord.read(exchanges.getCompoundTagAt(i));
+                        QIOConfigurationExchangeRecord.read(exchanges.getCompoundTagAt(i));
                 if (network.configurationExchanges.put(exchange.getExchangeId(), exchange) != null) {
                     throw new QIOProcessingDataException("Duplicate QIO configuration exchange " +
-                          exchange.getExchangeId());
+                            exchange.getExchangeId());
                 }
             }
         }
         NBTTagList passive = boundedList(data, "passiveOperations",
-              MAX_PERSISTED_PASSIVE_OPERATIONS);
+                MAX_PERSISTED_PASSIVE_OPERATIONS);
         for (int i = 0; i < passive.tagCount(); i++) {
             QIOPassiveOperation operation = QIOPassiveOperation.read(passive.getCompoundTagAt(i));
             if (network.passiveOperations.put(operation.getOperationId(), operation) != null) {
                 throw new QIOProcessingDataException("Duplicate QIO passive operation " +
-                      operation.getOperationId());
+                        operation.getOperationId());
             }
         }
         network.validateReferences();
@@ -2357,42 +2415,42 @@ public final class QIOProcessingNetworkData {
             QIOMaterialCommitment commitment = commitments.get(job.getJobId());
             if (job.getReadySinceSchedulerClock() > schedulerClock) {
                 throw new QIOProcessingDataException("QIO job readySince is ahead of scheduler clock " +
-                      job.getJobId());
+                        job.getJobId());
             }
             if (job.getLastDispatchSequence() >= dispatchCounter &&
-                  job.getLastDispatchSequence() >= 0) {
+                    job.getLastDispatchSequence() >= 0) {
                 throw new QIOProcessingDataException("QIO job dispatch sequence is ahead of its network " +
-                      job.getJobId());
+                        job.getJobId());
             }
             if (commitment.getPlanRevision() != job.getActivePlan().getRevision() ||
-                  !commitment.getMaterialRequirements().write().equals(
-                        job.getActivePlan().getMaterialRequirements().write()) ||
-                  commitment.getPriority() != job.getBasePriority() ||
-                  commitment.getEnqueueSequence() != job.getEnqueueSequence()) {
+                    !commitment.getMaterialRequirements().write().equals(
+                            job.getActivePlan().getMaterialRequirements().write()) ||
+                    commitment.getPriority() != job.getBasePriority() ||
+                    commitment.getEnqueueSequence() != job.getEnqueueSequence()) {
                 throw new QIOProcessingDataException("Material commitment disagrees with job " + job.getJobId());
             }
             long activeOperations = job.getStepRuntimes().values().stream()
-                  .mapToLong(QIOStepRuntime::getActiveAssignmentCount).sum();
+                    .mapToLong(QIOStepRuntime::getActiveAssignmentCount).sum();
             if (activeOperations > 0 && job.getExecutionSlotToken() == null) {
                 throw new QIOProcessingDataException("QIO job has active operations without an execution slot " +
-                      job.getJobId());
+                        job.getJobId());
             }
             if (job.getState() == QIOCraftingJobState.WAITING_MATERIALS &&
-                  (commitment.getMissingAmounts().isEmpty() || job.getExecutionSlotToken() != null)) {
+                    (commitment.getMissingAmounts().isEmpty() || job.getExecutionSlotToken() != null)) {
                 throw new QIOProcessingDataException("WAITING_MATERIALS job has inconsistent ownership " +
-                      job.getJobId());
+                        job.getJobId());
             }
             if (job.getState() == QIOCraftingJobState.WAITING_EXECUTION_SLOT &&
-                  (!commitment.isFullyCommitted() || job.getExecutionSlotToken() != null)) {
+                    (!commitment.isFullyCommitted() || job.getExecutionSlotToken() != null)) {
                 throw new QIOProcessingDataException("WAITING_EXECUTION_SLOT job is not ready " +
-                      job.getJobId());
+                        job.getJobId());
             }
         }
         executionSlots.validateAgainst(jobs);
         for (QIODurableTransferRecord transfer : durableTransfers.values()) {
             if (transfer.getOwnerJobId() != null && !jobs.containsKey(transfer.getOwnerJobId())) {
                 throw new QIOProcessingDataException("Durable transfer references unknown job " +
-                      transfer.getOwnerJobId());
+                        transfer.getOwnerJobId());
             }
             if (transfer.getType() == QIODurableTransferRecord.Type.QIO_TO_JOB) {
                 validateReservationTransfer(transfer);
@@ -2400,36 +2458,36 @@ public final class QIOProcessingNetworkData {
         }
         for (QIOConfigurationExchangeRecord exchange : configurationExchanges.values()) {
             if (exchange.getOwnerJobId() != null &&
-                  !jobs.containsKey(exchange.getOwnerJobId())) {
+                    !jobs.containsKey(exchange.getOwnerJobId())) {
                 throw new QIOProcessingDataException(
-                      "Configuration exchange references unknown job " +
-                            exchange.getOwnerJobId());
+                        "Configuration exchange references unknown job " +
+                                exchange.getOwnerJobId());
             }
             if (exchange.getOwnerJobId() == null &&
-                  !passiveOperations.containsKey(exchange.getOperationId())) {
+                    !passiveOperations.containsKey(exchange.getOperationId())) {
                 throw new QIOProcessingDataException(
-                      "Configuration exchange references unknown passive operation " +
-                            exchange.getOperationId());
+                        "Configuration exchange references unknown passive operation " +
+                                exchange.getOperationId());
             }
             QIODurableTransferRecord targetReturn = durableTransfers.get(
-                  exchange.getTargetReturnTransferId());
+                    exchange.getTargetReturnTransferId());
             if (targetReturn != null) {
                 BigInteger baseline = exchange.getTargetReturnQioBaseline();
                 if (baseline == null && exchange.requiresTargetReturn()) {
                     BigInteger persistedBaseline = targetReturn.getQIOBaselines().get(
-                          exchange.getTargetResource());
+                            exchange.getTargetResource());
                     if (persistedBaseline != null && persistedBaseline.equals(
-                          exchange.getTargetQioBaseline().subtract(BigInteger.ONE))) {
+                            exchange.getTargetQioBaseline().subtract(BigInteger.ONE))) {
                         exchange.prepareTargetReturn(persistedBaseline);
                         baseline = persistedBaseline;
                         repairedOnLoad = true;
                     }
                 }
                 if (baseline == null || !isConfigurationTargetReturnTransfer(targetReturn,
-                      exchange, baseline, true)) {
+                        exchange, baseline, true)) {
                     throw new QIOProcessingDataException(
-                          "Configuration target return transfer disagrees with its exchange " +
-                                exchange.getExchangeId());
+                            "Configuration target return transfer disagrees with its exchange " +
+                                    exchange.getExchangeId());
                 }
             }
             if (exchange.isTargetReturned() && targetReturn == null) {
@@ -2437,7 +2495,7 @@ public final class QIOProcessingNetworkData {
                 // the explicit disposition remains the authoritative ownership marker.
                 if (exchange.getPhase() != QIOConfigurationExchangeRecord.Phase.CANCELLED) {
                     throw new QIOProcessingDataException(
-                          "Returned configuration target is missing its durable transfer");
+                            "Returned configuration target is missing its durable transfer");
                 }
             }
         }
@@ -2484,9 +2542,9 @@ public final class QIOProcessingNetworkData {
     @Nonnull
     private QIODurableTransferRecord requireReservationTransfer(UUID transferId) {
         QIODurableTransferRecord transfer = durableTransfers.get(
-              Objects.requireNonNull(transferId, "transferId"));
+                Objects.requireNonNull(transferId, "transferId"));
         if (transfer == null || transfer.getType() != QIODurableTransferRecord.Type.QIO_TO_JOB ||
-              transfer.getResolution() != QIODurableTransferRecord.Resolution.NONE) {
+                transfer.getResolution() != QIODurableTransferRecord.Resolution.NONE) {
             throw new IllegalArgumentException("Unknown active QIO reservation transfer " + transferId);
         }
         return transfer;
@@ -2495,36 +2553,36 @@ public final class QIOProcessingNetworkData {
     @Nonnull
     private QIODurableTransferRecord requireGenericTransfer(UUID transferId) {
         QIODurableTransferRecord transfer = durableTransfers.get(
-              Objects.requireNonNull(transferId, "transferId"));
+                Objects.requireNonNull(transferId, "transferId"));
         if (transfer == null || transfer.getType() == QIODurableTransferRecord.Type.QIO_TO_JOB ||
-              transfer.getResolution() != QIODurableTransferRecord.Resolution.NONE) {
+                transfer.getResolution() != QIODurableTransferRecord.Resolution.NONE) {
             throw new IllegalArgumentException("Unknown active generic QIO transfer " + transferId);
         }
         return transfer;
     }
 
     private void validateReservationTransfer(QIODurableTransferRecord transfer)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         QIOCraftingJob job = jobs.get(transfer.getOwnerJobId());
         QIOMaterialCommitment commitment = commitments.get(transfer.getOwnerJobId());
         QIOJobBuffer buffer = jobBuffers.get(transfer.getOwnerJobId());
         if (job == null || commitment == null || buffer == null ||
-              transfer.getPlanRevision() != job.getActivePlan().getRevision() ||
-              job.getExecutionSlotToken() == null) {
+                transfer.getPlanRevision() != job.getActivePlan().getRevision() ||
+                job.getExecutionSlotToken() == null) {
             throw new QIOProcessingDataException("Reservation transfer has invalid job ownership " +
-                  transfer.getTransferId());
+                    transfer.getTransferId());
         }
         if (transfer.getPhase() == QIODurableTransferRecord.Phase.PREPARED ||
-              transfer.getPhase() == QIODurableTransferRecord.Phase.SOURCE_DEBITED) {
+                transfer.getPhase() == QIODurableTransferRecord.Phase.SOURCE_DEBITED) {
             if (job.getState() != QIOCraftingJobState.RESERVING || !commitment.isFullyCommitted() ||
-                  !buffer.get(QIOJobBuffer.Compartment.RESERVED).isEmpty()) {
+                    !buffer.get(QIOJobBuffer.Compartment.RESERVED).isEmpty()) {
                 throw new QIOProcessingDataException("Pending reservation state is inconsistent for job " +
-                      job.getJobId());
+                        job.getJobId());
             }
         } else if (transfer.getPhase() == QIODurableTransferRecord.Phase.DESTINATION_CREDITED) {
             if (job.getState() != QIOCraftingJobState.RESERVING || !commitment.isFullyCommitted()) {
                 throw new QIOProcessingDataException("Credited reservation state is inconsistent for job " +
-                      job.getJobId());
+                        job.getJobId());
             }
             for (Map.Entry<PortableResourceDescriptor, Long> entry : transfer.getResources().entrySet()) {
                 if (buffer.get(QIOJobBuffer.Compartment.RESERVED, entry.getKey()) < entry.getValue()) {
@@ -2532,9 +2590,9 @@ public final class QIOProcessingNetworkData {
                 }
             }
         } else if (transfer.getPhase() == QIODurableTransferRecord.Phase.COMMITTED &&
-              transfer.getResolution() == QIODurableTransferRecord.Resolution.FORWARD_COMMITTED) {
+                transfer.getResolution() == QIODurableTransferRecord.Resolution.FORWARD_COMMITTED) {
             if (job.getState() != QIOCraftingJobState.READY ||
-                  commitment.getState() != QIOMaterialCommitment.State.CONSUMED) {
+                    commitment.getState() != QIOMaterialCommitment.State.CONSUMED) {
                 throw new QIOProcessingDataException("Committed reservation did not activate its job");
             }
         }
@@ -2552,25 +2610,25 @@ public final class QIOProcessingNetworkData {
 
     private void transitionJob(QIOCraftingJob job, QIOCraftingJobState nextState) {
         if (job.getRevisionTransition() != null &&
-              job.getState() == QIOCraftingJobState.REPLAN_DRAINING &&
-              nextState != QIOCraftingJobState.REPLAN_DRAINING &&
-              nextState != QIOCraftingJobState.REPLAN_REQUIRED) {
+                job.getState() == QIOCraftingJobState.REPLAN_DRAINING &&
+                nextState != QIOCraftingJobState.REPLAN_DRAINING &&
+                nextState != QIOCraftingJobState.REPLAN_REQUIRED) {
             nextState = QIOCraftingJobState.REPLAN_DRAINING;
         }
         if (job.getRevisionTransition() == null &&
-              job.getState() == QIOCraftingJobState.PLANNING &&
-              nextState != QIOCraftingJobState.PLANNING) {
+                job.getState() == QIOCraftingJobState.PLANNING &&
+                nextState != QIOCraftingJobState.PLANNING) {
             nextState = QIOCraftingJobState.PLANNING;
         }
         if (job.getState() == QIOCraftingJobState.OPERATION_CONTAMINATED &&
-              job.getRecoveryDiagnostic() != null &&
-              nextState != QIOCraftingJobState.OPERATION_CONTAMINATED &&
-              nextState != QIOCraftingJobState.CANCEL_REQUESTED &&
-              nextState != QIOCraftingJobState.RETURNING && !nextState.isTerminal()) {
+                job.getRecoveryDiagnostic() != null &&
+                nextState != QIOCraftingJobState.OPERATION_CONTAMINATED &&
+                nextState != QIOCraftingJobState.CANCEL_REQUESTED &&
+                nextState != QIOCraftingJobState.RETURNING && !nextState.isTerminal()) {
             nextState = QIOCraftingJobState.OPERATION_CONTAMINATED;
         }
         if (nextState == QIOCraftingJobState.WAITING_EXECUTION_SLOT ||
-              nextState == QIOCraftingJobState.READY) {
+                nextState == QIOCraftingJobState.READY) {
             job.transitionToRunnable(nextState, schedulerClock);
         } else {
             job.transitionTo(nextState);
@@ -2581,8 +2639,8 @@ public final class QIOProcessingNetworkData {
             waitingExecutionSlotJobs.remove(job.getJobId());
         }
         if ((nextState.isTerminal() || nextState == QIOCraftingJobState.RETURNING ||
-              nextState == QIOCraftingJobState.CANCEL_REQUESTED) &&
-              job.getSource() == QIOCraftingJobSource.MAINTENANCE) {
+                nextState == QIOCraftingJobState.CANCEL_REQUESTED) &&
+                job.getSource() == QIOCraftingJobSource.MAINTENANCE) {
             maintenanceRules.clearOutstandingForJob(job.getJobId());
         }
         refreshJobIndexes(job);
@@ -2606,12 +2664,12 @@ public final class QIOProcessingNetworkData {
             QIOCraftingJob leftJob = jobs.get(left);
             QIOCraftingJob rightJob = jobs.get(right);
             int dispatch = Long.compare(leftJob.getLastDispatchSequence(),
-                  rightJob.getLastDispatchSequence());
+                    rightJob.getLastDispatchSequence());
             if (dispatch != 0) {
                 return dispatch;
             }
             int enqueue = Long.compare(leftJob.getEnqueueSequence(),
-                  rightJob.getEnqueueSequence());
+                    rightJob.getEnqueueSequence());
             return enqueue != 0 ? enqueue : left.toString().compareTo(right.toString());
         });
         dispatchCandidateJobs.clear();
@@ -2624,14 +2682,14 @@ public final class QIOProcessingNetworkData {
     private void refreshJobIndexes(QIOCraftingJob job) {
         UUID jobId = job.getJobId();
         boolean dispatchable = job.getExecutionSlotToken() != null &&
-              (isDispatchState(job.getState()) ||
-                    job.getState() == QIOCraftingJobState.OPERATION_CONTAMINATED &&
-                          job.hasActiveOperations());
+                (isDispatchState(job.getState()) ||
+                        job.getState() == QIOCraftingJobState.OPERATION_CONTAMINATED &&
+                                job.hasActiveOperations());
         if (!dispatchable) {
             dispatchCandidateJobs.remove(jobId);
             waitingProviderJobs.remove(jobId);
         } else if (job.getState() == QIOCraftingJobState.WAITING_PROVIDER &&
-              !job.hasActiveOperations()) {
+                !job.hasActiveOperations()) {
             dispatchCandidateJobs.remove(jobId);
             waitingProviderJobs.add(jobId);
         } else {
@@ -2640,10 +2698,10 @@ public final class QIOProcessingNetworkData {
         }
         updateIndex(reservingJobs, jobId, job.getState() == QIOCraftingJobState.RESERVING);
         updateIndex(replanJobs, jobId, job.getRevisionTransition() != null &&
-              (job.getState() == QIOCraftingJobState.REPLAN_DRAINING ||
-                    job.getState() == QIOCraftingJobState.REPLAN_REQUIRED));
+                (job.getState() == QIOCraftingJobState.REPLAN_DRAINING ||
+                        job.getState() == QIOCraftingJobState.REPLAN_REQUIRED));
         updateIndex(cancellationJobs, jobId, job.isCancellationRequested() &&
-              !job.getState().isTerminal());
+                !job.getState().isTerminal());
         if (job.getState().isTerminal()) {
             terminalJobHistory.add(jobId);
         }
@@ -2674,15 +2732,15 @@ public final class QIOProcessingNetworkData {
 
     private static boolean isDispatchState(QIOCraftingJobState state) {
         return state == QIOCraftingJobState.READY ||
-              state == QIOCraftingJobState.DISPATCHING ||
-              state == QIOCraftingJobState.PROCESSING ||
-              state == QIOCraftingJobState.COLLECTING ||
-              state == QIOCraftingJobState.WAITING_PROVIDER ||
-              state == QIOCraftingJobState.DELIVERING ||
-              state == QIOCraftingJobState.PLANNING ||
-              state == QIOCraftingJobState.REPLAN_DRAINING ||
-              state == QIOCraftingJobState.RETURN_BLOCKED ||
-              state == QIOCraftingJobState.RETURNING;
+                state == QIOCraftingJobState.DISPATCHING ||
+                state == QIOCraftingJobState.PROCESSING ||
+                state == QIOCraftingJobState.COLLECTING ||
+                state == QIOCraftingJobState.WAITING_PROVIDER ||
+                state == QIOCraftingJobState.DELIVERING ||
+                state == QIOCraftingJobState.PLANNING ||
+                state == QIOCraftingJobState.REPLAN_DRAINING ||
+                state == QIOCraftingJobState.RETURN_BLOCKED ||
+                state == QIOCraftingJobState.RETURNING;
     }
 
     private static void updateIndex(Set<UUID> index, UUID id, boolean present) {
@@ -2695,7 +2753,7 @@ public final class QIOProcessingNetworkData {
 
     @Nonnull
     private static <T> List<T> peekIndexed(Set<UUID> index, Map<UUID, T> values,
-          int maximum) {
+                                           int maximum) {
         if (maximum <= 0) {
             return Collections.emptyList();
         }
@@ -2714,7 +2772,7 @@ public final class QIOProcessingNetworkData {
 
     @Nonnull
     private static <T> List<T> pollIndexed(Set<UUID> index, Map<UUID, T> values,
-          int maximum) {
+                                           int maximum) {
         if (maximum <= 0) {
             return Collections.emptyList();
         }
@@ -2753,15 +2811,15 @@ public final class QIOProcessingNetworkData {
     }
 
     private static boolean sameIdentity(QIOFrequencyIdentitySnapshot left,
-          QIOFrequencyIdentitySnapshot right) {
+                                        QIOFrequencyIdentitySnapshot right) {
         return left.getName().equals(right.getName()) &&
-              Objects.equals(left.getOwnerUUID(), right.getOwnerUUID()) &&
-              left.getSecurityMode() == right.getSecurityMode();
+                Objects.equals(left.getOwnerUUID(), right.getOwnerUUID()) &&
+                left.getSecurityMode() == right.getSecurityMode();
     }
 
     @Nonnull
     private static <T> NBTTagList writeValues(Collection<T> values,
-          java.util.function.Function<T, NBTTagCompound> writer) {
+                                              java.util.function.Function<T, NBTTagCompound> writer) {
         List<NBTTagCompound> serialized = new ArrayList<>(values.size());
         for (T value : values) {
             serialized.add(writer.apply(value));
@@ -2809,7 +2867,7 @@ public final class QIOProcessingNetworkData {
         for (String key : sorted) {
             if (keys.tagCount() >= MAX_WORKBENCH_RECOVERY_KEYS) break;
             keys.appendTag(new net.minecraft.nbt.NBTTagString(
-                  key.substring(0, Math.min(256, key.length()))));
+                    key.substring(0, Math.min(256, key.length()))));
         }
         result.setTag("keys", keys);
         copyWorkbenchRecipeIds(raw, "encodedPatterns", result);
@@ -2818,12 +2876,12 @@ public final class QIOProcessingNetworkData {
     }
 
     private static void copyWorkbenchRecipeIds(@Nonnull NBTTagCompound raw,
-          @Nonnull String key, @Nonnull NBTTagCompound result) {
+                                               @Nonnull String key, @Nonnull NBTTagCompound result) {
         if (!raw.hasKey(key, NBT.TAG_LIST)) return;
         NBTTagList source = raw.getTagList(key, NBT.TAG_COMPOUND);
         NBTTagList ids = new NBTTagList();
         for (int index = 0; index < source.tagCount() &&
-              ids.tagCount() < MAX_WORKBENCH_RECOVERY_KEYS; index++) {
+                ids.tagCount() < MAX_WORKBENCH_RECOVERY_KEYS; index++) {
             NBTTagCompound record = source.getCompoundTagAt(index);
             if (record.hasKey("recipeId", NBT.TAG_STRING)) {
                 String recipeId = record.getString("recipeId");
@@ -2837,7 +2895,7 @@ public final class QIOProcessingNetworkData {
 
     @Nonnull
     private static NBTTagList boundedList(NBTTagCompound data, String key, int maximum)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         if (!data.hasKey(key, NBT.TAG_LIST)) {
             throw new QIOProcessingDataException(key + " is missing from current-schema data");
         }
@@ -2849,7 +2907,7 @@ public final class QIOProcessingNetworkData {
     }
 
     private static long requirePersistedCounter(long value, String name)
-          throws QIOProcessingDataException {
+            throws QIOProcessingDataException {
         if (value < 0) {
             throw new QIOProcessingDataException(name + " cannot be negative");
         }

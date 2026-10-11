@@ -62,7 +62,7 @@ public class ModuleHelper implements IModuleHelper {
         return data;
     }
 
-    public  void setSupported(Item ontainerItem, ModuleData<?>... types) {
+    public void setSupported(Item ontainerItem, ModuleData<?>... types) {
         for (ModuleData<?> module : types) {
             supportedModules.computeIfAbsent(ontainerItem, item -> new HashSet<>()).add(module);
         }
@@ -87,6 +87,7 @@ public class ModuleHelper implements IModuleHelper {
 
     /**
      * 关闭清除支持类型，因为我们是固定加载，不像高版本那样靠通信后通知服务器需要加载哪些，
+     *
      * @author sddsd2332
      */
     /*
@@ -94,7 +95,6 @@ public class ModuleHelper implements IModuleHelper {
         supportedContainers.clear();
     }
      */
-
     @Override
     public Set<ModuleData<?>> getSupported(ItemStack container) {
         return getSupported(container.getItem());

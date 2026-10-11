@@ -37,9 +37,9 @@ public class EnergyInventorySlot extends BasicInventorySlot {
         Objects.requireNonNull(worldSupplier, "World supplier cannot be null");
         Objects.requireNonNull(energyContainer, "Energy container cannot be null");
         return new EnergyInventorySlot(energyContainer, worldSupplier,
-              stack -> !fillInsertCheck(stack) && getPotentialConversion(worldSupplier.get(), stack) <= 0,
-              stack -> fillInsertCheck(stack) || getPotentialConversion(worldSupplier.get(), stack) > 0,
-              stack -> isEnergyContainerItem(stack) || getPotentialConversion(worldSupplier.get(), stack) > 0, listener, x, y, true);
+                stack -> !fillInsertCheck(stack) && getPotentialConversion(worldSupplier.get(), stack) <= 0,
+                stack -> fillInsertCheck(stack) || getPotentialConversion(worldSupplier.get(), stack) > 0,
+                stack -> isEnergyContainerItem(stack) || getPotentialConversion(worldSupplier.get(), stack) > 0, listener, x, y, true);
     }
 
     public static EnergyInventorySlot fill(IEnergyContainer energyContainer, @Nullable IContentsListener listener, int x, int y) {
@@ -51,7 +51,7 @@ public class EnergyInventorySlot extends BasicInventorySlot {
         Objects.requireNonNull(energyContainer, "Energy container cannot be null");
         Objects.requireNonNull(canExtract, "Extraction validity check cannot be null");
         return new EnergyInventorySlot(energyContainer, canExtract, EnergyInventorySlot::fillInsertCheck, EnergyInventorySlot::isEnergyContainerItem, listener, x, y,
-              true);
+                true);
     }
 
     public static EnergyInventorySlot drain(IEnergyContainer energyContainer, @Nullable IContentsListener listener, int x, int y) {
@@ -63,7 +63,7 @@ public class EnergyInventorySlot extends BasicInventorySlot {
         Objects.requireNonNull(energyContainer, "Energy container cannot be null");
         Objects.requireNonNull(canExtract, "Extraction validity check cannot be null");
         return new EnergyInventorySlot(energyContainer, canExtract, stack -> drainInsertCheck(energyContainer, stack), EnergyInventorySlot::isEnergyContainerItem,
-              listener, x, y, false);
+                listener, x, y, false);
     }
 
     public static boolean isEnergyContainerItem(ItemStack stack) {
@@ -119,12 +119,12 @@ public class EnergyInventorySlot extends BasicInventorySlot {
     private final boolean fillContainer;
 
     private EnergyInventorySlot(IEnergyContainer energyContainer, Predicate<ItemStack> canExtract, Predicate<ItemStack> canInsert, Predicate<ItemStack> validator,
-          @Nullable IContentsListener listener, int x, int y, boolean fillContainer) {
+                                @Nullable IContentsListener listener, int x, int y, boolean fillContainer) {
         this(energyContainer, () -> null, canExtract, canInsert, validator, listener, x, y, fillContainer);
     }
 
     private EnergyInventorySlot(IEnergyContainer energyContainer, Supplier<?> worldSupplier, Predicate<ItemStack> canExtract, Predicate<ItemStack> canInsert,
-          Predicate<ItemStack> validator, @Nullable IContentsListener listener, int x, int y, boolean fillContainer) {
+                                Predicate<ItemStack> validator, @Nullable IContentsListener listener, int x, int y, boolean fillContainer) {
         super(canExtract, canInsert, validator, listener, x, y);
         this.worldSupplier = worldSupplier;
         this.energyContainer = energyContainer;

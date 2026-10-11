@@ -10,13 +10,13 @@ import io.netty.buffer.ByteBuf;
 import mekanism.api.Action;
 import mekanism.api.IContentsListener;
 import mekanism.api.TileNetworkList;
+import mekanism.api.heat.HeatAPI;
 import mekanism.common.Mekanism;
 import mekanism.common.base.IEnergyWrapper;
 import mekanism.common.base.ISideConfiguration;
 import mekanism.common.capabilities.Capabilities;
 import mekanism.common.capabilities.CapabilityWrapperManager;
 import mekanism.common.capabilities.energy.MachineEnergyContainer;
-import mekanism.api.heat.HeatAPI;
 import mekanism.common.capabilities.holder.energy.EnergyContainerHelper;
 import mekanism.common.capabilities.holder.energy.IEnergyContainerHolder;
 import mekanism.common.capabilities.holder.energy.ProxiedEnergyContainerHolder;
@@ -47,7 +47,6 @@ import java.util.Collections;
  */
 
 public abstract class TileEntityElectricBlock extends TileEntityContainerBlock implements IEnergyWrapper {
-
     private static final ClassValue<Boolean> HAS_TILE_SYNC_TASK = new ClassValue<Boolean>() {
         @Override
         protected Boolean computeValue(Class<?> type) {
@@ -103,13 +102,13 @@ public abstract class TileEntityElectricBlock extends TileEntityContainerBlock i
     }
 
     public final MachineEnergyContainer getMainEnergyContainer() {
-        return getMainEnergyContainer(this);
+        return getMainEnergyContainer(contentsListener(mekanism.api.transmitters.TransmissionType.ENERGY));
     }
 
     protected final MachineEnergyContainer getMainEnergyContainer(@Nullable IContentsListener listener) {
         if (mainEnergyContainer == null) {
             mainEnergyContainer = MachineEnergyContainer.create(this::getEnergy, this::setEnergy, this::getMaxEnergy, this::getMainEnergyPerTick,
-                  automationType -> true, automationType -> true, listener);
+                    automationType -> true, automationType -> true, listener);
         }
         return mainEnergyContainer;
     }
@@ -120,7 +119,7 @@ public abstract class TileEntityElectricBlock extends TileEntityContainerBlock i
         if (capability == CapabilityEnergy.ENERGY) {
             forgeEnergyManager.invalidate(side);
         } else if (capability == Capabilities.TESLA_CONSUMER_CAPABILITY || capability == Capabilities.TESLA_PRODUCER_CAPABILITY ||
-              capability == Capabilities.TESLA_HOLDER_CAPABILITY) {
+                capability == Capabilities.TESLA_HOLDER_CAPABILITY) {
             teslaManager.invalidate(side);
         } else if (capability == null) {
             forgeEnergyManager.invalidateAll();
@@ -136,9 +135,9 @@ public abstract class TileEntityElectricBlock extends TileEntityContainerBlock i
             return builder.build();
         }
         return ProxiedEnergyContainerHolder.create(
-              side -> side != null && sideIsConsumer(side),
-              side -> side != null && sideIsOutput(side),
-              side -> side == null || sideIsConsumer(side) || sideIsOutput(side) ? Collections.singletonList(getMainEnergyContainer(listener)) : Collections.emptyList());
+                side -> side != null && sideIsConsumer(side),
+                side -> side != null && sideIsOutput(side),
+                side -> side == null || sideIsConsumer(side) || sideIsOutput(side) ? Collections.singletonList(getMainEnergyContainer(listener)) : Collections.emptyList());
     }
 
     @Method(modid = MekanismHooks.IC2_MOD_ID)
@@ -167,7 +166,7 @@ public abstract class TileEntityElectricBlock extends TileEntityContainerBlock i
 
 
     @Override
-    public void onAsyncUpdateServer(){
+    public void onAsyncUpdateServer() {
         super.onAsyncUpdateServer();
         if (hasTileSyncTask()) {
             Mekanism.EXECUTE_MANAGER.addSyncTask(this::addTileSyncTask);
@@ -179,7 +178,7 @@ public abstract class TileEntityElectricBlock extends TileEntityContainerBlock i
     }
 
 
-    public void addTileSyncTask(){
+    public void addTileSyncTask() {
     }
 
     public void trackEnergyInputRate() {
@@ -335,7 +334,9 @@ public abstract class TileEntityElectricBlock extends TileEntityContainerBlock i
     @Override
     @Method(modid = MekanismHooks.IC2_MOD_ID)
     public int getSourceTier() {
-        return !MekanismConfig.current().general.blacklistIC2.val() ? IC2Integration.getOutputTierForJoules(getMaxOutput()) : 0;
+        double maxOutput = getMaxOutput();
+        return MekanismConfig.current().general.blacklistIC2.val() || !(maxOutput > 0) ? 0 :
+                IC2Integration.getOutputTierForJoules(maxOutput);
     }
 
     @Override
@@ -396,7 +397,8 @@ public abstract class TileEntityElectricBlock extends TileEntityContainerBlock i
     @Override
     @Method(modid = MekanismHooks.IC2_MOD_ID)
     public int getOutput() {
-        return IC2Integration.toEUAsInt(getMaxOutput());
+        double maxOutput = getMaxOutput();
+        return maxOutput > 0 ? IC2Integration.toEUAsInt(maxOutput) : 0;
     }
 
     @Override
@@ -408,7 +410,9 @@ public abstract class TileEntityElectricBlock extends TileEntityContainerBlock i
     @Override
     @Method(modid = MekanismHooks.IC2_MOD_ID)
     public double getOfferedEnergy() {
-        return !MekanismConfig.current().general.blacklistIC2.val() ? IC2Integration.toEU(Math.min(getEnergy(), getMaxOutput())) : 0;
+        double maxOutput = getMaxOutput();
+        return MekanismConfig.current().general.blacklistIC2.val() || !(maxOutput > 0) ? 0 :
+                IC2Integration.toEU(Math.min(getEnergy(), maxOutput));
     }
 
     @Override
@@ -419,7 +423,9 @@ public abstract class TileEntityElectricBlock extends TileEntityContainerBlock i
     @Override
     @Method(modid = MekanismHooks.IC2_MOD_ID)
     public double getOutputEnergyUnitsPerTick() {
-        return !MekanismConfig.current().general.blacklistIC2.val() ? IC2Integration.toEU(getMaxOutput()) : 0;
+        double maxOutput = getMaxOutput();
+        return MekanismConfig.current().general.blacklistIC2.val() || !(maxOutput > 0) ? 0 :
+                IC2Integration.toEU(maxOutput);
     }
 
     @Override

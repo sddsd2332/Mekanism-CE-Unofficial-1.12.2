@@ -20,17 +20,17 @@ public class IntListOption extends Option<IntListOption> {
     private int min;
     private int max;
 
-    public IntListOption(BaseConfig owner,String key, int[] defaultValue, @Nullable String comment) {
+    public IntListOption(BaseConfig owner, String key, int[] defaultValue, @Nullable String comment) {
         super(owner, key, comment);
         this.defaultValue = defaultValue;
         this.value = defaultValue;
     }
 
-    public IntListOption(BaseConfig owner , String key, int[] defaultValue) {
+    public IntListOption(BaseConfig owner, String key, int[] defaultValue) {
         this(owner, key, defaultValue, null);
     }
 
-    public IntListOption(BaseConfig owner , String key) {
+    public IntListOption(BaseConfig owner, String key) {
         this(owner, key, new int[0]);
     }
 
@@ -77,7 +77,7 @@ public class IntListOption extends Option<IntListOption> {
     @SuppressWarnings("Duplicates")//types are different
     @Override
     public void load(Configuration config) {
-        if (category.isEmpty()){
+        if (category.isEmpty()) {
             return;
         }
         Property prop;

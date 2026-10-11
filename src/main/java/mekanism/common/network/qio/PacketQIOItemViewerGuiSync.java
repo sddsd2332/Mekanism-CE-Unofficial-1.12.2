@@ -1,13 +1,8 @@
 package mekanism.common.network.qio;
 
 import io.netty.buffer.ByteBuf;
-import mekanism.common.Mekanism;
 import mekanism.common.PacketHandler;
-import mekanism.common.content.qio.QIOFrequency;
-import mekanism.common.content.qio.QIOAmount;
-import mekanism.common.content.qio.QIOCapacitySummary;
-import mekanism.common.content.qio.QIOResourceEntry;
-import mekanism.common.content.qio.QIONetworkResourceLimits;
+import mekanism.common.content.qio.*;
 import mekanism.common.inventory.container.QIOItemViewerContainer;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
@@ -20,7 +15,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** Legacy viewer sync packet retained for older QIO GUI integrations. */
+/**
+ * Legacy viewer sync packet retained for older QIO GUI integrations.
+ */
 public class PacketQIOItemViewerGuiSync implements IMessageHandler<PacketQIOItemViewerGuiSync.Message, IMessage> {
 
     @Override
@@ -56,7 +53,7 @@ public class PacketQIOItemViewerGuiSync implements IMessageHandler<PacketQIOItem
             PacketQIOViewerData.sendBatch(player, PacketQIOViewerData.getViewerWindowId(player), Collections.emptyList(), 0, 0);
         } else {
             PacketQIOViewerData.sendBatch(player, PacketQIOViewerData.getViewerWindowId(player), frequency.getResourceEntries(),
-                  frequency.getCapacitySummary());
+                    frequency.getCapacitySummary());
         }
     }
 
@@ -185,7 +182,9 @@ public class PacketQIOItemViewerGuiSync implements IMessageHandler<PacketQIOItem
         }
     }
 
-    /** Source-compatible nested packet name. */
+    /**
+     * Source-compatible nested packet name.
+     */
     public static class QIOItemViewerGuiSyncMessage extends Message {
         public QIOItemViewerGuiSyncMessage() {
             super();

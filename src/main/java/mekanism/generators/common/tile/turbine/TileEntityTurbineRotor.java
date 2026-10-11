@@ -179,7 +179,7 @@ public class TileEntityTurbineRotor extends TileEntityInternalMultiblock {
 
 
     @Override
-   public void writeCustomNBT(NBTTagCompound nbtTags) {
+    public void writeCustomNBT(NBTTagCompound nbtTags) {
         super.writeCustomNBT(nbtTags);
         nbtTags.setInteger("blades", getHousedBlades());
     }
@@ -196,8 +196,8 @@ public class TileEntityTurbineRotor extends TileEntityInternalMultiblock {
 
     public static AxisAlignedBB getStandaloneRenderBoundingBox(BlockPos pos) {
         return new AxisAlignedBB(pos.getX() - MAX_RENDER_HORIZONTAL_RADIUS, pos.getY() + RENDER_MIN_Y_OFFSET,
-              pos.getZ() - MAX_RENDER_HORIZONTAL_RADIUS, pos.getX() + MAX_RENDER_HORIZONTAL_RADIUS + 1D,
-              pos.getY() + RENDER_MAX_Y_OFFSET, pos.getZ() + MAX_RENDER_HORIZONTAL_RADIUS + 1D);
+                pos.getZ() - MAX_RENDER_HORIZONTAL_RADIUS, pos.getX() + MAX_RENDER_HORIZONTAL_RADIUS + 1D,
+                pos.getY() + RENDER_MAX_Y_OFFSET, pos.getZ() + MAX_RENDER_HORIZONTAL_RADIUS + 1D);
     }
 
     @SideOnly(Side.CLIENT)

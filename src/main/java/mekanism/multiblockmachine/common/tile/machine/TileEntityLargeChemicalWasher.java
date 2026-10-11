@@ -62,12 +62,12 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
 
     private static final int TANK_CAPACITY = 8_192_000;
     private static final List<RecipeError> TRACKED_ERROR_TYPES = Arrays.asList(
-          RecipeError.NOT_ENOUGH_ENERGY,
-          RecipeError.NOT_ENOUGH_ENERGY_REDUCED_RATE,
-          RecipeError.NOT_ENOUGH_INPUT,
-          RecipeError.NOT_ENOUGH_SECONDARY_INPUT,
-          RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
-          RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
+            RecipeError.NOT_ENOUGH_ENERGY,
+            RecipeError.NOT_ENOUGH_ENERGY_REDUCED_RATE,
+            RecipeError.NOT_ENOUGH_INPUT,
+            RecipeError.NOT_ENOUGH_SECONDARY_INPUT,
+            RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
+            RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
     );
     public BasicFluidTank fluidTank;
     public BasicGasTank inputTank;
@@ -110,20 +110,20 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
         getOrCreateInputTank();
         getOrCreateOutputTank(listener);
         return ProxiedGasTankHolder.create(
-              this::isGasInputSide,
-              this::isGasOutputSide,
-              side -> {
-                  if (side == null || side == facing) {
-                      return Arrays.asList(inputTank, outputTank);
-                  } else if (isGasInputSide(side)) {
-                      return Collections.singletonList(inputTank);
-                  } else if (isGasOutputSide(side)) {
-                      return Collections.singletonList(outputTank);
-                  }
-                  return Collections.emptyList();
-              },
-              side -> isGasInputSide(side) ? Collections.singletonList(inputTank) : Collections.emptyList(),
-              side -> isGasOutputSide(side) ? Collections.singletonList(outputTank) : Collections.emptyList()
+                this::isGasInputSide,
+                this::isGasOutputSide,
+                side -> {
+                    if (side == null || side == facing) {
+                        return Arrays.asList(inputTank, outputTank);
+                    } else if (isGasInputSide(side)) {
+                        return Collections.singletonList(inputTank);
+                    } else if (isGasOutputSide(side)) {
+                        return Collections.singletonList(outputTank);
+                    }
+                    return Collections.emptyList();
+                },
+                side -> isGasInputSide(side) ? Collections.singletonList(inputTank) : Collections.emptyList(),
+                side -> isGasOutputSide(side) ? Collections.singletonList(outputTank) : Collections.emptyList()
         );
     }
 
@@ -131,9 +131,9 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
     protected IFluidTankHolder getInitialFluidTanks(IContentsListener listener) {
         getOrCreateFluidTank();
         return ProxiedFluidTankHolder.create(
-              this::isFluidInputSide,
-              side -> false,
-              side -> side == null || isFluidInputSide(side) ? Collections.singletonList(fluidTank) : Collections.emptyList()
+                this::isFluidInputSide,
+                side -> false,
+                side -> side == null || isFluidInputSide(side) ? Collections.singletonList(fluidTank) : Collections.emptyList()
         );
     }
 
@@ -219,8 +219,8 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
     @Override
     protected boolean isAsyncUpdateIdle() {
         return inputTank.isEmpty() && fluidTank.isEmpty() && inputSlot.isEmpty() && outputGasSlot.isEmpty() &&
-              energySlot.isEmpty() && clientEnergyUsed == 0 && currentRedstoneLevel == getRedstoneLevel() &&
-              isEmptyRecipeStateSettled();
+                energySlot.isEmpty() && clientEnergyUsed == 0 && currentRedstoneLevel == getRedstoneLevel() &&
+                isEmptyRecipeStateSettled();
     }
 
     @Override
@@ -237,18 +237,9 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
             return;
         }
         gasSpeedController.ensureSize(1,
-              () -> Collections.singletonList(new TankProvider.Gas(outputTank)));
+                () -> Collections.singletonList(new TankProvider.Gas(outputTank)));
         handleTank(outputTank, getRightTankSide(), facing);
         handleTank(outputTank, getRightTankSide(), MekanismUtils.getRight(facing));
-    }
-
-    @Override
-    public void addTileSyncTask() {
-        int newRedstoneLevel = getRedstoneLevel();
-        if (newRedstoneLevel != currentRedstoneLevel) {
-            updateComparatorOutputLevelSync();
-            currentRedstoneLevel = newRedstoneLevel;
-        }
     }
 
     private TileEntity getRightTankSide() {
@@ -307,26 +298,26 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
     @Override
     public CachedRecipe<WasherRecipe> createNewCachedRecipe(WasherRecipe recipe, int cacheIndex) {
         return new TwoInputCachedRecipe<>(recipe, this::shouldRecheckAllRecipeErrors,
-              InputHelper.getGasInputHandler(inputTank, RecipeError.NOT_ENOUGH_INPUT),
-              InputHelper.getFluidInputHandler(fluidTank, RecipeError.NOT_ENOUGH_SECONDARY_INPUT),
-              OutputHelper.getGasOutputHandler(outputTank, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
-              () -> recipe.getInput().ingredientGas, () -> recipe.getInput().ingredientFluid,
-              (gas, fluid) -> gas != null && gas.isGasEqual(recipe.getInput().ingredientGas)
-                    && fluid != null && fluid.isFluidEqual(recipe.getInput().ingredientFluid),
-              (gas, fluid) -> recipe.getOutput().output.copy(), gas -> gas == null || gas.amount <= 0,
-              fluid -> fluid == null || fluid.amount <= 0, output -> output == null || output.amount <= 0)
-              .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
-              .setActive(active -> {
-                  if (active || prevEnergy >= getEnergy()) {
-                      setActive(active);
-                  }
-              })
-              .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
-              .setRequiredTicks(() -> ticksRequired)
-              .setBaselineMaxOperations(() -> getUpgradedUsage(recipe))
-              .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
-              .setErrorsChanged(this::onRecipeErrorsChanged)
-              .setOnFinish(this::onCachedRecipeFinish);
+                InputHelper.getGasInputHandler(inputTank, RecipeError.NOT_ENOUGH_INPUT),
+                InputHelper.getFluidInputHandler(fluidTank, RecipeError.NOT_ENOUGH_SECONDARY_INPUT),
+                OutputHelper.getGasOutputHandler(outputTank, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
+                () -> recipe.getInput().ingredientGas, () -> recipe.getInput().ingredientFluid,
+                (gas, fluid) -> gas != null && gas.isGasEqual(recipe.getInput().ingredientGas)
+                        && fluid != null && fluid.isFluidEqual(recipe.getInput().ingredientFluid),
+                (gas, fluid) -> recipe.getOutput().output.copy(), gas -> gas == null || gas.amount <= 0,
+                fluid -> fluid == null || fluid.amount <= 0, output -> output == null || output.amount <= 0)
+                .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
+                .setActive(active -> {
+                    if (active || prevEnergy >= getEnergy()) {
+                        setActive(active);
+                    }
+                })
+                .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
+                .setRequiredTicks(() -> ticksRequired)
+                .setBaselineMaxOperations(() -> getUpgradedUsage(recipe))
+                .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
+                .setErrorsChanged(this::onRecipeErrorsChanged)
+                .setOnFinish(this::onCachedRecipeFinish);
     }
 
     @Override
@@ -501,6 +492,11 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
     }
 
     @Override
+    public boolean isComparatorInput(mekanism.api.transmitters.TransmissionType type) {
+        return type == mekanism.api.transmitters.TransmissionType.GAS;
+    }
+
+    @Override
     public int getRedstoneLevel() {
         return MekanismUtils.redstoneLevelFromContents(inputTank.getStored(), inputTank.getMaxGas());
     }
@@ -519,7 +515,8 @@ public class TileEntityLargeChemicalWasher extends TileEntityBasicMachine<GasAnd
     public Object[] invoke(int method, Object[] args) throws NoSuchMethodException {
         return new Object[0];
     }
-@Override
+
+    @Override
     public int getBlockGuiID(Block block, int metadata) {
         return 2;
     }

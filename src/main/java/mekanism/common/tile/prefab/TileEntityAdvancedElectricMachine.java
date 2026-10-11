@@ -4,7 +4,6 @@ import io.netty.buffer.ByteBuf;
 import mekanism.api.*;
 import mekanism.api.gas.Gas;
 import mekanism.api.gas.GasStack;
-import mekanism.api.math.MathUtils;
 import mekanism.api.transmitters.TransmissionType;
 import mekanism.common.Upgrade;
 import mekanism.common.base.ISustainedData;
@@ -28,6 +27,7 @@ import mekanism.common.recipe.cache.CachedRecipe.OperationTracker.RecipeError;
 import mekanism.common.recipe.cache.IRecipeLookupHandler.ConstantUsageRecipeLookupHandler;
 import mekanism.common.recipe.cache.ItemStackConstantGasCachedRecipe;
 import mekanism.common.recipe.cache.ItemStackConstantGasCachedRecipe.GasUsageMultiplier;
+import mekanism.common.recipe.cache.SecondaryFuelUsage;
 import mekanism.common.recipe.cache.inputs.InputHelper;
 import mekanism.common.recipe.cache.outputs.OutputHelper;
 import mekanism.common.recipe.inputs.AdvancedMachineInput;
@@ -62,11 +62,11 @@ public abstract class TileEntityAdvancedElectricMachine<RECIPE extends AdvancedM
         TileEntityUpgradeableMachine<AdvancedMachineInput, ItemStackOutput, RECIPE> implements ISustainedData, ITankManager, ConstantUsageRecipeLookupHandler {
 
     private static final List<RecipeError> TRACKED_ERROR_TYPES = Arrays.asList(
-          RecipeError.NOT_ENOUGH_ENERGY,
-          RecipeError.NOT_ENOUGH_INPUT,
-          RecipeError.NOT_ENOUGH_SECONDARY_INPUT,
-          RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
-          RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
+            RecipeError.NOT_ENOUGH_ENERGY,
+            RecipeError.NOT_ENOUGH_INPUT,
+            RecipeError.NOT_ENOUGH_SECONDARY_INPUT,
+            RecipeError.NOT_ENOUGH_OUTPUT_SPACE,
+            RecipeError.INPUT_DOESNT_PRODUCE_OUTPUT
     );
     private static final String[] methods = new String[]{"getEnergy", "getSecondaryStored", "getProgress", "isActive", "facing", "canOperate", "getMaxEnergy",
             "getEnergyNeeded"};
@@ -122,20 +122,10 @@ public abstract class TileEntityAdvancedElectricMachine<RECIPE extends AdvancedM
         BASE_SECONDARY_ENERGY_PER_TICK = secondaryPerTick;
         secondaryEnergyPerTick = secondaryPerTick;
         baseTotalUsage = ticksRequired;
-        if (useStatisticalMechanics()) {
-            gasUsageMultiplier = (usedSoFar, operatingTicks) -> gasUsageSampler.sample(gasPerTickMeanMultiplier);
-        } else {
-            gasUsageMultiplier = (usedSoFar, operatingTicks) -> {
-                long baseRemaining = baseTotalUsage - usedSoFar;
-                int remainingTicks = getTicksRequired() - operatingTicks;
-                if (baseRemaining < remainingTicks) {
-                    return 0;
-                } else if (baseRemaining == remainingTicks) {
-                    return 1;
-                }
-                return Math.max(MathUtils.clampToLong(baseRemaining / (double) remainingTicks), 0);
-            };
-        }
+        gasUsageMultiplier = (usedSoFar, operatingTicks) ->
+                useStatisticalMechanics() && SecondaryFuelUsage.isRandomized(this)
+                        ? gasUsageSampler.sample(gasPerTickMeanMultiplier)
+                        : SecondaryFuelUsage.constantUse(baseTotalUsage, usedSoFar, getTicksRequired(), operatingTicks);
 
         if (upgradeableSecondaryEfficiency()) {
             upgradeComponent.setSupported(Upgrade.GAS);
@@ -150,7 +140,7 @@ public abstract class TileEntityAdvancedElectricMachine<RECIPE extends AdvancedM
         IContentsListener recipeCacheListener = getRecipeCacheListener();
         IContentsListener recipeCacheChangeListener = getRecipeCacheChangeListener(listener);
         inputSlot = builder.addSlot(InputInventorySlot.at(stack -> getRecipes().keySet().stream().anyMatch(input -> ItemHandlerHelper.canItemStacksStack(input.itemStack, stack)), recipeCacheListener, 64, 17)
-              .setAutoPullValidator((stack, side) -> canAutoPullInput(stack)));
+                .setAutoPullValidator((stack, side) -> canAutoPullInput(stack)));
         inputSlot.tracksWarnings(slot -> slot.warning(WarningType.NO_MATCHING_RECIPE, getWarningCheck(RecipeError.NOT_ENOUGH_INPUT)));
         gasSlot = builder.addSlot(GasInventorySlot.fillOrConvert(gasTank, this::getWorld, listener, 64, 53));
         outputSlot = builder.addSlot(OutputInventorySlot.at(recipeCacheChangeListener, 116, 35));
@@ -169,7 +159,7 @@ public abstract class TileEntityAdvancedElectricMachine<RECIPE extends AdvancedM
     private BasicGasTank getOrCreateGasTank() {
         if (gasTank == null) {
             gasTank = allowExtractingGas() ? BasicGasTank.create(MAX_GAS, this::isValidGas, this::isValidGas, getRecipeCacheListener())
-                  : BasicGasTank.input(MAX_GAS, this::isValidGas, getRecipeCacheListener());
+                    : BasicGasTank.input(MAX_GAS, this::isValidGas, getRecipeCacheListener());
         }
         return gasTank;
     }
@@ -257,11 +247,8 @@ public abstract class TileEntityAdvancedElectricMachine<RECIPE extends AdvancedM
     }
 
     public int getRecipeGasUsagePerOperation() {
-        if (!useStatisticalMechanics()) {
-            return Math.max(1, MathUtils.clampToInt(baseTotalUsage));
-        }
-        double usage = 3D * Math.max(1, Math.ceil(Math.max(secondaryEnergyPerTick, 0))) * Math.max(1, getTicksRequired());
-        return Math.max(1, MathUtils.clampToInt(usage));
+        return ItemStackConstantGasCachedRecipe.getGasUsagePerOperation(useStatisticalMechanics() && SecondaryFuelUsage.isRandomized(this),
+                baseTotalUsage, gasPerTickMeanMultiplier, ticksRequired);
     }
 
     protected boolean allowExtractingGas() {
@@ -330,29 +317,29 @@ public abstract class TileEntityAdvancedElectricMachine<RECIPE extends AdvancedM
 
     private boolean canAutoPullInput(ItemStack stack) {
         Gas gasType = gasTank.getGasType() == null ? prevGas : gasTank.getGasType();
-        RECIPE recipe = RecipeHandler.getRecipe(new AdvancedMachineInput(getSimulatedStackWithInsert(0, stack), gasType), getRecipes());
-        return recipe != null && canOutputToSlot(2, recipe.getOutput().output);
+        RECIPE recipe = RecipeHandler.getRecipe(new AdvancedMachineInput(getSimulatedStackWithInsert(inputSlot, stack), gasType), getRecipes());
+        return recipe != null && canOutputToSlot(outputSlot, recipe.getOutput().output);
     }
 
     @Override
     public CachedRecipe<RECIPE> createNewCachedRecipe(RECIPE recipe, int cacheIndex) {
         return new ItemStackConstantGasCachedRecipe<>(recipe, this::shouldRecheckAllRecipeErrors,
-              InputHelper.getInputHandler(inputSlot, RecipeError.NOT_ENOUGH_INPUT),
-              InputHelper.getConstantGasInputHandler(gasTank, RecipeError.NOT_ENOUGH_SECONDARY_INPUT, false),
-              OutputHelper.getOutputHandler(outputSlot, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
-              gasUsageMultiplier, used -> usedSoFar = used)
-              .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
-              .setActive(active -> {
-                  if (active || prevEnergy >= getEnergy()) {
-                      setActive(active);
-                  }
-              })
-              .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
-              .setRequiredTicks(() -> ticksRequired)
-              .setBaselineMaxOperations(() -> getBaselineMaxOperations(energyPerTick, true))
-              .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
-              .setErrorsChanged(this::onRecipeErrorsChanged)
-              .setOnFinish(this::onCachedRecipeFinish);
+                InputHelper.getInputHandler(inputSlot, RecipeError.NOT_ENOUGH_INPUT),
+                InputHelper.getConstantGasInputHandler(gasTank, RecipeError.NOT_ENOUGH_SECONDARY_INPUT, false),
+                OutputHelper.getOutputHandler(outputSlot, RecipeError.NOT_ENOUGH_OUTPUT_SPACE),
+                gasUsageMultiplier, used -> usedSoFar = used)
+                .setCanHolderFunction(() -> MekanismUtils.canFunction(this))
+                .setActive(active -> {
+                    if (active || prevEnergy >= getEnergy()) {
+                        setActive(active);
+                    }
+                })
+                .setEnergyRequirements(() -> energyPerTick, getMainEnergyContainer())
+                .setRequiredTicks(() -> ticksRequired)
+                .setBaselineMaxOperations(() -> getBaselineMaxOperations(energyPerTick, true))
+                .setOperatingTicksChanged(ticks -> operatingTicks = ticks)
+                .setErrorsChanged(this::onRecipeErrorsChanged)
+                .setOnFinish(this::onCachedRecipeFinish);
     }
 
     private ItemStack getCurrentOutput() {
@@ -432,11 +419,8 @@ public abstract class TileEntityAdvancedElectricMachine<RECIPE extends AdvancedM
 
     private void recalculateSecondaryUpgrade() {
         secondaryEnergyPerTick = MekanismUtils.getSecondaryEnergyPerTickMean(this, BASE_SECONDARY_ENERGY_PER_TICK);
-        if (useStatisticalMechanics()) {
-            gasPerTickMeanMultiplier = MekanismUtils.getGasPerTickMeanMultiplier(this);
-        } else {
-            baseTotalUsage = MekanismUtils.getBaseUsage(this, BASE_TICKS_REQUIRED);
-        }
+        gasPerTickMeanMultiplier = MekanismUtils.getGasPerTickMeanMultiplier(this);
+        baseTotalUsage = SecondaryFuelUsage.fixedTotal(this, BASE_TICKS_REQUIRED);
     }
 
     @Override

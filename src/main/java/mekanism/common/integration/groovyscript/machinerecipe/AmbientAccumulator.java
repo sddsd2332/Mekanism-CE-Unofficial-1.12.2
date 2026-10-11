@@ -22,7 +22,7 @@ public class AmbientAccumulator extends VirtualizedMekanismRegistry<AmbientGasRe
         return new RecipeBuilder();
     }
 
-    public AmbientGasRecipe add(int dim,GasStack output) {
+    public AmbientGasRecipe add(int dim, GasStack output) {
         return add(dim, output, 1);
     }
 

@@ -23,7 +23,7 @@ public class RenderIsotopicCentrifugeItem {
         GlStateManager.scale(0.6F, 0.6F, 0.6F);
         GlStateManager.translate(0, -0.55F, 0);
         MekanismRenderer.bindTexture(MekanismUtils.getResource(ResourceType.RENDER, "IsotopicCentrifuge.png"));
-        isotopicCentrifuge.render(0.0625F,false);
+        isotopicCentrifuge.render(0.0625F, false);
         GlStateManager.popMatrix();
     }
 }

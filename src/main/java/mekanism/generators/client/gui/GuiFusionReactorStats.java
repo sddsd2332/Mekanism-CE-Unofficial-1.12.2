@@ -34,37 +34,37 @@ public class GuiFusionReactorStats extends GuiFusionReactorInfo {
             int textArea = xSize - indentation;
             drawScrollingString(new TextComponentString(EnumColor.DARK_GREEN + LangUtils.localize("gui.passive")), 0, 26, TextAlignment.LEFT, titleTextColor(), 6, false);
             drawScrollingString(new TextComponentString(LangUtils.localize("gui.minInject") + ": " + tileEntity.getReactor().getMinInjectionRate(false)),
-                  indentation, 36, TextAlignment.LEFT, titleTextColor(), textArea, 6, false);
+                    indentation, 36, TextAlignment.LEFT, titleTextColor(), textArea, 6, false);
             drawScrollingString(new TextComponentString(LangUtils.localize("gui.ignition") + ": " +
-                  MekanismUtils.getTemperatureDisplay(tileEntity.getReactor().getIgnitionTemperature(false), TemperatureUnit.KELVIN)), indentation, 46,
-                  TextAlignment.LEFT, titleTextColor(), textArea, 6, false);
+                            MekanismUtils.getTemperatureDisplay(tileEntity.getReactor().getIgnitionTemperature(false), TemperatureUnit.KELVIN)), indentation, 46,
+                    TextAlignment.LEFT, titleTextColor(), textArea, 6, false);
             drawScrollingString(new TextComponentString(LangUtils.localize("gui.maxPlasma") + ": " +
-                  MekanismUtils.getTemperatureDisplay(tileEntity.getReactor().getMaxPlasmaTemperature(false), TemperatureUnit.KELVIN)), indentation, 56,
-                  TextAlignment.LEFT, titleTextColor(), textArea, 6, false);
+                            MekanismUtils.getTemperatureDisplay(tileEntity.getReactor().getMaxPlasmaTemperature(false), TemperatureUnit.KELVIN)), indentation, 56,
+                    TextAlignment.LEFT, titleTextColor(), textArea, 6, false);
             drawScrollingString(new TextComponentString(LangUtils.localize("gui.maxCasing") + ": " +
-                  MekanismUtils.getTemperatureDisplay(tileEntity.getReactor().getMaxCasingTemperature(false), TemperatureUnit.KELVIN)), indentation, 66,
-                  TextAlignment.LEFT, titleTextColor(), textArea, 6, false);
+                            MekanismUtils.getTemperatureDisplay(tileEntity.getReactor().getMaxCasingTemperature(false), TemperatureUnit.KELVIN)), indentation, 66,
+                    TextAlignment.LEFT, titleTextColor(), textArea, 6, false);
             drawScrollingString(new TextComponentString(LangUtils.localize("gui.passiveGeneration") + ": " +
-                  MekanismUtils.getEnergyDisplay(tileEntity.getReactor().getPassiveGeneration(false, false)) + "/t"), indentation, 76, TextAlignment.LEFT,
-                  titleTextColor(), textArea, 6, false);
+                            MekanismUtils.getEnergyDisplay(tileEntity.getReactor().getPassiveGeneration(false, false)) + "/t"), indentation, 76, TextAlignment.LEFT,
+                    titleTextColor(), textArea, 6, false);
             drawScrollingString(new TextComponentString(EnumColor.DARK_BLUE + LangUtils.localize("gui.active")), 0, 92, TextAlignment.LEFT, titleTextColor(), 6, false);
             drawScrollingString(new TextComponentString(LangUtils.localize("gui.minInject") + ": " + tileEntity.getReactor().getMinInjectionRate(true)),
-                  indentation, 102, TextAlignment.LEFT, titleTextColor(), textArea, 6, false);
+                    indentation, 102, TextAlignment.LEFT, titleTextColor(), textArea, 6, false);
             drawScrollingString(new TextComponentString(LangUtils.localize("gui.ignition") + ": " +
-                  MekanismUtils.getTemperatureDisplay(tileEntity.getReactor().getIgnitionTemperature(true), TemperatureUnit.KELVIN)), indentation, 112,
-                  TextAlignment.LEFT, titleTextColor(), textArea, 6, false);
+                            MekanismUtils.getTemperatureDisplay(tileEntity.getReactor().getIgnitionTemperature(true), TemperatureUnit.KELVIN)), indentation, 112,
+                    TextAlignment.LEFT, titleTextColor(), textArea, 6, false);
             drawScrollingString(new TextComponentString(LangUtils.localize("gui.maxPlasma") + ": " +
-                  MekanismUtils.getTemperatureDisplay(tileEntity.getReactor().getMaxPlasmaTemperature(true), TemperatureUnit.KELVIN)), indentation, 122,
-                  TextAlignment.LEFT, titleTextColor(), textArea, 6, false);
+                            MekanismUtils.getTemperatureDisplay(tileEntity.getReactor().getMaxPlasmaTemperature(true), TemperatureUnit.KELVIN)), indentation, 122,
+                    TextAlignment.LEFT, titleTextColor(), textArea, 6, false);
             drawScrollingString(new TextComponentString(LangUtils.localize("gui.maxCasing") + ": " +
-                  MekanismUtils.getTemperatureDisplay(tileEntity.getReactor().getMaxCasingTemperature(true), TemperatureUnit.KELVIN)), indentation, 132,
-                  TextAlignment.LEFT, titleTextColor(), textArea, 6, false);
+                            MekanismUtils.getTemperatureDisplay(tileEntity.getReactor().getMaxCasingTemperature(true), TemperatureUnit.KELVIN)), indentation, 132,
+                    TextAlignment.LEFT, titleTextColor(), textArea, 6, false);
             drawScrollingString(new TextComponentString(LangUtils.localize("gui.passiveGeneration") + ": " +
-                  MekanismUtils.getEnergyDisplay(tileEntity.getReactor().getPassiveGeneration(true, false)) + "/t"), indentation, 142, TextAlignment.LEFT,
-                  titleTextColor(), textArea, 6, false);
+                            MekanismUtils.getEnergyDisplay(tileEntity.getReactor().getPassiveGeneration(true, false)) + "/t"), indentation, 142, TextAlignment.LEFT,
+                    titleTextColor(), textArea, 6, false);
             drawScrollingString(new TextComponentString(LangUtils.localize("gui.steamProduction") + ": " +
-                  NUMBER_FORMAT.format(tileEntity.getReactor().getSteamPerTick(false)) + "mB/t"), indentation, 152, TextAlignment.LEFT, titleTextColor(), textArea,
-                  6, false);
+                            NUMBER_FORMAT.format(tileEntity.getReactor().getSteamPerTick(false)) + "mB/t"), indentation, 152, TextAlignment.LEFT, titleTextColor(), textArea,
+                    6, false);
         }
         super.drawForegroundText(mouseX, mouseY);
     }

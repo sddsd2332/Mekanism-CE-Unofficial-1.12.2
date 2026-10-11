@@ -3,11 +3,11 @@ package mekanism.common.content.boiler;
 import mekanism.api.NBTConstants;
 import mekanism.api.gas.GasStack;
 import mekanism.api.heat.HeatAPI;
-import mekanism.common.multiblock.MultiblockCache;
 import mekanism.common.MekanismFluids;
+import mekanism.common.multiblock.MultiblockCache;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.FluidRegistry;
+import net.minecraftforge.fluids.FluidStack;
 
 public class BoilerCache extends MultiblockCache<SynchronizedBoilerData> {
 
@@ -79,10 +79,10 @@ public class BoilerCache extends MultiblockCache<SynchronizedBoilerData> {
         if (nbtTags.hasKey("cachedSteam")) {
             steam = FluidStack.loadFluidStackFromNBT(nbtTags.getCompoundTag("cachedSteam"));
         }
-        if (nbtTags.hasKey("cachedInputGas")){
+        if (nbtTags.hasKey("cachedInputGas")) {
             input = GasStack.readFromNBT(nbtTags.getCompoundTag("cachedInputGas"));
         }
-        if (nbtTags.hasKey("cachedOutputGas")){
+        if (nbtTags.hasKey("cachedOutputGas")) {
             output = GasStack.readFromNBT(nbtTags.getCompoundTag("cachedOutputGas"));
         }
         if (nbtTags.hasKey(NBTConstants.HEAT_STORED) && nbtTags.hasKey(NBTConstants.HEAT_CAPACITY)) {
@@ -103,11 +103,11 @@ public class BoilerCache extends MultiblockCache<SynchronizedBoilerData> {
         if (steam != null) {
             nbtTags.setTag("cachedSteam", steam.writeToNBT(new NBTTagCompound()));
         }
-        if (input != null){
-            nbtTags.setTag("cachedInputGas",input.write(new NBTTagCompound()));
+        if (input != null) {
+            nbtTags.setTag("cachedInputGas", input.write(new NBTTagCompound()));
         }
-        if (output != null){
-            nbtTags.setTag("cachedOutputGas",output.write(new NBTTagCompound()));
+        if (output != null) {
+            nbtTags.setTag("cachedOutputGas", output.write(new NBTTagCompound()));
         }
         if (storedHeat >= 0 && HeatAPI.isFinite(storedHeat) && heatCapacity >= 1 && HeatAPI.isFinite(heatCapacity)) {
             nbtTags.setDouble(NBTConstants.HEAT_STORED, storedHeat);

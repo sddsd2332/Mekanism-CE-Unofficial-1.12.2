@@ -22,7 +22,7 @@ public class EnumOption<T extends Enum<T>> extends Option<EnumOption<T>> {
     private final T[] enumValues;
 
     @SuppressWarnings("unchecked")
-    public EnumOption(BaseConfig owner,String key, T defaultValue, @Nullable String comment) {
+    public EnumOption(BaseConfig owner, String key, T defaultValue, @Nullable String comment) {
         super(owner, key, comment);
         this.defaultValue = Objects.requireNonNull(defaultValue);
         this.value = defaultValue;
@@ -58,7 +58,7 @@ public class EnumOption<T extends Enum<T>> extends Option<EnumOption<T>> {
 
     @Override
     public void load(Configuration config) {
-        if (category.isEmpty()){
+        if (category.isEmpty()) {
             return;
         }
         final Property prop = config.get(this.category, this.key, this.defaultValue.name(), this.comment);
@@ -68,7 +68,7 @@ public class EnumOption<T extends Enum<T>> extends Option<EnumOption<T>> {
             this.value = Enum.valueOf(this.enumClass, prop.getString());
         } catch (IllegalArgumentException e) {
             Mekanism.logger.warn("Invalid value '{}' for config option '{}'; using default '{}'.", prop.getString(), this.key,
-                  this.defaultValue.name());
+                    this.defaultValue.name());
             this.value = this.defaultValue;
             prop.set(this.defaultValue.name());
         }

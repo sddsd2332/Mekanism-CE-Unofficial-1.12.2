@@ -26,7 +26,7 @@ import java.util.UUID;
  * 实现负责保持状态与持久化表示的一致。</p>
  */
 public final class PacketQIOMaintenanceRuleMutationResult implements
-      IMessageHandler<PacketQIOMaintenanceRuleMutationResult.Message, IMessage> {
+        IMessageHandler<PacketQIOMaintenanceRuleMutationResult.Message, IMessage> {
 
     @Override
     public IMessage onMessage(Message message, MessageContext context) {
@@ -36,17 +36,17 @@ public final class PacketQIOMaintenanceRuleMutationResult implements
         }
         PacketHandler.handlePacket(() -> {
             if (!message.valid ||
-                !(player.openContainer instanceof QIOMaintenanceRulePageContainer container) ||
-                player.openContainer.windowId != message.windowId) {
+                    !(player.openContainer instanceof QIOMaintenanceRulePageContainer container) ||
+                    player.openContainer.windowId != message.windowId) {
                 return;
             }
             QIOProcessingTerminalContainerState state = container.getTerminalState();
             if (state.matches(message.sessionNonce, message.terminalUUID,
-                  message.targetRevision, message.frequencyUUID,
-                  message.accessRevision)) {
+                    message.targetRevision, message.frequencyUUID,
+                    message.accessRevision)) {
                 container.getMaintenanceRuleClientCache().applyMutation(
-                      message.sessionNonce, message.requestId, message.status,
-                      message.rulesRevision, message.authoritativeRule);
+                        message.sessionNonce, message.requestId, message.status,
+                        message.rulesRevision, message.authoritativeRule);
             }
         }, player);
         return null;
@@ -71,7 +71,7 @@ public final class PacketQIOMaintenanceRuleMutationResult implements
         }
 
         private Message(int windowId, QIOProcessingTerminalSession session,
-              UUID requestId, MutationResult result) {
+                        UUID requestId, MutationResult result) {
             this.windowId = windowId;
             sessionNonce = session.getSessionNonce();
             terminalUUID = session.getTerminalUUID();
@@ -86,10 +86,10 @@ public final class PacketQIOMaintenanceRuleMutationResult implements
         }
 
         public static Message create(int windowId,
-              @Nonnull QIOProcessingTerminalSession session,
-              @Nonnull UUID requestId, @Nonnull MutationResult result) {
+                                     @Nonnull QIOProcessingTerminalSession session,
+                                     @Nonnull UUID requestId, @Nonnull MutationResult result) {
             return session.getFrequencyUUID() == null ? new Message() :
-                  new Message(windowId, session, requestId, result);
+                    new Message(windowId, session, requestId, result);
         }
 
         @Override
@@ -149,8 +149,8 @@ public final class PacketQIOMaintenanceRuleMutationResult implements
 
         private boolean structurallyValid() {
             return windowId >= 0 && sessionNonce != null && terminalUUID != null &&
-                  targetRevision >= 0 && frequencyUUID != null && accessRevision >= 0 &&
-                  requestId != null && status != null && rulesRevision >= 0;
+                    targetRevision >= 0 && frequencyUUID != null && accessRevision >= 0 &&
+                    requestId != null && status != null && rulesRevision >= 0;
         }
 
         private static void writeUUID(ByteBuf buffer, UUID uuid) {

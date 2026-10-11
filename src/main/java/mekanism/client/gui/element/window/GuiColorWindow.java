@@ -61,7 +61,7 @@ public class GuiColorWindow extends GuiWindow {
     }
 
     public GuiColorWindow(IGuiWrapper gui, int x, int y, GuiModuleScreen.SelectedColorConfig selection, @Nullable Runnable previewUpdater,
-          @Nullable GuiModuleTweaker.ArmorPreview armorPreview) {
+                          @Nullable GuiModuleTweaker.ArmorPreview armorPreview) {
         this(gui, x, y, new ColorSelection() {
             @Override
             public int getColor() {
@@ -112,9 +112,9 @@ public class GuiColorWindow extends GuiWindow {
     }
 
     private GuiColorWindow(IGuiWrapper gui, int x, int y, ColorSelection selection, @Nullable Runnable previewUpdater,
-          @Nullable GuiModuleTweaker.ArmorPreview armorPreview) {
+                           @Nullable GuiModuleTweaker.ArmorPreview armorPreview) {
         super(gui, x, y, getWindowWidth(selection.handlesAlpha(), armorPreview != null), getWindowHeight(selection.handlesAlpha()),
-              mekanism.common.inventory.container.SelectedWindowData.WindowType.COLOR);
+                mekanism.common.inventory.container.SelectedWindowData.WindowType.COLOR);
         interactionStrategy = InteractionStrategy.NONE;
         this.selection = selection;
         this.previewUpdater = previewUpdater;
@@ -143,13 +143,13 @@ public class GuiColorWindow extends GuiWindow {
 
         addChild(new GuiElementHolder(gui, relativeX + 29 + textOffset, relativeY + height - 21, 65 + extraWidth - textOffset, 14));
         textField = addChild(new GuiTextField(gui, 0, relativeX + 30 + textOffset, relativeY + height - 20, 63 + extraWidth - textOffset, 12)
-              .setBackgroundDrawing(false)
-              .setMaxLength(handlesAlpha ? 15 : 11)
-              .setTextColor(screenTextColor())
-              .setTextValidator(this::isTextAllowed)
-              .setPasteTransformer(text -> text.replace(" ", "")));
+                .setBackgroundDrawing(false)
+                .setMaxLength(handlesAlpha ? 15 : 11)
+                .setTextColor(screenTextColor())
+                .setTextValidator(this::isTextAllowed)
+                .setPasteTransformer(text -> text.replace(" ", "")));
         addChild(new MekanismButton(gui, relativeX + 98 + extraWidth, relativeY + height - 21, 54, 14, MekanismLang.BUTTON_CONFIRM.translate(),
-              this::confirmSelection, null));
+                this::confirmSelection, null));
 
         if (armorPreview != null) {
             addChild(new GuiInnerScreen(gui, relativeX + 155 + extraWidth, relativeY + 17, 80, height - 24));
@@ -297,7 +297,7 @@ public class GuiColorWindow extends GuiWindow {
         GlStateManager.enableBlend();
         GlStateManager.disableTexture2D();
         GlStateManager.tryBlendFuncSeparate(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA,
-              GlStateManager.SourceFactor.ONE, GlStateManager.DestFactor.ZERO);
+                GlStateManager.SourceFactor.ONE, GlStateManager.DestFactor.ZERO);
         buffer.begin(7, DefaultVertexFormats.POSITION_COLOR);
         buffer.pos(x, y + height, 0).color(bottomLeft.r(), bottomLeft.g(), bottomLeft.b(), bottomLeft.a()).endVertex();
         buffer.pos(x + width, y + height, 0).color(bottomRight.r(), bottomRight.g(), bottomRight.b(), bottomRight.a()).endVertex();

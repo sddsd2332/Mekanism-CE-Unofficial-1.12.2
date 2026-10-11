@@ -74,7 +74,7 @@ public abstract class RenderTransmitterBase<T extends TileEntityTransmitter> ext
         }
 
         for (EnumFacing side : EnumFacing.VALUES) {
-            cc.getQuads(null, side, 0).forEach(quad ->{
+            cc.getQuads(null, side, 0).forEach(quad -> {
                 quad = MekanismRenderer.iconTransform(quad, icon);
                 LightUtil.renderQuadColor(renderer, quad, color.argb());
             });

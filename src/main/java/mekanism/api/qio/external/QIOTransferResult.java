@@ -4,7 +4,9 @@ import javax.annotation.Nonnull;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Persistent idempotent QIO resource transfer receipt. */
+/**
+ * Persistent idempotent QIO resource transfer receipt.
+ */
 public final class QIOTransferResult {
 
     public enum Status {
@@ -23,7 +25,7 @@ public final class QIOTransferResult {
     private final long transferredAmount;
 
     public QIOTransferResult(@Nonnull UUID transferId, @Nonnull Status status, long requestedAmount,
-          long transferredAmount) {
+                             long transferredAmount) {
         this.transferId = Objects.requireNonNull(transferId, "Transfer id cannot be null");
         this.status = Objects.requireNonNull(status, "Transfer status cannot be null");
         if (requestedAmount <= 0 || transferredAmount < 0 || transferredAmount > requestedAmount) {

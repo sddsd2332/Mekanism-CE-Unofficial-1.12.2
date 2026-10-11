@@ -13,9 +13,9 @@ import mekanism.api.energy.IEnergyContainer;
 import mekanism.api.functions.ConstantPredicates;
 import mekanism.api.functions.FloatSupplier;
 import mekanism.api.gas.Gas;
+import mekanism.api.gas.GasStack;
 import mekanism.api.gas.IExtendedGasTank;
 import mekanism.api.gas.IMekanismGasHandler;
-import mekanism.api.gas.GasStack;
 import mekanism.api.gear.ICustomModule;
 import mekanism.api.gear.ICustomModule.ModuleDamageAbsorbInfo;
 import mekanism.api.gear.IModule;
@@ -563,8 +563,8 @@ public abstract class ItemMekaSuitArmor extends ItemArmor implements IModuleCont
 
     protected IExtendedGasTank createGasCapabilityTank(ItemStack stack, IContentsListener listener) {
         return new RateLimitGasHandler.RateLimitGasTank(() -> getGasCapabilityRate(stack), () -> getGasCapabilityCapacity(stack),
-              ConstantPredicates.notExternal(), (gasStack, automationType) -> isGasCapabilityEnabled(stack),
-              getGasCapabilityValidator(stack), listener);
+                ConstantPredicates.notExternal(), (gasStack, automationType) -> isGasCapabilityEnabled(stack),
+                getGasCapabilityValidator(stack), listener);
     }
 
     protected void collectGasCapabilityTanks(ItemStack stack, IContentsListener listener, List<IExtendedGasTank> tanks) {
@@ -624,7 +624,7 @@ public abstract class ItemMekaSuitArmor extends ItemArmor implements IModuleCont
             GasStack gas = overlayTank.tank.getGas();
             int stored = gas == null ? 0 : gas.amount;
             segments.add(ItemOverlayUtils.BarSegment.fromAmount(stored, overlayTank.tank.getCapacity(),
-                  getGasOverlayColor(stack, overlayTank.tank, overlayTank.tankIndex)));
+                    getGasOverlayColor(stack, overlayTank.tank, overlayTank.tankIndex)));
         }
         return ItemOverlayUtils.renderItemBarOverlayIntoGUI(xPosition, yPosition, segments);
     }
@@ -698,7 +698,7 @@ public abstract class ItemMekaSuitArmor extends ItemArmor implements IModuleCont
             @Override
             public <T> T getCapability(@Nonnull net.minecraftforge.common.capabilities.Capability<T> capability, EnumFacing facing) {
                 if (capability == Capabilities.GAS_HANDLER_CAPABILITY &&
-                    !ItemMekaSuitArmor.this.isGasCapabilityAvailable(itemStack)) {
+                        !ItemMekaSuitArmor.this.isGasCapabilityAvailable(itemStack)) {
                     return null;
                 }
                 return super.getCapability(capability, facing);

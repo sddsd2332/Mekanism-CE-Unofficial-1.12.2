@@ -19,12 +19,7 @@ import net.minecraft.world.World;
 import net.minecraft.world.WorldServer;
 import net.minecraftforge.fluids.IFluidBlock;
 
-import java.util.ArrayList;
-import java.util.BitSet;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
@@ -53,7 +48,9 @@ public class ThreadMinerSearch extends Thread {
         setDaemon(true);
     }
 
-    /** Captures all mutable miner settings before the main thread starts producing immutable block-state batches. */
+    /**
+     * Captures all mutable miner settings before the main thread starts producing immutable block-state batches.
+     */
     public boolean prepare() {
         if (state != State.IDLE || !(tileEntity.getWorld() instanceof WorldServer world)) {
             return false;
@@ -117,7 +114,7 @@ public class ThreadMinerSearch extends Thread {
             IBlockState blockState = config.world.getBlockState(testPos);
             Block block = blockState.getBlock();
             if (block == MekanismBlocks.BoundingBlock || block instanceof BlockLiquid || block instanceof IFluidBlock ||
-                  block.isAir(blockState, config.world, testPos)) {
+                    block.isAir(blockState, config.world, testPos)) {
                 continue;
             }
             stateIds[offset] = Block.getStateId(blockState);
@@ -347,7 +344,7 @@ public class ThreadMinerSearch extends Thread {
         private final boolean valid;
 
         private SearchConfig(WorldServer world, BlockPos minerPos, int dimension, int startX, int startY, int startZ, int diameter, int height,
-              int size, int radius, int minY, int maxY, boolean inverse, ItemStack inverseReplaceTarget, List<MinerFilter> filters, boolean valid) {
+                             int size, int radius, int minY, int maxY, boolean inverse, ItemStack inverseReplaceTarget, List<MinerFilter> filters, boolean valid) {
             this.world = world;
             this.minerPos = minerPos;
             this.dimension = dimension;
@@ -374,17 +371,17 @@ public class ThreadMinerSearch extends Thread {
             long startXLong = (long) tile.getPos().getX() - radius;
             long startZLong = (long) tile.getPos().getZ() - radius;
             boolean coordinatesValid = diameterLong > 0 && diameterLong <= Integer.MAX_VALUE && heightLong > 0 && heightLong <= Integer.MAX_VALUE &&
-                  startXLong >= Integer.MIN_VALUE && startXLong <= Integer.MAX_VALUE && startZLong >= Integer.MIN_VALUE && startZLong <= Integer.MAX_VALUE &&
-                  startXLong + diameterLong <= Integer.MAX_VALUE && startZLong + diameterLong <= Integer.MAX_VALUE &&
-                  (long) tile.minY + heightLong <= Integer.MAX_VALUE;
+                    startXLong >= Integer.MIN_VALUE && startXLong <= Integer.MAX_VALUE && startZLong >= Integer.MIN_VALUE && startZLong <= Integer.MAX_VALUE &&
+                    startXLong + diameterLong <= Integer.MAX_VALUE && startZLong + diameterLong <= Integer.MAX_VALUE &&
+                    (long) tile.minY + heightLong <= Integer.MAX_VALUE;
 
             List<MinerFilter> filters = new ArrayList<>();
             for (MinerFilter filter : tile.getFilterManager().getEnabledFilters()) {
                 filters.add(filter.clone());
             }
             return new SearchConfig(world, tile.getPos().toImmutable(), world.provider.getDimension(), (int) startXLong, tile.minY, (int) startZLong,
-                  coordinatesValid ? (int) diameterLong : 0, coordinatesValid ? (int) heightLong : 0, size, radius, tile.minY, tile.maxY, tile.inverse,
-                  tile.getInverseReplaceTarget().copy(), Collections.unmodifiableList(filters), size >= 0 && coordinatesValid);
+                    coordinatesValid ? (int) diameterLong : 0, coordinatesValid ? (int) heightLong : 0, size, radius, tile.minY, tile.maxY, tile.inverse,
+                    tile.getInverseReplaceTarget().copy(), Collections.unmodifiableList(filters), size >= 0 && coordinatesValid);
         }
 
         private boolean requiresScan() {
@@ -393,7 +390,7 @@ public class ThreadMinerSearch extends Thread {
 
         private boolean matches(TileEntityDigitalMiner tile) {
             if (radius != tile.getRadius() || minY != tile.minY || maxY != tile.maxY || inverse != tile.inverse ||
-                  !ItemStack.areItemStacksEqual(inverseReplaceTarget, tile.getInverseReplaceTarget())) {
+                    !ItemStack.areItemStacksEqual(inverseReplaceTarget, tile.getInverseReplaceTarget())) {
                 return false;
             }
             List<MinerFilter> currentFilters = tile.getFilterManager().getEnabledFilters();

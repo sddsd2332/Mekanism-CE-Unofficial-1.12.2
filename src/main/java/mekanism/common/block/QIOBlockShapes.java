@@ -18,71 +18,73 @@ import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.List;
 
-/** Shared six-direction placement and 26.2 model shapes for the thin QIO components. */
+/**
+ * Shared six-direction placement and 26.2 model shapes for the thin QIO components.
+ */
 public final class QIOBlockShapes {
 
     static final AxisAlignedBB[][] DASHBOARD = createShapes(false,
-          box(1, 15, 1, 15, 16, 15));
+            box(1, 15, 1, 15, 16, 15));
 
     static final AxisAlignedBB[][] IMPORTER = createShapes(true,
-          box(4, 0, 4, 12, 1, 12),
-          box(5, 4, 5, 11, 5, 6),
-          box(5, 4, 10, 11, 5, 11),
-          box(5, 4, 6, 6, 5, 10),
-          box(10, 4, 6, 11, 5, 10),
-          box(10, 2, 6, 11, 3, 10),
-          box(5, 2, 6, 6, 3, 10),
-          box(5, 2, 10, 11, 3, 11),
-          box(5, 2, 5, 11, 3, 6),
-          box(9, 1, 6, 10, 6, 7),
-          box(9, 1, 9, 10, 6, 10),
-          box(6, 1, 9, 7, 6, 10),
-          box(6, 1, 6, 7, 6, 7),
-          box(9, 8, 9, 10, 9, 10),
-          box(6, 9, 6, 7, 10, 7),
-          box(7.5, 1, 7.5, 8.5, 6, 8.5),
-          box(5, 6, 5, 11, 7, 11),
-          box(9, 7, 9, 10, 8, 10),
-          box(6, 7, 6, 7, 9, 7));
+            box(4, 0, 4, 12, 1, 12),
+            box(5, 4, 5, 11, 5, 6),
+            box(5, 4, 10, 11, 5, 11),
+            box(5, 4, 6, 6, 5, 10),
+            box(10, 4, 6, 11, 5, 10),
+            box(10, 2, 6, 11, 3, 10),
+            box(5, 2, 6, 6, 3, 10),
+            box(5, 2, 10, 11, 3, 11),
+            box(5, 2, 5, 11, 3, 6),
+            box(9, 1, 6, 10, 6, 7),
+            box(9, 1, 9, 10, 6, 10),
+            box(6, 1, 9, 7, 6, 10),
+            box(6, 1, 6, 7, 6, 7),
+            box(9, 8, 9, 10, 9, 10),
+            box(6, 9, 6, 7, 10, 7),
+            box(7.5, 1, 7.5, 8.5, 6, 8.5),
+            box(5, 6, 5, 11, 7, 11),
+            box(9, 7, 9, 10, 8, 10),
+            box(6, 7, 6, 7, 9, 7));
 
     static final AxisAlignedBB[][] EXPORTER = createShapes(true,
-          box(4, 0, 4, 12, 1, 12),
-          box(5, 4, 5, 11, 5, 6),
-          box(5, 4, 10, 11, 5, 11),
-          box(5, 4, 6, 6, 5, 10),
-          box(10, 4, 6, 11, 5, 10),
-          box(10, 2, 6, 11, 3, 10),
-          box(5, 2, 6, 6, 3, 10),
-          box(5, 2, 10, 11, 3, 11),
-          box(5, 2, 5, 11, 3, 6),
-          box(9, 1, 6, 10, 6, 7),
-          box(9, 1, 9, 10, 6, 10),
-          box(6, 1, 9, 7, 6, 10),
-          box(6, 1, 6, 7, 6, 7),
-          box(7, 7, 7, 9, 8, 9),
-          box(7, 8.01, 7, 9, 9.01, 9),
-          box(7.5, 1, 7.5, 8.5, 6, 8.5),
-          box(5, 6, 5, 11, 7, 11),
-          box(6, 8, 6, 10, 9, 10),
-          box(9, 9, 9, 10, 10, 10),
-          box(6, 9, 9, 7, 10, 10),
-          box(6, 9, 6, 7, 10, 7),
-          box(9, 9, 6, 10, 10, 7));
+            box(4, 0, 4, 12, 1, 12),
+            box(5, 4, 5, 11, 5, 6),
+            box(5, 4, 10, 11, 5, 11),
+            box(5, 4, 6, 6, 5, 10),
+            box(10, 4, 6, 11, 5, 10),
+            box(10, 2, 6, 11, 3, 10),
+            box(5, 2, 6, 6, 3, 10),
+            box(5, 2, 10, 11, 3, 11),
+            box(5, 2, 5, 11, 3, 6),
+            box(9, 1, 6, 10, 6, 7),
+            box(9, 1, 9, 10, 6, 10),
+            box(6, 1, 9, 7, 6, 10),
+            box(6, 1, 6, 7, 6, 7),
+            box(7, 7, 7, 9, 8, 9),
+            box(7, 8.01, 7, 9, 9.01, 9),
+            box(7.5, 1, 7.5, 8.5, 6, 8.5),
+            box(5, 6, 5, 11, 7, 11),
+            box(6, 8, 6, 10, 9, 10),
+            box(9, 9, 9, 10, 10, 10),
+            box(6, 9, 9, 7, 10, 10),
+            box(6, 9, 6, 7, 10, 7),
+            box(9, 9, 6, 10, 10, 7));
 
     static final AxisAlignedBB[][] REDSTONE_ADAPTER = createShapes(true,
-          box(4, 0, 4, 12, 1, 12),
-          box(5, 2, 5, 11, 3, 6),
-          box(5, 2, 10, 11, 3, 11),
-          box(5, 2, 6, 6, 3, 10),
-          box(10, 2, 6, 11, 3, 10),
-          box(9, 1, 6, 10, 4, 7),
-          box(9, 1, 9, 10, 4, 10),
-          box(6, 1, 9, 7, 4, 10),
-          box(6, 1, 6, 7, 4, 7),
-          box(7.5, 1, 7.5, 8.5, 4, 8.5),
-          box(5, 4, 5, 11, 5, 11),
-          box(6, 8, 6, 10, 9, 10),
-          box(7, 5, 7, 9, 11, 9));
+            box(4, 0, 4, 12, 1, 12),
+            box(5, 2, 5, 11, 3, 6),
+            box(5, 2, 10, 11, 3, 11),
+            box(5, 2, 6, 6, 3, 10),
+            box(10, 2, 6, 11, 3, 10),
+            box(9, 1, 6, 10, 4, 7),
+            box(9, 1, 9, 10, 4, 10),
+            box(6, 1, 9, 7, 4, 10),
+            box(6, 1, 6, 7, 4, 7),
+            box(7.5, 1, 7.5, 8.5, 4, 8.5),
+            box(5, 4, 5, 11, 5, 11),
+            box(6, 8, 6, 10, 9, 10),
+            box(7, 5, 7, 9, 11, 9));
 
     private QIOBlockShapes() {
     }
@@ -147,7 +149,7 @@ public final class QIOBlockShapes {
     }
 
     static void addCollisionBoxes(AxisAlignedBB[][] shapes, IBlockState state, World world, BlockPos pos, AxisAlignedBB entityBox,
-          List<AxisAlignedBB> collidingBoxes) {
+                                  List<AxisAlignedBB> collidingBoxes) {
         for (AxisAlignedBB box : getBoxes(shapes, state, world, pos)) {
             AxisAlignedBB offsetBox = box.offset(pos);
             if (entityBox.intersects(offsetBox)) {
@@ -164,18 +166,18 @@ public final class QIOBlockShapes {
 
     @Nonnull
     public static AxisAlignedBB getDashboardBounds(IBlockState state, IBlockAccess world,
-          BlockPos pos) {
+                                                   BlockPos pos) {
         return getBounds(DASHBOARD, state, world, pos);
     }
 
     public static void addDashboardCollisionBoxes(IBlockState state, World world,
-          BlockPos pos, AxisAlignedBB entityBox, List<AxisAlignedBB> collidingBoxes) {
+                                                  BlockPos pos, AxisAlignedBB entityBox, List<AxisAlignedBB> collidingBoxes) {
         addCollisionBoxes(DASHBOARD, state, world, pos, entityBox, collidingBoxes);
     }
 
     @Nullable
     public static RayTraceResult dashboardCollisionRayTrace(IBlockState state, World world,
-          BlockPos pos, Vec3d start, Vec3d end) {
+                                                            BlockPos pos, Vec3d start, Vec3d end) {
         return collisionRayTrace(DASHBOARD, state, world, pos, start, end);
     }
 

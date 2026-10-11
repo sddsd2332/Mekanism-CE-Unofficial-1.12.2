@@ -6,7 +6,9 @@ import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
 
-/** Narrow public facade for verified QIO Processing storage used by sibling packages. */
+/**
+ * Narrow public facade for verified QIO Processing storage used by sibling packages.
+ */
 public final class QIOProcessingStorageIO {
 
     private QIOProcessingStorageIO() {
@@ -26,7 +28,7 @@ public final class QIOProcessingStorageIO {
     }
 
     public static void replaceAtomicWithoutBackup(File target, NBTTagCompound data)
-          throws IOException {
+            throws IOException {
         QIOProcessingFileIO.replaceAtomicWithoutBackup(target, data);
     }
 

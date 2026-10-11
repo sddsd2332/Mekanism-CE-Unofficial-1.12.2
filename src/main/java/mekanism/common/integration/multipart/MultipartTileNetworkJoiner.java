@@ -58,7 +58,7 @@ public class MultipartTileNetworkJoiner implements ITileNetwork {
                 if (partTile.isPresent()) {
                     int tileIndex = tileList.indexOf(partTile.get().getTileEntity());
                     if (tileIndex >= 0) {
-                        byte slotValue = slot instanceof EnumFaceSlot enumFaceSlot? (byte) enumFaceSlot.ordinal() : 6;
+                        byte slotValue = slot instanceof EnumFaceSlot enumFaceSlot ? (byte) enumFaceSlot.ordinal() : 6;
                         tileSideMap.put(slotValue, tileList.get(tileIndex));
                     }
                 }

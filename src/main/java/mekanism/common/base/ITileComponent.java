@@ -7,8 +7,6 @@ import net.minecraft.nbt.NBTTagCompound;
 
 public interface ITileComponent {
 
-    void tick();
-
     void read(NBTTagCompound nbtTags);
 
     void read(ByteBuf dataStream);
@@ -17,7 +15,8 @@ public interface ITileComponent {
 
     void write(TileNetworkList data);
 
-    void invalidate();
+    default void invalidate() {
+    }
 
     default void trackForMainContainer(MekanismContainer container) {
     }

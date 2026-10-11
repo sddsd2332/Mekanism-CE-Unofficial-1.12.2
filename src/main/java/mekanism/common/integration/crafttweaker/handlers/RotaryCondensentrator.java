@@ -53,7 +53,7 @@ public class RotaryCondensentrator {
 
     @ZenMethod
     public static void removeRecipe(@Optional IIngredient fluidInput, @Optional IIngredient gasInput, @Optional IIngredient gasOutput,
-          @Optional IIngredient fluidOutput) {
+                                    @Optional IIngredient fluidOutput) {
         CrafttweakerIntegration.LATE_REMOVALS.add(new RemoveMekanismRecipe<>(NAME, Recipe.ROTARY_CONDENSENTRATOR,
                 new IngredientWrapper(gasOutput, fluidOutput), new IngredientWrapper(fluidInput, gasInput)));
     }

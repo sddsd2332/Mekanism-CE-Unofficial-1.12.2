@@ -7,15 +7,20 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.function.IntSupplier;
 
-/** Shared moving-position and render state for real slots displayed by a GUI window. */
+/**
+ * Shared moving-position and render state for real slots displayed by a GUI window.
+ */
 final class VirtualSlotData {
 
     private IntSupplier actualX;
     private IntSupplier actualY;
-    @Nullable private IGUIWindow linkedWindow;
-    @Nonnull private ItemStack stackToRender = ItemStack.EMPTY;
+    @Nullable
+    private IGUIWindow linkedWindow;
+    @Nonnull
+    private ItemStack stackToRender = ItemStack.EMPTY;
     private boolean shouldDrawOverlay;
-    @Nullable private String tooltipOverride;
+    @Nullable
+    private String tooltipOverride;
 
     VirtualSlotData(IntSupplier defaultX, IntSupplier defaultY) {
         actualX = defaultX;
@@ -36,14 +41,14 @@ final class VirtualSlotData {
     }
 
     void updatePosition(@Nullable IGUIWindow window, IntSupplier xPositionSupplier,
-          IntSupplier yPositionSupplier) {
+                        IntSupplier yPositionSupplier) {
         linkedWindow = window;
         actualX = xPositionSupplier;
         actualY = yPositionSupplier;
     }
 
     void updateRenderInfo(@Nonnull ItemStack stackToRender, boolean shouldDrawOverlay,
-          @Nullable String tooltipOverride) {
+                          @Nullable String tooltipOverride) {
         this.stackToRender = stackToRender;
         this.shouldDrawOverlay = shouldDrawOverlay;
         this.tooltipOverride = tooltipOverride;

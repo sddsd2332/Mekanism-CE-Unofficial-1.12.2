@@ -12,7 +12,10 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.UUID;
 
-/** Server-authoritative inventory and tracker container shared by all processor tiers. */
+/**
+ * Server-authoritative inventory and tracker container shared by all processor tiers.
+ */
+
 /**
  * QIO 处理模块中的 ContainerQIOCraftingProcessor 类型。
  *
@@ -22,7 +25,7 @@ import java.util.UUID;
 public final class ContainerQIOCraftingProcessor extends MekanismTileContainer<QIOCraftingProcessor> {
 
     public ContainerQIOCraftingProcessor(InventoryPlayer inventory,
-          QIOCraftingProcessor processor) {
+                                         QIOCraftingProcessor processor) {
         super(processor, inventory);
     }
 

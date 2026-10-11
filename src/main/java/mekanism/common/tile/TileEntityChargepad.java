@@ -67,7 +67,7 @@ public class TileEntityChargepad extends TileEntityEffectsBlock {
                         robit.insert(extracted, Action.EXECUTE, AutomationType.INTERNAL);
                     }
                 }
-            }else if (entity instanceof EntityPlayer player){
+            } else if (entity instanceof EntityPlayer player) {
                 double prevEnergy = getEnergy();
                 List<ItemStack> stacks = new ArrayList<>();
                 stacks.addAll(player.inventory.offHandInventory);

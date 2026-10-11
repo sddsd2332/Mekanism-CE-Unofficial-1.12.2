@@ -122,21 +122,36 @@ public class GeneratorsClientProxy extends GeneratorsCommonProxy {
         TileEntity tileEntity = world.getTileEntity(pos);
 
         return switch (ID) {
-            case 0 -> new mekanism.generators.client.gui.GuiHeatGenerator(player.inventory, (TileEntityHeatGenerator) tileEntity);
-            case 1 -> new mekanism.generators.client.gui.GuiSolarGenerator(player.inventory, (TileEntitySolarGenerator) tileEntity);
-            case 3 -> new mekanism.generators.client.gui.GuiGasGenerator(player.inventory, (TileEntityGasGenerator) tileEntity);
-            case 4 -> new mekanism.generators.client.gui.GuiBioGenerator(player.inventory, (TileEntityBioGenerator) tileEntity);
-            case 5 -> new mekanism.generators.client.gui.GuiWindGenerator(player.inventory, (TileEntityWindGenerator) tileEntity);
-            case 6 -> new mekanism.generators.client.gui.GuiIndustrialTurbine(player.inventory, (TileEntityTurbineCasing) tileEntity);
-            case 7 -> new mekanism.generators.client.gui.GuiTurbineStats(player.inventory, (TileEntityTurbineCasing) tileEntity);
-            case 10 -> new mekanism.generators.client.gui.GuiFusionReactorController(player.inventory, (TileEntityReactorController) tileEntity);
-            case 11 -> new mekanism.generators.client.gui.GuiFusionReactorHeat(player.inventory, (TileEntityReactorController) tileEntity);
-            case 12 -> new mekanism.generators.client.gui.GuiFusionReactorFuel(player.inventory, (TileEntityReactorController) tileEntity);
-            case 13 -> new mekanism.generators.client.gui.GuiFusionReactorStats(player.inventory, (TileEntityReactorController) tileEntity);
-            case 15 -> new mekanism.generators.client.gui.GuiFusionReactorLogicAdapter(player.inventory, (TileEntityReactorLogicAdapter) tileEntity);
-            case 16 -> new mekanism.generators.client.gui.GuiFissionReactor(player.inventory, (TileEntityFissionReactorCasing) tileEntity);
-            case 17 -> new mekanism.generators.client.gui.GuiFissionReactorStats(player.inventory, (TileEntityFissionReactorCasing) tileEntity);
-            case 18 -> new mekanism.generators.client.gui.GuiFissionReactorLogicAdapter(player.inventory, (TileEntityFissionReactorLogicAdapter) tileEntity);
+            case 0 ->
+                    new mekanism.generators.client.gui.GuiHeatGenerator(player.inventory, (TileEntityHeatGenerator) tileEntity);
+            case 1 ->
+                    new mekanism.generators.client.gui.GuiSolarGenerator(player.inventory, (TileEntitySolarGenerator) tileEntity);
+            case 3 ->
+                    new mekanism.generators.client.gui.GuiGasGenerator(player.inventory, (TileEntityGasGenerator) tileEntity);
+            case 4 ->
+                    new mekanism.generators.client.gui.GuiBioGenerator(player.inventory, (TileEntityBioGenerator) tileEntity);
+            case 5 ->
+                    new mekanism.generators.client.gui.GuiWindGenerator(player.inventory, (TileEntityWindGenerator) tileEntity);
+            case 6 ->
+                    new mekanism.generators.client.gui.GuiIndustrialTurbine(player.inventory, (TileEntityTurbineCasing) tileEntity);
+            case 7 ->
+                    new mekanism.generators.client.gui.GuiTurbineStats(player.inventory, (TileEntityTurbineCasing) tileEntity);
+            case 10 ->
+                    new mekanism.generators.client.gui.GuiFusionReactorController(player.inventory, (TileEntityReactorController) tileEntity);
+            case 11 ->
+                    new mekanism.generators.client.gui.GuiFusionReactorHeat(player.inventory, (TileEntityReactorController) tileEntity);
+            case 12 ->
+                    new mekanism.generators.client.gui.GuiFusionReactorFuel(player.inventory, (TileEntityReactorController) tileEntity);
+            case 13 ->
+                    new mekanism.generators.client.gui.GuiFusionReactorStats(player.inventory, (TileEntityReactorController) tileEntity);
+            case 15 ->
+                    new mekanism.generators.client.gui.GuiFusionReactorLogicAdapter(player.inventory, (TileEntityReactorLogicAdapter) tileEntity);
+            case 16 ->
+                    new mekanism.generators.client.gui.GuiFissionReactor(player.inventory, (TileEntityFissionReactorCasing) tileEntity);
+            case 17 ->
+                    new mekanism.generators.client.gui.GuiFissionReactorStats(player.inventory, (TileEntityFissionReactorCasing) tileEntity);
+            case 18 ->
+                    new mekanism.generators.client.gui.GuiFissionReactorLogicAdapter(player.inventory, (TileEntityFissionReactorLogicAdapter) tileEntity);
             default -> null;
         };
 

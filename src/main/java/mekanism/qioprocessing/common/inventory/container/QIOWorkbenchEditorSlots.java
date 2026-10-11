@@ -13,7 +13,10 @@ import net.minecraft.inventory.IInventory;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-/** Conditional real player slots shared by the workbench recipe editors. */
+/**
+ * Conditional real player slots shared by the workbench recipe editors.
+ */
+
 /**
  * QIO 处理模块中的 QIOWorkbenchEditorSlots 类型。
  *
@@ -33,20 +36,20 @@ public final class QIOWorkbenchEditorSlots {
     }
 
     public static MainInventorySlot main(MekanismContainer container, IInventory inventory,
-          int index, int x, int y) {
+                                         int index, int x, int y) {
         return new EditorMainInventorySlot(container, inventory, index, x, y);
     }
 
     public static HotBarSlot hotbar(MekanismContainer container, IInventory inventory,
-          int index, int x, int y, boolean locked) {
+                                    int index, int x, int y, boolean locked) {
         return new EditorHotBarSlot(container, inventory, index, x, y, locked);
     }
 
     @Nullable
     private static SelectedWindowData selected(MekanismContainer container,
-          @Nonnull EntityPlayer player) {
+                                               @Nonnull EntityPlayer player) {
         return container.isRemote() ? container.getSelectedWindow() :
-              container.getSelectedWindow(player.getUniqueID());
+                container.getSelectedWindow(player.getUniqueID());
     }
 
     private static final class EditorMainInventorySlot extends VirtualMainInventorySlot {
@@ -54,7 +57,7 @@ public final class QIOWorkbenchEditorSlots {
         private final MekanismContainer container;
 
         private EditorMainInventorySlot(MekanismContainer container, IInventory inventory,
-              int index, int x, int y) {
+                                        int index, int x, int y) {
             super(inventory, index, x, y);
             this.container = container;
         }
@@ -81,7 +84,7 @@ public final class QIOWorkbenchEditorSlots {
         private final boolean locked;
 
         private EditorHotBarSlot(MekanismContainer container, IInventory inventory,
-              int index, int x, int y, boolean locked) {
+                                 int index, int x, int y, boolean locked) {
             super(inventory, index, x, y);
             this.container = container;
             this.locked = locked;
@@ -95,7 +98,7 @@ public final class QIOWorkbenchEditorSlots {
         @Override
         public boolean canTakeStack(@Nonnull EntityPlayer player) {
             return !locked && exists(selected(container, player)) &&
-                  super.canTakeStack(player);
+                    super.canTakeStack(player);
         }
 
         @Override
