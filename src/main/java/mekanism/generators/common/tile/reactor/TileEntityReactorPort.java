@@ -40,7 +40,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 
-public class TileEntityReactorPort extends TileEntityReactorBlock implements IConfigurable {
+public class TileEntityReactorPort extends TileEntityReactorBlock implements mekanism.common.integration.ic2.IEnergyInIC2OutputWrapper, IConfigurable {
 
     public boolean fluidEject;
 

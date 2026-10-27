@@ -20,7 +20,7 @@ import net.minecraftforge.fml.common.FMLCommonHandler;
 
 import javax.annotation.Nonnull;
 
-public abstract class TileEntityGenerator extends TileEntityEffectsBlock implements IComputerIntegration, IRedstoneControl, ISecurityTile {
+public abstract class TileEntityGenerator extends TileEntityEffectsBlock implements mekanism.common.integration.ic2.IEnergyInIC2OutputWrapper, IComputerIntegration, IRedstoneControl, ISecurityTile {
 
     /**
      * Output per tick this generator can transfer.

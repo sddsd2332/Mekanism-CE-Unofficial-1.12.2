@@ -66,7 +66,7 @@ import javax.annotation.Nullable;
 import java.util.*;
 import java.util.function.Supplier;
 
-public class TileEntityQuantumEntangloporter extends TileEntityElectricBlock implements ISideConfiguration, ITankManager, IFrequencyHandler,
+public class TileEntityQuantumEntangloporter extends TileEntityElectricBlock implements mekanism.common.integration.ic2.IEnergyInIC2OutputWrapper, ISideConfiguration, ITankManager, IFrequencyHandler,
         ITileHeatHandler, IComputerIntegration, ISecurityTile, IChunkLoader, IUpgradeTile, ISpecialSelectionWireframeTile, IConfigCardAccess {
 
     private static final String[] methods = {"setFrequency", "createFrequency"};

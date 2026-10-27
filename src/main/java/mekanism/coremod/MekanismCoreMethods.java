@@ -42,12 +42,19 @@ public class MekanismCoreMethods {
     }
 
     public static void renderItemAndEffectIntoGUI(@Nonnull ItemStack stack, int xPosition, int yPosition) {
+        renderItemAndEffectIntoGUIHook(stack, xPosition, yPosition);
+    }
+
+    public static boolean renderItemAndEffectIntoGUIHook(@Nonnull ItemStack stack, int xPosition, int yPosition) {
         if (!stack.isEmpty()) {
-            if (stack.getItem() instanceof IRenderEffectIntoGUI effect) {
+            ItemGUIRenderEvent.Pre event = new ItemGUIRenderEvent.Pre(stack, xPosition, yPosition);
+            MinecraftForge.EVENT_BUS.post(event);
+            if (!event.isCanceled() && stack.getItem() instanceof IRenderEffectIntoGUI effect) {
                 effect.renderItemAndEffectIntoGUI(stack, xPosition, yPosition);
             }
-            MinecraftForge.EVENT_BUS.post(new ItemGUIRenderEvent.Pre(stack, xPosition, yPosition));
+            return event.isCanceled();
         }
+        return false;
     }
 
     public static boolean shouldCullTileEntityForOcclusion(TileEntity tileEntity) {

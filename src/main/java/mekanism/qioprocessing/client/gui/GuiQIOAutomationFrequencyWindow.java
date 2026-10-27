@@ -4,6 +4,7 @@ import mekanism.client.gui.GuiMekanism;
 import mekanism.client.gui.IGuiWrapper;
 import mekanism.client.gui.element.custom.GuiFrequencySelector.IGuiFrequencySelector;
 import mekanism.client.gui.element.window.GuiQIOFrequencySelectWindow;
+import mekanism.api.qio.external.QIOFrequencyReference;
 import mekanism.common.content.qio.QIOFrequency;
 import mekanism.common.frequency.Frequency.FrequencyIdentity;
 import mekanism.common.inventory.container.MekanismTileContainer;
@@ -161,6 +162,18 @@ public final class GuiQIOAutomationFrequencyWindow extends GuiQIOFrequencySelect
         @Override
         public boolean supportsFrequencyDeletion() {
             return false;
+        }
+
+        @Override
+        public boolean allowsSameFrequencyRebind(QIOFrequency selected) {
+            QIOFrequencyReference reference = state.getReference();
+            UUID bindingPlayer = container.getPlayerUUID();
+            return reference == null || bindingPlayer == null ||
+                    !bindingPlayer.equals(reference.getBindingPlayerUUID()) ||
+                    !selected.getFrequencyUUID().equals(reference.getFrequencyUUID()) ||
+                    !selected.getName().equals(reference.getFrequencyName()) ||
+                    !selected.getSecurity().equals(reference.getSecurityMode()) ||
+                    !Objects.equals(selected.getOwner(), reference.getOwnerUUID());
         }
 
         @Override

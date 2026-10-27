@@ -37,7 +37,7 @@ import net.minecraftforge.fml.common.Optional.Method;
 import javax.annotation.Nonnull;
 import java.util.Collections;
 
-public class TileEntityTurbineValve extends TileEntityTurbineCasing implements IEnergyWrapper, IComputerIntegration, IComparatorSupport {
+public class TileEntityTurbineValve extends TileEntityTurbineCasing implements mekanism.common.integration.ic2.IEnergyInIC2OutputWrapper, IComputerIntegration, IComparatorSupport {
 
     private static final String[] methods = new String[]{"isFormed", "getSteam", "getFlowRate", "getMaxFlow",
             "getSteamInput"};

@@ -593,12 +593,6 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
 
     @Override
     @Method(modid = MekanismHooks.IC2_MOD_ID)
-    public int getSourceTier() {
-        return 0;
-    }
-
-    @Override
-    @Method(modid = MekanismHooks.IC2_MOD_ID)
     public int addEnergy(int amount) {
         if (MekanismConfig.current().general.blacklistIC2.val()) {
             return 0;
@@ -620,12 +614,6 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
     public boolean acceptsEnergyFrom(IEnergyEmitter emitter, EnumFacing direction) {
         return !MekanismConfig.current().general.blacklistIC2.val() &&
                 canInsertExternalEnergy(direction);
-    }
-
-    @Override
-    @Method(modid = MekanismHooks.IC2_MOD_ID)
-    public boolean emitsEnergyTo(IEnergyAcceptor receiver, EnumFacing direction) {
-        return false;
     }
 
     @Override
@@ -663,12 +651,6 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
 
     @Override
     @Method(modid = MekanismHooks.IC2_MOD_ID)
-    public double getOfferedEnergy() {
-        return 0;
-    }
-
-    @Override
-    @Method(modid = MekanismHooks.IC2_MOD_ID)
     public double getOutputEnergyUnitsPerTick() {
         return 0;
     }
@@ -685,11 +667,6 @@ public abstract class QIOCraftingProcessor extends TileEntityQIOComponent implem
         }
         return amount - IC2Integration.toEU(acceptEnergy(pushDirection.getOpposite(),
                 IC2Integration.fromEU(amount), false));
-    }
-
-    @Override
-    @Method(modid = MekanismHooks.IC2_MOD_ID)
-    public void drawEnergy(double amount) {
     }
 
     @Override

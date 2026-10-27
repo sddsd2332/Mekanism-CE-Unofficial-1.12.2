@@ -63,6 +63,8 @@ public class MekanismCoreTransformer implements IClassTransformer {
     static final String tileEntityRenderMethodDesc = "(Lnet/minecraft/tileentity/TileEntity;FI)V";
     static final ObfSafeName tileEntityRenderMethodName = new ObfSafeName("render", "func_180546_a");
     static final String coreMethodsClass = "mekanism/coremod/MekanismCoreMethods";
+    static final String renderItemGuiHookMethod = "renderItemAndEffectIntoGUIHook";
+    static final String renderItemGuiHookDesc = "(Lnet/minecraft/item/ItemStack;II)Z";
     static final String occlusionHookMethod = "shouldCullTileEntityForOcclusion";
     static final String occlusionHookDesc = "(Lnet/minecraft/tileentity/TileEntity;)Z";
 
@@ -70,7 +72,7 @@ public class MekanismCoreTransformer implements IClassTransformer {
     public byte[] transform(String name, String transformedName, byte[] basicClass) {
 
 
-        // Item Overlay Rendering hook
+        // GUI item and overlay rendering hooks
         if (renderItemClass.equals(transformedName)) {
             return transform(basicClass, renderItemClass, renderItemDisplayName, new Transform() {
                 @Override
@@ -79,14 +81,30 @@ public class MekanismCoreTransformer implements IClassTransformer {
                     while (methods.hasNext()) {
                         MethodNode m = methods.next();
                         if (renderItemAndEffectIntoGUI.matches(m.name) && "(Lnet/minecraft/entity/EntityLivingBase;Lnet/minecraft/item/ItemStack;II)V".equals(m.desc)) {
-                            InsnList toAdd = new InsnList();
-                            toAdd.add(new VarInsnNode(ALOAD, 2));
-                            toAdd.add(new VarInsnNode(ILOAD, 3));
-                            toAdd.add(new VarInsnNode(ILOAD, 4));
-                            toAdd.add(new MethodInsnNode(INVOKESTATIC, "mekanism/coremod/MekanismCoreMethods", "renderItemAndEffectIntoGUI",
-                                    "(Lnet/minecraft/item/ItemStack;II)V", false));
-                            m.instructions.insert(toAdd);
-                            done++;
+                            if (containsRenderItemGuiHook(m)) {
+                                mainLogger.info("GUI item render hook already present in method: " + m.name + m.desc);
+                                done++;
+                            } else {
+                                AbstractInsnNode first = m.instructions.getFirst();
+                                if (first == null) {
+                                    mainLogger.warn("Cannot inject GUI item render hook into empty method {}{}.", m.name, m.desc);
+                                } else {
+                                    LabelNode continueLabel = new LabelNode(new Label());
+                                    InsnList toAdd = new InsnList();
+                                    toAdd.add(new VarInsnNode(ALOAD, 2));
+                                    toAdd.add(new VarInsnNode(ILOAD, 3));
+                                    toAdd.add(new VarInsnNode(ILOAD, 4));
+                                    toAdd.add(new MethodInsnNode(INVOKESTATIC, coreMethodsClass, renderItemGuiHookMethod,
+                                            renderItemGuiHookDesc, false));
+                                    toAdd.add(new JumpInsnNode(IFEQ, continueLabel));
+                                    toAdd.add(new InsnNode(RETURN));
+                                    toAdd.add(continueLabel);
+                                    toAdd.add(new FrameNode(F_SAME, 0, null, 0, null));
+                                    m.instructions.insertBefore(first, toAdd);
+                                    mainLogger.info("Injected cancellable GUI item render hook into " + m.name + m.desc);
+                                    done++;
+                                }
+                            }
                         }
                         if (renderItemOverlayIntoGUIMethod.matches(m.name)) {
 
@@ -137,7 +155,7 @@ public class MekanismCoreTransformer implements IClassTransformer {
                         }
                     }
                     if (done != 2) {
-                        mainLogger.info("Transforming failed.");
+                        mainLogger.warn("Incomplete RenderItem transformation: expected GUI item and overlay hooks, applied {} hooks.", done);
                     }
                 }
             });
@@ -198,6 +216,21 @@ public class MekanismCoreTransformer implements IClassTransformer {
             MethodInsnNode methodInsnNode = (MethodInsnNode) next;
             if (INVOKESTATIC == methodInsnNode.getOpcode() && coreMethodsClass.equals(methodInsnNode.owner)
                     && occlusionHookMethod.equals(methodInsnNode.name) && occlusionHookDesc.equals(methodInsnNode.desc)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean containsRenderItemGuiHook(MethodNode methodNode) {
+        for (int i = 0; i < methodNode.instructions.size(); i++) {
+            AbstractInsnNode next = methodNode.instructions.get(i);
+            if (!(next instanceof MethodInsnNode)) {
+                continue;
+            }
+            MethodInsnNode methodInsnNode = (MethodInsnNode) next;
+            if (INVOKESTATIC == methodInsnNode.getOpcode() && coreMethodsClass.equals(methodInsnNode.owner)
+                    && renderItemGuiHookMethod.equals(methodInsnNode.name) && renderItemGuiHookDesc.equals(methodInsnNode.desc)) {
                 return true;
             }
         }

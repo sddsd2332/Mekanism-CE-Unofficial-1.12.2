@@ -46,7 +46,7 @@ import java.util.Collections;
         @Interface(iface = "ic2.api.energy.tile.IEnergySource", modid = MekanismHooks.IC2_MOD_ID),
         @Interface(iface = "ic2.api.tile.IEnergyStorage", modid = MekanismHooks.IC2_MOD_ID)
 })
-public class TileEntityInductionPort extends TileEntityInductionCasing implements IEnergyWrapper, IConfigurable, IActiveState, IComparatorSupport, mekanism.common.base.IWholeEnergyTransfer {
+public class TileEntityInductionPort extends TileEntityInductionCasing implements mekanism.common.integration.ic2.IEnergyInIC2OutputWrapper, IConfigurable, IActiveState, IComparatorSupport, mekanism.common.base.IWholeEnergyTransfer {
 
     private boolean ic2Registered = false;
 

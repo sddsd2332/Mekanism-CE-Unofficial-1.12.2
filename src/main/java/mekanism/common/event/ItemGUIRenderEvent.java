@@ -1,6 +1,7 @@
 package mekanism.common.event;
 
 import net.minecraft.item.ItemStack;
+import net.minecraftforge.fml.common.eventhandler.Cancelable;
 import net.minecraftforge.fml.common.eventhandler.Event;
 
 import javax.annotation.Nonnull;
@@ -33,6 +34,7 @@ public class ItemGUIRenderEvent extends Event {
      * Fired before the item is rendered
      *
      */
+    @Cancelable
     public static class Pre extends ItemGUIRenderEvent {
 
         public Pre(@Nonnull ItemStack stack, int xPosition, int yPosition) {

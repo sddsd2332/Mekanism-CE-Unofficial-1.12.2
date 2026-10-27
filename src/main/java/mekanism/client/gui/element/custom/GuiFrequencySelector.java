@@ -195,7 +195,8 @@ public class GuiFrequencySelector<FREQ extends Frequency> extends GuiElement {
         privateButton.active = selectedMode != SecurityMode.PRIVATE;
         FREQ selected = getSelectedFrequency();
         FREQ current = frequencySelector.getFrequency();
-        setButton.active = selected != null && (current == null || !current.equals(selected));
+        setButton.active = selected != null && (current == null || !current.equals(selected) ||
+                frequencySelector.allowsSameFrequencyRebind(selected));
         deleteButton.active = frequencySelector.supportsFrequencyDeletion() ?
                 selected != null && minecraft.player != null && selected.ownerMatches(minecraft.player.getUniqueID()) :
                 current != null;
@@ -270,6 +271,14 @@ public class GuiFrequencySelector<FREQ extends Frequency> extends GuiElement {
 
         default boolean supportsFrequencyDeletion() {
             return true;
+        }
+
+        /**
+         * Allows a specialized selector to re-submit the same frequency when the
+         * frequency identity matches but its binding metadata does not.
+         */
+        default boolean allowsSameFrequencyRebind(FREQ selected) {
+            return false;
         }
 
         default net.minecraft.util.text.ITextComponent getSecondaryButtonText() {

@@ -333,14 +333,6 @@ public abstract class TileEntityElectricBlock extends TileEntityContainerBlock i
 
     @Override
     @Method(modid = MekanismHooks.IC2_MOD_ID)
-    public int getSourceTier() {
-        double maxOutput = getMaxOutput();
-        return MekanismConfig.current().general.blacklistIC2.val() || !(maxOutput > 0) ? 0 :
-                IC2Integration.getOutputTierForJoules(maxOutput);
-    }
-
-    @Override
-    @Method(modid = MekanismHooks.IC2_MOD_ID)
     public int addEnergy(int amount) {
         if (!MekanismConfig.current().general.blacklistIC2.val()) {
             return tryCallContainerTransaction(() -> {
@@ -366,12 +358,6 @@ public abstract class TileEntityElectricBlock extends TileEntityContainerBlock i
     @Method(modid = MekanismHooks.IC2_MOD_ID)
     public boolean acceptsEnergyFrom(IEnergyEmitter emitter, EnumFacing direction) {
         return !MekanismConfig.current().general.blacklistIC2.val() && canInsertExternalEnergy(direction);
-    }
-
-    @Override
-    @Method(modid = MekanismHooks.IC2_MOD_ID)
-    public boolean emitsEnergyTo(IEnergyAcceptor receiver, EnumFacing direction) {
-        return !MekanismConfig.current().general.blacklistIC2.val() && canExtractExternalEnergy(direction) && receiver instanceof IEnergyConductor;
     }
 
     @Override
@@ -408,14 +394,6 @@ public abstract class TileEntityElectricBlock extends TileEntityContainerBlock i
     }
 
     @Override
-    @Method(modid = MekanismHooks.IC2_MOD_ID)
-    public double getOfferedEnergy() {
-        double maxOutput = getMaxOutput();
-        return MekanismConfig.current().general.blacklistIC2.val() || !(maxOutput > 0) ? 0 :
-                IC2Integration.toEU(Math.min(getEnergy(), maxOutput));
-    }
-
-    @Override
     public boolean canReceiveEnergy(EnumFacing side) {
         return canInsertExternalEnergy(side);
     }
@@ -437,12 +415,6 @@ public abstract class TileEntityElectricBlock extends TileEntityContainerBlock i
             return amount;
         }
         return amount - IC2Integration.toEU(acceptEnergy(pushDirection.getOpposite(), IC2Integration.fromEU(amount), false));
-    }
-
-    @Override
-    @Method(modid = MekanismHooks.IC2_MOD_ID)
-    public void drawEnergy(double amount) {
-        runContainerTransaction(() -> setEnergy(Math.max(getEnergy() - IC2Integration.fromEU(amount), 0)));
     }
 
     @Override
@@ -539,7 +511,7 @@ public abstract class TileEntityElectricBlock extends TileEntityContainerBlock i
         return canHandleEnergy() ? canInsertEnergy(side) : sideIsConsumer(side);
     }
 
-    protected boolean canExtractExternalEnergy(EnumFacing side) {
+    public boolean canExtractExternalEnergy(EnumFacing side) {
         return canHandleEnergy() ? canExtractEnergy(side) : sideIsOutput(side);
     }
 

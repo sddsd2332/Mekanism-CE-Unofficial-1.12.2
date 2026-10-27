@@ -43,7 +43,7 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-public class TileEntityEnergyCube extends TileEntityElectricBlock implements IComputerIntegration, IRedstoneControl, ISideConfiguration, ISecurityTile, IUpgradeableTile,
+public class TileEntityEnergyCube extends TileEntityElectricBlock implements mekanism.common.integration.ic2.IEnergyInIC2OutputWrapper, IComputerIntegration, IRedstoneControl, ISideConfiguration, ISecurityTile, IUpgradeableTile,
         IBaseTierProvider,
         IConfigCardAccess, IComparatorSupport, ISpecialSelectionWireframeTile {
 

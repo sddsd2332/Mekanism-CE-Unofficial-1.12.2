@@ -45,7 +45,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class TileEntityHybridStorage extends TileEntityElectricBlock implements ISideConfiguration, IComputerIntegration,
+public class TileEntityHybridStorage extends TileEntityElectricBlock implements mekanism.common.integration.ic2.IEnergyInIC2OutputWrapper, ISideConfiguration, IComputerIntegration,
         ISecurityTile, IConfigCardAccess, ISustainedData, ITankManager, IRedstoneControl, IFluidContainerManager {
 
     public TileComponentEjector ejectorComponent;
